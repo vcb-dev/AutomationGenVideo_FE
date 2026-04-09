@@ -564,6 +564,24 @@ const UserActivityPageContent = () => {
         });
     }, [reports, matchTeam, deferredSearchName, checklistRoleFilter]);
 
+    const totalChecklistPages = React.useMemo(
+        () => Math.max(1, Math.ceil(checklistFilteredReports.length / CHECKLIST_PAGE_SIZE)),
+        [checklistFilteredReports.length],
+    );
+
+    React.useEffect(() => {
+        setChecklistPage((prev) => Math.min(prev, totalChecklistPages));
+    }, [totalChecklistPages, setChecklistPage]);
+
+    const pagedChecklistReports = React.useMemo(
+        () =>
+            checklistFilteredReports.slice(
+                (checklistPage - 1) * CHECKLIST_PAGE_SIZE,
+                checklistPage * CHECKLIST_PAGE_SIZE,
+            ),
+        [checklistFilteredReports, checklistPage],
+    );
+
     return (
         <div id="report-view-container" className="min-h-screen bg-slate-50/20 space-y-3 selection:bg-blue-500/30">
             {activeTab !== "daily_report" && (
@@ -1123,7 +1141,7 @@ const UserActivityPageContent = () => {
                             )}
                         </div>
                     ) : activeTab === "daily_checklist" ? (
-                        <div 
+                        <div
                             className={`space-y-8 animate-in fade-in duration-700 mx-auto transition-all duration-500 ${isCapturing ? "max-w-[1350px]" : "max-w-[1400px]"}`}
                             style={{ zoom: isCapturing ? 1.4 : 1 }}
                         >
@@ -1195,11 +1213,7 @@ const UserActivityPageContent = () => {
                                             </div>
                                         ))
                                     ) : checklistFilteredReports.length > 0 ? (
-                                        checklistFilteredReports
-                                            .slice(
-                                                (checklistPage - 1) * 4,
-                                                checklistPage * 4
-                                            )
+                                        pagedChecklistReports
                                             .map((report, idx) => (
                                                 <div
                                                     key={report.id || idx}
@@ -1222,7 +1236,7 @@ const UserActivityPageContent = () => {
                                 </div>
 
                                 {/* Pagination */}
-                                {!loading && checklistFilteredReports.length > 6 && (
+                                {!loading && totalChecklistPages > 1 && (
                                     <div className="flex items-center justify-center gap-4 mt-12 pb-8">
                                         <button
                                             onClick={() => setChecklistPage((p) => Math.max(1, p - 1))}
@@ -1234,7 +1248,7 @@ const UserActivityPageContent = () => {
 
                                         <div className="flex items-center gap-2 bg-white p-2 rounded-[1.5rem] border-2 border-slate-50 shadow-sm">
                                             {(() => {
-                                                const totalPages = Math.ceil(checklistFilteredReports.length / 6);
+                                                const totalPages = totalChecklistPages;
                                                 const pages = [];
                                                 for (let i = 1; i <= totalPages; i++) {
                                                     if (
@@ -1265,9 +1279,9 @@ const UserActivityPageContent = () => {
                                         </div>
 
                                         <button
-                                            onClick={() => setChecklistPage((p) => Math.min(Math.ceil(checklistFilteredReports.length / 4), p + 1))}
-                                            disabled={checklistPage === Math.ceil(checklistFilteredReports.length / 4)}
-                                            className={`w-12 h-12 flex items-center justify-center rounded-2xl border-2 transition-all duration-300 ${checklistPage === Math.ceil(checklistFilteredReports.length / 4) ? "opacity-30 cursor-not-allowed border-slate-100 text-slate-300" : "bg-white text-blue-600 border-slate-100 hover:border-blue-500 hover:shadow-lg hover:shadow-blue-200 hover:translate-x-1"}`}
+                                            onClick={() => setChecklistPage((p) => Math.min(totalChecklistPages, p + 1))}
+                                            disabled={checklistPage === totalChecklistPages}
+                                            className={`w-12 h-12 flex items-center justify-center rounded-2xl border-2 transition-all duration-300 ${checklistPage === totalChecklistPages ? "opacity-30 cursor-not-allowed border-slate-100 text-slate-300" : "bg-white text-blue-600 border-slate-100 hover:border-blue-500 hover:shadow-lg hover:shadow-blue-200 hover:translate-x-1"}`}
                                         >
                                             <ChevronRight className="w-6 h-6" />
                                         </button>
