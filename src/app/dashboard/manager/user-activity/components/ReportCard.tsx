@@ -115,11 +115,17 @@ const ReportCard = ({ report, isSmall = false }: { report: EmployeeReport; isSma
     const isTrafficNotReported = statusRaw.includes("CHƯA BÁO CÁO TRAFFIC");
     const isOnTime = isCompleted && !isLate;
     const needsTraffic = report.needsTraffic !== false;
-    const trafficSatisfied = !needsTraffic || !isTrafficNotReported;
+    const hasTrafficData =
+        Number(report.trafficToday?.total || 0) > 0 ||
+        Number(report.trafficToday?.fb || 0) > 0 ||
+        Number(report.trafficToday?.ig || 0) > 0 ||
+        Number(report.trafficToday?.tiktok || 0) > 0 ||
+        Number(report.trafficToday?.thread || 0) > 0;
+    const trafficSatisfied = !needsTraffic || hasTrafficData || !isTrafficNotReported;
     const bothComplete = trafficSatisfied && !isUnreported;
     /** Chỉ khi thật sự phải báo traffic mới dùng UI thu gọn Q&A; không có kênh → chỉ cần member, luôn mở câu hỏi */
     const useCollapsibleMemberSection = needsTraffic && bothComplete;
-    const showTrafficBlock = needsTraffic && !isTrafficNotReported;
+    const showTrafficBlock = hasTrafficData || (needsTraffic && !isTrafficNotReported);
     const memberBlockVisible = Boolean(!isUnreported && report.questions?.length);
     const [showQuestions, setShowQuestions] = React.useState(() => !useCollapsibleMemberSection);
 
