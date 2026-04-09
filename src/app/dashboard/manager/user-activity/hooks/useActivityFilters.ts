@@ -35,7 +35,7 @@ interface UseActivityFiltersReturn {
  * filter state are available.
  */
 export function useActivityFilters(): UseActivityFiltersReturn {
-    const [activeTeam, setActiveTeam] = React.useState("All");
+    const [activeTeam, setActiveTeam] = React.useState("Team K8");
     const [selectedDate, setSelectedDate] = React.useState(new Date());
     const [searchName, setSearchName] = React.useState("");
     const [dailyFilter, setDailyFilter] = React.useState<"all" | "video_win" | "product_win" | "idea" | "difficulty">("all");

@@ -12,9 +12,9 @@ const DashboardAnalytics = dynamic(() => import("./components/DashboardAnalytics
 const RankingView = dynamic(() => import("./components/RankingView"), { ssr: false });
 const PersonalCharts = dynamic(() => import("./components/PersonalCharts"), { ssr: false });
 const ChecklistContainer = dynamic(() => import("@/components/checklist/ChecklistContainer"), { ssr: false });
-import { MOCK_CHECKLIST_REPORTS } from "@/app/dashboard/manager/user-activity/mockData";
 import {
     RefreshCw,
+    Users,
     User,
     FileText,
     ClipboardList,
@@ -200,6 +200,7 @@ const UserActivityPageContent = () => {
     const [allowedMenuIds, setAllowedMenuIds] = React.useState<string[]>([]);
     const [isPersonalDetailed, setIsPersonalDetailed] = React.useState(false);
     const [showTabMenu, setShowTabMenu] = React.useState(false);
+    const [isCapturing, setIsCapturing] = React.useState(false);
 
     const {
         activeTeam,
@@ -391,16 +392,18 @@ const UserActivityPageContent = () => {
         const scrollY = window.scrollY;
         let revertImgs: (() => void) | undefined;
 
+        setIsCapturing(true);
+
         try {
             const { toPng } = await import("html-to-image");
             window.scrollTo(0, 0);
-            await new Promise((r) => setTimeout(r, 600));
+            await new Promise((r) => setTimeout(r, 1000));
 
             const contentArea = container.querySelector(".relative.z-10.space-y-2") as HTMLElement;
             const captureTarget = contentArea || container;
 
             revertImgs = await embedCrossOriginImagesForCapture(captureTarget);
-            await new Promise((r) => setTimeout(r, 150));
+            await new Promise((r) => setTimeout(r, 500)); // Thêm chút thời gian sau khi zoom to ra
 
             const filter = (node: HTMLElement) => {
                 if (node.tagName === "LINK" && (node as HTMLLinkElement).rel === "prefetch") return false;
@@ -443,6 +446,7 @@ const UserActivityPageContent = () => {
             alert("Lỗi chụp màn hình. Hãy thử lại.");
         } finally {
             revertImgs?.();
+            setIsCapturing(false);
             window.scrollTo(0, scrollY);
         }
     };
@@ -541,9 +545,6 @@ const UserActivityPageContent = () => {
     }, [reportOutstandings, matchTeam, deferredSearchName, isAdminUser, userTeam]);
 
     const checklistFilteredReports = React.useMemo(() => {
-        // --- INJECT MOCK DATA ---
-        const mockReports = MOCK_CHECKLIST_REPORTS;
-
         // Bước 1: Lọc theo text search và dropdown team
         let roleFiltered = reports.filter((r) => {
             if (!matchTeam(r.team)) return false;
@@ -551,11 +552,8 @@ const UserActivityPageContent = () => {
             return true;
         });
 
-        // Kết hợp với mock data
-        const combined = [...mockReports, ...roleFiltered];
-
         // Bước 2: Áp filter Leader/Member button filter
-        return combined.filter((r) => {
+        return roleFiltered.filter((r) => {
             if (checklistRoleFilter === "all") return true;
             const pos = (r.position || "").toLowerCase();
             const isReportLeader = pos === "leader" || pos.includes("leader") || pos.includes("trưởng nhóm");
@@ -877,8 +875,8 @@ const UserActivityPageContent = () => {
                                                                 <td className="px-6 py-3 border-r border-slate-50 text-center">
                                                                     <span
                                                                         className={`px-3 py-2 rounded-xl text-[12px] font-black uppercase tracking-tight ${r.category?.toLowerCase().includes("win")
-                                                                                ? "bg-purple-100 text-purple-800 border-2 border-purple-200 shadow-sm shadow-purple-100"
-                                                                                : "bg-amber-100 text-amber-800 border-2 border-amber-200 shadow-sm shadow-amber-100"
+                                                                            ? "bg-purple-100 text-purple-800 border-2 border-purple-200 shadow-sm shadow-purple-100"
+                                                                            : "bg-amber-100 text-amber-800 border-2 border-amber-200 shadow-sm shadow-amber-100"
                                                                             }`}
                                                                     >
                                                                         {r.category || "-"}
@@ -1112,184 +1110,219 @@ const UserActivityPageContent = () => {
                                     </div>
                                 </div>
                             ) : (
-                                <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-slate-100 shadow-inner">
-                                    <div className="p-4 bg-slate-50 rounded-full mb-4">
-                                        <ClipboardList className="w-8 h-8 text-slate-300" />
+                                <div className="col-span-full py-32 bg-white rounded-[3rem] border-2 border-dashed border-slate-100 flex flex-col items-center justify-center gap-4">
+                                    <div className="w-20 h-20 rounded-full bg-slate-50 flex items-center justify-center">
+                                        <FileText className="w-10 h-10 text-slate-200" />
                                     </div>
-                                    <p className="text-slate-400 font-bold uppercase text-xs tracking-widest">
-                                        Không có vấn đề nổi bật nào trong ngày
+                                    <p className="text-slate-400 font-black uppercase text-xs tracking-[0.2em]">
+                                        Không tìm thấy báo cáo nào
                                     </p>
                                 </div>
                             )}
                         </div>
                     ) : activeTab === "daily_checklist" ? (
-                        <div className="space-y-4">
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between px-4">
-                                    <div className="flex items-center gap-3">
-                                        <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-1.5">
-                                            <FileText className="w-3.5 h-3.5 text-blue-600" /> Chi tiết báo cáo ngày
-                                        </h3>
-                                        {/* Badge phân quyền */}
-                                        {isAdminUser ? (
-                                            <span className="px-2.5 py-1 rounded-lg bg-violet-50 border border-violet-200 text-violet-700 text-[10px] font-black uppercase tracking-widest">
-                                                Toàn công ty
-                                            </span>
-                                        ) : isLeaderUser ? (
-                                            <span className="px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-black uppercase tracking-widest">
-                                                Team: {userTeam || "Của tôi"}
-                                            </span>
-                                        ) : (
-                                            <span className="px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-black uppercase tracking-widest">
-                                                Cá nhân
-                                            </span>
-                                        )}
+                        <div 
+                            className={`space-y-8 animate-in fade-in duration-700 mx-auto transition-all duration-500 ${isCapturing ? "max-w-[1350px]" : "max-w-[1400px]"}`}
+                            style={{ zoom: isCapturing ? 1.4 : 1 }}
+                        >
+                            {/* Summary Cards Section */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                                {[
+                                    {
+                                        label: "Tổng số",
+                                        value: checklistFilteredReports.length,
+                                        sub: "Thành viên",
+                                        color: "blue",
+                                        icon: Users,
+                                    },
+                                    {
+                                        label: "Đã nộp",
+                                        value: checklistFilteredReports.filter((r) => {
+                                            const s = (r.status || "").toString().toUpperCase();
+                                            return s === "ĐÚNG HẠN" || s === "TRỄ HẠN" || s === "SUBMITTED" || s === "ĐÃ BÁO CÁO ĐỦ";
+                                        }).length,
+                                        sub: "Đúng hạn",
+                                        color: "emerald",
+                                        icon: Check,
+                                    },
+                                    {
+                                        label: "Chưa nộp",
+                                        value: checklistFilteredReports.filter((r) => {
+                                            const s = (r.status || "").toString().toUpperCase();
+                                            return s === "CHƯA BÁO CÁO" || s === "CHƯA NỘP" || s === "PENDING" || s === "";
+                                        }).length,
+                                        sub: "Trong team",
+                                        color: "red",
+                                        icon: AlertCircle,
+                                    },
+                                ].map((stat, i) => (
+                                    <div
+                                        key={i}
+                                        className={`bg-white rounded-[2rem] p-6 border-2 border-${stat.color}-50 shadow-xl shadow-${stat.color}-500/5 flex items-center justify-between group transition-all duration-300 hover:-translate-y-1`}
+                                    >
+                                        <div className="space-y-1">
+                                            <p className={`text-[11px] font-black text-${stat.color}-700 uppercase tracking-[0.2em]`}>
+                                                {stat.label}:
+                                            </p>
+                                            <div className="flex items-baseline gap-2">
+                                                <span className="text-[32px] font-black text-slate-900 leading-none">
+                                                    {stat.value}
+                                                </span>
+                                                <span className="text-[14px] font-black text-slate-500">
+                                                    {stat.sub}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className={`w-14 h-14 rounded-2xl bg-${stat.color}-50 flex items-center justify-center transition-transform duration-500 group-hover:rotate-12`}>
+                                            <stat.icon className={`w-7 h-7 text-${stat.color}-500`} />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="space-y-6">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white/50 p-4 rounded-[2rem] border border-slate-100 backdrop-blur-sm">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-200">
+                                            <FileText className="w-6 h-6 text-white" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-[20px] font-black text-slate-900 uppercase tracking-tight whitespace-nowrap">
+                                                Báo cáo ngày
+                                            </h3>
+                                            <div className="flex items-center gap-2 mt-0.5">
+                                                <span className="text-[13px] font-bold text-blue-600">
+                                                    {selectedDate ? new Intl.DateTimeFormat('vi-VN').format(selectedDate) : "Hôm nay"}
+                                                </span>
+                                                <span className="w-1 h-1 rounded-full bg-slate-300" />
+                                                <span className="px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-widest border border-slate-200">
+                                                    {activeTeam || "Tất cả Team"}
+                                                </span>
+                                            </div>
+                                        </div>
                                     </div>
 
-                                    {/* Filter All/Leader/Member — chỉ hiện với admin/manager/leader */}
+                                    {/* Filter All/Leader/Member */}
                                     {(isAdminUser || isLeaderUser) && (
-                                        <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
-                                            <button
-                                                onClick={() => {
-                                                    setChecklistRoleFilter("all");
-                                                    setChecklistPage(1);
-                                                }}
-                                                className={`px-3 py-1.5 text-xs font-bold uppercase rounded-lg transition-all ${checklistRoleFilter === "all" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-                                            >
-                                                Tất cả
-                                            </button>
-                                            <button
-                                                onClick={() => {
-                                                    setChecklistRoleFilter("leader");
-                                                    setChecklistPage(1);
-                                                }}
-                                                className={`px-3 py-1.5 text-xs font-bold uppercase rounded-lg transition-all ${checklistRoleFilter === "leader" ? "bg-white text-orange-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-                                            >
-                                                Leader
-                                            </button>
-                                            <button
-                                                onClick={() => {
-                                                    setChecklistRoleFilter("member");
-                                                    setChecklistPage(1);
-                                                }}
-                                                className={`px-3 py-1.5 text-xs font-bold uppercase rounded-lg transition-all ${checklistRoleFilter === "member" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-                                            >
-                                                Member
-                                            </button>
+                                        <div className="flex items-center gap-1 bg-slate-100/50 p-1.5 rounded-2xl border border-slate-200/50">
+                                            {[
+                                                { id: "all", label: "Tất cả", color: "blue" },
+                                                { id: "leader", label: "Leader", color: "amber" },
+                                                { id: "member", label: "Member", color: "slate" },
+                                            ].map((f) => (
+                                                <button
+                                                    key={f.id}
+                                                    onClick={() => {
+                                                        setChecklistRoleFilter(f.id as "all" | "member" | "leader");
+                                                        setChecklistPage(1);
+                                                    }}
+                                                    className={`px-5 py-2 text-[11px] font-black uppercase tracking-wider rounded-xl transition-all duration-300 ${checklistRoleFilter === f.id ? `bg-white text-${f.color}-600 shadow-md ring-1 ring-slate-200` : "text-slate-400 hover:text-slate-600 hover:bg-slate-200/30"}`}
+                                                >
+                                                    {f.label}
+                                                </button>
+                                            ))}
                                         </div>
                                     )}
                                 </div>
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full mx-auto">
                                     {loading ? (
-                                        Array.from({ length: 4 }).map((_, i) => (
+                                        Array.from({ length: 6 }).map((_, i) => (
                                             <div
                                                 key={i}
-                                                className="bg-white rounded-3xl border border-slate-200 p-6 animate-pulse"
+                                                className="bg-white rounded-[2rem] border-2 border-slate-50 h-[400px] animate-pulse"
                                             >
-                                                <div className="flex items-center gap-4 mb-4">
-                                                    <div className="w-12 h-12 rounded-full bg-slate-200" />
-                                                    <div>
-                                                        <div className="h-4 w-28 bg-slate-200 rounded mb-2" />
-                                                        <div className="h-3 w-20 bg-slate-100 rounded" />
+                                                <div className="p-6 space-y-6">
+                                                    <div className="flex justify-between">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="w-16 h-16 rounded-2xl bg-slate-100" />
+                                                            <div className="space-y-2">
+                                                                <div className="h-4 w-24 bg-slate-100 rounded" />
+                                                                <div className="h-3 w-16 bg-slate-50 rounded" />
+                                                            </div>
+                                                        </div>
+                                                        <div className="h-8 w-20 bg-slate-100 rounded-full" />
                                                     </div>
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <div className="h-3 w-full bg-slate-100 rounded" />
-                                                    <div className="h-3 w-3/4 bg-slate-100 rounded" />
+                                                    <div className="h-full bg-slate-50 rounded-2xl" />
                                                 </div>
                                             </div>
                                         ))
                                     ) : checklistFilteredReports.length > 0 ? (
                                         checklistFilteredReports
                                             .slice(
-                                                (checklistPage - 1) * CHECKLIST_PAGE_SIZE,
-                                                checklistPage * CHECKLIST_PAGE_SIZE,
+                                                (checklistPage - 1) * 4,
+                                                checklistPage * 4
                                             )
                                             .map((report, idx) => (
                                                 <div
                                                     key={report.id || idx}
-                                                    className="animate-in fade-in slide-in-from-bottom-2 duration-300"
+                                                    className="animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both"
+                                                    style={{ animationDelay: `${idx * 100}ms` }}
                                                 >
                                                     <ReportCard report={report} />
                                                 </div>
                                             ))
                                     ) : (
-                                        <div className="col-span-full text-center py-10 bg-slate-50/50 rounded-3xl border border-dashed border-slate-200 text-xs font-black text-slate-400 italic">
-                                            KHÔNG TÌM THẤY BÁO CÁO CHI TIẾT
+                                        <div className="col-span-full py-32 bg-white rounded-[3rem] border-2 border-dashed border-slate-100 flex flex-col items-center justify-center gap-4">
+                                            <div className="w-20 h-20 rounded-full bg-slate-50 flex items-center justify-center">
+                                                <FileText className="w-10 h-10 text-slate-200" />
+                                            </div>
+                                            <p className="text-slate-400 font-black uppercase text-xs tracking-[0.2em]">
+                                                Không tìm thấy báo cáo nào
+                                            </p>
                                         </div>
                                     )}
                                 </div>
 
-                                {!loading && checklistFilteredReports.length > CHECKLIST_PAGE_SIZE && (
-                                    <div className="flex items-center justify-center gap-2 mt-8 pb-4">
+                                {/* Pagination */}
+                                {!loading && checklistFilteredReports.length > 6 && (
+                                    <div className="flex items-center justify-center gap-4 mt-12 pb-8">
                                         <button
                                             onClick={() => setChecklistPage((p) => Math.max(1, p - 1))}
                                             disabled={checklistPage === 1}
-                                            className={`p-2 rounded-xl border transition-all ${checklistPage === 1 ? "opacity-30 cursor-not-allowed bg-slate-50 text-slate-400 border-slate-100" : "bg-white text-blue-600 border-blue-100 hover:bg-blue-50/50 hover:border-blue-200"}`}
+                                            className={`w-12 h-12 flex items-center justify-center rounded-2xl border-2 transition-all duration-300 ${checklistPage === 1 ? "opacity-30 cursor-not-allowed border-slate-100 text-slate-300" : "bg-white text-blue-600 border-slate-100 hover:border-blue-500 hover:shadow-lg hover:shadow-blue-200 hover:-translate-x-1"}`}
                                         >
-                                            <ChevronLeft className="w-5 h-5" />
+                                            <ChevronLeft className="w-6 h-6" />
                                         </button>
 
-                                        <div className="flex items-center gap-1">
-                                            {Array.from({
-                                                length: Math.ceil(
-                                                    checklistFilteredReports.length / CHECKLIST_PAGE_SIZE,
-                                                ),
-                                            }).map((_, i) => {
-                                                const pageNum = i + 1;
-                                                const totalPages = Math.ceil(
-                                                    checklistFilteredReports.length / CHECKLIST_PAGE_SIZE,
-                                                );
-                                                const isCurrent = pageNum === checklistPage;
-                                                const isVisible =
-                                                    pageNum === 1 ||
-                                                    pageNum === totalPages ||
-                                                    (pageNum >= checklistPage - 1 && pageNum <= checklistPage + 1);
-                                                if (isVisible) {
+                                        <div className="flex items-center gap-2 bg-white p-2 rounded-[1.5rem] border-2 border-slate-50 shadow-sm">
+                                            {(() => {
+                                                const totalPages = Math.ceil(checklistFilteredReports.length / 6);
+                                                const pages = [];
+                                                for (let i = 1; i <= totalPages; i++) {
+                                                    if (
+                                                        i === 1 ||
+                                                        i === totalPages ||
+                                                        (i >= checklistPage - 1 && i <= checklistPage + 1)
+                                                    ) {
+                                                        pages.push(i);
+                                                    } else if (i === checklistPage - 2 || i === checklistPage + 2) {
+                                                        pages.push("...");
+                                                    }
+                                                }
+                                                // Unique only
+                                                return Array.from(new Set(pages)).map((p, idx) => {
+                                                    if (p === "...") return <span key={`dots-${idx}`} className="w-10 text-center text-slate-300 font-bold">...</span>;
+                                                    const isCurrent = p === checklistPage;
                                                     return (
                                                         <button
-                                                            key={pageNum}
-                                                            onClick={() => setChecklistPage(pageNum)}
-                                                            className={`min-w-[40px] h-10 rounded-xl font-black text-sm transition-all border ${isCurrent ? "bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-200" : "bg-white border-slate-100 text-slate-500 hover:bg-slate-50 hover:border-slate-200"}`}
+                                                            key={p}
+                                                            onClick={() => setChecklistPage(p as number)}
+                                                            className={`w-10 h-10 rounded-xl font-black text-[13px] transition-all duration-300 ${isCurrent ? "bg-blue-600 text-white shadow-lg shadow-blue-200 scale-110" : "text-slate-400 hover:bg-slate-50 hover:text-slate-900"}`}
                                                         >
-                                                            {pageNum}
+                                                            {p}
                                                         </button>
                                                     );
-                                                }
-                                                if (pageNum === 2 && checklistPage > 3)
-                                                    return (
-                                                        <span key="dots1" className="px-2 text-slate-400 font-bold">
-                                                            ...
-                                                        </span>
-                                                    );
-                                                if (pageNum === totalPages - 1 && checklistPage < totalPages - 2)
-                                                    return (
-                                                        <span key="dots2" className="px-2 text-slate-400 font-bold">
-                                                            ...
-                                                        </span>
-                                                    );
-                                                return null;
-                                            })}
+                                                });
+                                            })()}
                                         </div>
 
                                         <button
-                                            onClick={() =>
-                                                setChecklistPage((p) =>
-                                                    Math.min(
-                                                        Math.ceil(
-                                                            checklistFilteredReports.length / CHECKLIST_PAGE_SIZE,
-                                                        ),
-                                                        p + 1,
-                                                    ),
-                                                )
-                                            }
-                                            disabled={
-                                                checklistPage ===
-                                                Math.ceil(checklistFilteredReports.length / CHECKLIST_PAGE_SIZE)
-                                            }
-                                            className={`p-2 rounded-xl border transition-all ${checklistPage === Math.ceil(checklistFilteredReports.length / CHECKLIST_PAGE_SIZE) ? "opacity-30 cursor-not-allowed bg-slate-50 text-slate-400 border-slate-100" : "bg-white text-blue-600 border-blue-100 hover:bg-blue-50/50 hover:border-blue-200"}`}
+                                            onClick={() => setChecklistPage((p) => Math.min(Math.ceil(checklistFilteredReports.length / 4), p + 1))}
+                                            disabled={checklistPage === Math.ceil(checklistFilteredReports.length / 4)}
+                                            className={`w-12 h-12 flex items-center justify-center rounded-2xl border-2 transition-all duration-300 ${checklistPage === Math.ceil(checklistFilteredReports.length / 4) ? "opacity-30 cursor-not-allowed border-slate-100 text-slate-300" : "bg-white text-blue-600 border-slate-100 hover:border-blue-500 hover:shadow-lg hover:shadow-blue-200 hover:translate-x-1"}`}
                                         >
-                                            <ChevronRight className="w-5 h-5" />
+                                            <ChevronRight className="w-6 h-6" />
                                         </button>
                                     </div>
                                 )}
