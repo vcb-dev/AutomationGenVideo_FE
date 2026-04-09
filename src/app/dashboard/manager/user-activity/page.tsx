@@ -306,12 +306,13 @@ const UserActivityPageContent = () => {
     // Split combined teams like "Team K1, Đồ Da" into individual entries
     const [allKnownTeams, setAllKnownTeams] = React.useState<string[]>([]);
     React.useEffect(() => {
-        if (!teamContributions || teamContributions.length === 0) return;
+        const hasContrib = teamContributions && teamContributions.length > 0;
+        const hasReports = reports && reports.length > 0;
+        if (!hasContrib && !hasReports) return;
         setAllKnownTeams((prev) => {
             const next = new Set(prev);
             let changed = false;
-            teamContributions.forEach((item) => {
-                const t = item.team;
+            const addTeamString = (t: string | null | undefined) => {
                 if (!t || t === "Khác") return;
                 const parts = t.includes(",") ? t.split(",").map((p: string) => p.trim()).filter(Boolean) : [t];
                 for (const part of parts) {
@@ -320,10 +321,12 @@ const UserActivityPageContent = () => {
                         changed = true;
                     }
                 }
-            });
+            };
+            teamContributions?.forEach((item) => addTeamString(item.team));
+            reports?.forEach((r) => addTeamString(r.team));
             return changed ? Array.from(next) : prev;
         });
-    }, [teamContributions]);
+    }, [teamContributions, reports]);
 
     const { globalTeams, vnTeams } = React.useMemo(() => {
         const globals: string[] = [];

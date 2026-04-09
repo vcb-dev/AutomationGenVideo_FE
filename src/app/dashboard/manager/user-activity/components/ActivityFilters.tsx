@@ -86,7 +86,7 @@ const ActivityFilters = ({
 
     // Team filter: ALWAYS visible to everyone
     const canSeeTeamFilter = true;
-    
+
     // Team label: no longer needed since filter is always visible
     const showTeamLabel = false;
 
@@ -94,7 +94,16 @@ const ActivityFilters = ({
     const isAllVN = activeTeam === "All VN";
     const isGlobalActive = isAllGlobal || globalTeams.includes(activeTeam);
     const isVNActive = isAllVN || vnTeams.includes(activeTeam);
-    const isAllActive = activeTeam === "All" || (!isGlobalActive && !isVNActive && activeTeam !== "All");
+    // Khi globalTeams/vnTeams chưa hydrate (fetch đầu), mọi team cụ thể (vd. Team K8 mặc định) không được
+    // coi là "ALL" — tránh UI hiển thị ALL trong khi API vẫn lọc theo một team → trống + dropdown Global không có team.
+    const teamsDiscovered = globalTeams.length > 0 || vnTeams.length > 0;
+    const isAllActive =
+        activeTeam === "All" ||
+        (teamsDiscovered &&
+            !isGlobalActive &&
+            !isVNActive &&
+            activeTeam !== "All Global" &&
+            activeTeam !== "All VN");
 
     const timeOptions = [
         { id: "today", label: "Hôm nay" },
@@ -391,11 +400,10 @@ const ActivityFilters = ({
                     {/* ALL Button */}
                     <button
                         onClick={() => handleSelectTeam("All")}
-                        className={`px-6 py-2 rounded-xl text-[16px] font-black transition-all duration-300 border flex items-center gap-2 ${
-                            isAllActive
+                        className={`px-6 py-2 rounded-xl text-[16px] font-black transition-all duration-300 border flex items-center gap-2 ${isAllActive
                                 ? "bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-200"
                                 : "bg-blue-50 text-blue-600 border-blue-100 hover:border-blue-300 hover:bg-blue-100"
-                        }`}
+                            }`}
                     >
                         ALL
                     </button>
@@ -404,11 +412,10 @@ const ActivityFilters = ({
                     <div className="relative">
                         <button
                             onClick={() => toggleDropdown("global")}
-                            className={`px-6 py-2 rounded-xl text-[16px] font-black transition-all duration-300 border flex items-center gap-2 ${
-                                isGlobalActive
+                            className={`px-6 py-2 rounded-xl text-[16px] font-black transition-all duration-300 border flex items-center gap-2 ${isGlobalActive
                                     ? "bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-200"
                                     : "bg-blue-50 text-blue-600 border-blue-100 hover:border-blue-300 hover:bg-blue-100"
-                            }`}
+                                }`}
                         >
                             <Globe className={`w-5 h-5 ${isGlobalActive ? "text-blue-200" : "text-blue-600"}`} />
                             {getGlobalLabel()}
@@ -472,15 +479,15 @@ const ActivityFilters = ({
                                                 )}
                                                 {(team.toLowerCase().includes("jp") ||
                                                     team.toLowerCase().includes("nhật bản")) && (
-                                                    <Image
-                                                        src="/japan-flag.png"
-                                                        alt="JP"
-                                                        className="w-5 h-3.5 object-contain rounded-sm border border-gray-100 filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.4)]"
-                                                        width={20}
-                                                        height={14}
-                                                        unoptimized
-                                                    />
-                                                )}
+                                                        <Image
+                                                            src="/japan-flag.png"
+                                                            alt="JP"
+                                                            className="w-5 h-3.5 object-contain rounded-sm border border-gray-100 filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.4)]"
+                                                            width={20}
+                                                            height={14}
+                                                            unoptimized
+                                                        />
+                                                    )}
                                                 {team.toLowerCase().includes("đài loan") && (
                                                     <Image
                                                         src="/taiwan-flag.png"
@@ -505,11 +512,10 @@ const ActivityFilters = ({
                     <div className="relative">
                         <button
                             onClick={() => toggleDropdown("vietnam")}
-                            className={`px-6 py-2 rounded-xl text-[16px] font-black transition-all duration-300 border flex items-center gap-2 ${
-                                isVNActive
+                            className={`px-6 py-2 rounded-xl text-[16px] font-black transition-all duration-300 border flex items-center gap-2 ${isVNActive
                                     ? "bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-200"
                                     : "bg-blue-50 text-blue-600 border-blue-100 hover:border-blue-300 hover:bg-blue-100"
-                            }`}
+                                }`}
                         >
                             <Image src="/vn-flag.png" alt="VN" className="w-7 h-5 object-contain rounded-sm filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]" width={28} height={20} unoptimized />
                             {getVNLabel()}
@@ -582,11 +588,10 @@ const ActivityFilters = ({
                 <div className="relative group/time">
                     <button
                         onClick={() => toggleDropdown("timeSelector")}
-                        className={`flex items-center gap-4 px-6 py-3 rounded-xl border transition-all duration-300 shadow-sm hover:shadow-md group ${
-                            openDropdown === "timeSelector" || timeType !== "today"
+                        className={`flex items-center gap-4 px-6 py-3 rounded-xl border transition-all duration-300 shadow-sm hover:shadow-md group ${openDropdown === "timeSelector" || timeType !== "today"
                                 ? "bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-200"
                                 : "bg-blue-50/60 border-blue-100/50 text-blue-600/70 hover:border-blue-300"
-                        }`}
+                            }`}
                     >
                         <Calendar
                             className={`w-5 h-5 ${openDropdown === "timeSelector" || timeType !== "today" ? "text-blue-100" : "text-blue-500"}`}
@@ -598,10 +603,10 @@ const ActivityFilters = ({
                                 {timeType === "custom"
                                     ? "Khoảng thời gian"
                                     : filterMode === "month"
-                                      ? "Tháng"
-                                      : filterMode === "year"
-                                        ? "Năm"
-                                        : timeOptions.find((opt) => opt.id === timeType)?.label || "Thời gian"}
+                                        ? "Tháng"
+                                        : filterMode === "year"
+                                            ? "Năm"
+                                            : timeOptions.find((opt) => opt.id === timeType)?.label || "Thời gian"}
                             </span>
                             <span
                                 className={`text-[15px] font-black leading-none ${openDropdown === "timeSelector" || timeType !== "today" ? "text-white" : "text-slate-900"}`}
@@ -609,10 +614,10 @@ const ActivityFilters = ({
                                 {filterMode === "year"
                                     ? dateRange.start.getFullYear()
                                     : filterMode === "month"
-                                      ? `Tháng ${dateRange.start.getMonth() + 1}/${dateRange.start.getFullYear()}`
-                                      : timeType === "custom" || filterMode === "week" || filterMode === "range"
-                                        ? `${formatDate(dateRange.start)} - ${formatDate(dateRange.end)}`
-                                        : formatDate(selectedDate)}
+                                        ? `Tháng ${dateRange.start.getMonth() + 1}/${dateRange.start.getFullYear()}`
+                                        : timeType === "custom" || filterMode === "week" || filterMode === "range"
+                                            ? `${formatDate(dateRange.start)} - ${formatDate(dateRange.end)}`
+                                            : formatDate(selectedDate)}
                             </span>
                         </div>
                         <ChevronDown
@@ -658,11 +663,10 @@ const ActivityFilters = ({
                                                 <button
                                                     key={opt.id}
                                                     onClick={() => handleSelectTimeType(opt.id)}
-                                                    className={`w-full text-left px-3 py-2 rounded-xl text-[13px] font-semibold transition-all flex items-center gap-2 ${
-                                                        isActive
+                                                    className={`w-full text-left px-3 py-2 rounded-xl text-[13px] font-semibold transition-all flex items-center gap-2 ${isActive
                                                             ? "bg-blue-600 text-white shadow-sm"
                                                             : "text-gray-600 hover:bg-white hover:text-blue-700 hover:shadow-sm"
-                                                    }`}
+                                                        }`}
                                                 >
                                                     {isActive && <div className="w-1.5 h-1.5 rounded-full bg-blue-200 shrink-0" />}
                                                     {opt.label}
@@ -679,11 +683,10 @@ const ActivityFilters = ({
                                                 <button
                                                     key={mode}
                                                     onClick={() => setFilterMode(mode)}
-                                                    className={`flex-1 py-1.5 text-[11px] font-black uppercase tracking-wide rounded-lg transition-all ${
-                                                        filterMode === mode
+                                                    className={`flex-1 py-1.5 text-[11px] font-black uppercase tracking-wide rounded-lg transition-all ${filterMode === mode
                                                             ? "bg-white text-blue-600 shadow-sm"
                                                             : "text-gray-400 hover:text-gray-700"
-                                                    }`}
+                                                        }`}
                                                 >
                                                     {mode === "day" ? "Ngày" : mode === "week" ? "Tuần" : mode === "month" ? "Tháng" : mode === "year" ? "Năm" : "Khoảng"}
                                                 </button>
@@ -702,12 +705,12 @@ const ActivityFilters = ({
                                                         <ChevronDown className="w-4 h-4 rotate-90" />
                                                     </button>
                                                     <span className="text-sm font-black text-gray-800">{viewDate.getFullYear()}</span>
-                                                    <button 
-                                                        onClick={() => { 
-                                                            const d = new Date(viewDate); 
-                                                            d.setFullYear(d.getFullYear() + 1); 
-                                                            if (d.getFullYear() <= new Date().getFullYear()) setViewDate(d); 
-                                                        }} 
+                                                    <button
+                                                        onClick={() => {
+                                                            const d = new Date(viewDate);
+                                                            d.setFullYear(d.getFullYear() + 1);
+                                                            if (d.getFullYear() <= new Date().getFullYear()) setViewDate(d);
+                                                        }}
                                                         disabled={viewDate.getFullYear() >= new Date().getFullYear()}
                                                         className={`p-1.5 rounded-lg transition-colors ${viewDate.getFullYear() >= new Date().getFullYear() ? "text-gray-200 cursor-not-allowed" : "text-gray-400 hover:bg-gray-100 hover:text-gray-700"}`}
                                                     >
@@ -728,15 +731,14 @@ const ActivityFilters = ({
                                                                 key={i}
                                                                 onClick={() => handleMonthSelect(i)}
                                                                 disabled={isDisabled}
-                                                                className={`py-3 rounded-xl text-xs font-bold border transition-all ${
-                                                                    isActiveMon
+                                                                className={`py-3 rounded-xl text-xs font-bold border transition-all ${isActiveMon
                                                                         ? "bg-blue-600 border-blue-600 text-white shadow-md"
                                                                         : isCurrentMon
-                                                                          ? "border-blue-300 text-blue-600 bg-blue-50"
-                                                                          : isDisabled
-                                                                            ? "bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed opacity-50"
-                                                                            : "bg-white border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-700 hover:bg-blue-50"
-                                                                }`}
+                                                                            ? "border-blue-300 text-blue-600 bg-blue-50"
+                                                                            : isDisabled
+                                                                                ? "bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed opacity-50"
+                                                                                : "bg-white border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-700 hover:bg-blue-50"
+                                                                    }`}
                                                             >
                                                                 Th.{i + 1}
                                                             </button>
@@ -754,15 +756,14 @@ const ActivityFilters = ({
                                                             key={yr}
                                                             onClick={() => handleYearSelect(yr)}
                                                             disabled={yr > new Date().getFullYear()}
-                                                            className={`py-6 rounded-2xl text-xl font-black border transition-all ${
-                                                                isActiveYr
+                                                            className={`py-6 rounded-2xl text-xl font-black border transition-all ${isActiveYr
                                                                     ? "bg-blue-600 border-blue-600 text-white shadow-md"
                                                                     : isCurrentYr
-                                                                      ? "border-blue-300 text-blue-600 bg-blue-50"
-                                                                      : yr > new Date().getFullYear()
-                                                                        ? "bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed opacity-50"
-                                                                        : "bg-white border-gray-200 text-gray-700 hover:border-blue-300 hover:text-blue-700 hover:bg-blue-50"
-                                                            }`}
+                                                                        ? "border-blue-300 text-blue-600 bg-blue-50"
+                                                                        : yr > new Date().getFullYear()
+                                                                            ? "bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed opacity-50"
+                                                                            : "bg-white border-gray-200 text-gray-700 hover:border-blue-300 hover:text-blue-700 hover:bg-blue-50"
+                                                                }`}
                                                         >
                                                             {yr}
                                                         </button>
@@ -787,7 +788,7 @@ const ActivityFilters = ({
                                                     <span className="text-sm font-black text-gray-800 capitalize">
                                                         {viewDate.toLocaleString("vi-VN", { month: "long", year: "numeric" })}
                                                     </span>
-                                                    <button 
+                                                    <button
                                                         onClick={() => {
                                                             const today = new Date();
                                                             const nextMonth = new Date(viewDate);
@@ -795,7 +796,7 @@ const ActivityFilters = ({
                                                             if (nextMonth.getFullYear() < today.getFullYear() || (nextMonth.getFullYear() === today.getFullYear() && nextMonth.getMonth() <= today.getMonth())) {
                                                                 changeMonth(1);
                                                             }
-                                                        }} 
+                                                        }}
                                                         disabled={viewDate.getFullYear() > new Date().getFullYear() || (viewDate.getFullYear() === new Date().getFullYear() && viewDate.getMonth() >= new Date().getMonth())}
                                                         className={`p-1.5 rounded-lg transition-colors ${viewDate.getFullYear() > new Date().getFullYear() || (viewDate.getFullYear() === new Date().getFullYear() && viewDate.getMonth() >= new Date().getMonth()) ? "text-gray-200 cursor-not-allowed" : "text-gray-400 hover:bg-gray-100 hover:text-gray-700"}`}
                                                     >
@@ -819,16 +820,15 @@ const ActivityFilters = ({
                                                                     onClick={() => handleDateSelect(day)}
                                                                     disabled={isFuture(day) || isBeforeMin(day)}
                                                                     className={`w-full h-full flex items-center justify-center text-[12px] font-semibold rounded-lg transition-all
-                                                                        ${
-                                                                            isSelected(day) || (filterMode === "week" && isInRange(day))
-                                                                                ? "bg-blue-600 text-white shadow-sm font-bold"
-                                                                                : isInRange(day)
-                                                                                  ? "bg-blue-100 text-blue-700"
-                                                                                  : isToday(day)
+                                                                        ${isSelected(day) || (filterMode === "week" && isInRange(day))
+                                                                            ? "bg-blue-600 text-white shadow-sm font-bold"
+                                                                            : isInRange(day)
+                                                                                ? "bg-blue-100 text-blue-700"
+                                                                                : isToday(day)
                                                                                     ? "bg-blue-50 text-blue-600 ring-2 ring-blue-400 ring-offset-1 font-bold"
                                                                                     : (isFuture(day) || isBeforeMin(day))
-                                                                                      ? "text-gray-300 cursor-not-allowed opacity-50"
-                                                                                      : "hover:bg-gray-100 text-gray-700 hover:text-blue-700"
+                                                                                        ? "text-gray-300 cursor-not-allowed opacity-50"
+                                                                                        : "hover:bg-gray-100 text-gray-700 hover:text-blue-700"
                                                                         }`}
                                                                 >
                                                                     {day}
