@@ -108,8 +108,15 @@ const mapReportItem = (item: any) => {
             : 0,
         task_progress: item.task_progress || null,
         trafficToday: item.trafficToday || null,
-        /** false = không thuộc danh sách kênh traffic (vd. Leader) — ẩn block traffic trên card báo cáo ngày */
-        needsTraffic: item.needsTraffic !== false,
+        /**
+         * Có ít nhất 1 kênh tracked (owner) mới bắt buộc traffic. API mới gửi boolean; fallback channelCount khi có số.
+         */
+        needsTraffic:
+            typeof item.needsTraffic === "boolean"
+                ? item.needsTraffic
+                : item.channelCount != null && item.channelCount !== ""
+                  ? Number(item.channelCount) > 0
+                  : true,
         questions: [
             {
                 question: isLeaderReport

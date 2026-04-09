@@ -14,7 +14,6 @@ const PersonalCharts = dynamic(() => import("./components/PersonalCharts"), { ss
 const ChecklistContainer = dynamic(() => import("@/components/checklist/ChecklistContainer"), { ssr: false });
 import {
     RefreshCw,
-    Users,
     User,
     FileText,
     ClipboardList,
@@ -1128,61 +1127,6 @@ const UserActivityPageContent = () => {
                             className={`space-y-8 animate-in fade-in duration-700 mx-auto transition-all duration-500 ${isCapturing ? "max-w-[1350px]" : "max-w-[1400px]"}`}
                             style={{ zoom: isCapturing ? 1.4 : 1 }}
                         >
-                            {/* Summary Cards Section */}
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                                {[
-                                    {
-                                        label: "Tổng số",
-                                        value: checklistFilteredReports.length,
-                                        sub: "Thành viên",
-                                        color: "blue",
-                                        icon: Users,
-                                    },
-                                    {
-                                        label: "Đã nộp",
-                                        value: checklistFilteredReports.filter((r) => {
-                                            const s = (r.status || "").toString().toUpperCase();
-                                            return s === "ĐÚNG HẠN" || s === "TRỄ HẠN" || s === "SUBMITTED" || s === "ĐÃ BÁO CÁO ĐỦ";
-                                        }).length,
-                                        sub: "Đúng hạn",
-                                        color: "emerald",
-                                        icon: Check,
-                                    },
-                                    {
-                                        label: "Chưa nộp",
-                                        value: checklistFilteredReports.filter((r) => {
-                                            const s = (r.status || "").toString().toUpperCase();
-                                            return s === "CHƯA BÁO CÁO" || s === "CHƯA NỘP" || s === "PENDING" || s === "";
-                                        }).length,
-                                        sub: "Trong team",
-                                        color: "red",
-                                        icon: AlertCircle,
-                                    },
-                                ].map((stat, i) => (
-                                    <div
-                                        key={i}
-                                        className={`bg-white rounded-[2rem] p-6 border-2 border-${stat.color}-50 shadow-xl shadow-${stat.color}-500/5 flex items-center justify-between group transition-all duration-300 hover:-translate-y-1`}
-                                    >
-                                        <div className="space-y-1">
-                                            <p className={`text-[11px] font-black text-${stat.color}-700 uppercase tracking-[0.2em]`}>
-                                                {stat.label}:
-                                            </p>
-                                            <div className="flex items-baseline gap-2">
-                                                <span className="text-[32px] font-black text-slate-900 leading-none">
-                                                    {stat.value}
-                                                </span>
-                                                <span className="text-[14px] font-black text-slate-500">
-                                                    {stat.sub}
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div className={`w-14 h-14 rounded-2xl bg-${stat.color}-50 flex items-center justify-center transition-transform duration-500 group-hover:rotate-12`}>
-                                            <stat.icon className={`w-7 h-7 text-${stat.color}-500`} />
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-
                             <div className="space-y-6">
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white/50 p-4 rounded-[2rem] border border-slate-100 backdrop-blur-sm">
                                     <div className="flex items-center gap-4">

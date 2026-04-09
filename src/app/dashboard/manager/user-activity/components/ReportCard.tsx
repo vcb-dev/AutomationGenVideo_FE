@@ -117,14 +117,15 @@ const ReportCard = ({ report, isSmall = false }: { report: EmployeeReport; isSma
     const needsTraffic = report.needsTraffic !== false;
     const trafficSatisfied = !needsTraffic || !isTrafficNotReported;
     const bothComplete = trafficSatisfied && !isUnreported;
+    /** Chỉ khi thật sự phải báo traffic mới dùng UI thu gọn Q&A; không có kênh → chỉ cần member, luôn mở câu hỏi */
+    const useCollapsibleMemberSection = needsTraffic && bothComplete;
     const showTrafficBlock = needsTraffic && !isTrafficNotReported;
     const memberBlockVisible = Boolean(!isUnreported && report.questions?.length);
-    /** Khi đã hoàn tất traffic + member: mặc định thu gọn (false). Chưa xong traffic: luôn mở nội dung (state không ảnh hưởng hiển thị). */
-    const [showQuestions, setShowQuestions] = React.useState(() => !bothComplete);
+    const [showQuestions, setShowQuestions] = React.useState(() => !useCollapsibleMemberSection);
 
     React.useEffect(() => {
-        setShowQuestions(!bothComplete);
-    }, [report.id, bothComplete]);
+        setShowQuestions(!useCollapsibleMemberSection);
+    }, [report.id, useCollapsibleMemberSection]);
     
     // Determine the max traffic for scale
     const trafficData = report.trafficToday;
@@ -237,9 +238,9 @@ const ReportCard = ({ report, isSmall = false }: { report: EmployeeReport; isSma
                         </div>
                     )}
 
-                    {/* Chưa xong traffic (khi bắt buộc): luôn hiện Q&A. Đã xong hết: mặc định thu gọn, có nút mở/đóng */}
+                    {/* Có bắt buộc traffic và đã xong hết → thu gọn + nút. Còn lại (không kênh / chưa traffic) → luôn mở Q&A */}
                     {memberBlockVisible &&
-                        (!bothComplete ? (
+                        (!useCollapsibleMemberSection ? (
                             qaBlock
                         ) : (
                             <AnimatePresence initial={false}>
@@ -259,8 +260,7 @@ const ReportCard = ({ report, isSmall = false }: { report: EmployeeReport; isSma
                         ))}
                 </div>
 
-                {/* Footer: chỉ khi đã hoàn tất traffic (nếu bắt buộc) + báo cáo member */}
-                {bothComplete && memberBlockVisible && (
+                {useCollapsibleMemberSection && memberBlockVisible && (
                     <button 
                         onClick={() => setShowQuestions(!showQuestions)}
                         className={`mt-8 group/btn w-full py-4 rounded-2xl transition-all duration-300 flex items-center justify-center gap-2 border 
