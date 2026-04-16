@@ -24,6 +24,8 @@ import {
   FileText,
   ClipboardList,
   CheckSquare,
+  Bookmark,
+  Languages,
 } from 'lucide-react';
 import { UserRole } from '@/types/auth';
 import { useAuthStore } from '@/store/auth-store';
@@ -196,6 +198,13 @@ function SidebarContent({
             section: 'KHÁM PHÁ',
             items: [
               { label: 'Tìm kiếm Video (Hub)', href: '/dashboard/search-video', icon: Search },
+            ]
+          },
+          {
+            section: 'BỘ SƯU TẬP',
+            items: [
+              { label: 'Bộ sưu tập', href: '/dashboard/video-library', icon: Bookmark },
+              { label: 'Dịch Content', href: '/dashboard/content/generate?mode=translate-only', icon: Languages },
             ]
           }
         ]

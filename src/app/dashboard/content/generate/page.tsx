@@ -125,8 +125,14 @@ export default function GenerateContentPage() {
     } | null>(null);
 
     // ─── Init from URL params (and fallback từ localStorage nếu thiếu dữ liệu) ───
+    const isTranslateOnlyEntry = searchParams.get('mode') === 'translate-only';
+
     useEffect(() => {
         const id = searchParams.get('videoId');
+        const mode = searchParams.get('mode');
+        if (mode === 'translate-only') {
+            setGenerateMode('translate-only');
+        }
         setSourceVideoIdRaw(id || '');
         const title = searchParams.get('videoTitle');
         const desc = searchParams.get('videoDescription');
@@ -182,6 +188,13 @@ export default function GenerateContentPage() {
             sku_final: finalSku || ''
         });
     }, [searchParams]);
+
+    // Khi mở từ menu "Dịch content có sẵn", chỉ giữ mode translate-only
+    useEffect(() => {
+        if (isTranslateOnlyEntry) {
+            setGenerateMode('translate-only');
+        }
+    }, [isTranslateOnlyEntry]);
 
     // ─── Fetch voices when entering mix step ───
     useEffect(() => {
@@ -993,14 +1006,16 @@ export default function GenerateContentPage() {
                         <motion.div key="step-generate" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-5">
 
                             <div className="bg-[#141414] rounded-2xl border border-gray-800 p-2 grid grid-cols-1 md:grid-cols-2 gap-2">
-                                <button
-                                    onClick={() => setGenerateMode('from-video')}
-                                    className={`px-4 py-3 rounded-xl text-sm font-semibold transition-all ${generateMode === 'from-video'
-                                        ? 'bg-purple-600/20 text-purple-300 border border-purple-500/40'
-                                        : 'bg-[#1a1a1a] text-gray-400 border border-gray-800 hover:text-gray-200'}`}
-                                >
-                                    Generate content từ video nguồn
-                                </button>
+                                {!isTranslateOnlyEntry && (
+                                    <button
+                                        onClick={() => setGenerateMode('from-video')}
+                                        className={`px-4 py-3 rounded-xl text-sm font-semibold transition-all ${generateMode === 'from-video'
+                                            ? 'bg-purple-600/20 text-purple-300 border border-purple-500/40'
+                                            : 'bg-[#1a1a1a] text-gray-400 border border-gray-800 hover:text-gray-200'}`}
+                                    >
+                                        Generate content từ video nguồn
+                                    </button>
+                                )}
                                 <button
                                     onClick={() => setGenerateMode('translate-only')}
                                     className={`px-4 py-3 rounded-xl text-sm font-semibold transition-all ${generateMode === 'translate-only'
