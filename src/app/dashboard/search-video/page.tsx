@@ -2,10 +2,12 @@
 
 import Image from "next/image";
 import { useState, useEffect } from 'react';
-import { Search, Loader2, AlertTriangle, Facebook, Instagram, Music2, Music, BookOpen, Hash, Play, Heart, MessageCircle, Share2, Eye } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Search, Loader2, AlertTriangle, Facebook, Instagram, Music2, Music, BookOpen, Hash, Play, Heart, MessageCircle, Share2, Eye, Bookmark, BookmarkCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import GenerateContentButton from '@/components/content/GenerateContentButton';
 import SearchAutocomplete from '@/components/SearchAutocomplete';
+import { useAuthStore } from '@/store/auth-store';
+import { UserRole } from '@/types/auth';
 
 type Platform = 'FACEBOOK' | 'INSTAGRAM' | 'TIKTOK' | 'DOUYIN' | 'XIAOHONGSHU';
 type SearchType = 'keyword' | 'hashtag';
@@ -27,7 +29,20 @@ interface UnifiedVideo {
     raw_data?: any;
 }
 
+const ALLOWED_ROLES = [UserRole.ADMIN, UserRole.MANAGER, UserRole.LEADER];
+
 export default function GlobalSearchPage() {
+    const router = useRouter();
+    const { user } = useAuthStore();
+
+    const hasAccess = user?.roles?.some((r) => ALLOWED_ROLES.includes(r)) ?? false;
+
+    useEffect(() => {
+        if (user !== undefined && !hasAccess) {
+            router.replace('/dashboard');
+        }
+    }, [user, hasAccess, router]);
+
     const [platform, setPlatform] = useState<Platform>('TIKTOK');
     const [searchType, setSearchType] = useState<SearchType>('keyword');
     const [searchTerm, setSearchTerm] = useState('');
@@ -40,7 +55,78 @@ export default function GlobalSearchPage() {
     const [batchIndex, setBatchIndex] = useState(0);
     const [seenIds, setSeenIds] = useState<Set<string>>(new Set());
     const [hasMore, setHasMore] = useState(false);
+    const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
+    const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+    // All video_ids already in the library — these are hidden from search results
+    const [libraryVideoIds, setLibraryVideoIds] = useState<Set<string>>(new Set());
     const ITEMS_PER_PAGE = 10;
+
+    // Fetch saved IDs once on mount so we can hide them from future searches
+    useEffect(() => {
+        const fetchSavedIds = async () => {
+            try {
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+                const token = localStorage.getItem('auth_token');
+                const res = await fetch(`${apiUrl}/video-library/saved-ids`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    setLibraryVideoIds(new Set<string>(data.ids ?? []));
+                    setSavedIds(new Set<string>(data.ids ?? []));
+                }
+            } catch {
+                // silent — don't block search if this fails
+            }
+        };
+        fetchSavedIds();
+    }, []);
+
+    const buildSourcingUrl = (video: UnifiedVideo) => {
+        const params = new URLSearchParams({
+            videoId: video.video_id,
+            videoTitle: encodeURIComponent(video.title),
+            videoDescription: encodeURIComponent((video.description ?? '').slice(0, 800)),
+        });
+        if (video.video_url) params.set('videoUrl', encodeURIComponent(video.video_url));
+        return `/dashboard/content/product-selection?${params.toString()}`;
+    };
+
+    const handleSaveToLibrary = async (video: UnifiedVideo) => {
+        if (savingIds.has(video.video_id)) return;
+        setSavingIds((prev) => new Set(prev).add(video.video_id));
+        try {
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+            const token = localStorage.getItem('auth_token');
+            const res = await fetch(`${apiUrl}/video-library/save`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({
+                    video_id: video.video_id,
+                    platform: video.platform,
+                    title: video.title,
+                    description: video.description ?? '',
+                    video_url: video.video_url,
+                    author_username: video.author_username,
+                    author_name: video.author_name ?? video.author_username,
+                    thumbnail_url: video.thumbnail_url ?? null,
+                    views_count: video.views_count ?? 0,
+                    likes_count: video.likes_count ?? 0,
+                    comments_count: video.comments_count ?? 0,
+                    shares_count: video.shares_count ?? 0,
+                    sourcing_url: buildSourcingUrl(video),
+                }),
+            });
+            if (res.ok || res.status === 409) {
+                setSavedIds((prev) => new Set(prev).add(video.video_id));
+                setLibraryVideoIds((prev) => new Set(prev).add(video.video_id));
+            }
+        } catch {
+            // silent
+        } finally {
+            setSavingIds((prev) => { const s = new Set(prev); s.delete(video.video_id); return s; });
+        }
+    };
 
     const platforms: { id: Platform; label: string; icon: any; color: string; glow: string; bg: string; disabled?: boolean }[] = [
         { id: 'TIKTOK', label: 'TikTok', icon: Music2, color: 'from-[#00f2ea] to-[#ff0050]', glow: 'shadow-[#00f2ea]/20', bg: 'bg-[#00f2ea]' },
@@ -69,13 +155,16 @@ export default function GlobalSearchPage() {
         }
 
         try {
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
             const token = localStorage.getItem('auth_token');
 
             let endpoint = '';
             let body: any = {};
 
-            // Map platform to endpoint and body
+            // Douyin & Xiaohongshu still call NestJS directly (they have dedicated controllers).
+            // TikTok / Facebook / Instagram go through the local Next.js proxy (/api/search)
+            // which forwards server-side to NestJS → Django, avoiding all CORS / cache issues.
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+
             if (platform === 'DOUYIN') {
                 endpoint = `${apiUrl}/douyin/search/`;
                 const ids = currentSeenIds ?? seenIds;
@@ -93,8 +182,7 @@ export default function GlobalSearchPage() {
                     maxPosts: 20,
                 };
             } else if (platform === 'TIKTOK') {
-                // Use the existing TikTok endpoint
-                endpoint = `${apiUrl}/ai/search`;
+                endpoint = '/api/search';
                 body = {
                     platform: 'tiktok',
                     keyword: searchType === 'hashtag' ? `#${searchTerm.replace(/#/g, '')}` : searchTerm,
@@ -104,15 +192,13 @@ export default function GlobalSearchPage() {
                     page: appendMode ? nextBatchIndex + 1 : 1,
                 };
             } else {
-                // Facebook / Instagram
-                endpoint = `${apiUrl}/ai/search`;
+                endpoint = '/api/search';
                 body = {
                     platform: platform.toLowerCase(),
                     keyword: searchTerm,
                     max_results: 30,
                     search_type: platform === 'INSTAGRAM' ? instagramPostType : 'posts',
                     search_mode: searchType,
-                    // Next Batch: gửi page để backend trả về kết quả mới
                     page: appendMode ? nextBatchIndex + 1 : 1,
                 };
             }
@@ -126,10 +212,20 @@ export default function GlobalSearchPage() {
                 body: JSON.stringify(body),
             });
 
-            const data = await response.json();
+            // Safely parse JSON — if server returns HTML (e.g. 404 page) Safari throws
+            // "The string did not match the expected pattern." which is misleading.
+            let data: any = {};
+            try {
+                data = await response.json();
+            } catch {
+                throw new Error(`Lỗi kết nối server (HTTP ${response.status}). Vui lòng kiểm tra backend đang chạy tại ${endpoint}`);
+            }
 
             if (!response.ok) {
-                throw new Error(data.error || `Lỗi tìm kiếm trên ${platform}`);
+                const msg = data?.message ?? data?.error;
+                throw new Error(
+                    Array.isArray(msg) ? msg.join('; ') : (msg || `Lỗi tìm kiếm trên ${platform} (HTTP ${response.status})`)
+                );
             }
 
             // Normalize results based on platform
@@ -211,8 +307,10 @@ export default function GlobalSearchPage() {
         setSearchType('keyword');
     }, [platform]);
 
-    const totalPages = Math.ceil(results.length / ITEMS_PER_PAGE);
-    const paginatedResults = results.slice(
+    // Hide videos already saved to the library from search results
+    const visibleResults = results.filter((v) => !libraryVideoIds.has(v.video_id));
+    const totalPages = Math.ceil(visibleResults.length / ITEMS_PER_PAGE);
+    const paginatedResults = visibleResults.slice(
         (currentPage - 1) * ITEMS_PER_PAGE,
         currentPage * ITEMS_PER_PAGE
     );
@@ -228,6 +326,10 @@ export default function GlobalSearchPage() {
         if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
         return num.toString();
     };
+
+    if (!hasAccess) {
+        return null;
+    }
 
     return (
         <div className="min-h-[calc(100vh-73px)] bg-[#07090F] text-white p-6 md:p-10 -m-6 selection:bg-blue-500/30">
@@ -485,6 +587,13 @@ export default function GlobalSearchPage() {
                                 animate={{ opacity: 1, y: 0 }}
                                 className="flex flex-col gap-10 pb-20"
                             >
+                                {/* Hidden-from-library notice */}
+                                {results.length > visibleResults.length && (
+                                    <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600/10 border border-violet-500/20 text-violet-400 text-xs font-medium w-fit mx-auto">
+                                        <BookmarkCheck className="w-3.5 h-3.5 flex-shrink-0" />
+                                        Đã ẩn {results.length - visibleResults.length} video đã có trong Bộ sưu tập
+                                    </div>
+                                )}
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
                                     {paginatedResults.map((video, idx) => (
                                         <motion.div
@@ -568,14 +677,25 @@ export default function GlobalSearchPage() {
 
                                                 {/* Final Action Hub */}
                                                 <div className="grid grid-cols-1 gap-2 mt-auto">
-                                                    <GenerateContentButton
-                                                        videoId={video.video_id}
-                                                        videoTitle={video.title}
-                                                        videoDescription={video.description}
-                                                        videoUrl={video.video_url}
-                                                        className={`h-10 rounded-xl font-bold text-[10px] uppercase tracking-widest bg-white/5 border border-white/10 hover:bg-white hover:text-black transition-all duration-300`}
-                                                        compact={true}
-                                                    />
+                                                    {/* Thêm vào Bộ sưu tập */}
+                                                    <button
+                                                        onClick={() => handleSaveToLibrary(video)}
+                                                        disabled={savingIds.has(video.video_id) || savedIds.has(video.video_id)}
+                                                        className={`h-10 flex items-center justify-center gap-2 rounded-xl font-bold text-[10px] uppercase tracking-widest border transition-all duration-300 ${
+                                                            savedIds.has(video.video_id)
+                                                                ? 'bg-violet-600/20 border-violet-500/40 text-violet-400 cursor-default'
+                                                                : 'bg-white/5 border-white/10 hover:bg-violet-600/20 hover:border-violet-500/40 hover:text-violet-300 text-slate-300'
+                                                        }`}
+                                                    >
+                                                        {savingIds.has(video.video_id) ? (
+                                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                        ) : savedIds.has(video.video_id) ? (
+                                                            <BookmarkCheck className="w-3.5 h-3.5" />
+                                                        ) : (
+                                                            <Bookmark className="w-3.5 h-3.5" />
+                                                        )}
+                                                        {savedIds.has(video.video_id) ? 'Đã lưu' : 'Bộ sưu tập'}
+                                                    </button>
                                                     <a
                                                         href={video.video_url}
                                                         target="_blank"

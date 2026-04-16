@@ -42,7 +42,7 @@ export default function InstagramSearchPage() {
     const [currentPage, setCurrentPage] = useState(1);
     const [normalizedQuery, setNormalizedQuery] = useState('');
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+    const apiUrl = '/api';
 
     // Pagination logic
     const totalPages = Math.ceil(allResults.length / ITEMS_PER_PAGE);
@@ -105,7 +105,7 @@ export default function InstagramSearchPage() {
                 ? normalizeHashtag(hashtag)
                 : hashtag.replace(/^#/, '').trim();
 
-            const response = await fetch(`${apiUrl}/ai/search`, {
+            const response = await fetch(`${apiUrl}/search`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

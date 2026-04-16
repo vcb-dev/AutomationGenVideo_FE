@@ -11,6 +11,7 @@ import { useContentGeneration, GeneratedContent } from '@/hooks/useContentGenera
 import { toast } from 'react-hot-toast';
 import SmartMixVideo from '@/components/SmartMixVideo';
 import LanguageSelect from '@/components/content/LanguageSelect';
+import { useAuthStore } from '@/store/auth-store';
 
 const AI_SERVICE_URL = process.env.NEXT_PUBLIC_AI_SERVICE_URL || 'http://localhost:8001';
 const BE_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
@@ -59,27 +60,36 @@ const PARTS_LABELS = [
 ];
 
 type Step = 'generate' | 'content' | 'mix-video';
+type GenerateMode = 'from-video' | 'translate-only';
 
 export default function GenerateContentPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { generateContent, generatePrompt, isGenerating } = useContentGeneration();
+    const { user } = useAuthStore();
+    const [isApproving, setIsApproving] = useState(false);
+    const [isConverting, setIsConverting] = useState(false);
 
     // ─── Step control ───
     const [currentStep, setCurrentStep] = useState<Step>('generate');
 
     // ─── Content generation state ───
     const [videoId, setVideoId] = useState<number | null>(null);
+    const [sourceVideoIdRaw, setSourceVideoIdRaw] = useState<string>('');
     const [videoTitle, setVideoTitle] = useState<string>('');
     const [videoDescription, setVideoDescription] = useState<string>('');
     const [videoUrl, setVideoUrl] = useState<string>('');
     const [transcript, setTranscript] = useState<string>('');
     const [detectedLanguage, setDetectedLanguage] = useState<string>('');  // Ngôn ngữ video gốc (từ Whisper)
     const [outputLanguage, setOutputLanguage] = useState<string>('vi');    // Ngôn ngữ generate content
+    const [generateMode, setGenerateMode] = useState<GenerateMode>('from-video');
+    const [manualSourceContent, setManualSourceContent] = useState<string>('');
     const [isTranscribing, setIsTranscribing] = useState(false);
     const [transcribeError, setTranscribeError] = useState<string>('');
     const [selectedType, setSelectedType] = useState<string | null>(null);
     const [generatedContent, setGeneratedContent] = useState<GeneratedContent | null>(null);
+    const [baseVietnameseContent, setBaseVietnameseContent] = useState<GeneratedContent | null>(null);
+    const [baseVietnameseMarketLanguage, setBaseVietnameseMarketLanguage] = useState<string | null>(null);
     const [copiedSection, setCopiedSection] = useState<string | null>(null);
     const [productInfo, setProductInfo] = useState({ id: '', name: '', category: '', description: '', price: '', sku: '' });
 
@@ -117,6 +127,7 @@ export default function GenerateContentPage() {
     // ─── Init from URL params (and fallback từ localStorage nếu thiếu dữ liệu) ───
     useEffect(() => {
         const id = searchParams.get('videoId');
+        setSourceVideoIdRaw(id || '');
         const title = searchParams.get('videoTitle');
         const desc = searchParams.get('videoDescription');
         const url = searchParams.get('videoUrl');
@@ -230,31 +241,152 @@ export default function GenerateContentPage() {
     const handleGenerate = async () => {
         if (!selectedType) return;
         try {
-            const result = await generateContent({
+            const sourceText = transcript || videoDescription || videoTitle;
+            const baseRequest = {
                 video_id: videoId || undefined,
-                video_description: transcript || videoDescription || videoTitle,  // ưu tiên transcript
+                video_description: sourceText,  // ưu tiên transcript
                 video_title: videoTitle,
                 content_type: selectedType,
                 brand_name: 'Viễn Chí Bảo',
                 industry: 'kim hoàn (trang sức vàng bạc)',
-                output_language: outputLanguage,   // ngôn ngữ generate content
                 product_id: productInfo.id,
                 product_name: productInfo.name,
                 product_category: productInfo.category,
                 product_description: productInfo.description,
                 product_price: productInfo.price,
                 product_sku: productInfo.sku
-            });
-            if (result) {
+            };
+
+            if (outputLanguage === 'vi') {
+                const result = await generateContent({
+                    ...baseRequest,
+                    output_language: 'vi',
+                    target_market_language: 'vi',
+                });
+                if (!result) {
+                    toast.error('Không thể tạo content. Vui lòng thử lại.');
+                    return;
+                }
+                setBaseVietnameseContent(result);
+                setBaseVietnameseMarketLanguage('vi');
                 setGeneratedContent(result);
                 setCurrentStep('content');
                 toast.success('Content đã được tạo thành công!');
-            } else {
-                toast.error('Không thể tạo content. Vui lòng thử lại.');
+                return;
             }
+
+            // Nếu chọn ngôn ngữ khác Việt, luôn generate bản Việt trước làm "content nguồn"
+            const viResult = await generateContent({
+                ...baseRequest,
+                output_language: 'vi',
+                target_market_language: outputLanguage,
+            });
+            if (!viResult) {
+                toast.error('Không thể tạo content Việt làm nguồn convert.');
+                return;
+            }
+            setBaseVietnameseContent(viResult);
+            setBaseVietnameseMarketLanguage(outputLanguage);
+
+            const localizedResult = await generateContent({
+                ...baseRequest,
+                video_description: viResult.script,
+                output_language: outputLanguage,
+                target_market_language: outputLanguage,
+            });
+            if (!localizedResult) {
+                toast.error('Không thể convert sang ngôn ngữ đã chọn.');
+                return;
+            }
+            setGeneratedContent(localizedResult);
+            setCurrentStep('content');
+            toast.success('Đã tạo content Việt và convert sang ngôn ngữ đã chọn!');
         } catch (error) {
             console.error('Generation error:', error);
             toast.error('Có lỗi xảy ra khi tạo content');
+        }
+    };
+
+    const handleTranslateExistingContent = async () => {
+        const contentTypeForTranslate = 'A5';
+        const sourceText = manualSourceContent.trim();
+        if (!sourceText) {
+            toast.error('Vui lòng dán content cần dịch.');
+            return;
+        }
+        try {
+            if (outputLanguage === 'vi') {
+                const viOnly = await generateContent({
+                    video_description: sourceText,
+                    video_title: 'Manual content',
+                    content_type: contentTypeForTranslate,
+                    brand_name: 'Viễn Chí Bảo',
+                    industry: 'kim hoàn (trang sức vàng bạc)',
+                    output_language: 'vi',
+                    target_market_language: 'vi',
+                    product_id: productInfo.id,
+                    product_name: productInfo.name,
+                    product_category: productInfo.category,
+                    product_description: productInfo.description,
+                    product_price: productInfo.price,
+                    product_sku: productInfo.sku,
+                });
+                if (!viOnly) {
+                    toast.error('Không thể xử lý content đã dán.');
+                    return;
+                }
+                setGeneratedContent(viOnly);
+                setBaseVietnameseContent(viOnly);
+                setBaseVietnameseMarketLanguage('vi');
+                setCurrentStep('content');
+                toast.success('Đã xử lý content thành công!');
+                return;
+            }
+
+            const viSource: GeneratedContent = {
+                id: -1,
+                title: 'Content Việt (nguồn convert)',
+                script: sourceText,
+                hook: '',
+                problem: '',
+                solution: '',
+                cta: '',
+                word_count: sourceText.split(/\s+/).filter(Boolean).length,
+                content_type: contentTypeForTranslate,
+                content_type_display: 'Combined (Tổng hợp)',
+                created_at: new Date().toISOString(),
+                verification_rows: []
+            };
+
+            const localized = await generateContent({
+                video_description: sourceText,
+                video_title: 'Manual content',
+                content_type: contentTypeForTranslate,
+                brand_name: 'Viễn Chí Bảo',
+                industry: 'kim hoàn (trang sức vàng bạc)',
+                output_language: outputLanguage,
+                target_market_language: outputLanguage,
+                translation_mode: true,
+                product_id: productInfo.id,
+                product_name: productInfo.name,
+                product_category: productInfo.category,
+                product_description: productInfo.description,
+                product_price: productInfo.price,
+                product_sku: productInfo.sku,
+            });
+            if (!localized) {
+                toast.error('Không thể dịch content đã dán.');
+                return;
+            }
+
+            setBaseVietnameseContent(viSource);
+            setBaseVietnameseMarketLanguage(outputLanguage);
+            setGeneratedContent(localized);
+            setCurrentStep('content');
+            toast.success('Đã dịch content thành công!');
+        } catch (error) {
+            console.error('Translate existing content error:', error);
+            toast.error('Có lỗi xảy ra khi dịch content');
         }
     };
 
@@ -346,6 +478,128 @@ export default function GenerateContentPage() {
         } catch (error) {
             console.error('Advanced generation error:', error);
             toast.error('Có lỗi xảy ra khi tạo content');
+        }
+    };
+
+    // ─── Approve (Duyệt) Handler ───
+    const handleApprove = async () => {
+        if (!generatedContent) return;
+        setIsApproving(true);
+        try {
+            const token = localStorage.getItem('auth_token');
+            const res = await fetch(`${BE_API_URL}/approved-content`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    script: generatedContent.script,
+                    content_type: generatedContent.content_type,
+                    content_type_display: generatedContent.content_type_display,
+                    word_count: generatedContent.word_count,
+                    source_video_id: sourceVideoIdRaw || (videoId != null ? String(videoId) : undefined),
+                    source_video_title: videoTitle || '',
+                    source_video_desc: videoDescription || '',
+                    source_video_url: videoUrl || '',
+                    product_id: productInfo.id || undefined,
+                    product_name: productInfo.name || undefined,
+                    product_category: productInfo.category || undefined,
+                    product_sku: productInfo.sku || undefined,
+                }),
+            });
+
+            if (res.ok) {
+                toast.success('Content đã được duyệt và lưu vào Bộ sưu tập!');
+                router.push('/dashboard/video-library?tab=content');
+            } else {
+                const err = await res.json().catch(() => ({}));
+                toast.error(err.message || 'Không thể duyệt content. Vui lòng thử lại.');
+            }
+        } catch (error) {
+            console.error('Approve content error:', error);
+            toast.error('Có lỗi xảy ra khi duyệt content');
+        } finally {
+            setIsApproving(false);
+        }
+    };
+
+    // ─── Language Convert Handler ───
+    const handleLanguageChange = async (newLang: string) => {
+        if (newLang === outputLanguage || !generatedContent || !selectedType) return;
+        setOutputLanguage(newLang);
+        setIsConverting(true);
+        try {
+            let baseVi = baseVietnameseContent;
+            const shouldRebuildBaseVi = newLang !== 'vi' && (
+                !baseVi || baseVietnameseMarketLanguage !== newLang
+            );
+            if (shouldRebuildBaseVi) {
+                const sourceForVi = transcript || videoDescription || videoTitle;
+                const viResult = await generateContent({
+                    video_id: videoId || undefined,
+                    video_description: sourceForVi,
+                    video_title: videoTitle,
+                    content_type: selectedType,
+                    brand_name: 'Viễn Chí Bảo',
+                    industry: 'kim hoàn (trang sức vàng bạc)',
+                    output_language: 'vi',
+                    target_market_language: newLang,
+                    product_id: productInfo.id,
+                    product_name: productInfo.name,
+                    product_category: productInfo.category,
+                    product_description: productInfo.description,
+                    product_price: productInfo.price,
+                    product_sku: productInfo.sku,
+                });
+                if (!viResult) {
+                    toast.error('Không thể tạo bản tiếng Việt nguồn để convert.');
+                    return;
+                }
+                baseVi = viResult;
+                setBaseVietnameseContent(viResult);
+                setBaseVietnameseMarketLanguage(newLang);
+            }
+
+            if (newLang === 'vi') {
+                if (baseVi) {
+                    setGeneratedContent(baseVi);
+                }
+                toast.success('Đã chuyển về bản tiếng Việt.');
+                return;
+            }
+            if (!baseVi) {
+                toast.error('Không có bản tiếng Việt nguồn để convert.');
+                return;
+            }
+
+            const result = await generateContent({
+                video_id: videoId || undefined,
+                video_description: baseVi.script,
+                video_title: videoTitle,
+                content_type: selectedType,
+                brand_name: 'Viễn Chí Bảo',
+                industry: 'kim hoàn (trang sức vàng bạc)',
+                output_language: newLang,
+                target_market_language: newLang,
+                product_id: productInfo.id,
+                product_name: productInfo.name,
+                product_category: productInfo.category,
+                product_description: productInfo.description,
+                product_price: productInfo.price,
+                product_sku: productInfo.sku,
+            });
+            if (result) {
+                setGeneratedContent(result);
+                toast.success('Đã chuyển đổi ngôn ngữ thành công!');
+            } else {
+                toast.error('Không thể chuyển đổi ngôn ngữ. Thử lại.');
+            }
+        } catch (error) {
+            console.error('Language convert error:', error);
+            toast.error('Có lỗi xảy ra khi chuyển đổi ngôn ngữ');
+        } finally {
+            setIsConverting(false);
         }
     };
 
@@ -675,7 +929,7 @@ export default function GenerateContentPage() {
                 <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
                     <button onClick={() => {
                         if (currentStep === 'mix-video') setCurrentStep('content');
-                        else if (currentStep === 'content') { setGeneratedContent(null); setCurrentStep('generate'); }
+                        else if (currentStep === 'content') { setGeneratedContent(null); setBaseVietnameseContent(null); setBaseVietnameseMarketLanguage(null); setManualSourceContent(''); setCurrentStep('generate'); }
                         else router.back();
                     }} className="flex items-center gap-2 text-gray-400 hover:text-white mb-4 transition-colors">
                         <ArrowLeft className="w-5 h-5" />
@@ -738,8 +992,27 @@ export default function GenerateContentPage() {
                     {currentStep === 'generate' && (
                         <motion.div key="step-generate" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-5">
 
+                            <div className="bg-[#141414] rounded-2xl border border-gray-800 p-2 grid grid-cols-1 md:grid-cols-2 gap-2">
+                                <button
+                                    onClick={() => setGenerateMode('from-video')}
+                                    className={`px-4 py-3 rounded-xl text-sm font-semibold transition-all ${generateMode === 'from-video'
+                                        ? 'bg-purple-600/20 text-purple-300 border border-purple-500/40'
+                                        : 'bg-[#1a1a1a] text-gray-400 border border-gray-800 hover:text-gray-200'}`}
+                                >
+                                    Generate content từ video nguồn
+                                </button>
+                                <button
+                                    onClick={() => setGenerateMode('translate-only')}
+                                    className={`px-4 py-3 rounded-xl text-sm font-semibold transition-all ${generateMode === 'translate-only'
+                                        ? 'bg-purple-600/20 text-purple-300 border border-purple-500/40'
+                                        : 'bg-[#1a1a1a] text-gray-400 border border-gray-800 hover:text-gray-200'}`}
+                                >
+                                    Dịch content có sẵn
+                                </button>
+                            </div>
+
                             {/* ━ PANEL: Nội dung video gốc ━ */}
-                            {(videoTitle || videoDescription) && (
+                            {generateMode === 'from-video' && (videoTitle || videoDescription) && (
                                 <div className="bg-[#141414] rounded-2xl border border-amber-500/20 shadow-xl">
                                     {/* Header */}
                                     <div className="flex items-center gap-3 px-6 py-4 border-b border-amber-500/10 bg-amber-500/5 rounded-t-2xl">
@@ -845,7 +1118,7 @@ export default function GenerateContentPage() {
                                             </div>
                                         )}
 
-                                        {/* ── Dropdown chọn ngôn ngữ output ── */}
+                                        {/* ── Dropdown chọn ngôn ngữ output (chọn trước khi generate) ── */}
                                         <div className="pt-2 border-t border-gray-800">
                                             <div className="flex items-center justify-between flex-wrap gap-3">
                                                 <div className="flex items-center gap-2">
@@ -862,8 +1135,34 @@ export default function GenerateContentPage() {
                                                 />
                                             </div>
                                             <p className="text-xs text-gray-600 mt-2">
-                                                AI sẽ generate toàn bộ kịch bản, hook, CTA bằng ngôn ngữ đã chọn — bất kể video gốc nói ngôn ngữ nào.
+                                                Chọn ngôn ngữ trước khi bấm Generate Content. Tiếng Việt sẽ tạo khoảng 300 từ, ngôn ngữ khác sẽ tạo dài hơn.
                                             </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {generateMode === 'translate-only' && (
+                                <div className="bg-[#141414] rounded-2xl border border-blue-500/20 shadow-xl">
+                                    <div className="px-6 py-4 border-b border-blue-500/10 bg-blue-500/5 rounded-t-2xl">
+                                        <h2 className="text-base font-bold text-blue-300">Dịch content có sẵn</h2>
+                                        <p className="text-xs text-blue-500/70 mt-0.5">Dán content của bạn để AI chuyển sang ngôn ngữ đã chọn</p>
+                                    </div>
+                                    <div className="p-5 space-y-4">
+                                        <textarea
+                                            value={manualSourceContent}
+                                            onChange={(e) => setManualSourceContent(e.target.value)}
+                                            placeholder="Dán content cần dịch vào đây..."
+                                            className="w-full min-h-[180px] bg-[#1a1a1a] border border-gray-800 rounded-xl px-4 py-3 text-sm text-gray-200 placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500/40"
+                                        />
+                                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                                            <span className="text-xs text-gray-500">Số ký tự: {manualSourceContent.length}</span>
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-xs text-gray-400 whitespace-nowrap">Ngôn ngữ sẽ chuyển thành</span>
+                                                <div className="w-[240px]">
+                                                    <LanguageSelect value={outputLanguage} onChange={setOutputLanguage} />
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -872,54 +1171,74 @@ export default function GenerateContentPage() {
 
 
                             {/* ━ PANEL: Chọn loại content ━ */}
-                            <div className="bg-[#141414] rounded-2xl border border-gray-800 overflow-hidden shadow-xl">
-                                <div className="px-6 py-4 border-b border-gray-800/60 bg-[#0d0d0d] flex items-center gap-3">
-                                    <div className="p-1.5 bg-purple-500/15 rounded-lg border border-purple-500/20">
-                                        <Sparkles className="w-4 h-4 text-purple-400" />
+                            {generateMode === 'from-video' && (
+                                <div className="bg-[#141414] rounded-2xl border border-gray-800 overflow-hidden shadow-xl">
+                                    <div className="px-6 py-4 border-b border-gray-800/60 bg-[#0d0d0d] flex items-center gap-3">
+                                        <div className="p-1.5 bg-purple-500/15 rounded-lg border border-purple-500/20">
+                                            <Sparkles className="w-4 h-4 text-purple-400" />
+                                        </div>
+                                        <div>
+                                            <h2 className="text-sm font-bold text-white">Chọn loại content</h2>
+                                            <p className="text-xs text-gray-500 mt-0.5">AI sẽ tạo kịch bản theo phong cách phù hợp</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <h2 className="text-sm font-bold text-white">Chọn loại content</h2>
-                                        <p className="text-xs text-gray-500 mt-0.5">AI sẽ tạo kịch bản theo phong cách phù hợp</p>
-                                    </div>
-                                </div>
-                                <div className="p-5">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        {CONTENT_TYPES.map((type) => (
-                                            <button key={type.id} onClick={() => setSelectedType(type.id)} disabled={isGenerating}
-                                                className={`text-left p-5 rounded-xl border transition-all duration-200
+                                    <div className="p-5">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            {CONTENT_TYPES.map((type) => (
+                                                <button key={type.id} onClick={() => setSelectedType(type.id)} disabled={isGenerating}
+                                                    className={`text-left p-5 rounded-xl border transition-all duration-200
                                                 ${selectedType === type.id ? 'border-purple-500 bg-purple-900/20 shadow-[0_0_15px_rgba(168,85,247,0.15)] scale-[1.02]' : 'border-gray-800 bg-[#1a1a1a] hover:border-gray-600 hover:bg-[#202020] hover:shadow-lg'}
                                                 ${isGenerating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
-                                                <div className="flex items-start gap-3 mb-3">
-                                                    <div className={`p-2 rounded-lg bg-gradient-to-br ${type.color} shadow-lg`}><div className="w-6 h-6 bg-white/20 rounded" /></div>
-                                                    <div className="flex-1">
-                                                        <h3 className={`font-bold ${selectedType === type.id ? 'text-white' : 'text-gray-200'}`}>{type.name}</h3>
-                                                        <p className="text-gray-500 text-xs mt-1">{type.description}</p>
-                                                    </div>
-                                                    {selectedType === type.id && <CheckCircle className="w-6 h-6 text-purple-400" />}
-                                                </div>
-                                                <div className="space-y-1 mt-4 pt-4 border-t border-gray-800/50">
-                                                    {type.examples.map((ex, idx) => (
-                                                        <div key={idx} className="flex items-start gap-2 text-xs text-gray-500">
-                                                            <span className="text-purple-500 mt-0.5">•</span><span>{ex}</span>
+                                                    <div className="flex items-start gap-3 mb-3">
+                                                        <div className={`p-2 rounded-lg bg-gradient-to-br ${type.color} shadow-lg`}><div className="w-6 h-6 bg-white/20 rounded" /></div>
+                                                        <div className="flex-1">
+                                                            <h3 className={`font-bold ${selectedType === type.id ? 'text-white' : 'text-gray-200'}`}>{type.name}</h3>
+                                                            <p className="text-gray-500 text-xs mt-1">{type.description}</p>
                                                         </div>
-                                                    ))}
-                                                </div>
-                                            </button>
-                                        ))}
+                                                        {selectedType === type.id && <CheckCircle className="w-6 h-6 text-purple-400" />}
+                                                    </div>
+                                                    <div className="space-y-1 mt-4 pt-4 border-t border-gray-800/50">
+                                                        {type.examples.map((ex, idx) => (
+                                                            <div key={idx} className="flex items-start gap-2 text-xs text-gray-500">
+                                                                <span className="text-purple-500 mt-0.5">•</span><span>{ex}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Generate Button */}
+                                    <div className="px-5 pb-5">
+                                        <button
+                                            onClick={handleGenerate}
+                                            disabled={!selectedType || isGenerating}
+                                            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold hover:from-purple-700 hover:to-pink-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-purple-900/30">
+                                            {isGenerating ? (
+                                                <><Loader2 className="w-5 h-5 animate-spin" />Đang xử lý AI...</>
+                                            ) : (
+                                                <><Sparkles className="w-5 h-5" />Generate Content</>
+                                            )}
+                                        </button>
+                                        {!selectedType && (
+                                            <p className="text-center text-xs text-gray-600 mt-2">← Chọn loại content để tiếp tục</p>
+                                        )}
                                     </div>
                                 </div>
+                            )}
 
-                                {/* Generate Button */}
-                                <div className="px-5 pb-5">
-                                    <button onClick={handleGenerate} disabled={!selectedType || isGenerating}
-                                        className="w-full py-3.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold hover:from-purple-700 hover:to-pink-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-purple-900/30">
-                                        {isGenerating ? (<><Loader2 className="w-5 h-5 animate-spin" />Đang tạo kịch bản AI...</>) : (<><Sparkles className="w-5 h-5" />Generate Content</>)}
+                            {generateMode === 'translate-only' && (
+                                <div className="bg-[#141414] rounded-2xl border border-gray-800 p-5">
+                                    <button
+                                        onClick={handleTranslateExistingContent}
+                                        disabled={isGenerating || !manualSourceContent.trim()}
+                                        className="w-full py-3.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold hover:from-purple-700 hover:to-pink-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-purple-900/30"
+                                    >
+                                        {isGenerating ? (<><Loader2 className="w-5 h-5 animate-spin" />Đang dịch content...</>) : (<><Sparkles className="w-5 h-5" />Dịch Content</>)}
                                     </button>
-                                    {!selectedType && (
-                                        <p className="text-center text-xs text-gray-600 mt-2">← Chọn loại content để tiếp tục</p>
-                                    )}
                                 </div>
-                            </div>
+                            )}
                         </motion.div>
                     )}
 
@@ -956,32 +1275,56 @@ export default function GenerateContentPage() {
                                     <div className="bg-[#141414] rounded-2xl border border-amber-500/20 flex flex-col overflow-hidden">
                                         <div className="flex items-center gap-2 px-5 py-3.5 border-b border-amber-500/10 bg-amber-500/5">
                                             <span className="text-base">&#127916;</span>
-                                            <h3 className="font-bold text-amber-300 text-sm">Video gốc (nguồn cảm hứng)</h3>
+                                            <h3 className="font-bold text-amber-300 text-sm">
+                                                {outputLanguage === 'vi' ? 'Content gốc (nguồn cảm hứng)' : 'Content Việt (nguồn cảm hứng)'}
+                                            </h3>
                                             <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-500">GỐC</span>
                                         </div>
                                         <div className="px-5 py-4 space-y-3 flex-1">
-                                            {videoTitle && (
+                                            {outputLanguage !== 'vi' && baseVietnameseContent?.script ? (
                                                 <div>
-                                                    <p className="text-xs text-gray-600 uppercase font-semibold mb-1">Tiêu đề</p>
-                                                    <p className="text-gray-300 font-medium text-sm leading-relaxed">{videoTitle}</p>
+                                                    <p className="text-xs text-gray-600 uppercase font-semibold mb-1">Nội dung Việt đã generate (nguồn convert)</p>
+                                                    <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">{baseVietnameseContent.script}</p>
                                                 </div>
-                                            )}
-                                            {videoDescription && (
+                                            ) : transcript ? (
                                                 <div>
-                                                    <p className="text-xs text-gray-600 uppercase font-semibold mb-1">Caption / Mô tả</p>
-                                                    <p className="text-gray-400 text-sm leading-relaxed whitespace-pre-wrap">{videoDescription}</p>
+                                                    <p className="text-xs text-gray-600 uppercase font-semibold mb-1">Nội dung transcribe từ video</p>
+                                                    <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">{transcript}</p>
+                                                </div>
+                                            ) : (
+                                                <div>
+                                                    {videoTitle && (
+                                                        <>
+                                                            <p className="text-xs text-gray-600 uppercase font-semibold mb-1">Tiêu đề</p>
+                                                            <p className="text-gray-300 font-medium text-sm leading-relaxed">{videoTitle}</p>
+                                                        </>
+                                                    )}
+                                                    {videoDescription && (
+                                                        <>
+                                                            <p className="text-xs text-gray-600 uppercase font-semibold mt-3 mb-1">Caption / Mô tả</p>
+                                                            <p className="text-gray-400 text-sm leading-relaxed whitespace-pre-wrap">{videoDescription}</p>
+                                                        </>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
                                     </div>
 
                                     {/* Cột phải: Kịch bản mới */}
-                                    <div className="bg-[#141414] rounded-2xl border border-purple-500/20 flex flex-col overflow-hidden">
+                                    <div className="bg-[#141414] rounded-2xl border border-purple-500/20 flex flex-col overflow-hidden relative">
                                         <div className="flex items-center gap-2 px-5 py-3.5 border-b border-purple-500/10 bg-purple-500/5">
                                             <Sparkles className="w-4 h-4 text-purple-400" />
                                             <h3 className="font-bold text-purple-300 text-sm">Kịch bản đã generate</h3>
                                             <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400">MỚI</span>
                                         </div>
+                                        {isConverting && (
+                                            <div className="absolute inset-0 z-10 bg-black/60 backdrop-blur-sm flex items-center justify-center rounded-2xl">
+                                                <div className="flex flex-col items-center gap-2">
+                                                    <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
+                                                    <span className="text-sm text-purple-300 font-medium">Đang chuyển đổi ngôn ngữ...</span>
+                                                </div>
+                                            </div>
+                                        )}
                                         <div className="px-5 py-4 flex-1 relative">
                                             <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">{generatedContent.script}</p>
                                             <button onClick={() => copyToClipboard(generatedContent.script, 'compare')}
@@ -1020,6 +1363,80 @@ export default function GenerateContentPage() {
                                 </div>
                             )}
 
+                            {/* ── Bảng đối chiếu (chỉ cho ngôn ngữ khác tiếng Việt) ── */}
+                            {outputLanguage !== 'vi' && (generatedContent.verification_rows?.length || 0) > 0 && (
+                                <div className="bg-[#141414] rounded-2xl border border-gray-800 overflow-hidden">
+                                    <div className="px-5 py-3 border-b border-gray-800 bg-[#0f0f0f]">
+                                        <h3 className="text-sm font-semibold text-white">Bảng đối chiếu để recheck và ghép video</h3>
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            Mỗi dòng là một đoạn ngắn: Phiên âm - Bản ngữ - Tiếng Việt.
+                                        </p>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full min-w-[720px] text-sm table-fixed">
+                                            <colgroup>
+                                                <col className="w-[32%]" />
+                                                <col className="w-[34%]" />
+                                                <col className="w-[34%]" />
+                                            </colgroup>
+                                            <thead className="bg-[#171717] border-b border-gray-800">
+                                                <tr>
+                                                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-300 uppercase tracking-wide">Phiên âm</th>
+                                                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-300 uppercase tracking-wide">Bản ngữ</th>
+                                                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-300 uppercase tracking-wide">Tiếng Việt</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {generatedContent.verification_rows?.map((row, idx) => (
+                                                    row.row_type === 'section' ? (
+                                                        <tr key={idx} className="bg-blue-500/15 border-b border-blue-400/20">
+                                                            <td colSpan={3} className="px-4 py-2.5 text-blue-200 font-semibold text-xs uppercase tracking-wide">
+                                                                — {row.section_title || 'Đầu mục'} —
+                                                            </td>
+                                                        </tr>
+                                                    ) : (
+                                                        <tr key={idx} className="border-b border-gray-800/60 hover:bg-white/[0.02]">
+                                                            <td className="px-4 py-3 text-gray-300 align-top leading-relaxed break-words whitespace-pre-wrap">{row.phonetic}</td>
+                                                            <td className="px-4 py-3 text-gray-200 align-top leading-relaxed break-words whitespace-pre-wrap">{row.native}</td>
+                                                            <td className="px-4 py-3 text-gray-300 align-top leading-relaxed break-words whitespace-pre-wrap">{row.vietnamese}</td>
+                                                        </tr>
+                                                    )
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* ── Language Convert Section ── */}
+                            <div className="bg-[#141414] rounded-2xl border border-gray-800 overflow-hidden">
+                                <div className="flex items-center justify-between flex-wrap gap-3 px-5 py-4">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs text-gray-500 uppercase tracking-wider font-semibold">🌐 Ngôn ngữ nội dung</span>
+                                        {detectedLanguage && (
+                                            <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/15 border border-purple-500/30 text-purple-400">
+                                                Video gốc: <strong>{detectedLanguage}</strong>
+                                            </span>
+                                        )}
+                                        {isConverting && (
+                                            <span className="flex items-center gap-1.5 text-xs text-amber-400">
+                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                Đang chuyển đổi...
+                                            </span>
+                                        )}
+                                    </div>
+                                    <LanguageSelect
+                                        value={outputLanguage}
+                                        onChange={handleLanguageChange}
+                                    />
+                                </div>
+                                <div className="px-5 pb-3">
+                                    <p className="text-xs text-gray-600">
+                                        Chọn ngôn ngữ khác để AI tự động chuyển đổi toàn bộ kịch bản sang ngôn ngữ đó.
+                                    </p>
+                                </div>
+                            </div>
+
                             {/* Advanced Prompt Section */}
                             <div className="bg-[#141414] rounded-2xl border border-gray-800 overflow-hidden">
                                 <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-800/60 bg-[#0d0d0d]">
@@ -1050,13 +1467,13 @@ export default function GenerateContentPage() {
 
                             {/* Actions */}
                             <div className="flex justify-between items-center pt-2 gap-3">
-                                <button onClick={() => { setGeneratedContent(null); setCurrentStep('generate'); }}
+                                <button onClick={() => { setGeneratedContent(null); setBaseVietnameseContent(null); setBaseVietnameseMarketLanguage(null); setManualSourceContent(''); setCurrentStep('generate'); }}
                                     className="px-5 py-2.5 rounded-xl bg-[#1a1a1a] text-gray-400 text-sm font-medium hover:bg-[#222] hover:text-white transition-colors border border-gray-800 flex items-center gap-2">
                                     <RefreshCw className="w-4 h-4" />Tạo lại
                                 </button>
-                                <button onClick={() => setCurrentStep('mix-video')}
-                                    className="px-8 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold hover:from-purple-700 hover:to-pink-700 transition-all flex items-center gap-2 shadow-lg shadow-purple-900/40">
-                                    Tiến hành Mix Video <ArrowRight className="w-5 h-5" />
+                                <button onClick={handleApprove} disabled={isApproving}
+                                    className="px-8 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 text-white font-semibold hover:from-emerald-700 hover:to-green-700 transition-all flex items-center gap-2 shadow-lg shadow-emerald-900/40 disabled:opacity-50 disabled:cursor-not-allowed">
+                                    {isApproving ? (<><Loader2 className="w-5 h-5 animate-spin" />Đang duyệt...</>) : (<><CheckCircle className="w-5 h-5" />Duyệt</>)}
                                 </button>
                             </div>
                         </motion.div>

@@ -78,6 +78,10 @@ const darkStyles: StylesConfig<LanguageOption, false> = {
         zIndex: 9999,
         boxShadow: '0 10px 40px rgba(0,0,0,0.6)',
     }),
+    menuPortal: (base) => ({
+        ...base,
+        zIndex: 99999,
+    }),
     menuList: (base) => ({
         ...base,
         padding: '4px',
@@ -160,6 +164,8 @@ export default function LanguageSelect({ value, onChange, className }: LanguageS
                 placeholder="Tìm ngôn ngữ..."
                 noOptionsMessage={() => 'Không tìm thấy ngôn ngữ'}
                 menuPlacement="auto"
+                menuPosition="fixed"
+                menuPortalTarget={typeof window !== 'undefined' ? document.body : null}
                 // Accessibility
                 inputId="language-select"
                 aria-label="Chọn ngôn ngữ output"

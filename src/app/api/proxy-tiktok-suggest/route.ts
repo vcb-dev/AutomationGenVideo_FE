@@ -66,3 +66,35 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ suggestions: [], source: 'none' });
 }
+
+/**
+ * POST /api/proxy-tiktok-suggest
+ * Used by trackSearch to log/track a completed search query.
+ * Forwards to AI service if available, otherwise returns 200 silently.
+ */
+export async function POST(request: Request) {
+    try {
+        const body = await request.json();
+        const query = body?.query?.trim() || '';
+
+        if (!query) {
+            return NextResponse.json({ ok: true });
+        }
+
+        try {
+            const url = `${AI_SERVICE_URL}/api/search/track/`;
+            await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                body: JSON.stringify({ query }),
+                signal: AbortSignal.timeout(3000),
+            });
+        } catch {
+            // AI service unavailable — silently ignore
+        }
+
+        return NextResponse.json({ ok: true });
+    } catch {
+        return NextResponse.json({ ok: true });
+    }
+}

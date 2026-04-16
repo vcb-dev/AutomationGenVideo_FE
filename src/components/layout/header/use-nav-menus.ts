@@ -19,6 +19,8 @@ import {
     History,
     TrendingUp,
     CalendarDays,
+    Bookmark,
+    Globe,
 } from "lucide-react";
 import { NavMenu } from "./types";
 
@@ -247,6 +249,7 @@ export function useNavMenus(
                     "/dashboard/ai",
                     "/dashboard/search-video",
                     "/dashboard/channel-analysis",
+                    "/dashboard/video-library",
                 ],
                 sections: [
                     {
@@ -267,15 +270,31 @@ export function useNavMenus(
                             },
                         ],
                     },
+                    ...(isManagement
+                        ? [
+                              {
+                                  section: "KHÁM PHÁ",
+                                  color: "slate" as const,
+                                  items: [
+                                      {
+                                          label: "Tìm kiếm Video (Hub)",
+                                          href: "/dashboard/search-video",
+                                          icon: Search,
+                                          description: "Tìm kiếm video trên toàn nền tảng",
+                                      },
+                                  ],
+                              },
+                          ]
+                        : []),
                     {
-                        section: "KHÁM PHÁ",
-                        color: "slate",
+                        section: "BỘ SƯU TẬP",
+                        color: "violet" as const,
                         items: [
                             {
-                                label: "Tìm kiếm Video (Hub)",
-                                href: "/dashboard/search-video",
-                                icon: Search,
-                                description: "Tìm kiếm video trên toàn nền tảng",
+                                label: "Bộ sưu tập",
+                                href: "/dashboard/video-library",
+                                icon: Bookmark,
+                                description: "Video hay do Leader & Manager tuyển chọn cho team",
                             },
                         ],
                     },

@@ -15,6 +15,13 @@ export interface GeneratedContent {
     content_type: string;
     content_type_display: string;
     created_at: string;
+    verification_rows?: Array<{
+        row_type?: 'section' | 'row';
+        section_title?: string;
+        phonetic: string;
+        native: string;
+        vietnamese: string;
+    }>;
 }
 
 export interface GenerateContentRequest {
@@ -26,6 +33,7 @@ export interface GenerateContentRequest {
     industry?: string;
     additional_context?: string;
     output_language?: string;   // 'vi' | 'en' | 'zh' | ... — ngôn ngữ generate content output
+    target_market_language?: string; // giữ văn hóa thị trường đích ngay cả khi output là tiếng Việt
     // Product info
     product_id?: string;
     product_name?: string;
@@ -35,6 +43,38 @@ export interface GenerateContentRequest {
     product_sku?: string;
     // Advanced prompt
     custom_prompt?: string;
+    translation_mode?: boolean;
+}
+
+/** When the model puts "romaji || JP || VI" entirely in phonetic, split for correct table columns. */
+function normalizeVerificationRows(
+    rows: GeneratedContent['verification_rows']
+): GeneratedContent['verification_rows'] {
+    if (!rows?.length) return rows;
+    return rows.map((row) => {
+        if (row.row_type === 'section') return row;
+        let phonetic = row.phonetic ?? '';
+        let native = row.native ?? '';
+        let vietnamese = row.vietnamese ?? '';
+        if (!native && !vietnamese) {
+            let p = phonetic.replace(/\uFF5C\uFF5C/g, '||').replace(/\uFF5C/g, '|');
+            let parts: string[] = [];
+            if (p.includes('||')) {
+                parts = p.split('||').map((s) => s.trim().replace(/^[—–\-]\s*/, '')).filter(Boolean);
+            } else if ((p.match(/\|/g) || []).length >= 2) {
+                parts = p.split(/\s*\|\s*/).map((s) => s.trim().replace(/^[—–\-]\s*/, '')).filter(Boolean);
+            }
+            if (parts.length >= 3) {
+                return {
+                    ...row,
+                    phonetic: parts[0],
+                    native: parts[1],
+                    vietnamese: parts.slice(2).join(' || '),
+                };
+            }
+        }
+        return { ...row, phonetic, native, vietnamese };
+    });
 }
 
 export function useContentGeneration() {
@@ -56,6 +96,13 @@ export function useContentGeneration() {
                 solution: string;
                 cta: string;
                 word_count: number;
+                verification_rows?: Array<{
+                    row_type?: 'section' | 'row';
+                    section_title?: string;
+                    phonetic: string;
+                    native: string;
+                    vietnamese: string;
+                }>;
                 content_type: string;
                 created_at: string;
             }>(`${AI_SERVICE_URL}/api/content/generate/`, request);
@@ -81,7 +128,10 @@ export function useContentGeneration() {
                     word_count: response.data.word_count,
                     content_type: response.data.content_type,
                     content_type_display: contentTypeMap[response.data.content_type] || response.data.content_type,
-                    created_at: response.data.created_at
+                    created_at: response.data.created_at,
+                    verification_rows: request.output_language === 'vi'
+                        ? []
+                        : normalizeVerificationRows(response.data.verification_rows || [])
                 };
             }
 

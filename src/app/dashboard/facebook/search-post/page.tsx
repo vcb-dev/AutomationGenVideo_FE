@@ -87,13 +87,12 @@ export default function FacebookSearchPostPage() {
         }
 
         try {
-            const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
             const token = localStorage.getItem('auth_token');
             const keyword = searchType === 'hashtag'
                 ? searchTerm.replace(/^#/, '').replace(/\s+/g, '').toLowerCase()
                 : searchTerm.trim();
 
-            const response = await fetch(`${baseUrl}/ai/search`, {
+            const response = await fetch('/api/search', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

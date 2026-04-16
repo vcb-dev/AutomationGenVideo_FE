@@ -45,11 +45,9 @@ export default function TikTokSearchPage() {
       if (!taskId) return;
 
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
         const token = localStorage.getItem('auth_token');
 
-        // Correct polling URL
-        const response = await fetch(`${apiUrl}/ai/search/status/${taskId}`, {
+        const response = await fetch(`/api/search/status/${taskId}`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -134,7 +132,6 @@ export default function TikTokSearchPage() {
     }
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
       const token = localStorage.getItem('auth_token');
 
       const limitToUse = overrideMaxResult || (reset ? 30 : maxPosts);
@@ -179,7 +176,7 @@ export default function TikTokSearchPage() {
         // Wait, the API body logic below USES `searchTerm`. I need to change that to use `finalKeyword`.
       }
 
-      const response = await fetch(`${apiUrl}/ai/search`, {
+      const response = await fetch('/api/search', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -1,8 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Workaround for Windows + OneDrive reparse-point issue causing EINVAL readlink in Next cleanup.
-  cleanDistDir: false,
+  cleanDistDir: true,
   // Standalone output cho Docker (giảm image size ~70%)
   output: 'standalone',
   swcMinify: true,
@@ -43,19 +42,19 @@ const nextConfig = {
       '@radix-ui/react-tabs',
     ],
   },
-  // HTTP response headers — long-lived cache for immutable Next.js static chunks,
-  // short no-store for API proxies (if any), no-cache for HTML pages.
   async headers() {
+    const isDev = process.env.NODE_ENV !== 'production';
     return [
       {
-        // Next.js build artifacts are content-hashed → safe to cache 1 year
         source: '/_next/static/:path*',
         headers: [
-          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+          {
+            key: 'Cache-Control',
+            value: isDev ? 'no-store, must-revalidate' : 'public, max-age=31536000, immutable',
+          },
         ],
       },
       {
-        // Static public files (images, fonts, icons)
         source: '/favicon.ico',
         headers: [{ key: 'Cache-Control', value: 'public, max-age=86400' }],
       },

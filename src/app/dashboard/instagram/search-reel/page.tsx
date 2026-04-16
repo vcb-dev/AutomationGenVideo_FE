@@ -50,7 +50,7 @@ export default function InstagramSearchReelPage() {
     const [currentPage, setCurrentPage] = useState(1);
     const [normalizedQuery, setNormalizedQuery] = useState('');
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+    const apiUrl = '/api';
 
     // Pagination
     const totalPages = Math.ceil(allReels.length / ITEMS_PER_PAGE);
@@ -123,7 +123,7 @@ export default function InstagramSearchReelPage() {
                 return;
             }
 
-            const response = await fetch(`${apiUrl}/ai/search`, {
+            const response = await fetch(`${apiUrl}/search`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
