@@ -3,10 +3,11 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Check, CheckCircle2, Upload, PenLine, AlertCircle, Lock } from 'lucide-react';
 
-/** Deadline báo cáo: 10:00 sáng. Trả true nếu đã qua 10h hôm nay. */
+/** Deadline báo cáo: 10:00 sáng. Trả true nếu đã qua 10h hôm nay. (Tạm thời tắt theo yêu cầu) */
 function isPastDailyDeadline(): boolean {
-    const now = new Date();
-    return now.getHours() >= 10;
+    return false; // TEMPORARILY DISABLED
+    // const now = new Date();
+    // return now.getHours() >= 10;
 }
 
 type TabMode = 'daily' | 'monthly';
