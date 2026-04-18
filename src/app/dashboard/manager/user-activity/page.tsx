@@ -485,6 +485,8 @@ const UserActivityPageContent = () => {
     // Dùng deferredSearchName thay searchName → filter không chặn main thread khi gõ
     const filteredPerformanceReports = React.useMemo(() => {
         return reports.filter((r) => {
+            // Giữ logic ẩn người 0/0: Nếu Mục tiêu ngày (dailyGoal) và Đã xong (done) đều là 0
+            if (Number(r.dailyGoal || 0) === 0 && Number(r.done || 0) === 0) return false;
             return matchTeam(r.team) && (r.name || "Unknown").toLowerCase().includes(deferredSearchName.toLowerCase());
         });
     }, [reports, matchTeam, deferredSearchName]);
@@ -549,7 +551,8 @@ const UserActivityPageContent = () => {
     const checklistFilteredReports = React.useMemo(() => {
         // Bước 1: Lọc theo text search và dropdown team
         let roleFiltered = reports.filter((r) => {
-            if (!matchTeam(r.team)) return false;
+            if (!r.is_from_lark_report) return false; // CHỈ lấy dữ liệu gốc rễ từ lark_reports
+            if (!matchTeam(r.checklist_source_team || r.team)) return false; // Xác định team chuẩn từ lark_reports
             if (!(r.name || "Unknown").toLowerCase().includes(deferredSearchName.toLowerCase())) return false;
             return true;
         });

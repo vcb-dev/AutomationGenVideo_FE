@@ -108,6 +108,7 @@ const mapReportItem = (item: any) => {
             : 0,
         task_progress: item.task_progress || null,
         trafficToday: item.trafficToday || null,
+        is_zero_kpi: item.is_zero_kpi || false,
         /**
          * Có ít nhất 1 kênh tracked (owner) mới bắt buộc traffic. API mới gửi boolean; fallback channelCount khi có số.
          */
@@ -115,8 +116,8 @@ const mapReportItem = (item: any) => {
             typeof item.needsTraffic === "boolean"
                 ? item.needsTraffic
                 : item.channelCount != null && item.channelCount !== ""
-                  ? Number(item.channelCount) > 0
-                  : true,
+                    ? Number(item.channelCount) > 0
+                    : true,
         questions: [
             {
                 question: isLeaderReport
@@ -125,7 +126,7 @@ const mapReportItem = (item: any) => {
                 answer: isLeaderReport
                     ? item.answers?.["1. Bạn đã kiểm tra chất lượng nội dung video đầu ra của team mình chưa?"] || "Không có"
                     : item.answers?.["1. Ngày hôm qua công việc bạn có cái gì khiến bạn tự hào và thích thú nhất?"] ||
-                      item.answers?.["1.Ngày hôm qua công việc bạn có cái gì khiến bạn tự hào và thích thú nhất?"] || "Không có",
+                    item.answers?.["1.Ngày hôm qua công việc bạn có cái gì khiến bạn tự hào và thích thú nhất?"] || "Không có",
             },
             {
                 question: isLeaderReport
@@ -134,7 +135,7 @@ const mapReportItem = (item: any) => {
                 answer: isLeaderReport
                     ? item.answers?.["2. Team bạn hôm qua có thành viên nào có video Win nhất?"] || "Không có"
                     : item.answers?.["2. Hôm qua có đổi mới sáng tạo gì được áp dụng vào công việc của bạn không?"] ||
-                      item.answers?.["2. HÔM QUA CÓ ĐỔI MỚI SÁNG TẠO GÌ ĐƯỂ ÁP DỤNG VÀO CÔNG VIỆC CỦA BẠN KHÔNG?"] || "Không có",
+                    item.answers?.["2. HÔM QUA CÓ ĐỔI MỚI SÁNG TẠO GÌ ĐƯỂ ÁP DỤNG VÀO CÔNG VIỆC CỦA BẠN KHÔNG?"] || "Không có",
             },
             {
                 question: isLeaderReport
@@ -143,7 +144,7 @@ const mapReportItem = (item: any) => {
                 answer: isLeaderReport
                     ? item.answers?.["3. Team bạn hôm qua có gì đổi mới được áp dụng không?"] || "Không có"
                     : item.answers?.["3. Bạn có gặp khó khăn nào cần hỗ trợ không?"] ||
-                      item.answers?.["3. BẠN CÓ GẶP KHÓ KHĂN NÀO CẦN HỖ TRỢ KHÔNG?"] || "Không có",
+                    item.answers?.["3. BẠN CÓ GẶP KHÓ KHĂN NÀO CẦN HỖ TRỢ KHÔNG?"] || "Không có",
             },
             {
                 question: isLeaderReport
@@ -152,7 +153,7 @@ const mapReportItem = (item: any) => {
                 answer: isLeaderReport
                     ? item.answers?.["4. Team bạn có ai trễ Deadline hôm qua không? Lý do và phương án?"] || "Không có"
                     : item.answers?.["4. Bạn có đóng góp ý tưởng hay đề xuất gì không?"] ||
-                      item.answers?.["4. BẠN CÓ ĐÓNG GÓP Ý TƯỞNG HAY ĐỀ XUẤT GÌ KHÔNG?"] || "Không có",
+                    item.answers?.["4. BẠN CÓ ĐÓNG GÓP Ý TƯỞNG HAY ĐỀ XUẤT GÌ KHÔNG?"] || "Không có",
             },
             {
                 question: isLeaderReport
@@ -161,8 +162,8 @@ const mapReportItem = (item: any) => {
                 answer: isLeaderReport
                     ? item.answers?.["5. Team bạn hôm qua có sản phẩm nào win mới không? Đã thông tin lên Group New Product chưa?"] || "Không có"
                     : item.answers?.["5. Bạn có sản phẩm (A4 - A5) nào win mới không? (>5k view - >10 CMT hỏi giá?)"] ||
-                      item.answers?.["5. Bạn có sản phẩm (A4 - A5) nào win mới không? (>5k view - >10 cmt hỏi giá?)"] ||
-                      item.answers?.["5. BẠN CÓ SẢN PHẨM (A4 - A5) NÀO WIN MỚI KHÔNG? (>5K VIEW - >10 CMT HỎI GIÁ?)"] || "Không có",
+                    item.answers?.["5. Bạn có sản phẩm (A4 - A5) nào win mới không? (>5k view - >10 cmt hỏi giá?)"] ||
+                    item.answers?.["5. BẠN CÓ SẢN PHẨM (A4 - A5) NÀO WIN MỚI KHÔNG? (>5K VIEW - >10 CMT HỎI GIÁ?)"] || "Không có",
             },
         ],
     };
