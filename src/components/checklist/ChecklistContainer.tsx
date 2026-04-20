@@ -647,38 +647,27 @@ const ChecklistContainer = ({
                     reportDate: reportDate,
                 };
 
-                // Checklist API nằm trên Django (AutomationGenVideo_AI), dùng AI_SERVICE_URL (mặc định port 8001)
-                const djangoBase = process.env.NEXT_PUBLIC_AI_SERVICE_URL || 'http://localhost:8001';
-                const base = djangoBase.replace(/\/$/, '');
-                const url = `${base}/api/checklist/submit/`;
+                // Checklist API được chuyển sang NestJS BE (NEXT_PUBLIC_API_URL) thay vì Django AI
+                // NestJS ghi thẳng vào lüc_reports qua Prisma → đúng DB server luôn
+                const beBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+                const url = `${beBaseUrl}/lark/checklist-report`;
                 const response = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(fullPayload),
                 });
                 const data = await response.json().catch(() => ({}));
-                if (!response.ok) {
-                    const errMsg = typeof data.error === 'string' ? data.error : 'Gửi báo cáo thất bại.';
-                    const detail = typeof data.detail === 'string' ? data.detail : '';
-                    const hint = typeof data.hint === 'string' ? data.hint : '';
-                    const parts = [errMsg];
-                    if (detail) parts.push(`Chi tiết: ${detail}`);
-                    if (hint) parts.push(hint);
-                    toast.error(parts.join(' '));
+                if (!response.ok || data.success === false) {
+                    const errMsg = typeof data.message === 'string' ? data.message :
+                        typeof data.error === 'string' ? data.error : 'Gửi báo cáo thất bại.';
+                    toast.error(errMsg);
                     setLoading(false);
                     return;
                 }
                 toast.success(data.message || 'Báo cáo thành công');
                 
-                // --- Xoá cache trên Backend (NestJS) lập tức để hiển thị luôn ở Checklist ---
-                try {
-                    const beBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
-                    await fetch(`${beBaseUrl}/lark/clear-activity-cache`, { method: 'POST' });
-                } catch (err) {
-                    console.log('Failed to flush cache', err);
-                }
-                
                 setIsReadOnly(true); // Khóa form ngay lập tức sau khi gửi thành công
+
             }
 
             // Gửi báo cáo traffic tới AutomationGenVideo_BE nếu có nhập dữ liệu traffic
