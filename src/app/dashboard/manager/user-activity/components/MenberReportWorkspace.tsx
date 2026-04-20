@@ -3,10 +3,9 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Check, CheckCircle2, Upload, PenLine, AlertCircle, Lock } from 'lucide-react';
 
-/** Deadline báo cáo: 10:00 sáng. Trả true nếu đã qua 10h hôm nay. */
+/** Deadline báo cáo: 10:00 sáng. Đã bỏ logic khoá. */
 function isPastDailyDeadline(): boolean {
-    const now = new Date();
-    return now.getHours() >= 10;
+    return false;
 }
 
 type TabMode = 'daily' | 'monthly';
@@ -133,29 +132,15 @@ export default function DailyReportWorkspace() {
         <>
           <div className="rounded-2xl border border-[#FDE047] bg-[#FFFdf0] p-6 flex items-center justify-between shadow-md">
             <div>
-              <p className="font-black text-amber-900 text-[18px]">Deadline: 10:00 sáng</p>
-              <p className="text-[15px] font-bold text-slate-500 mt-1">Trễ báo cáo sẽ bị trừ lương. Trễ 5+ lần/tháng = cảnh cáo.</p>
+              <p className="font-black text-amber-900 text-[18px]">Gửi báo cáo hằng ngày</p>
+              <p className="text-[15px] font-bold text-slate-500 mt-1">Vui lòng báo cáo đầy đủ các chỉ số trước khi kết thúc ngày.</p>
             </div>
             <div className="text-right">
-              {isDeadlineLockedToday ? (
-                <p className="text-[18px] font-black text-red-600 flex items-center gap-2"><Lock className="w-5 h-5" /> Đã khoá</p>
-              ) : (
-                <p className="text-4xl font-black text-red-600 tracking-tighter leading-none">{timeLeftStr}</p>
-              )}
-              <p className="text-[13px] font-black text-amber-600 mt-1.5 uppercase tracking-wider">Lần trễ tháng này: 1/5</p>
+              <p className="text-4xl font-black text-red-600 tracking-tighter leading-none">{timeLeftStr}</p>
+              <p className="text-[13px] font-black text-amber-600 mt-1.5 uppercase tracking-wider">Thời gian còn lại trong ngày</p>
             </div>
           </div>
 
-          {/* Banner khoá sau 10h */}
-          {isDeadlineLockedToday && (
-            <div className="bg-red-50 border-2 border-red-400 text-red-800 p-4 rounded-2xl flex items-center gap-3 animate-in slide-in-from-top duration-300">
-              <AlertCircle className="w-6 h-6 flex-shrink-0 text-red-500" />
-              <div>
-                <p className="text-sm font-black uppercase">🔒 Báo cáo đã khoá — Quá 10:00 sáng</p>
-                <p className="text-xs font-medium mt-0.5">Liên hệ quản lý nếu cần ghi nhận muộn.</p>
-              </div>
-            </div>
-          )}
 
           <div className="flex items-center justify-center py-2">
             <button onClick={() => setStep(1)} className={`flex items-center gap-2 text-sm font-bold transition-colors ${step === 1 ? 'text-[#10B981]' : 'text-slate-600'}`}>

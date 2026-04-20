@@ -23,10 +23,9 @@ function localCalendarYMD(d: Date = new Date()): string {
     return `${y}-${m}-${day}`;
 }
 
-/** Deadline báo cáo: 10:00 sáng. Trả về true nếu đã qua 10h hôm nay. */
+/** Deadline báo cáo: 10:00 sáng. Đã bỏ logic khoá. */
 function isPastDailyDeadline(): boolean {
-    const now = new Date();
-    return now.getHours() >= 10;
+    return false;
 }
 
 const ChecklistDatePicker = ({ value, onChange }: { value: string, onChange: (val: string) => void }) => {
@@ -777,16 +776,6 @@ const ChecklistContainer = ({
                 </div>
             )}
 
-            {/* Banner cảnh báo khoá sau 10h — chỉ hiện khi đang xem ngày hôm nay */}
-            {isDeadlineLockedToday && (
-                <div className="bg-red-50 border-2 border-red-400 text-red-800 p-4 rounded-2xl flex items-center gap-3 animate-in slide-in-from-top duration-300 shadow-sm">
-                    <AlertCircle className="w-6 h-6 flex-shrink-0 text-red-500" />
-                    <div>
-                        <p className="text-sm font-black uppercase tracking-tight">🔒 Đã khoá — Quá 10:00 sáng</p>
-                        <p className="text-xs font-medium mt-0.5">Deadline báo cáo hằng ngày là <strong>10:00 sáng</strong>. Báo cáo hôm nay đã bị khoá. Lần trễ này sẽ được ghi nhận.</p>
-                    </div>
-                </div>
-            )}
 
             {/* Chỉ hiện form khi CHƯA khoá deadline hôm nay (isDeadlineLockedToday = false)
                  Ngày quá khứ: vẫn hiện form nhưng readOnly — để user xem lại dữ liệu đã gửi
