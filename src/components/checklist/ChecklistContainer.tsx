@@ -223,16 +223,9 @@ const ChecklistContainer = ({
     const [reportedTeams, setReportedTeams] = useState<string[]>([]);  // Các team đã báo cáo traffic
     const [serverTrafficRecords, setServerTrafficRecords] = useState<any[]>([]); // Lưu raw records từ BE để lọc theo team
 
-    // Deadline 10h: khoá toàn bộ form nếu đã qua 10h sáng hôm nay (chỉ áp dụng cho ngày hôm nay)
-    const [isDeadlinePassed, setIsDeadlinePassed] = useState<boolean>(() => isPastDailyDeadline());
-    useEffect(() => {
-        setIsDeadlinePassed(isPastDailyDeadline());
-        // Re-check mỗi phút để UI tự khoá khi đến 10h
-        const timer = setInterval(() => setIsDeadlinePassed(isPastDailyDeadline()), 60_000);
-        return () => clearInterval(timer);
-    }, []);
-    // Chỉ khoá deadline nếu đang xem ngày hôm nay (ngày quá khứ đã khoá bởi isPastDate rồi)
-    const isDeadlineLockedToday = isDeadlinePassed && reportDate === localCalendarYMD();
+    // Deadline 10h: Đã bỏ logic khoá.
+    const isDeadlinePassed = false;
+    const isDeadlineLockedToday = false;
 
     // Fetch Lark Permission Role on mount
     useEffect(() => {
@@ -614,11 +607,7 @@ const ChecklistContainer = ({
 
     const handleSubmit = async () => {
         const currentSelectedTeam = (selectedTeam || user?.team || '').trim();
-        // Khoá tuyệt đối nếu đã quá 10h và đang báo cáo ngày hôm nay
-        if (isDeadlineLockedToday) {
-            toast.error('⏰ Đã qua 10:00 sáng — Báo cáo hôm nay đã bị khoá. Liên hệ quản lý nếu cần ghi nhận muộn.');
-            return;
-        }
+        // Deadline lock removed
         if (!user) {
             toast.error('Vui lòng đăng nhập để gửi báo cáo.');
             return;
@@ -972,8 +961,8 @@ const ChecklistContainer = ({
                 </div>
             )}
 
-            {/* Nút submit — ẩn khi đã khoá deadline hôm nay */}
-            {!isDeadlineLockedToday && !(showOnlyTraffic && availableChannels.length === 0) && (
+            {/* Nút submit — Luôn hiện */}
+            {!(showOnlyTraffic && availableChannels.length === 0) && (
                 <div className="flex justify-center pt-8 border-t border-gray-100">
                     <button
                         type="button"

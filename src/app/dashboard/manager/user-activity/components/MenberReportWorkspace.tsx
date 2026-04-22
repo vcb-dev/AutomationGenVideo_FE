@@ -49,13 +49,8 @@ export default function DailyReportWorkspace() {
 
   const [timeLeftStr, setTimeLeftStr] = useState('00:00:00');
 
-  // Khoá form sau 10h sáng
-  const [isDeadlineLockedToday, setIsDeadlineLockedToday] = useState<boolean>(() => isPastDailyDeadline());
-  useEffect(() => {
-      setIsDeadlineLockedToday(isPastDailyDeadline());
-      const timer = setInterval(() => setIsDeadlineLockedToday(isPastDailyDeadline()), 60_000);
-      return () => clearInterval(timer);
-  }, []);
+  // Deadline 10h: Đã bỏ logic khoá.
+  const isDeadlineLockedToday = false;
 
   useEffect(() => {
     const updateTime = () => {
@@ -341,12 +336,10 @@ export default function DailyReportWorkspace() {
                 <button className="text-slate-500 font-medium text-[13px] flex items-center hover:text-slate-800 transition-colors" onClick={() => setStep(1)}>← Quay lại</button>
                 <button
                   disabled={isDeadlineLockedToday}
-                  className={`px-8 py-3 rounded-xl font-bold text-white transition shadow-sm ${
-                    isDeadlineLockedToday ? 'bg-slate-400 cursor-not-allowed' : 'bg-[#10B981] hover:bg-[#059669]'
-                  }`}
-                  onClick={() => !isDeadlineLockedToday && setConfirmOpen(true)}
+                  className="px-8 py-3 rounded-xl font-bold text-white transition shadow-sm bg-[#10B981] hover:bg-[#059669]"
+                  onClick={handleSubmit}
                 >
-                  {isDeadlineLockedToday ? '🔒 Đã khoá' : 'Gửi báo cáo'}
+                  Gửi báo cáo
                 </button>
               </div>
             </div>
@@ -559,10 +552,10 @@ export default function DailyReportWorkspace() {
               <button className="text-slate-500 font-bold text-[13px] hover:text-slate-800 transition-colors" onClick={() => setConfirmOpen(false)}>← Quay lại</button>
               <button
                 disabled={!confirmed || isDeadlineLockedToday}
-                className={`px-6 py-2.5 rounded-xl font-bold text-white transition-all shadow-sm ${confirmed && !isDeadlineLockedToday ? 'bg-[#1D4ED8] hover:bg-blue-700' : 'bg-slate-300 cursor-not-allowed'}`}
+                className={`px-6 py-2.5 rounded-xl font-bold text-white transition-all shadow-sm ${confirmed ? 'bg-[#1D4ED8] hover:bg-blue-700' : 'bg-slate-300 cursor-not-allowed'}`}
                 onClick={handleSubmit}
               >
-                {isDeadlineLockedToday ? '🔒 Đã khoá' : 'Gửi báo cáo ngày'}
+                Gửi báo cáo ngày
               </button>
             </div>
           </div>
