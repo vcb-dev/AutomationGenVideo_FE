@@ -129,9 +129,7 @@ export function useContentGeneration() {
                     content_type: response.data.content_type,
                     content_type_display: contentTypeMap[response.data.content_type] || response.data.content_type,
                     created_at: response.data.created_at,
-                    verification_rows: request.output_language === 'vi'
-                        ? []
-                        : normalizeVerificationRows(response.data.verification_rows || [])
+                    verification_rows: normalizeVerificationRows(response.data.verification_rows || []),
                 };
             }
 
