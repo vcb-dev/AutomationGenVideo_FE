@@ -337,6 +337,7 @@ export default function GenerateContentPage() {
                     industry: 'kim hoàn (trang sức vàng bạc)',
                     output_language: 'vi',
                     target_market_language: 'vi',
+                    translation_mode: true,
                     product_id: productInfo.id,
                     product_name: productInfo.name,
                     product_category: productInfo.category,
