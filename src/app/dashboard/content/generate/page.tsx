@@ -1379,7 +1379,7 @@ export default function GenerateContentPage() {
                             )}
 
                             {/* ── Bảng đối chiếu (chỉ cho ngôn ngữ khác tiếng Việt) ── */}
-                            {outputLanguage !== 'vi' && (generatedContent.verification_rows?.length || 0) > 0 && (
+                            {(generatedContent.verification_rows?.length || 0) > 0 && (
                                 <div className="bg-[#141414] rounded-2xl border border-gray-800 overflow-hidden">
                                     <div className="px-5 py-3 border-b border-gray-800 bg-[#0f0f0f]">
                                         <h3 className="text-sm font-semibold text-white">Bảng đối chiếu để recheck và ghép video</h3>
