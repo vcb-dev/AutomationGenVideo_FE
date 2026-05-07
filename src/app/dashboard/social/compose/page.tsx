@@ -9,6 +9,9 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { socialApi, SocialAccount, SocialPlatform, PLATFORM_META } from '@/lib/api/social';
+import { useSocialAccounts, useInvalidateAccounts } from '@/hooks/useSocialAccounts';
+import PublishProgressModal from './PublishProgressModal';
+import HashtagPanel from './HashtagPanel';
 import toast from 'react-hot-toast';
 
 const containerVariants = {
@@ -52,7 +55,8 @@ export default function ComposePage() {
   };
   
   // Core Data & UI State
-  const [accounts, setAccounts] = useState<SocialAccount[]>([]);
+  const { data: accounts = [] } = useSocialAccounts();
+  const invalidateAccounts = useInvalidateAccounts();
   const [drafts, setDrafts] = useState<any[]>([]);
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -180,8 +184,6 @@ export default function ComposePage() {
 
   useEffect(() => {
     setMounted(true);
-    // Dùng cache (5 phút) — tránh gọi API lại mỗi lần vào trang compose
-    socialApi.accounts.list().then(setAccounts).catch(() => {});
     // Drafts chỉ load khi user mở modal — không cần load ngay khi mount
 
     const now = new Date();
@@ -304,11 +306,12 @@ export default function ComposePage() {
     return () => clearInterval(timer);
   }, [publishStartedAt, publishProgress.phase]);
 
-  // Poll queue status mỗi 3 giây khi có activeJobIds
+  // Poll queue status mỗi 3 giây khi có activeJobIds, dừng khi tab ẩn
   useEffect(() => {
     if (!activeJobIds || activeJobIds.length === 0) return;
 
     const poll = async () => {
+      if (document.visibilityState === 'hidden') return; // dừng khi tab ẩn
       try {
         const { jobs } = await socialApi.queue.pollStatus(activeJobIds);
 
@@ -318,40 +321,40 @@ export default function ComposePage() {
             if (!jobId) return ch;
             const job = jobs.find(j => j.id === jobId);
             if (!job) return ch;
-
             if (job.status === 'COMPLETED') return { ...ch, status: 'success' as const, queuePosition: null };
             if (job.status === 'FAILED')    return { ...ch, status: 'fail' as const, error: job.error_msg ?? undefined, queuePosition: null };
-            // PENDING với queuePosition null → worker đang xử lý (claimed)
             const isProcessing = job.queuePosition === null;
-            return {
-              ...ch,
-              status: isProcessing ? 'posting' as const : 'pending' as const,
-              queuePosition: job.queuePosition,
-            };
+            return { ...ch, status: isProcessing ? 'posting' as const : 'pending' as const, queuePosition: job.queuePosition };
           });
           return { ...prev, channels: newChannels };
         });
 
-        // Dừng poll khi tất cả đã xong
         const allDone = jobs.every(j => j.status === 'COMPLETED' || j.status === 'FAILED' || j.status === 'CANCELLED');
         if (allDone) {
           setActiveJobIds(null);
           setPublishing(false);
           setPublishProgress(prev => ({ ...prev, phase: 'done' }));
-          const allSuccess = jobs.every(j => j.status === 'COMPLETED');
-          if (allSuccess) {
+          if (jobs.every(j => j.status === 'COMPLETED')) {
             toast.success('Đã đăng bài thành công!');
             setMessage(''); setMediaUrls([]); setHashtags([]); setSelectedAccountIds([]);
           } else {
             toast.error('Một số kênh đăng bài thất bại');
           }
         }
-      } catch { /* bỏ qua lỗi mạng tạm thời khi poll */ }
+      } catch { /* bỏ qua lỗi mạng tạm thời */ }
     };
 
-    poll(); // gọi ngay 1 lần
+    poll();
     const timer = setInterval(poll, 3000);
-    return () => clearInterval(timer);
+
+    // Resume poll ngay khi user quay lại tab
+    const onVisible = () => { if (document.visibilityState === 'visible') poll(); };
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeJobIds]);
 
@@ -564,7 +567,7 @@ export default function ComposePage() {
                 <motion.button 
                   whileHover={{ rotate: 180 }}
                   transition={{ duration: 0.4 }}
-                  onClick={() => socialApi.accounts.list().then(setAccounts)}
+                  onClick={() => invalidateAccounts()}
                   className="text-slate-400 hover:text-slate-600"
                 >
                   <RefreshCw className="w-4 h-4" />
@@ -870,58 +873,17 @@ export default function ComposePage() {
               </div>
             </motion.div>
 
-            {/* Ported: Hashtag Helper */}
-            <motion.div layout className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
-              <div className="flex items-center justify-between">
-                 <div className="flex items-center gap-2">
-                    <div className={`p-1.5 rounded-lg ${hashtags.length === 0 ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-600'}`}>
-                       <Hash className="w-4 h-4" />
-                    </div>
-                    <span className="text-slate-800 font-extrabold text-[13px]">Hashtag Mục tiêu *</span>
-                 </div>
-                 <button onClick={addSuggestedHashtag} className="text-blue-600 text-xs font-bold hover:underline">+ Thêm gợi ý</button>
-              </div>
-              
-              <div className="flex flex-wrap gap-2 p-3 bg-slate-50/50 rounded-xl border border-slate-100 min-h-[48px]">
-                {hashtags.map(tag => (
-                  <span key={tag} className="flex items-center gap-1.5 bg-white border border-blue-100 text-blue-600 text-[11px] font-bold px-2.5 py-1 rounded-lg shadow-sm">
-                    #{tag}
-                    <X onClick={() => removeHashtag(tag)} className="w-3 h-3 hover:text-red-500 cursor-pointer" />
-                  </span>
-                ))}
-                <input 
-                  type="text" 
-                  placeholder={hashtags.length === 0 ? "Nhập hashtag và nhấn Space..." : "Thêm..."}
-                  value={hashtagInput}
-                  onChange={e => setHashtagInput(e.target.value)}
-                  onKeyDown={handleHashtagKeyDown}
-                  className="flex-1 bg-transparent border-none outline-none text-[13px] text-slate-700 min-w-[100px]"
-                />
-              </div>
-
-              <div className="space-y-2">
-                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Gợi ý nhanh:</span>
-                 <div className="flex flex-wrap gap-2">
-                    {suggestedHashtags.map(tag => (
-                      <div key={tag} className="relative group">
-                        <button 
-                          onClick={() => addHashtag(tag)}
-                          disabled={hashtags.includes(tag)}
-                          className={`px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-all ${hashtags.includes(tag) ? 'bg-slate-100 border-slate-100 text-slate-300' : 'bg-white border-slate-200 text-slate-600 hover:border-blue-400 hover:text-blue-600 shadow-sm'}`}
-                        >
-                          #{tag}
-                        </button>
-                        {!hashtags.includes(tag) && (
-                          <X 
-                            onClick={(e) => removeSuggestedHashtag(tag, e)} 
-                            className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-all cursor-pointer shadow-sm"
-                          />
-                        )}
-                      </div>
-                    ))}
-                 </div>
-              </div>
-            </motion.div>
+            <HashtagPanel
+              hashtags={hashtags}
+              suggestedHashtags={suggestedHashtags}
+              hashtagInput={hashtagInput}
+              onAdd={addHashtag}
+              onRemove={removeHashtag}
+              onInputChange={setHashtagInput}
+              onKeyDown={handleHashtagKeyDown}
+              onAddSuggested={addSuggestedHashtag}
+              onRemoveSuggested={removeSuggestedHashtag}
+            />
 
             {/* Upload Section */}
             <div className="space-y-4">
@@ -1237,170 +1199,12 @@ export default function ComposePage() {
           </div>
         </motion.div>
 
-        {/* PROGRESS MODAL */}
-        <AnimatePresence>
-          {publishProgress.show && (
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-6"
-            >
-              <motion.div 
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className="bg-white rounded-[2rem] w-full max-w-[500px] overflow-hidden shadow-2xl"
-                onClick={e => e.stopPropagation()}
-              >
-                <div className="p-8 space-y-6">
-                  {(() => {
-                    const doneCount  = publishProgress.channels.filter(c => c.status === 'success' || c.status === 'fail').length;
-                    const totalCount = publishProgress.channels.length;
-                    const overallPct = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
-
-                    // ── Ước tính thời gian ──────────────────────────────────
-                    const fmtTime = (s: number) => {
-                      if (s <= 0) return '< 1s';
-                      const m = Math.floor(s / 60);
-                      const sec = s % 60;
-                      if (m === 0) return `${sec}s`;
-                      return sec === 0 ? `${m}p` : `${m}p ${sec}s`;
-                    };
-
-                    // ETA dựa trên tốc độ thực tế
-                    const PLATFORM_AVG: Record<string, number> = {
-                      FACEBOOK: 25, INSTAGRAM: 65, TIKTOK: 50, YOUTUBE: 100, THREADS: 20, ZALO: 30,
-                    };
-                    const PLATFORM_SLOTS: Record<string, number> = {
-                      FACEBOOK: 6, INSTAGRAM: 3, TIKTOK: 2, YOUTUBE: 2, THREADS: 4, ZALO: 5,
-                    };
-                    const remainingCount = totalCount - doneCount;
-                    let etaSec: number | null = null;
-                    if (publishProgress.phase !== 'done') {
-                      if (doneCount > 0 && elapsedSeconds > 0) {
-                        // Ước tính từ tốc độ thực (elapsed / done × remaining / concurrency)
-                        const avgPerJob  = elapsedSeconds / doneCount;
-                        const concurrency = Math.max(1, Math.min(15, remainingCount));
-                        etaSec = Math.round((avgPerJob * remainingCount) / concurrency);
-                      } else if (totalCount > 0) {
-                        // Ước tính tĩnh trước khi có job hoàn thành
-                        const byPlatform: Record<string, number> = {};
-                        publishProgress.channels.forEach(ch => {
-                          byPlatform[ch.platform] = (byPlatform[ch.platform] || 0) + 1;
-                        });
-                        etaSec = Math.max(
-                          ...Object.entries(byPlatform).map(([p, n]) =>
-                            Math.ceil(n / (PLATFORM_SLOTS[p] || 3)) * (PLATFORM_AVG[p] || 30)
-                          )
-                        );
-                      }
-                    }
-                    return (
-                      <>
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <h3 className="text-xl font-black text-slate-900">
-                              {publishProgress.phase === 'done' ? 'Kết quả hoàn tất' : 'Đang xử lý đăng bài'}
-                            </h3>
-                            <p className="text-sm text-slate-500 mt-1">
-                              {publishProgress.phase === 'done'
-                                ? `${publishProgress.channels.filter(c => c.status === 'success').length} thành công, ${publishProgress.channels.filter(c => c.status === 'fail').length} lỗi`
-                                : 'Vui lòng không đóng trình duyệt lúc này'}
-                            </p>
-                          </div>
-                          {publishProgress.phase === 'done' && (
-                            <button onClick={() => setPublishProgress(p => ({ ...p, show: false }))} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition-colors">
-                              <X className="w-5 h-5" />
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Overall progress bar */}
-                        {publishProgress.phase !== 'done' && totalCount > 0 && (
-                          <div className="space-y-1.5">
-                            <div className="flex items-center justify-between text-[12px] font-bold text-slate-500">
-                              <span>{doneCount}/{totalCount} kênh</span>
-                              <motion.span
-                                key={overallPct}
-                                initial={{ opacity: 0, y: -4 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="text-blue-600"
-                              >
-                                {overallPct}%
-                              </motion.span>
-                            </div>
-                            <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                              <motion.div
-                                className="h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-400"
-                                initial={{ width: '0%' }}
-                                animate={{ width: `${overallPct}%` }}
-                                transition={{ duration: 0.5, ease: 'easeOut' }}
-                              />
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    );
-                  })()}
-
-                  <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                    {publishProgress.channels.map(ch => {
-                      const meta = PLATFORM_META[ch.platform as SocialPlatform] || PLATFORM_META.FACEBOOK;
-                      const pct = Math.round(postingPcts[ch.id] ?? 0);
-                      const isActive = ch.status === 'posting' || ch.status === 'success' || ch.status === 'fail';
-                      return (
-                        <div key={ch.id} className={`flex flex-col gap-2 p-4 rounded-2xl border transition-all ${ch.status === 'success' ? 'bg-green-50 border-green-100' : ch.status === 'fail' ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-slate-100'}`}>
-                          <div className="flex items-center gap-4">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white ${meta.color} shadow-sm flex-shrink-0`}>
-                              {meta.emoji}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-bold text-slate-800 truncate">{ch.name}</p>
-                              <p className={`text-[10px] font-black uppercase tracking-wider ${ch.status === 'success' ? 'text-green-600' : ch.status === 'fail' ? 'text-red-600' : ch.status === 'posting' ? 'text-blue-600' : 'text-slate-400'}`}>
-                                {ch.status === 'posting'  ? `Đang xử lý... ${pct}%`
-                                  : ch.status === 'success' ? 'Thành công'
-                                  : ch.status === 'fail'    ? 'Thất bại'
-                                  : ch.queuePosition        ? `Hàng chờ #${ch.queuePosition}`
-                                  : 'Đang chờ xử lý'}
-                              </p>
-                              {ch.error && <p className="text-[9px] text-red-400 mt-0.5 italic">{ch.error}</p>}
-                            </div>
-                            <div className="flex-shrink-0">
-                              {ch.status === 'posting' && <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />}
-                              {ch.status === 'success' && <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold">✓</div>}
-                              {ch.status === 'fail' && <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold">!</div>}
-                            </div>
-                          </div>
-
-                          {/* Per-channel progress bar */}
-                          {isActive && (
-                            <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                              <motion.div
-                                className={`h-full rounded-full ${ch.status === 'success' ? 'bg-green-500' : ch.status === 'fail' ? 'bg-red-400' : 'bg-blue-500'}`}
-                                initial={{ width: '0%' }}
-                                animate={{ width: `${pct}%` }}
-                                transition={{ duration: ch.status === 'posting' ? 0.3 : 0.4, ease: 'easeOut' }}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {publishProgress.phase === 'done' && (
-                    <button 
-                      onClick={() => setPublishProgress(p => ({ ...p, show: false }))}
-                      className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest shadow-lg hover:bg-black transition-all"
-                    >
-                      Xác nhận
-                    </button>
-                  )}
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <PublishProgressModal
+          publishProgress={publishProgress}
+          postingPcts={postingPcts}
+          elapsedSeconds={elapsedSeconds}
+          onClose={() => setPublishProgress(p => ({ ...p, show: false }))}
+        />
 
         {/* DRAFTS MODAL */}
         <AnimatePresence>

@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { RefreshCw, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { socialApi, SocialAccount, SocialPlatform, FacebookPage } from '@/lib/api/social';
+import { socialApi, SocialAccount, SocialPlatform } from '@/lib/api/social';
+import { useSocialAccounts, useInvalidateAccounts } from '@/hooks/useSocialAccounts';
 
 // ─── Platform meta ─────────────────────────────────────────────────────────
 
@@ -51,95 +52,25 @@ const ALL_PLATFORMS: SocialPlatform[] = ['FACEBOOK', 'INSTAGRAM', 'TIKTOK', 'THR
 
 export default function ChannelsPage() {
   const [activeTab, setActiveTab] = useState<Tab>('Tất cả');
-  const [accounts, setAccounts] = useState<SocialAccount[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: accounts = [], isLoading: loading, error } = useSocialAccounts();
+  const invalidateAccounts = useInvalidateAccounts();
   const [connecting, setConnecting] = useState<SocialPlatform | null>(null);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
-  const [pagesMap, setPagesMap] = useState<Record<string, FacebookPage[]>>({});
-  const [pagesLoading, setPagesLoading] = useState<Record<string, boolean>>({});
-  // autoSaving: accountId đang tự động lưu pages sau khi connect
-  const [autoSaving, setAutoSaving] = useState<Record<string, boolean>>({});
   // collapsed: accountId nào đang ẩn pages
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  
+
   const [threadsTokenInputOpen, setThreadsTokenInputOpen] = useState(false);
   const [manualToken, setManualToken] = useState('');
   const [savingManualToken, setSavingManualToken] = useState(false);
 
+  useEffect(() => {
+    if (error) toast.error('Không tải được danh sách tài khoản');
+  }, [error]);
+
   const loadAccounts = useCallback(async () => {
-    try {
-      const data = await socialApi.accounts.list();
-      setAccounts(data);
-      return data;
-    } catch { toast.error('Không tải được danh sách tài khoản'); return []; }
-    finally { setLoading(false); }
-  }, []);
-
-  /**
-   * Fetch pages, rồi TỰ ĐỘNG lưu những page/Instagram chưa có trong DB.
-   * - isNewAccount=true  → show spinner "Đang lấy Pages..." + toast kết quả
-   * - isNewAccount=false → chạy ngầm, không spam toast nếu không có gì mới
-   */
-  const fetchAndAutoSavePages = useCallback(async (
-    accountId: string,
-    isNewAccount = false,
-    alreadySavedPageIds: Set<string> = new Set(),
-    alreadySavedIgIds: Set<string> = new Set(),
-  ) => {
-    setPagesLoading((p) => ({ ...p, [accountId]: true }));
-    if (isNewAccount) setAutoSaving((p) => ({ ...p, [accountId]: true }));
-    try {
-      const pages = await socialApi.accounts.getPages(accountId, true);
-      setPagesMap((prev) => ({ ...prev, [accountId]: pages }));
-
-      // Lọc ra những page chưa được lưu HOẶC có Instagram chưa được lưu
-      const toSave = pages.filter((p) =>
-        !alreadySavedPageIds.has(p.id) ||
-        (p.instagram && !alreadySavedIgIds.has(p.instagram.id))
-      );
-
-      if (toSave.length === 0) {
-        // Không có gì mới cần save, nhưng nếu là new account thì vẫn reload UI
-        if (isNewAccount) {
-          await loadAccounts();
-          if (pages.length > 0) {
-            toast.success(`Đã tìm thấy ${pages.length} Fanpage (đã được lưu trước đó)`, { duration: 3000 });
-          }
-        }
-        return;
-      }
-
-      let savedPages = 0, savedIg = 0;
-      for (const page of toSave) {
-        try {
-          await socialApi.accounts.savePage(accountId, {
-            pageId: page.id, pageName: page.name, pageToken: page.access_token,
-            pagePicture: page.picture,
-            igId: page.instagram?.id, igName: page.instagram?.name,
-            igUsername: page.instagram?.username, igPicture: page.instagram?.profile_picture_url,
-          });
-          savedPages++;
-          if (page.instagram) savedIg++;
-        } catch { /* bỏ qua lỗi từng page */ }
-      }
-
-      if (savedPages > 0) {
-        await loadAccounts();
-        toast.success(
-          `Đã tự động thêm ${savedPages} Fanpage${savedIg > 0 ? ` + ${savedIg} Instagram Business` : ''}`,
-          { duration: 5000 }
-        );
-      }
-
-      if (isNewAccount && pages.length === 0) {
-        toast('Tài khoản này chưa quản lý Fanpage nào.', { icon: 'ℹ️' });
-      }
-    } catch { /* silent */ }
-    finally {
-      setPagesLoading((p) => ({ ...p, [accountId]: false }));
-      setAutoSaving((p) => ({ ...p, [accountId]: false }));
-    }
-  }, [loadAccounts]);
+    await invalidateAccounts();
+    return accounts;
+  }, [invalidateAccounts, accounts]);
 
   // Ref để lưu số lượng accounts trước khi connect (dùng cho polling fallback)
   const accountCountBeforeConnect = useRef(0);
@@ -148,48 +79,9 @@ export default function ChannelsPage() {
   const connectingRef = useRef<SocialPlatform | null>(null);
   useEffect(() => { connectingRef.current = connecting; }, [connecting]);
 
-  const refreshAfterOAuth = useCallback(async () => {
-    const data = await loadAccounts();
-    // Tập hợp lại savedPageIds & savedIgIds sau khi reload
-    const savedPageIds = new Set(
-      data.filter((a) => (a.extra_data as any)?.type === 'page')
-        .map((a) => (a.extra_data as any)?.pageId as string)
-    );
-    const savedIgIds = new Set(
-      data.filter((a) => a.platform === 'INSTAGRAM')
-        .map((a) => (a.extra_data as any)?.igUserId as string)
-    );
-
-    // Fetch & auto-save pages cho TẤT CẢ FB personal accounts
-    const fbAccts = data.filter((a) => a.platform === 'FACEBOOK' && !['page', 'instagram_business'].includes((a.extra_data as any)?.type));
-    const sorted = [...fbAccts].sort((x, y) =>
-      new Date(y.created_at).getTime() - new Date(x.created_at).getTime()
-    );
-    sorted.forEach((a, idx) => {
-      fetchAndAutoSavePages(a.id, idx === 0, savedPageIds, savedIgIds);
-    });
-
-    return data;
-  }, [loadAccounts, fetchAndAutoSavePages]);
+  const refreshAfterOAuth = useCallback(() => loadAccounts(), [loadAccounts]);
 
   useEffect(() => {
-    loadAccounts().then((data) => {
-      // Tập hợp pageId và igId đã được lưu
-      const savedPageIds = new Set(
-        data.filter((a) => (a.extra_data as any)?.type === 'page')
-          .map((a) => (a.extra_data as any)?.pageId as string)
-      );
-      const savedIgIds = new Set(
-        data.filter((a) => a.platform === 'INSTAGRAM')
-          .map((a) => (a.extra_data as any)?.igUserId as string)
-      );
-
-      // Fetch pages cho mọi FB personal account → tự động save những cái chưa có
-      data
-        .filter((a) => a.platform === 'FACEBOOK' && !['page', 'instagram_business'].includes((a.extra_data as any)?.type))
-        .forEach((a) => fetchAndAutoSavePages(a.id, false, savedPageIds, savedIgIds));
-    });
-
     const handleOAuth = (payload: { type?: string; error?: string }) => {
       if (!payload?.type) return;
       if (payload.type.endsWith('-oauth-success')) {
@@ -220,7 +112,7 @@ export default function ChannelsPage() {
       window.removeEventListener('message', onMsg);
       if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
     };
-  }, [loadAccounts, fetchAndAutoSavePages, refreshAfterOAuth]);
+  }, [loadAccounts, refreshAfterOAuth]);
 
   const handleConnect = async (platform: SocialPlatform) => {
     setConnecting(platform);
@@ -246,29 +138,23 @@ export default function ChannelsPage() {
           pollTimerRef.current = setInterval(async () => {
             pollCount++;
             try {
-              const data = await socialApi.accounts.list(true); // force: bypass cache khi poll
+              await invalidateAccounts();
+              const data = accounts;
               const platformAccounts = data.filter(a => a.platform === platform);
 
-              // Detect thành công: có account mới (id chưa có trong snapshot) HOẶC count tăng
               const hasNewAccount = data.length > accountCountBeforeConnect.current ||
                 platformAccounts.some(a => !snapshotIds.has(a.id));
 
               if (hasNewAccount) {
                 if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
                 setConnecting(null);
-                setAccounts(data);
-                setLoading(false);
                 toast.success('Kết nối thành công!');
                 refreshAfterOAuth();
               } else if (pollCount >= 8) {
-                // Poll 8 lần (16s) không thấy → dừng nhưng vẫn reload để hiển thị nếu có
                 if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
                 setConnecting(null);
-                const fresh = await socialApi.accounts.list();
-                setAccounts(fresh);
-                setLoading(false);
-                // Kiểm tra lần cuối sau khi reload
-                const hasAny = fresh.filter(a => a.platform === platform).some(a => !snapshotIds.has(a.id));
+                await invalidateAccounts();
+                const hasAny = accounts.filter(a => a.platform === platform).some(a => !snapshotIds.has(a.id));
                 if (hasAny) {
                   toast.success('Kết nối thành công!');
                   refreshAfterOAuth();
@@ -313,17 +199,8 @@ export default function ChannelsPage() {
     setDisconnecting(account.id);
     try {
       await socialApi.accounts.disconnect(account.id);
-      socialApi.accounts.invalidate();
       toast.success('Đã gỡ kết nối');
-      // Reload từ server để đảm bảo child accounts (pages, IG) cũng được gỡ khỏi UI
-      // Không dùng filter local vì server đã cascade deactivate children
-      await loadAccounts();
-      // Xoá pages cache cho account này
-      setPagesMap((prev) => {
-        const next = { ...prev };
-        delete next[account.id];
-        return next;
-      });
+      await invalidateAccounts();
     } catch { toast.error('Không thể gỡ kết nối'); }
     finally { setDisconnecting(null); }
   };
@@ -334,9 +211,6 @@ export default function ChannelsPage() {
   const [igCollapsed, setIgCollapsed] = useState(false);
 
   // ── Derived ────────────────────────────────────────────────────────────────
-  const savedPageIds = new Set(
-    accounts.filter((a) => (a.extra_data as any)?.type === 'page').map((a) => (a.extra_data as any)?.pageId),
-  );
   const visiblePlatforms = activeTab === 'Tất cả' ? ALL_PLATFORMS : [activeTab as SocialPlatform];
 
   // Đếm account hiển thị cho mỗi platform (cùng logic với displayAccts)
@@ -526,13 +400,7 @@ export default function ChannelsPage() {
                                 </div>
                               )}
                               <p className="text-xs text-blue-500 mt-0.5 truncate">
-                                {extra?.pageId
-                                  ? `Page: ${
-                                      // Tìm tên page từ pagesMap của parent account
-                                      Object.values(pagesMap).flat().find(p => p.id === extra.pageId)?.name
-                                      || extra.pageId
-                                    }`
-                                  : 'Direct OAuth'}
+                                {extra?.pageId ? `Page: ${extra.pageId}` : 'Direct OAuth'}
                               </p>
                             </div>
 
@@ -557,9 +425,7 @@ export default function ChannelsPage() {
 
                 {/* ── FACEBOOK & CÁC PLATFORM KHÁC: account rows + pages grid ── */}
                 {platform !== 'INSTAGRAM' && displayAccts.map((account: SocialAccount) => {
-                  const pages = pagesMap[account.id] || [];
-                  const isLoading = pagesLoading[account.id];
-                  const isAutoSaving = autoSaving[account.id];
+                  const pages = accounts.filter((a) => a.parent_id === account.id && (a.extra_data as any)?.type === 'page');
                   const isCollapsed = collapsed[account.id];
                   const extra = account.extra_data as any;
                   const hasPages = pages.length > 0;
@@ -585,12 +451,7 @@ export default function ChannelsPage() {
                           </p>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
-                          {isAutoSaving && (
-                            <span className="flex items-center gap-1.5 text-xs text-indigo-600 font-medium px-3 py-1.5 bg-indigo-50 rounded-lg">
-                              <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Đang lấy Pages...
-                            </span>
-                          )}
-                          {platform === 'FACEBOOK' && (hasPages || isLoading) && !isAutoSaving && (
+                          {platform === 'FACEBOOK' && hasPages && (
                             <button
                               onClick={() => toggleCollapse(account.id)}
                               className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
@@ -611,9 +472,9 @@ export default function ChannelsPage() {
                       </div>
 
                       {/* Facebook Pages grid */}
-                      {platform === 'FACEBOOK' && !isAutoSaving && (
+                      {platform === 'FACEBOOK' && hasPages && (
                         <AnimatePresence initial={false}>
-                          {!isCollapsed && (hasPages || isLoading) && (
+                          {!isCollapsed && (
                             <motion.div
                               initial={{ height: 0, opacity: 0 }}
                               animate={{ height: 'auto', opacity: 1 }}
@@ -625,51 +486,37 @@ export default function ChannelsPage() {
                                 <p className="text-sm font-semibold text-slate-600 mb-4">
                                   Các Fanpage được quản lý: ({pages.length})
                                 </p>
-                                {isLoading && pages.length === 0 ? (
-                                  <div className="flex gap-4">
-                                    {[1, 2, 3, 4].map((i) => (
-                                      <div key={i} className="w-64 h-24 rounded-2xl border border-slate-200 bg-white animate-pulse" />
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <div className="grid grid-cols-4 gap-4 w-full">
-                                    {pages.map((page) => {
-                                      const alreadySaved = savedPageIds.has(page.id);
-                                      const bgColor = letterColor(page.name);
-                                      return (
-                                        <div
-                                          key={page.id}
-                                          className={`flex items-center gap-5 px-7 py-7 rounded-2xl border w-full ${'border-slate-200 bg-white hover:shadow-sm'
-                                            } transition-all`}
-                                        >
-                                          {/* Ảnh page nếu có, fallback letter */}
-                                          {page.picture ? (
-                                            <img
-                                              src={page.picture}
-                                              alt={page.name}
-                                              className="w-20 h-20 rounded-2xl object-cover flex-shrink-0 shadow-md border-2 border-white"
-                                              onError={(e) => {
-                                                e.currentTarget.style.display = 'none';
-                                                (e.currentTarget.nextSibling as HTMLElement)?.style.removeProperty('display');
-                                              }}
-                                            />
-                                          ) : null}
-                                          <div
-                                            className={`w-20 h-20 ${bgColor} rounded-2xl flex items-center justify-center text-white font-bold text-3xl flex-shrink-0 shadow-md ${page.picture ? 'hidden' : ''}`}
-                                          >
-                                            {page.name.charAt(0).toUpperCase()}
-                                          </div>
-
-                                          <div className="flex-1 min-w-0">
-                                            <p className="text-lg font-bold text-slate-900 truncate leading-snug">{page.name}</p>
-                                            <p className="text-sm text-slate-400 mt-1.5 truncate">FB Page ID: {page.id}</p>
-                                          </div>
-                                          {alreadySaved && <CheckCircle className="w-5 h-5 text-emerald-500 flex-shrink-0 self-start mt-0.5" />}
+                                <div className="grid grid-cols-4 gap-4 w-full">
+                                  {pages.map((page) => {
+                                    const bgColor = letterColor(page.name);
+                                    return (
+                                      <div
+                                        key={page.id}
+                                        className="flex items-center gap-5 px-7 py-7 rounded-2xl border border-slate-200 bg-white hover:shadow-sm transition-all w-full"
+                                      >
+                                        {page.avatar_url ? (
+                                          <img
+                                            src={page.avatar_url}
+                                            alt={page.name}
+                                            className="w-20 h-20 rounded-2xl object-cover flex-shrink-0 shadow-md border-2 border-white"
+                                            onError={(e) => {
+                                              e.currentTarget.style.display = 'none';
+                                              (e.currentTarget.nextSibling as HTMLElement)?.style.removeProperty('display');
+                                            }}
+                                          />
+                                        ) : null}
+                                        <div className={`w-20 h-20 ${bgColor} rounded-2xl flex items-center justify-center text-white font-bold text-3xl flex-shrink-0 shadow-md ${page.avatar_url ? 'hidden' : ''}`}>
+                                          {page.name.charAt(0).toUpperCase()}
                                         </div>
-                                      );
-                                    })}
-                                  </div>
-                                )}
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-lg font-bold text-slate-900 truncate leading-snug">{page.name}</p>
+                                          <p className="text-sm text-slate-400 mt-1.5 truncate">FB Page ID: {page.username}</p>
+                                        </div>
+                                        <CheckCircle className="w-5 h-5 text-emerald-500 flex-shrink-0 self-start mt-0.5" />
+                                      </div>
+                                    );
+                                  })}
+                                </div>
                               </div>
                             </motion.div>
                           )}

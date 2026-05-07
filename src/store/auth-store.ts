@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import apiClient from '../lib/api-client';
-import { socialApi } from '../lib/api/social';
 import type { User, LoginRequest, RegisterRequest, AuthResponse } from '../types/auth';
 
 const isTokenExpired = (token: string): boolean => {
@@ -133,8 +132,6 @@ export const useAuthStore = create<AuthState>()(
       logout: () => {
         localStorage.removeItem('auth_token');
         localStorage.removeItem('auth_user');
-        socialApi.accounts.invalidate();
-
         set({
           user: null,
           token: null,
