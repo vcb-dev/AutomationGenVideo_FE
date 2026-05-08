@@ -22,6 +22,7 @@ import {
     Bookmark,
     Languages,
     Globe,
+    Bot,
 } from "lucide-react";
 import { NavMenu } from "./types";
 
@@ -303,6 +304,25 @@ export function useNavMenus(
                                 href: "/dashboard/content/generate?mode=translate-only",
                                 icon: Languages,
                                 description: "Dịch content có sẵn và recheck bằng bảng 3 cột",
+                            },
+                        ],
+                    },
+                ],
+            },
+            {
+                id: "ai",
+                label: "AI",
+                activePathPrefixes: ["/dashboard/ai"],
+                sections: [
+                    {
+                        section: "TRỢ LÝ AI",
+                        color: "violet" as const,
+                        items: [
+                            {
+                                label: "VCB Assistant",
+                                href: "/dashboard/ai/assistant",
+                                icon: Bot,
+                                description: "Trợ lý AI thông minh hỗ trợ công việc hàng ngày",
                             },
                         ],
                     },
