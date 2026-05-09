@@ -248,7 +248,6 @@ export function useNavMenus(
                     "/dashboard/douyin",
                     "/dashboard/xiaohongshu",
                     "/dashboard/youtube",
-                    "/dashboard/ai",
                     "/dashboard/search-video",
                     "/dashboard/channel-analysis",
                     "/dashboard/video-library",
