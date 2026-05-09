@@ -178,10 +178,20 @@ export default function ChannelsPage() {
     const snapshotIds = new Set(accounts.filter(a => a.platform === platform).map(a => a.id));
     accountCountBeforeConnect.current = accounts.length;
 
+    // Mở popup ngay lập tức để tránh Safari chặn (phải mở trực tiếp từ click event, trước khi await)
+    const popup = window.open('', `oauth-${platform}`, 'width=620,height=720,left=200,top=80');
+
     try {
       const { url } = await socialApi.oauth.getUrl(platform);
-      const popup = window.open(url, `oauth-${platform}`, 'width=620,height=720,left=200,top=80');
-      if (!popup) { toast.error('Trình duyệt chặn popup — hãy bỏ chặn popup cho trang này.'); setConnecting(null); return; }
+      
+      if (!popup) {
+        toast.error('Trình duyệt chặn popup — hãy bỏ chặn popup cho trang này.');
+        setConnecting(null);
+        return;
+      }
+      
+      // Gán URL cho popup sau khi có kết quả
+      popup.location.href = url;
 
       // Popup checker: khi popup đóng mà chưa nhận BroadcastChannel → poll server
       const popupChecker = setInterval(async () => {
@@ -224,7 +234,11 @@ export default function ChannelsPage() {
           }, 2000);
         }
       }, 1000);
-    } catch { toast.error('Lỗi kết nối'); setConnecting(null); }
+    } catch { 
+      toast.error('Lỗi kết nối'); 
+      setConnecting(null); 
+      if (popup && !popup.closed) popup.close();
+    }
   };
 
   const handleSaveManualToken = async (platform: SocialPlatform) => {

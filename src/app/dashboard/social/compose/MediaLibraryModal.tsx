@@ -90,10 +90,14 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
         const file = files[i];
         const isVideo = file.type.startsWith('video/');
         toast.loading(
-          `[${i + 1}/${files.length}] ${isVideo ? '🎬 Đang nén + lưu' : '🖼 Đang lưu'} ${file.name}…`,
+          `[${i + 1}/${files.length}] ${isVideo ? '🎬 Đang tải lên (chia nhỏ)' : '🖼 Đang lưu'} ${file.name}…`,
           { id: 'lib-upload' },
         );
-        await socialApi.library.upload(file, (pct) => setUploadPct(pct));
+        if (isVideo) {
+          await socialApi.upload.chunked(file, (pct) => setUploadPct(pct));
+        } else {
+          await socialApi.library.upload(file, (pct) => setUploadPct(pct));
+        }
       }
       toast.success(`✅ Đã lưu ${files.length} file vào thư viện (DB)`, { id: 'lib-upload', duration: 3000 });
       load(1);

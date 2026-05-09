@@ -325,7 +325,7 @@ export default function ComposePage() {
     if (!activeJobIds || activeJobIds.length === 0) return;
 
     const poll = async () => {
-      if (document.visibilityState === 'hidden') return; // dừng khi tab ẩn
+      // if (document.visibilityState === 'hidden') return; // Bỏ check này để vẫn chạy ngầm khi chuyển tab
       try {
         const { jobs } = await socialApi.queue.pollStatus(activeJobIds);
 
@@ -361,18 +361,27 @@ export default function ComposePage() {
     poll();
     const timer = setInterval(poll, 3000);
 
-    // Resume poll ngay khi user quay lại tab
-    const onVisible = () => { if (document.visibilityState === 'visible') poll(); };
-    document.addEventListener('visibilitychange', onVisible);
+    // Không cần Resume poll dựa vào visibility nữa vì ta đã cho phép chạy ngầm
+    // const onVisible = () => { if (document.visibilityState === 'visible') poll(); };
+    // document.addEventListener('visibilitychange', onVisible);
 
     return () => {
       clearInterval(timer);
-      document.removeEventListener('visibilitychange', onVisible);
+      // document.removeEventListener('visibilitychange', onVisible);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeJobIds]);
 
-
+  // Cảnh báo người dùng nếu họ định đóng/f5 trang khi đang đăng bài
+  useEffect(() => {
+    if (!publishing) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = ''; // Required for modern browsers to show the default warning
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [publishing]);
 
   const handlePublish = async () => {
     if (activeTab === 'draft') {
