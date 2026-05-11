@@ -54,15 +54,17 @@ export default function NotificationBell() {
   const unread = notifications.filter(n => !read.has(n.id)).length;
 
   const markAllRead = () => {
-    const newRead = new Set([...read, ...notifications.map(n => n.id)]);
+    const newRead = new Set(Array.from(read));
+    notifications.forEach(n => newRead.add(n.id));
     setRead(newRead);
-    localStorage.setItem('notif_read', JSON.stringify([...newRead]));
+    localStorage.setItem('notif_read', JSON.stringify(Array.from(newRead)));
   };
 
   const markRead = (id: string) => {
-    const newRead = new Set([...read, id]);
+    const newRead = new Set(Array.from(read));
+    newRead.add(id);
     setRead(newRead);
-    localStorage.setItem('notif_read', JSON.stringify([...newRead]));
+    localStorage.setItem('notif_read', JSON.stringify(Array.from(newRead)));
   };
 
   const handleRetry = async (id: string) => {

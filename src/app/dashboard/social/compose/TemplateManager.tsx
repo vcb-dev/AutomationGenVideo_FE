@@ -18,7 +18,7 @@ const STORAGE_KEY = 'compose_templates';
 
 function extractVariables(content: string): string[] {
   const matches = content.match(/\{([^}]+)\}/g) || [];
-  return [...new Set(matches.map(m => m.slice(1, -1)))];
+  return Array.from(new Set(matches.map(m => m.slice(1, -1))));
 }
 
 function applyVariables(template: string, vars: Record<string, string>): string {
