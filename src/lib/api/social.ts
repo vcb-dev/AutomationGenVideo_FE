@@ -37,6 +37,7 @@ export interface UploadedMedia {
   originalname: string;
   mimetype: string;
   size: number;
+  thumbnail_url?: string;
   storage?: string;
   warning?: string;
 }
@@ -48,6 +49,7 @@ export interface MediaLibraryItem {
   mimetype: string;
   size: number;
   url: string;
+  thumbnail_url?: string;
   storage: 'supabase' | 'local' | 'db';
   created_at: string;
 }
