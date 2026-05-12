@@ -38,8 +38,8 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
   const [historyData, setHistoryData] = useState<{ posts: any[] } | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
 
-  const load = useCallback(async (p = 1) => {
-    setLoading(true);
+  const load = useCallback(async (p = 1, background = false) => {
+    if (!background) setLoading(true);
     try {
       const res = await socialApi.library.list(p, 20);
       setItems(res.items);
@@ -49,7 +49,7 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
     } catch {
       toast.error('Không tải được thư viện media');
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
     }
   }, []);
 
@@ -88,6 +88,10 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
     if (!files.length) return;
     setUploading(true);
     setUploadPct(0);
+    
+    let successCount = 0;
+    let failCount = 0;
+
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
@@ -120,16 +124,33 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
             });
           }
           updateTask(taskId, { status: 'success', progress: 100 });
+          successCount++;
+          
+          // Load lại thư viện ngay sau khi 1 file thành công (chạy ngầm để không bị nháy màn hình)
+          load(1, true);
+          socialApi.library.stats().then(setStats).catch(() => {});
+          
         } catch (err: any) {
-          updateTask(taskId, { status: 'error', message: err.message });
-          throw err;
+          failCount++;
+          const errorMsg = err?.response?.data?.message || err.message || 'Lỗi không xác định';
+          updateTask(taskId, { status: 'error', message: errorMsg });
+          toast.error(`❌ Lỗi tải lên ${file.name}: ${errorMsg}`, { duration: 5000 });
+          // Không throw err để vòng lặp chạy tiếp các file sau
         }
       }
-      toast.success(`✅ Đã lưu ${files.length} file vào thư viện (DB)`, { id: 'lib-upload', duration: 3000 });
-      load(1);
-      socialApi.library.stats().then(setStats).catch(() => {});
+      
+      if (successCount > 0 && failCount === 0) {
+        toast.success(`✅ Đã lưu ${successCount} file vào thư viện`, { id: 'lib-upload', duration: 3000 });
+      } else if (successCount > 0 && failCount > 0) {
+        toast.success(`⚠️ Đã tải lên ${successCount} file. Có ${failCount} file bị lỗi (xem thông báo).`, { id: 'lib-upload', duration: 4000 });
+      } else if (successCount === 0 && failCount > 0) {
+        toast.error(`❌ Tải lên thất bại cả ${failCount} file.`, { id: 'lib-upload', duration: 4000 });
+      } else {
+        toast.dismiss('lib-upload');
+      }
+      
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Upload thất bại', { id: 'lib-upload' });
+      toast.error('Có lỗi xảy ra trong quá trình xử lý', { id: 'lib-upload' });
     } finally {
       setUploading(false);
       setUploadPct(0);
