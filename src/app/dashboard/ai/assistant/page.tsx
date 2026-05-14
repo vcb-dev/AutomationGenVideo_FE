@@ -11,6 +11,7 @@ interface Message {
     role: "user" | "assistant";
     content: string;
     dashboard?: any;
+    suggestions?: string[];
 }
 
 interface Conversation {
@@ -127,7 +128,12 @@ export default function VCBAssistantPage() {
 
             setMessages((prev) => [
                 ...prev,
-                { role: "assistant", content: data.message ?? "", dashboard: data.dashboard ?? null },
+                {
+                    role: "assistant",
+                    content: data.message ?? "",
+                    dashboard: data.dashboard ?? null,
+                    suggestions: data.suggestions ?? [],
+                },
             ]);
 
             // Cập nhật updated_at trong sidebar
@@ -269,6 +275,19 @@ export default function VCBAssistantPage() {
                                                 {msg.content}
                                             </div>
                                             {msg.dashboard && <DynamicDashboard dashboard={msg.dashboard} />}
+                                            {msg.suggestions && msg.suggestions.length > 0 && (
+                                                <div className="flex flex-wrap gap-2 mt-2">
+                                                    {msg.suggestions.map((s, si) => (
+                                                        <button
+                                                            key={si}
+                                                            onClick={() => { setInput(s); inputRef.current?.focus(); }}
+                                                            className="text-xs px-3 py-1.5 rounded-full border border-violet-500/40 bg-violet-500/10 text-violet-300 hover:bg-violet-500/20 hover:border-violet-400 transition-colors cursor-pointer"
+                                                        >
+                                                            {s}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                         {msg.role === "user" && (
                                             <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold text-white">
