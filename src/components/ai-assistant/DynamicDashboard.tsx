@@ -30,7 +30,7 @@ function KpiCards({ data }: { data: { label: string; value: string; trend?: stri
                 <div key={i} className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
                     <p className="text-xs text-gray-500 mb-1 font-medium">{item.label}</p>
                     <p className="text-2xl font-bold text-gray-800">{item.value}</p>
-                    {item.trend && (
+                    {item.trend && !['n/a', 'null', 'undefined', '-'].includes(item.trend.toLowerCase()) && (
                         <div className={`flex items-center gap-1 mt-1.5 text-xs font-medium ${item.trendUp ? "text-emerald-600" : item.trendUp === false ? "text-red-500" : "text-gray-400"}`}>
                             {item.trendUp === true ? <TrendingUp size={12} /> : item.trendUp === false ? <TrendingDown size={12} /> : <Minus size={12} />}
                             {item.trend}
