@@ -313,44 +313,168 @@ export default function VCBAssistantPage() {
                 <div className={`border-t ${footerBorder} relative`} ref={settingsRef}>
                     {/* Settings Panel — pop up phía trên */}
                     {showSettings && (
-                        <div className={`absolute bottom-full left-0 right-0 mb-1 mx-2 rounded-2xl border shadow-xl overflow-hidden z-50 ${isDark ? "bg-[#1e2030] border-white/10" : "bg-white border-gray-200"}`}>
-                            {/* Theme */}
-                            <div className="p-3 border-b ${isDark ? 'border-white/10' : 'border-gray-100'}">
-                                <p className={`text-[10px] font-semibold uppercase tracking-wider mb-2 ${isDark ? "text-gray-500" : "text-gray-400"}`}>
-                                    Giao diện
-                                </p>
-                                <div className="flex gap-1.5">
-                                    {THEMES.map(({ id, label, icon: Icon }) => (
-                                        <button key={id} onClick={() => setTheme(id)}
-                                            className={`flex-1 flex flex-col items-center gap-1 py-2 rounded-xl text-[10px] font-medium transition-all ${theme === id
-                                                ? "bg-violet-100 text-violet-700 border border-violet-300"
-                                                : isDark ? "text-gray-400 hover:bg-white/5 border border-transparent" : "text-gray-500 hover:bg-gray-50 border border-transparent"
-                                            }`}>
-                                            <Icon size={14} />
-                                            {label}
-                                        </button>
-                                    ))}
-                                </div>
+                        <div className={`absolute bottom-full left-0 right-0 mb-1 mx-2 rounded-2xl border shadow-xl overflow-hidden z-50 ${isDark ? "bg-[#1e2030] border-white/10" : "bg-white border-gray-200"}`}
+                            style={{ maxHeight: "70vh", overflowY: "auto" }}>
+
+                            {/* Tab switcher */}
+                            <div className={`flex border-b ${isDark ? "border-white/10" : "border-gray-100"}`}>
+                                {[
+                                    { id: "appearance" as const, label: "Giao diện", icon: Sun },
+                                    { id: "telegram"   as const, label: "Telegram", icon: Bell },
+                                ].map(({ id, label, icon: Icon }) => (
+                                    <button key={id} onClick={() => setSettingsTab(id)}
+                                        className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${settingsTab === id
+                                            ? "text-violet-600 border-b-2 border-violet-500"
+                                            : isDark ? "text-gray-500 hover:text-gray-300" : "text-gray-500 hover:text-gray-700"
+                                        }`}>
+                                        <Icon size={12} /> {label}
+                                    </button>
+                                ))}
                             </div>
 
-                            {/* Chat Style */}
-                            <div className="p-3">
-                                <p className={`text-[10px] font-semibold uppercase tracking-wider mb-2 ${isDark ? "text-gray-500" : "text-gray-400"}`}>
-                                    Phong cách chat
-                                </p>
-                                <div className="flex flex-col gap-1">
-                                    {CHAT_STYLES.map(({ id, label, desc }) => (
-                                        <button key={id} onClick={() => setChatStyle(id)}
-                                            className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-all ${chatStyle === id
-                                                ? "bg-violet-50 text-violet-700 border border-violet-200"
-                                                : isDark ? "text-gray-400 hover:bg-white/5 border border-transparent" : "text-gray-600 hover:bg-gray-50 border border-transparent"
-                                            }`}>
-                                            <span className="font-medium">{label}</span>
-                                            <span className={`text-[10px] ${isDark ? "text-gray-500" : "text-gray-400"}`}>{desc}</span>
-                                        </button>
-                                    ))}
+                            {/* Tab: Appearance */}
+                            {settingsTab === "appearance" && (
+                                <div className="p-3 space-y-3">
+                                    <div>
+                                        <p className={`text-[10px] font-semibold uppercase tracking-wider mb-2 ${isDark ? "text-gray-500" : "text-gray-400"}`}>Giao diện</p>
+                                        <div className="flex gap-1.5">
+                                            {THEMES.map(({ id, label, icon: Icon }) => (
+                                                <button key={id} onClick={() => setTheme(id)}
+                                                    className={`flex-1 flex flex-col items-center gap-1 py-2 rounded-xl text-[10px] font-medium transition-all border ${theme === id
+                                                        ? "bg-violet-100 text-violet-700 border-violet-300"
+                                                        : isDark ? "text-gray-400 hover:bg-white/5 border-transparent" : "text-gray-500 hover:bg-gray-50 border-transparent"
+                                                    }`}>
+                                                    <Icon size={14} />{label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p className={`text-[10px] font-semibold uppercase tracking-wider mb-2 ${isDark ? "text-gray-500" : "text-gray-400"}`}>Phong cách chat</p>
+                                        <div className="flex flex-col gap-1">
+                                            {CHAT_STYLES.map(({ id, label, desc }) => (
+                                                <button key={id} onClick={() => setChatStyle(id)}
+                                                    className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-all border ${chatStyle === id
+                                                        ? "bg-violet-50 text-violet-700 border-violet-200"
+                                                        : isDark ? "text-gray-400 hover:bg-white/5 border-transparent" : "text-gray-600 hover:bg-gray-50 border-transparent"
+                                                    }`}>
+                                                    <span className="font-medium">{label}</span>
+                                                    <span className={`text-[10px] ${isDark ? "text-gray-500" : "text-gray-400"}`}>{desc}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
+                            )}
+
+                            {/* Tab: Telegram */}
+                            {settingsTab === "telegram" && (
+                                <div className="p-3 space-y-3">
+                                    {/* Active toggle */}
+                                    <div className="flex items-center justify-between">
+                                        <span className={`text-xs font-medium ${isDark ? "text-gray-300" : "text-gray-700"}`}>Kích hoạt gửi báo cáo</span>
+                                        <button onClick={() => setTgActive(v => !v)}
+                                            className={`w-9 h-5 rounded-full transition-colors relative ${tgActive ? "bg-violet-500" : isDark ? "bg-white/20" : "bg-gray-300"}`}>
+                                            <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${tgActive ? "left-4" : "left-0.5"}`} />
+                                        </button>
+                                    </div>
+
+                                    {/* Bot Token */}
+                                    <div>
+                                        <label className={`text-[10px] font-semibold uppercase tracking-wider block mb-1 ${isDark ? "text-gray-500" : "text-gray-400"}`}>Bot Token</label>
+                                        <input value={tgBotToken} onChange={e => setTgBotToken(e.target.value)}
+                                            placeholder="1234567890:ABCdef..."
+                                            className={`w-full text-xs px-2.5 py-2 rounded-lg border outline-none transition-colors ${isDark ? "bg-white/5 border-white/10 text-gray-200 placeholder-gray-600 focus:border-violet-500/50" : "bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 focus:border-violet-400"}`}
+                                        />
+                                        <p className={`text-[10px] mt-0.5 ${isDark ? "text-gray-600" : "text-gray-400"}`}>Lấy từ @BotFather trên Telegram</p>
+                                    </div>
+
+                                    {/* Chat ID */}
+                                    <div>
+                                        <label className={`text-[10px] font-semibold uppercase tracking-wider block mb-1 ${isDark ? "text-gray-500" : "text-gray-400"}`}>Chat ID / Group ID</label>
+                                        <input value={tgChatId} onChange={e => setTgChatId(e.target.value)}
+                                            placeholder="-1001234567890 hoặc 123456789"
+                                            className={`w-full text-xs px-2.5 py-2 rounded-lg border outline-none transition-colors ${isDark ? "bg-white/5 border-white/10 text-gray-200 placeholder-gray-600 focus:border-violet-500/50" : "bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 focus:border-violet-400"}`}
+                                        />
+                                        <p className={`text-[10px] mt-0.5 ${isDark ? "text-gray-600" : "text-gray-400"}`}>Dùng @userinfobot để lấy ID</p>
+                                    </div>
+
+                                    {/* Schedule */}
+                                    <div>
+                                        <label className={`text-[10px] font-semibold uppercase tracking-wider block mb-1 ${isDark ? "text-gray-500" : "text-gray-400"}`}><Clock size={10} className="inline mr-1"/>Giờ gửi hàng ngày</label>
+                                        <div className="flex items-center gap-2">
+                                            <select value={tgScheduleHour} onChange={e => setTgScheduleHour(e.target.value)}
+                                                className={`flex-1 text-xs px-2 py-1.5 rounded-lg border outline-none ${isDark ? "bg-white/5 border-white/10 text-gray-200" : "bg-gray-50 border-gray-200 text-gray-800"}`}>
+                                                {Array.from({length: 24}, (_, i) => (
+                                                    <option key={i} value={i}>{String(i).padStart(2,'0')}:00</option>
+                                                ))}
+                                            </select>
+                                            <span className={`text-xs ${isDark ? "text-gray-400" : "text-gray-500"}`}>giờ</span>
+                                            <select value={tgScheduleMin} onChange={e => setTgScheduleMin(e.target.value)}
+                                                className={`flex-1 text-xs px-2 py-1.5 rounded-lg border outline-none ${isDark ? "bg-white/5 border-white/10 text-gray-200" : "bg-gray-50 border-gray-200 text-gray-800"}`}>
+                                                {["0","15","30","45"].map(m => (
+                                                    <option key={m} value={m}>{String(m).padStart(2,'0')} phút</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    {/* Report types */}
+                                    <div>
+                                        <label className={`text-[10px] font-semibold uppercase tracking-wider block mb-1.5 ${isDark ? "text-gray-500" : "text-gray-400"}`}>Nội dung báo cáo</label>
+                                        <div className="flex gap-1.5">
+                                            {[{ id: "ads", label: "📢 Quảng cáo" }, { id: "traffic", label: "📱 Traffic" }].map(({ id, label }) => (
+                                                <button key={id} onClick={() => toggleType(id)}
+                                                    className={`flex-1 text-[10px] py-1.5 rounded-lg border font-medium transition-all ${tgReportTypes.includes(id)
+                                                        ? "bg-violet-50 text-violet-700 border-violet-300"
+                                                        : isDark ? "text-gray-500 border-white/10 hover:bg-white/5" : "text-gray-500 border-gray-200 hover:bg-gray-50"
+                                                    }`}>{label}</button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Formats */}
+                                    <div>
+                                        <label className={`text-[10px] font-semibold uppercase tracking-wider block mb-1.5 ${isDark ? "text-gray-500" : "text-gray-400"}`}>Định dạng file đính kèm</label>
+                                        <div className="grid grid-cols-3 gap-1">
+                                            {[
+                                                { id: "text",  label: "💬 Text" },
+                                                { id: "csv",   label: "📄 CSV"  },
+                                                { id: "xlsx",  label: "📊 XLSX" },
+                                                { id: "pdf",   label: "🗒️ PDF"  },
+                                                { id: "docx",  label: "📝 DOCX" },
+                                            ].map(({ id, label }) => (
+                                                <button key={id} onClick={() => toggleFormat(id)}
+                                                    className={`text-[10px] py-1.5 rounded-lg border font-medium transition-all ${tgFormats.includes(id)
+                                                        ? "bg-emerald-50 text-emerald-700 border-emerald-300"
+                                                        : isDark ? "text-gray-500 border-white/10 hover:bg-white/5" : "text-gray-500 border-gray-200 hover:bg-gray-50"
+                                                    }`}>{label}</button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Status message */}
+                                    {tgStatus && (
+                                        <div className={`text-xs px-3 py-2 rounded-lg ${tgStatus.ok ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-600 border border-red-200"}`}>
+                                            {tgStatus.ok ? "✓ " : "✗ "}{tgStatus.msg}
+                                        </div>
+                                    )}
+
+                                    {/* Actions */}
+                                    <div className="flex gap-2 pt-1">
+                                        <button onClick={saveTgConfig} disabled={tgSaving}
+                                            className="flex-1 text-xs py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5">
+                                            {tgSaving ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+                                            Lưu cấu hình
+                                        </button>
+                                        <button onClick={sendTgNow} disabled={tgSendingNow || !tgBotToken || !tgChatId}
+                                            className={`flex-1 text-xs py-2 rounded-xl font-medium transition-colors disabled:opacity-40 flex items-center justify-center gap-1.5 ${isDark ? "bg-white/10 hover:bg-white/15 text-gray-200" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}>
+                                            {tgSendingNow ? <Loader2 size={11} className="animate-spin" /> : <SendIcon size={11} />}
+                                            Gửi ngay
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 
