@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
-import { Send, Plus, MessageSquare, Trash2, Loader2, Pencil, Check, X, Sparkles, BarChart2, TrendingUp, Users, Zap } from "lucide-react";
+import { Send, Plus, MessageSquare, Trash2, Loader2, Pencil, Check, X, Sparkles, BarChart2, TrendingUp, Users, Zap, Settings, Sun, Moon, Monitor, Palette, ChevronUp } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/store/auth-store";
 import DynamicDashboard from "@/components/ai-assistant/DynamicDashboard";
@@ -22,6 +22,21 @@ interface Conversation {
     updated_at: string;
     _count?: { messages: number };
 }
+
+type Theme = "light" | "dark" | "system";
+type ChatStyle = "default" | "compact" | "bubble";
+
+const THEMES: { id: Theme; label: string; icon: React.ElementType }[] = [
+    { id: "light", label: "Sáng", icon: Sun },
+    { id: "dark",  label: "Tối",  icon: Moon },
+    { id: "system",label: "Hệ thống", icon: Monitor },
+];
+
+const CHAT_STYLES: { id: ChatStyle; label: string; desc: string }[] = [
+    { id: "default", label: "Mặc định", desc: "Card trắng rõ ràng" },
+    { id: "compact", label: "Thu gọn",  desc: "Khoảng cách nhỏ hơn" },
+    { id: "bubble",  label: "Bong bóng", desc: "Giống messenger" },
+];
 
 const SUGGESTIONS = [
     { icon: BarChart2, label: "Báo cáo ads tháng này", color: "text-violet-600" },
@@ -44,9 +59,38 @@ export default function VCBAssistantPage() {
     const [loadingMsgs, setLoadingMsgs] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editTitle, setEditTitle] = useState("");
+    const [showSettings, setShowSettings] = useState(false);
+    const [theme, setTheme] = useState<Theme>("light");
+    const [chatStyle, setChatStyle] = useState<ChatStyle>("default");
 
     const bottomRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
+    const settingsRef = useRef<HTMLDivElement>(null);
+
+    // Đóng settings khi click ra ngoài
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+                setShowSettings(false);
+            }
+        };
+        document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+    }, []);
+
+    // Apply theme
+    const isDark = theme === "dark" || (theme === "system" && typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    const bg = isDark ? "bg-[#0f1117]" : "bg-gray-50";
+    const sidebarBg = isDark ? "bg-[#1a1d27] border-white/10" : "bg-white border-gray-200";
+    const mainBg = isDark ? "bg-[#0f1117]" : "bg-gray-50";
+    const inputBg = isDark ? "bg-[#1e2030] border-white/10 text-white placeholder-gray-500 focus-within:border-violet-500/50" : "bg-white border-gray-300 text-gray-800 placeholder-gray-400 focus-within:border-violet-400 focus-within:ring-2 focus-within:ring-violet-100";
+    const botBubble = isDark ? "bg-[#1e2030] border-white/10" : "bg-white border-gray-200";
+    const botText = isDark ? "text-gray-200" : "text-gray-700";
+    const sidebarText = isDark ? "text-gray-300" : "text-gray-600";
+    const footerBorder = isDark ? "border-white/10" : "border-gray-100";
+    const msgSpacing = chatStyle === "compact" ? "space-y-3" : "space-y-6";
+    const msgPad = chatStyle === "compact" ? "py-2 px-3" : "py-3 px-4";
+    const msgRadius = chatStyle === "bubble" ? "rounded-3xl" : "rounded-2xl";
 
     const loadConversations = useCallback(async () => {
         try {
@@ -148,10 +192,10 @@ export default function VCBAssistantPage() {
     const isEmpty = messages.length === 0 && !loadingMsgs;
 
     return (
-        <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-gray-50">
+        <div className={`flex h-[calc(100vh-64px)] overflow-hidden ${bg}`}>
 
             {/* ── Sidebar ── */}
-            <aside className="w-64 shrink-0 flex flex-col bg-white border-r border-gray-200 overflow-hidden">
+            <aside className={`w-64 shrink-0 flex flex-col border-r overflow-hidden ${sidebarBg}`}>
                 {/* Header */}
                 <div className="p-4 border-b border-gray-100">
                     <button onClick={newConversation}
@@ -211,22 +255,68 @@ export default function VCBAssistantPage() {
                     )}
                 </div>
 
-                {/* User footer */}
-                <div className="p-3 border-t border-gray-100">
-                    <div className="flex items-center gap-2.5 px-2 py-1.5">
+                {/* User footer + Settings */}
+                <div className={`border-t ${footerBorder} relative`} ref={settingsRef}>
+                    {/* Settings Panel — pop up phía trên */}
+                    {showSettings && (
+                        <div className={`absolute bottom-full left-0 right-0 mb-1 mx-2 rounded-2xl border shadow-xl overflow-hidden z-50 ${isDark ? "bg-[#1e2030] border-white/10" : "bg-white border-gray-200"}`}>
+                            {/* Theme */}
+                            <div className="p-3 border-b ${isDark ? 'border-white/10' : 'border-gray-100'}">
+                                <p className={`text-[10px] font-semibold uppercase tracking-wider mb-2 ${isDark ? "text-gray-500" : "text-gray-400"}`}>
+                                    Giao diện
+                                </p>
+                                <div className="flex gap-1.5">
+                                    {THEMES.map(({ id, label, icon: Icon }) => (
+                                        <button key={id} onClick={() => setTheme(id)}
+                                            className={`flex-1 flex flex-col items-center gap-1 py-2 rounded-xl text-[10px] font-medium transition-all ${theme === id
+                                                ? "bg-violet-100 text-violet-700 border border-violet-300"
+                                                : isDark ? "text-gray-400 hover:bg-white/5 border border-transparent" : "text-gray-500 hover:bg-gray-50 border border-transparent"
+                                            }`}>
+                                            <Icon size={14} />
+                                            {label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Chat Style */}
+                            <div className="p-3">
+                                <p className={`text-[10px] font-semibold uppercase tracking-wider mb-2 ${isDark ? "text-gray-500" : "text-gray-400"}`}>
+                                    Phong cách chat
+                                </p>
+                                <div className="flex flex-col gap-1">
+                                    {CHAT_STYLES.map(({ id, label, desc }) => (
+                                        <button key={id} onClick={() => setChatStyle(id)}
+                                            className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-all ${chatStyle === id
+                                                ? "bg-violet-50 text-violet-700 border border-violet-200"
+                                                : isDark ? "text-gray-400 hover:bg-white/5 border border-transparent" : "text-gray-600 hover:bg-gray-50 border border-transparent"
+                                            }`}>
+                                            <span className="font-medium">{label}</span>
+                                            <span className={`text-[10px] ${isDark ? "text-gray-500" : "text-gray-400"}`}>{desc}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Avatar + Settings trigger */}
+                    <button onClick={() => setShowSettings(v => !v)}
+                        className={`w-full flex items-center gap-2.5 px-4 py-3 transition-colors ${isDark ? "hover:bg-white/5" : "hover:bg-gray-50"}`}>
                         <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-xs font-bold text-white shrink-0">
                             {firstName[0]?.toUpperCase()}
                         </div>
-                        <div className="min-w-0">
-                            <p className="text-xs font-medium text-gray-700 truncate">{user?.full_name ?? "Người dùng"}</p>
-                            <p className="text-[10px] text-gray-400">VCB Studio</p>
+                        <div className="min-w-0 flex-1 text-left">
+                            <p className={`text-xs font-medium truncate ${isDark ? "text-gray-200" : "text-gray-700"}`}>{user?.full_name ?? "Người dùng"}</p>
+                            <p className={`text-[10px] ${isDark ? "text-gray-500" : "text-gray-400"}`}>VCB Studio</p>
                         </div>
-                    </div>
+                        <ChevronUp size={13} className={`shrink-0 transition-transform ${showSettings ? "rotate-180" : ""} ${isDark ? "text-gray-500" : "text-gray-400"}`} />
+                    </button>
                 </div>
             </aside>
 
             {/* ── Main ── */}
-            <main className="flex-1 flex flex-col min-w-0 bg-gray-50">
+            <main className={`flex-1 flex flex-col min-w-0 ${mainBg}`}>
 
                 {/* Loading state */}
                 {loadingMsgs && (
@@ -249,7 +339,7 @@ export default function VCBAssistantPage() {
                         <p className="text-gray-500 text-base mb-10">Tôi có thể giúp bạn phân tích dữ liệu VCB Studio</p>
 
                         <div className="w-full max-w-2xl mb-6">
-                            <InputBox inputRef={inputRef} value={input} onChange={setInput} onKeyDown={handleKeyDown} onSend={() => sendMessage()} loading={loading} placeholder="Hỏi VCB Assistant..." />
+                            <InputBox inputRef={inputRef} value={input} onChange={setInput} onKeyDown={handleKeyDown} onSend={() => sendMessage()} loading={loading} placeholder="Hỏi VCB Assistant..." isDark={isDark} />
                         </div>
 
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 w-full max-w-2xl">
@@ -271,7 +361,7 @@ export default function VCBAssistantPage() {
                 {!loadingMsgs && !isEmpty && (
                     <>
                         <div className="flex-1 overflow-y-auto">
-                            <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+                            <div className={`max-w-3xl mx-auto px-4 py-6 ${msgSpacing}`}>
                                 {messages.map((msg, i) => (
                                     <div key={msg.id ?? i} className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
 
@@ -287,8 +377,8 @@ export default function VCBAssistantPage() {
                                                     {msg.content}
                                                 </div>
                                             ) : (
-                                                <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm w-full">
-                                                    <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                                                <div className={`border ${msgRadius} rounded-tl-sm ${msgPad} shadow-sm w-full ${botBubble}`}>
+                                                    <p className={`text-sm leading-relaxed whitespace-pre-wrap ${botText}`}>{msg.content}</p>
                                                 </div>
                                             )}
 
@@ -324,7 +414,7 @@ export default function VCBAssistantPage() {
                                         <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center shrink-0 shadow-sm overflow-hidden">
                                             <Image src="/images/ai-avatar.png" alt="AI" width={28} height={28} className="object-contain" />
                                         </div>
-                                        <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3.5 shadow-sm">
+                                        <div className={`border ${msgRadius} rounded-tl-sm px-4 py-3.5 shadow-sm ${botBubble}`}>
                                             <div className="flex items-center gap-1.5">
                                                 <span className="w-2 h-2 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: "0ms" }} />
                                                 <span className="w-2 h-2 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: "150ms" }} />
@@ -337,10 +427,10 @@ export default function VCBAssistantPage() {
                             </div>
                         </div>
 
-                        <div className="border-t border-gray-200 bg-white px-4 py-4">
+                        <div className={`border-t px-4 py-4 ${isDark ? "border-white/10 bg-[#1a1d27]" : "border-gray-200 bg-white"}`}>
                             <div className="max-w-3xl mx-auto">
-                                <InputBox inputRef={inputRef} value={input} onChange={setInput} onKeyDown={handleKeyDown} onSend={() => sendMessage()} loading={loading} placeholder="Nhập câu hỏi tiếp theo..." />
-                                <p className="text-center text-xs text-gray-400 mt-2">VCB Assistant có thể mắc lỗi. Kiểm tra lại thông tin quan trọng.</p>
+                                <InputBox inputRef={inputRef} value={input} onChange={setInput} onKeyDown={handleKeyDown} onSend={() => sendMessage()} loading={loading} placeholder="Nhập câu hỏi tiếp theo..." isDark={isDark} />
+                                <p className={`text-center text-xs mt-2 ${isDark ? "text-gray-600" : "text-gray-400"}`}>VCB Assistant có thể mắc lỗi. Kiểm tra lại thông tin quan trọng.</p>
                             </div>
                         </div>
                     </>
@@ -350,18 +440,21 @@ export default function VCBAssistantPage() {
     );
 }
 
-function InputBox({ inputRef, value, onChange, onKeyDown, onSend, loading, placeholder }: {
+function InputBox({ inputRef, value, onChange, onKeyDown, onSend, loading, placeholder, isDark }: {
     inputRef: React.RefObject<HTMLTextAreaElement>;
     value: string; onChange: (v: string) => void;
     onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
-    onSend: () => void; loading: boolean; placeholder: string;
+    onSend: () => void; loading: boolean; placeholder: string; isDark?: boolean;
 }) {
     return (
-        <div className="flex items-end gap-3 bg-white border border-gray-300 rounded-2xl px-4 py-3 focus-within:border-violet-400 focus-within:ring-2 focus-within:ring-violet-100 transition-all duration-200 shadow-sm">
+        <div className={`flex items-end gap-3 border rounded-2xl px-4 py-3 transition-all duration-200 shadow-sm ${isDark
+            ? "bg-[#1e2030] border-white/10 focus-within:border-violet-500/50 focus-within:shadow-violet-500/10 focus-within:shadow-lg"
+            : "bg-white border-gray-300 focus-within:border-violet-400 focus-within:ring-2 focus-within:ring-violet-100"
+        }`}>
             <textarea
                 ref={inputRef} value={value} onChange={(e) => onChange(e.target.value)}
                 onKeyDown={onKeyDown} placeholder={placeholder} rows={1}
-                className="flex-1 bg-transparent text-sm text-gray-800 placeholder-gray-400 resize-none outline-none leading-relaxed max-h-40 overflow-y-auto"
+                className={`flex-1 bg-transparent text-sm resize-none outline-none leading-relaxed max-h-40 overflow-y-auto ${isDark ? "text-white placeholder-gray-500" : "text-gray-800 placeholder-gray-400"}`}
                 style={{ minHeight: "24px" }} disabled={loading} autoFocus
             />
             <button onClick={onSend} disabled={!value.trim() || loading}
