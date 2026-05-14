@@ -181,12 +181,11 @@ export default function ConnectionSettingsPage() {
                 {!coverageLoading && coverage && (
                     <>
                         {/* Summary KPIs */}
-                        <div className="grid grid-cols-4 gap-3 mb-4">
+                        <div className="grid grid-cols-3 gap-3 mb-4">
                             {[
                                 { label: 'Tổng kênh', value: coverage.summary.total_channels, color: '#7c3aed', icon: <Database size={15}/> },
                                 { label: 'Đã có dữ liệu', value: coverage.summary.has_data, color: '#059669', icon: <Wifi size={15}/> },
                                 { label: 'Chưa có dữ liệu', value: coverage.summary.no_data, color: '#dc2626', icon: <WifiOff size={15}/> },
-                                { label: 'Tổng views', value: fmt(coverage.summary.total_views), color: '#0ea5e9', icon: <TrendingUp size={15}/> },
                             ].map((k, i) => (
                                 <div key={i} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex items-center gap-3">
                                     <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: k.color + '15', color: k.color }}>{k.icon}</div>
@@ -246,10 +245,11 @@ export default function ConnectionSettingsPage() {
                             </div>
 
                             {/* Table */}
-                            <div className="overflow-x-auto max-h-72 overflow-y-auto">
+                            <div className="overflow-x-auto max-h-[520px] overflow-y-auto">
                                 <table className="w-full text-sm">
-                                    <thead className="sticky top-0 bg-gray-50">
+                                    <thead className="sticky top-0 bg-gray-50 z-10">
                                         <tr className="border-b border-gray-200">
+                                            <th className="text-center py-2.5 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wide w-10">#</th>
                                             <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wide">Kênh</th>
                                             <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Nền tảng</th>
                                             <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Team</th>
@@ -267,11 +267,11 @@ export default function ConnectionSettingsPage() {
                                                 (c.name || '').toLowerCase().includes(coverageSearch.toLowerCase()) ||
                                                 (c.team || '').toLowerCase().includes(coverageSearch.toLowerCase()) ||
                                                 (c.owner || '').toLowerCase().includes(coverageSearch.toLowerCase()))
-                                            .slice(0, 100)
                                             .map((ch: any, i: number) => {
                                                 const color = PLATFORM_COLORS[ch.platform_norm] || '#6b7280';
                                                 return (
                                                     <tr key={i} className={`border-b border-gray-100 hover:bg-violet-50/30 transition-colors ${i%2===0?'':'bg-gray-50/30'}`}>
+                                                        <td className="py-2.5 px-3 text-center text-xs text-gray-400 font-mono select-none">{i + 1}</td>
                                                         <td className="py-2.5 px-4 font-medium text-gray-800 max-w-[180px] truncate">{ch.name || '—'}</td>
                                                         <td className="py-2.5 px-3">
                                                             <span className="text-xs font-medium px-2 py-0.5 rounded-md border" style={{ color, borderColor: color + '40', background: color + '10' }}>
