@@ -27,11 +27,11 @@ function KpiCards({ data }: { data: { label: string; value: string; trend?: stri
     return (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {data.map((item, i) => (
-                <div key={i} className="bg-white/5 rounded-xl p-4 border border-white/10">
-                    <p className="text-xs text-gray-400 mb-1">{item.label}</p>
-                    <p className="text-2xl font-bold text-white">{item.value}</p>
+                <div key={i} className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+                    <p className="text-xs text-gray-500 mb-1 font-medium">{item.label}</p>
+                    <p className="text-2xl font-bold text-gray-800">{item.value}</p>
                     {item.trend && (
-                        <div className={`flex items-center gap-1 mt-1 text-xs font-medium ${item.trendUp ? "text-emerald-400" : item.trendUp === false ? "text-red-400" : "text-gray-400"}`}>
+                        <div className={`flex items-center gap-1 mt-1.5 text-xs font-medium ${item.trendUp ? "text-emerald-600" : item.trendUp === false ? "text-red-500" : "text-gray-400"}`}>
                             {item.trendUp === true ? <TrendingUp size={12} /> : item.trendUp === false ? <TrendingDown size={12} /> : <Minus size={12} />}
                             {item.trend}
                         </div>
@@ -44,8 +44,8 @@ function KpiCards({ data }: { data: { label: string; value: string; trend?: stri
 
 function ChartWrapper({ title, children }: { title?: string; children: React.ReactNode }) {
     return (
-        <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-            {title && <p className="text-sm font-semibold text-gray-300 mb-3">{title}</p>}
+        <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+            {title && <p className="text-sm font-semibold text-gray-700 mb-3">{title}</p>}
             {children}
         </div>
     );
@@ -57,17 +57,17 @@ function DataTable({ title, columns, data }: { title?: string; columns: string[]
             <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                     <thead>
-                        <tr className="border-b border-white/10">
+                        <tr className="border-b border-gray-200">
                             {columns.map((col) => (
-                                <th key={col} className="text-left py-2 px-3 text-gray-400 font-medium">{col}</th>
+                                <th key={col} className="text-left py-2 px-3 text-gray-500 font-semibold text-xs uppercase tracking-wide">{col}</th>
                             ))}
                         </tr>
                     </thead>
                     <tbody>
                         {data.map((row, i) => (
-                            <tr key={i} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                            <tr key={i} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                                 {columns.map((col) => (
-                                    <td key={col} className="py-2 px-3 text-gray-200">{row[col] ?? "—"}</td>
+                                    <td key={col} className="py-2.5 px-3 text-gray-700 text-sm">{row[col] ?? "—"}</td>
                                 ))}
                             </tr>
                         ))}
@@ -88,10 +88,10 @@ function renderBlock(block: Block, idx: number) {
                 <ChartWrapper key={idx} title={block.title}>
                     <ResponsiveContainer width="100%" height={220}>
                         <BarChart data={block.data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
-                            <XAxis dataKey={block.xKey ?? "name"} tick={{ fill: "#9ca3af", fontSize: 11 }} />
-                            <YAxis tick={{ fill: "#9ca3af", fontSize: 11 }} />
-                            <Tooltip contentStyle={{ background: "#1e1e2e", border: "1px solid #ffffff20", borderRadius: 8 }} />
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                            <XAxis dataKey={block.xKey ?? "name"} tick={{ fill: "#6b7280", fontSize: 11 }} />
+                            <YAxis tick={{ fill: "#6b7280", fontSize: 11 }} />
+                            <Tooltip contentStyle={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }} />
                             <Bar dataKey={block.yKey ?? "value"} fill={block.color ?? "#8b5cf6"} radius={[4, 4, 0, 0]} />
                         </BarChart>
                     </ResponsiveContainer>
@@ -103,9 +103,9 @@ function renderBlock(block: Block, idx: number) {
                 <ChartWrapper key={idx} title={block.title}>
                     <ResponsiveContainer width="100%" height={220}>
                         <LineChart data={block.data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
-                            <XAxis dataKey={block.xKey ?? "date"} tick={{ fill: "#9ca3af", fontSize: 11 }} />
-                            <YAxis tick={{ fill: "#9ca3af", fontSize: 11 }} />
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                            <XAxis dataKey={block.xKey ?? "date"} tick={{ fill: "#6b7280", fontSize: 11 }} />
+                            <YAxis tick={{ fill: "#6b7280", fontSize: 11 }} />
                             <Tooltip contentStyle={{ background: "#1e1e2e", border: "1px solid #ffffff20", borderRadius: 8 }} />
                             <Line type="monotone" dataKey={block.yKey ?? "value"} stroke={block.color ?? "#06b6d4"} strokeWidth={2} dot={false} />
                         </LineChart>
