@@ -33,6 +33,9 @@ export default function NotificationBell() {
     try {
       const data = await socialApi.history.notifications();
       if (Array.isArray(data)) setNotifications(data);
+      else if (data && Array.isArray((data as { notifications?: Notification[] }).notifications)) {
+        setNotifications((data as { notifications: Notification[] }).notifications);
+      }
     } catch {}
   }, []);
 

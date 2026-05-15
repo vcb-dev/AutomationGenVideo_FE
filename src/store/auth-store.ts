@@ -23,6 +23,8 @@ const isTokenExpired = (token: string): boolean => {
   }
 };
 
+let _loadUserPromise: Promise<void> | null = null;
+
 // Ensure local auth storage is cleared when it is no longer valid.
 if (typeof window !== 'undefined') {
   try {
@@ -81,22 +83,23 @@ export const useAuthStore = create<AuthState>()(
               isLoading: false,
             });
             return;
-          } catch (error: any) {
+          } catch (error: unknown) {
+            const axiosError = error as { code?: string; response?: { data?: { message?: string | string[] } } };
             const isNetworkOrTimeout =
-              error.code === 'ECONNABORTED' ||
-              error.code === 'ERR_NETWORK' ||
-              !error.response;
+              axiosError.code === 'ECONNABORTED' ||
+              axiosError.code === 'ERR_NETWORK' ||
+              !axiosError.response;
 
             if (isNetworkOrTimeout && attempt < MAX_RETRIES) {
               await new Promise(r => setTimeout(r, 1000 * attempt));
               continue;
             }
 
-            let errorMessage = error.response?.data?.message || 'Đăng nhập thất bại. Vui lòng thử lại.';
+            let errorMessage = axiosError.response?.data?.message || 'Đăng nhập thất bại. Vui lòng thử lại.';
             if (Array.isArray(errorMessage)) {
               errorMessage = errorMessage.join(', ');
             }
-            set({ error: errorMessage, isLoading: false });
+            set({ error: errorMessage as string, isLoading: false });
             throw error;
           }
         }
@@ -119,12 +122,13 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
             isLoading: false,
           });
-        } catch (error: any) {
-          let errorMessage = error.response?.data?.message || 'Registration failed';
+        } catch (error: unknown) {
+          const axiosError = error as { response?: { data?: { message?: string | string[] } } };
+          let errorMessage = axiosError.response?.data?.message || 'Registration failed';
           if (Array.isArray(errorMessage)) {
             errorMessage = errorMessage.join(', ');
           }
-          set({ error: errorMessage, isLoading: false });
+          set({ error: errorMessage as string, isLoading: false });
           throw error;
         }
       },
@@ -141,50 +145,56 @@ export const useAuthStore = create<AuthState>()(
       },
 
       loadUser: async () => {
-        try {
-          const token = localStorage.getItem('auth_token');
+        if (_loadUserPromise) return _loadUserPromise;
+        _loadUserPromise = (async () => {
+          try {
+            const token = localStorage.getItem('auth_token');
 
-          if (!token) {
-            set({ isAuthenticated: false, user: null, token: null });
-            return;
-          }
+            if (!token) {
+              set({ isAuthenticated: false, user: null, token: null });
+              return;
+            }
 
-          // Check token expiry on client to avoid showing stale sessions
-          if (isTokenExpired(token)) {
+            // Check token expiry on client to avoid showing stale sessions
+            if (isTokenExpired(token)) {
+              localStorage.removeItem('auth_token');
+              localStorage.removeItem('auth_user');
+              set({
+                user: null,
+                token: null,
+                isAuthenticated: false,
+                isLoading: false,
+              });
+              return;
+            }
+
+            set({ isLoading: true });
+
+            const response = await apiClient.get<User>('/auth/profile');
+            const user = response.data;
+
+            set({
+              user,
+              token,
+              isAuthenticated: true,
+              isLoading: false,
+            });
+          } catch {
+            // Token invalid or expired
             localStorage.removeItem('auth_token');
             localStorage.removeItem('auth_user');
+
             set({
               user: null,
               token: null,
               isAuthenticated: false,
               isLoading: false,
             });
-            return;
+          } finally {
+            _loadUserPromise = null;
           }
-
-          set({ isLoading: true });
-
-          const response = await apiClient.get<User>('/auth/profile');
-          const user = response.data;
-
-          set({
-            user,
-            token,
-            isAuthenticated: true,
-            isLoading: false,
-          });
-        } catch (error) {
-          // Token invalid or expired
-          localStorage.removeItem('auth_token');
-          localStorage.removeItem('auth_user');
-
-          set({
-            user: null,
-            token: null,
-            isAuthenticated: false,
-            isLoading: false,
-          });
-        }
+        })();
+        return _loadUserPromise;
       },
 
       clearError: () => set({ error: null }),

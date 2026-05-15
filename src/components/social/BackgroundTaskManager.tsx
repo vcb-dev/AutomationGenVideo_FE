@@ -3,8 +3,9 @@
 import React from 'react';
 import { useTaskStore } from '@/store/taskStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, XCircle, Loader2, ChevronUp, ChevronDown, X } from 'lucide-react';
+import { CheckCircle2, Loader2, ChevronUp, ChevronDown, X } from 'lucide-react';
 import { socialApi } from '@/lib/api/social';
+import { pollRegistry } from '@/lib/polling-registry';
 
 export const BackgroundTaskManager = () => {
   const { tasks, removeTask, updateTask } = useTaskStore();
@@ -25,34 +26,46 @@ export const BackgroundTaskManager = () => {
   }, [tasks, removeTask]);
 
   // Polling trạng thái cho các bài đăng MXH
+  // Dùng ref để đọc tasks mới nhất trong interval mà không restart effect mỗi lần tasks đổi
+  const tasksRef = React.useRef(tasks);
+  tasksRef.current = tasks;
+  const hasActivePosts = tasks.some(t => t.type === 'post' && (t.status === 'pending' || t.status === 'processing' || t.status === 'uploading'));
+
   React.useEffect(() => {
-    const activePosts = tasks.filter(t => t.type === 'post' && (t.status === 'pending' || t.status === 'processing' || t.status === 'uploading'));
-    if (activePosts.length === 0) return;
+    if (!hasActivePosts) return;
 
     const poll = async () => {
+      const activePosts = tasksRef.current.filter(t => t.type === 'post' && (t.status === 'pending' || t.status === 'processing' || t.status === 'uploading'));
+      if (activePosts.length === 0) return;
+
+      // Bỏ qua các job đang được compose page poll riêng để tránh duplicate requests
+      const jobIds = activePosts
+        .map(t => t.id.replace('post-', ''))
+        .filter(id => !pollRegistry.isActive(id));
+      if (jobIds.length === 0) return;
+
       try {
-        // Lấy danh sách jobIds từ ID của task (id task có dạng post-jobId)
-        const jobIds = activePosts.map(t => t.id.replace('post-', ''));
         const { jobs } = await socialApi.queue.pollStatus(jobIds);
 
         jobs.forEach(job => {
           const taskId = `post-${job.id}`;
           const isDone = job.status === 'COMPLETED' || job.status === 'FAILED' || job.status === 'CANCELLED';
-          
+
           if (isDone) {
-            updateTask(taskId, { 
-              status: job.status === 'FAILED' ? 'error' : 'success', 
+            const isSuccess = job.status === 'COMPLETED';
+            updateTask(taskId, {
+              status: isSuccess ? 'success' : 'error',
               progress: 100,
-              message: job.status === 'FAILED' ? (job.error_msg || 'Thất bại') : 'Hoàn tất!'
+              message: isSuccess ? 'Hoàn tất!' : (job.error_msg || (job.status === 'CANCELLED' ? 'Đã hủy' : 'Thất bại'))
             });
           } else {
-            // Nếu chưa xong, giả lập progress dựa trên queuePosition (tạm thời)
-            const progress = job.queuePosition === null ? 80 : 20; 
-            updateTask(taskId, { 
-              status: 'processing', 
-              progress,
-              message: job.queuePosition === null ? 'Đang gửi tới MXH...' : `Đang chờ (Hàng đợi: ${job.queuePosition})`
-            });
+            const progress = job.queuePosition === null ? 80 : 20;
+            const queueMsg = job.queuePosition === null
+              ? 'Đang gửi tới MXH...'
+              : job.queueTotal != null
+                ? `Hàng chờ: #${job.queuePosition}/${job.queueTotal}`
+                : `Hàng chờ: #${job.queuePosition}`;
+            updateTask(taskId, { status: 'processing', progress, message: queueMsg });
           }
         });
       } catch (err) {
@@ -63,7 +76,7 @@ export const BackgroundTaskManager = () => {
     poll();
     const interval = setInterval(poll, 4000); // Kiểm tra mỗi 4 giây
     return () => clearInterval(interval);
-  }, [tasks, updateTask]);
+  }, [hasActivePosts, updateTask]);
 
   if (tasks.length === 0) return null;
 
@@ -131,8 +144,19 @@ export const BackgroundTaskManager = () => {
                   </div>
 
                   <div className="flex items-center gap-1">
-                    {task.status === 'uploading' && <span className="text-[10px] text-blue-500">Đang tải lên...</span>}
-                    {task.status === 'processing' && <span className="text-[10px] text-amber-500">Đang nén & lưu...</span>}
+                    {task.status === 'uploading' && (
+                      <span className="text-[10px] text-blue-500">{task.message || 'Đang tải lên...'}</span>
+                    )}
+                    {task.status === 'processing' && (
+                      <span className="text-[10px] text-amber-500 truncate max-w-[200px]">
+                        {task.message || 'Đang xử lý...'}
+                      </span>
+                    )}
+                    {task.status === 'pending' && (
+                      <span className="text-[10px] text-slate-400 truncate max-w-[200px]">
+                        {task.message || 'Đang chờ...'}
+                      </span>
+                    )}
                     {task.status === 'success' && <span className="text-[10px] text-green-600 font-medium">Hoàn tất!</span>}
                     {task.status === 'error' && <span className="text-[10px] text-red-500">Lỗi: {task.message || 'Thất bại'}</span>}
                   </div>

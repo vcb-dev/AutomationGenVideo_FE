@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, X } from 'lucide-react';
+import { Loader2, X, Users } from 'lucide-react';
 import { SocialPlatform, PLATFORM_META } from '@/lib/api/social';
 
 interface Channel {
@@ -11,6 +11,7 @@ interface Channel {
   status: 'pending' | 'posting' | 'success' | 'fail';
   error?: string;
   queuePosition?: number | null;
+  queueTotal?: number | null;
 }
 
 interface PublishProgress {
@@ -44,9 +45,20 @@ function fmtTime(s: number) {
 
 export default function PublishProgressModal({ publishProgress, postingPcts, elapsedSeconds, onClose }: Props) {
   const { channels, phase } = publishProgress;
-  const doneCount  = channels.filter(c => c.status === 'success' || c.status === 'fail').length;
-  const totalCount = channels.length;
-  const overallPct = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
+  const doneCount    = channels.filter(c => c.status === 'success' || c.status === 'fail').length;
+  const totalCount   = channels.length;
+  const overallPct   = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
+  const pendingCount = channels.filter(c => c.status === 'pending').length;
+
+  // Thông tin hàng chờ toàn hệ thống (lấy giá trị max của các channel đang chờ)
+  const globalQueueTotal = channels.reduce<number | null>((max, ch) => {
+    if (ch.queueTotal == null) return max;
+    return max == null ? ch.queueTotal : Math.max(max, ch.queueTotal);
+  }, null);
+  const minQueuePos = channels.reduce<number | null>((min, ch) => {
+    if (ch.queuePosition == null) return min;
+    return min == null ? ch.queuePosition : Math.min(min, ch.queuePosition);
+  }, null);
 
   let etaSec: number | null = null;
   if (phase !== 'done') {
@@ -129,6 +141,38 @@ export default function PublishProgressModal({ publishProgress, postingPcts, ela
                 </div>
               )}
 
+              {/* Banner hàng chờ toàn hệ thống */}
+              {phase !== 'done' && pendingCount > 0 && globalQueueTotal != null && globalQueueTotal > 1 && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5"
+                >
+                  <Users className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-amber-800">
+                      Hàng chờ hệ thống: {globalQueueTotal} bài đang chờ xử lý
+                      {minQueuePos != null && ` — bài của bạn ở vị trí #${minQueuePos}`}
+                    </p>
+                    <p className="text-[10px] text-amber-600 mt-0.5">
+                      {minQueuePos != null && minQueuePos > 1
+                        ? `Còn ~${minQueuePos - 1} bài trước bạn • ước tính ${fmtTime((minQueuePos - 1) * 25)}`
+                        : 'Bài của bạn sắp đến lượt xử lý'}
+                    </p>
+                  </div>
+                  {minQueuePos != null && globalQueueTotal > 0 && (
+                    <div className="w-14 flex-shrink-0">
+                      <div className="h-1.5 bg-amber-200 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-amber-500 rounded-full transition-all duration-500"
+                          style={{ width: `${Math.max(5, Math.round(((globalQueueTotal - minQueuePos) / globalQueueTotal) * 100))}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+
               {/* Per-channel list */}
               <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
                 {channels.map(ch => {
@@ -157,10 +201,13 @@ export default function PublishProgressModal({ publishProgress, postingPcts, ela
                             : 'text-slate-400'
                           }`}>
                             {ch.status === 'posting'  ? `Đang xử lý... ${pct}%`
-                              : ch.status === 'success' ? 'Thành công'
+                              : ch.status === 'success' ? 'Thành công ✓'
                               : ch.status === 'fail'    ? 'Thất bại'
-                              : ch.queuePosition        ? `Hàng chờ #${ch.queuePosition}`
-                              : 'Đang chờ xử lý'}
+                              : ch.queuePosition != null
+                                ? ch.queueTotal != null
+                                  ? `#${ch.queuePosition}/${ch.queueTotal} — còn ${ch.queuePosition - 1} bài trước`
+                                  : `Hàng chờ #${ch.queuePosition}`
+                                : 'Đang chờ xử lý...'}
                           </p>
                           {ch.error && <p className="text-[9px] text-red-400 mt-0.5 italic">{ch.error}</p>}
                         </div>
@@ -177,6 +224,15 @@ export default function PublishProgressModal({ publishProgress, postingPcts, ela
                             initial={{ width: '0%' }}
                             animate={{ width: `${pct}%` }}
                             transition={{ duration: ch.status === 'posting' ? 0.3 : 0.4, ease: 'easeOut' }}
+                          />
+                        </div>
+                      )}
+                      {/* Progress bar hàng chờ cho pending channel */}
+                      {ch.status === 'pending' && ch.queuePosition != null && ch.queueTotal != null && ch.queueTotal > 0 && (
+                        <div className="h-1 bg-amber-100 rounded-full overflow-hidden mt-0.5">
+                          <div
+                            className="h-full bg-amber-400 rounded-full transition-all duration-700"
+                            style={{ width: `${Math.max(4, Math.round(((ch.queueTotal - ch.queuePosition) / ch.queueTotal) * 100))}%` }}
                           />
                         </div>
                       )}

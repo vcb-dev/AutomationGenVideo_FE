@@ -345,8 +345,8 @@ function SidebarContent({
                 <div className="space-y-1">
                   {section.items.map((item: any) => {
                     const itemUrl = item.href.split('?')[0];
-                    const itemTab = item.href.indexOf('tab=') !== -1 ? item.href.split('tab=')[1] : null;
-                    const isActive = itemTab 
+                    const itemTab = new URLSearchParams(item.href.split('?')[1] || '').get('tab');
+                    const isActive = itemTab
                       ? (pathname === itemUrl && currentTab === itemTab)
                       : (pathname === itemUrl && !currentTab);
                     return (

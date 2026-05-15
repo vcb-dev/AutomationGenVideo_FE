@@ -107,7 +107,7 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
         });
 
         toast.loading(
-          `[${i + 1}/${files.length}] ${isVideo ? '🎬 Đang tải lên (chia nhỏ)' : '🖼 Đang lưu'} ${file.name}…`,
+          `[${i + 1}/${files.length}] ${isVideo ? 'Dang tai len Google Drive' : 'Dang luu'} ${file.name}...`,
           { id: 'lib-upload' },
         );
 
@@ -239,7 +239,7 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
               ref={fileInputRef}
               type="file"
               multiple
-              accept="image/*,video/*"
+              accept="image/jpeg,image/png,image/gif,image/webp,video/mp4"
               hidden
               onChange={handleUpload}
             />
@@ -251,12 +251,12 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
               {uploading ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  {uploadPct > 0 ? `${uploadPct}% — đang nén…` : 'Đang xử lý…'}
+                  {uploadPct > 0 ? `${uploadPct}% - dang tai len Drive...` : 'Dang xu ly...'}
                 </>
               ) : (
                 <>
                   <Plus className="w-3.5 h-3.5" />
-                  Upload (nén + lưu DB)
+                  Upload vao Drive
                 </>
               )}
             </button>

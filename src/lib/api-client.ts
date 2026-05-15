@@ -1,5 +1,12 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 
+const _sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+// Extend config type to track 429 retry attempts
+interface RetryConfig extends InternalAxiosRequestConfig {
+  _retry429?: number;
+}
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
 
 export const apiClient = axios.create({
@@ -15,13 +22,7 @@ export const apiClient = axios.create({
 // Key = method + url + serialized params. Value = the shared Promise.
 const _inFlight = new Map<string, Promise<any>>();
 
-function getDedupeKey(config: InternalAxiosRequestConfig): string | null {
-  if (config.method?.toUpperCase() !== 'GET') return null;
-  const params = config.params ? JSON.stringify(config.params) : '';
-  return `${config.url}::${params}`;
-}
-
-// Request interceptor - add auth token + attach dedupe key
+// Request interceptor - add auth token
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     if (typeof window !== 'undefined') {
@@ -35,15 +36,30 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error),
 );
 
-// Response interceptor - handle errors
+// Response interceptor - 429 auto-retry + 401 redirect
 apiClient.interceptors.response.use(
   (response) => response,
-  (error: AxiosError) => {
+  async (error: AxiosError) => {
+    const config = error.config as RetryConfig | undefined;
+
+    // 429 Too Many Requests: wait then retry (max 3 times)
+    if (error.response?.status === 429 && config) {
+      config._retry429 = (config._retry429 ?? 0) + 1;
+      if (config._retry429 <= 3) {
+        const retryAfterSec = parseInt(
+          (error.response.headers as Record<string, string>)['retry-after'] ?? '5',
+          10,
+        );
+        await _sleep(Math.max(retryAfterSec * 1000, 2000));
+        return apiClient(config);
+      }
+    }
+
     if (error.response?.status === 401) {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('auth_token');
         localStorage.removeItem('auth_user');
-        if (!error.config?.url?.includes('/auth/login')) {
+        if (!config?.url?.includes('/auth/login')) {
           window.location.href = '/login';
         }
       }

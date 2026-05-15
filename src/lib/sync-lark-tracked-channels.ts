@@ -32,7 +32,7 @@ export async function syncFromLarkAssignmentIfStale(): Promise<LarkTrackedSyncRe
     sessionStorage.setItem(SESSION_KEY, String(now));
     return r;
   } catch {
-    sessionStorage.setItem(SESSION_KEY, String(now));
+    // Không set cooldown khi thất bại để lần sau vẫn có thể thử lại
     return null;
   }
 }

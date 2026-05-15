@@ -20,7 +20,7 @@ function MediaGrid({ urls, platform }: { urls: string[]; platform: SocialPlatfor
   );
 
   const isVertical = platform === 'TIKTOK' || platform === 'YOUTUBE';
-  const isVideo = (url: string) => /\.(mp4|mov|webm|avi)(\?|$)/i.test(url);
+  const isVideo = (url: string) => /\.mp4(\?|$)/i.test(url);
 
   if (urls.length === 1) {
     const url = urls[0];

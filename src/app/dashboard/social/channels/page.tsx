@@ -366,7 +366,7 @@ export default function ChannelsPage() {
       </div>
 
       {/* Platform cards */}
-      <div className="px-8 py-6 space-y-6">
+      <div className="px-4 md:px-8 py-6 space-y-6">
         {loading ? (
           <div className="space-y-5">
             {[1, 2, 3].map((i) => <div key={i} className="h-36 rounded-2xl border border-slate-200 animate-pulse bg-slate-50" />)}
@@ -385,11 +385,13 @@ export default function ChannelsPage() {
               <div key={platform} className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
 
                 {/* Platform header */}
-                <div className="flex items-center gap-3 px-8 py-5 border-b border-slate-100">
-                  <span style={{ color: meta.color }} className="text-xl">{meta.icon}</span>
-                  <span className="text-lg font-bold" style={{ color: meta.color }}>{meta.label}</span>
+                <div className="flex flex-col md:flex-row md:items-center gap-3 px-4 md:px-8 py-5 border-b border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <span style={{ color: meta.color }} className="text-xl">{meta.icon}</span>
+                    <span className="text-lg font-bold" style={{ color: meta.color }}>{meta.label}</span>
+                  </div>
 
-                  <div className="ml-auto">
+                  <div className="md:ml-auto mt-2 md:mt-0 flex gap-2">
                     {/* Instagram: không có nút login — tự động lấy từ FB */}
                     {platform === 'INSTAGRAM' && displayAccts.length === 0 && (
                       <span className="text-sm text-blue-500 italic">Tự động lấy từ Facebook Page</span>
@@ -460,7 +462,7 @@ export default function ChannelsPage() {
                     transition={{ duration: 0.25 }}
                     className="overflow-hidden"
                   >
-                  <div className="px-8 py-5">
+                  <div className="px-4 md:px-8 py-5">
                     {/* Header */}
                     <div className="flex items-center justify-between mb-4">
                       <p className="text-sm font-semibold text-slate-600">
@@ -480,7 +482,7 @@ export default function ChannelsPage() {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-4 gap-4 w-full">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full">
                       {(pagesExpanded['instagram'] ? displayAccts : displayAccts.slice(0, PAGES_PER_ROW)).map((account: SocialAccount) => {
                         const bgColor = letterColor(account.name);
                         const extra = account.extra_data as any;
@@ -555,13 +557,14 @@ export default function ChannelsPage() {
                   return (
                     <div key={account.id} className="border-t border-slate-100 first:border-t-0">
                       {/* Account row */}
-                      <div className="flex items-center gap-4 px-8 py-5">
-                        <div className="w-14 h-14 rounded-full bg-slate-100 overflow-hidden flex-shrink-0 border-2 border-slate-200">
-                          {account.avatar_url
-                            ? <img src={account.avatar_url} alt={account.name} className="w-full h-full object-cover" />
-                            : <span className="w-full h-full flex items-center justify-center text-slate-400 font-bold text-xl">{account.name.charAt(0)}</span>}
-                        </div>
-                        <div className="flex-1 min-w-0">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-4 md:px-8 py-5">
+                        <div className="flex items-center gap-4">
+                          <div className="w-14 h-14 rounded-full bg-slate-100 overflow-hidden flex-shrink-0 border-2 border-slate-200">
+                            {account.avatar_url
+                              ? <img src={account.avatar_url} alt={account.name} className="w-full h-full object-cover" />
+                              : <span className="w-full h-full flex items-center justify-center text-slate-400 font-bold text-xl">{account.name.charAt(0)}</span>}
+                          </div>
+                          <div className="min-w-0">
                           <p className="font-bold text-slate-900 text-base">{account.name}</p>
                           <p className="text-sm text-blue-500 mt-0.5">
                             {extra?.label || 'API Official'}
@@ -572,7 +575,8 @@ export default function ChannelsPage() {
                             )}
                           </p>
                         </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 flex-shrink-0 self-start sm:self-auto">
                           {platform === 'FACEBOOK' && hasPages && (
                             <button
                               onClick={() => toggleCollapse(account.id)}
@@ -604,7 +608,7 @@ export default function ChannelsPage() {
                               transition={{ duration: 0.25 }}
                               className="overflow-hidden border-t border-slate-100 bg-slate-50/50"
                             >
-                              <div className="px-8 py-5">
+                              <div className="px-4 md:px-8 py-5">
                                 {/* Header */}
                                 <div className="flex items-center justify-between mb-4">
                                   <p className="text-sm font-semibold text-slate-600">
@@ -625,7 +629,7 @@ export default function ChannelsPage() {
                                 </div>
 
                                 {/* Pages grid — mặc định 1 hàng (PAGES_PER_ROW), expand khi click */}
-                                <div className="grid grid-cols-4 gap-4 w-full">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full">
                                   {(pagesExpanded[account.id] ? pages : pages.slice(0, PAGES_PER_ROW)).map((page) => {
                                     const bgColor = letterColor(page.name);
                                     return (

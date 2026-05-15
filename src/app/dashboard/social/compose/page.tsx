@@ -33,6 +33,7 @@ export default function ComposePage() {
   const dragStartXRef   = useRef(0);
   const dragStartWRef   = useRef(0);
   const [sidebarWidth, setSidebarWidth] = useState(300);
+  const [mobileTab, setMobileTab] = useState<'CHANNELS' | 'EDITOR' | 'PREVIEW'>('EDITOR');
 
   const onDragHandleMouseDown = (e: React.MouseEvent) => {
     isDraggingRef.current  = true;
@@ -549,19 +550,38 @@ export default function ComposePage() {
   if (!mounted) return null;
 
   return (
-    <div className="flex flex-col h-screen bg-slate-50 font-sans overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-112px)] lg:h-screen bg-slate-50 font-sans overflow-hidden">
       
       {/* TOP HEADER */}
       <motion.div 
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="bg-white px-6 pt-3 border-b border-slate-200 flex-shrink-0 z-20 shadow-sm"
+        className="bg-white px-4 lg:px-6 pt-3 border-b border-slate-200 flex-shrink-0 z-20 shadow-sm overflow-x-auto scrollbar-none"
       >
-        <div className="text-[13px] text-slate-500 mb-2 font-medium flex items-center gap-2">
-          <span>Viết bài</span>
-          <span className="text-[10px] opacity-60">❯</span>
-          <span className="text-slate-900 font-bold">Đăng thường</span>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
+          <div className="text-[13px] text-slate-500 font-medium flex items-center gap-2 shrink-0">
+            <span>Viết bài</span>
+            <span className="text-[10px] opacity-60">❯</span>
+            <span className="text-slate-900 font-bold">Đăng thường</span>
+          </div>
+          
+          {/* Mobile Tabs */}
+          <div className="flex lg:hidden bg-slate-100 rounded-lg p-1 shrink-0 self-start sm:self-auto">
+            <button 
+              onClick={() => setMobileTab('CHANNELS')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${mobileTab === 'CHANNELS' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
+            >Kênh</button>
+            <button 
+              onClick={() => setMobileTab('EDITOR')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${mobileTab === 'EDITOR' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
+            >Soạn thảo</button>
+            <button 
+              onClick={() => setMobileTab('PREVIEW')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${mobileTab === 'PREVIEW' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
+            >Xem trước</button>
+          </div>
         </div>
+        
         <div className="flex gap-8 text-sm font-bold text-slate-600">
           <button className="text-blue-600 border-b-2 border-blue-600 pb-2.5 -mb-[1px] relative">
             Đăng bài
@@ -569,19 +589,19 @@ export default function ComposePage() {
           </button>
           <button className="hover:text-slate-900 pb-2.5 transition-colors">Tùy chỉnh</button>
           <button className="hover:text-slate-900 pb-2.5 transition-colors">Chủ đề</button>
-          <button className="hover:text-slate-900 pb-2.5 transition-colors">Xem trước</button>
+          <button className="hidden lg:block hover:text-slate-900 pb-2.5 transition-colors">Xem trước</button>
         </div>
       </motion.div>
 
       {/* MAIN LAYOUT */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-col lg:flex-row flex-1 overflow-y-auto lg:overflow-hidden relative">
         
         {/* COLUMN 1: Kênh đăng bài — có thể kéo để đổi width */}
         <motion.div
           initial={{ x: -20, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
-          className="relative bg-white border-r border-slate-200 flex flex-col flex-shrink-0 z-10 shadow-sm"
-          style={{ width: sidebarWidth, minWidth: 200, maxWidth: 480 }}
+          className={`${mobileTab === 'CHANNELS' ? 'flex flex-1 w-full' : 'hidden'} lg:flex relative bg-white lg:border-r border-slate-200 flex-col flex-shrink-0 z-10 shadow-sm lg:w-[var(--sidebar-width)] lg:min-w-[200px] lg:max-w-[480px]`}
+          style={{ '--sidebar-width': `${sidebarWidth}px` } as any}
         >
           <div className="p-4 border-b border-slate-100 bg-slate-50/30">
             <div className="flex justify-between items-center mb-5">
@@ -685,7 +705,7 @@ export default function ComposePage() {
             variants={containerVariants}
             initial="hidden"
             animate="visible"
-            className="flex-1 overflow-y-auto p-3 space-y-6 scrollbar-thin scrollbar-thumb-slate-200"
+            className="flex-1 overflow-y-auto p-3 space-y-6 scrollbar-thin scrollbar-thumb-slate-200 max-h-none"
           >
             {(Object.entries(platformGroups) as [string, SocialAccount[]][]).map(([platform, groupAccounts]) => {
               const meta = PLATFORM_META[platform as SocialPlatform] || PLATFORM_META.FACEBOOK;
@@ -774,7 +794,7 @@ export default function ComposePage() {
           <div
             onMouseDown={onDragHandleMouseDown}
             title="Kéo để điều chỉnh độ rộng"
-            className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize z-20 group flex items-center justify-center"
+            className="hidden lg:flex absolute top-0 right-0 h-full w-1.5 cursor-col-resize z-20 group items-center justify-center"
           >
             {/* Visual indicator */}
             <div className="h-12 w-1 rounded-full bg-slate-200 group-hover:bg-blue-400 group-active:bg-blue-500 transition-colors" />
@@ -782,7 +802,7 @@ export default function ComposePage() {
         </motion.div>
 
         {/* COLUMN 2: Editor */}
-        <div className="flex-1 overflow-y-auto bg-slate-50 p-6 flex flex-col gap-6 items-center scrollbar-none">
+        <div className={`${mobileTab === 'EDITOR' ? 'flex flex-1 w-full' : 'hidden'} lg:flex lg:flex-1 overflow-y-visible lg:overflow-y-auto bg-slate-50 p-4 lg:p-6 flex-col gap-6 items-center scrollbar-none`}>
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -790,8 +810,8 @@ export default function ComposePage() {
           >
             
             {/* Top Action Bar */}
-            <div className="flex justify-between items-center w-full">
-              <div className="flex bg-white rounded-xl border border-slate-200 p-1 shadow-sm relative">
+            <div className="flex flex-col md:flex-row justify-between items-center w-full gap-4">
+              <div className="flex bg-white rounded-xl border border-slate-200 p-1 shadow-sm relative w-full md:w-auto overflow-x-auto scrollbar-none">
                 {[
                   { id: 'publish', label: 'Đăng ngay' },
                   { id: 'schedule', label: 'Đặt lịch' },
@@ -814,7 +834,7 @@ export default function ComposePage() {
                   </button>
                 ))}
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center justify-end gap-3 w-full md:w-auto">
                 <motion.button whileHover={{ scale: 1.02 }} onClick={() => {
                   setShowDraftsModal(true);
                   // Lazy load drafts khi user thực sự mở modal
@@ -965,8 +985,8 @@ export default function ComposePage() {
         </div>
 
         {/* COLUMN 3: Preview */}
-        <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} className="w-[380px] bg-white border-l border-slate-200 flex flex-col shrink-0 z-10">
-          <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/30">
+        <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} className={`${mobileTab === 'PREVIEW' ? 'flex flex-1 w-full' : 'hidden'} lg:flex lg:w-[380px] bg-white lg:border-l border-slate-200 flex-col shrink-0 z-10 lg:max-h-full`}>
+          <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row justify-between sm:items-center bg-slate-50/30 gap-3">
             <h3 className="font-extrabold text-slate-800 text-sm">Xem trước bài viết</h3>
             <div className="flex gap-2">
               {[
@@ -1018,9 +1038,9 @@ export default function ComposePage() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto bg-slate-50/50 p-5 flex flex-col items-center">
+          <div className="flex-1 overflow-y-visible lg:overflow-y-auto bg-slate-50/50 p-5 flex flex-col items-center">
             {/* Phone Frame */}
-            <motion.div layout className={`w-[320px] bg-white rounded-[2.5rem] border-[6px] border-slate-900 shadow-2xl overflow-hidden aspect-[9/18.5] flex flex-col relative shrink-0 ${previewPlatform === 'TIKTOK' ? 'bg-black' : 'bg-white'}`}>
+            <motion.div layout className={`w-full max-w-[320px] bg-white rounded-[2.5rem] border-[6px] border-slate-900 shadow-2xl overflow-hidden aspect-[9/18.5] flex flex-col relative shrink-0 ${previewPlatform === 'TIKTOK' ? 'bg-black' : 'bg-white'}`}>
               {previewPlatform === 'FACEBOOK' && (
                 <>
                   <div className="p-4 pt-6">

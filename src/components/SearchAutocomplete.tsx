@@ -55,7 +55,6 @@ export default function SearchAutocomplete({
         if (!/[a-zA-Z\u00C0-\u1EF9]/.test(value)) return;
 
         const timer = setTimeout(async () => {
-            console.log(`🤖 [Translate] Triggering for: "${value}"`);
             try {
                 const res = await fetch('/api/translate-chinese', {
                     method: 'POST',
@@ -66,14 +65,13 @@ export default function SearchAutocomplete({
                 if (res.ok) {
                     const data = await res.json();
                     if (data.success && data.translated && data.translated !== value) {
-                        console.log(`✅ [Translate] Success: "${value}" -> "${data.translated}"`);
                         onChange(data.translated);
                     }
                 }
-            } catch (err) {
-                console.error("Auto-translation failed:", err);
+            } catch {
+                // Auto-translation is best-effort, silently ignore failures
             }
-        }, 800); // Faster debounce: 800ms
+        }, 800);
 
         return () => clearTimeout(timer);
     }, [value, platform, onChange]);
@@ -112,7 +110,6 @@ export default function SearchAutocomplete({
     // Douyin/Xiaohongshu: chỉ cho search khi đã dịch sang tiếng Trung
     const requiresChinese = ['DOUYIN', 'XIAOHONGSHU'].includes(platform.toUpperCase());
     const hasLatinOrVietnamese = (text: string) => /[a-zA-Z\u00C0-\u1EF9]/.test(text);
-    const canSearch = !requiresChinese || !hasLatinOrVietnamese(value);
     const safeOnSearch = (query: string) => {
         if (requiresChinese && hasLatinOrVietnamese(query)) return;
         trackSearch(query);

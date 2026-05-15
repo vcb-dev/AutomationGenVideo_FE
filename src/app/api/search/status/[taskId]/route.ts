@@ -31,10 +31,10 @@ export async function GET(
 
         const data = await res.json();
         return NextResponse.json(data, { status: res.status });
-    } catch (err: any) {
-        console.error(`[Search Status Proxy] Error:`, err?.message);
+    } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
         return NextResponse.json(
-            { error: 'Không kết nối được NestJS', detail: err?.message },
+            { error: 'Không kết nối được backend', detail: message },
             { status: 502 },
         );
     }

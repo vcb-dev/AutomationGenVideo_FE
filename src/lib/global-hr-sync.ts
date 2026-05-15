@@ -7,7 +7,6 @@ import {
 const listeners = new Set<(running: boolean) => void>();
 let refcount = 0;
 let gate: Promise<void> = Promise.resolve();
-let releaseGate = () => {};
 
 function notify() {
   const busy = refcount > 0;

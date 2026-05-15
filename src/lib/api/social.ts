@@ -1,4 +1,5 @@
 import apiClient from '../api-client';
+import { withUploadQueue } from '../upload-queue';
 
 export type SocialPlatform = 'FACEBOOK' | 'INSTAGRAM' | 'TIKTOK' | 'THREADS' | 'YOUTUBE' | 'ZALO';
 
@@ -13,7 +14,7 @@ export interface SocialAccount {
   token_expires_soon?: boolean;
   token_expires_in_days?: number | null;
   parent_id?: string;
-  extra_data?: Record<string, any>;
+  extra_data?: Record<string, string | number | boolean | null | undefined>;
   created_at: string;
 }
 
@@ -31,6 +32,17 @@ export interface SocialPost {
   account?: { name: string; username?: string; avatar_url?: string; platform: SocialPlatform };
 }
 
+export interface QueueJobStatus {
+  id: string;
+  status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+  platform: SocialPlatform;
+  error_msg: string | null;
+  result: unknown;
+  queuePosition: number | null;
+  queueTotal: number | null;
+  account: { name: string; platform: SocialPlatform } | null;
+}
+
 export interface UploadedMedia {
   url: string;
   filename: string;
@@ -39,6 +51,7 @@ export interface UploadedMedia {
   size: number;
   thumbnail_url?: string;
   storage?: string;
+  drive_file_id?: string;
   warning?: string;
 }
 
@@ -50,7 +63,7 @@ export interface MediaLibraryItem {
   size: number;
   url: string;
   thumbnail_url?: string;
-  storage: 'supabase' | 'local' | 'db';
+  storage: 'supabase' | 'local' | 'db' | 'google_drive';
   created_at: string;
 }
 
@@ -66,34 +79,107 @@ export const socialApi = {
       );
       return res.data.urls;
     },
-    chunked: async (file: File, onProgress?: (pct: number) => void): Promise<UploadedMedia[]> => {
-      const CHUNK_SIZE = 5 * 1024 * 1024;
-      const { uploadId, chunkSize } = await apiClient
-        .post<{ uploadId: string; chunkSize: number }>('/social/upload/chunk/init', {
-          filename: file.name, mimetype: file.type, totalSize: file.size,
-        }).then(r => r.data);
-      const totalChunks = Math.ceil(file.size / (chunkSize || CHUNK_SIZE));
-      for (let i = 0; i < totalChunks; i++) {
-        const start = i * (chunkSize || CHUNK_SIZE);
-        const blob  = file.slice(start, start + (chunkSize || CHUNK_SIZE));
-        // Dùng FormData thay vì base64 JSON → không tốn 3× memory
-        const form = new FormData();
-        form.append('uploadId', uploadId);
-        form.append('chunkIndex', String(i));
-        form.append('chunk', blob, 'chunk');
-        await apiClient.post('/social/upload/chunk', form, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
-        onProgress?.(Math.round(((i + 1) / totalChunks) * 90));
-      }
-      const result = await apiClient.post<{ urls: UploadedMedia[] }>('/social/upload/chunk/finish', { uploadId, totalChunks }).then(r => r.data);
-      onProgress?.(100);
-      return result.urls;
-    },
-    fromDrive: async (fileId: string, accessToken: string, mimeType: string, filename: string): Promise<UploadedMedia[]> => {
-      const res = await apiClient.post<{ urls: UploadedMedia[] }>('/social/upload/from-drive', { fileId, accessToken, mimeType, filename });
-      return res.data.urls;
-    },
+    chunked: (file: File, onProgress?: (pct: number) => void): Promise<UploadedMedia[]> =>
+      withUploadQueue(async () => {
+        const CHUNK_SIZE = 8 * 1024 * 1024;
+        const { uploadId, uploadUrl, chunkSize } = await apiClient
+          .post<{ uploadId: string; uploadUrl: string; chunkSize: number }>('/social/upload/chunk/init', {
+            filename: file.name, mimetype: file.type, totalSize: file.size,
+          }).then(r => r.data);
+        const effectiveChunkSize = chunkSize || CHUNK_SIZE;
+        let driveFileId: string | undefined;
+        let offset = 0;
+
+        const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+        const syncStatus = async () => {
+          const status = await apiClient.post<{
+            uploadedBytes: number;
+            totalSize: number;
+            completed: boolean;
+            driveFileId?: string;
+          }>('/social/upload/chunk/status', { uploadId }).then(r => r.data);
+          driveFileId = status.driveFileId || driveFileId;
+          offset = Math.min(status.uploadedBytes || 0, file.size);
+          onProgress?.(Math.round((offset / file.size) * 90));
+          return status;
+        };
+
+        while (offset < file.size) {
+          const start = offset;
+          const end = Math.min(start + effectiveChunkSize, file.size) - 1;
+          const blob = file.slice(start, end + 1);
+          let uploaded = false;
+
+          for (let attempt = 1; attempt <= 5; attempt++) {
+            try {
+              const res = await fetch(uploadUrl, {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': file.type || 'application/octet-stream',
+                  'Content-Range': `bytes ${start}-${end}/${file.size}`,
+                },
+                body: blob,
+                signal: AbortSignal.timeout(60_000),
+              });
+
+              // Server quá tải: đợi theo Retry-After rồi thử lại (không tính vào attempt)
+              if (res.status === 429) {
+                const wait = parseInt(res.headers.get('Retry-After') ?? '5', 10);
+                await sleep(Math.max(wait * 1000, 3000));
+                attempt--; // không tính lần này
+                continue;
+              }
+
+              if (res.status === 200 || res.status === 201) {
+                const data = await res.json().catch(() => ({}));
+                driveFileId = (data as { id?: string }).id;
+                offset = file.size;
+                uploaded = true;
+                break;
+              }
+
+              if (res.status === 308) {
+                offset = end + 1;
+                uploaded = true;
+                break;
+              }
+
+              const text = await res.text().catch(() => res.statusText);
+              throw new Error(`Google Drive upload failed (${res.status}): ${text}`);
+            } catch (err) {
+              if (attempt === 5) {
+                const status = await syncStatus().catch(() => null);
+                if (status?.completed) {
+                  driveFileId = status.driveFileId;
+                  offset = file.size;
+                  uploaded = true;
+                  break;
+                }
+                if (offset > start) {
+                  uploaded = true;
+                  break;
+                }
+                await apiClient.post('/social/upload/chunk/cancel', { uploadId }).catch(() => {});
+                throw err;
+              }
+              await sleep(1000 * attempt);
+            }
+          }
+
+          if (!uploaded) throw new Error('Google Drive upload failed');
+          onProgress?.(Math.round((offset / file.size) * 90));
+        }
+
+        if (!driveFileId) {
+          const status = await syncStatus();
+          driveFileId = status.driveFileId;
+        }
+        if (!driveFileId) throw new Error('Không lấy được driveFileId sau khi upload hoàn tất');
+        onProgress?.(95);
+        const result = await apiClient.post<{ urls: UploadedMedia[] }>('/social/upload/chunk/finish', { uploadId, driveFileId }).then(r => r.data);
+        onProgress?.(100);
+        return result.urls;
+      }),
   },
 
   accounts: {
@@ -117,16 +203,16 @@ export const socialApi = {
   },
 
   queue: {
-    enqueue: (jobs: Array<{ accountId: string; platform: SocialPlatform; message: string; mediaUrls?: string[]; privacy?: string; pageId?: string }>): Promise<{ jobIds: string[]; total: number }> =>
+    enqueue: (jobs: Array<{ accountId: string; platform: SocialPlatform; message: string; mediaUrls?: string[]; privacy?: string; pageId?: string; thumbUrl?: string }>): Promise<{ jobIds: string[]; total: number }> =>
       apiClient.post('/social/queue/enqueue', { jobs }).then((r) => r.data),
-    pollStatus: (jobIds: string[]): Promise<{ jobs: Array<{ id: string; status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'; platform: SocialPlatform; error_msg: string | null; result: any; queuePosition: number | null; queueTotal: number | null; account: { name: string; platform: SocialPlatform } | null }> }> =>
+    pollStatus: (jobIds: string[]): Promise<{ jobs: QueueJobStatus[] }> =>
       apiClient.get(`/social/queue/status?ids=${jobIds.join(',')}`).then((r) => r.data),
     stats: () => apiClient.get('/social/queue/stats').then((r) => r.data),
   },
 
   schedule: {
     list: () => apiClient.get<SocialPost[]>('/social/schedule').then((r) => r.data),
-    create: (data: { accountId: string; message: string; mediaUrls?: string[]; pageId?: string; scheduledAt: string; privacy?: string }) =>
+    create: (data: { accountId: string; message: string; mediaUrls?: string[]; pageId?: string; scheduledAt: string; privacy?: string; thumbUrl?: string }) =>
       apiClient.post('/social/schedule', data).then((r) => r.data),
     update: (id: string, data: { message?: string; scheduledAt?: string }) =>
       apiClient.put(`/social/schedule/${id}`, data).then((r) => r.data),
@@ -144,7 +230,8 @@ export const socialApi = {
     list: () => apiClient.get('/social/drafts').then((r) => r.data),
     create: (data: { title?: string; message: string; mediaUrls?: string[]; platform?: SocialPlatform; accountId?: string }) =>
       apiClient.post('/social/drafts', data).then((r) => r.data),
-    update: (id: string, data: any) => apiClient.put(`/social/drafts/${id}`, data).then((r) => r.data),
+    update: (id: string, data: { title?: string; message?: string; mediaUrls?: string[]; platform?: SocialPlatform; accountId?: string }) =>
+      apiClient.put(`/social/drafts/${id}`, data).then((r) => r.data),
     remove: (id: string) => apiClient.delete(`/social/drafts/${id}`).then((r) => r.data),
   },
 
@@ -155,16 +242,23 @@ export const socialApi = {
       apiClient.get('/social/library/stats').then((r) => r.data),
     remove: (id: string) => apiClient.delete(`/social/library/${id}`).then((r) => r.data),
     postHistory: (id: string) => apiClient.get(`/social/library/${id}/posts`).then((r) => r.data),
-    upload: async (file: File, onProgress?: (pct: number) => void): Promise<MediaLibraryItem> => {
-      const form = new FormData();
-      form.append('file', file);
-      const res = await apiClient.post<{ file: MediaLibraryItem }>(
-        '/social/library/upload', form,
-        { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 600_000,
-          onUploadProgress: (e) => { if (e.total) onProgress?.(Math.round((e.loaded / e.total) * 100)); } },
-      );
-      return res.data.file;
-    },
+    upload: (file: File, onProgress?: (pct: number) => void): Promise<MediaLibraryItem> =>
+      withUploadQueue(async () => {
+        const form = new FormData();
+        form.append('file', file);
+        const res = await apiClient.post<{ file: MediaLibraryItem }>(
+          '/social/library/upload', form,
+          {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            timeout: 600_000,
+            onUploadProgress: (e) => {
+              if (e.total) onProgress?.(Math.round((e.loaded / e.total) * 100));
+              else onProgress?.(50);
+            },
+          },
+        );
+        return res.data.file;
+      }),
   },
 
   hashtag: {
