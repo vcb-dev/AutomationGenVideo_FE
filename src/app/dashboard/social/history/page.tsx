@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   BarChart3, CheckCircle, XCircle, Clock, Send, Calendar,
-  Image as ImageIcon, ChevronDown, ChevronUp, Search,
+  Image as ImageIcon, Search,
   RefreshCw, Copy, RotateCcw, Filter, X, ArrowUpDown,
   TrendingUp, ChevronLeft, ChevronRight, Repeat2,
 } from 'lucide-react';
@@ -107,7 +107,6 @@ export default function HistoryPage() {
   const [stats, setStats]         = useState<any>(null);
   const [loading, setLoading]     = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [actionId, setActionId]   = useState<string | null>(null);
 
   // Filters
@@ -449,14 +448,19 @@ export default function HistoryPage() {
             )}
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {paginated.map((post, idx) => {
               const meta = (PLATFORM_META as any)[post.platform] || PLATFORM_META.FACEBOOK;
-              const isOk   = post.status === 'COMPLETED';
-              const isFail = post.status === 'FAILED';
+              const isOk      = post.status === 'COMPLETED';
+              const isFail    = post.status === 'FAILED';
               const isPending = post.status === 'PENDING';
-              const isExpanded = expandedId === post.id;
-              const hasMedia = post.media_urls && post.media_urls.length > 0;
+              const hasMedia  = post.media_urls && post.media_urls.length > 0;
+
+              // Tách hashtag ra khỏi message
+              const fullMsg   = post.message || '';
+              const hashtagRegex = /(#\S+)/g;
+              const hashtags  = fullMsg.match(hashtagRegex) || [];
+              const textOnly  = fullMsg.replace(hashtagRegex, '').trim();
 
               return (
                 <motion.div
@@ -466,160 +470,138 @@ export default function HistoryPage() {
                   transition={{ delay: idx * 0.02 }}
                   className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow"
                 >
-                  <div className="p-5">
-                    <div className="flex items-start gap-4">
-                      {/* Platform icon */}
-                      <div className={`w-10 h-10 ${meta.color} rounded-xl flex items-center justify-center text-white text-xl flex-shrink-0 shadow-sm`}>
+                  {/* ── Media (video/ảnh) — hiển thị to luôn ── */}
+                  {hasMedia && (
+                    <div className="w-full bg-black">
+                      {post.media_urls.map((url, i) => {
+                        const resolved = resolveMediaUrl(url);
+                        const isVideo  = isVideoUrl(url);
+                        return isVideo ? (
+                          <video
+                            key={i}
+                            src={resolved}
+                            controls
+                            preload="metadata"
+                            className="w-full max-h-[520px] object-contain"
+                            onError={(e) => {
+                              (e.currentTarget.parentElement as HTMLElement).innerHTML =
+                                '<p class="text-xs text-slate-400 p-6 text-center">File không còn trên server</p>';
+                            }}
+                          />
+                        ) : (
+                          <a key={i} href={resolved} target="_blank" rel="noopener noreferrer">
+                            <img
+                              src={resolved}
+                              alt=""
+                              className="w-full max-h-[520px] object-contain hover:opacity-90 transition-opacity"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).alt = 'Ảnh không còn trên server';
+                                (e.target as HTMLImageElement).style.opacity = '0.3';
+                              }}
+                            />
+                          </a>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* ── Nội dung + hashtag + thông tin ── */}
+                  <div className="p-4">
+                    {/* Header: platform + account + status */}
+                    <div className="flex items-center gap-2 mb-3 flex-wrap">
+                      <div className={`w-8 h-8 ${meta.color} rounded-lg flex items-center justify-center text-white text-base flex-shrink-0 shadow-sm`}>
                         {meta.emoji}
                       </div>
+                      <span className="font-bold text-slate-900 text-sm">{meta.label}</span>
+                      {post.account && (
+                        <span className="text-xs text-slate-400 font-medium">· {post.account.name}</span>
+                      )}
+                      {hasMedia && (
+                        <span className="flex items-center gap-1 text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100 font-bold">
+                          <ImageIcon className="w-3 h-3" /> {post.media_urls.length} file
+                        </span>
+                      )}
+                      <span className={`ml-auto text-[11px] px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1 ${
+                        isOk      ? 'bg-emerald-100 text-emerald-700' :
+                        isFail    ? 'bg-red-100 text-red-700'         :
+                        isPending ? 'bg-amber-100 text-amber-700'     :
+                                    'bg-slate-100 text-slate-500'
+                      }`}>
+                        {isOk      ? <CheckCircle className="w-3 h-3" /> :
+                         isFail    ? <XCircle className="w-3 h-3" />     :
+                                     <Clock className="w-3 h-3" />}
+                        {isOk ? 'Thành công' : isFail ? 'Thất bại' : isPending ? 'Đang chờ' : 'Đã huỷ'}
+                      </span>
+                    </div>
 
-                      <div className="flex-1 min-w-0">
-                        {/* Top row */}
-                        <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                          <span className="font-bold text-slate-900 text-sm">{meta.label}</span>
-                          {post.account && (
-                            <span className="text-xs text-slate-400 font-medium">· {post.account.name}</span>
-                          )}
-                          {hasMedia && (
-                            <span className="flex items-center gap-1 text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100 font-bold">
-                              <ImageIcon className="w-3 h-3" />
-                              {post.media_urls.length} file
-                            </span>
-                          )}
-                          {/* Status badge */}
-                          <span className={`ml-auto text-[11px] px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1 ${
-                            isOk      ? 'bg-emerald-100 text-emerald-700' :
-                            isFail    ? 'bg-red-100 text-red-700' :
-                            isPending ? 'bg-amber-100 text-amber-700' :
-                                        'bg-slate-100 text-slate-500'
-                          }`}>
-                            {isOk ? <CheckCircle className="w-3 h-3" /> : isFail ? <XCircle className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
-                            {isOk ? 'Thành công' : isFail ? 'Thất bại' : isPending ? 'Đang chờ' : 'Đã huỷ'}
+                    {/* Nội dung text */}
+                    {textOnly && (
+                      <p className="text-sm text-slate-700 leading-relaxed mb-3 whitespace-pre-line">
+                        {textOnly}
+                      </p>
+                    )}
+                    {!textOnly && !hasMedia && (
+                      <p className="text-sm italic text-slate-400 mb-3">Không có nội dung</p>
+                    )}
+
+                    {/* Hashtags */}
+                    {hashtags.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mb-3">
+                        {hashtags.map((tag, i) => (
+                          <span key={i} className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-medium border border-blue-100">
+                            {tag}
                           </span>
-                        </div>
+                        ))}
+                      </div>
+                    )}
 
-                        {/* Message preview */}
-                        <p className="text-sm text-slate-700 line-clamp-2 leading-relaxed mb-2">
-                          {post.message || <span className="italic text-slate-400">Không có nội dung</span>}
-                        </p>
+                    {/* Error */}
+                    {post.error_msg && (
+                      <div className="flex items-start gap-1.5 mb-3 text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                        <XCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                        <span>{post.error_msg}</span>
+                      </div>
+                    )}
 
-                        {/* Bottom row: meta info + actions */}
-                        <div className="flex items-center gap-3 text-xs text-slate-400 flex-wrap">
-                          <span className="flex items-center gap-1 font-medium">
-                            {post.source === 'SCHEDULED' ? <Calendar className="w-3 h-3" /> : <Send className="w-3 h-3" />}
-                            {post.source === 'SCHEDULED' ? 'Lên lịch' : 'Đăng ngay'}
-                          </span>
-                          <span className="font-medium">{new Date(post.created_at).toLocaleString('vi')}</span>
+                    {/* Footer: thời gian + actions */}
+                    <div className="flex items-center gap-3 text-xs text-slate-400 border-t border-slate-100 pt-3 flex-wrap">
+                      <span className="flex items-center gap-1 font-medium">
+                        {post.source === 'SCHEDULED' ? <Calendar className="w-3 h-3" /> : <Send className="w-3 h-3" />}
+                        {post.source === 'SCHEDULED' ? 'Lên lịch' : 'Đăng ngay'}
+                      </span>
+                      <span className="font-medium">{new Date(post.created_at).toLocaleString('vi')}</span>
 
-                          {post.error_msg && (
-                            <span className="text-red-400 truncate max-w-[250px] font-medium" title={post.error_msg}>
-                              ⚠ {post.error_msg.length > 60 ? post.error_msg.slice(0, 60) + '…' : post.error_msg}
-                            </span>
-                          )}
-
-                          {/* Action buttons */}
-                          <div className="ml-auto flex items-center gap-1">
-                            {/* Copy content */}
-                            {post.message && (
-                              <button
-                                onClick={() => handleCopy(post.message)}
-                                title="Copy nội dung"
-                                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
-                              >
-                                <Copy className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-
-                            {/* Repost */}
-                            {isOk && (
-                              <button
-                                onClick={() => handleRepost(post)}
-                                title="Đăng lại bài này"
-                                className="flex items-center gap-1 px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-[11px] font-bold hover:bg-emerald-100 transition-colors"
-                              >
-                                <Repeat2 className="w-3 h-3" /> Đăng lại
-                              </button>
-                            )}
-
-                            {/* Retry failed */}
-                            {isFail && (
-                              <button
-                                onClick={() => handleRetry(post.id)}
-                                disabled={actionId === post.id}
-                                title="Đăng lại"
-                                className="flex items-center gap-1 px-2.5 py-1 bg-blue-50 border border-blue-200 text-blue-600 rounded-lg text-[11px] font-bold hover:bg-blue-100 transition-colors disabled:opacity-50"
-                              >
-                                <RotateCcw className={`w-3 h-3 ${actionId === post.id ? 'animate-spin' : ''}`} />
-                                Thử lại
-                              </button>
-                            )}
-
-                            {/* Expand media */}
-                            {hasMedia && (
-                              <button
-                                onClick={() => setExpandedId(isExpanded ? null : post.id)}
-                                className="flex items-center gap-1 px-2.5 py-1 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-[11px] font-bold hover:bg-slate-100 transition-colors"
-                              >
-                                {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                                {isExpanded ? 'Ẩn' : 'Xem media'}
-                              </button>
-                            )}
-                          </div>
-                        </div>
+                      <div className="ml-auto flex items-center gap-1.5">
+                        {post.message && (
+                          <button
+                            onClick={() => handleCopy(post.message)}
+                            title="Copy nội dung"
+                            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {isOk && (
+                          <button
+                            onClick={() => handleRepost(post)}
+                            className="flex items-center gap-1 px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-[11px] font-bold hover:bg-emerald-100 transition-colors"
+                          >
+                            <Repeat2 className="w-3 h-3" /> Đăng lại
+                          </button>
+                        )}
+                        {isFail && (
+                          <button
+                            onClick={() => handleRetry(post.id)}
+                            disabled={actionId === post.id}
+                            className="flex items-center gap-1 px-2.5 py-1 bg-blue-50 border border-blue-200 text-blue-600 rounded-lg text-[11px] font-bold hover:bg-blue-100 transition-colors disabled:opacity-50"
+                          >
+                            <RotateCcw className={`w-3 h-3 ${actionId === post.id ? 'animate-spin' : ''}`} />
+                            Thử lại
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
-
-                  {/* Media thumbnails */}
-                  <AnimatePresence>
-                    {hasMedia && isExpanded && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="px-5 pb-5 border-t border-slate-100 pt-4">
-                          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
-                            Media đính kèm ({post.media_urls.length})
-                          </p>
-                          <div className="flex flex-col gap-4">
-                            {post.media_urls.map((url, i) => {
-                              const resolved = resolveMediaUrl(url);
-                              const isVideo  = isVideoUrl(url);
-                              return isVideo ? (
-                                <div key={i} className="rounded-xl overflow-hidden bg-black">
-                                  <video
-                                    src={resolved}
-                                    controls
-                                    preload="metadata"
-                                    className="w-full max-h-[480px] object-contain"
-                                    onError={(e) => {
-                                      (e.currentTarget as HTMLVideoElement).poster = '';
-                                      (e.currentTarget.parentElement as HTMLElement).innerHTML =
-                                        '<p class="text-xs text-slate-400 p-4 text-center">File không còn trên server</p>';
-                                    }}
-                                  />
-                                </div>
-                              ) : (
-                                <a key={i} href={resolved} target="_blank" rel="noopener noreferrer">
-                                  <img
-                                    src={resolved}
-                                    alt=""
-                                    className="max-h-[480px] rounded-xl object-contain w-full bg-slate-100 hover:opacity-90 transition-opacity"
-                                    onError={(e) => {
-                                      (e.target as HTMLImageElement).alt = 'Ảnh không còn trên server';
-                                      (e.target as HTMLImageElement).className += ' opacity-30';
-                                    }}
-                                  />
-                                </a>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
                 </motion.div>
               );
             })}
