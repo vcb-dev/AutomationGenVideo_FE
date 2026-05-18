@@ -107,7 +107,11 @@ export default function ChannelAnalyticsPage() {
         const matchP = platform === "all" || p.includes(platform);
         const matchS = !search || c.display_name?.toLowerCase().includes(search.toLowerCase())
                                 || c.owner_name?.toLowerCase().includes(search.toLowerCase());
-        return matchP && matchS;
+        const status = (c.status || "").toUpperCase().trim();
+        const isActive = status === "ON" || status === "ĐANG HOẠT ĐỘNG" || status === "";
+        const name = (c.display_name || "").trim();
+        const hasValidName = name !== "" && name.toUpperCase() !== "N/A";
+        return matchP && matchS && isActive && hasValidName;
     });
 
     const platformStats = Object.entries(
