@@ -20,6 +20,7 @@ export interface SocialAccount {
 
 export interface SocialPost {
   id: string;
+  user_id: string;
   platform: SocialPlatform;
   message: string;
   media_urls: string[];
@@ -28,8 +29,19 @@ export interface SocialPost {
   scheduled_at?: string;
   executed_at?: string;
   error_msg?: string;
+  thumb_url?: string;
   created_at: string;
   account?: { name: string; username?: string; avatar_url?: string; platform: SocialPlatform };
+  user?: { id: string; full_name: string; team?: string; image_url?: string };
+}
+
+export interface HistoryMember {
+  id: string;
+  full_name: string;
+  email: string;
+  team?: string;
+  roles: string[];
+  image_url?: string;
 }
 
 export interface QueueJobStatus {
@@ -221,16 +233,33 @@ export const socialApi = {
   },
 
   history: {
-    list: (limit = 50) => apiClient.get<SocialPost[]>(`/social/history?limit=${limit}`).then((r) => r.data),
-    stats: () => apiClient.get('/social/history/stats').then((r) => r.data),
+    list: (params?: { limit?: number; team?: string; employeeId?: string }) => {
+      const p = new URLSearchParams();
+      if (params?.limit) p.set('limit', String(params.limit));
+      if (params?.team) p.set('team', params.team);
+      if (params?.employeeId) p.set('employeeId', params.employeeId);
+      return apiClient.get<SocialPost[]>(`/social/history?${p.toString()}`).then((r) => r.data);
+    },
+    stats: (params?: { team?: string; employeeId?: string }) => {
+      const p = new URLSearchParams();
+      if (params?.team) p.set('team', params.team);
+      if (params?.employeeId) p.set('employeeId', params.employeeId);
+      return apiClient.get(`/social/history/stats?${p.toString()}`).then((r) => r.data);
+    },
     notifications: () => apiClient.get('/social/history/notifications').then((r) => r.data),
+    members: (team?: string): Promise<HistoryMember[]> => {
+      const p = team ? `?team=${encodeURIComponent(team)}` : '';
+      return apiClient.get<HistoryMember[]>(`/social/history/members${p}`).then((r) => r.data);
+    },
+    teams: (): Promise<string[]> =>
+      apiClient.get<string[]>('/social/history/teams').then((r) => r.data),
   },
 
   drafts: {
     list: () => apiClient.get('/social/drafts').then((r) => r.data),
-    create: (data: { title?: string; message: string; mediaUrls?: string[]; platform?: SocialPlatform; accountId?: string }) =>
+    create: (data: { title?: string; message: string; mediaUrls?: string[]; platform?: SocialPlatform; accountId?: string; thumbUrl?: string }) =>
       apiClient.post('/social/drafts', data).then((r) => r.data),
-    update: (id: string, data: { title?: string; message?: string; mediaUrls?: string[]; platform?: SocialPlatform; accountId?: string }) =>
+    update: (id: string, data: { title?: string; message?: string; mediaUrls?: string[]; platform?: SocialPlatform; accountId?: string; thumbUrl?: string }) =>
       apiClient.put(`/social/drafts/${id}`, data).then((r) => r.data),
     remove: (id: string) => apiClient.delete(`/social/drafts/${id}`).then((r) => r.data),
   },
@@ -257,6 +286,7 @@ export const socialApi = {
             },
           },
         );
+        if (!res.data?.file) throw new Error('Upload thất bại: server không trả về thông tin file');
         return res.data.file;
       }),
   },

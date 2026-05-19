@@ -95,6 +95,15 @@ export default function VideoFramePicker({ videoUrl, open, onClose, onConfirm }:
     }
   }, [open, videoReady, duration, generateThumbnails]);
 
+  // Reset corsError mỗi khi modal mở (tránh state cũ từ lần trước còn sót)
+  useEffect(() => {
+    if (open) {
+      setCorsError(false);
+      setPreviewDataUrl('');
+      setSelectedTime(null);
+    }
+  }, [open]);
+
   // Sync preview whenever video seeked
   const onSeeked = useCallback(() => {
     const dataUrl = captureFrame();
@@ -141,6 +150,8 @@ export default function VideoFramePicker({ videoUrl, open, onClose, onConfirm }:
     }
   };
 
+  const isDriveUrl = videoUrl.includes('drive.google.com');
+
   if (!open) return null;
 
   return (
@@ -177,6 +188,17 @@ export default function VideoFramePicker({ videoUrl, open, onClose, onConfirm }:
           </div>
 
           <div className="p-5 space-y-4">
+
+            {/* ── Cảnh báo sớm cho Drive URL ── */}
+            {isDriveUrl && (
+              <div className="flex items-start gap-2.5 bg-amber-900/20 border border-amber-500/30 rounded-xl px-4 py-3">
+                <span className="text-amber-400 text-sm flex-shrink-0">⚠</span>
+                <p className="text-xs text-amber-300">
+                  Video đang lưu trên Google Drive — trình duyệt không thể chụp frame trực tiếp do giới hạn CORS.
+                  Hãy dùng nút <strong>&quot;Chọn ảnh từ thư viện&quot;</strong> để upload ảnh bìa tùy chỉnh.
+                </p>
+              </div>
+            )}
 
             {/* ── Video Preview ── */}
             <div className="relative bg-black rounded-xl overflow-hidden" style={{ aspectRatio: '16/9' }}>

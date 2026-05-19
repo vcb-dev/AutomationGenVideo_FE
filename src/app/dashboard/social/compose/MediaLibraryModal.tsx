@@ -11,7 +11,8 @@ import toast from 'react-hot-toast';
 interface Props {
   open: boolean;
   onClose: () => void;
-  onSelect: (urls: string[]) => void;
+  /** urls: mảng URL được chọn; thumbMap: url → thumbnail_url (để hiện thumbnail đúng) */
+  onSelect: (urls: string[], thumbMap?: Record<string, string>) => void;
   maxSelect?: number;
 }
 
@@ -160,7 +161,15 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
 
   const handleConfirm = () => {
     if (selected.size === 0) { toast.error('Chưa chọn file nào'); return; }
-    onSelect(Array.from(selected));
+    const urls = Array.from(selected);
+    // Gom thumbnail_url của các item đã chọn để compose page dùng đúng thumbnail
+    const thumbMap: Record<string, string> = {};
+    items.forEach(item => {
+      if (selected.has(item.url) && item.thumbnail_url) {
+        thumbMap[item.url] = item.thumbnail_url;
+      }
+    });
+    onSelect(urls, Object.keys(thumbMap).length > 0 ? thumbMap : undefined);
     onClose();
   };
 
@@ -170,7 +179,11 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
     try {
       await socialApi.library.remove(item.id);
       toast.success('Đã xoá');
-      load(page);
+      // Bỏ item khỏi selected nếu đang được chọn
+      setSelected(prev => { const next = new Set(prev); next.delete(item.url); return next; });
+      // Nếu xoá hết item của trang cuối → lùi về trang trước
+      const newPages = Math.max(1, Math.ceil(((total || 1) - 1) / 20));
+      load(Math.min(page, newPages));
       setStats(await socialApi.library.stats());
     } catch {
       toast.error('Xoá thất bại');
@@ -307,28 +320,32 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
                             <img
                               src={item.thumbnail_url}
                               alt={item.originalname}
-                              className="w-full h-full object-cover group-hover:opacity-0 transition-opacity duration-300"
+                              className={`w-full h-full object-cover transition-opacity duration-300 ${item.storage !== 'google_drive' ? 'group-hover:opacity-0' : ''}`}
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                             />
                           ) : (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 group-hover:opacity-0 transition-opacity">
+                            <div className={`absolute inset-0 flex flex-col items-center justify-center text-slate-500 ${item.storage !== 'google_drive' ? 'group-hover:opacity-0 transition-opacity' : ''}`}>
                               <Film className="w-8 h-8 mb-1" />
                               <span className="text-[10px] uppercase font-medium">Video</span>
                             </div>
                           )}
-                          
-                          <video
-                            src={`${item.url}#t=0.5`}
-                            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${item.thumbnail_url ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'}`}
-                            preload="metadata"
-                            muted
-                            playsInline
-                            onMouseOver={e => (e.target as HTMLVideoElement).play()}
-                            onMouseOut={e => {
-                              const v = e.target as HTMLVideoElement;
-                              v.pause();
-                              v.currentTime = 0.5;
-                            }}
-                          />
+
+                          {/* Chỉ render video element cho storage nội bộ — Drive URL không dùng được làm video src */}
+                          {item.storage !== 'google_drive' && (
+                            <video
+                              src={`${item.url}#t=0.5`}
+                              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${item.thumbnail_url ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'}`}
+                              preload="metadata"
+                              muted
+                              playsInline
+                              onMouseOver={e => (e.target as HTMLVideoElement).play()}
+                              onMouseOut={e => {
+                                const v = e.target as HTMLVideoElement;
+                                v.pause();
+                                v.currentTime = 0.5;
+                              }}
+                            />
+                          )}
                         </div>
                       ) : (
                         <img

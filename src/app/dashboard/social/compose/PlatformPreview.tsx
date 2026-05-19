@@ -33,7 +33,7 @@ function MediaGrid({ urls, platform }: { urls: string[]; platform: SocialPlatfor
 
   // Carousel for multiple
   return (
-    <div className={`grid gap-1 rounded-xl overflow-hidden ${urls.length === 2 ? 'grid-cols-2' : 'grid-cols-2'}`}>
+    <div className="grid gap-1 rounded-xl overflow-hidden grid-cols-2">
       {urls.slice(0, 4).map((url, i) => (
         <div key={i} className={`relative ${urls.length === 3 && i === 0 ? 'row-span-2' : ''}`}>
           {isVideo(url) ? (

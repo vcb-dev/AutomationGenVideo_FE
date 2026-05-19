@@ -5,13 +5,14 @@ import {
   BarChart3, CheckCircle, XCircle, Clock, Send, Calendar,
   Image as ImageIcon, Search,
   RefreshCw, Copy, RotateCcw, Filter, X, ArrowUpDown,
-  TrendingUp, ChevronLeft, ChevronRight, Repeat2,
+  TrendingUp, ChevronLeft, ChevronRight, Repeat2, Play, ExternalLink,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { socialApi, SocialPost, PLATFORM_META, SocialPlatform } from '@/lib/api/social';
+import { socialApi, SocialPost, HistoryMember, PLATFORM_META, SocialPlatform } from '@/lib/api/social';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useAuthStore } from '@/store/auth-store';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://127.0.0.1:3000';
 
@@ -24,16 +25,14 @@ function resolveMediaUrl(url: string): string {
   return url;
 }
 
-/** Chuyển Google Drive download URL → embed URL để browser stream được video */
-function toStreamableUrl(url: string): string {
-  if (!url) return url;
-  // https://drive.google.com/uc?export=download&id=FILE_ID → https://drive.google.com/file/d/FILE_ID/preview
+/** Trích xuất Google Drive fileId từ URL */
+function extractDriveFileId(url: string): string | null {
+  if (!url) return null;
   const ucMatch = url.match(/drive\.google\.com\/uc[^?]*\?.*[?&]id=([a-zA-Z0-9_-]+)/);
-  if (ucMatch) return `https://drive.google.com/file/d/${ucMatch[1]}/preview`;
-  // https://drive.google.com/file/d/FILE_ID/... (đã đúng format)
+  if (ucMatch) return ucMatch[1];
   const fileMatch = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
-  if (fileMatch) return `https://drive.google.com/file/d/${fileMatch[1]}/preview`;
-  return url;
+  if (fileMatch) return fileMatch[1];
+  return null;
 }
 
 function isDriveUrl(url: string): boolean {
@@ -119,13 +118,26 @@ const PAGE_SIZE = 20;
 
 export default function HistoryPage() {
   const router = useRouter();
-  const [posts, setPosts]         = useState<SocialPost[]>([]);
-  const [stats, setStats]         = useState<any>(null);
-  const [loading, setLoading]     = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [actionId, setActionId]   = useState<string | null>(null);
+  const { user } = useAuthStore();
 
-  // Filters
+  // Phân quyền
+  const isAdmin   = user?.roles?.some(r => ['ADMIN', 'MANAGER'].includes(r)) ?? false;
+  const isLeader  = !isAdmin && (user?.roles?.some(r => r === 'LEADER') ?? false);
+  const canFilter = isAdmin || isLeader;
+
+  const [posts, setPosts]       = useState<SocialPost[]>([]);
+  const [stats, setStats]       = useState<any>(null);
+  const [loading, setLoading]   = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [actionId, setActionId] = useState<string | null>(null);
+
+  // Bộ lọc thành viên (chỉ admin/leader)
+  const [members, setMembers]       = useState<HistoryMember[]>([]);
+  const [teams, setTeams]           = useState<string[]>([]);
+  const [teamFilter, setTeamFilter] = useState<string>('all');
+  const [memberFilter, setMemberFilter] = useState<string>('all');
+
+  // Bộ lọc nội dung
   const [search, setSearch]               = useState('');
   const [statusFilter, setStatusFilter]   = useState<'all' | 'COMPLETED' | 'FAILED' | 'PENDING'>('all');
   const [platformFilter, setPlatformFilter] = useState<string>('all');
@@ -135,13 +147,34 @@ export default function HistoryPage() {
   const [showFilters, setShowFilters]     = useState(false);
   const [page, setPage]                   = useState(1);
 
-  const load = useCallback(async (silent = false) => {
+  // Tải danh sách teams + members (một lần, khi mount)
+  useEffect(() => {
+    if (!canFilter) return;
+    socialApi.history.teams().then(setTeams).catch(() => {});
+    socialApi.history.members().then(setMembers).catch(() => {});
+  }, [canFilter]);
+
+  // Khi đổi team filter → tải lại members theo team đó
+  useEffect(() => {
+    if (!canFilter) return;
+    socialApi.history.members(teamFilter !== 'all' ? teamFilter : undefined)
+      .then(setMembers)
+      .catch(() => {});
+    setMemberFilter('all'); // reset member khi đổi team
+  }, [teamFilter, canFilter]);
+
+  const loadData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     else setRefreshing(true);
     try {
+      const params = {
+        limit: 500,
+        ...(teamFilter !== 'all'   ? { team: teamFilter }         : {}),
+        ...(memberFilter !== 'all' ? { employeeId: memberFilter } : {}),
+      };
       const [data, s] = await Promise.all([
-        socialApi.history.list(200),
-        socialApi.history.stats(),
+        socialApi.history.list(params),
+        socialApi.history.stats({ team: teamFilter !== 'all' ? teamFilter : undefined, employeeId: memberFilter !== 'all' ? memberFilter : undefined }),
       ]);
       setPosts(data);
       setStats(s);
@@ -151,16 +184,16 @@ export default function HistoryPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [teamFilter, memberFilter]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadData(); }, [loadData]);
 
   // All unique platforms in data
   const availablePlatforms = useMemo(() =>
     Array.from(new Set(posts.map(p => p.platform))),
   [posts]);
 
-  // Filtered + sorted list
+  // Filtered + sorted list (lọc client-side)
   const filtered = useMemo(() => {
     let list = [...posts];
 
@@ -170,11 +203,12 @@ export default function HistoryPage() {
       const q = search.toLowerCase();
       list = list.filter(p =>
         p.message?.toLowerCase().includes(q) ||
-        p.account?.name?.toLowerCase().includes(q)
+        p.account?.name?.toLowerCase().includes(q) ||
+        p.user?.full_name?.toLowerCase().includes(q)
       );
     }
     if (dateFrom) list = list.filter(p => new Date(p.created_at) >= new Date(dateFrom));
-    if (dateTo)   list = list.filter(p => new Date(p.created_at) <= new Date(dateTo + 'T23:59:59'));
+    if (dateTo)   list = list.filter(p => new Date(p.created_at) <= new Date(dateTo + 'T23:59:59.999'));
 
     list.sort((a, b) => {
       const da = new Date(a.created_at).getTime();
@@ -189,7 +223,7 @@ export default function HistoryPage() {
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   // Reset to page 1 when filter changes
-  useEffect(() => { setPage(1); }, [statusFilter, platformFilter, search, dateFrom, dateTo, sortOrder]);
+  useEffect(() => { setPage(1); }, [statusFilter, platformFilter, search, dateFrom, dateTo, sortOrder, teamFilter, memberFilter]);
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -201,7 +235,7 @@ export default function HistoryPage() {
     try {
       await socialApi.schedule.retry(id);
       toast.success('Đã đưa vào hàng chờ đăng lại');
-      await load(true);
+      await loadData(true);
     } catch {
       toast.error('Retry thất bại');
     } finally {
@@ -221,9 +255,11 @@ export default function HistoryPage() {
   const clearFilters = () => {
     setSearch(''); setStatusFilter('all'); setPlatformFilter('all');
     setDateFrom(''); setDateTo(''); setSortOrder('desc');
+    setTeamFilter('all'); setMemberFilter('all');
   };
 
-  const hasActiveFilters = search || statusFilter !== 'all' || platformFilter !== 'all' || dateFrom || dateTo;
+  const hasActiveFilters = search || statusFilter !== 'all' || platformFilter !== 'all' || dateFrom || dateTo
+    || teamFilter !== 'all' || memberFilter !== 'all';
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
@@ -244,7 +280,7 @@ export default function HistoryPage() {
                 <BarChart3 className="w-4 h-4" /> Thống kê
               </Link>
               <button
-                onClick={() => load(true)}
+                onClick={() => loadData(true)}
                 disabled={refreshing}
                 className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white text-slate-600 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors disabled:opacity-50"
               >
@@ -362,6 +398,52 @@ export default function HistoryPage() {
               <Filter className="w-4 h-4" /> Lọc thêm
             </button>
           </div>
+
+          {/* Bộ lọc thành viên — chỉ hiện với admin/leader */}
+          {canFilter && (
+            <div className="flex gap-2 flex-wrap pt-1">
+              {/* Team filter — chỉ admin thấy nhiều team */}
+              {isAdmin && teams.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-bold text-slate-500 whitespace-nowrap">Team:</label>
+                  <select
+                    value={teamFilter}
+                    onChange={e => setTeamFilter(e.target.value)}
+                    className="border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 bg-white"
+                  >
+                    <option value="all">Tất cả team</option>
+                    {teams.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+              )}
+
+              {/* Thành viên */}
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-bold text-slate-500 whitespace-nowrap">Thành viên:</label>
+                <select
+                  value={memberFilter}
+                  onChange={e => setMemberFilter(e.target.value)}
+                  className="border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 bg-white max-w-[220px]"
+                >
+                  <option value="all">Tất cả thành viên</option>
+                  {members.map(m => (
+                    <option key={m.id} value={m.id}>
+                      {m.full_name}{m.team ? ` (${m.team})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {(teamFilter !== 'all' || memberFilter !== 'all') && (
+                <button
+                  onClick={() => { setTeamFilter('all'); setMemberFilter('all'); }}
+                  className="text-xs text-indigo-600 hover:text-indigo-800 font-bold px-2 py-1 border border-indigo-200 rounded-lg bg-indigo-50"
+                >
+                  Xoá lọc thành viên
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Advanced filters */}
           <AnimatePresence>
@@ -493,16 +575,42 @@ export default function HistoryPage() {
                         const resolved = resolveMediaUrl(url);
                         const isVideo  = isVideoUrl(url);
                         const isDrive  = isDriveUrl(url);
+                        const driveFileId = isDrive ? extractDriveFileId(url) : null;
+                        const thumbnailUrl = driveFileId
+                          ? `https://drive.google.com/thumbnail?id=${driveFileId}&sz=w1280`
+                          : null;
+                        const driveViewUrl = driveFileId
+                          ? `https://drive.google.com/file/d/${driveFileId}/view`
+                          : url;
+                        // Ảnh bìa tùy chỉnh (do user chọn) ưu tiên hơn auto-thumbnail Drive
+                        const coverUrl = (i === 0 && post.thumb_url) ? post.thumb_url : thumbnailUrl;
                         return isVideo ? (
                           isDrive ? (
-                            <iframe
-                              key={i}
-                              src={toStreamableUrl(url)}
-                              className="w-full"
-                              style={{ height: '480px', border: 'none' }}
-                              allow="autoplay"
-                              allowFullScreen
-                            />
+                            <div key={i} className="relative w-full" style={{ minHeight: '200px' }}>
+                              {coverUrl && (
+                                <img
+                                  src={coverUrl}
+                                  alt="Video thumbnail"
+                                  className="w-full max-h-[480px] object-contain"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).style.display = 'none';
+                                  }}
+                                />
+                              )}
+                              <a
+                                href={driveViewUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 hover:bg-black/40 transition-colors group"
+                              >
+                                <div className="w-16 h-16 rounded-full bg-white/90 flex items-center justify-center shadow-xl group-hover:scale-110 transition-transform">
+                                  <Play className="w-7 h-7 text-slate-800 ml-1" />
+                                </div>
+                                <span className="mt-3 text-white text-sm font-semibold flex items-center gap-1.5">
+                                  Xem video trên Drive <ExternalLink className="w-3.5 h-3.5" />
+                                </span>
+                              </a>
+                            </div>
                           ) : (
                           <video
                             key={i}
@@ -543,6 +651,12 @@ export default function HistoryPage() {
                       <span className="font-bold text-slate-900 text-sm">{meta.label}</span>
                       {post.account && (
                         <span className="text-xs text-slate-400 font-medium">· {post.account.name}</span>
+                      )}
+                      {/* Tên thành viên — chỉ hiện với admin/leader */}
+                      {canFilter && post.user && (
+                        <span className="flex items-center gap-1 text-[10px] text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100 font-bold">
+                          👤 {post.user.full_name}{post.user.team ? ` · ${post.user.team}` : ''}
+                        </span>
                       )}
                       {hasMedia && (
                         <span className="flex items-center gap-1 text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100 font-bold">

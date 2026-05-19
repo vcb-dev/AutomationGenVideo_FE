@@ -105,7 +105,7 @@ export default function TemplateManager({ currentMessage, currentHashtags, onApp
   const [newName, setNewName]         = useState('');
   const [showSaveForm, setShowSaveForm] = useState(false);
 
-  useEffect(() => { setTemplates(loadTemplates()); }, [showPanel]);
+  useEffect(() => { if (showPanel) setTemplates(loadTemplates()); }, [showPanel]);
 
   const handleSave = () => {
     if (!newName.trim()) return toast.error('Nhập tên template');

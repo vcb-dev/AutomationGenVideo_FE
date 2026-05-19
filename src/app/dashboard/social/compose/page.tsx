@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  Search, RefreshCw, Type, Image as ImageIcon, Smartphone, Monitor,
+  Search, RefreshCw, Image as ImageIcon, Smartphone, Type, Monitor,
   MapPin, Globe, Smile, MessageCircle, Share2,
-  MoreHorizontal, ChevronDown, Save, Send, Clock, List, AlertCircle, ThumbsUp, X, Calendar as CalendarIcon,
-  Loader2, Sparkles, Layers, Hash,
+  MoreHorizontal, ChevronDown, Save, Send, Clock, AlertCircle, ThumbsUp, X, Calendar as CalendarIcon,
+  Loader2, Sparkles, Layers, Hash, Film,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { socialApi, SocialAccount, SocialPlatform, PLATFORM_META } from '@/lib/api/social';
@@ -15,6 +15,7 @@ import HashtagPanel from './HashtagPanel';
 import MediaLibraryModal from './MediaLibraryModal';
 import PlatformPreview from './PlatformPreview';
 import TemplateManager from './TemplateManager';
+import VideoFramePicker from './VideoFramePicker';
 import { useTaskStore } from '@/store/taskStore';
 import toast from 'react-hot-toast';
 
@@ -77,6 +78,12 @@ export default function ComposePage() {
   const [showDraftsModal, setShowDraftsModal] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
   const [perPlatformMode, setPerPlatformMode] = useState(false);
+  const [topTab, setTopTab] = useState<'publish' | 'customize'>('publish');
+  const [thumbUrl, setThumbUrl] = useState<string>('');
+  const [showFramePicker, setShowFramePicker] = useState(false);
+  const [libraryMode, setLibraryMode] = useState<'media' | 'thumb'>('media');
+  // Map url → thumbnail_url cho các media chọn từ thư viện (để hiện đúng thumbnail Drive)
+  const [mediaThumbs, setMediaThumbs] = useState<Record<string, string>>({});
   const [perPlatformMessages, setPerPlatformMessages] = useState<Partial<Record<SocialPlatform, string>>>({});
 
   // --- PORTED LOGIC FROM VCB-TOOL ---
@@ -204,8 +211,11 @@ export default function ComposePage() {
         const data = JSON.parse(prefill);
         if (data.message) setMessage(data.message);
         if (data.mediaUrls?.length) { setMediaUrls(data.mediaUrls); setPostMode('image'); }
+      } catch {
+        // JSON invalid — bỏ qua, vẫn xoá ở finally
+      } finally {
         localStorage.removeItem('compose_prefill');
-      } catch {}
+      }
     }
   }, []);
 
@@ -408,7 +418,7 @@ export default function ComposePage() {
       const hashtagStr = hashtags.map(h => `#${h}`).join(' ');
       const fullMessage = message.trim() + (hashtagStr ? `\n\n${hashtagStr}` : '');
       try {
-        await socialApi.drafts.create({ message: fullMessage, mediaUrls: mediaUrls.length ? mediaUrls : undefined });
+        await socialApi.drafts.create({ message: fullMessage, mediaUrls: mediaUrls.length ? mediaUrls : undefined, thumbUrl: thumbUrl || undefined });
         const updated = await socialApi.drafts.list();
         setDrafts(updated);
         toast.success('Đã lưu nháp!');
@@ -473,6 +483,7 @@ export default function ComposePage() {
             mediaUrls: mediaUrls.length ? mediaUrls : undefined,
             scheduledAt: new Date(scheduledAt).toISOString(),
             privacy,
+            thumbUrl: thumbUrl || undefined,
           });
           results[i] = { ...results[i], status: 'success' };
         } catch (err: any) {
@@ -500,6 +511,7 @@ export default function ComposePage() {
         message:    fullMessage,
         mediaUrls:  mediaUrls.length ? mediaUrls : undefined,
         privacy,
+        thumbUrl:   thumbUrl || undefined,
       }));
 
       const { jobIds } = await socialApi.queue.enqueue(jobs);
@@ -529,7 +541,7 @@ export default function ComposePage() {
 
   const selectDraft = (draft: any) => {
     // Tách hashtag ra khỏi nội dung nếu có
-    const parts = draft.message.split('\n\n');
+    const parts = (draft.message || '').split('\n\n');
     const lastPart = parts[parts.length - 1];
     
     if (lastPart && lastPart.startsWith('#')) {
@@ -543,11 +555,25 @@ export default function ComposePage() {
     
     setMediaUrls(draft.media_urls || []);
     if (draft.media_urls?.length > 0) setPostMode('image');
+    setThumbUrl(draft.thumb_url || '');
     setShowDraftsModal(false);
     toast.success('Đã nạp bản nháp');
   };
 
   if (!mounted) return null;
+
+  // Helper: render media preview (xử lý cả Drive URL lẫn local URL)
+  const renderMediaPreview = (url: string, className: string, videoProps?: { controls?: boolean; autoPlay?: boolean; loop?: boolean }) => {
+    if (!url) return null;
+    const driveId = url.includes('drive.google.com')
+      ? (url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || url.match(/[?&]id=([a-zA-Z0-9_-]+)/))?.[1]
+      : null;
+    if (!driveId && /\.(mp4|mov|avi|mkv|webm)$/i.test(url)) {
+      return <video src={url} className={className} muted {...videoProps} />;
+    }
+    const src = driveId ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w400` : url;
+    return <img src={src} alt="" className={className} onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }} />;
+  };
 
   return (
     <div className="flex flex-col h-[calc(100vh-112px)] lg:h-screen bg-slate-50 font-sans overflow-hidden">
@@ -583,11 +609,21 @@ export default function ComposePage() {
         </div>
         
         <div className="flex gap-8 text-sm font-bold text-slate-600">
-          <button className="text-blue-600 border-b-2 border-blue-600 pb-2.5 -mb-[1px] relative">
-            Đăng bài
-            <motion.div layoutId="topTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
-          </button>
-          <button className="hover:text-slate-900 pb-2.5 transition-colors">Tùy chỉnh</button>
+          {[
+            { id: 'publish',   label: 'Đăng bài' },
+            { id: 'customize', label: 'Tùy chỉnh' },
+          ].map(t => (
+            <button
+              key={t.id}
+              onClick={() => setTopTab(t.id as any)}
+              className={`pb-2.5 -mb-[1px] relative transition-colors ${topTab === t.id ? 'text-blue-600' : 'hover:text-slate-900'}`}
+            >
+              {t.label}
+              {topTab === t.id && (
+                <motion.div layoutId="topTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
+              )}
+            </button>
+          ))}
           <button className="hover:text-slate-900 pb-2.5 transition-colors">Chủ đề</button>
           <button className="hidden lg:block hover:text-slate-900 pb-2.5 transition-colors">Xem trước</button>
         </div>
@@ -803,12 +839,115 @@ export default function ComposePage() {
 
         {/* COLUMN 2: Editor */}
         <div className={`${mobileTab === 'EDITOR' ? 'flex flex-1 w-full' : 'hidden'} lg:flex lg:flex-1 overflow-y-visible lg:overflow-y-auto bg-slate-50 p-4 lg:p-6 flex-col gap-6 items-center scrollbar-none`}>
-          <motion.div 
+
+          {/* ── Tab Tùy chỉnh ── */}
+          <AnimatePresence mode="wait">
+          {topTab === 'customize' && (
+            <motion.div
+              key="customize"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="w-full max-w-[800px]"
+            >
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
+                <h2 className="text-base font-bold text-slate-800">Tùy chỉnh bài đăng</h2>
+
+                {/* Ảnh bìa video */}
+                {(() => {
+                  const videoUrl = mediaUrls.find(u => /\.(mp4|mov|avi|mkv|webm)$/i.test(u) || u.includes('drive.google.com'));
+                  if (!videoUrl) {
+                    return (
+                      <div className="flex flex-col items-center justify-center py-10 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl">
+                        <ImageIcon className="w-10 h-10 mb-3 text-slate-300" />
+                        <p className="text-sm font-semibold">Chưa có video</p>
+                        <p className="text-xs mt-1">Thêm video ở tab <span className="font-bold text-blue-600 cursor-pointer" onClick={() => setTopTab('publish')}>Đăng bài</span> trước</p>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-sm font-bold text-slate-700 mb-1">Ảnh bìa video</p>
+                        <p className="text-xs text-slate-400">Chọn frame từ video hoặc upload ảnh tùy chỉnh. Dùng cho YouTube, TikTok, Facebook video.</p>
+                      </div>
+
+                      <div className="flex gap-4 items-start flex-wrap">
+                        {/* Preview ảnh bìa đã chọn */}
+                        <div className="relative flex-shrink-0">
+                          {thumbUrl ? (
+                            <div className="relative group">
+                              <img
+                                src={thumbUrl}
+                                alt="Ảnh bìa"
+                                className="w-40 h-24 object-cover rounded-xl border-2 border-blue-400 shadow-md"
+                              />
+                              <button
+                                onClick={() => setThumbUrl('')}
+                                className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                              <div className="absolute bottom-1 left-1 right-1 text-center">
+                                <span className="text-[10px] bg-black/60 text-white px-2 py-0.5 rounded-full font-bold">Ảnh bìa đã chọn</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="w-40 h-24 bg-slate-100 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400">
+                              <ImageIcon className="w-6 h-6 mb-1" />
+                              <span className="text-[10px] font-semibold">Chưa chọn</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Các nút chọn ảnh bìa */}
+                        <div className="flex flex-col gap-2 flex-1">
+                          <button
+                            onClick={() => setShowFramePicker(true)}
+                            className="flex items-center gap-2.5 px-4 py-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-sm font-bold text-blue-700 transition-colors"
+                          >
+                            <Film className="w-4 h-4" />
+                            Chọn frame từ video
+                          </button>
+                          <button
+                            onClick={() => { setLibraryMode('thumb'); setShowLibrary(true); }}
+                            className="flex items-center gap-2.5 px-4 py-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 transition-colors"
+                          >
+                            <ImageIcon className="w-4 h-4" />
+                            Chọn ảnh từ thư viện
+                          </button>
+                          {thumbUrl && (
+                            <button
+                              onClick={() => setThumbUrl('')}
+                              className="flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-red-500 hover:text-red-700 transition-colors"
+                            >
+                              <X className="w-3.5 h-3.5" /> Xoá ảnh bìa
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* VideoFramePicker modal */}
+                      <VideoFramePicker
+                        videoUrl={videoUrl}
+                        open={showFramePicker}
+                        onClose={() => setShowFramePicker(false)}
+                        onConfirm={(url) => { setThumbUrl(url); setShowFramePicker(false); }}
+                      />
+                    </div>
+                  );
+                })()}
+              </div>
+            </motion.div>
+          )}
+          </AnimatePresence>
+
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="w-full max-w-[800px] flex flex-col gap-6"
+            className={`w-full max-w-[800px] flex flex-col gap-6 ${topTab === 'customize' ? 'hidden' : ''}`}
           >
-            
+
             {/* Top Action Bar */}
             <div className="flex flex-col md:flex-row justify-between items-center w-full gap-4">
               <div className="flex bg-white rounded-xl border border-slate-200 p-1 shadow-sm relative w-full md:w-auto overflow-x-auto scrollbar-none">
@@ -949,13 +1088,36 @@ export default function ComposePage() {
               {mediaUrls.length > 0 && (
                 <div className="flex flex-wrap gap-3">
                   {mediaUrls.map((url, i) => {
-                    const isVideo = /\.(mp4|mov|avi|mkv|webm)$/i.test(url);
+                    const isDrive = url.includes('drive.google.com');
+                    const isVideo = /\.(mp4|mov|avi|webm|mkv)$/i.test(url);
+                    const driveFileId = isDrive ? (url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || url.match(/[?&]id=([a-zA-Z0-9_-]+)/))?.[1] : null;
+                    // Ưu tiên thumbnail_url từ thư viện (ảnh FFmpeg đúng), fallback về Drive thumbnail API
+                    const previewSrc = mediaThumbs[url]
+                      || (driveFileId ? `https://drive.google.com/thumbnail?id=${driveFileId}&sz=w300` : url);
                     return (
                       <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} key={i} className="relative w-24 h-24 rounded-xl overflow-hidden border border-slate-200 group">
-                        {isVideo ? (
+                        {!isDrive && isVideo ? (
                           <video src={url} className="w-full h-full object-cover" muted />
+                        ) : isDrive ? (
+                          <div className="relative w-full h-full bg-slate-800">
+                            {/* Film icon nền — hiện ra khi thumbnail fail */}
+                            <div className="absolute inset-0 flex items-center justify-center text-slate-500">
+                              <Film className="w-8 h-8" />
+                            </div>
+                            <img
+                              src={previewSrc}
+                              alt=""
+                              className="absolute inset-0 w-full h-full object-cover"
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                            />
+                          </div>
                         ) : (
-                          <img src={url} className="w-full h-full object-cover" />
+                          <img
+                            src={previewSrc}
+                            alt=""
+                            className="w-full h-full object-cover"
+                            onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }}
+                          />
                         )}
                         <button onClick={() => setMediaUrls(p => p.filter((_, idx) => idx !== i))} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                           <X className="w-3 h-3" />
@@ -969,7 +1131,7 @@ export default function ComposePage() {
               <div>
                 <motion.div
                   whileHover={{ borderColor: '#8b5cf6', backgroundColor: '#faf5ff' }}
-                  onClick={() => setShowLibrary(true)}
+                  onClick={() => { setLibraryMode('media'); setShowLibrary(true); }}
                   className="bg-white border-2 border-dashed border-slate-300 rounded-2xl p-10 flex flex-col items-center justify-center cursor-pointer group shadow-sm"
                 >
                   <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mb-3 text-slate-400 group-hover:text-purple-500 transition-all group-hover:bg-purple-50">
@@ -1058,11 +1220,7 @@ export default function ComposePage() {
                     <p className="text-[13px] text-slate-800 mb-3 whitespace-pre-wrap leading-relaxed">{message || 'Nội dung sẽ hiển thị ở đây...'}</p>
                     {mediaUrls.length > 0 ? (
                       <div className="rounded-xl overflow-hidden border border-slate-100 shadow-sm">
-                        {/\.(mp4|mov|avi|mkv|webm)$/i.test(mediaUrls[0]) ? (
-                          <video src={mediaUrls[0]} className="w-full aspect-square object-cover" muted controls />
-                        ) : (
-                          <img src={mediaUrls[0]} className="w-full aspect-square object-cover" />
-                        )}
+                        {renderMediaPreview(mediaUrls[0], 'w-full aspect-square object-cover', { controls: true })}
                       </div>
                     ) : (
                       <div className="bg-slate-100 aspect-[4/3] rounded-xl flex items-center justify-center border border-slate-200/60">
@@ -1096,11 +1254,7 @@ export default function ComposePage() {
                   </div>
                   <div className="flex-1 bg-black flex items-center justify-center">
                     {mediaUrls.length > 0 ? (
-                      /\.(mp4|mov|avi|mkv|webm)$/i.test(mediaUrls[0]) ? (
-                        <video src={mediaUrls[0]} className="w-full aspect-square object-cover" muted controls />
-                      ) : (
-                        <img src={mediaUrls[0]} className="w-full aspect-square object-cover" />
-                      )
+                      renderMediaPreview(mediaUrls[0], 'w-full aspect-square object-cover', { controls: true })
                     ) : (
                       <div className="bg-slate-900 aspect-square w-full flex items-center justify-center">
                         <ImageIcon className="w-8 h-8 text-slate-700" />
@@ -1133,11 +1287,7 @@ export default function ComposePage() {
                     <p className="text-[13px] text-slate-800 whitespace-pre-wrap mb-3 leading-relaxed">{message || 'Nội dung Threads...'}</p>
                     {mediaUrls.length > 0 && (
                       <div className="rounded-xl overflow-hidden border border-slate-100 max-h-[250px] mb-3">
-                        {/\.(mp4|mov|avi|mkv|webm)$/i.test(mediaUrls[0]) ? (
-                          <video src={mediaUrls[0]} className="w-full object-cover" muted controls />
-                        ) : (
-                          <img src={mediaUrls[0]} className="w-full object-cover" />
-                        )}
+                        {renderMediaPreview(mediaUrls[0], 'w-full object-cover', { controls: true })}
                       </div>
                     )}
                     <div className="flex gap-4 text-slate-500 mt-auto pb-4">
@@ -1152,13 +1302,15 @@ export default function ComposePage() {
               {previewPlatform === 'TIKTOK' && (
                 <div className="relative flex-1 flex flex-col justify-end text-white">
                   <div className="absolute inset-0 bg-black flex items-center justify-center">
-                    {mediaUrls.length > 0 ? (
-                      /\.(mp4|mov|avi|mkv|webm)$/i.test(mediaUrls[0]) ? (
-                        <video src={mediaUrls[0]} className="w-full h-full object-cover" muted autoPlay loop />
-                      ) : (
-                        <img src={mediaUrls[0]} className="w-full h-full object-cover" />
-                      )
-                    ) : (
+                    {mediaUrls.length > 0 ? (() => {
+                      const m0 = mediaUrls[0];
+                      const isDrive0 = m0.includes('drive.google.com');
+                      const isVid0 = /\.(mp4|mov|avi|mkv|webm)$/i.test(m0);
+                      const driveId0 = isDrive0 ? (m0.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || m0.match(/[?&]id=([a-zA-Z0-9_-]+)/))?.[1] : null;
+                      return !isDrive0 && isVid0
+                        ? <video src={m0} className="w-full h-full object-cover" muted autoPlay loop />
+                        : <img src={driveId0 ? `https://drive.google.com/thumbnail?id=${driveId0}&sz=w400` : m0} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }} />;
+                    })() : (
                       <div className="flex flex-col items-center gap-2 text-slate-700">
                         <ImageIcon className="w-12 h-12" />
                         <span className="text-xs text-slate-500">Chưa có video TikTok</span>
@@ -1267,11 +1419,19 @@ export default function ComposePage() {
         <MediaLibraryModal
           open={showLibrary}
           onClose={() => setShowLibrary(false)}
-          onSelect={(urls) => {
-            setMediaUrls(prev => Array.from(new Set([...prev, ...urls])));
-            if (postMode === 'text') setPostMode('image');
-            toast.success(`Đã thêm ${urls.length} file từ thư viện`);
+          onSelect={(urls, thumbMap) => {
+            if (libraryMode === 'thumb') {
+              setThumbUrl(urls[0] || '');
+              toast.success('Đã đặt ảnh bìa!');
+            } else {
+              setMediaUrls(prev => Array.from(new Set([...prev, ...urls])));
+              // Lưu thumbnail_url kèm theo để hiện đúng ảnh xem trước cho Drive video
+              if (thumbMap) setMediaThumbs(prev => ({ ...prev, ...thumbMap }));
+              if (postMode === 'text') setPostMode('image');
+              toast.success(`Đã thêm ${urls.length} file từ thư viện`);
+            }
           }}
+          maxSelect={libraryMode === 'thumb' ? 1 : 10}
         />
 
         {/* DRAFTS MODAL */}
@@ -1303,13 +1463,18 @@ export default function ComposePage() {
                         onClick={() => selectDraft(d)}
                         className="group p-4 rounded-2xl border border-slate-100 hover:border-blue-300 hover:bg-blue-50/30 cursor-pointer transition-all flex gap-4"
                       >
-                        {d.media_urls?.[0] && (
+                        {(d.thumb_url || d.media_urls?.[0]) && (
                           <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 border border-slate-100">
-                             {/\.(mp4|mov|avi|mkv|webm)$/i.test(d.media_urls[0]) ? (
-                               <div className="w-full h-full bg-slate-900 flex items-center justify-center"><Smartphone className="w-6 h-6 text-white/50" /></div>
-                             ) : (
-                               <img src={d.media_urls[0]} className="w-full h-full object-cover" />
-                             )}
+                            {d.thumb_url ? (
+                              <img src={d.thumb_url} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }} />
+                            ) : /\.(mp4|mov|avi|mkv|webm)$/i.test(d.media_urls[0]) ? (
+                              <div className="w-full h-full bg-slate-900 flex items-center justify-center"><Smartphone className="w-6 h-6 text-white/50" /></div>
+                            ) : (() => {
+                              const driveId = d.media_urls[0].includes('drive.google.com')
+                                ? (d.media_urls[0].match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || d.media_urls[0].match(/[?&]id=([a-zA-Z0-9_-]+)/))?.[1]
+                                : null;
+                              return <img src={driveId ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w200` : d.media_urls[0]} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }} />;
+                            })()}
                           </div>
                         )}
                         <div className="flex-1 min-w-0">

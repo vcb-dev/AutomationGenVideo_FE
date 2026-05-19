@@ -205,7 +205,7 @@ export default function PublishProgressModal({ publishProgress, postingPcts, ela
                               : ch.status === 'fail'    ? 'Thất bại'
                               : ch.queuePosition != null
                                 ? ch.queueTotal != null
-                                  ? `#${ch.queuePosition}/${ch.queueTotal} — còn ${ch.queuePosition - 1} bài trước`
+                                  ? `#${ch.queuePosition}/${ch.queueTotal} — còn ${Math.max(0, ch.queuePosition - 1)} bài trước`
                                   : `Hàng chờ #${ch.queuePosition}`
                                 : 'Đang chờ xử lý...'}
                           </p>

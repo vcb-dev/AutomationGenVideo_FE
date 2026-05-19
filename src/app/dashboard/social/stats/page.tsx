@@ -98,7 +98,7 @@ export default function StatsPage() {
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true); else setRefreshing(true);
     try {
-      const data = await socialApi.history.list(1000);
+      const data = await socialApi.history.list({ limit: 1000 });
       setPosts(data);
     } catch {
       toast.error('Không tải được dữ liệu thống kê');
