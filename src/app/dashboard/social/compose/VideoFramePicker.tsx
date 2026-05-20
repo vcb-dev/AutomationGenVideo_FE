@@ -291,7 +291,7 @@ function BrowserFramePicker({ videoUrl, open, onClose, onConfirm }: {
     try {
       const blob = await (await fetch(dataUrl)).blob();
       const file = new File([blob], `thumb_${Date.now()}.jpg`, { type: 'image/jpeg' });
-      const item = await socialApi.library.upload(file);
+      const item = await socialApi.library.upload(file, undefined, { type: 'thumb', thumbFor: videoUrl.split('/').pop() || 'video' });
       onConfirm(item.url);
       toast.success('Đã đặt ảnh bìa video!');
       onClose();

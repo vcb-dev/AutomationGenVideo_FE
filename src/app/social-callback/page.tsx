@@ -4,6 +4,21 @@ import { useEffect } from 'react';
 export default function SocialCallbackPage() {
   useEffect(() => {
     if (window.opener) {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const type    = params.get('type')     || 'oauth-success';
+        const platform = params.get('platform') || '';
+        const error   = params.get('error')    || '';
+        const msg = { type, platform, error };
+        // Fast-path: postMessage to opener
+        window.opener.postMessage(msg, window.location.origin);
+        // Fallback for same-origin BroadcastChannel
+        try {
+          const bc = new BroadcastChannel('social_oauth');
+          bc.postMessage(msg);
+          bc.close();
+        } catch {}
+      } catch {}
       window.close();
     } else {
       window.location.href = '/dashboard/social/channels';

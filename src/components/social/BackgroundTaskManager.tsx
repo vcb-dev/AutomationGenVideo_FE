@@ -12,14 +12,20 @@ export const BackgroundTaskManager = () => {
   const [isExpanded, setIsExpanded] = React.useState(true);
 
   // Tự động xóa task sau 10 giây nếu đã hoàn tất (thành công hoặc lỗi)
+  // Dùng ref để track các task đã được đặt timer — tránh tạo timer trùng lặp mỗi lần tasks đổi
+  const scheduledRemovalRef = React.useRef<Set<string>>(new Set());
   React.useEffect(() => {
-    const completedTasks = tasks.filter(t => t.status === 'success' || t.status === 'error');
+    const completedTasks = tasks.filter(
+      t => (t.status === 'success' || t.status === 'error') && !scheduledRemovalRef.current.has(t.id),
+    );
     if (completedTasks.length === 0) return;
 
     const timers = completedTasks.map(task => {
+      scheduledRemovalRef.current.add(task.id);
       return setTimeout(() => {
+        scheduledRemovalRef.current.delete(task.id);
         removeTask(task.id);
-      }, 10000); // 10 giây
+      }, 10000);
     });
 
     return () => timers.forEach(t => clearTimeout(t));

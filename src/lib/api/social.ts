@@ -277,12 +277,16 @@ export const socialApi = {
       apiClient.post(`/social/library/${id}/preview-frame`, { timeSeconds }).then((r) => r.data),
     setThumbnailAt: (id: string, timeSeconds: number): Promise<{ thumbnail_url: string }> =>
       apiClient.post(`/social/library/${id}/set-thumbnail`, { timeSeconds }).then((r) => r.data),
-    upload: (file: File, onProgress?: (pct: number) => void): Promise<MediaLibraryItem> =>
+    upload: (file: File, onProgress?: (pct: number) => void, opts?: { type?: 'media' | 'thumb'; thumbFor?: string }): Promise<MediaLibraryItem> =>
       withUploadQueue(async () => {
         const form = new FormData();
         form.append('file', file);
+        const params = new URLSearchParams();
+        if (opts?.type === 'thumb') params.set('type', 'thumb');
+        if (opts?.thumbFor) params.set('thumbFor', opts.thumbFor);
+        const query = params.toString() ? `?${params.toString()}` : '';
         const res = await apiClient.post<{ file: MediaLibraryItem }>(
-          '/social/library/upload', form,
+          `/social/library/upload${query}`, form,
           {
             headers: { 'Content-Type': 'multipart/form-data' },
             timeout: 600_000,

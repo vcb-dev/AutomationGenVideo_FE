@@ -282,6 +282,9 @@ export default function ComposePage() {
   const [activeJobIds,   setActiveJobIds]   = useState<string[] | null>(null);
   // Map jobId → channelId (accountId) để ghép kết quả poll về UI
   const [jobChannelMap,  setJobChannelMap]  = useState<Record<string, string>>({});
+  // Ref luôn giữ giá trị mới nhất — tránh stale closure trong poll effect
+  const jobChannelMapRef = useRef<Record<string, string>>({});
+  jobChannelMapRef.current = jobChannelMap;
 
   // Đồng hồ thời gian thực
   const [publishStartedAt, setPublishStartedAt] = useState<number | null>(null);
@@ -347,7 +350,7 @@ export default function ComposePage() {
 
         setPublishProgress(prev => {
           const newChannels = prev.channels.map(ch => {
-            const jobId = Object.entries(jobChannelMap).find(([, cid]) => cid === ch.id)?.[0];
+            const jobId = Object.entries(jobChannelMapRef.current).find(([, cid]) => cid === ch.id)?.[0];
             if (!jobId) return ch;
             const job = jobs.find(j => j.id === jobId);
             if (!job) return ch;
@@ -359,21 +362,21 @@ export default function ComposePage() {
           return { ...prev, channels: newChannels };
         });
 
-          const allDone = jobs.every(j => j.status === 'COMPLETED' || j.status === 'FAILED' || j.status === 'CANCELLED');
-          
-          // Cập nhật task chạy ngầm
-          const mainTaskId = `post-${activeJobIds[0]}`;
-          const completedCount = jobs.filter(j => j.status === 'COMPLETED' || j.status === 'FAILED').length;
-          const totalCount = jobs.length;
-          const totalProgress = (completedCount / totalCount) * 100;
-          
-          updateTask(mainTaskId, { 
-            progress: totalProgress, 
-            status: allDone ? (jobs.some(j => j.status === 'FAILED') ? 'error' : 'success') : 'processing',
-            message: `Đã xong ${completedCount}/${totalCount} kênh`
-          });
+        const allDone = jobs.every(j => j.status === 'COMPLETED' || j.status === 'FAILED' || j.status === 'CANCELLED');
 
-          if (allDone) {
+        // Cập nhật task chạy ngầm
+        const mainTaskId = `post-${activeJobIds[0]}`;
+        const completedCount = jobs.filter(j => j.status === 'COMPLETED' || j.status === 'FAILED').length;
+        const totalCount = jobs.length;
+        const totalProgress = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+
+        updateTask(mainTaskId, {
+          progress: totalProgress,
+          status: allDone ? (jobs.some(j => j.status === 'FAILED') ? 'error' : 'success') : 'processing',
+          message: `Đã xong ${completedCount}/${totalCount} kênh`,
+        });
+
+        if (allDone) {
           setActiveJobIds(null);
           setPublishing(false);
           setPublishProgress(prev => ({ ...prev, phase: 'done' }));
@@ -970,7 +973,6 @@ export default function ComposePage() {
                       setActiveTab(tab.id as any);
                       if (tab.id === 'publish') setScheduleMode('now');
                       else if (tab.id === 'schedule') setScheduleMode('schedule');
-                      else if (tab.id === 'queue') setScheduleMode('queue');
                     }} 
                     className={`px-5 py-2 rounded-lg text-[13px] font-bold transition-all relative z-10 ${activeTab === tab.id ? 'text-blue-600' : 'text-slate-600 hover:text-slate-800'}`}
                   >
@@ -1127,7 +1129,12 @@ export default function ComposePage() {
                             onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }}
                           />
                         )}
-                        <button onClick={() => setMediaUrls(p => p.filter((_, idx) => idx !== i))} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => {
+                          const removed = mediaUrls[i];
+                          setMediaUrls(p => p.filter((_, idx) => idx !== i));
+                          // Nếu ảnh bìa đang dùng thumbnail của media bị xóa → xóa luôn ảnh bìa
+                          if (thumbUrl && mediaThumbs[removed] && thumbUrl === mediaThumbs[removed]) setThumbUrl('');
+                        }} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                           <X className="w-3 h-3" />
                         </button>
                       </motion.div>
@@ -1402,7 +1409,7 @@ export default function ComposePage() {
                   whileTap={{ scale: 0.95 }}
                   onClick={() => {
                     setScheduleMode(m.id as any);
-                    if (m.id === 'now' || m.id === 'queue') setActiveTab('publish');
+                    if (m.id === 'now') setActiveTab('publish');
                     else setActiveTab('schedule');
                   }}
                   className={`flex-1 flex flex-col items-center justify-center gap-2 py-3.5 rounded-xl border-2 transition-all relative ${scheduleMode === m.id ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-slate-100 text-slate-400 hover:bg-slate-50'}`}
@@ -1450,6 +1457,7 @@ export default function ComposePage() {
             }
           }}
           maxSelect={libraryMode === 'thumb' ? 1 : 10}
+          mode={libraryMode}
         />
 
         {/* DRAFTS MODAL */}

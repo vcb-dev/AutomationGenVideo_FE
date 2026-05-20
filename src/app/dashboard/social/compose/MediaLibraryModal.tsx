@@ -14,6 +14,7 @@ interface Props {
   /** urls: mảng URL được chọn; thumbMap: url → thumbnail_url; idMap: url → library item id */
   onSelect: (urls: string[], thumbMap?: Record<string, string>, idMap?: Record<string, string>) => void;
   maxSelect?: number;
+  mode?: 'media' | 'thumb';
 }
 
 function formatBytes(bytes: number) {
@@ -22,7 +23,7 @@ function formatBytes(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect = 10 }: Props) {
+export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect = 10, mode = 'media' }: Props) {
   const [items, setItems]       = useState<MediaLibraryItem[]>([]);
   const [total, setTotal]       = useState(0);
   const [pages, setPages]       = useState(1);
@@ -122,7 +123,7 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
             await socialApi.library.upload(file, (pct) => {
               setUploadPct(pct);
               updateTask(taskId, { progress: pct });
-            });
+            }, mode === 'thumb' ? { type: 'thumb' } : undefined);
           }
           updateTask(taskId, { status: 'success', progress: 100 });
           successCount++;
