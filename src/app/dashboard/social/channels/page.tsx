@@ -391,20 +391,40 @@ export default function ChannelsPage() {
                     <span className="text-lg font-bold" style={{ color: meta.color }}>{meta.label}</span>
                   </div>
 
-                  <div className="md:ml-auto mt-2 md:mt-0 flex gap-2">
+                  <div className="md:ml-auto mt-2 md:mt-0 flex gap-2 flex-wrap">
                     {/* Instagram: không có nút login — tự động lấy từ FB */}
                     {platform === 'INSTAGRAM' && displayAccts.length === 0 && (
-                      <span className="text-sm text-blue-500 italic">Tự động lấy từ Facebook Page</span>
+                      <div className="flex gap-2 items-center">
+                        <span className="text-sm text-blue-500 italic">Tự động lấy từ Facebook Page</span>
+                        <button
+                          onClick={() => handleConnect('INSTAGRAM')}
+                          disabled={connecting === 'INSTAGRAM'}
+                          className="flex items-center gap-1 px-3 py-2 text-sm font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors disabled:opacity-60"
+                        >
+                          {connecting === 'INSTAGRAM' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : '+'}
+                          {connecting === 'INSTAGRAM' ? 'Đang kết nối...' : 'Kết nối Instagram'}
+                        </button>
+                      </div>
                     )}
                     {platform === 'INSTAGRAM' && displayAccts.length > 0 && (
-                      <button
-                        onClick={() => setIgCollapsed((v) => !v)}
-                        className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
-                      >
-                        {igCollapsed
-                          ? <><ChevronDown className="w-4 h-4" /> Hiện ({displayAccts.length})</>
-                          : <><ChevronUp className="w-4 h-4" /> Ẩn</>}
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleConnect('INSTAGRAM')}
+                          disabled={connecting === 'INSTAGRAM'}
+                          className="flex items-center gap-1 px-3 py-2 text-sm font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors disabled:opacity-60"
+                        >
+                          {connecting === 'INSTAGRAM' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : '+'}
+                          {connecting === 'INSTAGRAM' ? 'Đang kết nối...' : 'Thêm Instagram'}
+                        </button>
+                        <button
+                          onClick={() => setIgCollapsed((v) => !v)}
+                          className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+                        >
+                          {igCollapsed
+                            ? <><ChevronDown className="w-4 h-4" /> Hiện ({displayAccts.length})</>
+                            : <><ChevronUp className="w-4 h-4" /> Ẩn</>}
+                        </button>
+                      </div>
                     )}
                     {/* Các platform khác: nút login */}
                     {platform !== 'INSTAGRAM' && displayAccts.length === 0 && (
@@ -748,5 +768,6 @@ export default function ChannelsPage() {
         )}
       </div>
     </div>
+
   );
 }

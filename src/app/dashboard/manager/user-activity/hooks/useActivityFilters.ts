@@ -3,7 +3,7 @@
 import React from "react";
 
 export const CARDS_PER_BATCH = 100;
-export const CHECKLIST_PAGE_SIZE = 4;
+export const CHECKLIST_PAGE_SIZE = 6;
 
 interface UseActivityFiltersReturn {
     activeTeam: string;

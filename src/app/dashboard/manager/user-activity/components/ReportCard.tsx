@@ -1,10 +1,8 @@
 "use client";
 
 import React from "react";
-import { Check, AlertCircle, ChevronRight } from "lucide-react";
+import { AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { SiFacebook, SiInstagram, SiTiktok, SiThreads, SiYoutube } from "react-icons/si";
-
-import { motion, AnimatePresence } from "framer-motion";
 
 interface TrafficToday {
     fb: number;
@@ -46,7 +44,6 @@ interface EmployeeReport {
     };
     videoCount: number;
     trafficToday?: TrafficToday | null;
-    /** false: không bắt buộc báo cáo traffic (backend needsTraffic) */
     needsTraffic?: boolean;
     isMock?: boolean;
     questions: {
@@ -55,236 +52,326 @@ interface EmployeeReport {
     }[];
 }
 
-const getAvatarUrl = (url: string | null, name: string) => {
-    if (!url) return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`;
+const AVATAR_COLORS = [
+    "bg-blue-500",
+    "bg-emerald-500",
+    "bg-violet-500",
+    "bg-orange-500",
+    "bg-rose-500",
+    "bg-cyan-500",
+    "bg-amber-500",
+    "bg-indigo-500",
+    "bg-teal-500",
+    "bg-pink-500",
+];
 
-    if (url.includes("drive.google.com")) {
-        const match = url.match(/\/d\/([^/]+)/) || url.match(/id=([^&]+)/);
-        if (match && match[1]) {
-            return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w200`;
-        }
-    }
-    if (url.includes("googleusercontent.com")) {
-        try {
-            const urlObj = new URL(url);
-            urlObj.searchParams.delete("authuser");
-            urlObj.searchParams.delete("sz");
-            return urlObj.toString().replace(/=[sw]\d+(-[sw]\d+)*(?=[?#]|$)/, "=w200");
-        } catch {
-            return url;
-        }
-    }
-    return url;
-};
+function getInitials(name: string): string {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return "?";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function getAvatarColor(name: string): string {
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
 
 const formatTrafficNumber = (num: number): string => {
-    if (num >= 1000000) return `${(num / 1000000).toFixed(2)}M`;
-    if (num >= 1000) return `${(num / 1000).toFixed(2)}K`;
+    if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(2)}M`;
+    if (num >= 1_000) return `${(num / 1_000).toFixed(2)}K`;
     return num.toLocaleString("vi-VN");
 };
 
-const ProgressBar = ({ label, value, max, color, icon: Icon }: { label: string, value: number, max: number, color: string, icon: React.ElementType }) => {
-    const percentage = max > 0 ? (value / max) * 100 : 0;
+function formatSubmitTime(submittedAt?: string, time?: string): string | null {
+    if (time) return time;
+    if (!submittedAt) return null;
+    try {
+        const d = new Date(submittedAt);
+        if (isNaN(d.getTime())) return submittedAt;
+        const hh = String(d.getHours()).padStart(2, "0");
+        const mm = String(d.getMinutes()).padStart(2, "0");
+        return `Hôm nay, ${hh}:${mm}`;
+    } catch {
+        return submittedAt;
+    }
+}
+
+const PLATFORM_CONFIGS = [
+    { key: "tiktok" as const, label: "TikTok", icon: SiTiktok, color: "#000000" },
+    { key: "fb" as const, label: "Facebook", icon: SiFacebook, color: "#1877F2" },
+    { key: "ig" as const, label: "Instagram", icon: SiInstagram, color: "#E1306C" },
+    { key: "yt" as const, label: "YouTube", icon: SiYoutube, color: "#FF0000" },
+    { key: "thread" as const, label: "Threads", icon: SiThreads, color: "#64748b" },
+];
+
+const TrafficBar = ({ value, max }: { value: number; max: number }) => {
+    const pct = max > 0 ? Math.round((value / max) * 100) : 0;
     return (
-        <div className="flex items-center gap-4 group">
-            <div className="flex items-center gap-2 w-24">
-                <Icon className="w-4 h-4" style={{ color }} />
-                <span className="text-[11px] font-bold text-slate-800 transition-colors capitalize">{label}</span>
-            </div>
-            <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                <div 
-                    className="h-full transition-all duration-1000 ease-out" 
-                    style={{ width: `${percentage}%`, backgroundColor: color }}
-                />
-            </div>
-            <span className="text-[11px] font-black text-slate-600 w-16 text-right">
-                {formatTrafficNumber(value)}
-            </span>
+        <div className="mt-1 h-0.5 w-full bg-slate-100 rounded-full overflow-hidden">
+            <div className="h-full bg-slate-400 rounded-full" style={{ width: `${pct}%` }} />
         </div>
     );
 };
 
-const ReportCard = ({ report, isSmall = false }: { report: EmployeeReport; isSmall?: boolean }) => {
-    const avatarSrc = getAvatarUrl(report.avatar, report.name);
+const checkIsDifficulty = (question: string, answer: string | null | undefined): boolean => {
+    if (!answer) return false;
+    const qLower = question.toLowerCase();
+    const isDiffQ = qLower.includes("khó khăn") || qLower.includes("deadline") || qLower.includes("trễ");
+    if (!isDiffQ) return false;
 
+    const ansClean = answer.toLowerCase().trim()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "") // remove accents
+        .replace(/đ/g, "d")
+        .replace(/[^a-z0-9]/g, ""); // keep only alphanumeric
+
+    const negativeKeywords = [
+        "khong",
+        "khongco",
+        "none",
+        "no",
+        "binhthuong",
+        "ok"
+    ];
+
+    const isNegative = negativeKeywords.some(kw => 
+        ansClean === kw || 
+        ansClean.startsWith(kw) || 
+        ansClean === "khongconha" || 
+        ansClean === "khongcoa" ||
+        ansClean === "khongcoghia" ||
+        ansClean === "khongcogica"
+    );
+    return !isNegative;
+};
+
+const checkIsSuggestion = (question: string, answer: string | null | undefined): boolean => {
+    if (!answer) return false;
+    const qLower = question.toLowerCase();
+    const isSugQ = qLower.includes("ý tưởng") || qLower.includes("đề xuất") || qLower.includes("y tuong") || qLower.includes("de xuat");
+    if (!isSugQ) return false;
+
+    const ansClean = answer.toLowerCase().trim()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "") // remove accents
+        .replace(/đ/g, "d")
+        .replace(/[^a-z0-9]/g, ""); // keep only alphanumeric
+
+    const negativeKeywords = [
+        "khong",
+        "khongco",
+        "none",
+        "no",
+        "binhthuong",
+        "ok"
+    ];
+
+    const isNegative = negativeKeywords.some(kw => 
+        ansClean === kw || 
+        ansClean.startsWith(kw) || 
+        ansClean === "khongconha" || 
+        ansClean === "khongcoa" ||
+        ansClean === "khongcoghia" ||
+        ansClean === "khongcogica"
+    );
+    return !isNegative;
+};
+
+const ReportCard = ({ report }: { report: EmployeeReport }) => {
     const statusRaw = (report.status || "").toString().toUpperCase();
-    const isCompleted = statusRaw === "ĐÃ BÁO CÁO ĐỦ" || statusRaw === "SUBMITTED" || statusRaw === "ĐÚNG HẠN";
+    const isCompleted =
+        statusRaw === "ĐÃ BÁO CÁO ĐỦ" ||
+        statusRaw === "SUBMITTED" ||
+        statusRaw === "ĐÚNG HẠN" ||
+        statusRaw === "ĐÃ NỘP";
     const isLate = statusRaw.includes("TRỄ") || statusRaw.includes("LATE");
-    const isUnreported = statusRaw === "CHƯA BÁO CÁO" || statusRaw === "" || statusRaw === "PENDING" || statusRaw === "CHƯA NỘP";
-    /** Đã nộp báo cáo ngày nhưng chưa có traffic (lark.service: CHƯA BÁO CÁO TRAFFIC) */
-    const isTrafficNotReported = statusRaw.includes("CHƯA BÁO CÁO TRAFFIC");
-    const isOnTime = isCompleted && !isLate;
-    const needsTraffic = report.needsTraffic !== false;
-    const hasTrafficData =
-        Number(report.trafficToday?.total || 0) > 0 ||
-        Number(report.trafficToday?.fb || 0) > 0 ||
-        Number(report.trafficToday?.ig || 0) > 0 ||
-        Number(report.trafficToday?.tiktok || 0) > 0 ||
-        Number(report.trafficToday?.yt || 0) > 0 ||
-        Number(report.trafficToday?.thread || 0) > 0;
-    const trafficSatisfied = !needsTraffic || hasTrafficData || !isTrafficNotReported;
-    const bothComplete = trafficSatisfied && !isUnreported;
-    /** Chỉ khi thật sự phải báo traffic mới dùng UI thu gọn Q&A; không có kênh → chỉ cần member, luôn mở câu hỏi */
-    const useCollapsibleMemberSection = needsTraffic && bothComplete;
-    const showTrafficBlock = hasTrafficData || (needsTraffic && !isTrafficNotReported);
-    const memberBlockVisible = Boolean(!isUnreported && report.questions?.length);
-    const [showQuestions, setShowQuestions] = React.useState(() => !useCollapsibleMemberSection);
+    const isUnreported =
+        statusRaw === "CHƯA BÁO CÁO" ||
+        statusRaw === "" ||
+        statusRaw === "PENDING" ||
+        statusRaw === "CHƯA NỘP";
 
-    React.useEffect(() => {
-        setShowQuestions(!useCollapsibleMemberSection);
-    }, [report.id, useCollapsibleMemberSection]);
-    
-    // Determine the max traffic for scale
+    const needsTraffic = report.needsTraffic !== false;
     const trafficData = report.trafficToday;
     const tiktokVal = trafficData?.tiktok || 0;
     const fbVal = trafficData?.fb || 0;
     const igVal = trafficData?.ig || 0;
     const ytVal = trafficData?.yt || 0;
     const threadVal = trafficData?.thread || 0;
-    const maxVal = Math.max(tiktokVal, fbVal, igVal, ytVal, threadVal, 1000); // at least 1000 for scale
+    const hasTrafficData = tiktokVal + fbVal + igVal + ytVal + threadVal > 0;
+    const maxVal = Math.max(tiktokVal, fbVal, igVal, ytVal, threadVal, 1);
 
-    const qaBlock =
-        memberBlockVisible && report.questions ? (
-            <div className="mt-6 pt-6 border-t-2 border-slate-50 space-y-5">
-                {report.questions.map((q, i) => (
-                    <div key={i} className="space-y-2">
-                        <div className="flex items-start gap-2">
-                            <div className="w-2 h-2 rounded-full bg-blue-700 mt-1.5 shrink-0" />
-                            <p className="text-[13px] font-black text-black uppercase tracking-wide leading-relaxed">
-                                {q.question}
-                            </p>
-                        </div>
-                        <div className="pl-3.5 border-l-2 border-slate-50 ml-0.5">
-                            <p className="text-[13px] font-bold text-slate-700 leading-relaxed whitespace-pre-wrap">
-                                {q.answer}
-                            </p>
-                        </div>
-                    </div>
-                ))}
-            </div>
-        ) : null;
+    const initials = getInitials(report.name);
+    const avatarColor = getAvatarColor(report.name);
+    const submitTime = formatSubmitTime(report.submittedAt, report.time);
+
+    const [showQuestions, setShowQuestions] = React.useState(true);
 
     return (
-        <div 
-            className={`group relative bg-white rounded-[2rem] border-2 transition-all duration-500 hover:shadow-2xl hover:shadow-blue-500/10 hover:-translate-y-1 flex flex-col overflow-hidden
-                ${isOnTime ? "border-emerald-50 shadow-emerald-500/5 shadow-xl" : 
-                  isUnreported ? "border-red-50 shadow-red-500/5 shadow-xl" : "border-slate-50 shadow-slate-500/5 shadow-xl"}
-            `}
-        >
-            {/* Top Pattern Decoration */}
-            <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br transition-opacity duration-500 blur-3xl -mr-16 -mt-16 opacity-20
-                ${isOnTime ? "from-emerald-400" : isUnreported ? "from-red-400" : "from-blue-400"}
-            `} />
-
-            <div className="p-6 relative z-10 flex flex-col h-full">
-                {/* Header Section */}
-                <div className="flex items-start justify-between mb-6">
-                    <div className="flex items-center gap-4">
-                        <div className="relative">
-                            <img
-                                src={avatarSrc}
-                                alt={report.name}
-                                className="w-16 h-16 rounded-[1.25rem] object-cover border-2 border-white shadow-xl ring-4 ring-slate-50/50"
-                                onError={(e) => {
-                                    e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(report.name)}&background=random`;
-                                }}
-                            />
-                            {isOnTime && (
-                                <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-500 rounded-full border-4 border-white flex items-center justify-center shadow-lg">
-                                    <Check className="w-3 h-3 text-white" strokeWidth={4} />
-                                </div>
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+            {/* Card Header */}
+            <div className="p-6 pb-4 flex items-start justify-between gap-4">
+                <div className="flex items-center gap-4">
+                    {/* Avatar with initials */}
+                    <div
+                        className={`w-16 h-16 rounded-[1.25rem] flex-shrink-0 flex items-center justify-center ${avatarColor} text-white font-black text-[19px] tracking-tight shadow-md`}
+                    >
+                        {initials}
+                    </div>
+                    <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-black text-slate-900 text-[19px] uppercase tracking-tight">
+                                {report.name}
+                            </h3>
+                            {report.position && (
+                                <span className="px-3 py-1.5 rounded border border-amber-300 bg-amber-50 text-amber-700 text-[12px] font-black uppercase tracking-widest">
+                                    {report.position}
+                                </span>
                             )}
                         </div>
+                        <p className="text-[14px] font-bold text-slate-500 uppercase tracking-wider mt-1">
+                            {report.team}
+                        </p>
+                    </div>
+                </div>
+
+                {/* Status + time */}
+                <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                    <span
+                        className={`px-4 py-2 rounded-full text-[13px] font-black uppercase tracking-wider border
+                            ${isCompleted && !isLate
+                                ? "bg-emerald-50 text-emerald-600 border-emerald-200"
+                                : isLate
+                                ? "bg-amber-50 text-amber-600 border-amber-200"
+                                : isUnreported
+                                ? "bg-red-50 text-red-600 border-red-200"
+                                : "bg-slate-50 text-slate-500 border-slate-200"
+                            }`}
+                    >
+                        {isCompleted && !isLate
+                            ? "ĐÃ NỘP"
+                            : isLate
+                            ? "TRỄ HẠN"
+                            : isUnreported
+                            ? "CHƯA NỘP"
+                            : report.status}
+                    </span>
+                    {submitTime && !isUnreported && (
+                        <span className="text-[13px] text-slate-400 font-medium">{submitTime}</span>
+                    )}
+                </div>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 pb-6">
+                {isUnreported ? (
+                    <div className="flex items-center gap-4 p-5 bg-slate-50 rounded-xl border border-slate-100">
+                        <AlertCircle className="w-6 h-6 text-slate-400 flex-shrink-0" />
                         <div>
-                            <div className="flex items-center gap-2 mb-1">
-                                <h3 className="font-black text-slate-900 text-[18px] uppercase tracking-tight">{report.name}</h3>
-                                {report.position && (
-                                    <span className="px-2 py-0.5 rounded-lg bg-amber-100 text-amber-700 text-[10px] font-black uppercase tracking-widest leading-none">
-                                        {report.position}
-                                    </span>
-                                )}
-                            </div>
-                            <p className="text-[12px] font-bold text-slate-800 uppercase tracking-wider">{report.team}</p>
+                            <p className="text-[15.5px] font-bold text-slate-600">Chưa gửi báo cáo hôm nay</p>
+                            <p className="text-[14px] text-slate-400 mt-1">
+                                Báo cáo sẽ giúp team theo dõi và hỗ trợ bạn tốt hơn.
+                            </p>
                         </div>
                     </div>
-
-                    <span className={`px-4 py-1.5 rounded-full text-[11px] font-black uppercase tracking-[0.1em] shadow-sm border
-                        ${isOnTime ? "bg-emerald-50 text-emerald-600 border-emerald-100" : 
-                          isLate ? "bg-amber-50 text-amber-600 border-amber-100" : 
-                          isUnreported ? "bg-red-50 text-red-600 border-red-100" : "bg-slate-50 text-slate-600 border-slate-100"}
-                    `}>
-                        {isOnTime ? "ĐÚNG HẠN" : isLate ? "TRỄ HẠN" : isUnreported ? "CHƯA NỘP" : report.status}
-                    </span>
-                </div>
-
-                {/* Body Content */}
-                <div className="flex-1">
-                    {isUnreported ? (
-                        <div className="bg-red-50/50 rounded-2xl p-4 border border-red-100 flex items-center gap-3 animate-pulse">
-                            <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
-                                <AlertCircle className="w-4 h-4 text-red-500" />
+                ) : (
+                    <>
+                        {/* Traffic row */}
+                        {(hasTrafficData || needsTraffic) && (
+                            <div className="flex items-stretch gap-3 mb-5 border-t border-slate-50 pt-5">
+                                {PLATFORM_CONFIGS.map(({ key, label, icon: Icon, color }) => {
+                                    const val =
+                                        key === "tiktok" ? tiktokVal
+                                        : key === "fb" ? fbVal
+                                        : key === "ig" ? igVal
+                                        : key === "yt" ? ytVal
+                                        : threadVal;
+                                    return (
+                                        <div key={key} className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-1.5 mb-1">
+                                                <Icon
+                                                    className="w-4 h-4 flex-shrink-0"
+                                                    style={{ color }}
+                                                />
+                                                <span className="text-[12px] font-bold text-slate-500 truncate">
+                                                    {label}
+                                                </span>
+                                            </div>
+                                            <p className="text-[14px] font-black text-slate-800 leading-tight">
+                                                {formatTrafficNumber(val)}
+                                            </p>
+                                            <TrafficBar value={val} max={maxVal} />
+                                        </div>
+                                    );
+                                })}
                             </div>
-                            <p className="text-[13px] font-bold text-red-700 uppercase tracking-tight">Chưa gửi báo cáo hôm nay</p>
-                        </div>
-                    ) : (
-                        <div className="space-y-6">
-                            {showTrafficBlock && (
-                                <div className="bg-slate-50/50 rounded-2xl p-5 border border-slate-100 shadow-inner">
-                                    <div className="flex justify-end items-center mb-4">
-                                        <span className="text-[18px] font-black text-slate-900">
-                                            {formatTrafficNumber(report.trafficToday?.total || 0)}
-                                        </span>
-                                    </div>
-                                    <div className="space-y-4">
-                                        <ProgressBar label="TikTok" value={tiktokVal} max={maxVal} color="#1f2937" icon={SiTiktok} />
-                                        <ProgressBar label="Facebook" value={fbVal} max={maxVal} color="#3b82f6" icon={SiFacebook} />
-                                        <ProgressBar label="Instagram" value={igVal} max={maxVal} color="#ec4899" icon={SiInstagram} />
-                                        <ProgressBar label="YouTube" value={ytVal} max={maxVal} color="#ff0000" icon={SiYoutube} />
-                                        <ProgressBar label="Threads" value={threadVal} max={maxVal} color="#64748b" icon={SiThreads} />
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
+                        )}
 
-                    {/* Có bắt buộc traffic và đã xong hết → thu gọn + nút. Còn lại (không kênh / chưa traffic) → luôn mở Q&A */}
-                    {memberBlockVisible &&
-                        (!useCollapsibleMemberSection ? (
-                            qaBlock
-                        ) : (
-                            <AnimatePresence initial={false}>
+                        {/* Q&A */}
+                        {report.questions && report.questions.length > 0 && (
+                            <div className="border-t border-slate-100 pt-4">
                                 {showQuestions && (
-                                    <motion.div
-                                        key="qa"
-                                        initial={{ height: 0, opacity: 0 }}
-                                        animate={{ height: "auto", opacity: 1 }}
-                                        exit={{ height: 0, opacity: 0 }}
-                                        transition={{ duration: 0.4, ease: [0.04, 0.62, 0.23, 0.98] }}
-                                        className="overflow-hidden"
-                                    >
-                                        {qaBlock}
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-                        ))}
-                </div>
+                                    <div className="space-y-2.5">
+                                        {report.questions.map((q, i) => {
+                                            const isDifficulty = checkIsDifficulty(q.question, q.answer);
+                                            const isSuggestion = checkIsSuggestion(q.question, q.answer);
 
-                {useCollapsibleMemberSection && memberBlockVisible && (
-                    <button 
-                        onClick={() => setShowQuestions(!showQuestions)}
-                        className={`mt-8 group/btn w-full py-4 rounded-2xl transition-all duration-300 flex items-center justify-center gap-2 border 
-                            ${showQuestions ? "bg-slate-900 border-slate-900 shadow-xl shadow-slate-200" : "bg-slate-50 border-slate-100 hover:bg-slate-100"}
-                        `}
-                    >
-                        <span className={`text-[11px] font-black uppercase tracking-[0.2em] transition-colors
-                            ${showQuestions ? "text-white" : "text-slate-700 group-hover/btn:text-slate-950"}
-                        `}>
-                            {showQuestions ? "Thu gọn báo cáo" : `Xem thêm ${report.questions.length} câu hỏi`}
-                        </span>
-                        <ChevronRight className={`w-4 h-4 transition-all duration-500
-                            ${showQuestions ? "text-white -rotate-90" : "text-slate-400 group-hover/btn:translate-x-1"}
-                        `} />
-                    </button>
+                                            let textColorClass = "text-slate-500";
+                                            let ansColorClass = "text-slate-800";
+                                            let fontClass = "font-bold";
+                                            let ansFontClass = "font-bold";
+
+                                            if (isDifficulty) {
+                                                textColorClass = "text-rose-600";
+                                                ansColorClass = "text-rose-600";
+                                                fontClass = "font-black";
+                                                ansFontClass = "font-black";
+                                            } else if (isSuggestion) {
+                                                textColorClass = "text-emerald-600";
+                                                ansColorClass = "text-emerald-600";
+                                                fontClass = "font-black";
+                                                ansFontClass = "font-black";
+                                            }
+
+                                            return (
+                                                <div
+                                                    key={i}
+                                                    className="flex items-baseline gap-4 text-[14.5px] leading-relaxed"
+                                                >
+                                                    <span className={`${textColorClass} ${fontClass} uppercase tracking-wider text-[13.5px] flex-1 min-w-0`}>
+                                                        {q.question}
+                                                    </span>
+                                                    <span className={`${ansColorClass} ${ansFontClass} text-right flex-shrink-0 max-w-[50%]`}>
+                                                        {q.answer || (
+                                                            <span className="text-slate-300 italic">—</span>
+                                                        )}
+                                                    </span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                                {report.questions.length > 3 && (
+                                    <button
+                                        onClick={() => setShowQuestions((v) => !v)}
+                                        className="mt-3 flex items-center gap-1 text-[13px] font-bold text-blue-500 hover:text-blue-700 transition-colors"
+                                    >
+                                        {showQuestions ? (
+                                            <>
+                                                <ChevronUp className="w-3.5 h-3.5" /> Thu gọn
+                                            </>
+                                        ) : (
+                                            <>
+                                                <ChevronDown className="w-3.5 h-3.5" /> Xem {report.questions.length} câu hỏi
+                                            </>
+                                        )}
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
         </div>
