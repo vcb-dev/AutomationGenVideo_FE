@@ -80,6 +80,7 @@ const mapReportItem = (item: any) => {
         name: item.name,
         position: item.position || (isLeaderReport ? "Leader" : "Member"),
         team: item.team,
+        checklist_source_team: item.checklist_source_team || item.team,
         avatar: getAvatarUrl(item.avatar, item.name),
         status: item.status,
         reportStatus: item.status,
