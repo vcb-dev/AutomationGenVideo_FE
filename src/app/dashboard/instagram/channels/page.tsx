@@ -58,6 +58,7 @@ export default function InstagramChannelsPage() {
   // Track only channels NEWLY imported in this session — only these show spinner
   const [newlyImportedUsernames, setNewlyImportedUsernames] = useState<Set<string>>(new Set());
   const bgRefreshRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bgRefreshZeroRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadInstagramChannels = async (): Promise<ChannelProfile[]> => {
     const token = localStorage.getItem('auth_token');
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
@@ -66,7 +67,12 @@ export default function InstagramChannelsPage() {
     });
     if (response.status === 401 || !response.ok) return [];
     const data = await response.json();
-    const storedPostsCounts = JSON.parse(localStorage.getItem('instagram_posts_counts') || '{}');
+    let storedPostsCounts: Record<string, number> = {};
+    try {
+      storedPostsCounts = JSON.parse(localStorage.getItem('instagram_posts_counts') || '{}');
+    } catch (e) {
+      console.error('Error parsing instagram_posts_counts:', e);
+    }
     return (data.channels || []).map((ch: ChannelProfile) => ({
       ...ch,
       posts_count: ch.posts_count || storedPostsCounts[ch.username] || 0,
@@ -150,7 +156,12 @@ export default function InstagramChannelsPage() {
           const zeroStatsCh = existingList.filter((c: any) => !c.total_followers && !c.total_likes && !c.total_videos);
           if (zeroStatsCh.length > 0) {
             const historyMapStr = sessionStorage.getItem('auto_0stats_run_map') || '{}';
-            const historyMap = JSON.parse(historyMapStr);
+            let historyMap: Record<string, number> = {};
+            try {
+              historyMap = JSON.parse(historyMapStr);
+            } catch (e) {
+              console.error('Error parsing auto_0stats_run_map:', e);
+            }
             const now = Date.now();
             
             const toRun: any[] = [];
@@ -204,7 +215,7 @@ export default function InstagramChannelsPage() {
                 }
                 
                 if (currentSpinIds.length > 0 && !cancelled) {
-                  bgRefreshRef.current = setTimeout(pollZeroChannels, 0) as any;
+                  bgRefreshZeroRef.current = setTimeout(pollZeroChannels, 0) as any;
                 }
               };
               pollZeroChannels();
@@ -229,6 +240,7 @@ export default function InstagramChannelsPage() {
     return () => {
       cancelled = true;
       if (bgRefreshRef.current) clearTimeout(bgRefreshRef.current);
+      if (bgRefreshZeroRef.current) clearTimeout(bgRefreshZeroRef.current);
     };
   }, []);
 
@@ -248,7 +260,7 @@ export default function InstagramChannelsPage() {
   const extractInstagramUsername = (input: string): string => {
     let clean = input.trim();
     // Remove @ if present
-    clean = clean.replace('@', '');
+    clean = clean.replace(/^@+/, '');
 
     // Remove trailing slash
     if (clean.endsWith('/')) clean = clean.slice(0, -1);
@@ -289,37 +301,77 @@ export default function InstagramChannelsPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        alert(data.error || 'Không thể tìm thấy tài khoản Instagram này. Vui lòng kiểm tra lại username.');
-        setProcessing(false);
+        toast.error(data.error || 'Không thể tìm thấy tài khoản Instagram này. Vui lòng kiểm tra lại username.');
         return;
       }
 
       let payload: any = {};
 
       // Extract Data for Saving
+      const parseNumber = (val: any) => {
+        if (!val && val !== 0) return 0;
+        if (typeof val === 'number') return val;
+        return parseInt(String(val).replace(/[,\.]/g, '')) || 0;
+      };
+      const pickNumber = (source: any, keys: string[]) => {
+        if (!source) return 0;
+        for (const key of keys) {
+          const value = parseNumber(source[key]);
+          if (value > 0) return value;
+        }
+        return 0;
+      };
+      const sumMetric = (items: any[] | undefined, keys: string[]) => {
+        if (!Array.isArray(items)) return 0;
+        return items.reduce((sum, item) => {
+          const raw = item?.raw_data || {};
+          return sum + Math.max(pickNumber(item, keys), pickNumber(raw, keys));
+        }, 0);
+      };
+
       if (data.profile) {
-        // Extract posts_count for localStorage (NOT sent to BE)
-        const postsCount = data.profile.posts_count || 0;
+        const postsCount = parseNumber(data.profile.posts_count || data.profile.postsCount || data.profile.media_count || 0);
+        const resultLikesSum = sumMetric(data.results, ['likes_count', 'like_count', 'likes']);
+        const resultViewsSum = sumMetric(data.results, [
+          'views_count',
+          'video_view_count',
+          'view_count',
+          'views',
+          'play_count',
+          'plays',
+        ]);
 
         // Map Instagram profile fields from AI service response
-        // NOTE: posts_count is NOT sent to BE (DB doesn't have this field)
         payload = {
           platform: 'INSTAGRAM',
           username: data.profile.username || username,
           display_name: data.profile.display_name || data.profile.fullName || username,
           avatar_url: data.profile.avatar_url || data.profile.profilePicUrl || '',
           // Stats (now including posts_count!)
-          total_followers: data.profile.follower_count || data.profile.followersCount || 0,
-          total_likes: data.profile.total_likes || 0,
-          total_views: data.profile.total_views || 0,
-          total_videos: data.profile.total_videos || 0,
+          total_followers: pickNumber(data.profile, ['follower_count', 'followersCount', 'followers', 'total_followers']),
+          total_likes: pickNumber(data.profile, ['total_likes', 'likes_count', 'like_count', 'likes']) || resultLikesSum,
+          total_views: pickNumber(data.profile, [
+            'total_views',
+            'views_count',
+            'video_view_count',
+            'view_count',
+            'views',
+            'play_count',
+            'plays',
+          ]) || resultViewsSum,
+          total_videos: parseNumber(data.profile.total_videos || data.profile.video_count || 0),
           posts_count: postsCount,
           engagement_rate: data.profile.engagement_rate || 0
         };
 
         // Also keep in localStorage for backward compatibility
         if (postsCount > 0) {
-          const storedCounts = JSON.parse(localStorage.getItem('instagram_posts_counts') || '{}');
+          let storedCounts: Record<string, number> = {};
+          try {
+            storedCounts = JSON.parse(localStorage.getItem('instagram_posts_counts') || '{}');
+          } catch (e) {
+            console.error('Error parsing instagram_posts_counts:', e);
+          }
           storedCounts[payload.username] = postsCount;
           localStorage.setItem('instagram_posts_counts', JSON.stringify(storedCounts));
           console.log(`💾 Saved posts_count for ${payload.username}: ${postsCount}`);
@@ -335,8 +387,15 @@ export default function InstagramChannelsPage() {
           display_name: firstPost.author_name || username,
           avatar_url: firstPost.author_avatar || firstPost.thumbnail_url || '',
           total_followers: 0, // Will be updated on refresh
-          total_likes: data.results.reduce((sum: number, p: any) => sum + (p.likes_count || 0), 0),
-          total_views: data.results.reduce((sum: number, p: any) => sum + (p.video_view_count || 0), 0),
+          total_likes: sumMetric(data.results, ['likes_count', 'like_count', 'likes']),
+          total_views: sumMetric(data.results, [
+            'views_count',
+            'video_view_count',
+            'view_count',
+            'views',
+            'play_count',
+            'plays',
+          ]),
           total_videos: data.results.filter((p: any) => p.content_type === 'reel').length,
           posts_count: postsCount,
           engagement_rate: 0
@@ -344,15 +403,18 @@ export default function InstagramChannelsPage() {
 
         // Also keep in localStorage for backward compatibility
         if (postsCount > 0) {
-          const storedCounts = JSON.parse(localStorage.getItem('instagram_posts_counts') || '{}');
+          let storedCounts: Record<string, number> = {};
+          try {
+            storedCounts = JSON.parse(localStorage.getItem('instagram_posts_counts') || '{}');
+          } catch (e) {
+            console.error('Error parsing instagram_posts_counts:', e);
+          }
           storedCounts[username] = postsCount;
           localStorage.setItem('instagram_posts_counts', JSON.stringify(storedCounts));
           console.log(`💾 Fallback saved posts_count for ${username}: ${postsCount}`);
         }
       } else {
-        alert('Tìm thấy tài khoản nhưng không có bài viết công khai nào để phân tích.');
-        setProcessing(false);
-        return;
+        toast.error('Tìm thấy tài khoản nhưng không có bài viết công khai nào để phân tích.');
         return;
       }
 
@@ -378,11 +440,11 @@ export default function InstagramChannelsPage() {
         setUsernameInput('');
       } else {
         const errorData = await saveResponse.json();
-        alert(errorData.message || 'Lỗi khi lưu kênh vào hệ thống.');
+        toast.error(errorData.message || 'Lỗi khi lưu kênh vào hệ thống.');
       }
     } catch (error) {
       console.error('Error processing channel:', error);
-      alert('Có lỗi xảy ra. Vui lòng thử lại.');
+      toast.error('Có lỗi xảy ra. Vui lòng thử lại.');
     } finally {
       setProcessing(false);
     }
@@ -500,6 +562,14 @@ export default function InstagramChannelsPage() {
       {/* Content */}
       <div className="container mx-auto px-4 max-w-7xl pt-8">
 
+        {/* Long sync hint banner */}
+        {longSyncHint && (
+          <div className="flex items-center gap-3 mb-6 px-5 py-3 bg-amber-50 border border-amber-200 rounded-2xl text-amber-800 text-sm font-medium">
+            <Loader2 className="w-4 h-4 animate-spin flex-shrink-0 text-amber-600" />
+            <span>Đang đồng bộ dữ liệu từ HR (Lark) — có thể mất vài phút, vui lòng chờ...</span>
+          </div>
+        )}
+
         {/* Skeleton cards khi chưa có kênh nào */}
         {loadingInitial && channels.length === 0 && (
           <ChannelCardSkeletonGrid count={8} />
@@ -553,9 +623,9 @@ export default function InstagramChannelsPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {filteredChannels.map((channel, idx) => (
+              {filteredChannels.map((channel) => (
                 <div
-                  key={channel.id || idx}
+                  key={channel.id || channel.username}
                   className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group relative overflow-hidden flex flex-col h-full"
                 >
                   <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity z-10">
@@ -610,7 +680,7 @@ export default function InstagramChannelsPage() {
 
                   {/* Stats Wrapper — hiển thị spinner khi mới import, đang refresh, hoặc chưa có số liệu */}
                   <div className="relative mt-auto flex-1 flex flex-col justify-end min-h-[100px] mb-4">
-                    {(newlyImportedUsernames.has(channel.username) || refreshingIds.has(channel.username) || (!channel.total_followers && !channel.total_likes)) && (
+                    {(newlyImportedUsernames.has(channel.username) || refreshingIds.has(channel.username)) && (
                       <div className="absolute inset-[-8px] bg-white/60 backdrop-blur-[2px] z-10 rounded-2xl flex flex-col items-center justify-center border border-slate-100/50">
                         <Loader2 className="w-6 h-6 text-pink-500 animate-spin mb-1.5" />
                         <span className="text-[10px] font-bold text-pink-700 uppercase tracking-widest bg-white/90 px-3 py-1 rounded-full shadow-sm border border-pink-100">Đang lấy số liệu...</span>
@@ -721,7 +791,7 @@ export default function InstagramChannelsPage() {
                     autoFocus
                     value={usernameInput}
                     onChange={(e) => setUsernameInput(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleAddChannel()}
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddChannel()}
                     placeholder="Ví dụ: cristiano hoặc @cristiano"
                     disabled={processing}
                     className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-pink-500 focus:bg-white transition-all font-medium text-lg placeholder:text-slate-400"

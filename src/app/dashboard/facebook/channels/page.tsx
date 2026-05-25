@@ -148,7 +148,12 @@ export default function FacebookChannelsPage() {
           const zeroStatsCh = existingList.filter((c: any) => !c.total_followers && !c.total_likes && !c.total_videos);
           if (zeroStatsCh.length > 0) {
             const historyMapStr = sessionStorage.getItem('auto_0stats_run_map') || '{}';
-            const historyMap = JSON.parse(historyMapStr);
+            let historyMap: Record<string, number> = {};
+            try {
+              historyMap = JSON.parse(historyMapStr);
+            } catch (e) {
+              console.error('Error parsing auto_0stats_run_map:', e);
+            }
             const now = Date.now();
             
             const toRun: any[] = [];
@@ -267,6 +272,9 @@ export default function FacebookChannelsPage() {
         // Handle standard /username
         const pathParts = url.pathname.split('/').filter(p => p);
         if (pathParts.length > 0) {
+          if ((pathParts[0] === 'pages' || pathParts[0] === 'people') && pathParts.length >= 2) {
+            return pathParts[pathParts.length - 1];
+          }
           return pathParts[0];
         }
       }
@@ -445,6 +453,22 @@ export default function FacebookChannelsPage() {
     return num.toString();
   };
 
+  const getAvatarUrl = (channel: ChannelProfile) => {
+    const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(channel.display_name)}&background=1877F2&color=fff`;
+    if (!channel.avatar_url) return fallback;
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+    const cleanApiUrl = apiUrl.replace(/\/$/, '');
+    if (
+      channel.avatar_url.includes('fbcdn.net') ||
+      channel.avatar_url.includes('facebook.com') ||
+      channel.avatar_url.includes('cdninstagram.com') ||
+      channel.avatar_url.includes('instagram.com')
+    ) {
+      return `${cleanApiUrl}/ai/proxy/avatar?url=${encodeURIComponent(channel.avatar_url)}`;
+    }
+    return channel.avatar_url;
+  };
+
   const filteredChannels = channels.filter(c =>
     c.username.toLowerCase().includes(searchChannelQuery.toLowerCase()) ||
     (c.display_name && c.display_name.toLowerCase().includes(searchChannelQuery.toLowerCase()))
@@ -590,7 +614,7 @@ export default function FacebookChannelsPage() {
                   <div className="flex items-start gap-4 mb-6">
                     <div className="relative flex-shrink-0">
                       <Image
-                        src={channel.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(channel.display_name)}&background=1877F2&color=fff`}
+                        src={getAvatarUrl(channel)}
                         alt={channel.display_name}
                         className="w-16 h-16 rounded-2xl object-cover border-2 border-slate-50 shadow-md"
                         loading="lazy"
