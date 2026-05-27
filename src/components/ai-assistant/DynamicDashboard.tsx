@@ -8,6 +8,33 @@ import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 const COLORS = ["#8b5cf6", "#06b6d4", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#6366f1"];
 
+// Parse AI-formatted strings like "5.9M", "44.7K", "201.2K đ" → raw number for charts
+function parseChartValue(v: unknown): number {
+    if (typeof v === "number") return v;
+    if (typeof v !== "string") return 0;
+    const s = v.replace(/[đ\s,]/g, "").trim();
+    const m = s.match(/^([\d.]+)([KkMmBbTt]?)$/);
+    if (!m) return parseFloat(s) || 0;
+    const n = parseFloat(m[1]);
+    const unit = m[2].toUpperCase();
+    if (unit === "K") return n * 1_000;
+    if (unit === "M") return n * 1_000_000;
+    if (unit === "B" || unit === "T") return n * 1_000_000_000;
+    return n;
+}
+
+// Normalise chart data so yKey is always a number
+function normaliseChartData(data: any[], yKey: string): any[] {
+    return data.map((row) => ({ ...row, [yKey]: parseChartValue(row[yKey]) }));
+}
+
+// Format a raw number for tooltip display
+function fmtNumber(v: number): string {
+    if (v >= 1_000_000) return (v / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
+    if (v >= 1_000) return (v / 1_000).toFixed(1).replace(/\.0$/, "") + "K";
+    return v.toLocaleString();
+}
+
 interface Block {
     type: "kpi_card" | "bar" | "line" | "pie" | "table";
     title?: string;
@@ -83,49 +110,65 @@ function renderBlock(block: Block, idx: number) {
         case "kpi_card":
             return <KpiCards key={idx} data={block.data} />;
 
-        case "bar":
+        case "bar": {
+            const yKey = block.yKey ?? "value";
+            const xKey = block.xKey ?? "name";
+            const chartData = normaliseChartData(block.data, yKey);
             return (
                 <ChartWrapper key={idx} title={block.title}>
                     <ResponsiveContainer width="100%" height={220}>
-                        <BarChart data={block.data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                        <BarChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                            <XAxis dataKey={block.xKey ?? "name"} tick={{ fill: "#6b7280", fontSize: 11 }} />
-                            <YAxis tick={{ fill: "#6b7280", fontSize: 11 }} />
-                            <Tooltip contentStyle={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }} />
-                            <Bar dataKey={block.yKey ?? "value"} fill={block.color ?? "#8b5cf6"} radius={[4, 4, 0, 0]} />
+                            <XAxis dataKey={xKey} tick={{ fill: "#6b7280", fontSize: 11 }} />
+                            <YAxis tick={{ fill: "#6b7280", fontSize: 11 }} tickFormatter={fmtNumber} />
+                            <Tooltip
+                                formatter={(v: unknown) => [fmtNumber(Number(v)), yKey]}
+                                contentStyle={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }}
+                            />
+                            <Bar dataKey={yKey} fill={block.color ?? "#8b5cf6"} radius={[4, 4, 0, 0]} />
                         </BarChart>
                     </ResponsiveContainer>
                 </ChartWrapper>
             );
+        }
 
-        case "line":
+        case "line": {
+            const yKey = block.yKey ?? "value";
+            const xKey = block.xKey ?? "date";
+            const chartData = normaliseChartData(block.data, yKey);
             return (
                 <ChartWrapper key={idx} title={block.title}>
                     <ResponsiveContainer width="100%" height={220}>
-                        <LineChart data={block.data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                        <LineChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                            <XAxis dataKey={block.xKey ?? "date"} tick={{ fill: "#6b7280", fontSize: 11 }} />
-                            <YAxis tick={{ fill: "#6b7280", fontSize: 11 }} />
-                            <Tooltip contentStyle={{ background: "#1e1e2e", border: "1px solid #ffffff20", borderRadius: 8 }} />
-                            <Line type="monotone" dataKey={block.yKey ?? "value"} stroke={block.color ?? "#06b6d4"} strokeWidth={2} dot={false} />
+                            <XAxis dataKey={xKey} tick={{ fill: "#6b7280", fontSize: 11 }} />
+                            <YAxis tick={{ fill: "#6b7280", fontSize: 11 }} tickFormatter={fmtNumber} />
+                            <Tooltip
+                                formatter={(v: unknown) => [fmtNumber(Number(v)), yKey]}
+                                contentStyle={{ background: "#1e1e2e", border: "1px solid #ffffff20", borderRadius: 8 }}
+                            />
+                            <Line type="monotone" dataKey={yKey} stroke={block.color ?? "#06b6d4"} strokeWidth={2} dot={false} />
                         </LineChart>
                     </ResponsiveContainer>
                 </ChartWrapper>
             );
+        }
 
-        case "pie":
+        case "pie": {
+            const pieData = block.data.map((d) => ({ ...d, value: parseChartValue(d.value) }));
             return (
                 <ChartWrapper key={idx} title={block.title}>
                     <ResponsiveContainer width="100%" height={220}>
                         <PieChart>
-                            <Pie data={block.data} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}>
-                                {block.data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                            <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}>
+                                {pieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                             </Pie>
-                            <Tooltip contentStyle={{ background: "#1e1e2e", border: "1px solid #ffffff20", borderRadius: 8 }} />
+                            <Tooltip formatter={(v: unknown) => fmtNumber(Number(v))} contentStyle={{ background: "#1e1e2e", border: "1px solid #ffffff20", borderRadius: 8 }} />
                         </PieChart>
                     </ResponsiveContainer>
                 </ChartWrapper>
             );
+        }
 
         case "table":
             return <DataTable key={idx} title={block.title} columns={block.columns ?? []} data={block.data} />;

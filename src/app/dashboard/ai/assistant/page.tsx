@@ -212,7 +212,7 @@ export default function VCBAssistantPage() {
             const { data } = await apiClient.post(
                 `/chat/conversations/${convId}/messages`,
                 { message: msg },
-                { timeout: 60000 },
+                { timeout: 120000 },
             );
 
             setMessages((prev) => [
