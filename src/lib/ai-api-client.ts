@@ -7,7 +7,7 @@ export const aiApiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 90000, // 90s timeout (backend has 60s, so frontend needs more)
+  timeout: 130000, // 130s timeout (Agentic workflow may take up to 120s)
 });
 
 // Response interceptor - handle errors

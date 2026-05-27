@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
-import { Send, Plus, MessageSquare, Trash2, Loader2, Pencil, Check, X, Sparkles, BarChart2, TrendingUp, Users, Zap, Settings, Sun, Moon, Monitor, ChevronUp, Send as SendIcon, Bell, FileText, Clock, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Send, Plus, MessageSquare, Trash2, Loader2, Pencil, Check, X, Sparkles, BarChart2, TrendingUp, Users, Zap, Settings, Sun, Moon, Monitor, Send as SendIcon, Bell, Clock, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/store/auth-store";
 import DynamicDashboard from "@/components/ai-assistant/DynamicDashboard";
@@ -72,6 +72,7 @@ export default function VCBAssistantPage() {
     const [tgScheduleMin, setTgScheduleMin] = useState("0");
     const [tgFormats, setTgFormats] = useState<string[]>(["text"]);
     const [tgReportTypes, setTgReportTypes] = useState<string[]>(["ads", "traffic"]);
+    const [tgPeriodReports, setTgPeriodReports] = useState<string[]>(["monthly"]);
     const [tgActive, setTgActive] = useState(true);
     const [tgSaving, setTgSaving] = useState(false);
     const [tgSendingNow, setTgSendingNow] = useState(false);
@@ -79,22 +80,18 @@ export default function VCBAssistantPage() {
 
     const bottomRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
-    const settingsRef = useRef<HTMLDivElement>(null);
 
-    // Đóng settings khi click ra ngoài
+    // Đóng settings khi nhấn ESC
     useEffect(() => {
-        const handler = (e: MouseEvent) => {
-            if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
-                setShowSettings(false);
-            }
-        };
-        document.addEventListener("mousedown", handler);
-        return () => document.removeEventListener("mousedown", handler);
-    }, []);
+        if (!showSettings) return;
+        const handler = (e: KeyboardEvent) => { if (e.key === "Escape") setShowSettings(false); };
+        document.addEventListener("keydown", handler);
+        return () => document.removeEventListener("keydown", handler);
+    }, [showSettings]);
 
-    // Load Telegram config khi mở settings
+    // Load Telegram config khi mở settings overlay
     useEffect(() => {
-        if (!showSettings || settingsTab !== "telegram") return;
+        if (!showSettings) return;
         apiClient.get("/telegram-report/config").then(({ data }) => {
             if (!data) return;
             setTgBotToken(data.bot_token ?? "");
@@ -104,9 +101,10 @@ export default function VCBAssistantPage() {
             setTgScheduleHour(parts[1] ?? "8");
             setTgFormats(data.formats ?? ["text"]);
             setTgReportTypes(data.report_types ?? ["ads", "traffic"]);
+            setTgPeriodReports(data.period_reports ?? ["monthly"]);
             setTgActive(data.is_active ?? true);
         }).catch(() => {});
-    }, [showSettings, settingsTab]);
+    }, [showSettings]);
 
     const saveTgConfig = async () => {
         setTgSaving(true); setTgStatus(null);
@@ -114,7 +112,8 @@ export default function VCBAssistantPage() {
             await apiClient.post("/telegram-report/config", {
                 bot_token: tgBotToken, chat_id: tgChatId,
                 schedule: `${tgScheduleMin} ${tgScheduleHour} * * *`,
-                formats: tgFormats, report_types: tgReportTypes, is_active: tgActive,
+                formats: tgFormats, report_types: tgReportTypes,
+                period_reports: tgPeriodReports, is_active: tgActive,
             });
             setTgStatus({ ok: true, msg: "Đã lưu cấu hình!" });
         } catch { setTgStatus({ ok: false, msg: "Lưu thất bại, thử lại." }); }
@@ -132,6 +131,7 @@ export default function VCBAssistantPage() {
 
     const toggleFormat = (f: string) => setTgFormats(prev => prev.includes(f) ? prev.filter(x => x !== f) : [...prev, f]);
     const toggleType   = (t: string) => setTgReportTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
+    const togglePeriod = (p: string) => setTgPeriodReports(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]);
 
     // Apply theme
     const isDark = theme === "dark" || (theme === "system" && typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches);
@@ -347,188 +347,20 @@ export default function VCBAssistantPage() {
                         )}
                     </div>
 
-                    {/* Footer + Settings */}
-                    <div className={`border-t ${footerBorder} relative`} ref={settingsRef}>
-                    {/* Settings Panel — pop up phía trên */}
-                    {showSettings && (
-                        <div className={`absolute bottom-full left-0 right-0 mb-1 mx-2 rounded-2xl border shadow-xl overflow-hidden z-50 ${isDark ? "bg-[#1e2030] border-white/10" : "bg-white border-gray-200"}`}
-                            style={{ maxHeight: "70vh", overflowY: "auto" }}>
-
-                            {/* Tab switcher */}
-                            <div className={`flex border-b ${isDark ? "border-white/10" : "border-gray-100"}`}>
-                                {[
-                                    { id: "appearance" as const, label: "Giao diện", icon: Sun },
-                                    { id: "telegram"   as const, label: "Telegram", icon: Bell },
-                                ].map(({ id, label, icon: Icon }) => (
-                                    <button key={id} onClick={() => setSettingsTab(id)}
-                                        className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${settingsTab === id
-                                            ? "text-violet-600 border-b-2 border-violet-500"
-                                            : isDark ? "text-gray-500 hover:text-gray-300" : "text-gray-500 hover:text-gray-700"
-                                        }`}>
-                                        <Icon size={12} /> {label}
-                                    </button>
-                                ))}
+                    {/* Footer — avatar + settings trigger */}
+                    <div className={`border-t ${footerBorder}`}>
+                        <button onClick={() => setShowSettings(v => !v)}
+                            className={`w-full flex items-center gap-2.5 px-4 py-3 transition-colors ${isDark ? "hover:bg-white/5" : "hover:bg-gray-50"}`}>
+                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-xs font-bold text-white shrink-0">
+                                {firstName[0]?.toUpperCase()}
                             </div>
-
-                            {/* Tab: Appearance */}
-                            {settingsTab === "appearance" && (
-                                <div className="p-3 space-y-3">
-                                    <div>
-                                        <p className={`text-[10px] font-semibold uppercase tracking-wider mb-2 ${isDark ? "text-gray-500" : "text-gray-400"}`}>Giao diện</p>
-                                        <div className="flex gap-1.5">
-                                            {THEMES.map(({ id, label, icon: Icon }) => (
-                                                <button key={id} onClick={() => setTheme(id)}
-                                                    className={`flex-1 flex flex-col items-center gap-1 py-2 rounded-xl text-[10px] font-medium transition-all border ${theme === id
-                                                        ? "bg-violet-100 text-violet-700 border-violet-300"
-                                                        : isDark ? "text-gray-400 hover:bg-white/5 border-transparent" : "text-gray-500 hover:bg-gray-50 border-transparent"
-                                                    }`}>
-                                                    <Icon size={14} />{label}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <p className={`text-[10px] font-semibold uppercase tracking-wider mb-2 ${isDark ? "text-gray-500" : "text-gray-400"}`}>Phong cách chat</p>
-                                        <div className="flex flex-col gap-1">
-                                            {CHAT_STYLES.map(({ id, label, desc }) => (
-                                                <button key={id} onClick={() => setChatStyle(id)}
-                                                    className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-all border ${chatStyle === id
-                                                        ? "bg-violet-50 text-violet-700 border-violet-200"
-                                                        : isDark ? "text-gray-400 hover:bg-white/5 border-transparent" : "text-gray-600 hover:bg-gray-50 border-transparent"
-                                                    }`}>
-                                                    <span className="font-medium">{label}</span>
-                                                    <span className={`text-[10px] ${isDark ? "text-gray-500" : "text-gray-400"}`}>{desc}</span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Tab: Telegram */}
-                            {settingsTab === "telegram" && (
-                                <div className="p-3 space-y-3">
-                                    {/* Active toggle */}
-                                    <div className="flex items-center justify-between">
-                                        <span className={`text-xs font-medium ${isDark ? "text-gray-300" : "text-gray-700"}`}>Kích hoạt gửi báo cáo</span>
-                                        <button onClick={() => setTgActive(v => !v)}
-                                            className={`w-9 h-5 rounded-full transition-colors relative ${tgActive ? "bg-violet-500" : isDark ? "bg-white/20" : "bg-gray-300"}`}>
-                                            <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${tgActive ? "left-4" : "left-0.5"}`} />
-                                        </button>
-                                    </div>
-
-                                    {/* Bot Token */}
-                                    <div>
-                                        <label className={`text-[10px] font-semibold uppercase tracking-wider block mb-1 ${isDark ? "text-gray-500" : "text-gray-400"}`}>Bot Token</label>
-                                        <input value={tgBotToken} onChange={e => setTgBotToken(e.target.value)}
-                                            placeholder="1234567890:ABCdef..."
-                                            className={`w-full text-xs px-2.5 py-2 rounded-lg border outline-none transition-colors ${isDark ? "bg-white/5 border-white/10 text-gray-200 placeholder-gray-600 focus:border-violet-500/50" : "bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 focus:border-violet-400"}`}
-                                        />
-                                        <p className={`text-[10px] mt-0.5 ${isDark ? "text-gray-600" : "text-gray-400"}`}>Lấy từ @BotFather trên Telegram</p>
-                                    </div>
-
-                                    {/* Chat ID */}
-                                    <div>
-                                        <label className={`text-[10px] font-semibold uppercase tracking-wider block mb-1 ${isDark ? "text-gray-500" : "text-gray-400"}`}>Chat ID / Group ID</label>
-                                        <input value={tgChatId} onChange={e => setTgChatId(e.target.value)}
-                                            placeholder="-1001234567890 hoặc 123456789"
-                                            className={`w-full text-xs px-2.5 py-2 rounded-lg border outline-none transition-colors ${isDark ? "bg-white/5 border-white/10 text-gray-200 placeholder-gray-600 focus:border-violet-500/50" : "bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 focus:border-violet-400"}`}
-                                        />
-                                        <p className={`text-[10px] mt-0.5 ${isDark ? "text-gray-600" : "text-gray-400"}`}>Dùng @userinfobot để lấy ID</p>
-                                    </div>
-
-                                    {/* Schedule */}
-                                    <div>
-                                        <label className={`text-[10px] font-semibold uppercase tracking-wider block mb-1 ${isDark ? "text-gray-500" : "text-gray-400"}`}><Clock size={10} className="inline mr-1"/>Giờ gửi hàng ngày</label>
-                                        <div className="flex items-center gap-2">
-                                            <select value={tgScheduleHour} onChange={e => setTgScheduleHour(e.target.value)}
-                                                className={`flex-1 text-xs px-2 py-1.5 rounded-lg border outline-none ${isDark ? "bg-white/5 border-white/10 text-gray-200" : "bg-gray-50 border-gray-200 text-gray-800"}`}>
-                                                {Array.from({length: 24}, (_, i) => (
-                                                    <option key={i} value={i}>{String(i).padStart(2,'0')}:00</option>
-                                                ))}
-                                            </select>
-                                            <span className={`text-xs ${isDark ? "text-gray-400" : "text-gray-500"}`}>giờ</span>
-                                            <select value={tgScheduleMin} onChange={e => setTgScheduleMin(e.target.value)}
-                                                className={`flex-1 text-xs px-2 py-1.5 rounded-lg border outline-none ${isDark ? "bg-white/5 border-white/10 text-gray-200" : "bg-gray-50 border-gray-200 text-gray-800"}`}>
-                                                {["0","15","30","45"].map(m => (
-                                                    <option key={m} value={m}>{String(m).padStart(2,'0')} phút</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    {/* Report types */}
-                                    <div>
-                                        <label className={`text-[10px] font-semibold uppercase tracking-wider block mb-1.5 ${isDark ? "text-gray-500" : "text-gray-400"}`}>Nội dung báo cáo</label>
-                                        <div className="flex gap-1.5">
-                                            {[{ id: "ads", label: "📢 Quảng cáo" }, { id: "traffic", label: "📱 Traffic" }].map(({ id, label }) => (
-                                                <button key={id} onClick={() => toggleType(id)}
-                                                    className={`flex-1 text-[10px] py-1.5 rounded-lg border font-medium transition-all ${tgReportTypes.includes(id)
-                                                        ? "bg-violet-50 text-violet-700 border-violet-300"
-                                                        : isDark ? "text-gray-500 border-white/10 hover:bg-white/5" : "text-gray-500 border-gray-200 hover:bg-gray-50"
-                                                    }`}>{label}</button>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {/* Formats */}
-                                    <div>
-                                        <label className={`text-[10px] font-semibold uppercase tracking-wider block mb-1.5 ${isDark ? "text-gray-500" : "text-gray-400"}`}>Định dạng file đính kèm</label>
-                                        <div className="grid grid-cols-3 gap-1">
-                                            {[
-                                                { id: "text",  label: "💬 Text" },
-                                                { id: "csv",   label: "📄 CSV"  },
-                                                { id: "xlsx",  label: "📊 XLSX" },
-                                                { id: "pdf",   label: "🗒️ PDF"  },
-                                                { id: "docx",  label: "📝 DOCX" },
-                                            ].map(({ id, label }) => (
-                                                <button key={id} onClick={() => toggleFormat(id)}
-                                                    className={`text-[10px] py-1.5 rounded-lg border font-medium transition-all ${tgFormats.includes(id)
-                                                        ? "bg-emerald-50 text-emerald-700 border-emerald-300"
-                                                        : isDark ? "text-gray-500 border-white/10 hover:bg-white/5" : "text-gray-500 border-gray-200 hover:bg-gray-50"
-                                                    }`}>{label}</button>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {/* Status message */}
-                                    {tgStatus && (
-                                        <div className={`text-xs px-3 py-2 rounded-lg ${tgStatus.ok ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-600 border border-red-200"}`}>
-                                            {tgStatus.ok ? "✓ " : "✗ "}{tgStatus.msg}
-                                        </div>
-                                    )}
-
-                                    {/* Actions */}
-                                    <div className="flex gap-2 pt-1">
-                                        <button onClick={saveTgConfig} disabled={tgSaving}
-                                            className="flex-1 text-xs py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5">
-                                            {tgSaving ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
-                                            Lưu cấu hình
-                                        </button>
-                                        <button onClick={sendTgNow} disabled={tgSendingNow || !tgBotToken || !tgChatId}
-                                            className={`flex-1 text-xs py-2 rounded-xl font-medium transition-colors disabled:opacity-40 flex items-center justify-center gap-1.5 ${isDark ? "bg-white/10 hover:bg-white/15 text-gray-200" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}>
-                                            {tgSendingNow ? <Loader2 size={11} className="animate-spin" /> : <SendIcon size={11} />}
-                                            Gửi ngay
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Avatar + Settings trigger */}
-                    <button onClick={() => setShowSettings(v => !v)}
-                        className={`w-full flex items-center gap-2.5 px-4 py-3 transition-colors ${isDark ? "hover:bg-white/5" : "hover:bg-gray-50"}`}>
-                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-xs font-bold text-white shrink-0">
-                            {firstName[0]?.toUpperCase()}
-                        </div>
-                        <div className="min-w-0 flex-1 text-left">
-                            <p className={`text-xs font-medium truncate ${isDark ? "text-gray-200" : "text-gray-700"}`}>{user?.full_name ?? "Người dùng"}</p>
-                            <p className={`text-[10px] ${isDark ? "text-gray-500" : "text-gray-400"}`}>VCB Studio</p>
-                        </div>
-                        <ChevronUp size={13} className={`shrink-0 transition-transform ${showSettings ? "rotate-180" : ""} ${isDark ? "text-gray-500" : "text-gray-400"}`} />
-                    </button>
-                </div>
+                            <div className="min-w-0 flex-1 text-left">
+                                <p className={`text-xs font-medium truncate ${isDark ? "text-gray-200" : "text-gray-700"}`}>{user?.full_name ?? "Người dùng"}</p>
+                                <p className={`text-[10px] ${isDark ? "text-gray-500" : "text-gray-400"}`}>VCB Studio</p>
+                            </div>
+                            <Settings size={14} className={`shrink-0 ${showSettings ? "text-violet-500" : isDark ? "text-gray-500" : "text-gray-400"} transition-colors`} />
+                        </button>
+                    </div>
                 </>)}
             </aside>
 
@@ -653,6 +485,264 @@ export default function VCBAssistantPage() {
                     </>
                 )}
             </main>
+
+            {/* ── Settings Overlay (Gemini-style) ── */}
+            {showSettings && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+                    {/* Backdrop */}
+                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowSettings(false)} />
+
+                    {/* Panel */}
+                    <div className={`relative z-10 w-full max-w-3xl rounded-2xl shadow-2xl flex flex-col overflow-hidden ${isDark ? "bg-[#1a1d27] border border-white/10" : "bg-white border border-gray-200"}`}
+                        style={{ height: "min(85vh, 700px)" }}>
+
+                        {/* Header */}
+                        <div className={`flex items-center justify-between px-6 py-4 border-b shrink-0 ${isDark ? "border-white/10" : "border-gray-100"}`}>
+                            <div>
+                                <h2 className={`text-lg font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>Cài đặt</h2>
+                                <p className={`text-xs mt-0.5 ${isDark ? "text-gray-400" : "text-gray-500"}`}>Tuỳ chỉnh giao diện và cấu hình thông báo Telegram</p>
+                            </div>
+                            <button onClick={() => setShowSettings(false)}
+                                className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${isDark ? "text-gray-400 hover:bg-white/10 hover:text-white" : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"}`}>
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        {/* Body: left nav + right content */}
+                        <div className="flex flex-1 min-h-0">
+
+                            {/* Left nav */}
+                            <div className={`w-52 shrink-0 border-r p-3 space-y-1 ${isDark ? "border-white/10" : "border-gray-100"}`}>
+                                {([
+                                    { id: "appearance" as const, label: "Giao diện",  icon: Sun,  desc: "Màu sắc, phong cách chat" },
+                                    { id: "telegram"   as const, label: "Telegram",   icon: Bell, desc: "Báo cáo tự động" },
+                                ] as const).map(({ id, label, icon: Icon, desc }) => (
+                                    <button key={id} onClick={() => setSettingsTab(id)}
+                                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors ${
+                                            settingsTab === id
+                                                ? isDark ? "bg-white/10 text-white" : "bg-violet-50 text-violet-700"
+                                                : isDark ? "text-gray-400 hover:bg-white/5 hover:text-gray-200" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                                        }`}>
+                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                                            settingsTab === id
+                                                ? isDark ? "bg-white/15" : "bg-violet-100"
+                                                : isDark ? "bg-white/5" : "bg-gray-100"
+                                        }`}>
+                                            <Icon size={15} />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-medium leading-tight">{label}</p>
+                                            <p className={`text-[10px] mt-0.5 leading-tight ${isDark ? "text-gray-500" : "text-gray-400"}`}>{desc}</p>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Right content */}
+                            <div className="flex-1 overflow-y-auto">
+
+                                {/* ── Appearance tab ── */}
+                                {settingsTab === "appearance" && (
+                                    <div className="p-6 space-y-8">
+                                        {/* Theme */}
+                                        <div>
+                                            <h3 className={`text-sm font-semibold mb-1 ${isDark ? "text-white" : "text-gray-900"}`}>Chủ đề giao diện</h3>
+                                            <p className={`text-xs mb-4 ${isDark ? "text-gray-400" : "text-gray-500"}`}>Chọn giao diện sáng, tối hoặc theo hệ thống của bạn</p>
+                                            <div className="grid grid-cols-3 gap-3">
+                                                {THEMES.map(({ id, label, icon: Icon }) => (
+                                                    <button key={id} onClick={() => setTheme(id)}
+                                                        className={`flex flex-col items-center gap-2.5 py-4 rounded-xl border-2 transition-all ${theme === id
+                                                            ? "border-violet-500 bg-violet-50 text-violet-700"
+                                                            : isDark ? "border-white/10 text-gray-400 hover:border-white/20 hover:bg-white/5" : "border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50"
+                                                        }`}>
+                                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${theme === id ? "bg-violet-100" : isDark ? "bg-white/8" : "bg-gray-100"}`}>
+                                                            <Icon size={18} />
+                                                        </div>
+                                                        <span className="text-sm font-medium">{label}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Chat style */}
+                                        <div>
+                                            <h3 className={`text-sm font-semibold mb-1 ${isDark ? "text-white" : "text-gray-900"}`}>Phong cách tin nhắn</h3>
+                                            <p className={`text-xs mb-4 ${isDark ? "text-gray-400" : "text-gray-500"}`}>Tuỳ chỉnh cách hiển thị các bong bóng hội thoại</p>
+                                            <div className="flex flex-col gap-2">
+                                                {CHAT_STYLES.map(({ id, label, desc }) => (
+                                                    <button key={id} onClick={() => setChatStyle(id)}
+                                                        className={`flex items-center gap-4 px-4 py-3 rounded-xl border-2 transition-all text-left ${chatStyle === id
+                                                            ? "border-violet-500 bg-violet-50"
+                                                            : isDark ? "border-white/10 hover:border-white/20 hover:bg-white/5" : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                                                        }`}>
+                                                        <div className={`w-3 h-3 rounded-full border-2 shrink-0 ${chatStyle === id ? "border-violet-600 bg-violet-600" : isDark ? "border-gray-500" : "border-gray-300"}`} />
+                                                        <div>
+                                                            <p className={`text-sm font-medium ${chatStyle === id ? "text-violet-700" : isDark ? "text-gray-200" : "text-gray-800"}`}>{label}</p>
+                                                            <p className={`text-xs mt-0.5 ${isDark ? "text-gray-500" : "text-gray-400"}`}>{desc}</p>
+                                                        </div>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* ── Telegram tab ── */}
+                                {settingsTab === "telegram" && (
+                                    <div className="p-6 space-y-6">
+                                        {/* Active toggle */}
+                                        <div className={`flex items-center justify-between p-4 rounded-xl border ${isDark ? "border-white/10 bg-white/3" : "border-gray-200 bg-gray-50"}`}>
+                                            <div>
+                                                <p className={`text-sm font-medium ${isDark ? "text-gray-200" : "text-gray-800"}`}>Kích hoạt gửi báo cáo</p>
+                                                <p className={`text-xs mt-0.5 ${isDark ? "text-gray-500" : "text-gray-400"}`}>Bot sẽ tự động gửi báo cáo theo lịch đã cấu hình</p>
+                                            </div>
+                                            <button onClick={() => setTgActive(v => !v)}
+                                                className={`w-11 h-6 rounded-full transition-colors relative shrink-0 ${tgActive ? "bg-violet-500" : isDark ? "bg-white/20" : "bg-gray-300"}`}>
+                                                <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all ${tgActive ? "left-6" : "left-1"}`} />
+                                            </button>
+                                        </div>
+
+                                        {/* Bot credentials */}
+                                        <div>
+                                            <h3 className={`text-sm font-semibold mb-3 ${isDark ? "text-white" : "text-gray-900"}`}>Kết nối Telegram Bot</h3>
+                                            <div className="space-y-3">
+                                                <div>
+                                                    <label className={`text-xs font-medium block mb-1.5 ${isDark ? "text-gray-300" : "text-gray-600"}`}>Bot Token</label>
+                                                    <input value={tgBotToken} onChange={e => setTgBotToken(e.target.value)}
+                                                        placeholder="1234567890:ABCdef..."
+                                                        className={`w-full text-sm px-3 py-2.5 rounded-xl border outline-none transition-colors ${isDark ? "bg-white/5 border-white/10 text-gray-200 placeholder-gray-600 focus:border-violet-500/50" : "bg-white border-gray-200 text-gray-800 placeholder-gray-400 focus:border-violet-400"}`}
+                                                    />
+                                                    <p className={`text-xs mt-1 ${isDark ? "text-gray-600" : "text-gray-400"}`}>Lấy từ @BotFather trên Telegram</p>
+                                                </div>
+                                                <div>
+                                                    <label className={`text-xs font-medium block mb-1.5 ${isDark ? "text-gray-300" : "text-gray-600"}`}>Chat ID / Group ID</label>
+                                                    <input value={tgChatId} onChange={e => setTgChatId(e.target.value)}
+                                                        placeholder="-1001234567890 hoặc 123456789"
+                                                        className={`w-full text-sm px-3 py-2.5 rounded-xl border outline-none transition-colors ${isDark ? "bg-white/5 border-white/10 text-gray-200 placeholder-gray-600 focus:border-violet-500/50" : "bg-white border-gray-200 text-gray-800 placeholder-gray-400 focus:border-violet-400"}`}
+                                                    />
+                                                    <p className={`text-xs mt-1 ${isDark ? "text-gray-600" : "text-gray-400"}`}>Dùng @userinfobot để lấy ID</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Schedule */}
+                                        <div>
+                                            <h3 className={`text-sm font-semibold mb-3 ${isDark ? "text-white" : "text-gray-900"}`}>
+                                                <Clock size={14} className="inline mr-1.5 mb-0.5" />Lịch gửi tự động
+                                            </h3>
+                                            <div className="flex items-center gap-3">
+                                                <select value={tgScheduleHour} onChange={e => setTgScheduleHour(e.target.value)}
+                                                    className={`flex-1 text-sm px-3 py-2.5 rounded-xl border outline-none ${isDark ? "bg-white/5 border-white/10 text-gray-200" : "bg-white border-gray-200 text-gray-800"}`}>
+                                                    {Array.from({length: 24}, (_, i) => (
+                                                        <option key={i} value={i}>{String(i).padStart(2,'0')} giờ</option>
+                                                    ))}
+                                                </select>
+                                                <span className={`text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}>:</span>
+                                                <select value={tgScheduleMin} onChange={e => setTgScheduleMin(e.target.value)}
+                                                    className={`flex-1 text-sm px-3 py-2.5 rounded-xl border outline-none ${isDark ? "bg-white/5 border-white/10 text-gray-200" : "bg-white border-gray-200 text-gray-800"}`}>
+                                                    {["0","15","30","45"].map(m => (
+                                                        <option key={m} value={m}>{String(m).padStart(2,'0')} phút</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        {/* Content + formats */}
+                                        <div className="grid grid-cols-2 gap-6">
+                                            <div>
+                                                <h3 className={`text-sm font-semibold mb-3 ${isDark ? "text-white" : "text-gray-900"}`}>Nội dung báo cáo</h3>
+                                                <div className="flex flex-col gap-2">
+                                                    {[{ id: "ads", icon: "📢", label: "Quảng cáo", desc: "Chi phí, lượt xem camp" }, { id: "traffic", icon: "📱", label: "Traffic", desc: "Lượt xem, video theo kênh" }].map(({ id, icon, label, desc }) => (
+                                                        <button key={id} onClick={() => toggleType(id)}
+                                                            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 transition-all text-left ${tgReportTypes.includes(id)
+                                                                ? "border-violet-500 bg-violet-50"
+                                                                : isDark ? "border-white/10 hover:border-white/20" : "border-gray-200 hover:border-gray-300"
+                                                            }`}>
+                                                            <span className="text-lg">{icon}</span>
+                                                            <div>
+                                                                <p className={`text-xs font-medium ${tgReportTypes.includes(id) ? "text-violet-700" : isDark ? "text-gray-200" : "text-gray-700"}`}>{label}</p>
+                                                                <p className={`text-[10px] ${isDark ? "text-gray-500" : "text-gray-400"}`}>{desc}</p>
+                                                            </div>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <h3 className={`text-sm font-semibold mb-3 ${isDark ? "text-white" : "text-gray-900"}`}>Định dạng đính kèm</h3>
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    {[
+                                                        { id: "text",  icon: "💬", label: "Text"  },
+                                                        { id: "csv",   icon: "📄", label: "CSV"   },
+                                                        { id: "xlsx",  icon: "📊", label: "XLSX"  },
+                                                        { id: "pdf",   icon: "🗒️", label: "PDF"   },
+                                                        { id: "docx",  icon: "📝", label: "DOCX"  },
+                                                    ].map(({ id, icon, label }) => (
+                                                        <button key={id} onClick={() => toggleFormat(id)}
+                                                            className={`flex items-center gap-2 px-3 py-2 rounded-xl border-2 transition-all ${tgFormats.includes(id)
+                                                                ? "border-emerald-400 bg-emerald-50 text-emerald-700"
+                                                                : isDark ? "border-white/10 text-gray-400 hover:border-white/20" : "border-gray-200 text-gray-500 hover:border-gray-300"
+                                                            }`}>
+                                                            <span className="text-sm">{icon}</span>
+                                                            <span className="text-xs font-medium">{label}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Period reports */}
+                                        <div>
+                                            <h3 className={`text-sm font-semibold mb-1 ${isDark ? "text-white" : "text-gray-900"}`}>Kỳ báo cáo tự động</h3>
+                                            <p className={`text-xs mb-3 ${isDark ? "text-gray-400" : "text-gray-500"}`}>Gửi PDF/DOCX vào ngày 8 sau khi dữ liệu đã được chốt</p>
+                                            <div className="grid grid-cols-4 gap-2">
+                                                {[
+                                                    { id: "monthly",     icon: "📅", label: "Tháng",   desc: "Ngày 8 hàng tháng" },
+                                                    { id: "quarterly",   icon: "📊", label: "Quý",     desc: "T4, T7, T10, T1"   },
+                                                    { id: "semi_annual", icon: "📈", label: "6 tháng", desc: "T7, T1"             },
+                                                    { id: "annual",      icon: "🏆", label: "Năm",     desc: "Ngày 8 tháng 1"    },
+                                                ].map(({ id, icon, label, desc }) => (
+                                                    <button key={id} onClick={() => togglePeriod(id)}
+                                                        className={`flex flex-col items-center gap-1.5 py-3 rounded-xl border-2 transition-all ${tgPeriodReports.includes(id)
+                                                            ? "border-blue-400 bg-blue-50 text-blue-700"
+                                                            : isDark ? "border-white/10 text-gray-400 hover:border-white/20 hover:bg-white/5" : "border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50"
+                                                        }`}>
+                                                        <span className="text-xl">{icon}</span>
+                                                        <span className="text-xs font-semibold">{label}</span>
+                                                        <span className={`text-[10px] leading-tight text-center ${isDark ? "text-gray-500" : "text-gray-400"}`}>{desc}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Status */}
+                                        {tgStatus && (
+                                            <div className={`text-sm px-4 py-3 rounded-xl border ${tgStatus.ok ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-red-50 text-red-600 border-red-200"}`}>
+                                                {tgStatus.ok ? "✓ " : "✗ "}{tgStatus.msg}
+                                            </div>
+                                        )}
+
+                                        {/* Actions */}
+                                        <div className="flex gap-3 pt-1">
+                                            <button onClick={saveTgConfig} disabled={tgSaving}
+                                                className="flex-1 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                                                {tgSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                                                Lưu cấu hình
+                                            </button>
+                                            <button onClick={sendTgNow} disabled={tgSendingNow || !tgBotToken || !tgChatId}
+                                                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-40 flex items-center justify-center gap-2 ${isDark ? "bg-white/10 hover:bg-white/15 text-gray-200" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}>
+                                                {tgSendingNow ? <Loader2 size={14} className="animate-spin" /> : <SendIcon size={14} />}
+                                                Gửi ngay
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                            </div>{/* end right content */}
+                        </div>{/* end body */}
+                    </div>{/* end panel */}
+                </div>
+            )}{/* end settings overlay */}
+
         </div>
     );
 }
