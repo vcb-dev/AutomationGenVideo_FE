@@ -7,11 +7,11 @@ import {
   RefreshCw, Copy, RotateCcw, Filter, X, ArrowUpDown,
   TrendingUp, ChevronLeft, ChevronRight, Repeat2, Play, ExternalLink,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { socialApi, SocialPost, HistoryMember, PLATFORM_META, SocialPlatform } from '@/lib/api/social';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api$/, '') || 'http://127.0.0.1:3000';
@@ -244,9 +244,12 @@ export default function HistoryPage() {
   };
 
   const handleRepost = (post: SocialPost) => {
+    // Lưu data vào localStorage để compose page đọc lại
     localStorage.setItem('compose_prefill', JSON.stringify({
       message: post.message,
       mediaUrls: post.media_urls || [],
+      platform: post.platform,
+      accountId: post.account ? undefined : undefined, // user tự chọn kênh
     }));
     router.push('/dashboard/social/compose');
     toast.success('Đang mở trang soạn bài với nội dung đã sao chép');

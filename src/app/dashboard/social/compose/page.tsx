@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  Search, RefreshCw, Image as ImageIcon, Smartphone, Type, Monitor,
+  Search, RefreshCw, Type, Image as ImageIcon, Smartphone, Monitor,
   MapPin, Globe, Smile, MessageCircle, Share2,
-  MoreHorizontal, ChevronDown, Save, Send, Clock, AlertCircle, ThumbsUp, X, Calendar as CalendarIcon,
+  MoreHorizontal, ChevronDown, Save, Send, Clock, List, AlertCircle, ThumbsUp, X, Calendar as CalendarIcon,
   Loader2, Sparkles, Layers, Hash, Film,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -212,12 +212,12 @@ export default function ComposePage() {
       try {
         const data = JSON.parse(prefill);
         if (data.message) setMessage(data.message);
-        if (data.mediaUrls?.length) { setMediaUrls(data.mediaUrls); setPostMode('image'); }
-      } catch {
-        // JSON invalid — bỏ qua, vẫn xoá ở finally
-      } finally {
+        if (data.mediaUrls?.length) {
+          setMediaUrls(data.mediaUrls);
+          setPostMode('image');
+        }
         localStorage.removeItem('compose_prefill');
-      }
+      } catch {}
     }
   }, []);
 
@@ -339,12 +339,40 @@ export default function ComposePage() {
     return () => clearInterval(timer);
   }, [publishStartedAt, publishProgress.phase]);
 
-  // Poll queue status mỗi 3 giây khi có activeJobIds, dừng khi tab ẩn
+  // Poll queue status mỗi 3 giây khi có activeJobIds
   useEffect(() => {
     if (!activeJobIds || activeJobIds.length === 0) return;
 
+    const handleJobs = (jobs: any[]) => {
+      setPublishProgress(prev => {
+        const newChannels = prev.channels.map(ch => {
+          const jobId = Object.entries(jobChannelMap).find(([, cid]) => cid === ch.id)?.[0];
+          if (!jobId) return ch;
+          const job = jobs.find((j: any) => j.id === jobId);
+          if (!job) return ch;
+          if (job.status === 'COMPLETED') return { ...ch, status: 'success' as const, queuePosition: null };
+          if (job.status === 'FAILED')    return { ...ch, status: 'fail' as const, error: job.error_msg ?? undefined, queuePosition: null };
+          const isProcessing = job.queuePosition === null;
+          return { ...ch, status: isProcessing ? 'posting' as const : 'pending' as const, queuePosition: job.queuePosition };
+        });
+        return { ...prev, channels: newChannels };
+      });
+
+      const allDone = jobs.every((j: any) => ['COMPLETED', 'FAILED', 'CANCELLED'].includes(j.status));
+      if (allDone) {
+        setActiveJobIds(null);
+        setPublishing(false);
+        setPublishProgress(prev => ({ ...prev, phase: 'done' }));
+        if (jobs.every((j: any) => j.status === 'COMPLETED')) {
+          toast.success('Đã đăng bài thành công!');
+          setMessage(''); setMediaUrls([]); setHashtags([]); setSelectedAccountIds([]);
+        } else {
+          toast.error('Một số kênh đăng bài thất bại');
+        }
+      }
+    };
+
     const poll = async () => {
-      // if (document.visibilityState === 'hidden') return; // Bỏ check này để vẫn chạy ngầm khi chuyển tab
       try {
         const { jobs } = await socialApi.queue.pollStatus(activeJobIds);
 
@@ -393,13 +421,8 @@ export default function ComposePage() {
     poll();
     const timer = setInterval(poll, 3000);
 
-    // Không cần Resume poll dựa vào visibility nữa vì ta đã cho phép chạy ngầm
-    // const onVisible = () => { if (document.visibilityState === 'visible') poll(); };
-    // document.addEventListener('visibilitychange', onVisible);
-
     return () => {
       clearInterval(timer);
-      // document.removeEventListener('visibilitychange', onVisible);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeJobIds]);
@@ -408,7 +431,7 @@ export default function ComposePage() {
   useEffect(() => {
     const hasActiveTasks = tasks.some(t => t.status === 'uploading' || t.status === 'processing' || t.status === 'pending');
     if (!hasActiveTasks) return;
-    
+
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = 'Hệ thống đang xử lý bài đăng của bạn. Bạn có chắc muốn rời đi không?';
@@ -416,6 +439,7 @@ export default function ComposePage() {
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [tasks]);
+
 
   const handlePublish = async () => {
     if (activeTab === 'draft') {
@@ -510,14 +534,20 @@ export default function ComposePage() {
 
     // ── Đăng ngay: enqueue toàn bộ → poll từng 3 giây ────────────────────────
     try {
-      const jobs = channelList.map(ch => ({
-        accountId:  ch.id,
-        platform:   ch.platform as any,
-        message:    fullMessage,
-        mediaUrls:  mediaUrls.length ? mediaUrls : undefined,
-        privacy,
-        thumbUrl:   thumbUrl || undefined,
-      }));
+      const jobs = channelList.map(ch => {
+        // Dùng nội dung riêng per-platform nếu có
+        const platformMsg = perPlatformMode && perPlatformMessages[ch.platform as SocialPlatform]
+          ? perPlatformMessages[ch.platform as SocialPlatform]! + (hashtags.length ? `\n\n${hashtags.map(h => `#${h}`).join(' ')}` : '')
+          : fullMessage;
+        return {
+          accountId: ch.id,
+          platform:  ch.platform as any,
+          message:   platformMsg,
+          mediaUrls: mediaUrls.length ? mediaUrls : undefined,
+          privacy,
+          thumbUrl:  thumbUrl || undefined,
+        };
+      });
 
       const { jobIds } = await socialApi.queue.enqueue(jobs);
 
@@ -800,6 +830,11 @@ export default function ComposePage() {
                                 {isChild && (
                                   <div className="flex items-center gap-1 text-[10px] text-slate-400 font-medium mt-0.5 uppercase tracking-tighter">
                                     {account.platform === 'INSTAGRAM' ? 'IG Business' : 'Fanpage'}
+                                  </div>
+                                )}
+                                {account.token_expires_soon && (
+                                  <div className="text-[10px] text-amber-500 font-semibold mt-0.5">
+                                    ⚠️ Token hết hạn trong {account.token_expires_in_days ?? 0} ngày
                                   </div>
                                 )}
                               </div>
@@ -1215,151 +1250,61 @@ export default function ComposePage() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-visible lg:overflow-y-auto bg-slate-50/50 p-5 flex flex-col items-center">
-            {/* Phone Frame */}
-            <motion.div layout className={`w-full max-w-[320px] bg-white rounded-[2.5rem] border-[6px] border-slate-900 shadow-2xl overflow-hidden aspect-[9/18.5] flex flex-col relative shrink-0 ${previewPlatform === 'TIKTOK' ? 'bg-black' : 'bg-white'}`}>
-              {previewPlatform === 'FACEBOOK' && (
-                <>
-                  <div className="p-4 pt-6">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-10 h-10 bg-slate-800 rounded-full flex items-center justify-center text-white font-bold text-sm">V</div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-1">
-                          <span className="text-[13px] font-bold text-slate-900">Viễn Chí Bảo</span>
-                          <div className="w-3 h-3 bg-blue-500 rounded-full text-white flex items-center justify-center text-[8px]">✓</div>
+          <div className="flex-1 overflow-y-auto bg-slate-50/50 p-5 flex flex-col items-center gap-4">
+            {/* Per-platform content toggle */}
+            <div className="w-full max-w-[380px]">
+              <button
+                onClick={() => setPerPlatformMode(v => !v)}
+                className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl border text-xs font-bold transition-all ${perPlatformMode ? 'bg-purple-50 border-purple-300 text-purple-700' : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'}`}
+              >
+                <span>✏️ Tùy chỉnh nội dung theo từng platform</span>
+                <span className={`w-4 h-4 rounded-full border-2 transition-all ${perPlatformMode ? 'bg-purple-500 border-purple-500' : 'border-slate-300'}`} />
+              </button>
+
+              {perPlatformMode && (
+                <div className="mt-3 space-y-2">
+                  {(Array.from(new Set(selectedAccountIds.map(id => accounts.find(a => a.id === id)?.platform).filter(Boolean))) as SocialPlatform[]).map(platform => {
+                    const meta = PLATFORM_META[platform];
+                    return (
+                      <div key={platform} className="border border-slate-200 rounded-xl overflow-hidden">
+                        <div className={`flex items-center gap-2 px-3 py-2 ${meta.color} text-white`}>
+                          <span>{meta.emoji}</span>
+                          <span className="text-xs font-bold">{meta.label}</span>
+                          {!perPlatformMessages[platform] && <span className="ml-auto text-[10px] opacity-70">Dùng nội dung chung</span>}
                         </div>
-                        <div className="text-[11px] text-slate-500 mt-0.5">Vừa xong • <Globe className="w-3 h-3 inline" /></div>
+                        <textarea
+                          rows={3}
+                          placeholder={`Nội dung riêng cho ${meta.label} (bỏ trống = dùng nội dung chung)`}
+                          value={perPlatformMessages[platform] || ''}
+                          onChange={e => setPerPlatformMessages(prev => ({ ...prev, [platform]: e.target.value }))}
+                          className="w-full px-3 py-2 text-xs text-slate-700 resize-none focus:outline-none focus:bg-blue-50/30 transition-colors"
+                        />
                       </div>
-                      <MoreHorizontal className="w-5 h-5 text-slate-400" />
-                    </div>
-                    <p className="text-[13px] text-slate-800 mb-3 whitespace-pre-wrap leading-relaxed">{message || 'Nội dung sẽ hiển thị ở đây...'}</p>
-                    {mediaUrls.length > 0 ? (
-                      <div className="rounded-xl overflow-hidden border border-slate-100 shadow-sm">
-                        {renderMediaPreview(mediaUrls[0], 'w-full aspect-square object-cover', { controls: true })}
-                      </div>
-                    ) : (
-                      <div className="bg-slate-100 aspect-[4/3] rounded-xl flex items-center justify-center border border-slate-200/60">
-                        <ImageIcon className="w-8 h-8 text-slate-300" />
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="mt-auto px-4 pb-6 bg-white border-t border-slate-50">
-                    <div className="flex justify-between items-center py-2 mb-2 border-b border-slate-100">
-                      <div className="flex items-center gap-1"><ThumbsUp className="w-3 h-3 text-blue-500" /><span className="text-[10px] text-slate-400">0</span></div>
-                      <div className="text-[10px] text-slate-400">0 bình luận</div>
-                    </div>
-                    <div className="flex justify-between text-slate-400">
-                      <ThumbsUp className="w-4 h-4" /> <MessageCircle className="w-4 h-4" /> <Share2 className="w-4 h-4" />
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {previewPlatform === 'INSTAGRAM' && (
-                <>
-                  <div className="p-4 pt-6 flex items-center gap-3">
-                    <div className="w-9 h-9 p-[2px] bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-500 rounded-full flex items-center justify-center">
-                      <div className="w-full h-full bg-white rounded-full flex items-center justify-center text-slate-900 font-bold text-xs">V</div>
-                    </div>
-                    <div className="flex-1">
-                      <span className="text-[13px] font-bold text-slate-900">vienchibao</span>
-                    </div>
-                    <MoreHorizontal className="w-4 h-4 text-slate-600" />
-                  </div>
-                  <div className="flex-1 bg-black flex items-center justify-center">
-                    {mediaUrls.length > 0 ? (
-                      renderMediaPreview(mediaUrls[0], 'w-full aspect-square object-cover', { controls: true })
-                    ) : (
-                      <div className="bg-slate-900 aspect-square w-full flex items-center justify-center">
-                        <ImageIcon className="w-8 h-8 text-slate-700" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-4 pb-6 bg-white flex flex-col gap-2">
-                    <div className="flex gap-4 text-slate-800">
-                      <svg className="w-6 h-6 fill-none stroke-current stroke-2" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l8.84-8.84 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
-                      <svg className="w-6 h-6 fill-none stroke-current stroke-2" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
-                      <svg className="w-6 h-6 fill-none stroke-current stroke-2" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-                    </div>
-                    <p className="text-[12px] text-slate-800 leading-relaxed"><span className="font-bold mr-1.5">vienchibao</span>{message || 'Nội dung...'}</p>
-                  </div>
-                </>
-              )}
-
-              {previewPlatform === 'THREADS' && (
-                <div className="p-4 pt-6 flex gap-3 h-full">
-                  <div className="flex flex-col items-center">
-                    <div className="w-9 h-9 bg-slate-900 rounded-full flex items-center justify-center text-white font-bold text-sm">V</div>
-                    <div className="w-0.5 flex-1 bg-slate-200 my-2"></div>
-                    <div className="w-5 h-5 bg-slate-100 rounded-full flex items-center justify-center text-[10px] text-slate-400 font-bold">V</div>
-                  </div>
-                  <div className="flex-1 flex flex-col">
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-[13px] font-bold text-slate-900">vienchibao</span>
-                      <span className="text-[11px] text-slate-400">1p</span>
-                    </div>
-                    <p className="text-[13px] text-slate-800 whitespace-pre-wrap mb-3 leading-relaxed">{message || 'Nội dung Threads...'}</p>
-                    {mediaUrls.length > 0 && (
-                      <div className="rounded-xl overflow-hidden border border-slate-100 max-h-[250px] mb-3">
-                        {renderMediaPreview(mediaUrls[0], 'w-full object-cover', { controls: true })}
-                      </div>
-                    )}
-                    <div className="flex gap-4 text-slate-500 mt-auto pb-4">
-                      <svg className="w-5 h-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l8.84-8.84 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
-                      <svg className="w-5 h-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
-                      <svg className="w-5 h-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24"><path d="M17 2.1l4 4-4 4"></path><path d="M3 22l-4-4 4-4"></path><path d="M21 6.1H9c-3.3 0-6 2.7-6 6v3h3v-3c0-1.7 1.3-3 3-3h12"></path></svg>
-                    </div>
-                  </div>
+                    );
+                  })}
+                  {selectedAccountIds.length === 0 && (
+                    <p className="text-xs text-slate-400 text-center py-2">Chọn kênh để tùy chỉnh nội dung</p>
+                  )}
                 </div>
               )}
+            </div>
 
-              {previewPlatform === 'TIKTOK' && (
-                <div className="relative flex-1 flex flex-col justify-end text-white">
-                  <div className="absolute inset-0 bg-black flex items-center justify-center">
-                    {mediaUrls.length > 0 ? (() => {
-                      const m0 = mediaUrls[0];
-                      const isDrive0 = m0.includes('drive.google.com');
-                      const isVid0 = /\.(mp4|mov|avi|mkv|webm)$/i.test(m0);
-                      const driveId0 = isDrive0 ? (m0.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || m0.match(/[?&]id=([a-zA-Z0-9_-]+)/))?.[1] : null;
-                      return !isDrive0 && isVid0
-                        ? <video src={m0} className="w-full h-full object-cover" muted autoPlay loop />
-                        : <img src={driveId0 ? `https://drive.google.com/thumbnail?id=${driveId0}&sz=w400` : m0} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }} />;
-                    })() : (
-                      <div className="flex flex-col items-center gap-2 text-slate-700">
-                        <ImageIcon className="w-12 h-12" />
-                        <span className="text-xs text-slate-500">Chưa có video TikTok</span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Overlay for TikTok details */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 pointer-events-none flex flex-col justify-end p-4 pb-8">
-                    <div className="flex justify-between items-end">
-                      <div className="flex-1 pr-12">
-                        <span className="font-bold text-sm flex items-center gap-1 mb-1">@vienchibao <span className="bg-cyan-400 text-[8px] px-1 py-0.5 rounded">Follow</span></span>
-                        <p className="text-xs text-slate-200 line-clamp-3 leading-relaxed mb-2">{message || 'Nội dung video TikTok...'}</p>
-                        <div className="flex items-center gap-1.5 text-xs text-slate-300">
-                          <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24"><path fill="currentColor" d="M12 3v9h9c0-4.97-4.03-9-9-9z"/></svg>
-                          <span>Âm thanh gốc - Viễn Chí Bảo</span>
-                        </div>
-                      </div>
-                      
-                      {/* Side buttons */}
-                      <div className="flex flex-col items-center gap-4 text-white">
-                        <div className="relative mb-2">
-                          <div className="w-11 h-11 bg-slate-800 rounded-full border-2 border-white flex items-center justify-center text-sm font-bold">V</div>
-                          <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 bg-red-500 rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-bold">+</div>
-                        </div>
-                        <div className="flex flex-col items-center gap-1"><svg className="w-7 h-7 fill-white" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg><span className="text-[10px] font-bold">0</span></div>
-                        <div className="flex flex-col items-center gap-1"><svg className="w-7 h-7 fill-white" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/></svg><span className="text-[10px] font-bold">0</span></div>
-                        <div className="flex flex-col items-center gap-1"><svg className="w-7 h-7 fill-white" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg><span className="text-[10px] font-bold">0</span></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </motion.div>
+            {/* Platform Preview */}
+            <div className="w-full flex flex-col items-center">
+              <div className="w-[320px] bg-white rounded-[2.5rem] border-[6px] border-slate-900 shadow-2xl overflow-hidden flex flex-col relative shrink-0" style={{ minHeight: '520px' }}>
+              {/* Phone notch */}
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 w-20 h-4 bg-slate-900 rounded-full z-10" />
+              <div className="overflow-y-auto h-full pt-6">
+                <PlatformPreview
+                  platform={previewPlatform}
+                  message={(perPlatformMode && perPlatformMessages[previewPlatform]) || message || ''}
+                  mediaUrls={mediaUrls}
+                  accountName={accounts.find(a => a.platform === previewPlatform && selectedAccountIds.includes(a.id))?.name}
+                  accountAvatar={accounts.find(a => a.platform === previewPlatform && selectedAccountIds.includes(a.id))?.avatar_url}
+                />
+              </div>
+              </div>
+            </div>
           </div>
 
           <div className="p-5 bg-white border-t border-slate-200">

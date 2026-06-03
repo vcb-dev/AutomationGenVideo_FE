@@ -93,6 +93,13 @@ export const socialApi = {
       );
       return res.data.urls;
     },
+    fromDrive: async (fileId: string, accessToken: string, mimeType: string, filename: string): Promise<UploadedMedia[]> => {
+      const res = await apiClient.post<{ urls: UploadedMedia[] }>(
+        '/social/upload/from-drive',
+        { fileId, accessToken, mimeType, filename }
+      );
+      return res.data.urls;
+    },
     chunked: (file: File, onProgress?: (pct: number) => void): Promise<UploadedMedia[]> =>
       withUploadQueue(async () => {
         const CHUNK_SIZE = 8 * 1024 * 1024;
@@ -222,6 +229,18 @@ export const socialApi = {
     pollStatus: (jobIds: string[]): Promise<{ jobs: QueueJobStatus[] }> =>
       apiClient.get(`/social/queue/status?ids=${jobIds.join(',')}`).then((r) => r.data),
     stats: () => apiClient.get('/social/queue/stats').then((r) => r.data),
+
+    /**
+     * SSE stream — nhận push real-time thay vì polling mỗi 3 giây.
+     * Trả về EventSource; caller tự đóng khi không cần nữa.
+     */
+    openStream: (jobIds: string[]): EventSource => {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : '';
+      const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+      return new EventSource(
+        `${base}/social/queue/stream?ids=${jobIds.join(',')}&token=${token ?? ''}`,
+      );
+    },
   },
 
   schedule: {

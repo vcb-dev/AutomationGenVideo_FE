@@ -313,7 +313,9 @@ export default function ChannelsPage() {
         <div className="mx-8 mt-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-amber-800 mb-1">{expiringAccounts.length} tài khoản sắp hết hạn token</p>
+            <p className="text-sm font-bold text-amber-800 mb-1">
+              {expiringAccounts.length} tài khoản sắp hết hạn token
+            </p>
             <div className="flex flex-wrap gap-2">
               {expiringAccounts.map((acc: any) => (
                 <span key={acc.id} className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 bg-amber-100 px-2.5 py-1 rounded-full border border-amber-200">
@@ -323,7 +325,7 @@ export default function ChannelsPage() {
                 </span>
               ))}
             </div>
-            <p className="text-xs text-amber-600 mt-1.5">Vào kênh đó, gỡ kết nối và kết nối lại để gia hạn token.</p>
+            <p className="text-xs text-amber-600 mt-1.5">Kết nối lại để gia hạn token và tiếp tục đăng bài.</p>
           </div>
         </div>
       )}
@@ -711,7 +713,7 @@ export default function ChannelsPage() {
                     </p>
                     <div className="flex gap-2">
                       <input
-                        type="text"
+                        type="password"
                         value={manualToken}
                         onChange={(e) => setManualToken(e.target.value)}
                         placeholder="Dán mã Token (ví dụ: TH_...)"
