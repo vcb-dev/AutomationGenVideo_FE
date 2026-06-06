@@ -14,7 +14,7 @@ export default function SocialCallbackPage() {
         window.opener.postMessage(msg, window.location.origin);
         // Fallback for same-origin BroadcastChannel
         try {
-          const bc = new BroadcastChannel('social_oauth');
+          const bc = new BroadcastChannel('vcb-oauth');
           bc.postMessage(msg);
           bc.close();
         } catch {}
