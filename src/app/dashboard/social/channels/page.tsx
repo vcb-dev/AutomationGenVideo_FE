@@ -78,6 +78,8 @@ export default function ChannelsPage() {
   // Ref để lưu số lượng accounts trước khi connect (dùng cho polling fallback)
   const accountCountBeforeConnect = useRef(0);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const popupCheckerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const scanTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Ref để track connecting state cho popup checker (tránh stale closure)
   const connectingRef = useRef<SocialPlatform | null>(null);
   useEffect(() => { connectingRef.current = connecting; }, [connecting]);
@@ -101,6 +103,7 @@ export default function ChannelsPage() {
     let stableCount      = 0;   // số lần liên tiếp count không đổi
     const STABLE_NEEDED  = 2;   // cần ổn định 2 lần liên tiếp mới dừng
 
+    if (scanTimerRef.current) clearInterval(scanTimerRef.current);
     const scanTimer = setInterval(async () => {
       attempts++;
       try {
@@ -115,6 +118,7 @@ export default function ChannelsPage() {
           // Count ổn định đủ số lần → tất cả Pages đã lưu xong
           if (stableCount >= STABLE_NEEDED) {
             clearInterval(scanTimer);
+            scanTimerRef.current = null;
             toast.success('✅ Đã quét xong tất cả Pages và Instagram!', { duration: 3000 });
             return;
           }
@@ -127,11 +131,11 @@ export default function ChannelsPage() {
 
       if (attempts >= MAX_ATTEMPTS) {
         clearInterval(scanTimer);
+        scanTimerRef.current = null;
         invalidateAccounts();
       }
     }, 2000);
-
-    return () => clearInterval(scanTimer);
+    scanTimerRef.current = scanTimer;
   }, [invalidateAccounts]);
 
   useEffect(() => {
@@ -169,6 +173,8 @@ export default function ChannelsPage() {
       bc?.close();
       window.removeEventListener('message', onMsg);
       if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
+      if (popupCheckerRef.current) { clearInterval(popupCheckerRef.current); popupCheckerRef.current = null; }
+      if (scanTimerRef.current) { clearInterval(scanTimerRef.current); scanTimerRef.current = null; }
     };
   }, [loadAccounts, refreshAfterOAuth]);
 
@@ -194,9 +200,10 @@ export default function ChannelsPage() {
       popup.location.href = url;
 
       // Popup checker: khi popup đóng mà chưa nhận BroadcastChannel → poll server
-      const popupChecker = setInterval(async () => {
+      if (popupCheckerRef.current) clearInterval(popupCheckerRef.current);
+      popupCheckerRef.current = setInterval(async () => {
         if (popup.closed) {
-          clearInterval(popupChecker);
+          if (popupCheckerRef.current) { clearInterval(popupCheckerRef.current); popupCheckerRef.current = null; }
           // Chờ 2s để BE hoàn tất lưu + BroadcastChannel có thời gian gửi
           await new Promise((r) => setTimeout(r, 2000));
           if (connectingRef.current !== platform) return; // Đã nhận được message → dừng

@@ -6,11 +6,12 @@ import {
   Image as ImageIcon, Search,
   RefreshCw, Copy, RotateCcw, Filter, X, ArrowUpDown,
   TrendingUp, ChevronLeft, ChevronRight, Repeat2, Play, ExternalLink,
+  LayoutGrid, List, Eye, FileVideo, FileImage,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { socialApi, SocialPost, HistoryMember, PLATFORM_META, SocialPlatform } from '@/lib/api/social';
+import { socialApi, SocialPost, HistoryMember, PLATFORM_META } from '@/lib/api/social';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/auth-store';
 
@@ -115,6 +116,263 @@ function ActivityChart({ posts }: { posts: SocialPost[] }) {
 }
 
 const PAGE_SIZE = 20;
+const GRID_PAGE_SIZE = 42;
+
+/** Lấy URL bài đã đăng từ result trả về bởi platform publisher */
+function getPostUrl(result?: Record<string, unknown> | null): string | null {
+  if (!result) return null;
+  if (typeof result.url === 'string' && result.url) return result.url;
+  if (typeof result.videoId === 'string') return `https://youtube.com/watch?v=${result.videoId}`;
+  return null;
+}
+
+// ── Grid thumbnail item ─────────────────────────────────────────────────────
+function GridItem({ post, onClick }: { post: SocialPost; onClick: (p: SocialPost) => void }) {
+  const meta = (PLATFORM_META as any)[post.platform] || PLATFORM_META.FACEBOOK;
+  const firstMedia = post.media_urls?.[0];
+  const isVideo = firstMedia ? isVideoUrl(firstMedia) : false;
+  const isDrive = firstMedia ? isDriveUrl(firstMedia) : false;
+  const driveFileId = isDrive && firstMedia ? extractDriveFileId(firstMedia) : null;
+
+  const thumbSrc =
+    post.thumb_url ||
+    (driveFileId ? `https://drive.google.com/thumbnail?id=${driveFileId}&sz=w400` : null) ||
+    (!isVideo && firstMedia ? resolveMediaUrl(firstMedia) : null);
+
+  const isOk   = post.status === 'COMPLETED';
+  const isFail = post.status === 'FAILED';
+
+  return (
+    <div
+      onClick={() => onClick(post)}
+      className="relative aspect-square cursor-pointer overflow-hidden bg-slate-800 group"
+    >
+      {/* Thumbnail */}
+      {thumbSrc ? (
+        <img
+          src={thumbSrc}
+          alt=""
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+        />
+      ) : (
+        <div className={`w-full h-full flex flex-col items-center justify-center gap-1 ${meta.color} bg-opacity-80`}>
+          <span className="text-3xl">{meta.emoji}</span>
+          {isVideo
+            ? <FileVideo className="w-5 h-5 text-white/60" />
+            : <FileImage className="w-5 h-5 text-white/60" />}
+        </div>
+      )}
+
+      {/* Hover overlay — play button */}
+      {(isVideo || isDrive) && (
+        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
+          <div className="w-11 h-11 bg-white/90 rounded-full flex items-center justify-center shadow-lg">
+            <Play className="w-5 h-5 text-slate-800 ml-0.5" />
+          </div>
+        </div>
+      )}
+
+      {/* Bottom gradient: media count (eye style như TikTok) */}
+      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent px-2 pb-1.5 pt-5">
+        <div className="flex items-center justify-between">
+          <span className="flex items-center gap-1 text-white text-[11px] font-bold drop-shadow">
+            <Eye className="w-3 h-3" />
+            {post.media_urls?.length ?? 0}
+          </span>
+          <span className="text-white/70 text-[10px] font-medium">
+            {meta.emoji}
+          </span>
+        </div>
+      </div>
+
+      {/* Status dot */}
+      <div className={`absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full border-2 border-white shadow ${
+        isOk ? 'bg-emerald-400' : isFail ? 'bg-red-400' : 'bg-amber-400'
+      }`} />
+    </div>
+  );
+}
+
+// ── Post detail modal ───────────────────────────────────────────────────────
+function PostDetailModal({
+  post, onClose, onRetry, onRepost, actionId, canFilter,
+}: {
+  post: SocialPost;
+  onClose: () => void;
+  onRetry: (id: string) => void;
+  onRepost: (p: SocialPost) => void;
+  actionId: string | null;
+  canFilter: boolean;
+}) {
+  const meta = (PLATFORM_META as any)[post.platform] || PLATFORM_META.FACEBOOK;
+  const isOk      = post.status === 'COMPLETED';
+  const isFail    = post.status === 'FAILED';
+  const isPending = post.status === 'PENDING';
+  const hasMedia  = post.media_urls && post.media_urls.length > 0;
+
+  const fullMsg    = post.message || '';
+  const hashtagRegex = /(#\S+)/g;
+  const hashtags   = fullMsg.match(hashtagRegex) || [];
+  const textOnly   = fullMsg.replace(hashtagRegex, '').trim();
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-0 sm:p-4"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ y: 60, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 60, opacity: 0 }}
+          transition={{ type: 'spring', damping: 28, stiffness: 380 }}
+          className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl overflow-hidden max-h-[90vh] flex flex-col"
+          onClick={e => e.stopPropagation()}
+        >
+          {/* Handle */}
+          <div className="flex justify-center pt-3 pb-1 sm:hidden">
+            <div className="w-10 h-1 bg-slate-200 rounded-full" />
+          </div>
+
+          {/* Media */}
+          {hasMedia && (
+            <div className="w-full bg-black max-h-64 overflow-hidden flex-shrink-0">
+              {post.media_urls.slice(0, 1).map((url, i) => {
+                const resolved = resolveMediaUrl(url);
+                const isVid    = isVideoUrl(url);
+                const isDrv    = isDriveUrl(url);
+                const fid      = isDrv ? extractDriveFileId(url) : null;
+                const thumbUrl = (i === 0 && post.thumb_url)
+                  ? post.thumb_url
+                  : fid ? `https://drive.google.com/thumbnail?id=${fid}&sz=w800` : null;
+                const viewUrl  = fid ? `https://drive.google.com/file/d/${fid}/view` : url;
+
+                return isVid ? (
+                  isDrv ? (
+                    <div key={i} className="relative w-full h-64">
+                      {thumbUrl && <img src={thumbUrl} alt="" className="w-full h-full object-contain" />}
+                      <a href={viewUrl} target="_blank" rel="noopener noreferrer"
+                        className="absolute inset-0 flex items-center justify-center bg-black/50 hover:bg-black/40 transition-colors">
+                        <div className="w-14 h-14 bg-white/90 rounded-full flex items-center justify-center shadow-xl">
+                          <Play className="w-6 h-6 text-slate-800 ml-1" />
+                        </div>
+                      </a>
+                    </div>
+                  ) : (
+                    <video key={i} src={resolved} controls preload="metadata"
+                      className="w-full max-h-64 object-contain" />
+                  )
+                ) : (
+                  <img key={i} src={resolved} alt=""
+                    className="w-full max-h-64 object-contain" />
+                );
+              })}
+            </div>
+          )}
+
+          <div className="p-4 overflow-y-auto flex-1">
+            {/* Platform + account + status */}
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              <div className={`w-7 h-7 ${meta.color} rounded-lg flex items-center justify-center text-sm flex-shrink-0 shadow-sm`}>
+                {meta.emoji}
+              </div>
+              <span className="font-bold text-slate-900 text-sm">{meta.label}</span>
+              {post.account && <span className="text-xs text-slate-400">· {post.account.name}</span>}
+              {canFilter && post.user && (
+                <span className="text-[10px] text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100 font-bold">
+                  👤 {post.user.full_name}{post.user.team ? ` · ${post.user.team}` : ''}
+                </span>
+              )}
+              <span className={`ml-auto text-[11px] px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1 ${
+                isOk ? 'bg-emerald-100 text-emerald-700' : isFail ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+              }`}>
+                {isOk ? <CheckCircle className="w-3 h-3" /> : isFail ? <XCircle className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+                {isOk ? 'Thành công' : isFail ? 'Thất bại' : isPending ? 'Đang chờ' : 'Đã huỷ'}
+              </span>
+            </div>
+
+            {/* Text */}
+            {textOnly && (
+              <p className="text-sm text-slate-700 leading-relaxed mb-3 whitespace-pre-line">{textOnly}</p>
+            )}
+
+            {/* Hashtags */}
+            {hashtags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                {hashtags.map((tag, i) => (
+                  <span key={i} className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-medium border border-blue-100">{tag}</span>
+                ))}
+              </div>
+            )}
+
+            {/* Error */}
+            {post.error_msg && (
+              <div className="flex items-start gap-1.5 mb-3 text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                <XCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                <span>{post.error_msg}</span>
+              </div>
+            )}
+
+            {/* Media count */}
+            {hasMedia && post.media_urls.length > 1 && (
+              <div className="text-xs text-slate-400 mb-3">📎 {post.media_urls.length} file đính kèm</div>
+            )}
+
+            {/* Link bài đã đăng */}
+            {isOk && (() => {
+              const postUrl = getPostUrl(post.result as Record<string, unknown> | null);
+              return postUrl ? (
+                <a
+                  href={postUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-3 py-2 mb-3 bg-blue-50 border border-blue-200 text-blue-700 rounded-xl text-xs font-semibold hover:bg-blue-100 transition-colors w-full"
+                >
+                  <ExternalLink className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span className="truncate">{postUrl}</span>
+                </a>
+              ) : null;
+            })()}
+
+            {/* Footer */}
+            <div className="flex items-center gap-2 text-xs text-slate-400 border-t border-slate-100 pt-3 flex-wrap">
+              <span className="flex items-center gap-1 font-medium">
+                {post.source === 'SCHEDULED' ? <Calendar className="w-3 h-3" /> : <Send className="w-3 h-3" />}
+                {post.source === 'SCHEDULED' ? 'Lên lịch' : 'Đăng ngay'}
+              </span>
+              <span className="font-medium">{new Date(post.created_at).toLocaleString('vi')}</span>
+              <div className="ml-auto flex items-center gap-1.5">
+                {post.message && (
+                  <button onClick={() => { navigator.clipboard.writeText(post.message); toast.success('Đã copy'); }}
+                    className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                {isOk && (
+                  <button onClick={() => onRepost(post)}
+                    className="flex items-center gap-1 px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-[11px] font-bold hover:bg-emerald-100 transition-colors">
+                    <Repeat2 className="w-3 h-3" /> Đăng lại
+                  </button>
+                )}
+                {isFail && (
+                  <button onClick={() => onRetry(post.id)} disabled={actionId === post.id}
+                    className="flex items-center gap-1 px-2.5 py-1 bg-blue-50 border border-blue-200 text-blue-600 rounded-lg text-[11px] font-bold hover:bg-blue-100 transition-colors disabled:opacity-50">
+                    <RotateCcw className={`w-3 h-3 ${actionId === post.id ? 'animate-spin' : ''}`} />
+                    Thử lại
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
 
 export default function HistoryPage() {
   const router = useRouter();
@@ -146,6 +404,8 @@ export default function HistoryPage() {
   const [dateTo, setDateTo]               = useState('');
   const [showFilters, setShowFilters]     = useState(false);
   const [page, setPage]                   = useState(1);
+  const [viewMode, setViewMode]           = useState<'grid' | 'list'>('grid');
+  const [selectedPost, setSelectedPost]   = useState<SocialPost | null>(null);
 
   // Tải danh sách teams + members (một lần, khi mount)
   useEffect(() => {
@@ -219,11 +479,12 @@ export default function HistoryPage() {
     return list;
   }, [posts, statusFilter, platformFilter, search, dateFrom, dateTo, sortOrder]);
 
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const currentPageSize = viewMode === 'grid' ? GRID_PAGE_SIZE : PAGE_SIZE;
+  const totalPages = Math.ceil(filtered.length / currentPageSize);
+  const paginated  = filtered.slice((page - 1) * currentPageSize, page * currentPageSize);
 
-  // Reset to page 1 when filter changes
-  useEffect(() => { setPage(1); }, [statusFilter, platformFilter, search, dateFrom, dateTo, sortOrder, teamFilter, memberFilter]);
+  // Reset to page 1 when filter or viewMode changes
+  useEffect(() => { setPage(1); }, [statusFilter, platformFilter, search, dateFrom, dateTo, sortOrder, teamFilter, memberFilter, viewMode]);
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -249,7 +510,7 @@ export default function HistoryPage() {
       message: post.message,
       mediaUrls: post.media_urls || [],
       platform: post.platform,
-      accountId: post.account ? undefined : undefined, // user tự chọn kênh
+      // accountId không gửi kèm — user tự chọn kênh đăng lại trên trang compose
     }));
     router.push('/dashboard/social/compose');
     toast.success('Đang mở trang soạn bài với nội dung đã sao chép');
@@ -269,7 +530,7 @@ export default function HistoryPage() {
 
       {/* ── Header ── */}
       <div className="bg-white border-b border-slate-200">
-        <div className="container mx-auto px-4 max-w-5xl py-6">
+        <div className="w-full px-4 py-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
             <div>
               <h1 className="text-2xl font-bold text-slate-900">Lịch sử đăng bài</h1>
@@ -282,6 +543,23 @@ export default function HistoryPage() {
               >
                 <BarChart3 className="w-4 h-4" /> Thống kê
               </Link>
+              {/* View mode toggle */}
+              <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-white">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-2 transition-colors ${viewMode === 'grid' ? 'bg-slate-100 text-slate-900' : 'text-slate-400 hover:bg-slate-50'}`}
+                  title="Dạng lưới"
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`p-2 transition-colors ${viewMode === 'list' ? 'bg-slate-100 text-slate-900' : 'text-slate-400 hover:bg-slate-50'}`}
+                  title="Dạng danh sách"
+                >
+                  <List className="w-4 h-4" />
+                </button>
+              </div>
               <button
                 onClick={() => loadData(true)}
                 disabled={refreshing}
@@ -342,7 +620,7 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 max-w-5xl pt-5 space-y-4">
+      <div className="w-full px-4 pt-5 space-y-4">
 
         {/* Activity chart */}
         {!loading && posts.length > 0 && <ActivityChart posts={posts} />}
@@ -529,13 +807,21 @@ export default function HistoryPage() {
           )}
         </div>
 
-        {/* Post list */}
+        {/* Post list / grid */}
         {loading ? (
-          <div className="space-y-3">
-            {[1, 2, 3, 4, 5].map(i => (
-              <div key={i} className="h-24 bg-white rounded-2xl animate-pulse border border-slate-100" />
-            ))}
-          </div>
+          viewMode === 'grid' ? (
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-0.5">
+              {Array.from({ length: 21 }).map((_, i) => (
+                <div key={i} className="aspect-square bg-slate-200 animate-pulse" />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {[1, 2, 3, 4, 5].map(i => (
+                <div key={i} className="h-24 bg-white rounded-2xl animate-pulse border border-slate-100" />
+              ))}
+            </div>
+          )
         ) : paginated.length === 0 ? (
           <div className="text-center py-20">
             <BarChart3 className="w-16 h-16 text-slate-200 mx-auto mb-4" />
@@ -548,7 +834,15 @@ export default function HistoryPage() {
               </button>
             )}
           </div>
+        ) : viewMode === 'grid' ? (
+          /* ── GRID VIEW ── */
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-0.5">
+            {paginated.map(post => (
+              <GridItem key={post.id} post={post} onClick={setSelectedPost} />
+            ))}
+          </div>
         ) : (
+          /* ── LIST VIEW ── */
           <div className="space-y-4">
             {paginated.map((post, idx) => {
               const meta = (PLATFORM_META as any)[post.platform] || PLATFORM_META.FACEBOOK;
@@ -708,6 +1002,22 @@ export default function HistoryPage() {
                       </div>
                     )}
 
+                    {/* Link bài đã đăng */}
+                    {isOk && (() => {
+                      const postUrl = getPostUrl(post.result as Record<string, unknown> | null);
+                      return postUrl ? (
+                        <a
+                          href={postUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 px-3 py-2 mb-3 bg-blue-50 border border-blue-200 text-blue-700 rounded-xl text-xs font-semibold hover:bg-blue-100 transition-colors"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span className="truncate">{postUrl}</span>
+                        </a>
+                      ) : null;
+                    })()}
+
                     {/* Footer: thời gian + actions */}
                     <div className="flex items-center gap-3 text-xs text-slate-400 border-t border-slate-100 pt-3 flex-wrap">
                       <span className="flex items-center gap-1 font-medium">
@@ -726,6 +1036,18 @@ export default function HistoryPage() {
                             <Copy className="w-3.5 h-3.5" />
                           </button>
                         )}
+                        {isOk && (() => {
+                          const postUrl = getPostUrl(post.result as Record<string, unknown> | null);
+                          return postUrl ? (
+                            <button
+                              onClick={() => { navigator.clipboard.writeText(postUrl); toast.success('Đã copy link bài đăng'); }}
+                              title="Copy link bài đăng"
+                              className="p-1.5 rounded-lg hover:bg-slate-100 text-blue-400 hover:text-blue-600 transition-colors"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+                          ) : null;
+                        })()}
                         {isOk && (
                           <button
                             onClick={() => handleRepost(post)}
@@ -751,6 +1073,18 @@ export default function HistoryPage() {
               );
             })}
           </div>
+        )}
+
+        {/* Detail modal — grid mode */}
+        {selectedPost && (
+          <PostDetailModal
+            post={selectedPost}
+            onClose={() => setSelectedPost(null)}
+            onRetry={handleRetry}
+            onRepost={handleRepost}
+            actionId={actionId}
+            canFilter={canFilter}
+          />
         )}
 
         {/* Pagination */}

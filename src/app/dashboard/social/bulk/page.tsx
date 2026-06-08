@@ -115,6 +115,8 @@ export default function BulkSchedulePage() {
   const handlePublish = async () => {
     if (!pendingRows.length) return toast.error('Không có hàng hợp lệ để đăng');
     setPublishing(true);
+    let doneCount = 0;
+    let failedCount = 0;
 
     for (let i = 0; i < pendingRows.length; i++) {
       const row = pendingRows[i];
@@ -138,18 +140,18 @@ export default function BulkSchedulePage() {
           }]);
         }
 
+        doneCount++;
         setRows(prev => prev.map(r => r._lineNo === row._lineNo
           ? { ...r, _status: 'done' } : r));
       } catch (err: any) {
+        failedCount++;
         setRows(prev => prev.map(r => r._lineNo === row._lineNo
           ? { ...r, _status: 'failed', _error: err?.response?.data?.message || err.message } : r));
       }
     }
 
     setPublishing(false);
-    const done   = rows.filter(r => r._status === 'done').length;
-    const failed = rows.filter(r => r._status === 'failed').length;
-    toast.success(`Hoàn tất: ${done + pendingRows.filter(r => r._status === 'done').length} thành công, ${failed} thất bại`);
+    toast.success(`Hoàn tất: ${doneCount} thành công, ${failedCount} thất bại`);
   };
 
   const downloadSample = () => {

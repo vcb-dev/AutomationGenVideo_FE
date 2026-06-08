@@ -56,18 +56,24 @@ export default function NotificationBell() {
 
   const unread = notifications.filter(n => !read.has(n.id)).length;
 
+  const saveRead = (set: Set<string>) => {
+    // Giới hạn 200 IDs gần nhất để tránh localStorage phình ra vô hạn
+    const arr = Array.from(set);
+    const pruned = arr.length > 200 ? arr.slice(arr.length - 200) : arr;
+    setRead(new Set(pruned));
+    localStorage.setItem('notif_read', JSON.stringify(pruned));
+  };
+
   const markAllRead = () => {
     const newRead = new Set(Array.from(read));
     notifications.forEach(n => newRead.add(n.id));
-    setRead(newRead);
-    localStorage.setItem('notif_read', JSON.stringify(Array.from(newRead)));
+    saveRead(newRead);
   };
 
   const markRead = (id: string) => {
     const newRead = new Set(Array.from(read));
     newRead.add(id);
-    setRead(newRead);
-    localStorage.setItem('notif_read', JSON.stringify(Array.from(newRead)));
+    saveRead(newRead);
   };
 
   const handleRetry = async (id: string) => {

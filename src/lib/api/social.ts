@@ -18,6 +18,15 @@ export interface SocialAccount {
   created_at: string;
 }
 
+export interface SocialPostResult {
+  postId?: string;
+  videoId?: string;
+  publishId?: string;
+  url?: string;
+  status?: string;
+  [key: string]: unknown;
+}
+
 export interface SocialPost {
   id: string;
   user_id: string;
@@ -33,6 +42,7 @@ export interface SocialPost {
   retry_count?: number;
   next_retry_at?: string;
   created_at: string;
+  result?: SocialPostResult;
   account?: { name: string; username?: string; avatar_url?: string; platform: SocialPlatform };
   user?: { id: string; full_name: string; team?: string; image_url?: string };
 }
@@ -229,18 +239,6 @@ export const socialApi = {
     pollStatus: (jobIds: string[]): Promise<{ jobs: QueueJobStatus[] }> =>
       apiClient.get(`/social/queue/status?ids=${jobIds.join(',')}`).then((r) => r.data),
     stats: () => apiClient.get('/social/queue/stats').then((r) => r.data),
-
-    /**
-     * SSE stream — nhận push real-time thay vì polling mỗi 3 giây.
-     * Trả về EventSource; caller tự đóng khi không cần nữa.
-     */
-    openStream: (jobIds: string[]): EventSource => {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : '';
-      const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
-      return new EventSource(
-        `${base}/social/queue/stream?ids=${jobIds.join(',')}&token=${token ?? ''}`,
-      );
-    },
   },
 
   schedule: {

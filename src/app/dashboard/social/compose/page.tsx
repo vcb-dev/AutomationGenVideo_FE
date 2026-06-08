@@ -112,7 +112,7 @@ export default function ComposePage() {
     show: boolean;
     phase: 'idle' | 'uploading' | 'publishing' | 'done';
     uploadPct: number;
-    channels: { id: string; name: string; platform: string; status: 'pending' | 'posting' | 'success' | 'fail'; error?: string; queuePosition?: number | null }[];
+    channels: { id: string; name: string; platform: string; status: 'pending' | 'posting' | 'success' | 'fail'; error?: string; queuePosition?: number | null; postUrl?: string }[];
   }>({
     show: false,
     phase: 'idle',
@@ -350,7 +350,11 @@ export default function ComposePage() {
           if (!jobId) return ch;
           const job = jobs.find((j: any) => j.id === jobId);
           if (!job) return ch;
-          if (job.status === 'COMPLETED') return { ...ch, status: 'success' as const, queuePosition: null };
+          if (job.status === 'COMPLETED') {
+            const r = job.result as Record<string, unknown> | null | undefined;
+            const postUrl = (typeof r?.url === 'string' ? r.url : typeof r?.videoId === 'string' ? `https://youtube.com/watch?v=${r.videoId}` : undefined);
+            return { ...ch, status: 'success' as const, queuePosition: null, postUrl };
+          }
           if (job.status === 'FAILED')    return { ...ch, status: 'fail' as const, error: job.error_msg ?? undefined, queuePosition: null };
           const isProcessing = job.queuePosition === null;
           return { ...ch, status: isProcessing ? 'posting' as const : 'pending' as const, queuePosition: job.queuePosition };
@@ -382,7 +386,11 @@ export default function ComposePage() {
             if (!jobId) return ch;
             const job = jobs.find(j => j.id === jobId);
             if (!job) return ch;
-            if (job.status === 'COMPLETED') return { ...ch, status: 'success' as const, queuePosition: null };
+            if (job.status === 'COMPLETED') {
+            const r = job.result as Record<string, unknown> | null | undefined;
+            const postUrl = (typeof r?.url === 'string' ? r.url : typeof r?.videoId === 'string' ? `https://youtube.com/watch?v=${r.videoId}` : undefined);
+            return { ...ch, status: 'success' as const, queuePosition: null, postUrl };
+          }
             if (job.status === 'FAILED')    return { ...ch, status: 'fail' as const, error: job.error_msg ?? undefined, queuePosition: null };
             const isProcessing = job.queuePosition === null;
             return { ...ch, status: isProcessing ? 'posting' as const : 'pending' as const, queuePosition: job.queuePosition };
@@ -578,9 +586,12 @@ export default function ComposePage() {
     // Tách hashtag ra khỏi nội dung nếu có
     const parts = (draft.message || '').split('\n\n');
     const lastPart = parts[parts.length - 1];
-    
+
     if (lastPart && lastPart.startsWith('#')) {
-      const foundTags = lastPart.split(' ').map((t: string) => t.replace('#', ''));
+      const foundTags = lastPart
+        .split(/\s+/)
+        .map((t: string) => t.replace(/^#+/, ''))
+        .filter(Boolean); // loại bỏ empty strings từ trailing spaces
       setHashtags(foundTags);
       setMessage(parts.slice(0, -1).join('\n\n'));
     } else {

@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, X, Users } from 'lucide-react';
+import { Loader2, X, Users, ExternalLink } from 'lucide-react';
 import { SocialPlatform, PLATFORM_META } from '@/lib/api/social';
 
 interface Channel {
@@ -12,6 +12,7 @@ interface Channel {
   error?: string;
   queuePosition?: number | null;
   queueTotal?: number | null;
+  postUrl?: string;
 }
 
 interface PublishProgress {
@@ -226,6 +227,17 @@ export default function PublishProgressModal({ publishProgress, postingPcts, ela
                             transition={{ duration: ch.status === 'posting' ? 0.3 : 0.4, ease: 'easeOut' }}
                           />
                         </div>
+                      )}
+                      {ch.status === 'success' && ch.postUrl && (
+                        <a
+                          href={ch.postUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 text-[11px] text-green-700 font-semibold hover:underline mt-0.5 truncate"
+                        >
+                          <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                          <span className="truncate">{ch.postUrl}</span>
+                        </a>
                       )}
                       {/* Progress bar hàng chờ cho pending channel */}
                       {ch.status === 'pending' && ch.queuePosition != null && ch.queueTotal != null && ch.queueTotal > 0 && (
