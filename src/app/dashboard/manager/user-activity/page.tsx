@@ -250,6 +250,8 @@ const UserActivityPageContent = () => {
         activeTab,
     });
 
+    const typeParam = searchParams.get("type");
+
     // Đồng bộ ?tab= & ?report= từ URL (Sidebar và deep link)
     React.useEffect(() => {
         const next = activeTabFromSearchParam(tabParam);
@@ -270,6 +272,10 @@ const UserActivityPageContent = () => {
         if (r === "daily") setReportType("daily");
         else if (r === "monthly") setReportType("monthly");
     }, [reportParam]);
+
+    React.useEffect(() => {
+        setReportMode("select");
+    }, [typeParam]); 
 
     React.useEffect(() => {
         const handleResetReport = (e: any) => {
@@ -588,7 +594,7 @@ const UserActivityPageContent = () => {
     return (
         <div id="report-view-container" className="min-h-screen bg-slate-50/20 space-y-3 selection:bg-blue-500/30">
             {activeTab !== "daily_report" && (
-                <div className="sticky top-[48px] z-20 bg-white/90 backdrop-blur-md border-b border-slate-200/70 shadow-sm px-4 py-2">
+                <div className="sticky top-[64px] z-20 bg-white/90 backdrop-blur-md border-b border-slate-200/70 shadow-sm px-4 py-2">
                     <ActivityFilters
                         activeTeam={activeTeam}
                         setActiveTeam={setActiveTeam}
@@ -1279,230 +1285,92 @@ const UserActivityPageContent = () => {
                         </div>
                     ) : activeTab === "daily_report" ? (
                         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            {reportType === "select" ? (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto pt-10">
-                                    <button
-                                        onClick={() => setReportType("daily")}
-                                        className="group relative bg-slate-950 p-8 rounded-[3rem] border border-slate-800 shadow-2xl hover:shadow-blue-500/10 hover:-translate-y-2 transition-all duration-500 overflow-hidden text-left"
-                                    >
-                                        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-950/30 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-blue-900/40 transition-colors" />
-                                        <div className="bg-slate-900 w-16 h-16 rounded-2xl flex items-center justify-center mb-6 border border-slate-800 group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-500 transition-all duration-500 shadow-inner">
-                                            <Calendar className="w-8 h-8 text-blue-400" />
-                                        </div>
-                                        <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">
-                                            Báo cáo ngày
-                                        </h3>
-                                        <p className="text-sm text-slate-400 font-medium leading-relaxed">
-                                            Báo cáo và đánh giá công việc hàng ngày của Leader và Member.
-                                        </p>
-                                        <div className="mt-8 flex items-center gap-2 text-blue-500 font-black text-xs uppercase tracking-widest transition-all duration-500">
-                                            Chọn loại báo cáo <ChevronDown className="-rotate-90 w-3 h-3 stroke-[3]" />
-                                        </div>
-                                    </button>
-
-                                    <button
-                                        onClick={() => setReportType("monthly")}
-                                        className="group relative bg-slate-950 p-8 rounded-[3rem] border border-slate-800 shadow-2xl hover:shadow-indigo-500/10 hover:-translate-y-2 transition-all duration-500 overflow-hidden text-left"
-                                    >
-                                        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-950/30 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-indigo-900/40 transition-colors" />
-                                        <div className="bg-slate-900 w-16 h-16 rounded-2xl flex items-center justify-center mb-6 border border-slate-800 group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-500 transition-all duration-500 shadow-inner">
-                                            <BarChart3 className="w-8 h-8 text-indigo-400" />
-                                        </div>
-                                        <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">
-                                            Báo cáo tháng
-                                        </h3>
-                                        <p className="text-sm text-slate-400 font-medium leading-relaxed">
-                                            Tổng hợp dữ liệu hiệu suất, traffic và doanh thu theo chu kỳ tháng.
-                                        </p>
-                                        <div className="mt-8 flex items-center gap-2 text-indigo-500 font-black text-xs uppercase tracking-widest transition-all duration-500">
-                                            Xem báo cáo tháng <ChevronDown className="-rotate-90 w-3 h-3 stroke-[3]" />
-                                        </div>
-                                    </button>
+                            {typeParam === "traffic" ? (
+                                <div className="space-y-6">
+                                    <div className="bg-white/50 backdrop-blur-sm rounded-[3rem] p-8 border border-slate-100 shadow-inner">
+                                        <ChecklistContainer
+                                            key="traffic"
+                                            mode="member"
+                                            showOnlyTraffic={true}
+                                            onSuccess={() => fetchReports(false)}
+                                        />
+                                    </div>
                                 </div>
-                            ) : reportType === "daily" ? (
+                            ) : typeParam === "task" || typeParam === "tasks" ? (
                                 <>
-                                    {dailySubtype === "select" ? (
+                                    {reportMode === "select" ? (
                                         <div className="space-y-6">
-                                            <div className="px-4">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+                                                {(isAdminUser || !isLeaderUser) && (
+                                                    <button
+                                                        onClick={() => setReportMode("member")}
+                                                        className="group relative bg-slate-950 p-8 rounded-[3rem] border border-slate-800 shadow-2xl hover:shadow-blue-500/10 hover:-translate-y-2 transition-all duration-500 overflow-hidden text-left"
+                                                    >
+                                                        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-950/30 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-blue-900/40 transition-colors" />
+                                                        <div className="bg-slate-900 w-16 h-16 rounded-2xl flex items-center justify-center mb-6 border border-slate-800 group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-500 transition-all duration-500 shadow-inner">
+                                                            <User className="w-8 h-8 text-blue-400" />
+                                                        </div>
+                                                        <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">
+                                                            Báo cáo Member
+                                                        </h3>
+                                                        <p className="text-sm text-slate-400 font-medium leading-relaxed">
+                                                            Dành cho Editor & Content báo cáo tiến độ checklist và khó khăn hàng ngày.
+                                                        </p>
+                                                        <div className="mt-8 flex items-center gap-2 text-blue-500 font-black text-xs uppercase tracking-widest">
+                                                            Bắt đầu báo cáo <ChevronDown className="-rotate-90 w-3 h-3 stroke-[3]" />
+                                                        </div>
+                                                    </button>
+                                                )}
+                                                {(isAdminUser || isLeaderUser) && (
+                                                    <button
+                                                        onClick={() => setReportMode("leader")}
+                                                        className="group relative bg-slate-950 p-8 rounded-[3rem] border border-slate-800 shadow-2xl hover:shadow-indigo-500/10 hover:-translate-y-2 transition-all duration-500 overflow-hidden text-left"
+                                                    >
+                                                        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-950/30 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-indigo-900/40 transition-colors" />
+                                                        <div className="bg-slate-900 w-16 h-16 rounded-2xl flex items-center justify-center mb-6 border border-slate-800 group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-500 transition-all duration-500 shadow-inner">
+                                                            <ShieldCheck className="w-8 h-8 text-indigo-400" />
+                                                        </div>
+                                                        <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">
+                                                            Báo cáo Leader
+                                                        </h3>
+                                                        <p className="text-sm text-slate-400 font-medium leading-relaxed">
+                                                            Dành cho Team Leader đánh giá chất lượng và quản lý nhân sự hàng ngày.
+                                                        </p>
+                                                        <div className="mt-8 flex items-center gap-2 text-indigo-500 font-black text-xs uppercase tracking-widest">
+                                                            Bắt đầu đánh giá <ChevronDown className="-rotate-90 w-3 h-3 stroke-[3]" />
+                                                        </div>
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-6">
+                                            <div className="flex items-center justify-between px-4">
                                                 <button
                                                     type="button"
-                                                    onClick={() => setReportType("select")}
+                                                    onClick={() => setReportMode("select")}
                                                     className="relative z-[500] flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100/80 text-slate-700 hover:bg-slate-200 font-bold transition-all group border border-slate-200 shadow-sm cursor-pointer"
                                                 >
-                                                    <ChevronDown className="rotate-90 w-4 h-4 group-hover:-translate-x-1 transition-transform" />{" "}
-                                                    Quay lại chọn Loại
-                                                </button>
-                                            </div>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-                                                <button
-                                                    onClick={() => setDailySubtype("traffic")}
-                                                    className="group relative bg-slate-950 p-8 rounded-[3rem] border border-slate-800 shadow-2xl hover:shadow-purple-500/10 hover:-translate-y-2 transition-all duration-500 overflow-hidden text-left"
-                                                >
-                                                    <div className="absolute top-0 right-0 w-32 h-32 bg-purple-950/30 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-purple-900/40 transition-colors" />
-                                                    <div className="bg-slate-900 w-16 h-16 rounded-2xl flex items-center justify-center mb-6 border border-slate-800 group-hover:bg-purple-600 group-hover:text-white group-hover:border-purple-500 transition-all duration-500 shadow-inner">
-                                                        <BarChart3 className="w-8 h-8 text-purple-400" />
-                                                    </div>
-                                                    <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">
-                                                        Báo cáo Traffic
-                                                    </h3>
-                                                    <p className="text-sm text-slate-400 font-medium leading-relaxed">
-                                                        Cập nhật số liệu truy cập từ các nền tảng mạng xã hội hôm nay.
-                                                    </p>
-                                                    <div className="mt-8 flex items-center gap-2 text-purple-500 font-black text-xs uppercase tracking-widest transition-all duration-500">
-                                                        Nhập số liệu{" "}
-                                                        <ChevronDown className="-rotate-90 w-3 h-3 stroke-[3]" />
-                                                    </div>
-                                                </button>
-
-                                                <button
-                                                    onClick={() => setDailySubtype("work")}
-                                                    className="group relative bg-slate-950 p-8 rounded-[3rem] border border-slate-800 shadow-2xl hover:shadow-blue-500/10 hover:-translate-y-2 transition-all duration-500 overflow-hidden text-left"
-                                                >
-                                                    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-950/30 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-blue-900/40 transition-colors" />
-                                                    <div className="bg-slate-900 w-16 h-16 rounded-2xl flex items-center justify-center mb-6 border border-slate-800 group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-500 transition-all duration-500 shadow-inner">
-                                                        <ClipboardList className="w-8 h-8 text-blue-400" />
-                                                    </div>
-                                                    <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">
-                                                        Công việc hôm nay
-                                                    </h3>
-                                                    <p className="text-sm text-slate-400 font-medium leading-relaxed">
-                                                        Báo cáo tiến độ checklist, khó khăn và kế hoạch làm việc.
-                                                    </p>
-                                                    <div className="mt-8 flex items-center gap-2 text-blue-500 font-black text-xs uppercase tracking-widest transition-all duration-500">
-                                                        Báo cáo công việc{" "}
-                                                        <ChevronDown className="-rotate-90 w-3 h-3 stroke-[3]" />
-                                                    </div>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ) : dailySubtype === "traffic" ? (
-                                        <div className="space-y-6">
-                                            <div className="px-4">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setDailySubtype("select")}
-                                                    className="relative z-[500] flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-50/50 text-blue-600 hover:bg-blue-100 hover:text-blue-700 font-bold transition-all group border border-blue-100/50 shadow-sm cursor-pointer"
-                                                >
-                                                    <ChevronDown className="rotate-90 w-4 h-4 group-hover:-translate-x-1 transition-transform" />{" "}
-                                                    Quay lại
+                                                    <ChevronDown className="rotate-90 w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                                                    Quay lại chọn Đối tượng
                                                 </button>
                                             </div>
                                             <div className="bg-white/50 backdrop-blur-sm rounded-[3rem] p-8 border border-slate-100 shadow-inner">
                                                 <ChecklistContainer
-                                                    key="traffic"
-                                                    mode="member"
-                                                    showOnlyTraffic={true}
+                                                    key="work"
+                                                    mode={reportMode}
+                                                    showOnlyWork={true}
                                                     onSuccess={() => fetchReports(false)}
                                                 />
                                             </div>
                                         </div>
-                                    ) : (
-                                        <>
-                                            {reportMode === "select" ? (
-                                                <div className="space-y-6">
-                                                    <div className="px-4">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setDailySubtype("select")}
-                                                            className="relative z-[500] flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100/80 text-slate-700 hover:bg-slate-200 font-bold transition-all group border border-slate-200 shadow-sm cursor-pointer"
-                                                        >
-                                                            <ChevronDown className="rotate-90 w-4 h-4 group-hover:-translate-x-1 transition-transform" />{" "}
-                                                            Quay lại
-                                                        </button>
-                                                    </div>
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-                                                        {(isAdminUser || !isLeaderUser) && (
-                                                            <button
-                                                                onClick={() => setReportMode("member")}
-                                                                className="group relative bg-slate-950 p-8 rounded-[3rem] border border-slate-800 shadow-2xl hover:shadow-blue-500/10 hover:-translate-y-2 transition-all duration-500 overflow-hidden text-left"
-                                                            >
-                                                                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-950/30 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-blue-900/40 transition-colors" />
-                                                                <div className="bg-slate-900 w-16 h-16 rounded-2xl flex items-center justify-center mb-6 border border-slate-800 group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-500 transition-all duration-500 shadow-inner">
-                                                                    <User className="w-8 h-8 text-blue-400" />
-                                                                </div>
-                                                                <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">
-                                                                    Báo cáo Member
-                                                                </h3>
-                                                                <p className="text-sm text-slate-400 font-medium leading-relaxed">
-                                                                    Dành cho Editor & Content báo cáo tiến độ checklist
-                                                                    và khó khăn hàng ngày.
-                                                                </p>
-                                                                <div className="mt-8 flex items-center gap-2 text-blue-500 font-black text-xs uppercase tracking-widest transition-all duration-500">
-                                                                    Bắt đầu báo cáo{" "}
-                                                                    <ChevronDown className="-rotate-90 w-3 h-3 stroke-[3]" />
-                                                                </div>
-                                                            </button>
-                                                        )}
-                                                        {(isAdminUser || isLeaderUser) && (
-                                                            <button
-                                                                onClick={() => setReportMode("leader")}
-                                                                className="group relative bg-slate-950 p-8 rounded-[3rem] border border-slate-800 shadow-2xl hover:shadow-indigo-500/10 hover:-translate-y-2 transition-all duration-500 overflow-hidden text-left"
-                                                            >
-                                                                <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-950/30 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-indigo-900/40 transition-colors" />
-                                                                <div className="bg-slate-900 w-16 h-16 rounded-2xl flex items-center justify-center mb-6 border border-slate-800 group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-500 transition-all duration-500 shadow-inner">
-                                                                    <ShieldCheck className="w-8 h-8 text-indigo-400" />
-                                                                </div>
-                                                                <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">
-                                                                    Báo cáo Leader
-                                                                </h3>
-                                                                <p className="text-sm text-slate-400 font-medium leading-relaxed">
-                                                                    Dành cho Team Leader đánh giá chất lượng và quản lý
-                                                                    nhân sự hàng ngày.
-                                                                </p>
-                                                                <div className="mt-8 flex items-center gap-2 text-indigo-500 font-black text-xs uppercase tracking-widest transition-all duration-500">
-                                                                    Bắt đầu đánh giá{" "}
-                                                                    <ChevronDown className="-rotate-90 w-3 h-3 stroke-[3]" />
-                                                                </div>
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div className="space-y-6">
-                                                    <div className="flex items-center justify-between px-4">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setReportMode("select")}
-                                                            className="relative z-[500] flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100/80 text-slate-700 hover:bg-slate-200 font-bold transition-all group border border-slate-200 shadow-sm cursor-pointer"
-                                                        >
-                                                            <ChevronDown className="rotate-90 w-4 h-4 group-hover:-translate-x-1 transition-transform" />{" "}
-                                                            Quay lại chọn Đối tượng
-                                                        </button>
-                                                    </div>
-                                                    <div className="bg-white/50 backdrop-blur-sm rounded-[3rem] p-8 border border-slate-100 shadow-inner">
-                                                        <ChecklistContainer
-                                                            key="work"
-                                                            mode={reportMode}
-                                                            showOnlyWork={true}
-                                                            onSuccess={() => fetchReports(false)}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </>
                                     )}
                                 </>
                             ) : (
-                                <div className="space-y-6">
-                                    <div className="px-4">
-                                        <button
-                                            type="button"
-                                            onClick={() => setReportType("select")}
-                                            className="relative z-[500] flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100/80 text-slate-700 hover:bg-slate-200 font-bold transition-all group border border-slate-200 shadow-sm cursor-pointer"
-                                        >
-                                            <ChevronDown className="rotate-90 w-4 h-4 group-hover:-translate-x-1 transition-transform" />{" "}
-                                            Quay lại chọn Loại
-                                        </button>
-                                    </div>
-                                    <div className="bg-white/50 backdrop-blur-sm rounded-[3rem] p-20 border border-slate-100 shadow-inner text-center">
-                                        <BarChart3 className="w-16 h-16 text-slate-200 mx-auto mb-6" />
-                                        <h3 className="text-xl font-black text-slate-400 uppercase tracking-[0.2em]">
-                                            Tính năng Báo cáo tháng
-                                        </h3>
-                                        <p className="text-slate-400 mt-2 text-sm">
-                                            Đang được phát triển. Vui lòng quay lại sau!
-                                        </p>
-                                    </div>
+                                // Fallback: không có type param hợp lệ
+                                <div className="bg-white/50 backdrop-blur-sm rounded-[3rem] p-20 border border-slate-100 shadow-inner text-center">
+                                    <FileText className="w-16 h-16 text-slate-200 mx-auto mb-6" />
+                                    <p className="text-slate-400 mt-2 text-sm">Vui lòng chọn loại báo cáo từ menu.</p>
                                 </div>
                             )}
                         </div>

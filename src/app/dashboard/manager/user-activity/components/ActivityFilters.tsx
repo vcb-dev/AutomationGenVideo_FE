@@ -386,231 +386,213 @@ const ActivityFilters = ({
 
     return (
         <div
-            className={`flex flex-col lg:flex-row lg:items-center justify-between gap-y-3 gap-x-12 ${isNavbar ? "py-1 px-1" : "py-2 px-2"}`}
+            className={`flex lg:flex-row lg:items-center justify-between gap-y-3 gap-x-6 ${isNavbar ? "py-1 px-1" : "py-2 px-2"}`}
         >
             {canSeeTeamFilter && (
-                <div className="flex flex-wrap items-center gap-4" ref={dropdownRef}>
-                    <div className="flex items-center gap-2 px-4 py-2 bg-blue-50/50 rounded-xl border border-blue-100/50 mr-4">
-                        <Layers className="w-5 h-5 text-blue-500" />
-                        <span className="text-[14px] font-black text-slate-950 uppercase tracking-widest">
-                            Nhóm Team
+                <div className="flex flex-wrap items-center gap-2.5" ref={dropdownRef}>
+
+                    {/* Label */}
+                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-xl border border-slate-200">
+                        <Layers className="w-4 h-4 text-slate-500" />
+                        <span className="text-[12px] font-semibold text-slate-600 uppercase tracking-widest">
+                            Team
                         </span>
                     </div>
 
                     {/* ALL Button */}
                     <button
                         onClick={() => handleSelectTeam("All")}
-                        className={`px-6 py-2 rounded-xl text-[16px] font-black transition-all duration-300 border flex items-center gap-2 ${isAllActive
-                                ? "bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-200"
-                                : "bg-blue-50 text-blue-600 border-blue-100 hover:border-blue-300 hover:bg-blue-100"
-                            }`}
+                        className={`px-4 py-2 rounded-xl text-[13px] font-semibold transition-all duration-200 border flex items-center gap-2 ${
+                            isAllActive
+                                ? "bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-200"
+                                : "bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50"
+                        }`}
                     >
-                        ALL
+                        <span className={`w-1.5 h-1.5 rounded-full ${isAllActive ? "bg-blue-200" : "bg-slate-300"}`} />
+                        Tất cả
                     </button>
 
-                    {/* Global Dropdown */}
+                    {/* Combined Teams Dropdown */}
                     <div className="relative">
                         <button
-                            onClick={() => toggleDropdown("global")}
-                            className={`px-6 py-2 rounded-xl text-[16px] font-black transition-all duration-300 border flex items-center gap-2 ${isGlobalActive
-                                    ? "bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-200"
-                                    : "bg-blue-50 text-blue-600 border-blue-100 hover:border-blue-300 hover:bg-blue-100"
-                                }`}
+                            onClick={() => toggleDropdown("teams")}
+                            className={`px-4 py-2 rounded-xl text-[13px] font-semibold transition-all duration-200 border flex items-center gap-2.5 ${
+                                isGlobalActive || isVNActive
+                                    ? "bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-200"
+                                    : "bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50"
+                            }`}
                         >
-                            <Globe className={`w-5 h-5 ${isGlobalActive ? "text-blue-200" : "text-blue-600"}`} />
-                            {getGlobalLabel()}
-                            <ChevronDown
-                                className={`w-5 h-5 transition-transform duration-300 ${openDropdown === "global" ? "rotate-180 text-blue-400" : ""}`}
-                            />
-                        </button>
-
-                        <AnimatePresence>
-                            {openDropdown === "global" && (
-                                <motion.div
-                                    variants={dropdownVariants}
-                                    initial="hidden"
-                                    animate="visible"
-                                    exit="exit"
-                                    transition={{ duration: 0.2, ease: "easeOut" }}
-                                    className="absolute top-full left-0 mt-2 w-52 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-[60] py-1"
-                                >
-                                    {/* All Global option */}
-                                    <button
-                                        onClick={() => handleSelectTeam("All Global")}
-                                        className="w-full flex items-center justify-between px-4 py-3 text-left text-xs font-bold text-blue-700 bg-blue-50/50 hover:bg-blue-100 transition-colors border-b border-blue-100/50"
-                                    >
-                                        <span className="flex items-center gap-2">
-                                            {activeTeam === "All Global" && (
-                                                <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />
-                                            )}
-                                            🌏 Tất cả Global
-                                        </span>
-                                        {activeTeam === "All Global" && <Check className="w-3.5 h-3.5 text-blue-600" />}
-                                    </button>
-                                    {globalTeams.map((team: string) => (
-                                        <button
-                                            key={team}
-                                            onClick={() => handleSelectTeam(team)}
-                                            className="w-full flex items-center justify-between px-4 py-3 text-left text-xs font-semibold text-gray-600 hover:bg-blue-50 hover:text-blue-700 transition-colors"
-                                        >
-                                            <span className="flex items-center gap-2">
-                                                {activeTeam === team && (
-                                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />
-                                                )}
-                                                {team.toLowerCase().includes("global - indo") && (
-                                                    <Image
-                                                        src="/indo-flag.png"
-                                                        alt="INDO"
-                                                        className="w-5 h-3.5 object-contain rounded-sm filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.4)]"
-                                                        width={20}
-                                                        height={14}
-                                                        unoptimized
-                                                    />
-                                                )}
-                                                {team.toLowerCase().includes("global thái lan") && (
-                                                    <Image
-                                                        src="/thailand-flag.png"
-                                                        alt="TH"
-                                                        className="w-5 h-3.5 object-contain rounded-sm filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.4)]"
-                                                        width={20}
-                                                        height={14}
-                                                        unoptimized
-                                                    />
-                                                )}
-                                                {(team.toLowerCase().includes("jp") ||
-                                                    team.toLowerCase().includes("nhật bản")) && (
-                                                        <Image
-                                                            src="/japan-flag.png"
-                                                            alt="JP"
-                                                            className="w-5 h-3.5 object-contain rounded-sm border border-gray-100 filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.4)]"
-                                                            width={20}
-                                                            height={14}
-                                                            unoptimized
-                                                        />
-                                                    )}
-                                                {team.toLowerCase().includes("đài loan") && (
-                                                    <Image
-                                                        src="/taiwan-flag.png"
-                                                        alt="TW"
-                                                        className="w-5 h-3.5 object-contain rounded-sm filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.4)]"
-                                                        width={20}
-                                                        height={14}
-                                                        unoptimized
-                                                    />
-                                                )}
-                                                {team}
-                                            </span>
-                                            {activeTeam === team && <Check className="w-3.5 h-3.5 text-blue-600" />}
-                                        </button>
-                                    ))}
-                                </motion.div>
+                            {isVNActive ? (
+                                <Image src="/vn-flag.png" alt="VN" className="w-5 h-3.5 object-contain rounded-sm" width={20} height={14} unoptimized />
+                            ) : isGlobalActive ? (
+                                <Globe className={`w-4 h-4 ${isGlobalActive ? "text-blue-200" : "text-slate-500"}`} />
+                            ) : (
+                                <Globe className="w-4 h-4 text-slate-400" />
                             )}
-                        </AnimatePresence>
-                    </div>
-
-                    {/* Việt Nam Dropdown */}
-                    <div className="relative">
-                        <button
-                            onClick={() => toggleDropdown("vietnam")}
-                            className={`px-6 py-2 rounded-xl text-[16px] font-black transition-all duration-300 border flex items-center gap-2 ${isVNActive
-                                    ? "bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-200"
-                                    : "bg-blue-50 text-blue-600 border-blue-100 hover:border-blue-300 hover:bg-blue-100"
-                                }`}
-                        >
-                            <Image src="/vn-flag.png" alt="VN" className="w-7 h-5 object-contain rounded-sm filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]" width={28} height={20} unoptimized />
-                            {getVNLabel()}
-                            <ChevronDown
-                                className={`w-5 h-5 transition-transform duration-300 ${openDropdown === "vietnam" ? "rotate-180 text-blue-400" : ""}`}
-                            />
+                            <span>
+                                {isGlobalActive ? getGlobalLabel() : isVNActive ? getVNLabel() : "Chọn Team"}
+                            </span>
+                            <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${openDropdown === "teams" ? "rotate-180" : ""} ${isGlobalActive || isVNActive ? "text-blue-200" : "text-slate-400"}`} />
                         </button>
 
                         <AnimatePresence>
-                            {openDropdown === "vietnam" && (
+                            {openDropdown === "teams" && (
                                 <motion.div
-                                    variants={dropdownVariants}
-                                    initial="hidden"
-                                    animate="visible"
-                                    exit="exit"
-                                    transition={{ duration: 0.2, ease: "easeOut" }}
-                                    className="absolute top-full left-0 mt-2 w-52 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-[60] py-1"
+                                    initial={{ opacity: 0, y: 6, scale: 0.98 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: 6, scale: 0.98 }}
+                                    transition={{ duration: 0.15, ease: "easeOut" }}
+                                    className="absolute top-full left-0 mt-2 w-[480px] bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden z-[60]"
                                 >
-                                    {/* All VN option */}
-                                    <button
-                                        onClick={() => handleSelectTeam("All VN")}
-                                        className="w-full flex items-center justify-between px-4 py-3 text-left text-xs font-bold text-blue-700 bg-blue-50/50 hover:bg-blue-100 transition-colors border-b border-blue-100/50"
-                                    >
-                                        <span className="flex items-center gap-2">
-                                            {activeTeam === "All VN" && (
-                                                <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />
-                                            )}
-                                            <Image
-                                                src="/vn-flag.png"
-                                                alt="VN"
-                                                className="w-6 h-4 object-contain rounded-sm filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]"
-                                                width={24}
-                                                height={16}
-                                                unoptimized
-                                            />
-                                            Tất cả VN
-                                        </span>
-                                        {activeTeam === "All VN" && <Check className="w-3.5 h-3.5 text-blue-600" />}
-                                    </button>
-                                    {vnTeams.map((team: string) => (
-                                        <button
-                                            key={team}
-                                            onClick={() => handleSelectTeam(team)}
-                                            className="w-full flex items-center justify-between px-4 py-3 text-left text-xs font-semibold text-gray-600 hover:bg-blue-50 hover:text-blue-700 transition-colors"
-                                        >
-                                            <span className="flex items-center gap-2">
-                                                {activeTeam === team && (
-                                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />
-                                                )}
-                                                {team}
-                                            </span>
-                                            {activeTeam === team && <Check className="w-3.5 h-3.5 text-blue-600" />}
-                                        </button>
-                                    ))}
+                                    <div className="grid md:grid-cols-2  divide-x divide-slate-100">
+
+                                        {/* ── Global Column ── */}
+                                        <div className="flex flex-col">
+                                            {/* Column header */}
+                                            <div className="flex items-center gap-2 px-4 py-3 bg-amber-50 border-b border-amber-100">
+                                                <Globe className="w-4 h-4 text-amber-600" />
+                                                <span className="text-[11px] font-semibold text-amber-700 uppercase tracking-wider">Global</span>
+                                            </div>
+
+                                            {/* All Global */}
+                                            <button
+                                                onClick={() => handleSelectTeam("All Global")}
+                                                className={`w-full flex items-center justify-between px-4 py-2.5 text-left text-[13px] font-semibold transition-colors border-b border-slate-50 ${
+                                                    activeTeam === "All Global"
+                                                        ? "bg-blue-50 text-blue-700"
+                                                        : "text-slate-600 hover:bg-slate-50 hover:text-blue-700"
+                                                }`}
+                                            >
+                                                <span className="flex items-center gap-2">
+                                                    {activeTeam === "All Global" && <div className="w-1.5 h-1.5 rounded-full bg-blue-600 shrink-0" />}
+                                                    <span>Tất cả Global</span>
+                                                </span>
+                                                {activeTeam === "All Global" && <Check className="w-3.5 h-3.5 text-blue-600" />}
+                                            </button>
+
+                                            {/* Global teams */}
+                                            <div className="py-1">
+                                                {globalTeams.map((team: string) => (
+                                                    <button
+                                                        key={team}
+                                                        onClick={() => handleSelectTeam(team)}
+                                                        className={`w-full flex items-center justify-between px-4 py-2 text-left text-[12px] transition-colors ${
+                                                            activeTeam === team
+                                                                ? "bg-blue-50 text-blue-700 font-semibold"
+                                                                : "text-slate-500 hover:bg-slate-50 hover:text-blue-700 font-medium"
+                                                        }`}
+                                                    >
+                                                        <span className="flex items-center gap-2">
+                                                            {activeTeam === team && <div className="w-1.5 h-1.5 rounded-full bg-blue-600 shrink-0" />}
+                                                            {team.toLowerCase().includes("global - indo") && (
+                                                                <Image src="/indo-flag.png" alt="INDO" className="w-5 h-3.5 object-contain rounded-sm" width={20} height={14} unoptimized />
+                                                            )}
+                                                            {team.toLowerCase().includes("global thái lan") && (
+                                                                <Image src="/thailand-flag.png" alt="TH" className="w-5 h-3.5 object-contain rounded-sm" width={20} height={14} unoptimized />
+                                                            )}
+                                                            {(team.toLowerCase().includes("jp") || team.toLowerCase().includes("nhật bản")) && (
+                                                                <Image src="/japan-flag.png" alt="JP" className="w-5 h-3.5 object-contain rounded-sm border border-gray-100" width={20} height={14} unoptimized />
+                                                            )}
+                                                            {team.toLowerCase().includes("đài loan") && (
+                                                                <Image src="/taiwan-flag.png" alt="TW" className="w-5 h-3.5 object-contain rounded-sm" width={20} height={14} unoptimized />
+                                                            )}
+                                                            <span className="truncate max-w-[140px]">{team}</span>
+                                                        </span>
+                                                        {activeTeam === team && <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* ── Vietnam Column ── */}
+                                        <div className="flex flex-col">
+                                            {/* Column header */}
+                                            <div className="flex items-center gap-2 px-4 py-3 bg-blue-50 border-b border-blue-100">
+                                                <Image src="/vn-flag.png" alt="VN" className="w-5 h-3.5 object-contain rounded-sm" width={20} height={14} unoptimized />
+                                                <span className="text-[11px] font-semibold text-blue-700 uppercase tracking-wider">Việt Nam</span>
+                                            </div>
+
+                                            {/* All VN */}
+                                            <button
+                                                onClick={() => handleSelectTeam("All VN")}
+                                                className={`w-full flex items-center justify-between px-4 py-2.5 text-left text-[13px] font-semibold transition-colors border-b border-slate-50 ${
+                                                    activeTeam === "All VN"
+                                                        ? "bg-blue-50 text-blue-700"
+                                                        : "text-slate-600 hover:bg-slate-50 hover:text-blue-700"
+                                                }`}
+                                            >
+                                                <span className="flex items-center gap-2">
+                                                    {activeTeam === "All VN" && <div className="w-1.5 h-1.5 rounded-full bg-blue-600 shrink-0" />}
+                                                    <span>Tất cả VN</span>
+                                                </span>
+                                                {activeTeam === "All VN" && <Check className="w-3.5 h-3.5 text-blue-600" />}
+                                            </button>
+
+                                            {/* VN teams */}
+                                            <div className="py-1">
+                                                {vnTeams.map((team: string) => (
+                                                    <button
+                                                        key={team}
+                                                        onClick={() => handleSelectTeam(team)}
+                                                        className={`w-full flex items-center justify-between px-4 py-2 text-left text-[12px] transition-colors ${
+                                                            activeTeam === team
+                                                                ? "bg-blue-50 text-blue-700 font-semibold"
+                                                                : "text-slate-500 hover:bg-slate-50 hover:text-blue-700 font-medium"
+                                                        }`}
+                                                    >
+                                                        <span className="flex items-center gap-2">
+                                                            {activeTeam === team && <div className="w-1.5 h-1.5 rounded-full bg-blue-600 shrink-0" />}
+                                                            <span className="truncate max-w-[140px]">{team}</span>
+                                                        </span>
+                                                        {activeTeam === team && <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                    </div>
                                 </motion.div>
                             )}
                         </AnimatePresence>
                     </div>
                 </div>
             )}
+
             {showTeamLabel && (
-                <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-xl border border-blue-100">
-                    <Layers className="w-3.5 h-3.5 text-blue-600" />
-                    <span className="text-xs font-bold text-blue-800 uppercase tracking-wider">Team: {userTeam}</span>
+                <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
+                    <Layers className="w-3.5 h-3.5 text-slate-500" />
+                    <span className="text-[12px] font-semibold text-slate-700 uppercase tracking-wider">
+                        Team: {userTeam}
+                    </span>
                 </div>
             )}
 
-            <div className="flex flex-wrap items-center gap-4 self-end lg:self-auto lg:ml-auto" ref={timeFilterRef}>
-                {/* Unified Time Filter */}
-                <div className="relative group/time">
+            <div className="flex flex-wrap items-center gap-2.5 self-end lg:self-auto lg:ml-auto" ref={timeFilterRef}>
+
+                {/* ── Time Filter ── */}
+                <div className="relative ">
                     <button
                         onClick={() => toggleDropdown("timeSelector")}
-                        className={`flex items-center gap-4 px-6 py-3 rounded-xl border transition-all duration-300 shadow-sm hover:shadow-md group ${openDropdown === "timeSelector" || timeType !== "today"
-                                ? "bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-200"
-                                : "bg-blue-50/60 border-blue-100/50 text-blue-600/70 hover:border-blue-300"
-                            }`}
+                        className={`flex items-center gap-3 px-4 py-2 rounded-xl border transition-all duration-200 group ${
+                            openDropdown === "timeSelector" || timeType !== "today"
+                                ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-200"
+                                : "bg-white border-slate-200 text-slate-600 hover:border-blue-300 hover:bg-blue-50"
+                        }`}
                     >
-                        <Calendar
-                            className={`w-5 h-5 ${openDropdown === "timeSelector" || timeType !== "today" ? "text-blue-100" : "text-blue-500"}`}
-                        />
+                        <Calendar className={`w-4 h-4 ${openDropdown === "timeSelector" || timeType !== "today" ? "text-blue-200" : "text-slate-400"}`} />
                         <div className="flex flex-col items-start leading-tight">
-                            <span
-                                className={`text-[11px] font-bold uppercase tracking-wider ${openDropdown === "timeSelector" || timeType !== "today" ? "text-blue-200" : "text-blue-500 group-hover:text-blue-400"}`}
-                            >
+                            <span className={`text-[10px] font-semibold uppercase tracking-wider ${
+                                openDropdown === "timeSelector" || timeType !== "today" ? "text-blue-200" : "text-slate-400"
+                            }`}>
                                 {timeType === "custom"
                                     ? "Khoảng thời gian"
-                                    : filterMode === "month"
-                                        ? "Tháng"
-                                        : filterMode === "year"
-                                            ? "Năm"
-                                            : timeOptions.find((opt) => opt.id === timeType)?.label || "Thời gian"}
+                                    : filterMode === "month" ? "Tháng"
+                                    : filterMode === "year" ? "Năm"
+                                    : timeOptions.find((opt) => opt.id === timeType)?.label || "Thời gian"}
                             </span>
-                            <span
-                                className={`text-[15px] font-black leading-none ${openDropdown === "timeSelector" || timeType !== "today" ? "text-white" : "text-slate-900"}`}
-                            >
+                            <span className={`text-[13px] font-semibold leading-none ${
+                                openDropdown === "timeSelector" || timeType !== "today" ? "text-white" : "text-slate-800"
+                            }`}>
                                 {filterMode === "year"
                                     ? dateRange.start.getFullYear()
                                     : filterMode === "month"
@@ -620,53 +602,49 @@ const ActivityFilters = ({
                                             : formatDate(selectedDate)}
                             </span>
                         </div>
-                        <ChevronDown
-                            className={`w-5 h-5 transition-transform duration-300 ${openDropdown === "timeSelector" ? "rotate-180" : ""}`}
-                        />
+                        <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${openDropdown === "timeSelector" ? "rotate-180" : ""} ${openDropdown === "timeSelector" || timeType !== "today" ? "text-blue-200" : "text-slate-400"}`} />
                     </button>
 
-                    {/* Quick Clear Time Filter Button - Top Right Edge */}
                     {timeType !== "today" && (
                         <motion.button
                             initial={{ scale: 0, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             whileHover={{ scale: 1.1 }}
                             whileTap={{ scale: 0.9 }}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                handleSelectTimeType("today");
-                            }}
-                            className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-red-600 transition-colors z-10 border-2 border-white"
-                            title="Tắt bộ lọc thời gian"
+                            onClick={(e) => { e.stopPropagation(); handleSelectTimeType("today"); }}
+                            className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center shadow-md hover:bg-red-600 transition-colors z-10 border-2 border-white"
+                            title="Xóa bộ lọc"
                         >
-                            <X className="w-2.5 h-2.5 font-bold" />
+                            <X className="w-2.5 h-2.5" />
                         </motion.button>
                     )}
 
                     <AnimatePresence>
                         {openDropdown === "timeSelector" && (
                             <motion.div
-                                initial={{ opacity: 0, y: 8, scale: 0.97 }}
+                                initial={{ opacity: 0, y: 4, scale: 0.98 }}
                                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                                exit={{ opacity: 0, y: 8, scale: 0.97 }}
-                                transition={{ duration: 0.18, ease: "easeOut" }}
-                                className="absolute top-full mt-2 right-0 bg-white rounded-2xl shadow-2xl border border-gray-100 z-[80] overflow-hidden"
-                                style={{ width: filterMode === "range" ? 560 : 460 }}
+                                exit={{ opacity: 0, y: 4, scale: 0.98 }}
+                                transition={{ duration: 0.15, ease: "easeOut" }}
+                                className="absolute top-full mt-2 right-0 bg-white rounded-2xl shadow-2xl border border-slate-100 z-[80] overflow-hidden"
+                                style={{ width: 'min(460px, calc(100vw - 24px))' }}
                             >
-                                <div className="flex">
-                                    {/* Left: Quick Presets */}
-                                    <div className="w-44 bg-gray-50 border-r border-gray-100 p-3 flex flex-col gap-1">
-                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2 mb-1">Nhanh</p>
+                                <div className="flex flex-col sm:flex-row">
+
+                                    {/* Quick Presets — horizontal on mobile, vertical on sm+ */}
+                                    <div className="sm:w-36 bg-slate-50 border-b sm:border-b-0 sm:border-r border-slate-100 p-2 flex flex-row sm:flex-col flex-wrap gap-1">
+                                        <p className="w-full text-[9px] font-bold text-slate-400 uppercase tracking-widest px-2 mb-1 hidden sm:block">Nhanh</p>
                                         {timeOptions.map((opt) => {
                                             const isActive = timeType === opt.id;
                                             return (
                                                 <button
                                                     key={opt.id}
                                                     onClick={() => handleSelectTimeType(opt.id)}
-                                                    className={`w-full text-left px-3 py-2 rounded-xl text-[13px] font-semibold transition-all flex items-center gap-2 ${isActive
-                                                            ? "bg-blue-600 text-white shadow-sm"
-                                                            : "text-gray-600 hover:bg-white hover:text-blue-700 hover:shadow-sm"
-                                                        }`}
+                                                    className={`px-3 py-1.5 sm:w-full text-left rounded-lg text-[12px] font-medium transition-all flex items-center gap-2 ${
+                                                        isActive
+                                                            ? "bg-blue-600 text-white"
+                                                            : "text-slate-600 hover:bg-white hover:text-blue-700"
+                                                    }`}
                                                 >
                                                     {isActive && <div className="w-1.5 h-1.5 rounded-full bg-blue-200 shrink-0" />}
                                                     {opt.label}
@@ -675,18 +653,19 @@ const ActivityFilters = ({
                                         })}
                                     </div>
 
-                                    {/* Right: Calendar / Month / Year picker */}
-                                    <div className="flex-1 p-4 flex flex-col">
-                                        {/* Mode tabs */}
-                                        <div className="flex items-center gap-1 p-1 bg-gray-100 rounded-xl mb-4">
+                                    {/* Calendar Panel */}
+                                    <div className="flex-1 p-3 flex flex-col min-w-0">
+                                        {/* Mode Tabs */}
+                                        <div className="flex items-center gap-0.5 p-1 bg-slate-100 rounded-xl mb-3">
                                             {(["day", "week", "month", "year", "range"] as const).map((mode) => (
                                                 <button
                                                     key={mode}
                                                     onClick={() => setFilterMode(mode)}
-                                                    className={`flex-1 py-1.5 text-[11px] font-black uppercase tracking-wide rounded-lg transition-all ${filterMode === mode
+                                                    className={`flex-1 py-1 text-[10px] font-bold uppercase tracking-wide rounded-lg transition-all ${
+                                                        filterMode === mode
                                                             ? "bg-white text-blue-600 shadow-sm"
-                                                            : "text-gray-400 hover:text-gray-700"
-                                                        }`}
+                                                            : "text-slate-400 hover:text-slate-600"
+                                                    }`}
                                                 >
                                                     {mode === "day" ? "Ngày" : mode === "week" ? "Tuần" : mode === "month" ? "Tháng" : mode === "year" ? "Năm" : "Khoảng"}
                                                 </button>
@@ -695,29 +674,24 @@ const ActivityFilters = ({
 
                                         {filterMode === "month" ? (
                                             <>
-                                                {/* Year navigator for month picker */}
                                                 <div className="flex items-center justify-between mb-3">
                                                     <button
                                                         onClick={() => { const d = new Date(viewDate); d.setFullYear(d.getFullYear() - 1); if (d.getFullYear() >= MIN_DATE.getFullYear()) setViewDate(d); }}
                                                         disabled={viewDate.getFullYear() <= MIN_DATE.getFullYear()}
-                                                        className={`p-1.5 rounded-lg transition-colors ${viewDate.getFullYear() <= MIN_DATE.getFullYear() ? "text-gray-200 cursor-not-allowed" : "hover:bg-gray-100 text-gray-400 hover:text-gray-700"}`}
+                                                        className={`p-1.5 rounded-lg transition-colors ${viewDate.getFullYear() <= MIN_DATE.getFullYear() ? "text-slate-200 cursor-not-allowed" : "hover:bg-slate-100 text-slate-400 hover:text-slate-700"}`}
                                                     >
                                                         <ChevronDown className="w-4 h-4 rotate-90" />
                                                     </button>
-                                                    <span className="text-sm font-black text-gray-800">{viewDate.getFullYear()}</span>
+                                                    <span className="text-[13px] font-bold text-slate-800">{viewDate.getFullYear()}</span>
                                                     <button
-                                                        onClick={() => {
-                                                            const d = new Date(viewDate);
-                                                            d.setFullYear(d.getFullYear() + 1);
-                                                            if (d.getFullYear() <= new Date().getFullYear()) setViewDate(d);
-                                                        }}
+                                                        onClick={() => { const d = new Date(viewDate); d.setFullYear(d.getFullYear() + 1); if (d.getFullYear() <= new Date().getFullYear()) setViewDate(d); }}
                                                         disabled={viewDate.getFullYear() >= new Date().getFullYear()}
-                                                        className={`p-1.5 rounded-lg transition-colors ${viewDate.getFullYear() >= new Date().getFullYear() ? "text-gray-200 cursor-not-allowed" : "text-gray-400 hover:bg-gray-100 hover:text-gray-700"}`}
+                                                        className={`p-1.5 rounded-lg transition-colors ${viewDate.getFullYear() >= new Date().getFullYear() ? "text-slate-200 cursor-not-allowed" : "text-slate-400 hover:bg-slate-100 hover:text-slate-700"}`}
                                                     >
                                                         <ChevronDown className="w-4 h-4 -rotate-90" />
                                                     </button>
                                                 </div>
-                                                <div className="grid grid-cols-3 gap-2">
+                                                <div className="grid grid-cols-4 gap-1.5">
                                                     {Array.from({ length: 12 }).map((_, i) => {
                                                         const yr = viewDate.getFullYear();
                                                         const today = new Date();
@@ -731,14 +705,12 @@ const ActivityFilters = ({
                                                                 key={i}
                                                                 onClick={() => handleMonthSelect(i)}
                                                                 disabled={isDisabled}
-                                                                className={`py-3 rounded-xl text-xs font-bold border transition-all ${isActiveMon
-                                                                        ? "bg-blue-600 border-blue-600 text-white shadow-md"
-                                                                        : isCurrentMon
-                                                                            ? "border-blue-300 text-blue-600 bg-blue-50"
-                                                                            : isDisabled
-                                                                                ? "bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed opacity-50"
-                                                                                : "bg-white border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-700 hover:bg-blue-50"
-                                                                    }`}
+                                                                className={`py-2 rounded-lg text-[11px] font-semibold border transition-all ${
+                                                                    isActiveMon ? "bg-blue-600 border-blue-600 text-white"
+                                                                    : isCurrentMon ? "border-blue-300 text-blue-600 bg-blue-50"
+                                                                    : isDisabled ? "bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed opacity-50"
+                                                                    : "bg-white border-slate-200 text-slate-600 hover:border-blue-300 hover:text-blue-700 hover:bg-blue-50"
+                                                                }`}
                                                             >
                                                                 Th.{i + 1}
                                                             </button>
@@ -747,7 +719,7 @@ const ActivityFilters = ({
                                                 </div>
                                             </>
                                         ) : filterMode === "year" ? (
-                                            <div className="grid grid-cols-2 gap-3 mt-2">
+                                            <div className="grid grid-cols-3 gap-2">
                                                 {[2023, 2024, 2025, 2026, 2027, 2028].map((yr) => {
                                                     const isActiveYr = dateRange.start.getFullYear() === yr;
                                                     const isCurrentYr = new Date().getFullYear() === yr;
@@ -756,14 +728,12 @@ const ActivityFilters = ({
                                                             key={yr}
                                                             onClick={() => handleYearSelect(yr)}
                                                             disabled={yr > new Date().getFullYear()}
-                                                            className={`py-6 rounded-2xl text-xl font-black border transition-all ${isActiveYr
-                                                                    ? "bg-blue-600 border-blue-600 text-white shadow-md"
-                                                                    : isCurrentYr
-                                                                        ? "border-blue-300 text-blue-600 bg-blue-50"
-                                                                        : yr > new Date().getFullYear()
-                                                                            ? "bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed opacity-50"
-                                                                            : "bg-white border-gray-200 text-gray-700 hover:border-blue-300 hover:text-blue-700 hover:bg-blue-50"
-                                                                }`}
+                                                            className={`py-4 rounded-xl text-[15px] font-bold border transition-all ${
+                                                                isActiveYr ? "bg-blue-600 border-blue-600 text-white"
+                                                                : isCurrentYr ? "border-blue-300 text-blue-600 bg-blue-50"
+                                                                : yr > new Date().getFullYear() ? "bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed opacity-50"
+                                                                : "bg-white border-slate-200 text-slate-700 hover:border-blue-300 hover:text-blue-700 hover:bg-blue-50"
+                                                            }`}
                                                         >
                                                             {yr}
                                                         </button>
@@ -772,64 +742,47 @@ const ActivityFilters = ({
                                             </div>
                                         ) : (
                                             <>
-                                                {/* Calendar Header */}
-                                                <div className="flex items-center justify-between mb-3">
+                                                <div className="flex items-center justify-between mb-2">
                                                     <button
-                                                        onClick={() => {
-                                                            const prev = new Date(viewDate);
-                                                            prev.setMonth(prev.getMonth() - 1);
-                                                            if (prev >= new Date(MIN_DATE.getFullYear(), MIN_DATE.getMonth(), 1)) changeMonth(-1);
-                                                        }}
+                                                        onClick={() => { const prev = new Date(viewDate); prev.setMonth(prev.getMonth() - 1); if (prev >= new Date(MIN_DATE.getFullYear(), MIN_DATE.getMonth(), 1)) changeMonth(-1); }}
                                                         disabled={viewDate.getFullYear() === MIN_DATE.getFullYear() && viewDate.getMonth() <= MIN_DATE.getMonth()}
-                                                        className={`p-1.5 rounded-lg transition-colors ${viewDate.getFullYear() === MIN_DATE.getFullYear() && viewDate.getMonth() <= MIN_DATE.getMonth() ? "text-gray-200 cursor-not-allowed" : "text-gray-400 hover:bg-gray-100 hover:text-gray-700"}`}
+                                                        className={`p-1.5 rounded-lg transition-colors ${viewDate.getFullYear() === MIN_DATE.getFullYear() && viewDate.getMonth() <= MIN_DATE.getMonth() ? "text-slate-200 cursor-not-allowed" : "text-slate-400 hover:bg-slate-100 hover:text-slate-700"}`}
                                                     >
                                                         <ChevronDown className="w-4 h-4 rotate-90" />
                                                     </button>
-                                                    <span className="text-sm font-black text-gray-800 capitalize">
+                                                    <span className="text-[12px] font-bold text-slate-800 capitalize">
                                                         {viewDate.toLocaleString("vi-VN", { month: "long", year: "numeric" })}
                                                     </span>
                                                     <button
-                                                        onClick={() => {
-                                                            const today = new Date();
-                                                            const nextMonth = new Date(viewDate);
-                                                            nextMonth.setMonth(nextMonth.getMonth() + 1);
-                                                            if (nextMonth.getFullYear() < today.getFullYear() || (nextMonth.getFullYear() === today.getFullYear() && nextMonth.getMonth() <= today.getMonth())) {
-                                                                changeMonth(1);
-                                                            }
-                                                        }}
+                                                        onClick={() => { const today = new Date(); const nextMonth = new Date(viewDate); nextMonth.setMonth(nextMonth.getMonth() + 1); if (nextMonth.getFullYear() < today.getFullYear() || (nextMonth.getFullYear() === today.getFullYear() && nextMonth.getMonth() <= today.getMonth())) changeMonth(1); }}
                                                         disabled={viewDate.getFullYear() > new Date().getFullYear() || (viewDate.getFullYear() === new Date().getFullYear() && viewDate.getMonth() >= new Date().getMonth())}
-                                                        className={`p-1.5 rounded-lg transition-colors ${viewDate.getFullYear() > new Date().getFullYear() || (viewDate.getFullYear() === new Date().getFullYear() && viewDate.getMonth() >= new Date().getMonth()) ? "text-gray-200 cursor-not-allowed" : "text-gray-400 hover:bg-gray-100 hover:text-gray-700"}`}
+                                                        className={`p-1.5 rounded-lg transition-colors ${viewDate.getFullYear() > new Date().getFullYear() || (viewDate.getFullYear() === new Date().getFullYear() && viewDate.getMonth() >= new Date().getMonth()) ? "text-slate-200 cursor-not-allowed" : "text-slate-400 hover:bg-slate-100 hover:text-slate-700"}`}
                                                     >
                                                         <ChevronDown className="w-4 h-4 -rotate-90" />
                                                     </button>
                                                 </div>
 
-                                                {/* Day headers */}
-                                                <div className="grid grid-cols-7 gap-1 mb-1">
+                                                <div className="grid grid-cols-7 gap-0.5 mb-1">
                                                     {["CN", "T2", "T3", "T4", "T5", "T6", "T7"].map((d) => (
-                                                        <div key={d} className="text-center text-[10px] font-black text-gray-400 py-1">{d}</div>
+                                                        <div key={d} className="text-center text-[9px] font-bold text-slate-400 py-1">{d}</div>
                                                     ))}
                                                 </div>
 
-                                                {/* Day grid */}
-                                                <div className="grid grid-cols-7 gap-1">
+                                                <div className="grid grid-cols-7 gap-0.5">
                                                     {days.map((day, idx) => (
                                                         <div key={idx} className="aspect-square flex items-center justify-center">
                                                             {day ? (
                                                                 <button
                                                                     onClick={() => handleDateSelect(day)}
                                                                     disabled={isFuture(day) || isBeforeMin(day)}
-                                                                    className={`w-full h-full flex items-center justify-center text-[12px] font-semibold rounded-lg transition-all
-                                                                        ${isSelected(day) || (filterMode === "week" && isInRange(day))
-                                                                            ? "bg-blue-600 text-white shadow-sm font-bold"
-                                                                            : isInRange(day)
-                                                                                ? "bg-blue-100 text-blue-700"
-                                                                                : isToday(day)
-                                                                                    ? "bg-blue-50 text-blue-600 ring-2 ring-blue-400 ring-offset-1 font-bold"
-                                                                                    : (isFuture(day) || isBeforeMin(day))
-                                                                                        ? "text-gray-300 cursor-not-allowed opacity-50"
-                                                                                        : "hover:bg-gray-100 text-gray-700 hover:text-blue-700"
-                                                                        }`}
+                                                                    className={`w-full h-full flex items-center justify-center text-[11px] font-medium rounded-lg transition-all ${
+                                                                        isSelected(day) || (filterMode === "week" && isInRange(day))
+                                                                            ? "bg-blue-600 text-white font-bold"
+                                                                            : isInRange(day) ? "bg-blue-100 text-blue-700"
+                                                                            : isToday(day) ? "bg-blue-50 text-blue-600 ring-1 ring-blue-400 ring-offset-1 font-bold"
+                                                                            : (isFuture(day) || isBeforeMin(day)) ? "text-slate-300 cursor-not-allowed opacity-50"
+                                                                            : "hover:bg-slate-100 text-slate-700 hover:text-blue-700"
+                                                                    }`}
                                                                 >
                                                                     {day}
                                                                 </button>
@@ -840,13 +793,12 @@ const ActivityFilters = ({
                                                     ))}
                                                 </div>
 
-                                                {/* Range hint */}
                                                 {filterMode === "range" && (
-                                                    <div className="mt-3 px-2 py-2 bg-blue-50 rounded-xl flex items-center gap-2">
-                                                        <Calendar className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                                                        <span className="text-[11px] text-blue-700 font-semibold">
+                                                    <div className="mt-2 px-2.5 py-1.5 bg-blue-50 rounded-lg flex items-center gap-2">
+                                                        <Calendar className="w-3 h-3 text-blue-500 shrink-0" />
+                                                        <span className="text-[10px] text-blue-700 font-medium truncate">
                                                             {dateRange.start.getTime() === dateRange.end.getTime()
-                                                                ? `Chọn ngày kết thúc`
+                                                                ? "Chọn ngày kết thúc"
                                                                 : `${formatDate(dateRange.start)} → ${formatDate(dateRange.end)}`}
                                                         </span>
                                                     </div>
@@ -854,10 +806,10 @@ const ActivityFilters = ({
                                             </>
                                         )}
 
-                                        <div className="mt-4 flex justify-end">
+                                        <div className="mt-3 flex justify-end">
                                             <button
                                                 onClick={() => setOpenDropdown(null)}
-                                                className="px-5 py-2 text-[12px] font-black text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-all uppercase tracking-widest shadow-sm"
+                                                className="px-4 py-1.5 text-[11px] font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-all uppercase tracking-wider"
                                             >
                                                 Xong
                                             </button>
@@ -869,43 +821,39 @@ const ActivityFilters = ({
                     </AnimatePresence>
                 </div>
 
-                {/* Name Filter - visible to all roles */}
-                {true && (
-                    <div className="relative group">
-                        <div
-                            className={`flex items-center gap-3 px-4 py-2 rounded-xl border transition-all duration-300 shadow-sm focus-within:shadow-md focus-within:border-blue-400 group-hover:border-blue-200 ${searchName ? "bg-blue-600 border-blue-600 text-white" : "bg-blue-50/60 border-blue-100/50"}`}
-                        >
-                            <Search
-                                className={`w-5 h-5 transition-colors ${searchName ? "text-white" : "text-blue-600"}`}
-                            />
-                            <input
-                                type="text"
-                                placeholder="Tìm tên..."
-                                value={searchName}
-                                onChange={(e) => setSearchName(e.target.value)}
-                                className={`bg-transparent border-none focus:outline-none text-[16px] font-black w-36 placeholder:font-normal ${searchName ? "text-white placeholder:text-blue-200" : "text-slate-950 placeholder:text-slate-400"}`}
-                            />
-                            {searchName && (
-                                <button
-                                    onClick={() => setSearchName("")}
-                                    className="p-1 hover:bg-white/20 rounded-full transition-colors"
-                                >
-                                    <X className="w-4 h-4 text-white" />
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                )}
+                {/* ── Name Search ── */}
+                <div
+                    className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border transition-all duration-200 ${
+                        searchName
+                            ? "bg-blue-600 border-blue-600"
+                            : "bg-white border-slate-200 hover:border-blue-300 focus-within:border-blue-400"
+                    }`}
+                >
+                    <Search className={`w-4 h-4 shrink-0 ${searchName ? "text-blue-200" : "text-slate-400"}`} />
+                    <input
+                        type="text"
+                        placeholder="Tìm tên..."
+                        value={searchName}
+                        onChange={(e) => setSearchName(e.target.value)}
+                        className={`bg-transparent border-none focus:outline-none text-[13px] font-medium w-32 placeholder:font-normal ${
+                            searchName ? "text-white placeholder:text-blue-300" : "text-slate-800 placeholder:text-slate-400"
+                        }`}
+                    />
+                    {searchName && (
+                        <button onClick={() => setSearchName("")} className="p-0.5 hover:bg-white/20 rounded-full transition-colors">
+                            <X className="w-3.5 h-3.5 text-white" />
+                        </button>
+                    )}
+                </div>
 
-                {/* Screenshot Button */}
+                {/* ── Screenshot ── */}
                 {onCapture && (
                     <button
                         type="button"
                         onClick={onCapture}
-                        className="inline-flex items-center gap-3 px-5 py-2.5 rounded-xl text-[14px] font-black uppercase tracking-widest
-                                   bg-slate-900 text-white hover:bg-black transition-all shadow-sm hover:shadow-md ml-1"
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-semibold bg-slate-900 text-white hover:bg-black transition-all"
                     >
-                        <Camera className="w-5 h-5" />
+                        <Camera className="w-4 h-4" />
                         Chụp
                     </button>
                 )}

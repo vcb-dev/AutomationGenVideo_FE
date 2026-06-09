@@ -109,33 +109,42 @@ export function useNavMenus(
                             ...(isAdmin
                                 ? []
                                 : [
-                                      {
-                                          label: "Báo cáo",
-                                          href: "",
-                                          icon: FileText,
-                                          description: "Báo cáo ngày & tháng của Leader / Member",
-                                          subPanel: [
-                                              {
-                                                  label: "Báo cáo ngày",
-                                                  href: "/dashboard/manager/user-activity?tab=daily_report&report=daily",
-                                                  icon: Calendar,
-                                                  description:
-                                                      "Báo cáo và đánh giá công việc hàng ngày của Leader và Member.",
-                                                  cta: "Chọn loại báo cáo",
-                                                  accentColor: "blue" as const,
-                                              },
-                                              {
-                                                  label: "Báo cáo tháng",
-                                                  href: "/dashboard/manager/user-activity?tab=daily_report&report=monthly",
-                                                  icon: BarChart3,
-                                                  description:
-                                                      "Tổng hợp dữ liệu hiệu suất, traffic và doanh thu theo chu kỳ tháng.",
-                                                  cta: "Xem báo cáo tháng",
-                                                  accentColor: "indigo" as const,
-                                              },
-                                          ],
-                                      },
-                                  ]),
+                                    {
+                                        label: "Báo cáo",
+                                        href: "",
+                                        icon: FileText,
+                                        description: "Báo cáo ngày & tháng của Leader / Member",
+                                        subPanel: [
+                                            {
+                                                label: "Báo cáo traffic",
+                                                href: "/dashboard/manager/user-activity?tab=daily_report&report=daily&type=traffic",
+                                                icon: BarChart3,
+                                                description: "Thống kê lượt xem, click, nguồn traffic theo ngày",
+                                                cta: "Xem báo cáo",
+                                                accentColor: "blue" as const,
+                                                group: "Báo cáo hằng ngày",
+                                            },
+                                            {
+                                                label: "Công việc hôm nay",
+                                                href: "/dashboard/manager/user-activity?tab=daily_report&report=daily&type=tasks",
+                                                icon: ClipboardList,
+                                                description: "Danh sách task & tiến độ trong ngày của member",
+                                                cta: "Xem công việc",
+                                                accentColor: "blue" as const,
+                                                group: "Báo cáo hằng ngày",
+                                            },
+                                            {
+                                                label: "Báo cáo tháng",
+                                                href: "/dashboard/manager/user-activity?tab=daily_report&report=monthly",
+                                                icon: CalendarDays,
+                                                description: "Tổng hợp hiệu suất, traffic và doanh thu theo tháng",
+                                                cta: "Xem báo cáo tháng",
+                                                accentColor: "indigo" as const,
+                                                group: "Báo cáo tháng",
+                                            },
+                                        ],
+                                    },
+                                ]),
                             {
                                 label: isAdmin ? "Xem báo cáo" : "Checklist",
                                 href: "/dashboard/manager/user-activity?tab=daily_checklist",

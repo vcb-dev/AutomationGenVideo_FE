@@ -10,77 +10,108 @@ interface NavSubPanelProps {
 export default function NavSubPanel({ item, onMouseEnter }: NavSubPanelProps) {
     if (!item.subPanel) return null;
 
+    // Group cards by group field (optional), fallback: all in one group
+    const groups: { label: string; items: typeof item.subPanel }[] = [];
+
+    item.subPanel.forEach((card) => {
+        const groupLabel = (card as any).group ?? "";
+        const existing = groups.find((g) => g.label === groupLabel);
+        if (existing) {
+            existing.items.push(card);
+        } else {
+            groups.push({ label: groupLabel, items: [card] });
+        }
+    });
+
     return (
         <div
             className="border-l border-white/[0.06] bg-[#0d1424] flex flex-col"
-            style={{ width: "400px" }}
+            style={{ width: "380px" }}
             onMouseEnter={onMouseEnter}
         >
+            {/* Header */}
             <div className="px-5 pt-4 pb-3 border-b border-white/[0.05]">
                 <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-violet-400">
-                    Chọn loại báo cáo
+                    Báo cáo
                 </p>
-                <p className="text-xs text-slate-500 mt-0.5">Báo cáo hiệu suất cho Leader & Member</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                    Báo cáo hiệu suất cho Leader & Member
+                </p>
             </div>
 
-            <div className="flex flex-col gap-3 p-4 flex-1">
-                {item.subPanel.map((card) => {
-                    const isBlue = card.accentColor === "blue";
-                    return (
-                        <Link
-                            key={card.label}
-                            href={card.href}
-                            onClick={() => {
-                                if (card.href.includes("tab=daily_report&report=daily")) {
-                                    window.dispatchEvent(new CustomEvent("resetUserActivityDailyReport", { detail: { type: "daily" } }));
-                                } else if (card.href.includes("tab=daily_report&report=monthly")) {
-                                    window.dispatchEvent(new CustomEvent("resetUserActivityDailyReport", { detail: { type: "monthly" } }));
-                                }
-                            }}
-                            className={`
-                                group/card relative bg-slate-950 p-5 rounded-2xl border overflow-hidden
-                                flex flex-col gap-3 transition-all duration-300
-                                ${
-                                    isBlue
-                                        ? "border-slate-800 hover:border-blue-500/40 hover:shadow-lg hover:shadow-blue-500/10"
-                                        : "border-slate-800 hover:border-indigo-500/40 hover:shadow-lg hover:shadow-indigo-500/10"
-                                }
-                            `}
-                        >
-                            <div
-                                className={`absolute top-0 right-0 w-24 h-24 rounded-full blur-2xl opacity-0 group-hover/card:opacity-30 transition-opacity duration-500 -mr-10 -mt-10 ${isBlue ? "bg-blue-600" : "bg-indigo-600"}`}
-                            />
+            {/* Cards */}
+            <div className="flex flex-col p-3 gap-1 flex-1">
+                {groups.map((group) => (
+                    <div key={group.label}>
+                        {/* Group label (only if non-empty) */}
+                        {group.label && (
+                            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-600 px-2.5 pt-2 pb-1">
+                                {group.label}
+                            </p>
+                        )}
 
-                            <div
-                                className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 border transition-colors duration-300 ${
-                                    isBlue
-                                        ? "bg-slate-900 border-slate-800 text-blue-400 group-hover/card:bg-blue-600 group-hover/card:border-blue-500 group-hover/card:text-white"
-                                        : "bg-slate-900 border-slate-800 text-indigo-400 group-hover/card:bg-indigo-600 group-hover/card:border-indigo-500 group-hover/card:text-white"
-                                }`}
-                            >
-                                <card.icon className="w-6 h-6" />
-                            </div>
+                        {group.items.map((card) => {
+                            const isBlue = card.accentColor === "blue";
+                            const accentText = isBlue ? "text-blue-400" : "text-indigo-400";
+                            const accentBg = isBlue
+                                ? "bg-slate-900 border-slate-800 text-blue-400 group-hover/card:bg-blue-600 group-hover/card:border-blue-500 group-hover/card:text-white"
+                                : "bg-slate-900 border-slate-800 text-indigo-400 group-hover/card:bg-indigo-600 group-hover/card:border-indigo-500 group-hover/card:text-white";
+                            const accentHover = isBlue
+                                ? "hover:bg-blue-500/[0.07] hover:border-blue-500/30"
+                                : "hover:bg-indigo-500/[0.07] hover:border-indigo-500/30";
 
-                            <div className="flex-1 min-w-0">
-                                <h4 className="text-sm font-black text-white uppercase tracking-tight leading-tight">
-                                    {card.label}
-                                </h4>
-                                <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{card.description}</p>
-                            </div>
+                            return (
+                                <Link
+                                    key={card.label}
+                                    href={card.href}
+                                    onClick={() => {
+                                        if (card.href.includes("tab=daily_report&report=daily")) {
+                                            window.dispatchEvent(
+                                                new CustomEvent("resetUserActivityDailyReport", {
+                                                    detail: { type: "daily" },
+                                                })
+                                            );
+                                        } else if (card.href.includes("tab=daily_report&report=monthly")) {
+                                            window.dispatchEvent(
+                                                new CustomEvent("resetUserActivityDailyReport", {
+                                                    detail: { type: "monthly" },
+                                                })
+                                            );
+                                        }
+                                    }}
+                                    className={`
+                                        group/card flex items-center gap-3 px-3 py-2.5 rounded-xl border border-transparent
+                                        transition-all duration-150 ${accentHover}
+                                    `}
+                                >
+                                    {/* Icon */}
+                                    <div
+                                        className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 border transition-colors duration-200 ${accentBg}`}
+                                    >
+                                        <card.icon className="w-4 h-4" />
+                                    </div>
 
-                            <div
-                                className={`flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest transition-colors duration-200 ${
-                                    isBlue
-                                        ? "text-blue-500 group-hover/card:text-blue-400"
-                                        : "text-indigo-500 group-hover/card:text-indigo-400"
-                                }`}
-                            >
-                                {card.cta}
-                                <ChevronRight className="w-3 h-3 stroke-[3] transition-transform duration-200 group-hover/card:translate-x-0.5" />
-                            </div>
-                        </Link>
-                    );
-                })}
+                                    {/* Text */}
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-slate-200 leading-tight group-hover/card:text-white transition-colors">
+                                            {card.label}
+                                        </p>
+                                        {card.description && (
+                                            <p className="text-xs text-slate-600 mt-0.5 leading-tight truncate">
+                                                {card.description}
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    {/* Arrow */}
+                                    <ChevronRight
+                                        className={`w-3.5 h-3.5 flex-shrink-0 transition-all duration-150 ${accentText} opacity-0 group-hover/card:opacity-100 group-hover/card:translate-x-0.5`}
+                                    />
+                                </Link>
+                            );
+                        })}
+                    </div>
+                ))}
             </div>
         </div>
     );

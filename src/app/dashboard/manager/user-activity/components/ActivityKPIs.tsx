@@ -75,81 +75,107 @@ const ActivityKPIs = ({ summary, teamContributions, groupContributions }: Activi
     return (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {kpis.map((kpi, idx) => (
-                <Card key={idx} className="relative bg-gradient-to-br from-white to-blue-50/30 border-slate-200/60 shadow-sm rounded-2xl overflow-hidden hover:shadow-md transition-all duration-300 border-b-2 border-b-blue-500">
-                    <CardContent className="p-3 relative z-10">
-                        <div className="flex justify-between items-center mb-2">
-                            <h3 className="text-[10px] font-black text-blue-600 uppercase tracking-widest leading-none">{kpi.title}</h3>
-                            <div className="bg-blue-600/5 p-1 rounded-lg">
-                                <Target className="w-2.5 h-2.5 text-blue-600" />
-                            </div>
-                        </div>
+                <Card
+                    key={idx}
+                    className="relative bg-white border border-slate-200/80 rounded-2xl overflow-hidden hover:border-blue-300 hover:shadow-xl transition-all duration-300"
+                >
+                    {/* Top accent bar */}
+                    <div className={`h-[3px] w-full ${kpi.percentage >= 100 ? 'bg-emerald-500' : 'bg-blue-500'}`} />
 
-                        {/* Row 1: Progress circle + main value */}
-                        <div className="flex items-center justify-center gap-3 mb-3">
-                            {kpi.groupKey !== 'channels' && (
-                                <div className="relative w-12 h-12 flex-shrink-0 flex items-center justify-center">
-                                    <svg className="w-full h-full transform -rotate-90">
-                                        <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-slate-100" />
-                                        <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="transparent"
-                                            strokeDasharray={125.6}
-                                            strokeDashoffset={125.6 * (1 - kpi.percentage / 100)}
+                    <CardContent className="p-5">
+
+                        {/* Header: title + value + ring */}
+                        <div className="flex justify-between items-start mb-4">
+                            <div>
+                                <p className="text-[11px] font-medium text-slate-400 uppercase tracking-widest mb-1.5">
+                                    {kpi.title}
+                                </p>
+                                <p className="text-[32px] font-semibold text-slate-900 leading-none tracking-tight">
+                                    {kpi.value}
+                                </p>
+                            </div>
+
+                            {kpi.groupKey !== 'channels' ? (
+                                <div className="relative w-14 h-14 flex-shrink-0 flex items-center justify-center">
+                                    <svg className="w-full h-full -rotate-90" viewBox="0 0 56 56">
+                                        <circle cx="28" cy="28" r="22" stroke="currentColor" strokeWidth="4.5"
+                                            fill="transparent" className="text-slate-100" />
+                                        <circle cx="28" cy="28" r="22" stroke="currentColor" strokeWidth="4.5"
+                                            fill="transparent"
+                                            strokeDasharray={138.2}
+                                            strokeDashoffset={138.2 * (1 - kpi.percentage / 100)}
                                             strokeLinecap="round"
-                                            className={`transition-all duration-1000 ${kpi.percentage >= 100 ? "text-emerald-500" : "text-blue-600"}`}
+                                            className={`transition-all duration-1000 ${kpi.percentage >= 100 ? 'text-emerald-500' : 'text-blue-500'}`}
                                         />
                                     </svg>
-                                    <span className="absolute text-[11px] font-black text-slate-900">{kpi.percentage}%</span>
+                                    <span className="absolute text-[12px] font-medium text-slate-700">
+                                        {kpi.percentage}%
+                                    </span>
+                                </div>
+                            ) : (
+                                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                                    <Target className="w-5 h-5 text-slate-400" />
                                 </div>
                             )}
-                            <div className="flex flex-col justify-center">
-                                <div className="text-[20px] sm:text-[24px] lg:text-[28px] font-black text-slate-900 leading-none mb-1.5 tracking-tighter whitespace-nowrap drop-shadow-sm">
-                                    {kpi.value}
-                                </div>
-                                <div className={`text-[10px] font-bold flex items-center gap-1 ${kpi.groupKey === 'channels' ? 'invisible' : 'text-blue-600/70'}`}>
-                                    <span className="w-1 h-1 rounded-full bg-blue-400 flex-shrink-0"></span>
-                                    MT: <span className="text-blue-700">{kpi.total}</span>
-                                </div>
-                            </div>
                         </div>
 
-                        {/* Row 2: Global / VN breakdown - always on its own row */}
-                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
+                        {/* Target row */}
+                        {kpi.groupKey !== 'channels' && (
+                            <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-slate-50 rounded-xl border border-slate-100">
+                                <Target className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                                <span className="text-[12px] text-slate-500">
+                                    Mục tiêu: <span className="font-semibold text-slate-700">{kpi.total}</span>
+                                </span>
+                            </div>
+                        )}
+
+                        {/* Divider */}
+                        <div className="border-t border-slate-100 mb-4" />
+
+                        {/* Global / VN breakdown */}
+                        <div className="grid grid-cols-2 gap-2.5">
+
                             {/* Global */}
-                            <div className="flex flex-col items-center">
-                                <div className="flex items-baseline gap-1 leading-none mb-0.5 flex-wrap justify-center">
-                                    <span className="text-base sm:text-lg font-black text-slate-800">
-                                        {formatNumber(groupContributions?.global?.[kpi.groupKey as keyof typeof groupContributions.global] || 0)}
+                            <div className="bg-amber-50 rounded-xl p-3 border border-amber-100">
+                                <div className="flex items-center gap-1.5 mb-2">
+                                    <Globe className="w-3.5 h-3.5 text-amber-500" />
+                                    <span className="text-[10px] font-medium text-amber-700 uppercase tracking-wide">
+                                        Global
                                     </span>
-                                    {kpi.groupKey !== 'channels' && (
-                                        <span className="text-[10px] sm:text-[11px] font-bold text-amber-500">
-                                            {groupContributions?.global?.[kpi.pctKey as keyof typeof groupContributions.global] || 0}%
-                                        </span>
-                                    )}
                                 </div>
-                                <div className="text-[9px] font-black text-amber-600/70 uppercase flex items-center gap-0.5">
-                                    <Globe className="w-2.5 h-2.5" />
-                                    Global
-                                </div>
+                                <p className="text-[20px] font-semibold text-slate-800 leading-none mb-1">
+                                    {formatNumber(groupContributions?.global?.[kpi.groupKey as keyof typeof groupContributions.global] || 0)}
+                                </p>
+                                {kpi.groupKey !== 'channels' && (
+                                    <p className="text-[12px] font-medium text-amber-600">
+                                        {groupContributions?.global?.[kpi.pctKey as keyof typeof groupContributions.global] || 0}%
+                                    </p>
+                                )}
                             </div>
 
                             {/* VN */}
-                            <div className="flex flex-col items-center">
-                                <div className="flex items-baseline gap-1 leading-none mb-0.5 flex-wrap justify-center">
-                                    {kpi.groupKey !== 'channels' && (
-                                        <span className="text-[10px] sm:text-[11px] font-bold text-blue-600">
-                                            {groupContributions?.vn?.[kpi.pctKey as keyof typeof groupContributions.vn] || 0}%
-                                        </span>
-                                    )}
-                                    <span className="text-base sm:text-lg font-black text-slate-800">
-                                        {formatNumber(groupContributions?.vn?.[kpi.groupKey as keyof typeof groupContributions.vn] || 0)}
+                            <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
+                                <div className="flex items-center gap-1.5 mb-2">
+                                    <Image src="/vn-flag.png" alt="VN"
+                                        className="w-[18px] h-3 rounded-sm object-cover"
+                                        width={18} height={12} unoptimized
+                                    />
+                                    <span className="text-[10px] font-medium text-blue-700 uppercase tracking-wide">
+                                        Vietnam
                                     </span>
                                 </div>
-                                <div className="text-[9px] font-black text-blue-600/70 uppercase flex items-center gap-0.5">
-                                    VN <Image src="/vn-flag.png" alt="VN" className="w-4 h-2.5 rounded-sm filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.4)]" width={16} height={10} unoptimized />
-                                </div>
+                                <p className="text-[20px] font-semibold text-slate-800 leading-none mb-1">
+                                    {formatNumber(groupContributions?.vn?.[kpi.groupKey as keyof typeof groupContributions.vn] || 0)}
+                                </p>
+                                {kpi.groupKey !== 'channels' && (
+                                    <p className="text-[12px] font-medium text-blue-600">
+                                        {groupContributions?.vn?.[kpi.pctKey as keyof typeof groupContributions.vn] || 0}%
+                                    </p>
+                                )}
                             </div>
+
                         </div>
                     </CardContent>
-
                 </Card>
             ))}
             {!hasAnyKpi && summary && (
