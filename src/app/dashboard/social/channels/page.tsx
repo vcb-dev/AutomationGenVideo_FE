@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { RefreshCw, CheckCircle, ChevronDown, ChevronUp, AlertTriangle, Clock } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import toast from 'react-hot-toast';
+import { useQueryClient } from '@tanstack/react-query';
 import { socialApi, SocialAccount, SocialPlatform } from '@/lib/api/social';
-import { useSocialAccounts, useInvalidateAccounts } from '@/hooks/useSocialAccounts';
+import { useSocialAccounts, useInvalidateAccounts, SOCIAL_ACCOUNTS_KEY } from '@/hooks/useSocialAccounts';
 
 // ─── Platform meta ─────────────────────────────────────────────────────────
 
@@ -58,6 +59,7 @@ export default function ChannelsPage() {
     socialApi.accounts.expiring().then(setExpiringAccounts).catch(() => {});
   }, []);
   const invalidateAccounts = useInvalidateAccounts();
+  const qc = useQueryClient();
   const [connecting, setConnecting] = useState<SocialPlatform | null>(null);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
   // collapsed: accountId nào đang ẩn pages
@@ -110,8 +112,8 @@ export default function ChannelsPage() {
         const fresh = await socialApi.accounts.list();
         const currentCount = fresh.length;
 
-        // Luôn cập nhật UI với data mới nhất
-        invalidateAccounts();
+        // Cập nhật cache trực tiếp với data vừa fetch — tránh gọi API thêm lần nữa
+        qc.setQueryData(SOCIAL_ACCOUNTS_KEY, fresh);
 
         if (currentCount === lastCount && lastCount > 0) {
           stableCount++;
@@ -132,11 +134,12 @@ export default function ChannelsPage() {
       if (attempts >= MAX_ATTEMPTS) {
         clearInterval(scanTimer);
         scanTimerRef.current = null;
+        // Force refetch cuối cùng để đảm bảo UI khớp với BE
         invalidateAccounts();
       }
     }, 2000);
     scanTimerRef.current = scanTimer;
-  }, [invalidateAccounts]);
+  }, [invalidateAccounts, qc]);
 
   useEffect(() => {
     const handleOAuth = (payload: { type?: string; error?: string }) => {

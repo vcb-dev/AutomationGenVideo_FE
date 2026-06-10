@@ -139,6 +139,9 @@ function GridItem({ post, onClick }: { post: SocialPost; onClick: (p: SocialPost
     (driveFileId ? `https://drive.google.com/thumbnail?id=${driveFileId}&sz=w400` : null) ||
     (!isVideo && firstMedia ? resolveMediaUrl(firstMedia) : null);
 
+  // Video thông thường (non-Drive): dùng URL gốc để browser tự render frame đầu
+  const regularVideoSrc = isVideo && !isDrive && firstMedia ? resolveMediaUrl(firstMedia) : null;
+
   const isOk   = post.status === 'COMPLETED';
   const isFail = post.status === 'FAILED';
 
@@ -154,6 +157,16 @@ function GridItem({ post, onClick }: { post: SocialPost; onClick: (p: SocialPost
           alt=""
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+        />
+      ) : regularVideoSrc ? (
+        // Browser tự hiện frame đầu của video khi preload="metadata"
+        <video
+          src={regularVideoSrc}
+          preload="metadata"
+          muted
+          playsInline
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          onError={e => { (e.target as HTMLVideoElement).style.display = 'none'; }}
         />
       ) : (
         <div className={`w-full h-full flex flex-col items-center justify-center gap-1 ${meta.color} bg-opacity-80`}>
@@ -467,8 +480,8 @@ export default function HistoryPage() {
         p.user?.full_name?.toLowerCase().includes(q)
       );
     }
-    if (dateFrom) list = list.filter(p => new Date(p.created_at) >= new Date(dateFrom));
-    if (dateTo)   list = list.filter(p => new Date(p.created_at) <= new Date(dateTo + 'T23:59:59.999'));
+    if (dateFrom) list = list.filter(p => new Date(p.executed_at ?? p.created_at) >= new Date(dateFrom));
+    if (dateTo)   list = list.filter(p => new Date(p.executed_at ?? p.created_at) <= new Date(dateTo + 'T23:59:59.999'));
 
     list.sort((a, b) => {
       const da = new Date(a.created_at).getTime();
