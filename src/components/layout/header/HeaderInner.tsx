@@ -138,7 +138,7 @@ export default function HeaderInner({ user, onLogout, allowedMenuIds }: HeaderPr
                     >
                         <div className="w-8 h-8 rounded-md overflow-hidden ring-1 ring-white/10 shadow flex-shrink-0">
                             <Image
-                                src="/logo-vcb.jfif"
+                                src="/logo-vcb.png"
                                 alt="VCB"
                                 width={32}
                                 height={32}

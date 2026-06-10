@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import React from 'react';
-import { AlertCircle, Target, CheckCircle2, UserCircle, Users, Clock, CalendarDays, TrendingUp, Banknote, Circle } from 'lucide-react';
+import { AlertCircle, Target, CheckCircle2, UserCircle, Users, Clock, CalendarDays, TrendingUp, Banknote, Circle, Briefcase, Sun, MousePointerClick, CircleDollarSign, CheckCircle2Icon, User } from 'lucide-react';
 
 interface UserActivity {
     name: string;
@@ -119,205 +119,200 @@ const UserActivityCard = React.memo(({ data, onClick, canClick = true, isActive 
     const valueColorClass = statusType === 'neutral' ? 'text-rose-600' : statusType === 'exceeded' ? 'text-purple-600' : 'text-emerald-600';
 
     return (
-    <div
-        onClick={canClick ? onClick : undefined}
-        style={{ width: "calc(100% - 6px)", margin: "0 auto" }}
-        className={`
-        relative rounded-2xl overflow-hidden border transition-all duration-200
-        ${canClick ? "cursor-pointer active:scale-[0.99]" : "cursor-default"}
-        ${
-            isActive
-            ? "border-blue-300 shadow-md shadow-blue-100/60 scale-[1.005] z-10"
-            : canClick
-            ? "border-slate-200 hover:border-slate-300 hover:shadow-sm"
-            : "border-slate-100"
-        }
-        bg-white
-        `}
-    >
-        {/* Status color strip */}
         <div
-        className={`absolute top-0 left-0 right-0 h-0.5 ${
-            statusType === "exceeded"
-            ? "bg-purple-400"
-            : statusType === "completed"
-            ? "bg-emerald-400"
-            : "bg-rose-400"
-        }`}
-        />
+            onClick={canClick ? onClick : undefined}
+            style={{ width: 'calc(100% - 7px)', margin: '0 auto' }}
+            className={`relative rounded-2xl overflow-hidden transition-all duration-300 ${canClick ? 'cursor-pointer hover:scale-[1.01]' : 'cursor-default'} ${style.card} ${isActive
+                ? 'ring-4 ring-blue-500/20 shadow-2xl scale-[1.02] z-10 border-blue-500'
+                : `${style.glow}`
+                }`}>
 
-        <div className="p-4 flex flex-col gap-3 pt-5">
-
-        {/* ── TOP ROW ── */}
-        <div className="flex items-start gap-3">
-
-            {/* Avatar */}
-            <div className="relative flex-shrink-0">
-            <div className="w-[52px] h-[52px] rounded-xl overflow-hidden border border-slate-100 bg-slate-50">
-                <Image
-                src={getAvatarUrl(data.avatar, data.name)}
-                alt={data.name}
-                loading="lazy"
-                decoding="async"
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                    e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name)}&background=random`;
-                }}
-                width={52}
-                height={52}
-                unoptimized
+            {/* Corner Flag Background */}
+            <div className="absolute top-0 left-0 pointer-events-none z-10" style={{ filter: 'drop-shadow(0 6px 12px rgba(0,0,0,0.3))' }}>
+                <div
+                    style={{
+                        width: '130px',
+                        height: '100px',
+                        backgroundImage: `url(${flagBg})`,
+                        backgroundSize: '130px 85px',
+                        backgroundPosition: '-30px 75px',
+                        clipPath: 'polygon(0 0, 100% 0, 0 100%)',
+                        opacity: 0.45,
+                        filter: 'blur(0.4px)',
+                    }}
                 />
             </div>
-            <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-white" />
-            </div>
 
-            {/* Name + badges */}
-            <div className="flex-1 min-w-0">
-            <h4 className="text-[15px] font-semibold text-slate-800 leading-snug truncate">
-                {data.name}
-            </h4>
-            <div className="flex flex-wrap items-center gap-1 mt-1.5">
-                {data.position && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 uppercase tracking-wide">
-                    <UserCircle className="w-2.5 h-2.5" />
-                    {data.position}
-                </span>
-                )}
-                <span className="inline-flex items-center gap-1 text-[10px] font-medium text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
-                <Users className="w-2.5 h-2.5 text-blue-400" />
-                {data.team}
-                {data.team?.toLowerCase().includes("thái lan") && (
-                    <Image src="/thailand-flag.png" alt="TH" className="w-3 h-2 object-contain" width={12} height={8} unoptimized />
-                )}
-                {data.team?.toLowerCase().includes("global - indo") && (
-                    <Image src="/indo-flag.png" alt="INDO" className="w-3 h-2 object-contain" width={12} height={8} unoptimized />
-                )}
-                {data.team?.toLowerCase().includes("việt nam") && (
-                    <Image src="/vn-flag.png" alt="VN" className="w-3 h-2 object-contain" width={12} height={8} unoptimized />
-                )}
-                {(data.team?.toLowerCase().includes("jp") || data.team?.toLowerCase().includes("nhật bản")) && (
-                    <Image src="/japan-flag.png" alt="JP" className="w-3 h-2 object-contain" width={12} height={8} unoptimized />
-                )}
-                {data.team?.toLowerCase().includes("đài loan") && (
-                    <Image src="/taiwan-flag.png" alt="TW" className="w-3.5 h-2.5 object-contain" width={14} height={10} unoptimized />
-                )}
-                </span>
-            </div>
-            </div>
+            <div className="px-5 pt-6 pb-6 flex flex-col items-center relative z-10 gap-3">
 
-            {/* Status badge */}
-            <div className="flex-shrink-0">
-            {statusType === "exceeded" ? (
-                <div className="flex items-center gap-1 bg-purple-50 px-2 py-1 rounded-md border border-purple-200">
-                <Target className="w-3 h-3 text-purple-600" />
-                <span className="text-[10px] font-semibold text-purple-600 hidden sm:inline">Top</span>
+                {/* Top-Right Status Badge */}
+                <div className="absolute top-3 right-3 z-20">
+                    {statusType === 'exceeded' ? (
+                        <div className="bg-purple-100 p-1.5 rounded-xl border border-purple-200 shadow-sm animate-pulse-slow">
+                            <Target className="w-5 h-5 text-purple-600" />
+                        </div>
+                    ) : statusType === 'completed' ? (
+                        <div className="bg-white p-1 rounded-full border-2 border-emerald-500 shadow-sm">
+                            <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                        </div>
+                    ) : (
+                        <div className="bg-white p-1 rounded-full border-2 border-red-500 shadow-sm">
+                            <AlertCircle className="w-5 h-5 text-red-500" />
+                        </div>
+                    )}
                 </div>
-            ) : statusType === "completed" ? (
-                <div className="flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200">
-                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                <span className="text-[10px] font-semibold text-emerald-600 hidden sm:inline">Done</span>
+
+                {/* Profile Info Row */}
+                <div className="flex items-center justify-center gap-4 w-full mt-1 relative z-20">
+                    <div className={`w-16 h-16 rounded-full border-2 ${style.avatar} p-0.5 bg-white overflow-hidden shadow-inner flex-shrink-0`}>
+                        <Image
+                            src={getAvatarUrl(data.avatar, data.name)}
+                            alt={data.name}
+                            loading="lazy"
+                            decoding="async"
+                            className="w-full h-full object-cover rounded-full"
+                            onError={(e) => {
+                                e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name)}&background=random`;
+                            }}
+                            width={64}
+                            height={64}
+                            unoptimized
+                        />
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                        <h4 className="text-[18px] font-black text-slate-800 tracking-tight leading-tight mb-1.5 truncate max-w-[180px]">
+                            {data.name}
+                        </h4>
+                        <div className="flex flex-wrap items-center gap-1.5 max-w-full">
+                            {data.position && (
+                                <span className="text-[11px] font-black px-2 py-0.5 rounded-lg border bg-white text-slate-500 border-slate-200 uppercase tracking-widest shadow-xs flex items-center gap-1">
+                                    <User className="w-3 h-3" />
+                                    {data.position?.toUpperCase()}
+                                </span>
+                            )}
+                            <span className="text-[11px] font-black text-blue-700 bg-white px-2 py-0.5 rounded-lg border border-blue-200 shadow-xs flex items-center gap-1">
+                                <Users className="w-3 h-3" />
+                                {data.team}
+                                {data.team?.toLowerCase().includes('thái lan') && (
+                                    <Image src="/thailand-flag.png" alt="TH" className="w-3.5 h-2.5 object-contain filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.4)]" width={14} height={10} unoptimized />
+                                )}
+                                {data.team?.toLowerCase().includes('global - indo') && (
+                                    <Image src="/indo-flag.png" alt="INDO" className="w-3.5 h-2.5 object-contain filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.4)]" width={14} height={10} unoptimized />
+                                )}
+                                {data.team?.toLowerCase().includes('việt nam') && (
+                                    <Image src="/vn-flag.png" alt="VN" className="w-3.5 h-2.5 object-contain filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.4)]" width={14} height={10} unoptimized />
+                                )}
+                                {(data.team?.toLowerCase().includes('jp') || data.team?.toLowerCase().includes('nhật bản')) && (
+                                    <Image src="/japan-flag.png" alt="JP" className="w-3.5 h-2.5 object-contain border border-gray-100 filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.4)]" width={14} height={10} unoptimized />
+                                )}
+                                {data.team?.toLowerCase().includes('đài loan') && (
+                                    <Image src="/taiwan-flag.png" alt="TW" className="w-4 h-3 object-contain filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.4)]" width={16} height={12} unoptimized />
+                                )}
+                            </span>
+                        </div>
+                    </div>
                 </div>
-            ) : (
-                <div className="flex items-center gap-1 bg-rose-50 px-2 py-1 rounded-md border border-rose-200">
-                <AlertCircle className="w-3 h-3 text-rose-500" />
-                <span className="text-[10px] font-semibold text-rose-500 hidden sm:inline">Late</span>
+
+                {/* Divider */}
+                <div className="w-full border-t border-dashed border-slate-200/60" />
+
+                {/* Metrics list */}
+                <div className="w-full grid grid-cols-1 gap-1.5 px-1">
+                    <div className="flex items-center justify-between py-1 border-b border-dashed border-slate-200/40">
+                        <span className="text-[14px] font-semibold text-slate-500 flex items-center gap-1.5">
+                            <CalendarDays className="w-4 h-4 text-slate-400" />
+                            Mục tiêu tháng
+                        </span>
+                        <span className={`text-[15px] font-black ${valueColorClass}`}>
+                            {data.kpi_month ?? 0}
+                        </span>
+                    </div>
+                    <div className="flex items-center justify-between py-1 border-b border-dashed border-slate-200/40">
+                        <span className="text-[14px] font-semibold text-slate-500 flex items-center gap-1.5">
+                            <Sun className="w-4 h-4 text-slate-400" />
+                            Mục tiêu ngày
+                        </span>
+                        <span className={`text-[15px] font-black ${valueColorClass}`}>
+                            {dailyGoal}
+                        </span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                        <span className="text-[14px] font-semibold text-slate-500 flex items-center gap-1.5">
+                            <CheckCircle2Icon className="w-4 h-4 text-slate-400" />
+                            Đã xong
+                        </span>
+                        <span className={`text-[15px] font-black ${valueColorClass}`}>
+                            {done}
+                        </span>
+                    </div>
                 </div>
-            )}
-            </div>
-        </div>
 
-        {/* ── REPORT BANNER ── */}
-        <div
-            className={`w-full px-3 py-2 rounded-lg text-[11px] font-medium flex items-center justify-center gap-1.5 ${
-            isReportedOnTime
-                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                : "bg-rose-50 text-rose-600 border border-rose-200"
-            }`}
-        >
-            {isReportedOnTime
-            ? <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
-            : <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-            }
-            <span className="truncate">{data.reportStatus || "Chưa báo cáo"}</span>
-        </div>
+                {/* Monthly Progress */}
+                <div className="w-full flex items-center gap-3 px-1">
+                    <span className={`text-[13px] font-black flex-shrink-0 w-10 text-right ${
+                        statusType === 'neutral' ? 'text-rose-600'
+                        : statusType === 'exceeded' ? 'text-purple-600'
+                        : 'text-emerald-600'
+                    }`}>
+                        {data.monthlyProgress}%
+                    </span>
+                    <div className="h-2 flex-grow bg-slate-200/50 rounded-full overflow-hidden shadow-inner">
+                        <div
+                            className={`h-full rounded-full transition-all duration-700 ${
+                                statusType === 'neutral'
+                                    ? 'bg-gradient-to-r from-red-500 to-rose-600'
+                                    : statusType === 'exceeded'
+                                        ? 'bg-gradient-to-r from-purple-500 via-indigo-500 to-blue-500'
+                                        : 'bg-gradient-to-r from-emerald-500 to-teal-600'
+                            }`}
+                            style={{ width: `${Math.min(data.monthlyProgress, 100)}%` }}
+                        />
+                    </div>
+                    <TrendingUp className={`w-4 h-4 flex-shrink-0 ${
+                        statusType === 'neutral' ? 'text-rose-400'
+                        : statusType === 'exceeded' ? 'text-purple-400'
+                        : 'text-emerald-400'
+                    }`} />
+                </div>
 
-        {/* ── METRICS ── */}
-        <div className="w-full rounded-xl overflow-hidden border border-slate-100 divide-y divide-slate-100">
-            {[
-            { icon: <CalendarDays className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />, label: "Mục tiêu tháng", value: data.kpi_month ?? 0 },
-            { icon: <Clock className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0" />, label: "Mục tiêu ngày", value: dailyGoal },
-            { icon: <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />, label: "Đã xong", value: done },
-            ].map(({ icon, label, value }) => (
-            <div key={label} className="flex items-center justify-between px-3 py-2 bg-white">
-                <span className="flex items-center gap-2 text-[12px] text-slate-400">
-                {icon}
-                <span>{label}</span>
-                </span>
-                <span className={`text-[13px] font-semibold tabular-nums ${valueColorClass}`}>
-                {value}
-                </span>
-            </div>
-            ))}
-        </div>
+                {/* Traffic & Revenue Footer */}
+                <div className="grid grid-cols-2 w-full gap-3 px-1">
+                    <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-sm text-center">
+                        <span className="flex items-center justify-center gap-1 text-[11px] font-black text-blue-500 uppercase tracking-widest mb-1">
+                            <MousePointerClick className="w-3.5 h-3.5" />
+                            TRAFFIC
+                        </span>
+                        <div className="text-[18px] font-black text-blue-800 truncate leading-none">{data.traffic}</div>
+                    </div>
+                    <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-sm text-center">
+                        <span className="flex items-center justify-center gap-1 text-[11px] font-black text-emerald-500 uppercase tracking-widest mb-1">
+                            <CircleDollarSign className="w-3.5 h-3.5" />
+                            DOANH THU
+                        </span>
+                        <div className="text-[18px] font-black text-emerald-800 truncate leading-none">{data.revenue}</div>
+                    </div>
+                </div>
 
-        {/* ── PROGRESS BAR ── */}
-        <div className="w-full">
-            <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[11px] text-slate-400 uppercase tracking-wide">Tiến độ tháng</span>
-            <span
-                className={`text-[12px] font-semibold tabular-nums ${
-                statusType === "neutral"
-                    ? "text-rose-500"
-                    : statusType === "exceeded"
-                    ? "text-purple-600"
-                    : "text-emerald-600"
-                }`}
-            >
-                {data.monthlyProgress}%
-            </span>
-            </div>
-            <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-            <div
-                className={`h-full rounded-full transition-all duration-700 ${
-                statusType === "neutral"
-                    ? "bg-rose-400"
-                    : statusType === "exceeded"
-                    ? "bg-purple-500"
-                    : "bg-emerald-400"
-                }`}
-                style={{ width: `${Math.min(data.monthlyProgress, 100)}%` }}
-            />
-            </div>
-        </div>
+                {/* Report Status Banner — bottom */}
+                <div className="w-full px-1">
+                    <div className={`w-full py-2 rounded-xl text-[13px] font-black uppercase tracking-widest shadow-sm text-center flex items-center justify-center gap-2 transition-all ${
+                        isReportedOnTime
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-red-50 text-red-600 border border-red-200'
+                    }`}>
+                        {isReportedOnTime
+                            ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                            : <AlertCircle className="w-4 h-4 flex-shrink-0 animate-pulse" />
+                        }
+                        {data.reportStatus || 'Chưa báo cáo'}
+                    </div>
+                </div>
 
-        {/* ── TRAFFIC & REVENUE ── */}
-        <div className="grid grid-cols-2 gap-2">
-            <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
-            <div className="flex items-center gap-1.5 mb-1.5">
-                <TrendingUp className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
-                <span className="text-[10px] font-medium text-blue-500 uppercase tracking-wide">Traffic</span>
-            </div>
-            <div className="text-[18px] font-semibold text-blue-800 tabular-nums leading-none truncate">
-                {data.traffic}
-            </div>
-            </div>
-            <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100">
-            <div className="flex items-center gap-1.5 mb-1.5">
-                <Banknote className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                <span className="text-[10px] font-medium text-emerald-600 uppercase tracking-wide">Doanh thu</span>
-            </div>
-            <div className="text-[18px] font-semibold text-emerald-800 tabular-nums leading-none truncate">
-                {data.revenue}
-            </div>
             </div>
         </div>
-
-        </div>
-    </div>
     );
-});
 
-UserActivityCard.displayName = 'UserActivityCard';
+});
 
 export default UserActivityCard;
 export type { UserActivity };

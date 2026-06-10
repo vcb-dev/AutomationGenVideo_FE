@@ -83,7 +83,7 @@ export default function LandingPage() {
                     {/* Logo */}
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm">
-                            <Image src="/logo-vcb.jfif" alt="Viễn Chí Bảo" className="w-full h-full object-cover" width={40} height={40} unoptimized />
+                            <Image src="/logo-vcb.png" alt="Viễn Chí Bảo" className="w-full h-full object-cover" width={40} height={40} unoptimized />
                         </div>
                         <span className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
                             Viễn Chí Bảo
