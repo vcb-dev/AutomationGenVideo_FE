@@ -9,10 +9,11 @@ import {
 import {
   TrendingUp, TrendingDown, CheckCircle, XCircle, Clock,
   Send, BarChart3, Target, Zap, Calendar, RefreshCw,
-  Award, AlertTriangle, Activity, Hash, X,
+  Award, AlertTriangle, Activity, Hash, X, Users, Shield,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { socialApi, SocialPost, PLATFORM_META, SocialPlatform } from '@/lib/api/social';
+import { socialApi, SocialPost, PLATFORM_META, SocialPlatform, HistoryMember } from '@/lib/api/social';
+import { useAuthStore } from '@/store/auth-store';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 
@@ -90,22 +91,55 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function StatsPage() {
+  const { user } = useAuthStore();
+
+  // Phân quyền
+  const isAdmin  = user?.roles?.some((r: string) => ['ADMIN', 'MANAGER'].includes(r)) ?? false;
+  const isLeader = !isAdmin && (user?.roles?.some((r: string) => r === 'LEADER') ?? false);
+  const canFilter = isAdmin || isLeader;
+
   const [posts, setPosts]       = useState<SocialPost[]>([]);
   const [loading, setLoading]   = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [rangeDays, setRangeDays] = useState(30);
 
+  // Bộ lọc team / thành viên (chỉ admin/leader)
+  const [teams, setTeams]               = useState<string[]>([]);
+  const [members, setMembers]           = useState<HistoryMember[]>([]);
+  const [teamFilter, setTeamFilter]     = useState<string>('all');
+  const [memberFilter, setMemberFilter] = useState<string>('all');
+
+  // Tải danh sách teams + members khi mount (nếu có quyền)
+  useEffect(() => {
+    if (!canFilter) return;
+    socialApi.history.teams().then(setTeams).catch(() => {});
+    socialApi.history.members().then(setMembers).catch(() => {});
+  }, [canFilter]);
+
+  // Khi đổi team → reload members theo team
+  useEffect(() => {
+    if (!canFilter) return;
+    socialApi.history.members(teamFilter !== 'all' ? teamFilter : undefined)
+      .then(setMembers)
+      .catch(() => {});
+    setMemberFilter('all');
+  }, [teamFilter, canFilter]);
+
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true); else setRefreshing(true);
     try {
-      const data = await socialApi.history.list({ limit: 1000 });
+      const data = await socialApi.history.list({
+        limit: 1000,
+        ...(teamFilter !== 'all'   ? { team: teamFilter }         : {}),
+        ...(memberFilter !== 'all' ? { employeeId: memberFilter } : {}),
+      });
       setPosts(data);
     } catch {
       toast.error('Không tải được dữ liệu thống kê');
     } finally {
       setLoading(false); setRefreshing(false);
     }
-  }, []);
+  }, [teamFilter, memberFilter]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -283,49 +317,109 @@ export default function StatsPage() {
 
       {/* ── Header ── */}
       <div className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="container mx-auto px-4 max-w-7xl py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-sm">
-              <BarChart3 className="w-5 h-5 text-white" />
+        <div className="container mx-auto px-4 max-w-7xl py-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-sm">
+                <BarChart3 className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h1 className="text-lg font-black text-slate-900">Thống kê đăng bài</h1>
+                <p className="text-xs text-slate-500">
+                  {fmt(total)} bài trong khoảng đã chọn
+                  {canFilter && teamFilter !== 'all' && ` · Team: ${teamFilter}`}
+                  {canFilter && memberFilter !== 'all' && ` · ${members.find(m => m.id === memberFilter)?.full_name || 'Thành viên'}`}
+                  {!canFilter && <span className="ml-1 text-indigo-400 font-medium">(bài của bạn)</span>}
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-lg font-black text-slate-900">Thống kê đăng bài</h1>
-              <p className="text-xs text-slate-500">{fmt(total)} bài trong khoảng đã chọn</p>
+
+            <div className="flex items-center gap-2">
+              {/* Range selector */}
+              <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
+                {RANGE_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setRangeDays(opt.value)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      rangeDays === opt.value
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => load(true)}
+                disabled={refreshing}
+                className="p-2 rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 transition-colors disabled:opacity-50"
+                title="Làm mới"
+              >
+                <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+              </button>
+              <Link
+                href="/dashboard/social/compose"
+                className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-colors shadow-sm"
+              >
+                <Send className="w-3.5 h-3.5" /> Đăng bài
+              </Link>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* Range selector */}
-            <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
-              {RANGE_OPTIONS.map(opt => (
-                <button
-                  key={opt.value}
-                  onClick={() => setRangeDays(opt.value)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                    rangeDays === opt.value
-                      ? 'bg-white text-blue-600 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-700'
-                  }`}
+          {/* Bộ lọc role — chỉ hiện với admin/manager/leader */}
+          {canFilter && (
+            <div className="flex items-center gap-3 flex-wrap pt-1 pb-1 border-t border-slate-100">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400">
+                <Shield className="w-3.5 h-3.5" />
+                {isAdmin ? 'Admin / Manager' : 'Leader'}
+              </div>
+
+              {/* Team filter — chỉ admin thấy nhiều team */}
+              {isAdmin && teams.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-bold text-slate-500 whitespace-nowrap">Team:</label>
+                  <select
+                    value={teamFilter}
+                    onChange={e => setTeamFilter(e.target.value)}
+                    className="border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 bg-white"
+                  >
+                    <option value="all">Tất cả team</option>
+                    {teams.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+              )}
+
+              {/* Member filter */}
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-bold text-slate-500 whitespace-nowrap">
+                  <Users className="w-3 h-3 inline mr-1" />Thành viên:
+                </label>
+                <select
+                  value={memberFilter}
+                  onChange={e => setMemberFilter(e.target.value)}
+                  className="border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 bg-white max-w-[200px]"
                 >
-                  {opt.label}
+                  <option value="all">Tất cả thành viên</option>
+                  {members.map(m => (
+                    <option key={m.id} value={m.id}>
+                      {m.full_name}{m.team ? ` (${m.team})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {(teamFilter !== 'all' || memberFilter !== 'all') && (
+                <button
+                  onClick={() => { setTeamFilter('all'); setMemberFilter('all'); }}
+                  className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-bold px-2 py-1 border border-indigo-200 rounded-lg bg-indigo-50"
+                >
+                  <X className="w-3 h-3" /> Xoá lọc
                 </button>
-              ))}
+              )}
             </div>
-            <button
-              onClick={() => load(true)}
-              disabled={refreshing}
-              className="p-2 rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 transition-colors disabled:opacity-50"
-              title="Làm mới"
-            >
-              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-            </button>
-            <Link
-              href="/dashboard/social/compose"
-              className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-colors shadow-sm"
-            >
-              <Send className="w-3.5 h-3.5" /> Đăng bài
-            </Link>
-          </div>
+          )}
         </div>
       </div>
 
