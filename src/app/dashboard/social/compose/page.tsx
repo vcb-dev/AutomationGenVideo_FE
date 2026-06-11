@@ -286,6 +286,17 @@ export default function ComposePage() {
   const jobChannelMapRef = useRef<Record<string, string>>({});
   jobChannelMapRef.current = jobChannelMap;
 
+  // Log đăng bài realtime
+  const [publishLogs, setPublishLogs] = useState<string[]>([]);
+  const prevJobStatusRef = useRef<Record<string, string>>({});
+  const prevJobQueueNullRef = useRef<Record<string, boolean>>({});
+  const channelInfoRef = useRef<Record<string, { name: string; platform: string }>>({});
+
+  const addPublishLog = useCallback((msg: string) => {
+    const time = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    setPublishLogs(prev => [...prev.slice(-99), `[${time}] ${msg}`]);
+  }, []);
+
   // Đồng hồ thời gian thực
   const [publishStartedAt, setPublishStartedAt] = useState<number | null>(null);
   const [elapsedSeconds,   setElapsedSeconds]   = useState(0);
@@ -380,6 +391,31 @@ export default function ComposePage() {
       try {
         const { jobs } = await socialApi.queue.pollStatus(activeJobIds);
 
+        // Log thay đổi trạng thái
+        for (const job of jobs) {
+          const channelId = jobChannelMapRef.current[job.id];
+          const chName = channelInfoRef.current[channelId]?.name || channelId || job.id.slice(0, 8);
+          const prevStatus = prevJobStatusRef.current[job.id];
+          const wasQueueNull = prevJobQueueNullRef.current[job.id];
+          const nowQueueNull = job.queuePosition === null;
+
+          if (prevStatus !== job.status) {
+            prevJobStatusRef.current[job.id] = job.status;
+            if (job.status === 'COMPLETED') {
+              const r = job.result as Record<string, unknown> | null | undefined;
+              const url = typeof r?.url === 'string' ? r.url : typeof r?.videoId === 'string' ? `https://youtube.com/watch?v=${r.videoId}` : '';
+              addPublishLog(`✅ ${chName}: Đăng thành công${url ? ` → ${url}` : ''}`);
+            } else if (job.status === 'FAILED') {
+              addPublishLog(`❌ ${chName}: Thất bại — ${job.error_msg || 'không rõ lỗi'}`);
+            }
+          }
+          // Phát hiện worker bắt đầu xử lý (queuePosition chuyển từ có số → null)
+          if (prevStatus === 'PENDING' && job.status === 'PENDING' && !wasQueueNull && nowQueueNull) {
+            addPublishLog(`▶ ${chName}: Worker bắt đầu xử lý...`);
+          }
+          prevJobQueueNullRef.current[job.id] = nowQueueNull;
+        }
+
         setPublishProgress(prev => {
           const newChannels = prev.channels.map(ch => {
             const jobId = Object.entries(jobChannelMapRef.current).find(([, cid]) => cid === ch.id)?.[0];
@@ -413,6 +449,9 @@ export default function ComposePage() {
         });
 
         if (allDone) {
+          const successCount = jobs.filter(j => j.status === 'COMPLETED').length;
+          const failCount = jobs.filter(j => j.status === 'FAILED').length;
+          addPublishLog(`🏁 Hoàn tất: ${successCount} thành công, ${failCount} thất bại`);
           setActiveJobIds(null);
           setPublishing(false);
           setPublishProgress(prev => ({ ...prev, phase: 'done' }));
@@ -423,7 +462,10 @@ export default function ComposePage() {
             toast.error('Một số kênh đăng bài thất bại');
           }
         }
-      } catch { /* bỏ qua lỗi mạng tạm thời */ }
+      } catch (err: any) {
+        // Lỗi mạng tạm thời — log để debug, không dừng polling
+        addPublishLog(`⚠️ Poll lỗi: ${err?.message || 'network error'}`);
+      }
     };
 
     poll();
@@ -502,6 +544,12 @@ export default function ComposePage() {
     setPostingPcts({});
     setPublishStartedAt(Date.now());
     setElapsedSeconds(0);
+    setPublishLogs([]);
+    prevJobStatusRef.current = {};
+    prevJobQueueNullRef.current = {};
+    const channelInfoMap: Record<string, { name: string; platform: string }> = {};
+    channelList.forEach(ch => { channelInfoMap[ch.id] = { name: ch.name, platform: ch.platform }; });
+    channelInfoRef.current = channelInfoMap;
     setPublishProgress({ show: true, phase: 'publishing', uploadPct: 100, channels: initialChannels });
     setPublishing(true);
 
@@ -557,7 +605,12 @@ export default function ComposePage() {
         };
       });
 
+      addPublishLog(`📤 Đang gửi ${jobs.length} bài lên hàng chờ...`);
       const { jobIds } = await socialApi.queue.enqueue(jobs);
+      addPublishLog(`✅ Đã vào hàng chờ (${jobIds.length} jobs)`);
+      jobIds.forEach((id, i) => {
+        addPublishLog(`  • Job ${i + 1}: ${channelList[i]?.name} — ID ${id.slice(0, 8)}...`);
+      });
 
       // Thêm vào background task manager
       addTask({
@@ -576,9 +629,11 @@ export default function ComposePage() {
 
       toast.success(`Đã thêm ${jobIds.length} bài vào hàng chờ — đang xử lý...`);
     } catch (err: any) {
+      const errMsg = err.response?.data?.message || err.message || 'Lỗi không xác định';
+      addPublishLog(`❌ Enqueue thất bại: ${errMsg}`);
       setPublishing(false);
       setPublishProgress(prev => ({ ...prev, phase: 'done' }));
-      toast.error(err.response?.data?.message || 'Không thêm được vào hàng chờ');
+      toast.error(errMsg);
     }
   };
 
