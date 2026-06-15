@@ -12,8 +12,10 @@ import UserBlock from "./UserBlock";
 import NavDropdown from "./NavDropdown";
 import MobileDrawer from "./MobileDrawer";
 import NotificationBell from "@/components/social/NotificationBell";
+import { useSocialLang } from "@/contexts/SocialLanguageContext";
 
 export default function HeaderInner({ user, onLogout, allowedMenuIds }: HeaderProps) {
+    const { lang, setLang } = useSocialLang();
     const pathname = usePathname() || "";
     const searchParams = useSearchParams();
     const currentTab = searchParams?.get("tab");
@@ -188,6 +190,24 @@ export default function HeaderInner({ user, onLogout, allowedMenuIds }: HeaderPr
                                 <Settings className="w-4 h-4" />
                             </Link>
                         )}
+
+                        {/* Language toggle */}
+                        <div className="hidden md:flex items-center">
+                            <div className="flex rounded-lg overflow-hidden text-xs font-bold border border-white/20">
+                                <button
+                                    onClick={() => setLang('vi')}
+                                    className={`px-2.5 py-1.5 transition-colors ${lang === 'vi' ? 'bg-white text-slate-900' : 'text-slate-400 hover:text-white'}`}
+                                >
+                                    VI
+                                </button>
+                                <button
+                                    onClick={() => setLang('en')}
+                                    className={`px-2.5 py-1.5 transition-colors border-l border-white/20 ${lang === 'en' ? 'bg-white text-slate-900' : 'text-slate-400 hover:text-white'}`}
+                                >
+                                    EN
+                                </button>
+                            </div>
+                        </div>
 
                         {/* Notification Bell */}
                         <div className="hidden md:flex items-center">
