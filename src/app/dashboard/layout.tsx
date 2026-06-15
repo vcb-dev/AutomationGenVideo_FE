@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
 import Header from '@/components/layout/Header';
 import { BackgroundTaskManager } from '@/components/social/BackgroundTaskManager';
+import { SocialLanguageProvider } from '@/contexts/SocialLanguageContext';
 
 export default function DashboardLayout({
   children,
@@ -90,17 +91,19 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <Header
-        user={user}
-        onLogout={handleLogout}
-        allowedMenuIds={allowedMenuIds}
-      />
+    <SocialLanguageProvider>
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+        <Header
+          user={user}
+          onLogout={handleLogout}
+          allowedMenuIds={allowedMenuIds}
+        />
 
-      <main className="flex-1 p-6">
-        {children}
-      </main>
-      <BackgroundTaskManager />
-    </div>
+        <main className="flex-1 p-6">
+          {children}
+        </main>
+        <BackgroundTaskManager />
+      </div>
+    </SocialLanguageProvider>
   );
 }

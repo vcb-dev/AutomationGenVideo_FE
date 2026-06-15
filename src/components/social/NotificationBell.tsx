@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { socialApi, PLATFORM_META, SocialPlatform } from '@/lib/api/social';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
+import { useSocialLang } from '@/contexts/SocialLanguageContext';
 
 interface Notification {
   id: string;
@@ -18,9 +19,10 @@ interface Notification {
   read?: boolean;
 }
 
-const POLL_INTERVAL = 30_000; // 30 giây
+const POLL_INTERVAL = 30_000;
 
 export default function NotificationBell() {
+  const { t } = useSocialLang();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [read, setRead] = useState<Set<string>>(() => {
@@ -28,6 +30,8 @@ export default function NotificationBell() {
     try { return new Set(JSON.parse(localStorage.getItem('notif_read') || '[]')); } catch { return new Set(); }
   });
   const ref = useRef<HTMLDivElement>(null);
+  const tRef = useRef(t);
+  tRef.current = t;
 
   const load = useCallback(async () => {
     try {
@@ -45,7 +49,6 @@ export default function NotificationBell() {
     return () => clearInterval(timer);
   }, [load]);
 
-  // Click ngoài để đóng
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
@@ -57,7 +60,6 @@ export default function NotificationBell() {
   const unread = notifications.filter(n => !read.has(n.id)).length;
 
   const saveRead = (set: Set<string>) => {
-    // Giới hạn 200 IDs gần nhất để tránh localStorage phình ra vô hạn
     const arr = Array.from(set);
     const pruned = arr.length > 200 ? arr.slice(arr.length - 200) : arr;
     setRead(new Set(pruned));
@@ -79,10 +81,10 @@ export default function NotificationBell() {
   const handleRetry = async (id: string) => {
     try {
       await socialApi.schedule.retry(id);
-      toast.success('Đã đưa vào hàng chờ đăng lại');
+      toast.success(tRef.current.retryQueued);
       load();
     } catch {
-      toast.error('Retry thất bại');
+      toast.error(tRef.current.retryFailed);
     }
   };
 
@@ -117,11 +119,11 @@ export default function NotificationBell() {
           >
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-              <h3 className="font-bold text-slate-800 text-sm">🔔 Thông báo đăng bài</h3>
+              <h3 className="font-bold text-slate-800 text-sm">{t.notifTitle}</h3>
               <div className="flex items-center gap-2">
                 {unread > 0 && (
                   <button onClick={markAllRead} className="text-[10px] font-bold text-blue-600 hover:underline">
-                    Đánh dấu đã đọc
+                    {t.markAllRead}
                   </button>
                 )}
                 <button onClick={() => setOpen(false)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-400">
@@ -135,8 +137,8 @@ export default function NotificationBell() {
               {notifications.length === 0 ? (
                 <div className="flex flex-col items-center py-12 text-center">
                   <Bell className="w-10 h-10 text-slate-200 mb-3" />
-                  <p className="text-sm font-bold text-slate-400">Chưa có thông báo</p>
-                  <p className="text-xs text-slate-300 mt-1">Thông báo sẽ hiển thị khi bạn đăng bài</p>
+                  <p className="text-sm font-bold text-slate-400">{t.noNotifs}</p>
+                  <p className="text-xs text-slate-300 mt-1">{t.notifsHint}</p>
                 </div>
               ) : notifications.map(n => {
                 const meta = PLATFORM_META[n.platform] || PLATFORM_META.FACEBOOK;
@@ -150,7 +152,6 @@ export default function NotificationBell() {
                     className={`px-4 py-3 hover:bg-slate-50 transition-colors cursor-default ${!isRead ? 'bg-blue-50/30' : ''}`}
                   >
                     <div className="flex items-start gap-3">
-                      {/* Platform avatar */}
                       <div className={`w-8 h-8 ${meta.color} rounded-xl flex items-center justify-center text-white text-sm flex-shrink-0 shadow-sm`}>
                         {meta.emoji}
                       </div>
@@ -159,14 +160,14 @@ export default function NotificationBell() {
                           <span className="text-xs font-bold text-slate-700 truncate">{n.accountName || meta.label}</span>
                           {!isRead && <div className="w-1.5 h-1.5 bg-blue-500 rounded-full flex-shrink-0" />}
                           <span className="ml-auto text-[10px] text-slate-400 flex-shrink-0">
-                            {new Date(n.created_at).toLocaleTimeString('vi', { hour: '2-digit', minute: '2-digit' })}
+                            {new Date(n.created_at).toLocaleTimeString(t.dateLocale, { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
                         <div className={`flex items-center gap-1.5 text-[11px] font-bold mb-1 ${
                           isOk ? 'text-emerald-600' : isFail ? 'text-red-500' : 'text-amber-600'
                         }`}>
                           {isOk ? <CheckCircle className="w-3 h-3" /> : isFail ? <XCircle className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
-                          {isOk ? 'Đăng bài thành công' : isFail ? 'Đăng bài thất bại' : 'Đang chờ xử lý'}
+                          {isOk ? t.postSuccess : isFail ? t.postFailed : t.postPending}
                         </div>
                         <p className="text-[11px] text-slate-500 line-clamp-1">{n.message}</p>
                         {n.error_msg && (
@@ -177,7 +178,7 @@ export default function NotificationBell() {
                             onClick={() => handleRetry(n.id)}
                             className="flex items-center gap-1 mt-1.5 text-[10px] font-bold text-blue-600 hover:text-blue-700"
                           >
-                            <RotateCcw className="w-2.5 h-2.5" /> Đăng lại
+                            <RotateCcw className="w-2.5 h-2.5" /> {t.retry}
                           </button>
                         )}
                       </div>
@@ -194,7 +195,7 @@ export default function NotificationBell() {
                 onClick={() => setOpen(false)}
                 className="flex items-center justify-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700"
               >
-                Xem tất cả lịch sử <ExternalLink className="w-3 h-3" />
+                {t.viewHistory} <ExternalLink className="w-3 h-3" />
               </Link>
             </div>
           </motion.div>
