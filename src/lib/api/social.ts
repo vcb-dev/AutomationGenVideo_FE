@@ -5,7 +5,7 @@ export type SocialPlatform = 'FACEBOOK' | 'INSTAGRAM' | 'TIKTOK' | 'THREADS' | '
 
 export interface SocialAccount {
   id: string;
-  user_id: string;
+  user_id?: string;
   platform: SocialPlatform;
   name: string;
   username?: string;
