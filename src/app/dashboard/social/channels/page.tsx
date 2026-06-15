@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { socialApi, SocialAccount, SocialPlatform } from '@/lib/api/social';
 import { useSocialAccounts, useInvalidateAccounts, SOCIAL_ACCOUNTS_KEY } from '@/hooks/useSocialAccounts';
+import { useAuthStore } from '@/store/auth-store';
 
 // ─── Platform meta ─────────────────────────────────────────────────────────
 
@@ -54,6 +55,7 @@ const ALL_PLATFORMS: SocialPlatform[] = ['FACEBOOK', 'INSTAGRAM', 'TIKTOK', 'THR
 export default function ChannelsPage() {
   const [activeTab, setActiveTab] = useState<Tab>('Tất cả');
   const { data: accounts = [], isLoading: loading, error } = useSocialAccounts();
+  const currentUser = useAuthStore(s => s.user);
   const [expiringAccounts, setExpiringAccounts] = useState<any[]>([]);
   useEffect(() => {
     socialApi.accounts.expiring().then(setExpiringAccounts).catch(() => {});
@@ -272,6 +274,10 @@ export default function ChannelsPage() {
 
 
   const handleDisconnect = async (account: SocialAccount) => {
+    if (account.user_id && currentUser?.id && account.user_id !== currentUser.id) {
+      toast.error('Bạn không thể gỡ tài khoản của người khác');
+      return;
+    }
     const extra = account.extra_data as any;
     const isPersonalFB = account.platform === 'FACEBOOK' && !extra?.type;
     const confirmMsg = isPersonalFB
@@ -283,7 +289,10 @@ export default function ChannelsPage() {
       await socialApi.accounts.disconnect(account.id);
       toast.success('Đã gỡ kết nối');
       await invalidateAccounts();
-    } catch { toast.error('Không thể gỡ kết nối'); }
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Lỗi không xác định';
+      toast.error(`Không thể gỡ kết nối: ${msg}`);
+    }
     finally { setDisconnecting(null); }
   };
 
@@ -548,13 +557,15 @@ export default function ChannelsPage() {
                             </div>
                             <div className="flex flex-col items-end gap-2 flex-shrink-0">
                               <CheckCircle className="w-4 h-4 text-emerald-500" />
-                              <button
-                                onClick={() => handleDisconnect(account)}
-                                disabled={disconnecting === account.id}
-                                className="text-[10px] font-semibold text-slate-400 hover:text-red-500 transition-colors"
-                              >
-                                {disconnecting === account.id ? '...' : 'Gỡ'}
-                              </button>
+                              {(!account.user_id || account.user_id === currentUser?.id) && (
+                                <button
+                                  onClick={() => handleDisconnect(account)}
+                                  disabled={disconnecting === account.id}
+                                  className="text-[10px] font-semibold text-slate-400 hover:text-red-500 transition-colors"
+                                >
+                                  {disconnecting === account.id ? '...' : 'Gỡ'}
+                                </button>
+                              )}
                             </div>
                           </div>
                         );
@@ -619,13 +630,15 @@ export default function ChannelsPage() {
                                 : <><ChevronUp className="w-4 h-4" /> Ẩn</>}
                             </button>
                           )}
-                          <button
-                            onClick={() => handleDisconnect(account)}
-                            disabled={disconnecting === account.id}
-                            className="px-4 py-2 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-red-50 hover:text-red-600 rounded-xl transition-colors disabled:opacity-60"
-                          >
-                            {disconnecting === account.id ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Gỡ'}
-                          </button>
+                          {(!account.user_id || account.user_id === currentUser?.id) && (
+                            <button
+                              onClick={() => handleDisconnect(account)}
+                              disabled={disconnecting === account.id}
+                              className="px-4 py-2 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-red-50 hover:text-red-600 rounded-xl transition-colors disabled:opacity-60"
+                            >
+                              {disconnecting === account.id ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Gỡ'}
+                            </button>
+                          )}
                         </div>
                       </div>
 

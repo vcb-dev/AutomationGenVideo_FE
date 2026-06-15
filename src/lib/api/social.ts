@@ -5,11 +5,13 @@ export type SocialPlatform = 'FACEBOOK' | 'INSTAGRAM' | 'TIKTOK' | 'THREADS' | '
 
 export interface SocialAccount {
   id: string;
+  user_id: string;
   platform: SocialPlatform;
   name: string;
   username?: string;
   avatar_url?: string;
   is_active: boolean;
+  is_shared?: boolean;
   token_expires_at?: string;
   token_expires_soon?: boolean;
   token_expires_in_days?: number | null;
