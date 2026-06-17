@@ -5,7 +5,7 @@ import {
   Search, RefreshCw, Type, Image as ImageIcon, Smartphone, Monitor,
   MapPin, Globe, Smile, MessageCircle, Share2,
   MoreHorizontal, ChevronDown, Save, Send, Clock, List, AlertCircle, ThumbsUp, X, Calendar as CalendarIcon,
-  Loader2, Sparkles, Layers, Hash, Film,
+  Loader2, Sparkles, Layers, Hash, Film, Check,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { socialApi, SocialAccount, SocialPlatform, PLATFORM_META } from '@/lib/api/social';
@@ -106,6 +106,8 @@ export default function ComposePage() {
     const saved = localStorage.getItem('composer_channel_groups');
     return saved ? JSON.parse(saved) : [];
   });
+  const [showGroupNameInput, setShowGroupNameInput] = useState(false);
+  const [groupNameValue, setGroupNameValue] = useState('');
 
   // Advanced Options
   const [privacy, setPrivacy] = useState('EVERYONE');
@@ -152,50 +154,44 @@ export default function ComposePage() {
 
   const removeHashtag = (tag: string) => setHashtags(prev => prev.filter(h => h !== tag));
 
-  const addSuggestedHashtag = () => {
-    const tag = window.prompt("Nhập hashtag mới muốn thêm vào gợi ý (không cần ghi dấu #):");
-    if (tag && tag.trim()) {
-      const cleanTag = tag.trim().replace(/^#+/, '');
-      if (!suggestedHashtags.includes(cleanTag)) {
-        const newList = [...suggestedHashtags, cleanTag];
-        setSuggestedHashtags(newList);
-        localStorage.setItem('custom_hashtags', JSON.stringify(newList));
-      }
-    }
+  const addSuggestedHashtag = (tag: string) => {
+    const cleanTag = tag.trim().replace(/^#+/, '');
+    if (!cleanTag || suggestedHashtags.includes(cleanTag)) return;
+    const newList = [...suggestedHashtags, cleanTag];
+    setSuggestedHashtags(newList);
+    localStorage.setItem('custom_hashtags', JSON.stringify(newList));
   };
 
   const removeSuggestedHashtag = (tag: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.confirm(`Bạn có chắc muốn xóa gợi ý #${tag} không?`)) {
-      const newList = suggestedHashtags.filter(t => t !== tag);
-      setSuggestedHashtags(newList);
-      localStorage.setItem('custom_hashtags', JSON.stringify(newList));
-    }
+    const newList = suggestedHashtags.filter(t => t !== tag);
+    setSuggestedHashtags(newList);
+    localStorage.setItem('custom_hashtags', JSON.stringify(newList));
   };
 
   const saveCurrentSelectionAsGroup = () => {
     if (selectedAccountIds.length === 0) return toast.error('Vui lòng chọn ít nhất 1 kênh');
-    const name = window.prompt('Nhập tên nhóm kênh (VD: Nhóm Vàng bạc, Kênh TikTok...):');
-    if (!name || !name.trim()) return;
+    const name = groupNameValue.trim();
+    if (!name) return;
     const newGroup = {
       id: Date.now().toString(),
-      name: name.trim(),
+      name,
       channels: [...selectedAccountIds],
       hashtags: [...hashtags]
     };
     const updated = [...channelGroups, newGroup];
     setChannelGroups(updated);
     localStorage.setItem('composer_channel_groups', JSON.stringify(updated));
+    setGroupNameValue('');
+    setShowGroupNameInput(false);
     toast.success('Đã lưu nhóm kênh');
   };
 
   const deleteChannelGroup = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.confirm('Xóa nhóm kênh này?')) {
-      const updated = channelGroups.filter(g => g.id !== id);
-      setChannelGroups(updated);
-      localStorage.setItem('composer_channel_groups', JSON.stringify(updated));
-    }
+    const updated = channelGroups.filter(g => g.id !== id);
+    setChannelGroups(updated);
+    localStorage.setItem('composer_channel_groups', JSON.stringify(updated));
   };
 
 
@@ -808,7 +804,26 @@ export default function ComposePage() {
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-tight flex items-center gap-1.5">
                    <Layers className="w-3 h-3" /> Nhóm tùy chỉnh:
                 </span>
-                <button onClick={saveCurrentSelectionAsGroup} className="text-blue-600 text-[11px] font-bold hover:underline">+ Lưu nhóm</button>
+                {showGroupNameInput ? (
+                  <div className="flex items-center gap-1">
+                    <input
+                      autoFocus
+                      type="text"
+                      value={groupNameValue}
+                      onChange={e => setGroupNameValue(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') saveCurrentSelectionAsGroup();
+                        if (e.key === 'Escape') { setGroupNameValue(''); setShowGroupNameInput(false); }
+                      }}
+                      placeholder="Tên nhóm..."
+                      className="border border-blue-300 rounded-lg px-2 py-0.5 text-[11px] text-slate-700 outline-none focus:border-blue-500 w-28"
+                    />
+                    <button onClick={saveCurrentSelectionAsGroup} className="text-green-600 hover:text-green-700"><Check className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => { setGroupNameValue(''); setShowGroupNameInput(false); }} className="text-slate-400 hover:text-slate-600"><X className="w-3.5 h-3.5" /></button>
+                  </div>
+                ) : (
+                  <button onClick={() => setShowGroupNameInput(true)} className="text-blue-600 text-[11px] font-bold hover:underline">+ Lưu nhóm</button>
+                )}
               </div>
               <div className="flex flex-wrap gap-2">
                 {channelGroups.length === 0 && (

@@ -200,10 +200,10 @@ export default function TrackedChannelsPage() {
 
       if (!response.ok) {
         if (response.status === 429) {
-          alert('API quota exceeded. Please try again later.');
+          toast.error('API quota exceeded. Please try again later.');
           return;
         }
-        alert(data.error || 'API Error. Please try again.');
+        toast.error(data.error || 'API Error. Please try again.');
         return;
       }
 
@@ -258,7 +258,7 @@ export default function TrackedChannelsPage() {
           engagement_rate: parseFloat(engagementRate.toFixed(2))
         };
       } else {
-        alert(data.error || 'Channel not found or no data available. Please check the username.');
+        toast.error(data.error || 'Channel not found or no data available. Please check the username.');
         setLoading(false);
         return;
       }
@@ -277,17 +277,17 @@ export default function TrackedChannelsPage() {
         // apiClient interceptor handles 401 automatically (redirects to login)
         if (saveError.response?.status === 401) {
           console.error('Unauthorized: Failed to save channel. Token might be invalid.');
-          alert('Session expired or unauthorized. Please log in again.');
+          toast.error('Session expired or unauthorized. Please log in again.');
         } else {
           const errorMessage = saveError.response?.data?.message || 'Failed to save channel';
-          alert(errorMessage);
+          toast.error(errorMessage);
         }
         return;
       }
     } catch (error) {
       console.error('Error fetching channel:', error);
       const errorMessage = error instanceof Error ? error.message : 'Please try again later.';
-      alert(`Error: ${errorMessage}`);
+      toast.error(`Error: ${errorMessage}`);
     } finally {
       setLoading(false);
     }

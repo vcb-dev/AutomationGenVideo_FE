@@ -2,7 +2,6 @@
 
 import React from "react";
 import { FileText, ChevronLeft, ChevronRight } from "lucide-react";
-import AdminActivityKPIs from "./AdminActivityKPIs";
 import ReportCard from "./ReportCard";
 
 interface ChecklistTabProps {
@@ -33,15 +32,6 @@ export const ChecklistTab = ({
             }`}
             style={{ zoom: isCapturing ? 1.4 : 1 }}
         >
-            {/* Admin KPI bar */}
-            {isAdminUser && (
-                <AdminActivityKPIs
-                    reports={checklistFilteredReports}
-                    loading={loading}
-                    onViewDifficulties={() => window.scrollTo({ top: 600, behavior: "smooth" })}
-                />
-            )}
-
             {/* Header */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="flex items-center px-6 py-5">

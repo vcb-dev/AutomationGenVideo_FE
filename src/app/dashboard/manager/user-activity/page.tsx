@@ -1,6 +1,7 @@
 "use client";
 
 import React, { Suspense, useMemo, useDeferredValue } from "react";
+import toast from "react-hot-toast";
 import dynamic from "next/dynamic";
 import ActivityKPIs from "./components/ActivityKPIs";
 import AdminActivityKPIs from "./components/AdminActivityKPIs";
@@ -232,6 +233,12 @@ const UserActivityPageContent = () => {
         return { globalTeams: globals.sort(), vnTeams: vns.sort() };
     }, [allKnownTeams]);
 
+    // "Global Thái Lan" (tên cũ, không số) được coi là alias cho cả hai sub-team mới
+    const THAI_LAN_ALIASES: Record<string, string[]> = {
+        [normalize("Global- Thái Lan 1")]: [normalize("Global Thái Lan")],
+        [normalize("Global- Thái Lan 2")]: [normalize("Global Thái Lan")],
+    };
+
     const matchTeam = React.useCallback(
         (teamName: string | null | undefined): boolean => {
             if (activeTeam === "All") return true;
@@ -240,7 +247,9 @@ const UserActivityPageContent = () => {
             const safeActive = normalize(activeTeam);
             if (activeTeam === "All Global") return parts.some((p) => globalTeams.some((t) => normalize(t) === p));
             if (activeTeam === "All VN") return parts.some((p) => vnTeams.some((t) => normalize(t) === p));
-            return parts.includes(safeActive);
+            // Khi filter theo "Global- Thái Lan 1/2", cũng match record có tên cũ "Global Thái Lan"
+            const aliases = THAI_LAN_ALIASES[safeActive] ?? [];
+            return parts.includes(safeActive) || parts.some((p) => aliases.includes(p));
         },
         [activeTeam, globalTeams, vnTeams],
     );
@@ -312,7 +321,7 @@ const UserActivityPageContent = () => {
             link.click();
         } catch (e) {
             console.error("Capture screenshot failed:", e);
-            alert("Lỗi chụp màn hình. Hãy thử lại.");
+            toast.error("Lỗi chụp màn hình. Hãy thử lại.");
         } finally {
             revertImgs?.();
             setIsCapturing(false);

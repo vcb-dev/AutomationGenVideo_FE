@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { Plus, Trash2, Edit2, Video } from 'lucide-react';
 import Link from 'next/link';
 
@@ -44,7 +45,7 @@ export default function CollectionsPage() {
 
   const createCollection = async () => {
     if (!newCollection.name.trim()) {
-      alert('Vui lòng nhập tên bộ sưu tập');
+      toast.error('Vui lòng nhập tên bộ sưu tập');
       return;
     }
 

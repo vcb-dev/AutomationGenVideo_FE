@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { toPng } from 'html-to-image';
 import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
 import {
@@ -348,11 +347,12 @@ export default function ManagerDashboardPage() {
       setIsCapturing(true);
       await new Promise(resolve => requestAnimationFrame(resolve));
 
+      const { toPng } = await import('html-to-image');
       const dataUrl = await toPng(reportRef.current, {
         cacheBust: true,
         pixelRatio: 2,
         backgroundColor: '#f6f8fb',
-        filter: (node) => !(node instanceof HTMLElement && node.dataset.captureExclude === 'true'),
+        filter: (node: HTMLElement) => !(node instanceof HTMLElement && node.dataset.captureExclude === 'true'),
       });
       const link = document.createElement('a');
       link.download = dateFilter

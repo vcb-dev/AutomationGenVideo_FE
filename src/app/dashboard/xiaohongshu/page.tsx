@@ -6,6 +6,7 @@ import { Search, Loader2, AlertTriangle, Image as ImageIcon, Video, Eye, Heart, 
 import { motion, AnimatePresence } from 'framer-motion';
 import SearchAutocomplete from '@/components/SearchAutocomplete';
 import apiClient from '@/lib/api-client';
+import toast from 'react-hot-toast';
 
 interface XHSNote {
   note_id: string;
@@ -118,7 +119,7 @@ export default function XiaohongshuPage() {
       await apiClient.post('/tracked-channels', payload);
       setTrackedChannels(prev => new Set(prev).add(note.author_id));
     } catch (error: any) {
-      alert(error.response?.data?.message || error.message || 'Có lỗi xảy ra khi theo dõi kênh');
+      toast.error(error.response?.data?.message || error.message || 'Có lỗi xảy ra khi theo dõi kênh');
     }
   };
 
