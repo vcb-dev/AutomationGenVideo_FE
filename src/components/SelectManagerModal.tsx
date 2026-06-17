@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
 import { Users, X, CheckCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface Manager {
   id: string;
@@ -97,11 +98,11 @@ export default function SelectManagerModal() {
         localStorage.setItem('manager_modal_dismissed', 'true');
         setShowModal(false);
       } else {
-        alert('Không thể chọn quản lý. Vui lòng thử lại.');
+        toast.error('Không thể chọn quản lý. Vui lòng thử lại.');
       }
     } catch (error) {
       console.error('Error selecting manager:', error);
-      alert('Đã xảy ra lỗi. Vui lòng thử lại.');
+      toast.error('Đã xảy ra lỗi. Vui lòng thử lại.');
     } finally {
       setSubmitting(false);
     }

@@ -249,6 +249,24 @@ export default function StatsPage() {
   // ── Success rate radial data ──
   const radialData = [{ name: 'Tỉ lệ', value: successRate, fill: successRate >= 80 ? '#10b981' : successRate >= 50 ? '#f59e0b' : '#ef4444' }];
 
+  // ── Member stats (admin/manager only) ──
+  const memberStats = useMemo(() => {
+    if (!isAdmin) return [];
+    const map: Record<string, {
+      user: { id: string; full_name: string; team?: string; image_url?: string };
+      total: number; success: number; failed: number; pending: number;
+    }> = {};
+    rangedPosts.forEach(p => {
+      if (!p.user) return;
+      if (!map[p.user_id]) map[p.user_id] = { user: p.user, total: 0, success: 0, failed: 0, pending: 0 };
+      map[p.user_id].total++;
+      if (p.status === 'COMPLETED') map[p.user_id].success++;
+      else if (p.status === 'FAILED') map[p.user_id].failed++;
+      else map[p.user_id].pending++;
+    });
+    return Object.values(map).sort((a, b) => b.total - a.total);
+  }, [rangedPosts, isAdmin]);
+
   // ── Recent failures ──
   const recentFailed = rangedPosts
     .filter(p => p.status === 'FAILED')
@@ -451,6 +469,83 @@ export default function StatsPage() {
               <KpiCard icon={Clock}     label="Đang chờ"        value={fmt(pending)}    color="bg-amber-500"  sub="Chưa xử lý" />
               <KpiCard icon={Award}     label="Platform tốt nhất" value={bestPlatform ? `${bestPlatform.meta.emoji} ${bestPlatform.meta.label}` : '—'} color="bg-pink-500" sub={bestPlatform ? `${bestPlatform.rate}% thành công` : 'Chưa đủ dữ liệu'} />
             </div>
+
+            {/* ── Member leaderboard (admin/manager only) ── */}
+            {isAdmin && memberStats.length > 0 && (
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="p-5 border-b border-slate-100 flex items-center gap-3">
+                  <div className="w-8 h-8 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center">
+                    <Users className="w-4 h-4 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="font-bold text-slate-800 text-sm">Thống kê theo thành viên</h2>
+                    <p className="text-xs text-slate-400 mt-0.5">{memberStats.length} thành viên · {fmt(total)} bài đăng</p>
+                  </div>
+                </div>
+                <div className="divide-y divide-slate-50">
+                  {memberStats.map((ms, idx) => {
+                    const rate = pct(ms.success, ms.total);
+                    const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : null;
+                    const initials = ms.user.full_name.split(' ').map((n: string) => n[0]).slice(-2).join('').toUpperCase();
+                    return (
+                      <div key={ms.user.id} className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50 transition-colors">
+                        {/* Rank */}
+                        <div className="w-7 text-center flex-shrink-0">
+                          {medal
+                            ? <span className="text-lg">{medal}</span>
+                            : <span className="text-xs font-black text-slate-400">{idx + 1}</span>}
+                        </div>
+
+                        {/* Avatar */}
+                        <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden bg-gradient-to-br from-blue-500 to-indigo-600">
+                          {ms.user.image_url
+                            ? <img src={ms.user.image_url} alt={ms.user.full_name} className="w-full h-full object-cover" />
+                            : <span className="text-white text-xs font-bold">{initials}</span>}
+                        </div>
+
+                        {/* Name + Team + progress bar */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-bold text-slate-800 truncate">{ms.user.full_name}</span>
+                            {ms.user.team && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded-full border border-indigo-100">
+                                {ms.user.team}
+                              </span>
+                            )}
+                          </div>
+                          <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden mt-1.5 max-w-[200px]">
+                            <div className="h-full flex">
+                              <div className="bg-emerald-400" style={{ width: `${pct(ms.success, ms.total)}%` }} />
+                              <div className="bg-red-400"     style={{ width: `${pct(ms.failed,  ms.total)}%` }} />
+                              <div className="bg-amber-300"   style={{ width: `${pct(ms.pending, ms.total)}%` }} />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Stat numbers */}
+                        <div className="flex items-center gap-4 flex-shrink-0">
+                          <div className="text-center hidden sm:block">
+                            <p className="text-sm font-black text-emerald-600">{ms.success}</p>
+                            <p className="text-[10px] text-slate-400">Thành công</p>
+                          </div>
+                          <div className="text-center hidden sm:block">
+                            <p className="text-sm font-black text-red-500">{ms.failed}</p>
+                            <p className="text-[10px] text-slate-400">Thất bại</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-sm font-black text-slate-800">{ms.total}</p>
+                            <p className="text-[10px] text-slate-400">Tổng</p>
+                          </div>
+                          <div className={`text-sm font-black w-10 text-right ${rate >= 80 ? 'text-emerald-600' : rate >= 50 ? 'text-amber-600' : 'text-red-500'}`}>
+                            {rate}%
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* ── Trend + Radial ── */}
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">

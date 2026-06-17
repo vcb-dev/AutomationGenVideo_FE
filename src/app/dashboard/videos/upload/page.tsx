@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 
 interface DuplicateInfo {
   isDuplicate: boolean;
@@ -34,7 +35,7 @@ export default function UploadVideoPage() {
 
   const handleUpload = async () => {
     if (!file || !title || !channelId) {
-      alert('Please fill in all required fields');
+      toast.error('Please fill in all required fields');
       return;
     }
 
@@ -65,14 +66,14 @@ export default function UploadVideoPage() {
         setShowDuplicateModal(true);
       } else if (result.success) {
         // Upload success
-        alert('Video uploaded successfully!');
+        toast.success('Video uploaded successfully!');
         router.push('/dashboard/videos');
       } else {
-        alert(result.message || 'Upload failed');
+        toast.error(result.message || 'Upload failed');
       }
     } catch (error) {
       console.error('Upload error:', error);
-      alert('Upload failed. Please try again.');
+      toast.error('Upload failed. Please try again.');
     } finally {
       setUploading(false);
     }
@@ -225,7 +226,7 @@ export default function UploadVideoPage() {
                 <button
                   onClick={() => {
                     // TODO: Send to manager review
-                    alert('Sent to manager for review');
+                    toast.success('Sent to manager for review');
                     setShowDuplicateModal(false);
                   }}
                   className="flex-1 px-4 py-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 font-semibold"

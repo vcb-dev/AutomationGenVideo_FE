@@ -498,7 +498,7 @@ const ActivityFilters = ({
                                                             {team.toLowerCase().includes("global - indo") && (
                                                                 <Image src="/indo-flag.png" alt="INDO" className="w-5 h-3.5 object-contain rounded-sm" width={20} height={14} unoptimized />
                                                             )}
-                                                            {team.toLowerCase().includes("global thái lan") && (
+                                                            {team.toLowerCase().includes("thái lan") && (
                                                                 <Image src="/thailand-flag.png" alt="TH" className="w-5 h-3.5 object-contain rounded-sm" width={20} height={14} unoptimized />
                                                             )}
                                                             {(team.toLowerCase().includes("jp") || team.toLowerCase().includes("nhật bản")) && (

@@ -9,7 +9,6 @@ export default function SearchSuggestionsDemo() {
 
     const handleSearch = (searchQuery: string) => {
         console.log('Searching for:', searchQuery, 'on', platform);
-        alert(`Searching for: "${searchQuery}" on ${platform}`);
     };
 
     return (

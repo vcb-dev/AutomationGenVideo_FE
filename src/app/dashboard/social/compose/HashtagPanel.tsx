@@ -1,6 +1,7 @@
 'use client';
 
-import { Hash, X } from 'lucide-react';
+import { useState } from 'react';
+import { Hash, X, Check } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface Props {
@@ -11,7 +12,7 @@ interface Props {
   onRemove: (tag: string) => void;
   onInputChange: (v: string) => void;
   onKeyDown: (e: React.KeyboardEvent) => void;
-  onAddSuggested: () => void;
+  onAddSuggested: (tag: string) => void;
   onRemoveSuggested: (tag: string, e: React.MouseEvent) => void;
 }
 
@@ -20,6 +21,16 @@ export default function HashtagPanel({
   onAdd, onRemove, onInputChange, onKeyDown,
   onAddSuggested, onRemoveSuggested,
 }: Props) {
+  const [showSuggestInput, setShowSuggestInput] = useState(false);
+  const [suggestInputVal, setSuggestInputVal] = useState('');
+
+  const handleSubmitSuggested = () => {
+    const tag = suggestInputVal.trim().replace(/^#+/, '');
+    if (tag) onAddSuggested(tag);
+    setSuggestInputVal('');
+    setShowSuggestInput(false);
+  };
+
   return (
     <motion.div layout className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
       <div className="flex items-center justify-between">
@@ -29,7 +40,26 @@ export default function HashtagPanel({
           </div>
           <span className="text-slate-800 font-extrabold text-[13px]">Hashtag Mục tiêu *</span>
         </div>
-        <button onClick={onAddSuggested} className="text-blue-600 text-xs font-bold hover:underline">+ Thêm gợi ý</button>
+        {showSuggestInput ? (
+          <div className="flex items-center gap-1">
+            <input
+              autoFocus
+              type="text"
+              value={suggestInputVal}
+              onChange={e => setSuggestInputVal(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') handleSubmitSuggested();
+                if (e.key === 'Escape') { setSuggestInputVal(''); setShowSuggestInput(false); }
+              }}
+              placeholder="Tên hashtag..."
+              className="border border-blue-300 rounded-lg px-2 py-0.5 text-[12px] text-slate-700 outline-none focus:border-blue-500 w-32"
+            />
+            <button onClick={handleSubmitSuggested} className="text-green-600 hover:text-green-700"><Check className="w-4 h-4" /></button>
+            <button onClick={() => { setSuggestInputVal(''); setShowSuggestInput(false); }} className="text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
+          </div>
+        ) : (
+          <button onClick={() => setShowSuggestInput(true)} className="text-blue-600 text-xs font-bold hover:underline">+ Thêm gợi ý</button>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-2 p-3 bg-slate-50/50 rounded-xl border border-slate-100 min-h-[48px]">

@@ -305,7 +305,7 @@ export default function FacebookChannelsPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        alert(data.error || 'Không thể tìm thấy Fanpage/User này. Vui lòng kiểm tra lại Link hoặc ID.');
+        toast.error(data.error || 'Không thể tìm thấy Fanpage/User này. Vui lòng kiểm tra lại Link hoặc ID.');
         setProcessing(false);
         return;
       }
@@ -410,11 +410,11 @@ export default function FacebookChannelsPage() {
         router.push(`/dashboard/facebook/analytics/${username}`);
       } else {
         const errorData = await saveResponse.json();
-        alert(errorData.message || 'Lỗi khi lưu kênh vào hệ thống.');
+        toast.error(errorData.message || 'Lỗi khi lưu kênh vào hệ thống.');
       }
     } catch (error) {
       console.error('Error processing channel:', error);
-      alert('Có lỗi xảy ra. Vui lòng thử lại.');
+      toast.error('Có lỗi xảy ra. Vui lòng thử lại.');
     } finally {
       setProcessing(false);
     }
