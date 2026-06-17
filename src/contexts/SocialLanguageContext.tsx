@@ -184,7 +184,15 @@ const T = {
   },
 } as const;
 
-export type SocialT = typeof T.vi;
+type Normalize<Obj> = {
+  [K in keyof Obj]: Obj[K] extends (...args: any[]) => any
+    ? Obj[K]
+    : Obj[K] extends object
+    ? { [SubK in keyof Obj[K]]: string }
+    : string;
+};
+
+export type SocialT = Normalize<typeof T.vi>;
 
 interface LanguageCtx {
   lang: Lang;
