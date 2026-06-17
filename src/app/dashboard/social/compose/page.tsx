@@ -87,6 +87,7 @@ export default function ComposePage() {
   // Map url → library item id (để gọi API previewFrame/setThumbnail cho Drive video)
   const [mediaLibraryIds, setMediaLibraryIds] = useState<Record<string, string>>({});
   const [perPlatformMessages, setPerPlatformMessages] = useState<Partial<Record<SocialPlatform, string>>>({});
+  const [dragMediaIndex, setDragMediaIndex] = useState<number | null>(null);
 
   // --- PORTED LOGIC FROM VCB-TOOL ---
   
@@ -1202,16 +1203,35 @@ export default function ComposePage() {
                     const isDrive = url.includes('drive.google.com');
                     const isVideo = /\.(mp4|mov|avi|webm|mkv)$/i.test(url);
                     const driveFileId = isDrive ? (url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || url.match(/[?&]id=([a-zA-Z0-9_-]+)/))?.[1] : null;
-                    // Ưu tiên thumbnail_url từ thư viện (ảnh FFmpeg đúng), fallback về Drive thumbnail API
                     const previewSrc = mediaThumbs[url]
                       || (driveFileId ? `https://drive.google.com/thumbnail?id=${driveFileId}&sz=w300` : url);
+                    const isDragging = dragMediaIndex === i;
                     return (
-                      <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} key={i} className="relative w-24 h-24 rounded-xl overflow-hidden border border-slate-200 group">
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: isDragging ? 0.9 : 1, opacity: isDragging ? 0.5 : 1 }}
+                        key={i}
+                        draggable
+                        onDragStart={() => setDragMediaIndex(i)}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (dragMediaIndex === null || dragMediaIndex === i) return;
+                          const newUrls = [...mediaUrls];
+                          const [dragged] = newUrls.splice(dragMediaIndex, 1);
+                          newUrls.splice(i, 0, dragged);
+                          setMediaUrls(newUrls);
+                          setDragMediaIndex(null);
+                        }}
+                        onDragEnd={() => setDragMediaIndex(null)}
+                        className={`relative w-24 h-24 rounded-xl overflow-hidden border group cursor-grab active:cursor-grabbing transition-all ${
+                          isDragging ? 'border-blue-500 ring-2 ring-blue-300' : 'border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
                         {!isDrive && isVideo ? (
                           <video src={url} className="w-full h-full object-cover" muted />
-                        ) : isDrive ? (
+                        ) : isDrive && isVideo ? (
                           <div className="relative w-full h-full bg-slate-800">
-                            {/* Film icon nền — hiện ra khi thumbnail fail */}
                             <div className="absolute inset-0 flex items-center justify-center text-slate-500">
                               <Film className="w-8 h-8" />
                             </div>
@@ -1230,10 +1250,13 @@ export default function ComposePage() {
                             onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }}
                           />
                         )}
+                        {/* Số thứ tự */}
+                        <div className="absolute top-1 left-1 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center text-white text-[9px] font-bold">
+                          {i + 1}
+                        </div>
                         <button onClick={() => {
                           const removed = mediaUrls[i];
                           setMediaUrls(p => p.filter((_, idx) => idx !== i));
-                          // Nếu ảnh bìa đang dùng thumbnail của media bị xóa → xóa luôn ảnh bìa
                           if (thumbUrl && mediaThumbs[removed] && thumbUrl === mediaThumbs[removed]) setThumbUrl('');
                         }} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                           <X className="w-3 h-3" />
@@ -1367,6 +1390,7 @@ export default function ComposePage() {
                   mediaUrls={mediaUrls}
                   accountName={accounts.find(a => a.platform === previewPlatform && selectedAccountIds.includes(a.id))?.name}
                   accountAvatar={accounts.find(a => a.platform === previewPlatform && selectedAccountIds.includes(a.id))?.avatar_url}
+                  mediaThumbs={mediaThumbs}
                 />
               </div>
               </div>

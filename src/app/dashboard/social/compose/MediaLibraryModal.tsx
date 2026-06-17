@@ -167,7 +167,12 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
     const idMap: Record<string, string> = {};
     items.forEach(item => {
       if (selected.has(item.url)) {
-        if (item.thumbnail_url) thumbMap[item.url] = item.thumbnail_url;
+        if (item.thumbnail_url) {
+          thumbMap[item.url] = item.thumbnail_url;
+        } else if (item.url.includes('drive.google.com')) {
+          const driveId = (item.url.match(/[?&]id=([a-zA-Z0-9_-]+)/) || item.url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/))?.[1];
+          if (driveId) thumbMap[item.url] = `https://drive.google.com/thumbnail?id=${driveId}&sz=w400`;
+        }
         idMap[item.url] = item.id;
       }
     });
@@ -355,7 +360,12 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
                         </div>
                       ) : (
                         <img
-                          src={item.url}
+                          src={(() => {
+                            const driveId = item.url.includes('drive.google.com')
+                              ? (item.url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || item.url.match(/[?&]id=([a-zA-Z0-9_-]+)/))?.[1]
+                              : null;
+                            return item.thumbnail_url || (driveId ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w300` : item.url);
+                          })()}
                           alt={item.originalname}
                           className="w-full h-full object-cover"
                           onError={(e) => { (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="%23f1f5f9"/><text x="50" y="55" text-anchor="middle" font-size="30">🖼</text></svg>'; }}

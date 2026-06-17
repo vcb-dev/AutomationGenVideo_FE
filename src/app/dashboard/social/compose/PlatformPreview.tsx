@@ -8,9 +8,18 @@ interface Props {
   mediaUrls: string[];
   accountName?: string;
   accountAvatar?: string;
+  mediaThumbs?: Record<string, string>;
 }
 
-function MediaGrid({ urls, platform }: { urls: string[]; platform: SocialPlatform }) {
+function resolveSrc(url: string, mediaThumbs?: Record<string, string>): string {
+  if (mediaThumbs?.[url]) return mediaThumbs[url];
+  const driveId = url.includes('drive.google.com')
+    ? (url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || url.match(/[?&]id=([a-zA-Z0-9_-]+)/))?.[1]
+    : null;
+  return driveId ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w400` : url;
+}
+
+function MediaGrid({ urls, platform, mediaThumbs }: { urls: string[]; platform: SocialPlatform; mediaThumbs?: Record<string, string> }) {
   if (!urls.length) return (
     <div className="w-full aspect-square bg-slate-100 rounded-xl flex items-center justify-center">
       <svg className="w-10 h-10 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -20,14 +29,15 @@ function MediaGrid({ urls, platform }: { urls: string[]; platform: SocialPlatfor
   );
 
   const isVertical = platform === 'TIKTOK' || platform === 'YOUTUBE';
-  const isVideo = (url: string) => /\.mp4(\?|$)/i.test(url);
+  const isVideo = (url: string) => /\.mp4(\?|$)/i.test(url) || url.includes('drive.google.com');
 
   if (urls.length === 1) {
     const url = urls[0];
-    return isVideo(url) ? (
+    const src = resolveSrc(url, mediaThumbs);
+    return isVideo(url) && !url.includes('drive.google.com') ? (
       <video src={url} controls className={`w-full rounded-xl object-cover bg-black ${isVertical ? 'aspect-[9/16]' : 'aspect-square'}`} muted />
     ) : (
-      <img src={url} alt="" className={`w-full rounded-xl object-cover ${isVertical ? 'aspect-[9/16]' : 'aspect-square'}`} />
+      <img src={src} alt="" className={`w-full rounded-xl object-cover ${isVertical ? 'aspect-[9/16]' : 'aspect-square'}`} onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }} />
     );
   }
 
@@ -36,10 +46,10 @@ function MediaGrid({ urls, platform }: { urls: string[]; platform: SocialPlatfor
     <div className="grid gap-1 rounded-xl overflow-hidden grid-cols-2">
       {urls.slice(0, 4).map((url, i) => (
         <div key={i} className={`relative ${urls.length === 3 && i === 0 ? 'row-span-2' : ''}`}>
-          {isVideo(url) ? (
+          {isVideo(url) && !url.includes('drive.google.com') ? (
             <video src={url} className="w-full h-32 object-cover" muted />
           ) : (
-            <img src={url} alt="" className="w-full h-32 object-cover" />
+            <img src={resolveSrc(url, mediaThumbs)} alt="" className="w-full h-32 object-cover" onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }} />
           )}
           {i === 3 && urls.length > 4 && (
             <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
@@ -57,7 +67,7 @@ function truncate(text: string, max: number) {
 }
 
 // ── Facebook Preview ──────────────────────────────────────────────────────────
-function FacebookPreview({ message, mediaUrls, accountName, accountAvatar }: Props) {
+function FacebookPreview({ message, mediaUrls, accountName, accountAvatar, mediaThumbs }: Props) {
   return (
     <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm max-w-[400px] mx-auto">
       <div className="flex items-center gap-3 px-4 pt-4 pb-3">
@@ -79,7 +89,7 @@ function FacebookPreview({ message, mediaUrls, accountName, accountAvatar }: Pro
 
       {mediaUrls.length > 0 && (
         <div className="mx-0">
-          <MediaGrid urls={mediaUrls} platform="FACEBOOK" />
+          <MediaGrid urls={mediaUrls} platform="FACEBOOK" mediaThumbs={mediaThumbs} />
         </div>
       )}
 
@@ -103,7 +113,7 @@ function FacebookPreview({ message, mediaUrls, accountName, accountAvatar }: Pro
 }
 
 // ── Instagram Preview ─────────────────────────────────────────────────────────
-function InstagramPreview({ message, mediaUrls, accountName, accountAvatar }: Props) {
+function InstagramPreview({ message, mediaUrls, accountName, accountAvatar, mediaThumbs }: Props) {
   return (
     <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm max-w-[380px] mx-auto">
       <div className="flex items-center gap-3 px-3 py-3">
@@ -119,7 +129,7 @@ function InstagramPreview({ message, mediaUrls, accountName, accountAvatar }: Pr
       </div>
 
       {mediaUrls.length > 0 ? (
-        <MediaGrid urls={mediaUrls} platform="INSTAGRAM" />
+        <MediaGrid urls={mediaUrls} platform="INSTAGRAM" mediaThumbs={mediaThumbs} />
       ) : (
         <div className="aspect-square bg-slate-100 flex items-center justify-center">
           <span className="text-4xl">📷</span>
@@ -220,7 +230,7 @@ function YouTubePreview({ message, mediaUrls, accountName, accountAvatar }: Prop
 }
 
 // ── Threads Preview ───────────────────────────────────────────────────────────
-function ThreadsPreview({ message, mediaUrls, accountName }: Props) {
+function ThreadsPreview({ message, mediaUrls, accountName, mediaThumbs }: Props) {
   return (
     <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm max-w-[380px] mx-auto p-4">
       <div className="flex gap-3">
@@ -236,7 +246,7 @@ function ThreadsPreview({ message, mediaUrls, accountName }: Props) {
             <span className="text-[10px] text-slate-400">• Vừa xong</span>
           </div>
           {message && <p className="text-sm text-slate-700 leading-relaxed mb-2">{truncate(message, 200)}</p>}
-          {mediaUrls.length > 0 && <MediaGrid urls={mediaUrls} platform="THREADS" />}
+          {mediaUrls.length > 0 && <MediaGrid urls={mediaUrls} platform="THREADS" mediaThumbs={mediaThumbs} />}
           <div className="flex items-center gap-4 mt-3 text-slate-400">
             {['🤍', '💬', '🔁', '📤'].map(i => <button key={i} className="text-xl hover:scale-110 transition-transform">{i}</button>)}
           </div>
@@ -248,7 +258,7 @@ function ThreadsPreview({ message, mediaUrls, accountName }: Props) {
 }
 
 // ── Zalo Preview ──────────────────────────────────────────────────────────────
-function ZaloPreview({ message, mediaUrls, accountName }: Props) {
+function ZaloPreview({ message, mediaUrls, accountName, mediaThumbs }: Props) {
   return (
     <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm max-w-[380px] mx-auto">
       <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-100">
@@ -260,7 +270,7 @@ function ZaloPreview({ message, mediaUrls, accountName }: Props) {
           <p className="text-[10px] text-sky-500 font-semibold">Official Account</p>
         </div>
       </div>
-      {mediaUrls.length > 0 && <MediaGrid urls={mediaUrls} platform="ZALO" />}
+      {mediaUrls.length > 0 && <MediaGrid urls={mediaUrls} platform="ZALO" mediaThumbs={mediaThumbs} />}
       {message && <p className="px-4 py-3 text-sm text-slate-800 leading-relaxed">{truncate(message, 300)}</p>}
       <div className="px-4 py-2 border-t border-slate-100 flex gap-3">
         <button className="text-xs font-semibold text-sky-600 hover:underline">Thích</button>
