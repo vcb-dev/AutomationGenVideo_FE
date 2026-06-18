@@ -1,0 +1,323 @@
+'use client'
+
+import { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import toast from 'react-hot-toast'
+import { Plus, Edit2, Trash2, Loader2, FileText, ChevronLeft, ChevronRight, Search } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { CustomSelect } from '@/components/task-auto/DarkInput'
+import { ContentStatusBadge } from '@/components/task-auto/StatusBadge'
+import { EmptyState } from '@/components/task-auto/EmptyState'
+import { ContentFormModal, parseMarkets } from '@/components/task-auto/ContentFormModal'
+import {
+  getContents,
+  getContentLines, createContentLine, deleteContentLine,
+} from '@/lib/api/task-auto'
+import type { Content, ContentUsageStatus } from '@/types/task-auto'
+import { CONTENT_STATUS_LABELS } from '@/types/task-auto'
+
+// ── Helpers ──────────────────────────────────────────
+
+const MarketBadge = ({ market }: { market: string }) =>
+  <span className={cn(
+    'inline-flex items-center px-2.5 py-1 rounded-full text-sm font-semibold',
+    market === 'GLOBAL' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'
+  )}>
+    {market === 'VIETNAM' ? 'VN' : market}
+  </span>
+
+// ── Pagination ────────────────────────────────────────
+
+function Pagination({ page, totalPages, onChange }: { page: number; totalPages: number; onChange: (p: number) => void }) {
+  if (totalPages <= 1) return null
+  return (
+    <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100">
+      <button onClick={() => onChange(page - 1)} disabled={page <= 1} className="p-2 rounded-xl hover:bg-gray-100 text-slate-500 disabled:opacity-40 transition-colors">
+        <ChevronLeft className="w-5 h-5" />
+      </button>
+      <span className="text-base text-slate-600 font-medium">Trang {page} / {totalPages}</span>
+      <button onClick={() => onChange(page + 1)} disabled={page >= totalPages} className="p-2 rounded-xl hover:bg-gray-100 text-slate-500 disabled:opacity-40 transition-colors">
+        <ChevronRight className="w-5 h-5" />
+      </button>
+    </div>
+  )
+}
+
+function LoadingRows({ cols }: { cols: number }) {
+  return <>
+    {Array.from({ length: 5 }).map((_, i) => (
+      <tr key={i}>{Array.from({ length: cols }).map((_, j) => (
+        <td key={j} className="px-5 py-4"><div className="h-4 bg-gray-100 rounded animate-pulse" /></td>
+      ))}</tr>
+    ))}
+  </>
+}
+
+// ── MiniList sidebar ──────────────────────────────────
+
+function MiniList({
+  title, items, onAdd, onDelete, addLabel,
+}: {
+  title: string
+  items: { id: string; name: string; _count?: Record<string, number> }[]
+  onAdd: (name: string) => void
+  onDelete?: (id: string) => void
+  addLabel: string
+}) {
+  const [newName, setNewName] = useState('')
+  const [adding, setAdding] = useState(false)
+
+  const handleAdd = async () => {
+    if (!newName.trim()) return
+    setAdding(true)
+    try { onAdd(newName.trim()); setNewName('') }
+    finally { setAdding(false) }
+  }
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
+      <h3 className="text-base font-bold text-slate-900 mb-4">{title}</h3>
+      <div className="space-y-0.5 max-h-56 overflow-y-auto mb-4">
+        {items.length === 0 && <p className="text-sm text-slate-400 py-3 text-center">Chưa có dữ liệu</p>}
+        {items.map(item => (
+          <div key={item.id} className="flex items-center justify-between py-2 px-3 rounded-xl hover:bg-gray-50 group">
+            <span className="text-base text-slate-700 truncate">{item.name}</span>
+            <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+              {item._count && (
+                <span className="text-sm text-slate-400">
+                  ({Object.values(item._count).reduce((a, b) => a + b, 0)})
+                </span>
+              )}
+              {onDelete && (
+                <button onClick={() => onDelete(item.id)} className="p-1 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <input
+          value={newName}
+          onChange={e => setNewName(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleAdd()}
+          placeholder={addLabel}
+          className="w-3/4 bg-white border border-gray-200 rounded-xl p-2 text-base text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
+        <button onClick={handleAdd} disabled={adding || !newName.trim()}
+          className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold disabled:opacity-50 transition-colors">
+          {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Contents Tab ──────────────────────────────────────
+
+export function ContentsTab() {
+  const qc = useQueryClient()
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<ContentUsageStatus | ''>('')
+  const [contentLineFilter, setContentLineFilter] = useState('')
+  const [marketFilter, setMarketFilter] = useState('')
+  const [page, setPage] = useState(1)
+  const [showModal, setShowModal] = useState(false)
+  const [editing, setEditing] = useState<Content | null>(null)
+
+  const { data: contentLines } = useQuery({ queryKey: ['task-auto', 'content-lines'], queryFn: getContentLines })
+  const { data, isLoading } = useQuery({
+    queryKey: ['task-auto', 'contents', search, statusFilter, contentLineFilter, marketFilter, page],
+    queryFn: () => getContents({
+      search: search || undefined,
+      status: statusFilter || undefined,
+      content_line_id: contentLineFilter || undefined,
+      market: marketFilter || undefined,
+      page, limit: 20,
+    }),
+  })
+
+  const createLineMut = useMutation({
+    mutationFn: createContentLine,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['task-auto', 'content-lines'] }),
+    onError: () => toast.error('Không thể thêm tuyến nội dung'),
+  })
+  const deleteLineMut = useMutation({
+    mutationFn: deleteContentLine,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['task-auto', 'content-lines'] }),
+    onError: () => toast.error('Không thể xóa tuyến nội dung'),
+  })
+
+  const openCreate = () => { setEditing(null); setShowModal(true) }
+  const openEdit = (c: Content) => { setEditing(c); setShowModal(true) }
+
+  return (
+    <div className="flex flex-col lg:flex-row gap-5">
+      {/* Main table */}
+      <div className="flex-1 min-w-0 space-y-4">
+        {/* Filters */}
+        <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
+          <div className="flex flex-wrap gap-3 items-center">
+            <div className="relative flex-1 min-w-[240px]">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
+              <input
+                value={search}
+                onChange={e => { setSearch(e.target.value); setPage(1) }}
+                placeholder="Tìm kiếm tiêu đề content..."
+                className="w-full pl-12 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-base text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+              />
+            </div>
+            {/* <CustomSelect
+              value={statusFilter}
+              onChange={v => { setStatusFilter(v as ContentUsageStatus | ''); setPage(1) }}
+              options={[
+                { value: '', label: 'Tất cả trạng thái' },
+                ...(Object.keys(CONTENT_STATUS_LABELS) as ContentUsageStatus[]).map(k => ({ value: k, label: CONTENT_STATUS_LABELS[k] })),
+              ]}
+              className="min-w-[175px]"
+            /> */}
+            <CustomSelect
+              value={contentLineFilter}
+              onChange={v => { setContentLineFilter(v); setPage(1) }}
+              options={[
+                { value: '', label: 'Tất cả tuyến nội dung' },
+                ...(contentLines?.map(l => ({ value: l.id, label: l.name })) ?? []),
+              ]}
+              className="min-w-[200px]"
+              searchable
+            />
+            <CustomSelect
+              value={marketFilter}
+              onChange={v => { setMarketFilter(v); setPage(1) }}
+              options={[
+                { value: '', label: 'Tất cả thị trường' },
+                { value: 'VIETNAM', label: 'Vietnam' },
+                { value: 'GLOBAL', label: 'Global' },
+              ]}
+              className="min-w-[160px]"
+            />
+            <button
+              onClick={openCreate}
+              className="ml-auto bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-3.5 text-base font-semibold flex items-center gap-2 transition-colors shrink-0"
+            >
+              <Plus className="w-5 h-5" /> Thêm content
+            </button>
+          </div>
+        </div>
+
+        {data && data.total > 0 && (
+          <p className="text-sm text-slate-500 px-1">
+            Tổng <span className="font-bold text-slate-700">{data.total}</span> content
+            {search && <span> · kết quả cho "<span className="font-semibold text-indigo-600">{search}</span>"</span>}
+          </p>
+        )}
+
+        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-slate-50 border-b-2 border-gray-200">
+                  <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide w-[35%]">Tiêu đề</th>
+                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[15%]">Tuyến ND</th>
+                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[9%]">Thị trường</th>
+                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[13%]">Trạng thái</th>
+                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[7%]">Lượt xem</th>
+                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[11%]">Người thêm</th>
+                  <th className="w-16" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {isLoading && <LoadingRows cols={7} />}
+
+                {!isLoading && (!data?.data || data.data.length === 0) && (
+                  <tr>
+                    <td colSpan={7}>
+                      <EmptyState icon={FileText} title="Không có content nào" />
+                    </td>
+                  </tr>
+                )}
+
+                {data?.data.map(c => (
+                  <tr key={c.id} className="hover:bg-indigo-50/20 transition-colors group">
+
+                    {/* Tiêu đề */}
+                    <td className="px-5 py-4 max-w-0">
+                      <span className="text-base font-semibold text-slate-800 truncate block" title={c.title ?? ''}>
+                        {c.title || <span className="text-slate-400 italic font-normal text-sm">Chưa đặt tên</span>}
+                      </span>
+                    </td>
+
+                    {/* Tuyến ND */}
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      {c.content_line?.name
+                        ? <span className="text-sm font-medium text-slate-700">{c.content_line.name}</span>
+                        : <span className="text-slate-300 text-sm">—</span>
+                      }
+                    </td>
+
+                    {/* Thị trường */}
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="flex flex-wrap gap-1.5">
+                        {parseMarkets(c.market).map(m => <MarketBadge key={m} market={m} />)}
+                        {!c.market && <span className="text-slate-300 text-sm">—</span>}
+                      </div>
+                    </td>
+
+                    {/* Trạng thái */}
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <ContentStatusBadge status={c.status} />
+                    </td>
+
+                    {/* Lượt xem */}
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <span className="text-sm text-slate-500">{c.view_count ?? '0'}</span>
+                    </td>
+
+                    {/* Người thêm */}
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <span className="text-sm text-slate-500">
+                        {c.added_by?.full_name ?? <span className="text-slate-300">—</span>}
+                      </span>
+                    </td>
+
+                    {/* Hành động */}
+                    <td className="px-4 py-4 text-right">
+                      <button
+                        onClick={() => openEdit(c)}
+                        className="p-2.5 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors opacity-0 group-hover:opacity-100"
+                        title="Chỉnh sửa"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {data && <Pagination page={page} totalPages={data.totalPages} onChange={setPage} />}
+        </div>
+      </div>
+
+      {/* Sidebar */}
+      <div className="lg:w-64 lg:shrink-0">
+        <MiniList
+          title="Tuyến nội dung"
+          items={contentLines ?? []}
+          addLabel="Tên tuyến nội dung..."
+          onAdd={name => createLineMut.mutateAsync(name)}
+          onDelete={id => deleteLineMut.mutate(id)}
+        />
+      </div>
+
+      <ContentFormModal
+        open={showModal}
+        editing={editing}
+        onClose={() => setShowModal(false)}
+        onSuccess={() => setShowModal(false)}
+      />
+    </div>
+  )
+}
