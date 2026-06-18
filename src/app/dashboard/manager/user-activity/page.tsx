@@ -4,7 +4,6 @@ import React, { Suspense, useMemo, useDeferredValue } from "react";
 import toast from "react-hot-toast";
 import dynamic from "next/dynamic";
 import ActivityKPIs from "./components/ActivityKPIs";
-import AdminActivityKPIs from "./components/AdminActivityKPIs";
 import ActivityFilters from "./components/ActivityFilters";
 
 
@@ -207,18 +206,30 @@ const UserActivityPageContent = () => {
         const hasReports = reports && reports.length > 0;
         if (!hasContrib && !hasReports) return;
         setAllKnownTeams((prev) => {
-            const next = new Set(prev);
+            // Use broad normKey (strip all spaces AND dashes) to deduplicate variants like
+            // "Global - Thái Lan 1", "Global- Thái Lan 1", "Global Thái Lan 1" → same team
+            const normKey = (s: string) => s.toLowerCase().replace(/[\s-]/g, '');
+            const keyMap = new Map<string, string>(prev.map(t => [normKey(t), t]));
             let changed = false;
             const addTeamString = (t: string | null | undefined) => {
                 if (!t || t === "Khác") return;
                 const parts = t.includes(",") ? t.split(",").map((p: string) => p.trim()).filter(Boolean) : [t];
                 for (const part of parts) {
-                    if (part && part !== "Khác" && !next.has(part)) { next.add(part); changed = true; }
+                    if (!part || part === "Khác") continue;
+                    const key = normKey(part);
+                    if (!keyMap.has(key)) {
+                        keyMap.set(key, part);
+                        changed = true;
+                    } else if (part.includes(' - ') && !keyMap.get(key)!.includes(' - ')) {
+                        // Prefer canonical form with " - " separator (e.g. "Global - Thái Lan 1")
+                        keyMap.set(key, part);
+                        changed = true;
+                    }
                 }
             };
             teamContributions?.forEach((item) => addTeamString(item.team));
             reports?.forEach((r) => addTeamString(r.team));
-            return changed ? Array.from(next) : prev;
+            return changed ? Array.from(keyMap.values()) : prev;
         });
     }, [teamContributions, reports]);
 
@@ -233,10 +244,13 @@ const UserActivityPageContent = () => {
         return { globalTeams: globals.sort(), vnTeams: vns.sort() };
     }, [allKnownTeams]);
 
-    // "Global Thái Lan" (tên cũ, không số) được coi là alias cho cả hai sub-team mới
+    // "Global Thái Lan" (tên cũ, không số) được coi là alias cho cả hai sub-team mới.
+    // Bao gồm đủ các variant tên (có/không có dấu gạch ngang, khoảng trắng khác nhau)
     const THAI_LAN_ALIASES: Record<string, string[]> = {
-        [normalize("Global- Thái Lan 1")]: [normalize("Global Thái Lan")],
-        [normalize("Global- Thái Lan 2")]: [normalize("Global Thái Lan")],
+        [normalize("Global- Thái Lan 1")]:  [normalize("Global Thái Lan")],  // "global-tháilan1"
+        [normalize("Global- Thái Lan 2")]:  [normalize("Global Thái Lan")],  // "global-tháilan2"
+        [normalize("Global Thái Lan 1")]:   [normalize("Global Thái Lan")],  // "globaltháilan1"
+        [normalize("Global Thái Lan 2")]:   [normalize("Global Thái Lan")],  // "globaltháilan2"
     };
 
     const matchTeam = React.useCallback(

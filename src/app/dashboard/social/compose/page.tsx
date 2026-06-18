@@ -29,6 +29,47 @@ const itemVariants = {
   visible: { opacity: 1, y: 0 }
 };
 
+const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
+
+/** Picker ngày + giờ theo định dạng 24h (HH:mm), không phụ thuộc locale browser */
+function DateTimePicker24h({
+  value,
+  onChange,
+  className,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  className?: string;
+}) {
+  const date   = value?.slice(0, 10) ?? '';
+  const hour   = value?.slice(11, 13) ?? '00';
+  const minute = value?.slice(14, 16) ?? '00';
+
+  const set = (d: string, h: string, m: string) => {
+    if (d) onChange(`${d}T${h}:${m}`);
+  };
+
+  const selectCls = 'border border-blue-200 rounded-xl px-2 py-2 text-sm focus:ring-2 ring-blue-500/20 outline-none font-bold text-blue-700 bg-white cursor-pointer';
+
+  return (
+    <div className={`flex items-center gap-1.5 ${className ?? ''}`}>
+      <input
+        type="date"
+        value={date}
+        onChange={e => set(e.target.value, hour, minute)}
+        className="border border-blue-200 rounded-xl px-3 py-2 text-sm focus:ring-2 ring-blue-500/20 outline-none font-bold text-blue-700 bg-white"
+      />
+      <select value={hour}   onChange={e => set(date, e.target.value, minute)} className={selectCls}>
+        {HOURS.map(h   => <option key={h} value={h}>{h} giờ</option>)}
+      </select>
+      <select value={minute} onChange={e => set(date, hour, e.target.value)}   className={selectCls}>
+        {MINUTES.map(m => <option key={m} value={m}>{m} phút</option>)}
+      </select>
+    </div>
+  );
+}
+
 export default function ComposePage() {
   const isDraggingRef   = useRef(false);
   const dragStartXRef   = useRef(0);
@@ -201,7 +242,8 @@ export default function ComposePage() {
     setMounted(true);
     const now = new Date();
     now.setHours(now.getHours() + 1);
-    setScheduledAt(now.toISOString().slice(0, 16));
+    const pad = (n: number) => String(n).padStart(2, '0');
+    setScheduledAt(`${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`);
 
     // Đọc prefill data từ Repost (history page)
     const prefill = localStorage.getItem('compose_prefill');
@@ -1131,12 +1173,7 @@ export default function ComposePage() {
               >
                 <Clock className="w-4 h-4 text-blue-600" />
                 <span className="text-sm font-bold text-slate-700">Thời gian đặt lịch đăng bài:</span>
-                <input 
-                  type="datetime-local" 
-                  value={scheduledAt}
-                  onChange={e => setScheduledAt(e.target.value)}
-                  className="border border-blue-200 rounded-xl px-4 py-2 text-sm focus:ring-2 ring-blue-500/20 outline-none font-bold text-blue-700 bg-white"
-                />
+                <DateTimePicker24h value={scheduledAt} onChange={setScheduledAt} />
               </motion.div>
             )}
 
@@ -1435,14 +1472,10 @@ export default function ComposePage() {
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Thời gian đăng bài</label>
-                    <input 
-                      type="datetime-local" 
+                    <DateTimePicker24h
                       value={scheduledAt}
-                      onChange={e => {
-                        setScheduledAt(e.target.value);
-                        setScheduleMode('schedule');
-                      }}
-                      className="w-full border border-blue-200 rounded-xl p-3 text-sm focus:ring-2 ring-blue-500/20 outline-none font-bold text-blue-700 bg-blue-50/30"
+                      onChange={v => { setScheduledAt(v); setScheduleMode('schedule'); }}
+                      className="flex-wrap"
                     />
                   </div>
                 </motion.div>

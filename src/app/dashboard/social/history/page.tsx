@@ -119,10 +119,18 @@ const PAGE_SIZE = 20;
 const GRID_PAGE_SIZE = 42;
 
 /** Lấy URL bài đã đăng từ result trả về bởi platform publisher */
-function getPostUrl(result?: Record<string, unknown> | null): string | null {
+function getPostUrl(result?: Record<string, unknown> | null, platform?: string): string | null {
   if (!result) return null;
   if (typeof result.url === 'string' && result.url) return result.url;
   if (typeof result.videoId === 'string') return `https://youtube.com/watch?v=${result.videoId}`;
+  // Fallback: construct URL from postId (covers old Facebook posts without url field)
+  if (typeof result.postId === 'string' && result.postId) {
+    if (!platform || platform === 'FACEBOOK') return `https://www.facebook.com/${result.postId}`;
+  }
+  // TikTok: videoId stored after backend fix
+  if (typeof result.tiktokVideoId === 'string' && result.tiktokVideoId) {
+    return `https://www.tiktok.com/video/${result.tiktokVideoId}`;
+  }
   return null;
 }
 
