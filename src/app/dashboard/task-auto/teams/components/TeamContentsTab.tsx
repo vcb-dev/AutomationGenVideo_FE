@@ -13,7 +13,7 @@ import {
   getTeams, getTeamContents, addTeamContent, removeTeamContent,
   getContents, pushTeamContentToGlobal, getContent,
 } from '@/lib/api/task-auto'
-import type { Content, TeamContent } from '@/types/task-auto'
+import { Content, TeamContent } from '@/types/task-auto'
 
 const STATUS_LABELS: Record<string, string> = {
   AVAILABLE: 'Sẵn sàng',

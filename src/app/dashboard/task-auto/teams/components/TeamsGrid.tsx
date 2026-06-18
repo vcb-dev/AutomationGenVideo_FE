@@ -3,7 +3,7 @@
 import { Crown, Edit2, Trash2, Users, Loader2 } from 'lucide-react'
 import { getInitials } from '@/components/task-auto/helpers'
 import { EmptyState } from '@/components/task-auto/EmptyState'
-import type { Team } from '@/types/task-auto'
+import { Team } from '@/types/task-auto'
 
 interface Props {
   teams: Team[] | undefined

@@ -7,10 +7,9 @@ import { cn } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { getSources } from '@/lib/api/task-auto'
-import type { Product } from '@/types/task-auto'
-import { SOURCE_TYPE_LABELS } from '@/types/task-auto'
 import { SOURCE_TYPE_COLORS, parseMarkets, formatPrice } from './product-utils'
 import { MarketBadge } from './ProductFormFields'
+import { Product, SOURCE_TYPE_LABELS } from '@/types/task-auto'
 
 export function ProductDetailModal({ product, onClose, onEdit }: {
   product: Product

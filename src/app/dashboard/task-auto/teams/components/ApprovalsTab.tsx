@@ -11,8 +11,8 @@ import { DarkModal } from '@/components/task-auto/DarkModal'
 import { DarkTextarea } from '@/components/task-auto/DarkInput'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { formatDateTime } from '@/components/task-auto/helpers'
+import { ApprovalStatus, EditorApproval } from '@/types/task-auto'
 import { getApprovals, updateApproval } from '@/lib/api/task-auto'
-import type { EditorApproval, ApprovalStatus } from '@/types/task-auto'
 
 type ApprovalFilter = ApprovalStatus | 'ALL'
 

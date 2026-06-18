@@ -14,11 +14,11 @@ import {
   getMaterials, createMaterial, deleteMaterial,
   createSource,
 } from '@/lib/api/task-auto'
-import type { Product } from '@/types/task-auto'
 import { parseMarkets, formatPrice, defaultSource } from './product-utils'
 import type { SourceDraft } from './product-utils'
 import { MarketBadge, LoadingRows, MiniList, MarketPicker, PriceInput, MultiImagePicker, SourceForm } from './ProductFormFields'
 import { ProductDetailModal } from './ProductDetailModal'
+import { Product } from '@/types/task-auto'
 
 export function ProductsTab() {
   const qc = useQueryClient()

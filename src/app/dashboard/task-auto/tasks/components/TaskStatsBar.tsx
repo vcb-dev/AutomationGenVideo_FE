@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import { Send, Play, Upload, CheckCircle2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { Task } from '@/types/task-auto'
+import { Task } from '@/types/task-auto'
 
 interface Props {
   tasks: Task[]

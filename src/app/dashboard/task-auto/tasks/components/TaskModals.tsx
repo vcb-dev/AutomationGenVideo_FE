@@ -5,8 +5,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { DarkInput, DarkTextarea, CustomSelect, ServerSearchSelect } from '@/components/task-auto/DarkInput'
-import { rejectTask, createTask, getContents, getProducts, getSources } from '@/lib/api/task-auto'
-import type { Task, Team, Source } from '@/types/task-auto'
+import { createTask, getContents, getProducts, getSources, rejectTask } from '@/lib/api/task-auto'
+import { Source, Task, Team } from '@/types/task-auto'
 
 export { SubmitModal } from './TaskSubmitModal'
 

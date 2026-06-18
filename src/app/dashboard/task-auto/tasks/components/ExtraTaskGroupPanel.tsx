@@ -10,9 +10,9 @@ import { cn } from '@/lib/utils'
 import { TaskStatusBadge } from '@/components/task-auto/StatusBadge'
 import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
 import { isOverdue } from '@/components/task-auto/helpers'
-import { getTasks, startTask, approveTask } from '@/lib/api/task-auto'
 import { SubmitModal, RejectModal } from './TaskModals'
-import type { Task } from '@/types/task-auto'
+import { Task } from '@/types/task-auto'
+import { approveTask, getTasks, startTask } from '@/lib/api/task-auto'
 
 interface Props {
   assigneeId: string

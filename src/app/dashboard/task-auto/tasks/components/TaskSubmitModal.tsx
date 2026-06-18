@@ -7,9 +7,9 @@ import { Film, CheckCircle2, Loader2, Link, ChevronDown, Upload, X } from 'lucid
 import { cn } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { DarkInput } from '@/components/task-auto/DarkInput'
-import { submitTask, updateTask, attachTaskVideo } from '@/lib/api/task-auto'
 import { apiClient } from '@/lib/api-client'
-import type { Task } from '@/types/task-auto'
+import { Task } from '@/types/task-auto'
+import { attachTaskVideo, submitTask, updateTask } from '@/lib/api/task-auto'
 
 interface Props {
   task: Task

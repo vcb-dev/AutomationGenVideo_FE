@@ -7,8 +7,8 @@ import { Loader2 } from 'lucide-react'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { DarkInput, DarkSelect } from '@/components/task-auto/DarkInput'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
-import { createTeam, updateTeam, deleteTeam } from '@/lib/api/task-auto'
-import type { Team, UserBasic } from '@/types/task-auto'
+import { Team, UserBasic } from '@/types/task-auto'
+import { createTeam, deleteTeam, updateTeam } from '@/lib/api/task-auto'
 
 // ── Create / Edit ──────────────────────────────────
 

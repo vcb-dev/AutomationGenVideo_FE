@@ -10,7 +10,7 @@ import {
   getApprovals, getTeams,
   getEditorWeekendKpis, upsertEditorWeekendKpi, deleteEditorWeekendKpi,
 } from '@/lib/api/task-auto'
-import type { EditorKpi, EditorWeekendKpi } from '@/types/task-auto'
+import { EditorKpi, EditorWeekendKpi } from '@/types/task-auto'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 

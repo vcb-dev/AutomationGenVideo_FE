@@ -8,7 +8,7 @@ import { TaskStatusBadge } from '@/components/task-auto/StatusBadge'
 import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { formatDateTime, isOverdue } from '@/components/task-auto/helpers'
-import type { Task } from '@/types/task-auto'
+import { Task } from '@/types/task-auto'
 
 interface Props {
   tasks: Task[]

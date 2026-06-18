@@ -17,9 +17,8 @@ import {
   getProduct, getContent, startTask,
 } from '@/lib/api/task-auto'
 import { SubmitModal, RejectModal } from './TaskModals'
-import type { TaskStatus, Source, SourceType } from '@/types/task-auto'
-import { SOURCE_TYPE_LABELS } from '@/types/task-auto'
 import { formatPrice } from '../../catalog/components/ProductsTab/product-utils'
+import { Source, SOURCE_TYPE_LABELS, SourceType, TaskStatus } from '@/types/task-auto'
 
 // ── Status Timeline ──────────────────────────────────────────────────────────
 

@@ -13,8 +13,7 @@ import {
   getContents,
   getContentLines, createContentLine, deleteContentLine,
 } from '@/lib/api/task-auto'
-import type { Content, ContentUsageStatus } from '@/types/task-auto'
-import { CONTENT_STATUS_LABELS } from '@/types/task-auto'
+import { Content, ContentUsageStatus } from '@/types/task-auto'
 
 // ── Helpers ──────────────────────────────────────────
 

@@ -5,10 +5,9 @@ import toast from 'react-hot-toast'
 import { Plus, Loader2, Upload, X, Link as LinkIcon, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CustomSelect } from '@/components/task-auto/DarkInput'
-import { uploadProductImage } from '@/lib/api/task-auto'
-import type { SourceType } from '@/types/task-auto'
-import { SOURCE_TYPE_LABELS } from '@/types/task-auto'
 import { MARKETS, SourceDraft } from './product-utils'
+import { uploadProductImage } from '@/lib/api/task-auto'
+import { SOURCE_TYPE_LABELS, SourceType } from '@/types/task-auto'
 
 // ── MarketBadge ───────────────────────────────────────
 

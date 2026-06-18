@@ -12,7 +12,7 @@ import {
   updateAutoAssignSettings,
   triggerAutoAssign,
 } from '@/lib/api/task-auto'
-import type { AutoAssignSetting } from '@/types/task-auto'
+import { AutoAssignSetting } from '@/types/task-auto'
 
 function ToggleSwitch({ checked, onChange, disabled }: {
   checked: boolean; onChange: (v: boolean) => void; disabled?: boolean

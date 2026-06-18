@@ -5,8 +5,6 @@ import { useQuery } from '@tanstack/react-query'
 import { Users, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth-store'
-import { getTasks, getTeams, getApprovals } from '@/lib/api/task-auto'
-import type { TaskStatus } from '@/types/task-auto'
 
 import { TaskStatsBar } from './components/TaskStatsBar'
 import { TaskFilters } from './components/TaskFilters'
@@ -14,6 +12,8 @@ import { TasksTable } from './components/TasksTable'
 import { TaskDetailPanel } from './components/TaskDetailPanel'
 import { ExtraTaskGroupPanel } from './components/ExtraTaskGroupPanel'
 import { CreateTaskModal } from './components/TaskModals'
+import { getApprovals, getTasks, getTeams } from '@/lib/api/task-auto'
+import { TaskStatus } from '@/types/task-auto'
 
 type ViewMode = 'team' | 'mine'
 

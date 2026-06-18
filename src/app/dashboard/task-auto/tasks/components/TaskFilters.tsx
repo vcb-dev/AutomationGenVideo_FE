@@ -3,7 +3,7 @@
 import { CalendarDays, Info, Plus, Search, X } from 'lucide-react'
 import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { cn } from '@/lib/utils'
-import type { TaskStatus, Team } from '@/types/task-auto'
+import { TaskStatus, Team } from '@/types/task-auto'
 
 const STATUS_OPTIONS: { value: TaskStatus | ''; label: string }[] = [
   { value: '', label: 'Tất cả trạng thái' },

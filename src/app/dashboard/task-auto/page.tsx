@@ -1,7 +1,6 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { getDashboard } from '@/lib/api/task-auto'
 import {
   ListTodo, Clock, CheckCircle2, AlertTriangle,
   FileText, Users, Zap, Settings, ArrowRight, Loader2,
@@ -9,6 +8,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import { getDashboard } from '@/lib/api/task-auto'
 
 // ── Shared components ──────────────────────────────
 

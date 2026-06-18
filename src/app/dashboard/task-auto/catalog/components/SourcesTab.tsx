@@ -12,8 +12,7 @@ import {
   getSources, createSource, updateSource,
   getProducts,
 } from '@/lib/api/task-auto'
-import type { Source, SourceType } from '@/types/task-auto'
-import { SOURCE_TYPE_LABELS } from '@/types/task-auto'
+import { Source, SOURCE_TYPE_LABELS, SourceType } from '@/types/task-auto'
 
 const SOURCE_TYPE_COLORS: Record<SourceType, string> = {
   PRODUCT_STOCK: 'bg-indigo-100 text-indigo-700',

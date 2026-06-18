@@ -4,19 +4,16 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { Package, Plus, Trash2, Search, Check, Loader2, ShoppingBag, X, Star, ExternalLink, ListFilter, Sparkles } from 'lucide-react'
-import { getProduct } from '@/lib/api/task-auto'
 import { cn } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { CustomSelect, DarkInput, CreatableSelect } from '@/components/task-auto/DarkInput'
-import {
-  getTeams, getTeamProducts, addTeamProduct, removeTeamProduct, getProducts,
-  createProduct, getProductLines, createProductLine, getMaterials, createMaterial, createSource,
-} from '@/lib/api/task-auto'
+
 import type { TeamProduct, Product } from '@/types/task-auto'
 import { defaultSource } from '../../catalog/components/ProductsTab/product-utils'
 import type { SourceDraft } from '../../catalog/components/ProductsTab/product-utils'
 import { MarketPicker, PriceInput, MultiImagePicker, SourceForm } from '../../catalog/components/ProductsTab/ProductFormFields'
+import { addTeamProduct, createMaterial, createProduct, createProductLine, createSource, getMaterials, getProduct, getProductLines, getProducts, getTeamProducts, getTeams, removeTeamProduct } from '@/lib/api/task-auto'
 
 // ── Add Product Modal ────────────────────────────────────────────────────────
 

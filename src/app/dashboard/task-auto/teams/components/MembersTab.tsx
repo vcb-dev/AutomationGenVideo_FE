@@ -11,7 +11,7 @@ import { EmptyState } from '@/components/task-auto/EmptyState'
 import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { formatDateTime } from '@/components/task-auto/helpers'
 import { getTeams, addTeamMember, removeTeamMember, getUsers, getApprovals, setMemberEditorRole } from '@/lib/api/task-auto'
-import type { Team, TeamMember } from '@/types/task-auto'
+import { TeamMember } from '@/types/task-auto'
 
 // ── Add Member Modal ────────────────────────────────
 

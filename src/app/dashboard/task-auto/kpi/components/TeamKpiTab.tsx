@@ -10,7 +10,7 @@ import {
   getTeamKpis, createTeamKpi, updateTeamKpi,
   getTeams, getContentLines, getProductLines,
 } from '@/lib/api/task-auto'
-import type { TeamKpi, TeamKpiAllocation, KpiAllocationType } from '@/types/task-auto'
+import { KpiAllocationType, TeamKpi, TeamKpiAllocation } from '@/types/task-auto'
 
 interface AllocationDraft {
   type: KpiAllocationType
