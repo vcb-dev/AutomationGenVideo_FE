@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Search, Plus, X, Loader2, Link as LinkIcon,
   Facebook, Instagram, Music2, Youtube, Globe,
@@ -16,7 +16,6 @@ interface Channel {
   id: string;
   name: string;
   platform?: string | null;
-  channel_id?: string | null;
   link_channel?: string | null;
   status?: string | null;
   team_traffic?: string | null;
@@ -27,13 +26,13 @@ interface Channel {
 }
 
 interface ChannelFormData {
-  name: string; platform: string; channel_id: string;
+  name: string; platform: string;
   link_channel: string; status: string; owner: string; email: string;
 }
 
 const EMPTY_FORM: ChannelFormData = {
-  name: '', platform: 'facebook', channel_id: '',
-  link_channel: '', status: 'active', owner: '', email: '',
+  name: '', platform: 'facebook',
+  link_channel: '', status: 'đang hoạt động', owner: '', email: '',
 };
 
 const PLATFORMS = [
@@ -45,10 +44,19 @@ const PLATFORMS = [
 ];
 
 const STATUS_MAP: Record<string, { label: string; dot: string; bg: string; text: string }> = {
-  active:   { label: 'Hoạt động', dot: 'bg-emerald-500', bg: 'bg-emerald-50',  text: 'text-emerald-700' },
-  inactive: { label: 'Tạm dừng',  dot: 'bg-slate-400',   bg: 'bg-slate-100',   text: 'text-slate-500'   },
-  pending:  { label: 'Chờ duyệt', dot: 'bg-amber-400',   bg: 'bg-amber-50',    text: 'text-amber-700'   },
+  'đang hoạt động':  { label: 'Đang hoạt động',  dot: 'bg-emerald-500', bg: 'bg-emerald-100', text: 'text-emerald-800' },
+  'ngừng hoạt động': { label: 'Ngừng hoạt động', dot: 'bg-red-500',     bg: 'bg-red-100',     text: 'text-red-800'    },
+  'tạm ngừng':       { label: 'Tạm ngừng',       dot: 'bg-orange-400',  bg: 'bg-orange-100',  text: 'text-orange-800' },
+  'hủy kênh':        { label: 'Hủy kênh',        dot: 'bg-slate-500',   bg: 'bg-slate-200',   text: 'text-slate-700'  },
 };
+
+const STATUS_OPTIONS = [
+  { value: 'all', label: 'Tất cả trạng thái' },
+  { value: 'đang hoạt động',  label: 'Đang hoạt động'  },
+  { value: 'tạm ngừng',       label: 'Tạm ngừng'       },
+  { value: 'ngừng hoạt động', label: 'Ngừng hoạt động' },
+  { value: 'hủy kênh',        label: 'Hủy kênh'        },
+];
 
 function getPlatform(v?: string | null) {
   return PLATFORMS.find(p => p.value === v?.toLowerCase()) ?? PLATFORMS[0];
@@ -63,16 +71,28 @@ export default function InternalChannelsPage() {
   const isLeader = (user as any)?.roles?.includes(UserRole.LEADER);
   const userTeam = (user as any)?.team ?? null;
 
-  const [channels,     setChannels]     = useState<Channel[]>([]);
-  const [loading,      setLoading]      = useState(true);
-  const [search,       setSearch]       = useState('');
-  const [platFilter,   setPlatFilter]   = useState('all');
-  const [showModal,    setShowModal]    = useState(false);
-  const [editTarget,   setEditTarget]   = useState<Channel | null>(null);
-  const [form,         setForm]         = useState<ChannelFormData>(EMPTY_FORM);
-  const [saving,       setSaving]       = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<Channel | null>(null);
-  const [deleting,     setDeleting]     = useState(false);
+  const [channels,      setChannels]      = useState<Channel[]>([]);
+  const [loading,       setLoading]       = useState(true);
+  const [search,        setSearch]        = useState('');
+  const [platFilter,    setPlatFilter]    = useState('all');
+  const [statusFilter,  setStatusFilter]  = useState('all');
+  const [showStatusDrop, setShowStatusDrop] = useState(false);
+  const [showModal,     setShowModal]     = useState(false);
+  const [editTarget,    setEditTarget]    = useState<Channel | null>(null);
+  const [form,          setForm]          = useState<ChannelFormData>(EMPTY_FORM);
+  const [saving,        setSaving]        = useState(false);
+  const [deleteTarget,  setDeleteTarget]  = useState<Channel | null>(null);
+  const [deleting,      setDeleting]      = useState(false);
+
+  const statusDropRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (statusDropRef.current && !statusDropRef.current.contains(e.target as Node))
+        setShowStatusDrop(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const fetchChannels = useCallback(async () => {
     try {
@@ -90,35 +110,53 @@ export default function InternalChannelsPage() {
 
   useEffect(() => { fetchChannels(); }, [fetchChannels]);
 
+  // ─── FILTER LOGIC ───
   const filtered = channels.filter(c => {
-    const okPlat   = platFilter === 'all' || c.platform?.toLowerCase() === platFilter;
+    const okPlat   = platFilter === 'all'   || c.platform?.toLowerCase() === platFilter;
+    const okStatus = statusFilter === 'all' || c.status?.toLowerCase() === statusFilter;
     const q        = search.toLowerCase();
-    const okSearch = !q || c.name.toLowerCase().includes(q)
-      || c.channel_id?.toLowerCase().includes(q)
-      || c.owner?.toLowerCase().includes(q);
-    return okPlat && okSearch;
+    const okSearch = !q
+      || c.name.toLowerCase().includes(q)
+      || c.owner?.toLowerCase().includes(q)
+      || c.platform?.toLowerCase().includes(q);
+    return okPlat && okStatus && okSearch;
   });
+
+  // Count theo status (dùng base sau khi lọc platform)
+  const afterPlatform = channels.filter(c =>
+    platFilter === 'all' || c.platform?.toLowerCase() === platFilter,
+  );
 
   const openCreate = () => { setEditTarget(null); setForm(EMPTY_FORM); setShowModal(true); };
   const openEdit   = (ch: Channel) => {
     setEditTarget(ch);
-    setForm({ name: ch.name, platform: ch.platform ?? 'facebook', channel_id: ch.channel_id ?? '',
+    setForm({ name: ch.name, platform: ch.platform ?? 'facebook',
       link_channel: ch.link_channel ?? '', status: ch.status ?? 'active',
       owner: ch.owner ?? '', email: ch.email ?? '' });
     setShowModal(true);
   };
   const closeModal = () => { if (saving) return; setShowModal(false); setEditTarget(null); };
 
+  const clearAllFilters = () => { setSearch(''); setPlatFilter('all'); setStatusFilter('all'); };
+  const hasFilter = search || platFilter !== 'all' || statusFilter !== 'all';
+
   const handleSave = async () => {
     if (!form.name.trim()) { toast.error('Tên kênh không được để trống'); return; }
     setSaving(true);
     try {
       const isEdit = !!editTarget;
+      const body = isEdit
+        ? form
+        : {
+            ...form,
+            owner: (user as any)?.full_name ?? (user as any)?.name ?? (user as any)?.username ?? '',
+            email: (user as any)?.email ?? '',
+          };
       const res = await fetch(
         isEdit ? `${apiUrl}/channels/${editTarget!.id}` : `${apiUrl}/channels`,
         { method: isEdit ? 'PATCH' : 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify(form) },
+          body: JSON.stringify(body) },
       );
       const data = await res.json();
       if (!res.ok) { toast.error(data.message || 'Lưu thất bại'); return; }
@@ -142,7 +180,6 @@ export default function InternalChannelsPage() {
     finally { setDeleting(false); }
   };
 
-  // Input class reuse
   const inputCls = "w-full px-4 py-3.5 bg-slate-50 border-2 border-slate-200 rounded-2xl text-base text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-400 focus:bg-white transition-all";
   const labelCls = "block text-sm font-bold text-slate-600 mb-2 tracking-wide";
 
@@ -172,12 +209,12 @@ export default function InternalChannelsPage() {
             <div className="flex items-center gap-3 pt-1">
               {/* Search */}
               <div className="relative">
-                <Search className="w-4.5 h-4.5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
                 <input
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  placeholder="Tìm kênh, username, owner…"
-                  className="pl-11 pr-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-base text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-indigo-400 focus:bg-white w-72 transition-all"
+                  placeholder="Tìm kênh, owner, platform…"
+                  className="pl-11 pr-10 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-base text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-indigo-400 focus:bg-white w-72 transition-all"
                 />
                 {search && (
                   <button onClick={() => setSearch('')}
@@ -196,8 +233,8 @@ export default function InternalChannelsPage() {
             </div>
           </div>
 
-          {/* Platform filter bar — full width, flush to bottom */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-0 no-scrollbar">
+          {/* Platform filter tabs */}
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
             {PLATFORMS.map(p => {
               const count = p.value === 'all' ? channels.length
                 : channels.filter(c => c.platform?.toLowerCase() === p.value).length;
@@ -267,7 +304,64 @@ export default function InternalChannelsPage() {
               <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Tên kênh</span>
               <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Platform</span>
               <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Owner</span>
-              <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Trạng thái</span>
+
+              {/* ── Cột Trạng thái — dropdown filter ── */}
+              <div className="relative" ref={statusDropRef}>
+                <button
+                  onClick={() => setShowStatusDrop(v => !v)}
+                  className={`flex items-center gap-1.5 text-xs font-black uppercase tracking-widest transition-colors
+                    ${statusFilter !== 'all'
+                      ? 'text-indigo-600'
+                      : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  {statusFilter !== 'all' ? (
+                    <>
+                      <span className={`w-2 h-2 rounded-full ${STATUS_MAP[statusFilter]?.dot ?? 'bg-slate-400'}`} />
+                      {STATUS_MAP[statusFilter]?.label ?? 'Trạng thái'}
+                    </>
+                  ) : 'Trạng thái'}
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showStatusDrop ? 'rotate-180' : ''}`} />
+                </button>
+
+                <AnimatePresence>
+                  {showStatusDrop && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                      transition={{ duration: 0.12 }}
+                      className="absolute top-full left-0 mt-2 w-52 bg-white border border-slate-200 rounded-2xl shadow-xl shadow-slate-200/60 z-20 overflow-hidden py-1.5"
+                    >
+                      {STATUS_OPTIONS.map(opt => {
+                        const info    = opt.value !== 'all' ? STATUS_MAP[opt.value] : null;
+                        const active  = statusFilter === opt.value;
+                        const count   = opt.value === 'all'
+                          ? afterPlatform.length
+                          : afterPlatform.filter(c => c.status?.toLowerCase() === opt.value).length;
+                        return (
+                          <button
+                            key={opt.value}
+                            onClick={() => { setStatusFilter(opt.value); setShowStatusDrop(false); }}
+                            className={`w-full flex items-center justify-between gap-3 px-4 py-2.5 text-sm font-semibold transition-colors
+                              ${active ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'}`}
+                          >
+                            <span className="flex items-center gap-2.5">
+                              {info
+                                ? <span className={`w-2 h-2 rounded-full flex-shrink-0 ${info.dot}`} />
+                                : <span className="w-2 h-2 rounded-full bg-slate-300 flex-shrink-0" />}
+                              {opt.label}
+                            </span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-bold
+                              ${active ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>
+                              {count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
               {isLeader && <span className="text-xs font-black text-slate-400 uppercase tracking-widest text-right">Thao tác</span>}
             </div>
 
@@ -277,12 +371,10 @@ export default function InternalChannelsPage() {
                 <Search className="w-12 h-12 mb-4 opacity-25" />
                 <p className="text-lg font-bold text-slate-500">Không tìm thấy kênh nào</p>
                 <p className="text-sm mt-2 text-slate-400">Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm</p>
-                {search && (
-                  <button onClick={() => setSearch('')}
-                    className="mt-5 text-sm text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1.5">
-                    <X className="w-4 h-4" /> Xóa tìm kiếm
-                  </button>
-                )}
+                <button onClick={clearAllFilters}
+                  className="mt-5 text-sm text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1.5">
+                  <X className="w-4 h-4" /> Xóa tất cả bộ lọc
+                </button>
               </div>
             ) : (
               <div className="divide-y divide-slate-50">
@@ -298,7 +390,7 @@ export default function InternalChannelsPage() {
                           ? 'grid-cols-[2fr_1fr_1fr_1fr_88px]'
                           : 'grid-cols-[2fr_1fr_1fr_1fr]'} gap-6`}>
 
-                      {/* Name + ID */}
+                      {/* Name */}
                       <div className="flex items-center gap-4 min-w-0">
                         <div className={`w-12 h-12 rounded-2xl ${plat.pillBg} flex items-center justify-center flex-shrink-0`}>
                           <plat.icon className={`w-6 h-6 ${plat.iconColor}`} />
@@ -313,9 +405,6 @@ export default function InternalChannelsPage() {
                               </a>
                             )}
                           </div>
-                          {ch.channel_id && (
-                            <p className="text-sm text-slate-400 mt-0.5 truncate">@{ch.channel_id}</p>
-                          )}
                         </div>
                       </div>
 
@@ -346,14 +435,14 @@ export default function InternalChannelsPage() {
                       {isLeader && (
                         <div className="flex items-center justify-end gap-1">
                           <button onClick={() => openEdit(ch)}
-                            className="p-2.5 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all opacity-0 group-hover:opacity-100"
+                            className="p-2.5 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
                             title="Sửa kênh">
-                            <Pencil className="w-4.5 h-4.5" />
+                            <Pencil className="w-4 h-4" />
                           </button>
                           <button onClick={() => setDeleteTarget(ch)}
-                            className="p-2.5 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
+                            className="p-2.5 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
                             title="Xóa kênh">
-                            <Trash2 className="w-4.5 h-4.5" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       )}
@@ -371,8 +460,8 @@ export default function InternalChannelsPage() {
                   : <>{channels.length} kênh · Team <span className="font-semibold text-slate-600">{userTeam ?? 'tất cả'}</span></>
                 }
               </p>
-              {(search || platFilter !== 'all') && (
-                <button onClick={() => { setSearch(''); setPlatFilter('all'); }}
+              {hasFilter && (
+                <button onClick={clearAllFilters}
                   className="text-sm text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1.5">
                   <SlidersHorizontal className="w-4 h-4" /> Xóa bộ lọc
                 </button>
@@ -395,7 +484,6 @@ export default function InternalChannelsPage() {
               onClick={e => e.stopPropagation()}
               className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[92vh]">
 
-              {/* Modal header */}
               <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-200">
@@ -414,7 +502,6 @@ export default function InternalChannelsPage() {
                 </button>
               </div>
 
-              {/* Modal body */}
               <div className="p-8 overflow-y-auto space-y-5">
                 <div>
                   <label className={labelCls}>Tên kênh <span className="text-red-400 font-normal">*</span></label>
@@ -455,17 +542,6 @@ export default function InternalChannelsPage() {
                 </div>
 
                 <div>
-                  <label className={labelCls}>Channel ID / Username</label>
-                  <div className="relative">
-                    <Tag className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
-                    <input value={form.channel_id}
-                      onChange={e => setForm(f => ({ ...f, channel_id: e.target.value }))}
-                      placeholder="Ví dụ: vtv24"
-                      className={`${inputCls} pl-11`} />
-                  </div>
-                </div>
-
-                <div>
                   <label className={labelCls}>Link kênh</label>
                   <div className="relative">
                     <LinkIcon className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
@@ -475,26 +551,8 @@ export default function InternalChannelsPage() {
                       className={`${inputCls} pl-11`} />
                   </div>
                 </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className={labelCls}>Owner</label>
-                    <input value={form.owner}
-                      onChange={e => setForm(f => ({ ...f, owner: e.target.value }))}
-                      placeholder="Tên người phụ trách"
-                      className={inputCls} />
-                  </div>
-                  <div>
-                    <label className={labelCls}>Email</label>
-                    <input type="email" value={form.email}
-                      onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                      placeholder="email@company.com"
-                      className={inputCls} />
-                  </div>
-                </div>
               </div>
 
-              {/* Modal footer */}
               <div className="px-8 pb-8 pt-2 flex gap-4">
                 <button onClick={closeModal} disabled={saving}
                   className="flex-1 py-4 border-2 border-slate-200 text-slate-600 text-base font-bold rounded-2xl hover:bg-slate-50 transition-colors">

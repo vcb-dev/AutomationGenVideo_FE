@@ -184,6 +184,12 @@ export function useNavMenus(
                                         icon: UserCog,
                                         description: "Thêm, sửa, xóa nhân sự trong team",
                                     },
+                                    {
+                                        label: "Quản lý kênh nhóm",
+                                        href: "/dashboard/channels",
+                                        icon: BookOpen,
+                                        description: "Danh sách kênh MXH của team",
+                                    },
                                 ],
                             },
                         ]
@@ -287,12 +293,7 @@ export function useNavMenus(
                                 icon: BarChart3,
                                 description: "Phân tích sâu dữ liệu kênh",
                             },
-                            // {
-                            //     label: "Channels Team",       // ← thêm
-                            //     href: "/dashboard/channels",
-                            //     icon: BookOpen,
-                            //     description: "Danh sách kênh MXH của team",
-                            // },
+
                         ],
                     },
                     ...(isManagement
