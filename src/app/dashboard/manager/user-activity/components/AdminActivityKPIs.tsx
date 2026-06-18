@@ -30,39 +30,23 @@ function getInitials(name: string): string {
 }
 
 function getAvatarColor(name: string): string {
-    let h = 0;
-    for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
-    return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
-function cleanText(s: string): string {
-    return s.toLowerCase().trim()
-        .normalize('NFD').replace(/[̀-ͯ]/g, '')
-        .replace(/đ/g, 'd').replace(/[^a-z0-9]/g, '');
-}
-
-const NEG = ['khong', 'khongco', 'none', 'no', 'binhthuong', 'ok', 'chua'];
-
-function isDifficulty(q: string, a: string | null | undefined): boolean {
-    if (!a) return false;
-    const ql = q.toLowerCase();
+function isDifficulty(question: string, answer: string): boolean {
+    if (!answer || answer.trim() === '' || answer.toLowerCase() === 'không có' || answer.toLowerCase() === 'không') return false;
+    const ql = question.toLowerCase();
     if (!ql.includes('khó khăn') && !ql.includes('hỗ trợ') && !ql.includes('deadline') && !ql.includes('trễ')) return false;
-    const c = cleanText(a);
-    if (c.length < 3) return false;
-    return !NEG.some(k => c === k || c === k + 'co' || c === k + 'nha' || c === k + 'gi');
+    return true;
 }
 
-function isSuggestion(q: string, a: string | null | undefined): boolean {
-    if (!a) return false;
-    const ql = q.toLowerCase();
+function isSuggestion(question: string, answer: string): boolean {
+    if (!answer || answer.trim() === '' || answer.toLowerCase() === 'không có' || answer.toLowerCase() === 'không') return false;
+    const ql = question.toLowerCase();
     if (!ql.includes('ý tưởng') && !ql.includes('đề xuất')) return false;
-    const c = cleanText(a);
-    if (c.length < 3) return false;
-    return !NEG.some(k => c === k || c === k + 'co' || c === k + 'nha' || c === k + 'gi');
-}
-
-function truncate(s: string, n = 28): string {
-    return s.length > n ? s.slice(0, n).trimEnd() + '…' : s;
+    return true;
 }
 
 const AdminActivityKPIs = ({ reports, loading, onViewDifficulties }: AdminActivityKPIsProps) => {
@@ -169,15 +153,12 @@ const AdminActivityKPIs = ({ reports, loading, onViewDifficulties }: AdminActivi
                 </div>
 
                 {/* Number */}
-                <div className="flex items-baseline gap-1 leading-none">
-                    <span className={`text-[48px] font-black tracking-tight leading-none ${stats.reportedPct >= 80 ? 'text-emerald-600' : stats.reportedPct >= 50 ? 'text-amber-500' : 'text-red-500'}`}>
-                        {stats.submitted + stats.late}
-                    </span>
-                    <span className="text-[20px] text-slate-300 font-bold mx-0.5">/</span>
-                    <span className="text-[24px] text-slate-400 font-bold">{stats.total}</span>
+                <div className="text-[48px] font-black text-slate-900 leading-none tracking-tight">
+                    {stats.submitted}
+                    <span className="text-[24px] text-slate-300 font-bold"> /{stats.total}</span>
                 </div>
 
-                {/* Sub */}
+                {/* Sub text */}
                 <p className="text-[11px] font-semibold text-slate-400">
                     {stats.reportedPct}% hoàn thành hôm nay
                 </p>
@@ -186,82 +167,71 @@ const AdminActivityKPIs = ({ reports, loading, onViewDifficulties }: AdminActivi
                 <div className="flex items-center gap-2 mt-auto pt-1">
                     <div className="flex-1 h-[6px] bg-emerald-100 rounded-full overflow-hidden">
                         <div
-                            className={`h-full rounded-full transition-all duration-700 ${stats.reportedPct >= 80 ? 'bg-emerald-500' : stats.reportedPct >= 50 ? 'bg-amber-400' : 'bg-red-400'}`}
-                            style={{ width: `${Math.min(stats.reportedPct, 100)}%` }}
+                            className="h-full bg-emerald-500 rounded-full transition-all duration-700"
+                            style={{ width: `${stats.reportedPct}%` }}
                         />
                     </div>
-                    <span className={`text-[11px] font-black flex-shrink-0 ${stats.reportedPct >= 80 ? 'text-emerald-500' : stats.reportedPct >= 50 ? 'text-amber-500' : 'text-red-500'}`}>
-                        {stats.reportedPct}%
-                    </span>
+                    <span className="text-[11px] font-black text-emerald-500 flex-shrink-0">{stats.reportedPct}%</span>
                 </div>
             </div>
 
             {/* ── Card 3: Khó khăn cần hỗ trợ ── */}
-            <div className={`rounded-2xl border shadow-sm p-4 flex flex-col gap-3 hover:shadow-md transition-shadow ${stats.difficultyReports.length > 0
-                    ? 'bg-rose-50/30 border-rose-300 border-2'
-                    : 'bg-white border-slate-200/80'
-                }`}>
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 flex flex-col gap-3 hover:shadow-md transition-shadow">
                 {/* Header */}
                 <div className="flex items-center gap-2.5">
                     <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center flex-shrink-0">
-                        <AlertCircle className="w-5 h-5 text-rose-600" />
+                        <AlertCircle className="w-5 h-5 text-rose-500" />
                     </div>
-                    <span className="text-[10px] font-black text-rose-600 uppercase tracking-widest leading-tight">
+                    <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest leading-tight">
                         Khó khăn<br />cần hỗ trợ
                     </span>
                 </div>
 
                 {/* Number */}
-                <div className={`text-[48px] font-black tracking-tight leading-none ${stats.difficultyReports.length > 0 ? 'text-rose-600' : 'text-slate-300'}`}>
+                <div className="text-[48px] font-black text-slate-900 leading-none tracking-tight">
                     {stats.difficultyReports.length}
                 </div>
 
-                {/* Sub */}
-                <p className="text-[11px] font-semibold text-slate-400">
-                    {stats.difficultyReports.length > 0
-                        ? `${stats.difficultyReports.length} thành viên đang cần xử lý`
-                        : 'Không có khó khăn báo cáo hôm nay'}
-                </p>
-
-                {/* Member list */}
-                {previewDiff.length > 0 && (
-                    <div className="space-y-2">
+                {/* List preview */}
+                {stats.difficultyReports.length === 0 ? (
+                    <p className="text-[11px] font-semibold text-slate-400">
+                        Không có khó khăn báo cáo hôm nay</p>
+                ) : (
+                    <div className="flex flex-col gap-1.5">
                         {previewDiff.map((d, i) => (
-                            <div key={i} className="flex items-center gap-2 min-w-0">
-                                <div className={`w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-white text-[10px] font-black ${getAvatarColor(d.name)}`}>
+                            <div key={i} className="flex items-start gap-2">
+                                <div className={`w-5 h-5 rounded-md flex-shrink-0 flex items-center justify-center text-[9px] font-black text-white ${getAvatarColor(d.name)}`}>
                                     {getInitials(d.name)}
                                 </div>
-                                <p className="text-[12px] text-slate-600 font-medium leading-snug truncate min-w-0">
-                                    <span className="font-black text-slate-800">{d.name.split(' ').slice(-2).join(' ')}</span>
-                                    <span className="text-slate-400">: </span>
-                                    <span className="text-slate-500">{truncate(d.text)}</span>
-                                </p>
+                                <p className="text-[10px] text-slate-500 leading-tight line-clamp-2">{d.text}</p>
                             </div>
                         ))}
                         {extraDiff > 0 && (
-                            <p className="text-[11px] text-rose-500 font-bold pl-9">
+                            <p className="text-[10px] text-slate-400 font-bold">
                                 +{extraDiff} khó khăn khác
                             </p>
                         )}
                     </div>
                 )}
 
-                {/* Footer */}
-                <div className="mt-auto pt-1">
-                    {stats.difficultyReports.length > 0 ? (
-                        <button
-                            onClick={onViewDifficulties}
-                            className="flex items-center gap-1.5 text-[12px] font-black text-rose-500 hover:text-rose-700 transition-colors"
-                        >
-                            Xem chi tiết <ArrowRight className="w-3.5 h-3.5" />
-                        </button>
-                    ) : (
-                        <div className="flex items-center gap-2">
-                            <div className="flex-1 h-[6px] bg-slate-100 rounded-full" />
-                            <span className="text-[11px] font-black text-slate-300 flex-shrink-0">0%</span>
+                {/* CTA */}
+                {onViewDifficulties && stats.difficultyReports.length > 0 && (
+                    <button
+                        onClick={onViewDifficulties}
+                        className="mt-auto pt-1 flex items-center gap-1 text-[10px] font-black text-rose-500 hover:text-rose-600 transition-colors"
+                    >
+                        Xem tất cả <ArrowRight className="w-3 h-3" />
+                    </button>
+                )}
+
+                {stats.difficultyReports.length === 0 && (
+                    <div className="flex items-center gap-2 mt-auto pt-1">
+                        <div className="flex-1 h-[6px] bg-rose-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-rose-400 rounded-full" style={{ width: '0%' }} />
                         </div>
-                    )}
-                </div>
+                        <span className="text-[11px] font-black text-rose-400 flex-shrink-0">0%</span>
+                    </div>
+                )}
             </div>
 
             {/* ── Card 4: Đề xuất & ý tưởng ── */}
@@ -269,19 +239,19 @@ const AdminActivityKPIs = ({ reports, loading, onViewDifficulties }: AdminActivi
                 {/* Header */}
                 <div className="flex items-center gap-2.5">
                     <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center flex-shrink-0">
-                        <Lightbulb className="w-5 h-5 text-violet-600" />
+                        <Lightbulb className="w-5 h-5 text-violet-500" />
                     </div>
-                    <span className="text-[10px] font-black text-violet-600 uppercase tracking-widest leading-tight">
+                    <span className="text-[10px] font-black text-violet-500 uppercase tracking-widest leading-tight">
                         Đề xuất<br />&amp; ý tưởng
                     </span>
                 </div>
 
                 {/* Number */}
-                <div className={`text-[48px] font-black tracking-tight leading-none ${stats.suggestionReports.length > 0 ? 'text-violet-600' : 'text-slate-300'}`}>
+                <div className="text-[48px] font-black text-slate-900 leading-none tracking-tight">
                     {stats.suggestionReports.length}
                 </div>
 
-                {/* Sub */}
+                {/* Sub text */}
                 <p className="text-[11px] font-semibold text-slate-400">
                     {stats.suggestionReports.length > 0
                         ? `${stats.suggestionReports.length} thành viên có đề xuất mới`
@@ -293,12 +263,10 @@ const AdminActivityKPIs = ({ reports, loading, onViewDifficulties }: AdminActivi
                     <div className="flex-1 h-[6px] bg-violet-100 rounded-full overflow-hidden">
                         <div
                             className="h-full bg-violet-500 rounded-full transition-all duration-700"
-                            style={{ width: `${Math.min(stats.sugPct, 100)}%` }}
+                            style={{ width: `${stats.sugPct}%` }}
                         />
                     </div>
-                    <span className="text-[11px] font-black text-violet-500 flex-shrink-0">
-                        {stats.sugPct}%
-                    </span>
+                    <span className="text-[11px] font-black text-violet-500 flex-shrink-0">{stats.sugPct}%</span>
                 </div>
             </div>
 

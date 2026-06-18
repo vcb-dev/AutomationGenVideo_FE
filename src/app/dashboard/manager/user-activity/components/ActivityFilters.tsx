@@ -93,8 +93,11 @@ const ActivityFilters = ({
 
     const isAllGlobal = activeTeam === "All Global";
     const isAllVN = activeTeam === "All VN";
-    const isGlobalActive = isAllGlobal || globalTeams.includes(activeTeam);
-    const isVNActive = isAllVN || vnTeams.includes(activeTeam);
+    // Use broad normKey (strip spaces + dashes) for comparison to handle naming variants
+    // e.g. "Global Thái Lan 1" vs "Global - Thái Lan 1" vs "Global- Thái Lan 1"
+    const normKey = (s: string) => s.toLowerCase().replace(/[\s-]/g, '');
+    const isGlobalActive = isAllGlobal || globalTeams.some(t => normKey(t) === normKey(activeTeam));
+    const isVNActive = isAllVN || vnTeams.some(t => normKey(t) === normKey(activeTeam));
     // Khi globalTeams/vnTeams chưa hydrate (fetch đầu), mọi team cụ thể (vd. Team K8 mặc định) không được
     // coi là "ALL" — tránh UI hiển thị ALL trong khi API vẫn lọc theo một team → trống + dropdown Global không có team.
     const teamsDiscovered = globalTeams.length > 0 || vnTeams.length > 0;
@@ -385,14 +388,15 @@ const ActivityFilters = ({
     // Get display label for dropdown buttons
     const getGlobalLabel = () => {
         if (isAllGlobal) return "Tất cả Global";
-        if (globalTeams.includes(activeTeam)) return activeTeam;
-        return "Global";
+        // Find canonical display name by normKey (handles variant spellings)
+        const matched = globalTeams.find(t => normKey(t) === normKey(activeTeam));
+        return matched || "Global";
     };
 
     const getVNLabel = () => {
         if (isAllVN) return "Tất cả VN";
-        if (vnTeams.includes(activeTeam)) return activeTeam;
-        return "Việt Nam";
+        const matched = vnTeams.find(t => normKey(t) === normKey(activeTeam));
+        return matched || "Việt Nam";
     };
 
     return (
