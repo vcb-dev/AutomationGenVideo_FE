@@ -14,6 +14,7 @@ import toast from 'react-hot-toast';
 import { socialApi, SocialPost, HistoryMember, PLATFORM_META } from '@/lib/api/social';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/auth-store';
+import { useSocialLang } from '@/contexts/SocialLanguageContext';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api$/, '') || 'http://127.0.0.1:3000';
 
@@ -47,6 +48,7 @@ function isVideoUrl(url: string): boolean {
 
 // Mini bar chart: posts per day for last 14 days
 function ActivityChart({ posts }: { posts: SocialPost[] }) {
+  const { t } = useSocialLang();
   const days = Array.from({ length: 14 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (13 - i));
@@ -77,11 +79,11 @@ function ActivityChart({ posts }: { posts: SocialPost[] }) {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <TrendingUp className="w-4 h-4 text-blue-500" />
-          <span className="text-sm font-bold text-slate-700">Hoạt động 14 ngày qua</span>
+          <span className="text-sm font-bold text-slate-700">{t.history.activityChartTitle}</span>
         </div>
         <div className="flex items-center gap-3 text-[10px] font-bold text-slate-400">
-          <span className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm bg-blue-500" />Tổng</span>
-          <span className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm bg-emerald-400" />Thành công</span>
+          <span className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm bg-blue-500" />{t.history.totalShort}</span>
+          <span className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm bg-emerald-400" />{t.history.success}</span>
         </div>
       </div>
       <div className="flex items-end gap-1 h-20">
@@ -89,7 +91,7 @@ function ActivityChart({ posts }: { posts: SocialPost[] }) {
           <div key={i} className="flex-1 flex flex-col items-center gap-0.5 group relative">
             {/* Tooltip */}
             <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
-              {c.label}: {c.total} bài
+              {t.history.dayPostsTooltip(c.label, c.total)}
             </div>
             <div className="w-full flex flex-col-reverse gap-px" style={{ height: '72px' }}>
               {/* Success bar */}
@@ -227,6 +229,7 @@ function PostDetailModal({
   actionId: string | null;
   canFilter: boolean;
 }) {
+  const { t } = useSocialLang();
   const meta = (PLATFORM_META as any)[post.platform] || PLATFORM_META.FACEBOOK;
   const isOk      = post.status === 'COMPLETED';
   const isFail    = post.status === 'FAILED';
@@ -313,7 +316,7 @@ function PostDetailModal({
                 isOk ? 'bg-emerald-100 text-emerald-700' : isFail ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
               }`}>
                 {isOk ? <CheckCircle className="w-3 h-3" /> : isFail ? <XCircle className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
-                {isOk ? 'Thành công' : isFail ? 'Thất bại' : isPending ? 'Đang chờ' : 'Đã huỷ'}
+                {isOk ? t.history.statusSuccess : isFail ? t.history.statusFailed : isPending ? t.history.statusPending : t.history.statusCancelled}
               </span>
             </div>
 
@@ -341,7 +344,7 @@ function PostDetailModal({
 
             {/* Media count */}
             {hasMedia && post.media_urls.length > 1 && (
-              <div className="text-xs text-slate-400 mb-3">📎 {post.media_urls.length} file đính kèm</div>
+              <div className="text-xs text-slate-400 mb-3">📎 {t.history.attachedFiles(post.media_urls.length)}</div>
             )}
 
             {/* Link bài đã đăng */}
@@ -364,12 +367,12 @@ function PostDetailModal({
             <div className="flex items-center gap-2 text-xs text-slate-400 border-t border-slate-100 pt-3 flex-wrap">
               <span className="flex items-center gap-1 font-medium">
                 {post.source === 'SCHEDULED' ? <Calendar className="w-3 h-3" /> : <Send className="w-3 h-3" />}
-                {post.source === 'SCHEDULED' ? 'Lên lịch' : 'Đăng ngay'}
+                {post.source === 'SCHEDULED' ? t.history.sourceScheduled : t.history.sourceImmediate}
               </span>
               <span className="font-medium">{new Date(post.created_at).toLocaleString('vi')}</span>
               <div className="ml-auto flex items-center gap-1.5">
                 {post.message && (
-                  <button onClick={() => { navigator.clipboard.writeText(post.message); toast.success('Đã copy'); }}
+                  <button onClick={() => { navigator.clipboard.writeText(post.message); toast.success(t.history.copiedShort); }}
                     className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
                     <Copy className="w-3.5 h-3.5" />
                   </button>
@@ -377,14 +380,14 @@ function PostDetailModal({
                 {isOk && (
                   <button onClick={() => onRepost(post)}
                     className="flex items-center gap-1 px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-[11px] font-bold hover:bg-emerald-100 transition-colors">
-                    <Repeat2 className="w-3 h-3" /> Đăng lại
+                    <Repeat2 className="w-3 h-3" /> {t.history.repost}
                   </button>
                 )}
                 {isFail && (
                   <button onClick={() => onRetry(post.id)} disabled={actionId === post.id}
                     className="flex items-center gap-1 px-2.5 py-1 bg-blue-50 border border-blue-200 text-blue-600 rounded-lg text-[11px] font-bold hover:bg-blue-100 transition-colors disabled:opacity-50">
                     <RotateCcw className={`w-3 h-3 ${actionId === post.id ? 'animate-spin' : ''}`} />
-                    Thử lại
+                    {t.history.retry}
                   </button>
                 )}
               </div>
@@ -399,6 +402,7 @@ function PostDetailModal({
 export default function HistoryPage() {
   const router = useRouter();
   const { user } = useAuthStore();
+  const { t } = useSocialLang();
 
   // Phân quyền
   const isAdmin   = user?.roles?.some(r => ['ADMIN', 'MANAGER'].includes(r)) ?? false;
@@ -461,7 +465,7 @@ export default function HistoryPage() {
       setPosts(data);
       setStats(s);
     } catch {
-      toast.error('Không tải được lịch sử');
+      toast.error(t.history.loadFailed);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -510,17 +514,17 @@ export default function HistoryPage() {
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
-    toast.success('Đã copy nội dung');
+    toast.success(t.history.copiedContent);
   };
 
   const handleRetry = async (id: string) => {
     setActionId(id);
     try {
       await socialApi.schedule.retry(id);
-      toast.success('Đã đưa vào hàng chờ đăng lại');
+      toast.success(t.history.retryQueued);
       await loadData(true);
     } catch {
-      toast.error('Retry thất bại');
+      toast.error(t.history.retryFailed);
     } finally {
       setActionId(null);
     }
@@ -535,7 +539,7 @@ export default function HistoryPage() {
       // accountId không gửi kèm — user tự chọn kênh đăng lại trên trang compose
     }));
     router.push('/dashboard/social/compose');
-    toast.success('Đang mở trang soạn bài với nội dung đã sao chép');
+    toast.success(t.history.repostOpening);
   };
 
   const clearFilters = () => {
@@ -555,29 +559,29 @@ export default function HistoryPage() {
         <div className="w-full px-4 py-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Lịch sử đăng bài</h1>
-              <p className="text-slate-500 text-sm mt-0.5">Theo dõi tất cả các bài đã đăng</p>
+              <h1 className="text-2xl font-bold text-slate-900">{t.history.pageTitle}</h1>
+              <p className="text-slate-500 text-sm mt-0.5">{t.history.pageSubtitle}</p>
             </div>
             <div className="flex items-center gap-2">
               <Link
                 href="/dashboard/social/stats"
                 className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white text-slate-600 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors"
               >
-                <BarChart3 className="w-4 h-4" /> Thống kê
+                <BarChart3 className="w-4 h-4" /> {t.history.statsLink}
               </Link>
               {/* View mode toggle */}
               <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-white">
                 <button
                   onClick={() => setViewMode('grid')}
                   className={`p-2 transition-colors ${viewMode === 'grid' ? 'bg-slate-100 text-slate-900' : 'text-slate-400 hover:bg-slate-50'}`}
-                  title="Dạng lưới"
+                  title={t.history.gridViewTitle}
                 >
                   <LayoutGrid className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setViewMode('list')}
                   className={`p-2 transition-colors ${viewMode === 'list' ? 'bg-slate-100 text-slate-900' : 'text-slate-400 hover:bg-slate-50'}`}
-                  title="Dạng danh sách"
+                  title={t.history.listViewTitle}
                 >
                   <List className="w-4 h-4" />
                 </button>
@@ -588,13 +592,13 @@ export default function HistoryPage() {
                 className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white text-slate-600 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors disabled:opacity-50"
               >
                 <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-                Làm mới
+                {t.history.refresh}
               </button>
               <Link
                 href="/dashboard/social/compose"
                 className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition-colors"
               >
-                <Send className="w-4 h-4" /> Đăng bài mới
+                <Send className="w-4 h-4" /> {t.history.newPost}
               </Link>
             </div>
           </div>
@@ -603,10 +607,10 @@ export default function HistoryPage() {
           {stats && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
               {[
-                { label: 'Tổng bài',     value: stats.total,   color: 'text-slate-800',   bg: 'bg-slate-50',   border: 'border-slate-200' },
-                { label: 'Thành công',   value: stats.success, color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' },
-                { label: 'Thất bại',     value: stats.failed,  color: 'text-red-700',     bg: 'bg-red-50',     border: 'border-red-200' },
-                { label: 'Đang chờ',     value: stats.pending, color: 'text-amber-700',   bg: 'bg-amber-50',   border: 'border-amber-200' },
+                { label: t.history.statTotal,   value: stats.total,   color: 'text-slate-800',   bg: 'bg-slate-50',   border: 'border-slate-200' },
+                { label: t.history.statSuccess, value: stats.success, color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+                { label: t.history.statFailed,  value: stats.failed,  color: 'text-red-700',     bg: 'bg-red-50',     border: 'border-red-200' },
+                { label: t.history.statPending, value: stats.pending, color: 'text-amber-700',   bg: 'bg-amber-50',   border: 'border-amber-200' },
               ].map(s => (
                 <div key={s.label} className={`${s.bg} border ${s.border} rounded-xl p-4 text-center`}>
                   <p className={`text-2xl font-black ${s.color}`}>{s.value}</p>
@@ -655,7 +659,7 @@ export default function HistoryPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input
                 type="text"
-                placeholder="Tìm kiếm theo nội dung, tên kênh..."
+                placeholder={t.history.searchPlaceholder}
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
@@ -673,20 +677,20 @@ export default function HistoryPage() {
               onChange={e => setStatusFilter(e.target.value as any)}
               className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white"
             >
-              <option value="all">Tất cả trạng thái</option>
-              <option value="COMPLETED">✅ Thành công</option>
-              <option value="FAILED">❌ Thất bại</option>
-              <option value="PENDING">⏳ Đang chờ</option>
+              <option value="all">{t.history.statusAll}</option>
+              <option value="COMPLETED">✅ {t.history.statusSuccess}</option>
+              <option value="FAILED">❌ {t.history.statusFailed}</option>
+              <option value="PENDING">⏳ {t.history.statusPending}</option>
             </select>
 
             {/* Sort */}
             <button
               onClick={() => setSortOrder(s => s === 'desc' ? 'asc' : 'desc')}
               className="flex items-center gap-1.5 px-3 py-2.5 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-              title={sortOrder === 'desc' ? 'Mới nhất trước' : 'Cũ nhất trước'}
+              title={sortOrder === 'desc' ? t.history.sortNewestFirst : t.history.sortOldestFirst}
             >
               <ArrowUpDown className="w-4 h-4" />
-              {sortOrder === 'desc' ? 'Mới nhất' : 'Cũ nhất'}
+              {sortOrder === 'desc' ? t.history.sortNewest : t.history.sortOldest}
             </button>
 
             {/* Advanced filter toggle */}
@@ -698,7 +702,7 @@ export default function HistoryPage() {
                   : 'border-slate-200 text-slate-700 hover:bg-slate-50'
               }`}
             >
-              <Filter className="w-4 h-4" /> Lọc thêm
+              <Filter className="w-4 h-4" /> {t.history.moreFilters}
             </button>
           </div>
 
@@ -708,27 +712,27 @@ export default function HistoryPage() {
               {/* Team filter — chỉ admin thấy nhiều team */}
               {isAdmin && teams.length > 0 && (
                 <div className="flex items-center gap-2">
-                  <label className="text-xs font-bold text-slate-500 whitespace-nowrap">Team:</label>
+                  <label className="text-xs font-bold text-slate-500 whitespace-nowrap">{t.history.teamLabel}</label>
                   <select
                     value={teamFilter}
                     onChange={e => setTeamFilter(e.target.value)}
                     className="border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 bg-white"
                   >
-                    <option value="all">Tất cả team</option>
-                    {teams.map(t => <option key={t} value={t}>{t}</option>)}
+                    <option value="all">{t.history.allTeams}</option>
+                    {teams.map(team => <option key={team} value={team}>{team}</option>)}
                   </select>
                 </div>
               )}
 
               {/* Thành viên */}
               <div className="flex items-center gap-2">
-                <label className="text-xs font-bold text-slate-500 whitespace-nowrap">Thành viên:</label>
+                <label className="text-xs font-bold text-slate-500 whitespace-nowrap">{t.history.memberLabel}</label>
                 <select
                   value={memberFilter}
                   onChange={e => setMemberFilter(e.target.value)}
                   className="border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 bg-white max-w-[220px]"
                 >
-                  <option value="all">Tất cả thành viên</option>
+                  <option value="all">{t.history.allMembers}</option>
                   {members.map(m => (
                     <option key={m.id} value={m.id}>
                       {m.full_name}{m.team ? ` (${m.team})` : ''}
@@ -742,7 +746,7 @@ export default function HistoryPage() {
                   onClick={() => { setTeamFilter('all'); setMemberFilter('all'); }}
                   className="text-xs text-indigo-600 hover:text-indigo-800 font-bold px-2 py-1 border border-indigo-200 rounded-lg bg-indigo-50"
                 >
-                  Xoá lọc thành viên
+                  {t.history.clearMemberFilter}
                 </button>
               )}
             </div>
@@ -759,7 +763,7 @@ export default function HistoryPage() {
               >
                 <div className="flex gap-3 pt-1 flex-wrap">
                   <div className="flex items-center gap-2">
-                    <label className="text-xs font-bold text-slate-500 whitespace-nowrap">Từ ngày:</label>
+                    <label className="text-xs font-bold text-slate-500 whitespace-nowrap">{t.history.dateFromLabel}</label>
                     <input
                       type="date"
                       value={dateFrom}
@@ -768,7 +772,7 @@ export default function HistoryPage() {
                     />
                   </div>
                   <div className="flex items-center gap-2">
-                    <label className="text-xs font-bold text-slate-500 whitespace-nowrap">Đến ngày:</label>
+                    <label className="text-xs font-bold text-slate-500 whitespace-nowrap">{t.history.dateToLabel}</label>
                     <input
                       type="date"
                       value={dateTo}
@@ -777,13 +781,13 @@ export default function HistoryPage() {
                     />
                   </div>
                   <div className="flex items-center gap-2">
-                    <label className="text-xs font-bold text-slate-500">Platform:</label>
+                    <label className="text-xs font-bold text-slate-500">{t.history.platformLabel}</label>
                     <select
                       value={platformFilter}
                       onChange={e => setPlatformFilter(e.target.value)}
                       className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white"
                     >
-                      <option value="all">Tất cả</option>
+                      <option value="all">{t.history.allShort}</option>
                       {availablePlatforms.map(p => {
                         const meta = (PLATFORM_META as any)[p];
                         return <option key={p} value={p}>{meta?.emoji} {meta?.label || p}</option>;
@@ -798,7 +802,7 @@ export default function HistoryPage() {
           {/* Active filter summary */}
           {hasActiveFilters && (
             <div className="flex items-center gap-2 pt-1 flex-wrap">
-              <span className="text-xs text-slate-500 font-medium">Đang lọc:</span>
+              <span className="text-xs text-slate-500 font-medium">{t.history.filteringBy}</span>
               {search && (
                 <span className="flex items-center gap-1 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
                   "{search}" <X onClick={() => setSearch('')} className="w-3 h-3 cursor-pointer hover:text-blue-900" />
@@ -820,10 +824,10 @@ export default function HistoryPage() {
                 </span>
               )}
               <button onClick={clearFilters} className="text-xs text-red-500 hover:text-red-700 font-bold ml-1">
-                Xoá tất cả
+                {t.history.clearAll}
               </button>
               <span className="ml-auto text-xs text-slate-400 font-medium">
-                {filtered.length} / {posts.length} bài
+                {t.history.filteredCount(filtered.length, posts.length)}
               </span>
             </div>
           )}
@@ -848,11 +852,11 @@ export default function HistoryPage() {
           <div className="text-center py-20">
             <BarChart3 className="w-16 h-16 text-slate-200 mx-auto mb-4" />
             <h3 className="text-lg font-bold text-slate-600 mb-1">
-              {hasActiveFilters ? 'Không tìm thấy bài nào' : 'Chưa có lịch sử đăng bài'}
+              {hasActiveFilters ? t.history.noResultsFound : t.history.noHistoryYet}
             </h3>
             {hasActiveFilters && (
               <button onClick={clearFilters} className="mt-3 text-sm text-blue-600 hover:underline font-medium">
-                Xoá bộ lọc
+                {t.history.clearFilters}
               </button>
             )}
           </div>
@@ -909,7 +913,7 @@ export default function HistoryPage() {
                               {coverUrl && (
                                 <img
                                   src={coverUrl}
-                                  alt="Video thumbnail"
+                                  alt={t.history.videoThumbnailAlt}
                                   className="w-full max-h-[480px] object-contain"
                                   onError={(e) => {
                                     (e.target as HTMLImageElement).style.display = 'none';
@@ -926,7 +930,7 @@ export default function HistoryPage() {
                                   <Play className="w-7 h-7 text-slate-800 ml-1" />
                                 </div>
                                 <span className="mt-3 text-white text-sm font-semibold flex items-center gap-1.5">
-                                  Xem video trên Drive <ExternalLink className="w-3.5 h-3.5" />
+                                  {t.history.viewVideoOnDrive} <ExternalLink className="w-3.5 h-3.5" />
                                 </span>
                               </a>
                             </div>
@@ -939,7 +943,7 @@ export default function HistoryPage() {
                             className="w-full max-h-[520px] object-contain"
                             onError={(e) => {
                               (e.currentTarget.parentElement as HTMLElement).innerHTML =
-                                '<p class="text-xs text-slate-400 p-6 text-center">File không còn trên server</p>';
+                                `<p class="text-xs text-slate-400 p-6 text-center">${t.history.fileNoLongerOnServer}</p>`;
                             }}
                           />
                           )
@@ -950,7 +954,7 @@ export default function HistoryPage() {
                               alt=""
                               className="w-full max-h-[520px] object-contain hover:opacity-90 transition-opacity"
                               onError={(e) => {
-                                (e.target as HTMLImageElement).alt = 'Ảnh không còn trên server';
+                                (e.target as HTMLImageElement).alt = t.history.imageNoLongerOnServer;
                                 (e.target as HTMLImageElement).style.opacity = '0.3';
                               }}
                             />
@@ -979,7 +983,7 @@ export default function HistoryPage() {
                       )}
                       {hasMedia && (
                         <span className="flex items-center gap-1 text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100 font-bold">
-                          <ImageIcon className="w-3 h-3" /> {post.media_urls.length} file
+                          <ImageIcon className="w-3 h-3" /> {t.history.fileCount(post.media_urls.length)}
                         </span>
                       )}
                       <span className={`ml-auto text-[11px] px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1 ${
@@ -991,7 +995,7 @@ export default function HistoryPage() {
                         {isOk      ? <CheckCircle className="w-3 h-3" /> :
                          isFail    ? <XCircle className="w-3 h-3" />     :
                                      <Clock className="w-3 h-3" />}
-                        {isOk ? 'Thành công' : isFail ? 'Thất bại' : isPending ? 'Đang chờ' : 'Đã huỷ'}
+                        {isOk ? t.history.statusSuccess : isFail ? t.history.statusFailed : isPending ? t.history.statusPending : t.history.statusCancelled}
                       </span>
                     </div>
 
@@ -1002,7 +1006,7 @@ export default function HistoryPage() {
                       </p>
                     )}
                     {!textOnly && !hasMedia && (
-                      <p className="text-sm italic text-slate-400 mb-3">Không có nội dung</p>
+                      <p className="text-sm italic text-slate-400 mb-3">{t.history.noContent}</p>
                     )}
 
                     {/* Hashtags */}
@@ -1044,7 +1048,7 @@ export default function HistoryPage() {
                     <div className="flex items-center gap-3 text-xs text-slate-400 border-t border-slate-100 pt-3 flex-wrap">
                       <span className="flex items-center gap-1 font-medium">
                         {post.source === 'SCHEDULED' ? <Calendar className="w-3 h-3" /> : <Send className="w-3 h-3" />}
-                        {post.source === 'SCHEDULED' ? 'Lên lịch' : 'Đăng ngay'}
+                        {post.source === 'SCHEDULED' ? t.history.sourceScheduled : t.history.sourceImmediate}
                       </span>
                       <span className="font-medium">{new Date(post.created_at).toLocaleString('vi')}</span>
 
@@ -1052,7 +1056,7 @@ export default function HistoryPage() {
                         {post.message && (
                           <button
                             onClick={() => handleCopy(post.message)}
-                            title="Copy nội dung"
+                            title={t.history.copyContentTitle}
                             className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
                           >
                             <Copy className="w-3.5 h-3.5" />
@@ -1062,8 +1066,8 @@ export default function HistoryPage() {
                           const postUrl = getPostUrl(post.result as Record<string, unknown> | null);
                           return postUrl ? (
                             <button
-                              onClick={() => { navigator.clipboard.writeText(postUrl); toast.success('Đã copy link bài đăng'); }}
-                              title="Copy link bài đăng"
+                              onClick={() => { navigator.clipboard.writeText(postUrl); toast.success(t.history.copiedPostLink); }}
+                              title={t.history.copyPostLinkTitle}
                               className="p-1.5 rounded-lg hover:bg-slate-100 text-blue-400 hover:text-blue-600 transition-colors"
                             >
                               <Copy className="w-3.5 h-3.5" />
@@ -1075,7 +1079,7 @@ export default function HistoryPage() {
                             onClick={() => handleRepost(post)}
                             className="flex items-center gap-1 px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-[11px] font-bold hover:bg-emerald-100 transition-colors"
                           >
-                            <Repeat2 className="w-3 h-3" /> Đăng lại
+                            <Repeat2 className="w-3 h-3" /> {t.history.repost}
                           </button>
                         )}
                         {isFail && (
@@ -1085,7 +1089,7 @@ export default function HistoryPage() {
                             className="flex items-center gap-1 px-2.5 py-1 bg-blue-50 border border-blue-200 text-blue-600 rounded-lg text-[11px] font-bold hover:bg-blue-100 transition-colors disabled:opacity-50"
                           >
                             <RotateCcw className={`w-3 h-3 ${actionId === post.id ? 'animate-spin' : ''}`} />
-                            Thử lại
+                            {t.history.retry}
                           </button>
                         )}
                       </div>
@@ -1153,7 +1157,7 @@ export default function HistoryPage() {
             </button>
 
             <span className="text-xs text-slate-400 font-medium ml-2">
-              Trang {page}/{totalPages} · {filtered.length} bài
+              {t.history.pageOfTotal(page, totalPages, filtered.length)}
             </span>
           </div>
         )}

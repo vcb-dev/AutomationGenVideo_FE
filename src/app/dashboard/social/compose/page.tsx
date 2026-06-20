@@ -18,6 +18,7 @@ import TemplateManager from './TemplateManager';
 import VideoFramePicker from './VideoFramePicker';
 import { useTaskStore } from '@/store/taskStore';
 import toast from 'react-hot-toast';
+import { useSocialLang } from '@/contexts/SocialLanguageContext';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -42,6 +43,7 @@ function DateTimePicker24h({
   onChange: (val: string) => void;
   className?: string;
 }) {
+  const { t } = useSocialLang();
   const date   = value?.slice(0, 10) ?? '';
   const hour   = value?.slice(11, 13) ?? '00';
   const minute = value?.slice(14, 16) ?? '00';
@@ -61,16 +63,17 @@ function DateTimePicker24h({
         className="border border-blue-200 rounded-xl px-3 py-2 text-sm focus:ring-2 ring-blue-500/20 outline-none font-bold text-blue-700 bg-white"
       />
       <select value={hour}   onChange={e => set(date, e.target.value, minute)} className={selectCls}>
-        {HOURS.map(h   => <option key={h} value={h}>{h} giờ</option>)}
+        {HOURS.map(h   => <option key={h} value={h}>{t.compose.hourSuffix(h)}</option>)}
       </select>
       <select value={minute} onChange={e => set(date, hour, e.target.value)}   className={selectCls}>
-        {MINUTES.map(m => <option key={m} value={m}>{m} phút</option>)}
+        {MINUTES.map(m => <option key={m} value={m}>{t.compose.minuteSuffix(m)}</option>)}
       </select>
     </div>
   );
 }
 
 export default function ComposePage() {
+  const { t } = useSocialLang();
   const isDraggingRef   = useRef(false);
   const dragStartXRef   = useRef(0);
   const dragStartWRef   = useRef(0);
@@ -211,7 +214,7 @@ export default function ComposePage() {
   };
 
   const saveCurrentSelectionAsGroup = () => {
-    if (selectedAccountIds.length === 0) return toast.error('Vui lòng chọn ít nhất 1 kênh');
+    if (selectedAccountIds.length === 0) return toast.error(t.compose.selectAtLeastOneChannelGroup);
     const name = groupNameValue.trim();
     if (!name) return;
     const newGroup = {
@@ -225,7 +228,7 @@ export default function ComposePage() {
     localStorage.setItem('composer_channel_groups', JSON.stringify(updated));
     setGroupNameValue('');
     setShowGroupNameInput(false);
-    toast.success('Đã lưu nhóm kênh');
+    toast.success(t.compose.groupSaved);
   };
 
   const deleteChannelGroup = (id: string, e: React.MouseEvent) => {
@@ -299,7 +302,7 @@ export default function ComposePage() {
   };
 
   const handleAiOptimize = async () => {
-    if (!message.trim()) return toast.error('Vui lòng nhập nội dung trước');
+    if (!message.trim()) return toast.error(t.compose.enterContentFirst);
     setIsAiProcessing(true);
     try {
       const firstPlatform = selectedAccountIds.length > 0
@@ -309,9 +312,9 @@ export default function ComposePage() {
       const currentTags = hashtags;
       const newTags = suggestedTags.map(h => h.replace(/^#+/, '').trim()).filter(h => h && !currentTags.includes(h));
       setHashtags(prev => Array.from(new Set([...prev, ...newTags])).slice(0, 30));
-      toast.success(`AI gợi ý ${suggestedTags.length} hashtag (nguồn: ${source === 'ai' ? '🤖 AI' : '🔑 Keyword'})`, { duration: 3000 });
+      toast.success(t.compose.aiHashtagSuggested(suggestedTags.length, source === 'ai' ? t.compose.aiSourceAi : t.compose.aiSourceKeyword), { duration: 3000 });
     } catch {
-      toast.error('Không lấy được gợi ý hashtag, thử lại sau');
+      toast.error(t.compose.hashtagSuggestFailed);
     } finally {
       setIsAiProcessing(false);
     }
@@ -418,10 +421,10 @@ export default function ComposePage() {
         setPublishing(false);
         setPublishProgress(prev => ({ ...prev, phase: 'done' }));
         if (jobs.every((j: any) => j.status === 'COMPLETED')) {
-          toast.success('Đã đăng bài thành công!');
+          toast.success(t.compose.postSuccessAll);
           setMessage(''); setMediaUrls([]); setHashtags([]); setSelectedAccountIds([]);
         } else {
-          toast.error('Một số kênh đăng bài thất bại');
+          toast.error(t.compose.someFailed);
         }
       }
     };
@@ -484,7 +487,7 @@ export default function ComposePage() {
         updateTask(mainTaskId, {
           progress: totalProgress,
           status: allDone ? (jobs.some(j => j.status === 'FAILED') ? 'error' : 'success') : 'processing',
-          message: `Đã xong ${completedCount}/${totalCount} kênh`,
+          message: t.compose.channelsDone(completedCount, totalCount),
         });
 
         if (allDone) {
@@ -495,10 +498,10 @@ export default function ComposePage() {
           setPublishing(false);
           setPublishProgress(prev => ({ ...prev, phase: 'done' }));
           if (jobs.every(j => j.status === 'COMPLETED')) {
-            toast.success('Đã đăng bài thành công!');
+            toast.success(t.compose.postSuccessAll);
             setMessage(''); setMediaUrls([]); setHashtags([]); setSelectedAccountIds([]);
           } else {
-            toast.error('Một số kênh đăng bài thất bại');
+            toast.error(t.compose.someFailed);
           }
         }
       } catch (err: any) {
@@ -508,7 +511,7 @@ export default function ComposePage() {
     };
 
     poll();
-    const timer = setInterval(poll, 3000);
+    const timer = setInterval(poll, 2000);
 
     return () => {
       clearInterval(timer);
@@ -523,7 +526,7 @@ export default function ComposePage() {
 
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
-      e.returnValue = 'Hệ thống đang xử lý bài đăng của bạn. Bạn có chắc muốn rời đi không?';
+      e.returnValue = t.compose.beforeUnloadWarning;
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
@@ -532,33 +535,33 @@ export default function ComposePage() {
 
   const handlePublish = async () => {
     if (activeTab === 'draft') {
-      if (!message.trim() && mediaUrls.length === 0) return toast.error('Vui lòng nhập nội dung trước khi lưu nháp');
+      if (!message.trim() && mediaUrls.length === 0) return toast.error(t.compose.enterContentBeforeDraft);
       const hashtagStr = hashtags.map(h => `#${h}`).join(' ');
       const fullMessage = message.trim() + (hashtagStr ? `\n\n${hashtagStr}` : '');
       try {
         await socialApi.drafts.create({ message: fullMessage, mediaUrls: mediaUrls.length ? mediaUrls : undefined, thumbUrl: thumbUrl || undefined });
         const updated = await socialApi.drafts.list();
         setDrafts(updated);
-        toast.success('Đã lưu nháp!');
+        toast.success(t.compose.draftSaved);
         setMessage('');
         setMediaUrls([]);
         setHashtags([]);
       } catch (err: any) {
-        toast.error(err.response?.data?.message || 'Lưu nháp thất bại');
+        toast.error(err.response?.data?.message || t.compose.draftSaveFailed);
       }
       return;
     }
 
-    if (selectedAccountIds.length === 0) return toast.error('Vui lòng chọn ít nhất một kênh');
-    if (!message.trim() && mediaUrls.length === 0) return toast.error('Vui lòng nhập nội dung');
-    if (hashtags.length === 0) return toast.error('🏷️ Vui lòng thêm ít nhất 1 hashtag');
+    if (selectedAccountIds.length === 0) return toast.error(t.compose.selectAtLeastOneChannel);
+    if (!message.trim() && mediaUrls.length === 0) return toast.error(t.compose.enterContent);
+    if (hashtags.length === 0) return toast.error(t.compose.addAtLeastOneHashtag);
 
     const isScheduling = activeTab === 'schedule';
     if (isScheduling) {
-      if (!scheduledAt) return toast.error('Vui lòng chọn thời gian đặt lịch');
+      if (!scheduledAt) return toast.error(t.compose.selectScheduleTime);
       const scheduledDate = new Date(scheduledAt);
-      if (isNaN(scheduledDate.getTime())) return toast.error('Thời gian đặt lịch không hợp lệ');
-      if (scheduledDate <= new Date()) return toast.error('Thời gian đặt lịch phải ở tương lai');
+      if (isNaN(scheduledDate.getTime())) return toast.error(t.compose.invalidScheduleTime);
+      if (scheduledDate <= new Date()) return toast.error(t.compose.scheduleTimeMustBeFuture);
     }
 
     const hashtagStr = hashtags.map(h => `#${h}`).join(' ');
@@ -619,10 +622,10 @@ export default function ComposePage() {
       setPublishing(false);
       setPublishProgress(prev => ({ ...prev, phase: 'done' }));
       if (allOk) {
-        toast.success('Đã đặt lịch tất cả!');
+        toast.success(t.compose.allScheduled);
         setMessage(''); setMediaUrls([]); setHashtags([]); setSelectedAccountIds([]);
       } else {
-        toast.error('Một số kênh đặt lịch thất bại');
+        toast.error(t.compose.someScheduleFailed);
       }
       return;
     }
@@ -654,7 +657,7 @@ export default function ComposePage() {
       // Thêm vào background task manager
       addTask({
         id: `post-${jobIds[0]}`,
-        name: `Đăng bài: ${message.slice(0, 20)}...`,
+        name: t.compose.postingTaskName(message.slice(0, 20)),
         status: 'pending',
         progress: 0,
         type: 'post'
@@ -666,9 +669,9 @@ export default function ComposePage() {
       setJobChannelMap(idMap);
       setActiveJobIds(jobIds); // kích hoạt polling effect
 
-      toast.success(`Đã thêm ${jobIds.length} bài vào hàng chờ — đang xử lý...`);
+      toast.success(t.compose.addedToQueue(jobIds.length));
     } catch (err: any) {
-      const errMsg = err.response?.data?.message || err.message || 'Lỗi không xác định';
+      const errMsg = err.response?.data?.message || err.message || t.compose.unknownError;
       addPublishLog(`❌ Enqueue thất bại: ${errMsg}`);
       setPublishing(false);
       setPublishProgress(prev => ({ ...prev, phase: 'done' }));
@@ -697,7 +700,7 @@ export default function ComposePage() {
     if (draft.media_urls?.length > 0) setPostMode('image');
     setThumbUrl(draft.thumb_url || '');
     setShowDraftsModal(false);
-    toast.success('Đã nạp bản nháp');
+    toast.success(t.compose.draftLoaded);
   };
 
   if (!mounted) return null;
@@ -726,46 +729,46 @@ export default function ComposePage() {
       >
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
           <div className="text-[13px] text-slate-500 font-medium flex items-center gap-2 shrink-0">
-            <span>Viết bài</span>
+            <span>{t.compose.breadcrumbWrite}</span>
             <span className="text-[10px] opacity-60">❯</span>
-            <span className="text-slate-900 font-bold">Đăng thường</span>
+            <span className="text-slate-900 font-bold">{t.compose.breadcrumbNormalPost}</span>
           </div>
-          
+
           {/* Mobile Tabs */}
           <div className="flex lg:hidden bg-slate-100 rounded-lg p-1 shrink-0 self-start sm:self-auto">
-            <button 
+            <button
               onClick={() => setMobileTab('CHANNELS')}
               className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${mobileTab === 'CHANNELS' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
-            >Kênh</button>
-            <button 
+            >{t.compose.tabChannels}</button>
+            <button
               onClick={() => setMobileTab('EDITOR')}
               className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${mobileTab === 'EDITOR' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
-            >Soạn thảo</button>
-            <button 
+            >{t.compose.tabEditor}</button>
+            <button
               onClick={() => setMobileTab('PREVIEW')}
               className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${mobileTab === 'PREVIEW' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
-            >Xem trước</button>
+            >{t.compose.tabPreview}</button>
           </div>
         </div>
-        
+
         <div className="flex gap-8 text-sm font-bold text-slate-600">
           {[
-            { id: 'publish',   label: 'Đăng bài' },
-            { id: 'customize', label: 'Tùy chỉnh' },
-          ].map(t => (
+            { id: 'publish',   label: t.compose.topTabPublish },
+            { id: 'customize', label: t.compose.topTabCustomize },
+          ].map(tt => (
             <button
-              key={t.id}
-              onClick={() => setTopTab(t.id as any)}
-              className={`pb-2.5 -mb-[1px] relative transition-colors ${topTab === t.id ? 'text-blue-600' : 'hover:text-slate-900'}`}
+              key={tt.id}
+              onClick={() => setTopTab(tt.id as any)}
+              className={`pb-2.5 -mb-[1px] relative transition-colors ${topTab === tt.id ? 'text-blue-600' : 'hover:text-slate-900'}`}
             >
-              {t.label}
-              {topTab === t.id && (
+              {tt.label}
+              {topTab === tt.id && (
                 <motion.div layoutId="topTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
               )}
             </button>
           ))}
-          <button className="hover:text-slate-900 pb-2.5 transition-colors">Chủ đề</button>
-          <button className="hidden lg:block hover:text-slate-900 pb-2.5 transition-colors">Xem trước</button>
+          <button className="hover:text-slate-900 pb-2.5 transition-colors">{t.compose.topTabTopic}</button>
+          <button className="hidden lg:block hover:text-slate-900 pb-2.5 transition-colors">{t.compose.topTabPreview}</button>
         </div>
       </motion.div>
 
@@ -781,7 +784,7 @@ export default function ComposePage() {
         >
           <div className="p-4 border-b border-slate-100 bg-slate-50/30">
             <div className="flex justify-between items-center mb-5">
-              <h3 className="font-extrabold text-slate-800 text-sm">Kênh đăng bài</h3>
+              <h3 className="font-extrabold text-slate-800 text-sm">{t.compose.channelsTitle}</h3>
               <div className="flex items-center gap-2.5">
                 <motion.span 
                   key={selectedAccountIds.length}
@@ -804,14 +807,14 @@ export default function ComposePage() {
             
             <div className="mb-5">
               <div className="text-[10px] font-bold text-slate-500 flex items-center gap-1.5 mb-2.5 tracking-wider">
-                <div className="w-1.5 h-3.5 bg-blue-500 rounded-full"></div> CHẾ ĐỘ ĐĂNG
+                <div className="w-1.5 h-3.5 bg-blue-500 rounded-full"></div> {t.compose.postModeLabel}
               </div>
               <div className="grid grid-cols-2 gap-2.5">
                 {[
-                  { id: 'text', icon: Type, label: 'Chữ' },
-                  { id: 'image', icon: ImageIcon, label: 'Ảnh' },
-                  { id: 'video_vertical', icon: Smartphone, label: 'Video Dọc' },
-                  { id: 'video_horizontal', icon: Monitor, label: 'Video Ngang' }
+                  { id: 'text', icon: Type, label: t.compose.modeText },
+                  { id: 'image', icon: ImageIcon, label: t.compose.modeImage },
+                  { id: 'video_vertical', icon: Smartphone, label: t.compose.modeVideoVertical },
+                  { id: 'video_horizontal', icon: Monitor, label: t.compose.modeVideoHorizontal }
                 ].map(mode => (
                   <motion.button 
                     key={mode.id}
@@ -834,7 +837,7 @@ export default function ComposePage() {
               <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input 
                 type="text" 
-                placeholder="Tìm kiếm kênh..." 
+                placeholder={t.compose.searchChannelsPlaceholder}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full border border-slate-200 rounded-lg pl-10 pr-4 py-2.5 text-[13px] focus:outline-none focus:border-blue-500 shadow-inner" 
@@ -844,7 +847,7 @@ export default function ComposePage() {
             <div className="border-t border-slate-200 pt-4">
               <div className="flex justify-between items-center mb-3">
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-tight flex items-center gap-1.5">
-                   <Layers className="w-3 h-3" /> Nhóm tùy chỉnh:
+                   <Layers className="w-3 h-3" /> {t.compose.customGroupsLabel}
                 </span>
                 {showGroupNameInput ? (
                   <div className="flex items-center gap-1">
@@ -857,19 +860,19 @@ export default function ComposePage() {
                         if (e.key === 'Enter') saveCurrentSelectionAsGroup();
                         if (e.key === 'Escape') { setGroupNameValue(''); setShowGroupNameInput(false); }
                       }}
-                      placeholder="Tên nhóm..."
+                      placeholder={t.compose.groupNamePlaceholder}
                       className="border border-blue-300 rounded-lg px-2 py-0.5 text-[11px] text-slate-700 outline-none focus:border-blue-500 w-28"
                     />
                     <button onClick={saveCurrentSelectionAsGroup} className="text-green-600 hover:text-green-700"><Check className="w-3.5 h-3.5" /></button>
                     <button onClick={() => { setGroupNameValue(''); setShowGroupNameInput(false); }} className="text-slate-400 hover:text-slate-600"><X className="w-3.5 h-3.5" /></button>
                   </div>
                 ) : (
-                  <button onClick={() => setShowGroupNameInput(true)} className="text-blue-600 text-[11px] font-bold hover:underline">+ Lưu nhóm</button>
+                  <button onClick={() => setShowGroupNameInput(true)} className="text-blue-600 text-[11px] font-bold hover:underline">{t.compose.saveGroup}</button>
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
                 {channelGroups.length === 0 && (
-                  <span className="text-[10px] text-slate-400 italic">Chưa có nhóm nào.</span>
+                  <span className="text-[10px] text-slate-400 italic">{t.compose.noGroupsYet}</span>
                 )}
                 {channelGroups.map(g => (
                   <motion.div 
@@ -909,7 +912,7 @@ export default function ComposePage() {
                   <div className="px-3 flex items-center gap-2">
                     <div className={`w-1 h-3 rounded-full ${meta.color}`} />
                     <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                      Tài khoản {platform}
+                      {t.compose.accountsOfPlatform(platform)}
                     </h4>
                   </div>
                   <div className="space-y-1">
@@ -953,12 +956,12 @@ export default function ComposePage() {
                                 <p className="text-sm font-bold text-slate-800 truncate">{account.name}</p>
                                 {isChild && (
                                   <div className="flex items-center gap-1 text-[10px] text-slate-400 font-medium mt-0.5 uppercase tracking-tighter">
-                                    {account.platform === 'INSTAGRAM' ? 'IG Business' : 'Fanpage'}
+                                    {account.platform === 'INSTAGRAM' ? t.compose.igBusiness : t.compose.fanpage}
                                   </div>
                                 )}
                                 {account.token_expires_soon && (
                                   <div className="text-[10px] text-amber-500 font-semibold mt-0.5">
-                                    ⚠️ Token hết hạn trong {account.token_expires_in_days ?? 0} ngày
+                                    {t.compose.tokenExpiresIn(account.token_expires_in_days ?? 0)}
                                   </div>
                                 )}
                               </div>
@@ -985,7 +988,7 @@ export default function ComposePage() {
             {filteredAccounts.length === 0 && (
               <div className="text-center py-10 px-5 opacity-60">
                 <AlertCircle className="w-8 h-8 mx-auto mb-3 text-slate-300" />
-                <p className="text-sm italic text-slate-500">Không tìm thấy kênh phù hợp</p>
+                <p className="text-sm italic text-slate-500">{t.compose.noMatchingChannels}</p>
               </div>
             )}
           </motion.div>
@@ -993,7 +996,7 @@ export default function ComposePage() {
           {/* Drag handle — kéo để resize sidebar */}
           <div
             onMouseDown={onDragHandleMouseDown}
-            title="Kéo để điều chỉnh độ rộng"
+            title={t.compose.dragToResize}
             className="hidden lg:flex absolute top-0 right-0 h-full w-1.5 cursor-col-resize z-20 group items-center justify-center"
           >
             {/* Visual indicator */}
@@ -1015,7 +1018,7 @@ export default function ComposePage() {
               className="w-full max-w-[800px]"
             >
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
-                <h2 className="text-base font-bold text-slate-800">Tùy chỉnh bài đăng</h2>
+                <h2 className="text-base font-bold text-slate-800">{t.compose.customizePostTitle}</h2>
 
                 {/* Ảnh bìa video */}
                 {(() => {
@@ -1026,16 +1029,16 @@ export default function ComposePage() {
                     return (
                       <div className="flex flex-col items-center justify-center py-10 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl">
                         <ImageIcon className="w-10 h-10 mb-3 text-slate-300" />
-                        <p className="text-sm font-semibold">Chưa có video</p>
-                        <p className="text-xs mt-1">Thêm video ở tab <span className="font-bold text-blue-600 cursor-pointer" onClick={() => setTopTab('publish')}>Đăng bài</span> trước</p>
+                        <p className="text-sm font-semibold">{t.compose.noVideoYet}</p>
+                        <p className="text-xs mt-1">{t.compose.addVideoHintPrefix} <span className="font-bold text-blue-600 cursor-pointer" onClick={() => setTopTab('publish')}>{t.compose.addVideoHintTab}</span> {t.compose.addVideoHintSuffix}</p>
                       </div>
                     );
                   }
                   return (
                     <div className="space-y-3">
                       <div>
-                        <p className="text-sm font-bold text-slate-700 mb-1">Ảnh bìa video</p>
-                        <p className="text-xs text-slate-400">Chọn frame từ video hoặc upload ảnh tùy chỉnh. Dùng cho YouTube, TikTok, Facebook video.</p>
+                        <p className="text-sm font-bold text-slate-700 mb-1">{t.compose.thumbnailTitle}</p>
+                        <p className="text-xs text-slate-400">{t.compose.thumbnailDesc}</p>
                       </div>
 
                       <div className="flex gap-4 items-start flex-wrap">
@@ -1045,7 +1048,7 @@ export default function ComposePage() {
                             <div className="relative group">
                               <img
                                 src={thumbUrl}
-                                alt="Ảnh bìa"
+                                alt={t.compose.thumbnailAlt}
                                 className="w-40 h-24 object-cover rounded-xl border-2 border-blue-400 shadow-md"
                               />
                               <button
@@ -1055,13 +1058,13 @@ export default function ComposePage() {
                                 <X className="w-3 h-3" />
                               </button>
                               <div className="absolute bottom-1 left-1 right-1 text-center">
-                                <span className="text-[10px] bg-black/60 text-white px-2 py-0.5 rounded-full font-bold">Ảnh bìa đã chọn</span>
+                                <span className="text-[10px] bg-black/60 text-white px-2 py-0.5 rounded-full font-bold">{t.compose.thumbnailSelected}</span>
                               </div>
                             </div>
                           ) : (
                             <div className="w-40 h-24 bg-slate-100 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400">
                               <ImageIcon className="w-6 h-6 mb-1" />
-                              <span className="text-[10px] font-semibold">Chưa chọn</span>
+                              <span className="text-[10px] font-semibold">{t.compose.thumbnailNotChosen}</span>
                             </div>
                           )}
                         </div>
@@ -1072,25 +1075,25 @@ export default function ComposePage() {
                             onClick={() => setShowFramePicker(true)}
                             disabled={isDriveVideo && !driveLibraryId}
                             className="flex items-center gap-2.5 px-4 py-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-sm font-bold text-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                            title={isDriveVideo && !driveLibraryId ? 'Video Drive chưa có ID thư viện — thêm từ thư viện media' : undefined}
+                            title={isDriveVideo && !driveLibraryId ? t.compose.driveVideoNoLibraryId : undefined}
                           >
                             <Film className="w-4 h-4" />
-                            Chọn frame từ video
-                            {isDriveVideo && <span className="text-[10px] font-normal text-blue-500 ml-1">(server-side)</span>}
+                            {t.compose.chooseFrameFromVideo}
+                            {isDriveVideo && <span className="text-[10px] font-normal text-blue-500 ml-1">{t.compose.serverSide}</span>}
                           </button>
                           <button
                             onClick={() => { setLibraryMode('thumb'); setShowLibrary(true); }}
                             className="flex items-center gap-2.5 px-4 py-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 transition-colors"
                           >
                             <ImageIcon className="w-4 h-4" />
-                            Chọn ảnh từ thư viện
+                            {t.compose.chooseImageFromLibrary}
                           </button>
                           {thumbUrl && (
                             <button
                               onClick={() => setThumbUrl('')}
                               className="flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-red-500 hover:text-red-700 transition-colors"
                             >
-                              <X className="w-3.5 h-3.5" /> Xoá ảnh bìa
+                              <X className="w-3.5 h-3.5" /> {t.compose.removeThumbnail}
                             </button>
                           )}
                         </div>
@@ -1122,9 +1125,9 @@ export default function ComposePage() {
             <div className="flex flex-col md:flex-row justify-between items-center w-full gap-4">
               <div className="flex bg-white rounded-xl border border-slate-200 p-1 shadow-sm relative w-full md:w-auto overflow-x-auto scrollbar-none">
                 {[
-                  { id: 'publish', label: 'Đăng ngay' },
-                  { id: 'schedule', label: 'Đặt lịch' },
-                  { id: 'draft', label: 'Lưu nháp' }
+                  { id: 'publish', label: t.compose.tabPublishNow },
+                  { id: 'schedule', label: t.compose.tabSchedule },
+                  { id: 'draft', label: t.compose.tabDraft }
                 ].map(tab => (
                   <button 
                     key={tab.id}
@@ -1148,7 +1151,7 @@ export default function ComposePage() {
                   // Lazy load drafts khi user thực sự mở modal
                   if (drafts.length === 0) socialApi.drafts.list().then(setDrafts).catch(() => {});
                 }} className="flex items-center gap-2 px-5 py-2.5 border border-slate-200 rounded-xl bg-white text-slate-700 text-[13px] font-bold shadow-sm">
-                  <Save className="w-4 h-4" /> Nháp ({drafts.length})
+                  <Save className="w-4 h-4" /> {t.compose.draftsButton(drafts.length)}
                 </motion.button>
                 <div className="flex shadow-sm rounded-xl overflow-hidden">
                   <motion.button 
@@ -1157,7 +1160,7 @@ export default function ComposePage() {
                     disabled={publishing} 
                     className="px-6 py-2.5 bg-blue-600 text-white text-[13px] font-bold transition-colors disabled:opacity-50"
                   >
-                    {publishing ? <Loader2 className="w-4 h-4 animate-spin" /> : activeTab === 'schedule' ? 'Đặt lịch ngay' : activeTab === 'draft' ? 'Lưu nháp' : 'Đăng ngay'}
+                    {publishing ? <Loader2 className="w-4 h-4 animate-spin" /> : activeTab === 'schedule' ? t.compose.scheduleNowBtn : activeTab === 'draft' ? t.compose.saveDraftBtn : t.compose.publishNowBtn}
                   </motion.button>
                   <button className="px-3 py-2.5 bg-blue-700 text-white border-l border-blue-500"><ChevronDown className="w-4 h-4" /></button>
                 </div>
@@ -1172,7 +1175,7 @@ export default function ComposePage() {
                 className="w-full bg-blue-50/50 border border-blue-100 rounded-2xl p-4 flex items-center justify-center gap-3 shadow-sm"
               >
                 <Clock className="w-4 h-4 text-blue-600" />
-                <span className="text-sm font-bold text-slate-700">Thời gian đặt lịch đăng bài:</span>
+                <span className="text-sm font-bold text-slate-700">{t.compose.scheduledTimeLabel}</span>
                 <DateTimePicker24h value={scheduledAt} onChange={setScheduledAt} />
               </motion.div>
             )}
@@ -1181,7 +1184,7 @@ export default function ComposePage() {
             <motion.div layout className="bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col shadow-sm focus-within:ring-2 ring-blue-500/20 transition-all">
               <textarea 
                 className="w-full h-48 p-5 resize-none outline-none text-slate-800 placeholder:text-slate-400 text-sm leading-relaxed"
-                placeholder="Hôm nay bạn muốn chia sẻ điều gì?..."
+                placeholder={t.compose.messagePlaceholder}
                 value={message}
                 onChange={e => setMessage(e.target.value)}
               />
@@ -1190,7 +1193,7 @@ export default function ComposePage() {
                   <button className="text-slate-400 hover:text-amber-500 transition-colors"><Smile className="w-5 h-5" /></button>
                   <button className="text-slate-400 hover:text-red-500 transition-colors"><MapPin className="w-5 h-5" /></button>
                   <button className="flex items-center gap-1.5 text-slate-600 text-[13px] font-bold bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-full">
-                    <Globe className="w-4 h-4" /> Công khai
+                    <Globe className="w-4 h-4" /> {t.compose.public}
                   </button>
                   <TemplateManager
                     currentMessage={message}
@@ -1208,7 +1211,7 @@ export default function ComposePage() {
                     className="flex items-center gap-1.5 text-white bg-gradient-to-r from-fuchsia-600 to-purple-600 px-4 py-1.5 rounded-full text-[13px] font-bold shadow-sm disabled:opacity-70"
                   >
                     {isAiProcessing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                    {isAiProcessing ? 'Đang tối ưu...' : 'AI Tối ưu nội dung'}
+                    {isAiProcessing ? t.compose.aiOptimizing : t.compose.aiOptimize}
                   </motion.button>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1224,12 +1227,12 @@ export default function ComposePage() {
                     return overLimit.length > 0 ? (
                       <span className="text-[11px] text-red-500 font-bold flex items-center gap-1">
                         <AlertCircle className="w-3.5 h-3.5" />
-                        Quá giới hạn: {overLimit.map(a => a!.platform).join(', ')}
+                        {t.compose.overLimit(overLimit.map(a => a!.platform).join(', '))}
                       </span>
                     ) : null;
                   })()}
                   <div className={`text-[11px] font-bold uppercase ${message.length > 500 ? 'text-amber-500' : 'text-slate-400'}`}>
-                    {message.length} ký tự
+                    {t.compose.charCount(message.length)}
                   </div>
                 </div>
               </div>
@@ -1328,8 +1331,8 @@ export default function ComposePage() {
                   <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mb-3 text-slate-400 group-hover:text-purple-500 transition-all group-hover:bg-purple-50">
                     <Layers className="w-7 h-7" />
                   </div>
-                  <h4 className="text-sm font-bold text-slate-800 text-center">Chọn từ thư viện media</h4>
-                  <p className="text-xs text-slate-500 mt-1 text-center">Chọn file đã upload trước</p>
+                  <h4 className="text-sm font-bold text-slate-800 text-center">{t.compose.chooseFromLibrary}</h4>
+                  <p className="text-xs text-slate-500 mt-1 text-center">{t.compose.chooseUploadedFile}</p>
                 </motion.div>
               </div>
             </div>
@@ -1340,7 +1343,7 @@ export default function ComposePage() {
         {/* COLUMN 3: Preview */}
         <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} className={`${mobileTab === 'PREVIEW' ? 'flex flex-1 w-full' : 'hidden'} lg:flex lg:w-[380px] bg-white lg:border-l border-slate-200 flex-col shrink-0 z-10 lg:max-h-full`}>
           <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row justify-between sm:items-center bg-slate-50/30 gap-3">
-            <h3 className="font-extrabold text-slate-800 text-sm">Xem trước bài viết</h3>
+            <h3 className="font-extrabold text-slate-800 text-sm">{t.compose.previewTitle}</h3>
             <div className="flex gap-2">
               {[
                 { 
@@ -1398,7 +1401,7 @@ export default function ComposePage() {
                 onClick={() => setPerPlatformMode(v => !v)}
                 className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl border text-xs font-bold transition-all ${perPlatformMode ? 'bg-purple-50 border-purple-300 text-purple-700' : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'}`}
               >
-                <span>✏️ Tùy chỉnh nội dung theo từng platform</span>
+                <span>{t.compose.perPlatformToggle}</span>
                 <span className={`w-4 h-4 rounded-full border-2 transition-all ${perPlatformMode ? 'bg-purple-500 border-purple-500' : 'border-slate-300'}`} />
               </button>
 
@@ -1411,11 +1414,11 @@ export default function ComposePage() {
                         <div className={`flex items-center gap-2 px-3 py-2 ${meta.color} text-white`}>
                           <span>{meta.emoji}</span>
                           <span className="text-xs font-bold">{meta.label}</span>
-                          {!perPlatformMessages[platform] && <span className="ml-auto text-[10px] opacity-70">Dùng nội dung chung</span>}
+                          {!perPlatformMessages[platform] && <span className="ml-auto text-[10px] opacity-70">{t.compose.useCommonContent}</span>}
                         </div>
                         <textarea
                           rows={3}
-                          placeholder={`Nội dung riêng cho ${meta.label} (bỏ trống = dùng nội dung chung)`}
+                          placeholder={t.compose.perPlatformPlaceholder(meta.label)}
                           value={perPlatformMessages[platform] || ''}
                           onChange={e => setPerPlatformMessages(prev => ({ ...prev, [platform]: e.target.value }))}
                           className="w-full px-3 py-2 text-xs text-slate-700 resize-none focus:outline-none focus:bg-blue-50/30 transition-colors"
@@ -1424,7 +1427,7 @@ export default function ComposePage() {
                     );
                   })}
                   {selectedAccountIds.length === 0 && (
-                    <p className="text-xs text-slate-400 text-center py-2">Chọn kênh để tùy chỉnh nội dung</p>
+                    <p className="text-xs text-slate-400 text-center py-2">{t.compose.selectChannelToCustomize}</p>
                   )}
                 </div>
               )}
@@ -1451,7 +1454,7 @@ export default function ComposePage() {
 
           <div className="p-5 bg-white border-t border-slate-200">
             <div className="flex items-center gap-2 mb-4 text-slate-800 font-bold text-[13px]">
-              <Clock className="w-4 h-4 text-slate-500" /> Thời gian đăng bài
+              <Clock className="w-4 h-4 text-slate-500" /> {t.compose.postingTimeLabel}
             </div>
             
             {/* Date Time Picker for Schedule */}
@@ -1459,19 +1462,19 @@ export default function ComposePage() {
               {(activeTab === 'schedule' || scheduleMode === 'schedule') && (
                 <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="mb-4 space-y-3">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Quyền riêng tư (FB)</label>
-                    <select 
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t.compose.privacyLabel}</label>
+                    <select
                       value={privacy}
                       onChange={e => setPrivacy(e.target.value)}
                       className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-700 bg-white"
                     >
-                      <option value="EVERYONE">👤 Công khai</option>
-                      <option value="ALL_FRIENDS">👥 Bạn bè</option>
-                      <option value="SELF">🔒 Chỉ mình tôi</option>
+                      <option value="EVERYONE">{t.compose.privacyPublic}</option>
+                      <option value="ALL_FRIENDS">{t.compose.privacyFriends}</option>
+                      <option value="SELF">{t.compose.privacyOnlyMe}</option>
                     </select>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Thời gian đăng bài</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t.compose.postingTimeLabel}</label>
                     <DateTimePicker24h
                       value={scheduledAt}
                       onChange={v => { setScheduledAt(v); setScheduleMode('schedule'); }}
@@ -1484,8 +1487,8 @@ export default function ComposePage() {
 
             <div className="flex gap-3">
               {[
-                { id: 'now', label: 'Đăng ngay', icon: Send },
-                { id: 'schedule', label: 'Đặt lịch', icon: CalendarIcon }
+                { id: 'now', label: t.compose.publishNowBtn, icon: Send },
+                { id: 'schedule', label: t.compose.tabSchedule, icon: CalendarIcon }
               ].map(m => (
                 <motion.button 
                   key={m.id}
@@ -1520,7 +1523,7 @@ export default function ComposePage() {
           onSelect={(urls, thumbMap, idMap) => {
             if (libraryMode === 'thumb') {
               setThumbUrl(urls[0] || '');
-              toast.success('Đã đặt ảnh bìa!');
+              toast.success(t.compose.thumbnailSet);
             } else {
               setMediaUrls(prev => Array.from(new Set([...prev, ...urls])));
               if (thumbMap) setMediaThumbs(prev => ({ ...prev, ...thumbMap }));
@@ -1530,12 +1533,12 @@ export default function ComposePage() {
                 const firstVideoThumb = urls.find(u => u.includes('drive.google.com') && thumbMap[u]);
                 if (firstVideoThumb) {
                   setThumbUrl(thumbMap[firstVideoThumb]);
-                  toast.success('Đã tự động đặt ảnh bìa từ video!');
+                  toast.success(t.compose.thumbnailAutoSet);
                 }
               }
               if (postMode === 'text') setPostMode('image');
               if (!thumbMap || !urls.some(u => u.includes('drive.google.com') && thumbMap?.[u])) {
-                toast.success(`Đã thêm ${urls.length} file từ thư viện`);
+                toast.success(t.compose.filesAddedFromLibrary(urls.length));
               }
             }
           }}
@@ -1558,14 +1561,14 @@ export default function ComposePage() {
               >
                 <div className="p-8 space-y-6">
                   <div className="flex justify-between items-center">
-                    <h3 className="text-xl font-black text-slate-900">Danh sách bản nháp</h3>
+                    <h3 className="text-xl font-black text-slate-900">{t.compose.draftsListTitle}</h3>
                     <button onClick={() => setShowDraftsModal(false)} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200">
                       <X className="w-5 h-5" />
                     </button>
                   </div>
 
                   <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-                    {drafts.length === 0 && <p className="text-center py-10 text-slate-400 italic text-sm">Chưa có bản nháp nào được lưu.</p>}
+                    {drafts.length === 0 && <p className="text-center py-10 text-slate-400 italic text-sm">{t.compose.noDraftsSaved}</p>}
                     {drafts.map(d => (
                       <div 
                         key={d.id} 
@@ -1587,10 +1590,10 @@ export default function ComposePage() {
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm text-slate-700 line-clamp-2 leading-relaxed mb-2">{d.message || '(Không có nội dung)'}</p>
+                          <p className="text-sm text-slate-700 line-clamp-2 leading-relaxed mb-2">{d.message || t.compose.noContent}</p>
                           <div className="flex items-center justify-between">
                             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{new Date(d.created_at).toLocaleString()}</span>
-                            <span className="text-[10px] text-blue-500 font-bold opacity-0 group-hover:opacity-100 transition-all">Nhấn để chọn →</span>
+                            <span className="text-[10px] text-blue-500 font-bold opacity-0 group-hover:opacity-100 transition-all">{t.compose.clickToSelect}</span>
                           </div>
                         </div>
                       </div>
