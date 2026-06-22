@@ -3005,7 +3005,7 @@ function StatisticsDashboard() {
 
             {/* Presenter Fullscreen Modal View */}
             {isFullscreenSlide && selectedSlide && (
-              <div className="fixed inset-0 bg-[#070b13] z-50 flex flex-col justify-between p-10 font-sans text-white animate-fade-in select-none">
+              <div className="fixed inset-0 bg-[#070b13] z-50 flex flex-col justify-between pt-24 pb-10 px-10 font-sans text-white animate-fade-in select-none">
                 <div className="absolute inset-0 bg-radial-gradient from-blue-950/20 to-transparent pointer-events-none" />
 
                 {/* Top Control Bar */}
