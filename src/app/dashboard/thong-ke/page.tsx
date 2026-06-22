@@ -804,6 +804,39 @@ function StatisticsDashboard() {
   const [isFullscreenSlide, setIsFullscreenSlide] = useState<boolean>(false);
   const [isPlayingVideo, setIsPlayingVideo] = useState<boolean>(false);
 
+  // States for advanced Statistics dashboard
+  const [platformFilter, setPlatformFilter] = useState<'All' | 'TikTok' | 'Instagram Reels' | 'YouTube Shorts'>('All');
+  const [editorSearchQuery, setEditorSearchQuery] = useState<string>('');
+  const [editorSortBy, setEditorSortBy] = useState<'winRate' | 'totalVideos' | 'avgViews'>('winRate');
+  const [selectedEditorDetail, setSelectedEditorDetail] = useState<any | null>(null);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
+  const [exportProgress, setExportProgress] = useState<number>(0);
+  const [exportType, setExportType] = useState<'pdf' | 'excel' | null>(null);
+  const [filterMode, setFilterMode] = useState<'all' | 'week' | 'month'>('week');
+  const [selectedMonth, setSelectedMonth] = useState<'all' | '5' | '6'>('6');
+  const [selectedWeek, setSelectedWeek] = useState<'all' | '1' | '2' | '3' | '4'>('1');
+
+  const handleStartExport = (type: 'pdf' | 'excel') => {
+    if (isExporting) return;
+    setIsExporting(true);
+    setExportType(type);
+    setExportProgress(0);
+
+    let currentProg = 0;
+    const interval = setInterval(() => {
+      currentProg += 10;
+      setExportProgress(currentProg);
+      if (currentProg >= 100) {
+        clearInterval(interval);
+        setTimeout(() => {
+          setIsExporting(false);
+          setExportType(null);
+          setExportProgress(0);
+        }, 500);
+      }
+    }, 150);
+  };
+
   const updateSlideField = (category: 'win' | 'fail' | 'case' | 'clone' | 'action', index: number, field: string, value: string) => {
     setTeamsData(prev => {
       const updated = { ...prev };
@@ -1233,37 +1266,83 @@ function StatisticsDashboard() {
     const multiplier = getSheetMultiplier(sheetName);
     const isCollapsed = collapsedSheets[sheetName] || false;
 
+    // Helper checking date filtering
+    const isDateInFilter = (dateStr: string | undefined) => {
+      if (!dateStr) return false;
+      const parts = dateStr.split('-');
+      if (parts.length < 3) return true;
+      const month = parseInt(parts[1], 10);
+      const day = parseInt(parts[2], 10);
+
+      if (filterMode === 'month') {
+        // Mặc định lấy tháng 6 (tháng hiện tại) khi click Báo cáo Tháng
+        return month === 6;
+      } else if (filterMode === 'week') {
+        if (month !== 6) return false;
+        if (selectedWeek !== 'all') {
+          const week = parseInt(selectedWeek, 10);
+          // Lịch tháng 6/2026:
+          // Tuần 1: 01/06 - 07/06
+          // Tuần 2: 08/06 - 14/06
+          // Tuần 3: 15/06 - 21/06
+          // Tuần 4: 22/06 - 30/06 (bao gồm ngày 29, 30 để chỉ có đúng 4 tuần)
+          if (week === 1) return day >= 1 && day <= 7;
+          if (week === 2) return day >= 8 && day <= 14;
+          if (week === 3) return day >= 15 && day <= 21;
+          if (week === 4) return day >= 22 && day <= 30;
+        }
+      }
+      return true;
+    };
+
+    // Calculate dynamic filtering ratios to update parent metrics
+    const filteredWinsCount = baseData.videos.filter(v => isDateInFilter(v.postDate)).length;
+    const filteredFailsCount = baseData.failVideos.filter(v => isDateInFilter(v.postDate)).length;
+    const overallWinsCount = baseData.videos.length;
+    const overallFailsCount = baseData.failVideos.length;
+
+    const winFilterRatio = overallWinsCount > 0 ? filteredWinsCount / overallWinsCount : 1;
+    const totalFilterRatio = (overallWinsCount + overallFailsCount) > 0
+      ? (filteredWinsCount + filteredFailsCount) / (overallWinsCount + overallFailsCount)
+      : 1;
+
     // Tính số liệu đã nhân hệ số và làm tròn cho sheetName cụ thể
     const win5Stats = {
-      total: Math.round(baseData.win5Stats.total * multiplier),
-      win: Math.round(baseData.win5Stats.win * multiplier),
-      fail: Math.round(baseData.win5Stats.fail * multiplier),
+      total: Math.round(baseData.win5Stats.total * totalFilterRatio * multiplier),
+      win: Math.round(baseData.win5Stats.win * winFilterRatio * multiplier),
+      fail: 0,
       percent: ''
     };
-    const rawWin5Percent = (win5Stats.win / win5Stats.total) * 100;
+    win5Stats.fail = Math.max(0, win5Stats.total - win5Stats.win);
+    const rawWin5Percent = win5Stats.total > 0 ? (win5Stats.win / win5Stats.total) * 100 : 0;
     win5Stats.percent = `${rawWin5Percent.toFixed(1).replace('.', ',')}%`;
 
     const newVideoStats = {
-      total: Math.round(baseData.newVideoStats.total * multiplier),
-      win: Math.round(baseData.newVideoStats.win * multiplier),
-      fail: Math.round(baseData.newVideoStats.fail * multiplier),
+      total: Math.round(baseData.newVideoStats.total * totalFilterRatio * multiplier),
+      win: Math.round(baseData.newVideoStats.win * winFilterRatio * multiplier),
+      fail: 0,
       percent: ''
     };
-    const rawNewVideoPercent = (newVideoStats.win / newVideoStats.total) * 100;
+    newVideoStats.fail = Math.max(0, newVideoStats.total - newVideoStats.win);
+    const rawNewVideoPercent = newVideoStats.total > 0 ? (newVideoStats.win / newVideoStats.total) * 100 : 0;
     newVideoStats.percent = `${rawNewVideoPercent.toFixed(1).replace('.', ',')}%`;
 
-    const videos = baseData.videos.map(v => ({
-      ...v,
-      views: formatViews(v.views, multiplier)
-    }));
+    const videos = baseData.videos
+      .filter(v => isDateInFilter(v.postDate))
+      .map(v => ({
+        ...v,
+        views: formatViews(v.views, multiplier)
+      }));
 
     switch (sheetName) {
 
       case '5 Content fail của team': {
-        const rows = [...baseData.failVideos].map(v => ({
-          ...v,
-          views: formatViews(v.views, multiplier)
-        }));
+        const rows = [...baseData.failVideos]
+          .filter(v => isDateInFilter(v.postDate))
+          .map(v => ({
+            ...v,
+            views: formatViews(v.views, multiplier)
+          }));
         while (rows.length < 5) {
           rows.push({
             id: rows.length + 1,
@@ -1293,13 +1372,13 @@ function StatisticsDashboard() {
                   <thead>
                     <tr className="border-b border-white/[0.08] text-slate-400 text-[10px] uppercase tracking-wider font-bold bg-white/[0.02]">
                       <th className="py-3 px-4 w-12 text-center">#</th>
-                      <th className="py-3 px-4 text-center">TEAM</th>
-                      <th className="py-3 px-4 text-center">EDITOR</th>
-                      <th className="py-3 px-4 text-center">LINK</th>
-                      <th className="py-3 px-4 text-center">THUMBNAIL</th>
-                      <th className="py-3 px-4 w-1/3 text-center">NỘI DUNG CONTENT</th>
-                      <th className="py-3 px-4 w-1/3 text-center">PHÂN TÍCH TẠI SAO KHÔNG WIN?</th>
-                      <th className="py-3 px-4 text-center">SỐ VIEWS</th>
+                      <th className="py-3 px-4">TEAM</th>
+                      <th className="py-3 px-4">EDITOR</th>
+                      <th className="py-3 px-4">LINK</th>
+                      <th className="py-3 px-4">THUMBNAIL</th>
+                      <th className="py-3 px-4 w-1/3">NỘI DUNG CONTENT</th>
+                      <th className="py-3 px-4 w-1/3">PHÂN TÍCH TẠI SAO KHÔNG WIN?</th>
+                      <th className="py-3 px-4 text-right">SỐ VIEWS</th>
                       <th className="py-3 px-4 w-12 text-center"></th>
                     </tr>
                   </thead>
@@ -1324,13 +1403,12 @@ function StatisticsDashboard() {
                             contentEditable
                             suppressContentEditableWarning
                             onBlur={(e) => updateRowValue(sheetName, idx, 'videoUrl', e.currentTarget.textContent || '')}
-                            className={`py-3.5 px-4 text-xs outline-none focus:bg-white/[0.04] cursor-text max-w-[120px] truncate focus:max-w-none focus:whitespace-normal break-all ${
-                              isMock 
-                                ? 'text-slate-500 font-bold text-center' 
-                                : !video.videoUrl 
-                                  ? 'text-blue-400/50 italic' 
-                                  : 'text-blue-400 hover:text-blue-300 underline font-medium'
-                            }`}
+                            className={`py-3.5 px-4 text-xs outline-none focus:bg-white/[0.04] cursor-text max-w-[120px] truncate focus:max-w-none focus:whitespace-normal break-all ${isMock
+                              ? 'text-slate-500 font-bold text-center'
+                              : !video.videoUrl
+                                ? 'text-blue-400/50 italic'
+                                : 'text-blue-400 hover:text-blue-300 underline font-medium'
+                              }`}
                             title={isMock ? '' : (video.videoUrl || 'Dán link video...')}
                           >
                             {isMock ? '-' : (video.videoUrl || 'Dán link video...')}
@@ -1426,10 +1504,12 @@ function StatisticsDashboard() {
       }
 
       case '5 Case Study hay bên ngoài': {
-        const rows = [...baseData.caseStudies].map(v => ({
-          ...v,
-          views: formatViews(v.views, multiplier)
-        }));
+        const rows = [...baseData.caseStudies]
+          .filter(v => isDateInFilter(v.postDate))
+          .map(v => ({
+            ...v,
+            views: formatViews(v.views, multiplier)
+          }));
         while (rows.length < 5) {
           rows.push({
             id: rows.length + 1,
@@ -1489,13 +1569,12 @@ function StatisticsDashboard() {
                             contentEditable
                             suppressContentEditableWarning
                             onBlur={(e) => updateRowValue(sheetName, idx, 'videoUrl', e.currentTarget.textContent || '')}
-                            className={`py-3.5 px-4 text-xs outline-none focus:bg-white/[0.04] cursor-text max-w-[120px] truncate focus:max-w-none focus:whitespace-normal break-all ${
-                              isMock 
-                                ? 'text-slate-500 font-bold text-center' 
-                                : !video.videoUrl 
-                                  ? 'text-blue-400/50 italic' 
-                                  : 'text-blue-400 hover:text-blue-300 underline font-medium'
-                            }`}
+                            className={`py-3.5 px-4 text-xs outline-none focus:bg-white/[0.04] cursor-text max-w-[120px] truncate focus:max-w-none focus:whitespace-normal break-all ${isMock
+                              ? 'text-slate-500 font-bold text-center'
+                              : !video.videoUrl
+                                ? 'text-blue-400/50 italic'
+                                : 'text-blue-400 hover:text-blue-300 underline font-medium'
+                              }`}
                             title={isMock ? '' : (video.videoUrl || 'Dán link video...')}
                           >
                             {isMock ? '-' : (video.videoUrl || 'Dán link video...')}
@@ -1558,8 +1637,8 @@ function StatisticsDashboard() {
 
       case 'Số video content win của cá nhân trong team': {
         const scaledPerformance = baseData.editorPerformance.map(perf => {
-          const total = Math.round(perf.totalVideos * multiplier);
-          const win = Math.round(perf.winVideos * multiplier);
+          const win = Math.round(perf.winVideos * winFilterRatio * multiplier);
+          const total = Math.max(win, Math.round(perf.totalVideos * totalFilterRatio * multiplier));
           const fail = total - win;
           const winRate = formatWinRate(win, total);
           return {
@@ -1721,8 +1800,8 @@ function StatisticsDashboard() {
         const ratio = baseData.win5Stats.total > 0 ? (baseData.newVideoStats.total / baseData.win5Stats.total) : 0;
 
         const scaledPerformance = baseData.editorPerformance.map(perf => {
-          const total = Math.round(perf.totalVideos * ratio * multiplier);
-          const win = Math.round(perf.winVideos * ratio * multiplier);
+          const win = Math.round(perf.winVideos * ratio * winFilterRatio * multiplier);
+          const total = Math.max(win, Math.round(perf.totalVideos * ratio * totalFilterRatio * multiplier));
           const fail = total - win;
           const winRate = formatWinRate(win, total);
           return {
@@ -2015,13 +2094,13 @@ function StatisticsDashboard() {
                   <thead>
                     <tr className="border-b border-white/[0.08] text-slate-400 text-[10px] uppercase tracking-wider font-bold bg-white/[0.02]">
                       <th className="py-3 px-4 w-12 text-center">#</th>
-                      <th className="py-3 px-4 text-center">TEAM</th>
-                      <th className="py-3 px-4 text-center">EDITOR</th>
-                      <th className="py-3 px-4 text-center">LINK</th>
-                      <th className="py-3 px-4 text-center">THUMBNAIL</th>
-                      <th className="py-3 px-4 w-1/3 text-center">NỘI DUNG CONTENT</th>
-                      <th className="py-3 px-4 w-1/3 text-center">PHÂN TÍCH TẠI SAO WIN?</th>
-                      <th className="py-3 px-4 text-center">SỐ VIEWS</th>
+                      <th className="py-3 px-4">TEAM</th>
+                      <th className="py-3 px-4">EDITOR</th>
+                      <th className="py-3 px-4">LINK</th>
+                      <th className="py-3 px-4">THUMBNAIL</th>
+                      <th className="py-3 px-4 w-1/3">NỘI DUNG CONTENT</th>
+                      <th className="py-3 px-4 w-1/3">PHÂN TÍCH TẠI SAO WIN?</th>
+                      <th className="py-3 px-4 text-right">SỐ VIEWS</th>
                       <th className="py-3 px-4 w-12 text-center"></th>
                     </tr>
                   </thead>
@@ -2046,13 +2125,12 @@ function StatisticsDashboard() {
                             contentEditable
                             suppressContentEditableWarning
                             onBlur={(e) => updateRowValue(sheetName, idx, 'videoUrl', e.currentTarget.textContent || '')}
-                            className={`py-3.5 px-4 text-xs outline-none focus:bg-white/[0.04] cursor-text max-w-[120px] truncate focus:max-w-none focus:whitespace-normal break-all ${
-                              isMock 
-                                ? 'text-slate-500 font-bold text-center' 
-                                : !video.videoUrl 
-                                  ? 'text-blue-400/50 italic' 
-                                  : 'text-blue-400 hover:text-blue-300 underline font-medium'
-                            }`}
+                            className={`py-3.5 px-4 text-xs outline-none focus:bg-white/[0.04] cursor-text max-w-[120px] truncate focus:max-w-none focus:whitespace-normal break-all ${isMock
+                              ? 'text-slate-500 font-bold text-center'
+                              : !video.videoUrl
+                                ? 'text-blue-400/50 italic'
+                                : 'text-blue-400 hover:text-blue-300 underline font-medium'
+                              }`}
                             title={isMock ? '' : (video.videoUrl || 'Dán link video...')}
                           >
                             {isMock ? '-' : (video.videoUrl || 'Dán link video...')}
@@ -2157,8 +2235,8 @@ function StatisticsDashboard() {
         <button
           onClick={() => handleSubTabChange('bao-cao')}
           className={`pb-3 text-sm font-bold border-b-2 transition-all duration-150 ${activeSubTab === 'bao-cao'
-              ? 'border-blue-500 text-blue-400'
-              : 'border-transparent text-slate-500 hover:text-slate-200'
+            ? 'border-blue-500 text-blue-400'
+            : 'border-transparent text-slate-500 hover:text-slate-200'
             }`}
         >
           Báo cáo
@@ -2166,8 +2244,8 @@ function StatisticsDashboard() {
         <button
           onClick={() => handleSubTabChange('trinh-bay')}
           className={`pb-3 text-sm font-bold border-b-2 transition-all duration-150 ${activeSubTab === 'trinh-bay'
-              ? 'border-blue-500 text-blue-400'
-              : 'border-transparent text-slate-500 hover:text-slate-200'
+            ? 'border-blue-500 text-blue-400'
+            : 'border-transparent text-slate-500 hover:text-slate-200'
             }`}
         >
           Trình bày
@@ -2175,8 +2253,8 @@ function StatisticsDashboard() {
         <button
           onClick={() => handleSubTabChange('thong-ke')}
           className={`pb-3 text-sm font-bold border-b-2 transition-all duration-150 ${activeSubTab === 'thong-ke'
-              ? 'border-blue-500 text-blue-400'
-              : 'border-transparent text-slate-500 hover:text-slate-200'
+            ? 'border-blue-500 text-blue-400'
+            : 'border-transparent text-slate-500 hover:text-slate-200'
             }`}
         >
           Thống kê
@@ -2185,20 +2263,89 @@ function StatisticsDashboard() {
 
       {activeSubTab === 'bao-cao' && (
         <div className="flex flex-col gap-6">
-          {/* Teams Selector */}
-          <div className="flex bg-[#121929] border border-white/[0.08] p-1 rounded-xl max-w-xs shadow-inner">
-            {Object.keys(teamsData).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all duration-200 ${activeTab === tab
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            {/* Teams Selector */}
+            <div className="flex bg-[#121929] border border-white/[0.08] p-1 rounded-xl w-full max-w-xs shadow-inner">
+              {Object.keys(teamsData).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all duration-200 ${activeTab === tab
                     ? 'bg-[#bfdbfe] text-[#1e3a8a] shadow-md scale-100'
                     : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
-                  }`}
-              >
-                {tab}
-              </button>
-            ))}
+                    }`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            {/* Bộ lọc thời gian 2 cấp nâng cao (Tách biệt Báo cáo Tuần / Báo cáo Tháng) */}
+            <div className="flex flex-col gap-3.5 bg-slate-950/20 border border-white/[0.04] p-4 rounded-2xl max-w-full">
+              {/* Cấp 1: Chọn Loại Báo Cáo */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-blue-400" /> Loại báo cáo:
+                </span>
+                <div className="flex bg-slate-950/40 border border-white/[0.06] p-0.5 rounded-lg shadow-inner gap-1">
+                  {([
+                    { key: 'week', label: 'Báo cáo Tuần' },
+                    { key: 'month', label: 'Báo cáo Tháng' }
+                  ] as const).map((item) => {
+                    const isActive = filterMode === item.key;
+                    return (
+                      <button
+                        key={item.key}
+                        onClick={() => {
+                          setFilterMode(item.key);
+                          if (item.key === 'week') {
+                            setSelectedWeek('1'); // Mặc định chọn Tuần 1 khi vào Báo cáo Tuần
+                            setSelectedMonth('6');
+                          } else if (item.key === 'month') {
+                            setSelectedMonth('6'); // Mặc định Tháng 6
+                            setSelectedWeek('all');
+                          } else {
+                            setSelectedMonth('all');
+                            setSelectedWeek('all');
+                          }
+                        }}
+                        className={`px-4 py-1.5 text-[10px] font-bold rounded-md transition-all duration-200 ${isActive
+                          ? 'bg-blue-600 text-white shadow-sm font-black'
+                          : 'text-slate-400 hover:text-white hover:bg-white/[0.02]'
+                          }`}
+                      >
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Cấp 2: Chọn chu kỳ chi tiết (Chỉ hiển thị khi chọn Báo cáo Tuần) */}
+              {filterMode === 'week' && (
+                <div className="flex items-center gap-3 pt-2.5 border-t border-white/[0.04] transition-all flex-wrap animate-slide-down">
+                  <div className="flex bg-slate-950/30 border border-white/[0.04] p-0.5 rounded-lg shadow-inner gap-1 flex-wrap">
+                    {([
+                      { key: '1', label: 'Tuần 1' },
+                      { key: '2', label: 'Tuần 2' },
+                      { key: '3', label: 'Tuần 3' },
+                      { key: '4', label: 'Tuần 4' }
+                    ] as const).map((item) => (
+                      <button
+                        key={item.key}
+                        onClick={() => setSelectedWeek(item.key)}
+                        className={`px-4 py-1.5 text-[9.5px] font-bold rounded-md transition-all duration-200 ${selectedWeek === item.key
+                          ? 'bg-indigo-600 text-white shadow-sm font-black'
+                          : 'text-slate-400 hover:text-white hover:bg-white/[0.02]'
+                          }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
 
@@ -2353,8 +2500,8 @@ function StatisticsDashboard() {
                         setIsPlayingVideo(false);
                       }}
                       className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-xs font-extrabold transition-all duration-200 ${isActive
-                          ? 'bg-[#1e293b] text-white border-blue-500 shadow-lg shadow-blue-950/50 scale-100'
-                          : 'bg-white/[0.02] text-slate-400 border-white/[0.04] hover:bg-white/[0.05] hover:text-slate-200'
+                        ? 'bg-[#1e293b] text-white border-blue-500 shadow-lg shadow-blue-950/50 scale-100'
+                        : 'bg-white/[0.02] text-slate-400 border-white/[0.04] hover:bg-white/[0.05] hover:text-slate-200'
                         }`}
                     >
                       <Icon className={`w-4 h-4 ${isActive ? 'text-blue-400' : menuItem.color.split(' ')[0]}`} />
@@ -2378,8 +2525,8 @@ function StatisticsDashboard() {
                       setIsPlayingVideo(false);
                     }}
                     className={`flex-1 px-4 py-2 text-xs font-bold rounded-lg transition-all duration-200 ${activeTab === tab
-                        ? 'bg-[#bfdbfe] text-[#1e3a8a] shadow-md'
-                        : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
+                      ? 'bg-[#bfdbfe] text-[#1e3a8a] shadow-md'
+                      : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
                       }`}
                   >
                     {tab}
@@ -2392,7 +2539,7 @@ function StatisticsDashboard() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch lg:flex-1 lg:min-h-0">
 
               {/* Column 1: Left Slides List Sidebar (3 cols on desktop) */}
-              <div className="lg:col-span-3 bg-[#131d31]/80 border border-white/[0.06] rounded-2xl p-4 flex flex-col justify-between shadow-xl lg:h-full lg:min-h-0 h-[680px]">
+              <div className="lg:col-span-3 bg-[#131d31]/80 border border-white/[0.06] rounded-2xl p-4 flex flex-col justify-between shadow-xl lg:h-[calc(100vh-310px)] lg:min-h-[450px] h-[680px]">
                 <div className="flex flex-col gap-4 flex-1 min-h-0">
                   <div className="flex items-center justify-between border-b border-white/[0.06] pb-3 shrink-0">
                     <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
@@ -2420,8 +2567,8 @@ function StatisticsDashboard() {
                               setIsPlayingVideo(false);
                             }}
                             className={`flex gap-3 p-3 rounded-xl cursor-pointer border transition-all duration-200 group select-none relative overflow-hidden flex-shrink-0 ${isCurrent
-                                ? 'bg-gradient-to-r from-blue-950/50 to-[#1e293b]/50 border-blue-500 shadow-md shadow-blue-950/20'
-                                : 'bg-white/[0.01] hover:bg-white/[0.03] border-white/[0.04]'
+                              ? 'bg-gradient-to-r from-blue-950/50 to-[#1e293b]/50 border-blue-500 shadow-md shadow-blue-950/20'
+                              : 'bg-white/[0.01] hover:bg-white/[0.03] border-white/[0.04]'
                               }`}
                           >
                             {/* Slide Number */}
@@ -2469,7 +2616,7 @@ function StatisticsDashboard() {
               </div>
 
               {/* Column 2: Center Main Slide Stage (6 cols on desktop) */}
-              <div className="lg:col-span-6 flex flex-col gap-4 lg:h-full lg:min-h-0 h-[680px]">
+              <div className="lg:col-span-6 flex flex-col gap-4 lg:h-[calc(100vh-310px)] lg:min-h-[450px] h-[680px]">
 
                 {/* stage title bar */}
                 <div className="bg-[#131d31] border border-white/[0.06] rounded-2xl p-4 flex items-center justify-between shadow-lg shrink-0">
@@ -2511,15 +2658,15 @@ function StatisticsDashboard() {
                       {/* Left: Video Mockup Player */}
                       <div
                         onClick={handlePlayerClick}
-                        className="w-full md:w-56 bg-[#090e18] border border-white/[0.08] rounded-xl flex flex-col justify-between overflow-hidden relative group shrink-0 min-h-[220px] cursor-pointer hover:border-blue-500/50 transition-all duration-300 select-none"
+                        className="w-full md:w-44 bg-[#090e18] border border-white/[0.08] rounded-xl flex flex-col justify-between overflow-hidden relative group shrink-0 min-h-[140px] md:h-36 cursor-pointer hover:border-blue-500/50 transition-all duration-300 select-none"
                       >
                         {isPlayingVideo && selectedSlide.videoUrl ? (
                           <div className="absolute inset-0 z-10 bg-[#090e18] flex flex-col justify-between no-player-click">
-                            <video 
-                              src={selectedSlide.videoUrl} 
-                              controls 
-                              autoPlay 
-                              className="w-full h-full object-cover" 
+                            <video
+                              src={selectedSlide.videoUrl}
+                              controls
+                              autoPlay
+                              className="w-full h-full object-cover"
                             />
                             <button
                               onClick={(e) => {
@@ -2568,7 +2715,7 @@ function StatisticsDashboard() {
                             />
                           ) : (
                             <textarea
-                              rows={3}
+                              rows={2}
                               value={selectedSlide.content || ''}
                               onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, 'content', e.target.value)}
                               className="bg-[#0c1322] border border-white/[0.06] focus:border-blue-500 outline-none rounded-xl p-3 text-xs text-white placeholder-slate-500 font-medium leading-relaxed resize-none transition-all"
@@ -2590,7 +2737,10 @@ function StatisticsDashboard() {
                               type="text"
                               value={presentationMenu === 'action' ? (selectedSlide.assignee || '') : (selectedSlide.editor || '')}
                               onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, presentationMenu === 'action' ? 'assignee' : 'editor', e.target.value)}
-                              className="bg-[#0c1322] border border-white/[0.06] focus:border-blue-500 outline-none rounded-lg px-2.5 py-2 text-xs text-white transition-all font-semibold"
+                              readOnly={presentationMenu !== 'action'}
+                              className={`bg-[#0c1322] border border-white/[0.06] outline-none rounded-lg px-2.5 py-2 text-xs text-white transition-all font-semibold ${
+                                presentationMenu !== 'action' ? 'opacity-80 cursor-default text-slate-300' : 'focus:border-blue-500'
+                              }`}
                             />
                           </div>
 
@@ -2602,9 +2752,12 @@ function StatisticsDashboard() {
                             </label>
                             <input
                               type="text"
-                              value={presentationMenu === 'action' ? (selectedSlide.deadline || '') : (selectedSlide.views || '')}
+                              value={presentationMenu === 'action' ? (selectedSlide.deadline || '') : (selectedSlide.views || '').replace(/\s*views/i, '').trim()}
                               onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, presentationMenu === 'action' ? 'deadline' : 'views', e.target.value)}
-                              className="bg-[#0c1322] border border-white/[0.06] focus:border-blue-500 outline-none rounded-lg px-2.5 py-2 text-xs text-white transition-all font-semibold"
+                              readOnly={presentationMenu !== 'action'}
+                              className={`bg-[#0c1322] border border-white/[0.06] outline-none rounded-lg px-2.5 py-2 text-xs text-white transition-all font-semibold ${
+                                presentationMenu !== 'action' ? 'opacity-80 cursor-default text-slate-300' : 'focus:border-blue-500'
+                              }`}
                             />
                           </div>
                         </div>
@@ -2632,8 +2785,8 @@ function StatisticsDashboard() {
                               <input
                                 type="text"
                                 value={selectedSlide.channel || ''}
-                                onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, 'channel', e.target.value)}
-                                className="bg-[#0c1322] border border-white/[0.06] focus:border-blue-500 outline-none rounded-lg px-2.5 py-2 text-xs text-white transition-all font-semibold"
+                                readOnly
+                                className="bg-[#0c1322] border border-white/[0.06] outline-none rounded-lg px-2.5 py-2 text-xs text-slate-300 transition-all font-semibold opacity-80 cursor-default"
                               />
                             </div>
                           ) : presentationMenu === 'clone' ? (
@@ -2642,22 +2795,19 @@ function StatisticsDashboard() {
                               <input
                                 type="text"
                                 value={selectedSlide.targetChannel || ''}
-                                onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, 'targetChannel', e.target.value)}
-                                className="bg-[#0c1322] border border-white/[0.06] focus:border-blue-500 outline-none rounded-lg px-2.5 py-2 text-xs text-white transition-all font-semibold"
+                                readOnly
+                                className="bg-[#0c1322] border border-white/[0.06] outline-none rounded-lg px-2.5 py-2 text-xs text-slate-300 transition-all font-semibold opacity-80 cursor-default"
                               />
                             </div>
                           ) : (
                             <div className="flex flex-col">
                               <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Nền tảng</label>
-                              <select
+                              <input
+                                type="text"
                                 value={selectedSlide.platform || 'TikTok'}
-                                onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, 'platform', e.target.value)}
-                                className="bg-[#0c1322] border border-white/[0.06] focus:border-blue-500 outline-none rounded-lg px-2 py-2 text-xs text-white font-semibold transition-all"
-                              >
-                                <option value="TikTok">TikTok</option>
-                                <option value="Instagram Reels">Instagram Reels</option>
-                                <option value="YouTube Shorts">YouTube Shorts</option>
-                              </select>
+                                readOnly
+                                className="bg-[#0c1322] border border-white/[0.06] outline-none rounded-lg px-2.5 py-2 text-xs text-slate-300 transition-all font-semibold opacity-80 cursor-default"
+                              />
                             </div>
                           )}
 
@@ -2679,76 +2829,48 @@ function StatisticsDashboard() {
                             <div className="flex flex-col">
                               <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Ngày đăng</label>
                               <input
-                                type="date"
+                                type="text"
                                 value={selectedSlide.postDate || ''}
-                                onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, 'postDate', e.target.value)}
-                                className="bg-[#0c1322] border border-white/[0.06] focus:border-blue-500 outline-none rounded-lg px-2.5 py-2 text-xs text-white transition-all font-semibold"
+                                readOnly
+                                className="bg-[#0c1322] border border-white/[0.06] outline-none rounded-lg px-2.5 py-2 text-xs text-slate-300 transition-all font-semibold opacity-80 cursor-default"
                               />
                             </div>
                           )}
                         </div>
 
-
-
                       </div>
                     </div>
 
-                    {/* Stats Dashboard Grid Rows (Only for videos / cases / clones) */}
+                    {/* Interactive Action Controls (Vote & Duyệt) */}
                     {presentationMenu !== 'action' && (
-                      <div className="grid grid-cols-4 gap-4 border-t border-white/[0.06] pt-4">
+                      <div className="flex gap-4 border-t border-white/[0.06] pt-4 items-center">
+                        <button
+                          onClick={() => {
+                            const isVoted = selectedSlide.isVoted === 'true';
+                            updateSlideField(presentationMenu, validSlideIndex, 'isVoted', (!isVoted).toString());
+                          }}
+                          className={`flex-1 flex items-center justify-center gap-2.5 py-3 rounded-xl border text-xs font-black transition-all duration-200 ${selectedSlide.isVoted === 'true'
+                            ? 'bg-rose-600/90 hover:bg-rose-500 text-white border-rose-500 shadow-md shadow-rose-950/20 scale-[1.01]'
+                            : 'bg-white/[0.02] text-slate-400 border-white/[0.04] hover:bg-white/[0.05] hover:text-slate-200'
+                            }`}
+                        >
+                          <Heart className={`w-4 h-4 transition-transform ${selectedSlide.isVoted === 'true' ? 'fill-current scale-110 text-white' : 'text-slate-500'}`} />
+                          <span>{selectedSlide.isVoted === 'true' ? 'Đã Vote' : 'Vote'}</span>
+                        </button>
 
-                        {/* stat 1: likes */}
-                        <div className="bg-[#0c1322] border border-white/[0.04] rounded-xl p-3 flex items-center justify-between shadow">
-                          <div className="flex flex-col min-w-0">
-                            <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wide truncate">Thích</span>
-                            <input
-                              type="text"
-                              value={selectedSlide.likes || '0'}
-                              onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, 'likes', e.target.value)}
-                              className="bg-transparent text-sm font-black text-white outline-none w-full mt-0.5 focus:border-b focus:border-blue-500"
-                            />
-                          </div>
-                          <Heart className="w-4 h-4 text-rose-500 shrink-0 ml-1.5" />
-                        </div>
-
-                        {/* stat 2: comments */}
-                        <div className="bg-[#0c1322] border border-white/[0.04] rounded-xl p-3 flex items-center justify-between shadow">
-                          <div className="flex flex-col min-w-0">
-                            <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wide truncate">Bình luận</span>
-                            <input
-                              type="text"
-                              value={selectedSlide.comments || '0'}
-                              onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, 'comments', e.target.value)}
-                              className="bg-transparent text-sm font-black text-white outline-none w-full mt-0.5 focus:border-b focus:border-blue-500"
-                            />
-                          </div>
-                          <MessageCircle className="w-4 h-4 text-blue-400 shrink-0 ml-1.5" />
-                        </div>
-
-                        {/* stat 3: shares */}
-                        <div className="bg-[#0c1322] border border-white/[0.04] rounded-xl p-3 flex items-center justify-between shadow">
-                          <div className="flex flex-col min-w-0">
-                            <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wide truncate">Chia sẻ</span>
-                            <input
-                              type="text"
-                              value={selectedSlide.shares || '0'}
-                              onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, 'shares', e.target.value)}
-                              className="bg-transparent text-sm font-black text-white outline-none w-full mt-0.5 focus:border-b focus:border-blue-500"
-                            />
-                          </div>
-                          <Share2 className="w-4 h-4 text-cyan-400 shrink-0 ml-1.5" />
-                        </div>
-
-                        {/* stat 4: total views mockup */}
-                        <div className="bg-[#0c1322] border border-white/[0.04] rounded-xl p-3 flex items-center justify-between shadow">
-                          <div className="flex flex-col min-w-0">
-                            <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wide truncate">Lượt xem</span>
-                            <span className="text-sm font-black text-blue-400 truncate mt-0.5">
-                              {selectedSlide.views || '0'}
-                            </span>
-                          </div>
-                          <Eye className="w-4 h-4 text-blue-400 shrink-0 ml-1.5" />
-                        </div>
+                        <button
+                          onClick={() => {
+                            const isApproved = selectedSlide.isApproved === 'true';
+                            updateSlideField(presentationMenu, validSlideIndex, 'isApproved', (!isApproved).toString());
+                          }}
+                          className={`flex-1 flex items-center justify-center gap-2.5 py-3 rounded-xl border text-xs font-black transition-all duration-200 ${selectedSlide.isApproved === 'true'
+                            ? 'bg-emerald-600/90 hover:bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-950/20 scale-[1.01]'
+                            : 'bg-white/[0.02] text-slate-400 border-white/[0.04] hover:bg-white/[0.05] hover:text-slate-200'
+                            }`}
+                        >
+                          <CheckSquare className={`w-4 h-4 transition-transform ${selectedSlide.isApproved === 'true' ? 'scale-110 text-white' : 'text-slate-500'}`} />
+                          <span>{selectedSlide.isApproved === 'true' ? 'Đã Duyệt' : 'Duyệt'}</span>
+                        </button>
                       </div>
                     )}
 
@@ -2769,7 +2891,7 @@ function StatisticsDashboard() {
 
                   </div>
                 ) : (
-                  <div className="bg-[#131d31]/30 border border-white/[0.06] rounded-2xl p-10 flex flex-col items-center justify-center min-h-[400px] text-center shadow-xl flex-1">
+                  <div className="bg-[#131d31]/30 border border-white/[0.06] rounded-2xl p-10 flex flex-col items-center justify-center h-[400px] text-center shadow-xl flex-1">
                     <Presentation className="w-12 h-12 text-slate-600 mb-4 animate-bounce" />
                     <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest">Không có slide</h3>
                     <p className="text-xs text-slate-500 mt-2 max-w-xs leading-relaxed">
@@ -2781,7 +2903,7 @@ function StatisticsDashboard() {
               </div>
 
               {/* Column 3: Right Analysis Cards Panel (3 cols on desktop) */}
-              <div className="lg:col-span-3 flex flex-col gap-4 lg:h-full lg:min-h-0 h-[680px]">
+              <div className="lg:col-span-3 flex flex-col gap-4 lg:h-[calc(100vh-310px)] lg:min-h-[450px] h-[680px]">
 
                 {/* Header title */}
                 <div className="bg-[#131d31] border border-white/[0.06] rounded-2xl p-4 flex items-center justify-between shadow shadow-blue-950/20 shrink-0">
@@ -2794,34 +2916,30 @@ function StatisticsDashboard() {
                 {selectedSlide ? (
                   <div className="flex-1 overflow-y-auto flex flex-col gap-4 pr-1 custom-scrollbar">
 
-                    {/* Card 1: Core reason (Why win/fail/takeaway) */}
+                    {/* Card 1: Đánh giá phân tích */}
                     {(() => {
-                      let title = 'Tại sao Win?';
+                      const title = 'Đánh giá phân tích';
                       let field = 'analysis';
                       let borderClass = 'border-emerald-500/20 hover:border-emerald-500/40 bg-emerald-500/[0.02]';
                       let iconColor = 'text-emerald-400';
                       let icon = Trophy;
 
                       if (presentationMenu === 'fail') {
-                        title = 'Tại sao Fail?';
                         field = 'failReason';
                         borderClass = 'border-rose-500/20 hover:border-rose-500/40 bg-rose-500/[0.02]';
                         iconColor = 'text-rose-400';
                         icon = XCircle;
                       } else if (presentationMenu === 'case') {
-                        title = 'Bài học rút ra (Takeaway)';
                         field = 'takeaway';
                         borderClass = 'border-amber-500/20 hover:border-amber-500/40 bg-amber-500/[0.02]';
                         iconColor = 'text-amber-400';
                         icon = BookOpen;
                       } else if (presentationMenu === 'clone') {
-                        title = 'Tại sao Clone?';
                         field = 'analysis';
                         borderClass = 'border-indigo-500/20 hover:border-indigo-500/40 bg-indigo-500/[0.02]';
                         iconColor = 'text-indigo-400';
                         icon = Copy;
                       } else if (presentationMenu === 'action') {
-                        title = 'Mô tả chi tiết công việc';
                         field = 'description';
                         borderClass = 'border-cyan-500/20 hover:border-cyan-500/40 bg-cyan-500/[0.02]';
                         iconColor = 'text-cyan-400';
@@ -2841,46 +2959,17 @@ function StatisticsDashboard() {
                             rows={4}
                             value={value}
                             onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, field, e.target.value)}
-                            className="bg-transparent border-0 outline-none text-xs leading-relaxed text-slate-300 placeholder-slate-600 resize-none font-medium mt-1 w-full min-h-[140px] overflow-y-auto custom-scrollbar"
-                            placeholder="Nhập nội dung phân tích..."
+                            className="bg-transparent border-0 outline-none text-xs leading-relaxed text-slate-300 placeholder-slate-600 resize-none font-medium mt-1 w-full min-h-[120px] overflow-y-auto custom-scrollbar"
+                            placeholder="Nhập nội dung đánh giá phân tích..."
                           />
                         </div>
                       );
                     })()}
 
-                    {/* Card 2: Highlights / Priority */}
+                    {/* Card 2: Điểm có thể cải thiện tốt hơn */}
                     {(() => {
                       const isAction = presentationMenu === 'action';
-                      const title = isAction ? 'Mô tả chi tiết' : 'Điểm sáng nổi bật';
-                      const field = isAction ? 'description' : 'highlights';
-                      const borderClass = 'border-amber-500/10 hover:border-amber-500/30 bg-amber-500/[0.01]';
-                      const iconColor = 'text-amber-400';
-                      const Icon = isAction ? ListTodo : Sparkles;
-
-                      // Skip highlights card if it's action menu since Description is already handled above
-                      if (isAction) return null;
-
-                      return (
-                        <div className={`border rounded-xl p-4 flex flex-col gap-2 transition-all duration-200 shadow-md ${borderClass}`}>
-                          <div className="flex items-center gap-1.5">
-                            <Icon className={`w-4 h-4 ${iconColor}`} />
-                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">{title}</span>
-                          </div>
-                          <textarea
-                            rows={4}
-                            value={selectedSlide[field] || ''}
-                            onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, field, e.target.value)}
-                            className="bg-transparent border-0 outline-none text-xs leading-relaxed text-slate-300 placeholder-slate-600 resize-none font-medium mt-1 w-full min-h-[140px] overflow-y-auto custom-scrollbar"
-                            placeholder="Nhập các điểm sáng nổi bật..."
-                          />
-                        </div>
-                      );
-                    })()}
-
-                    {/* Card 3: Improvements */}
-                    {(() => {
-                      const isAction = presentationMenu === 'action';
-                      const title = isAction ? 'Ghi chú thêm' : 'Nếu làm lại sẽ cải thiện gì?';
+                      const title = 'Điểm có thể cải thiện tốt hơn';
                       const field = isAction ? 'notes' : 'improvements';
                       const borderClass = 'border-sky-500/20 hover:border-sky-500/40 bg-sky-500/[0.02]';
                       const iconColor = 'text-sky-400';
@@ -2896,27 +2985,12 @@ function StatisticsDashboard() {
                             rows={4}
                             value={selectedSlide[field] || ''}
                             onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, field, e.target.value)}
-                            className="bg-transparent border-0 outline-none text-xs leading-relaxed text-slate-300 placeholder-slate-600 resize-none font-medium mt-1 w-full min-h-[140px] overflow-y-auto custom-scrollbar"
+                            className="bg-transparent border-0 outline-none text-xs leading-relaxed text-slate-300 placeholder-slate-600 resize-none font-medium mt-1 w-full min-h-[120px] overflow-y-auto custom-scrollbar"
                             placeholder={isAction ? "Ghi chú thêm..." : "Nhập hướng cải tiến mới..."}
                           />
                         </div>
                       );
                     })()}
-
-                    {/* Card 4: Leader comments */}
-                    <div className="border border-purple-500/20 hover:border-purple-500/40 bg-purple-500/[0.02] rounded-xl p-4 flex flex-col gap-2 transition-all duration-200 shadow-md">
-                      <div className="flex items-center gap-1.5">
-                        <MessageSquare className="w-4 h-4 text-purple-400" />
-                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">Leader duyệt / Đánh giá</span>
-                      </div>
-                      <textarea
-                        rows={4}
-                        value={selectedSlide.leaderComment || ''}
-                        onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, 'leaderComment', e.target.value)}
-                        className="bg-transparent border-0 outline-none text-xs leading-relaxed text-slate-300 placeholder-slate-600 resize-none font-medium mt-1 w-full min-h-[140px] overflow-y-auto custom-scrollbar"
-                        placeholder="Nhập ý kiến đánh giá từ Leader..."
-                      />
-                    </div>
 
                   </div>
                 ) : (
@@ -2972,17 +3046,17 @@ function StatisticsDashboard() {
 
                     {/* Video mockup frame */}
                     {presentationMenu !== 'action' ? (
-                       <div 
+                      <div
                         onClick={handlePlayerClick}
                         className="w-full max-w-sm aspect-[4/3] bg-[#0c1322] border-2 border-white/[0.08] rounded-2xl overflow-hidden relative shadow-2xl mx-auto shadow-blue-950/50 cursor-pointer hover:border-blue-500/50 transition-all duration-300 select-none"
                       >
                         {isPlayingVideo && selectedSlide.videoUrl ? (
                           <div className="absolute inset-0 z-10 bg-[#0c1322] flex flex-col justify-between no-player-click" onClick={(e) => e.stopPropagation()}>
-                            <video 
-                              src={selectedSlide.videoUrl} 
-                              controls 
-                              autoPlay 
-                              className="w-full h-full object-cover" 
+                            <video
+                              src={selectedSlide.videoUrl}
+                              controls
+                              autoPlay
+                              className="w-full h-full object-cover"
                             />
                             <button
                               onClick={(e) => {
@@ -3027,25 +3101,36 @@ function StatisticsDashboard() {
                       </div>
                     )}
 
-                    {/* Big metrics summary row */}
+                    {/* Interactive Action Controls (Vote & Duyệt) in Fullscreen */}
                     {presentationMenu !== 'action' && (
-                      <div className="grid grid-cols-4 gap-4 mt-4">
-                        <div className="bg-[#131d31]/50 border border-white/[0.06] p-4 rounded-2xl text-center shadow-lg">
-                          <p className="text-[10px] font-black text-slate-400 uppercase">Lượt xem</p>
-                          <p className="text-lg font-black text-blue-400 mt-1">{selectedSlide.views}</p>
-                        </div>
-                        <div className="bg-[#131d31]/50 border border-white/[0.06] p-4 rounded-2xl text-center shadow-lg">
-                          <p className="text-[10px] font-black text-slate-400 uppercase">Thích</p>
-                          <p className="text-lg font-black text-rose-400 mt-1">{selectedSlide.likes}</p>
-                        </div>
-                        <div className="bg-[#131d31]/50 border border-white/[0.06] p-4 rounded-2xl text-center shadow-lg">
-                          <p className="text-[10px] font-black text-slate-400 uppercase">Bình luận</p>
-                          <p className="text-lg font-black text-white mt-1">{selectedSlide.comments}</p>
-                        </div>
-                        <div className="bg-[#131d31]/50 border border-white/[0.06] p-4 rounded-2xl text-center shadow-lg">
-                          <p className="text-[10px] font-black text-slate-400 uppercase">Chia sẻ</p>
-                          <p className="text-lg font-black text-cyan-400 mt-1">{selectedSlide.shares}</p>
-                        </div>
+                      <div className="flex gap-6 mt-6 items-center w-full max-w-sm mx-auto">
+                        <button
+                          onClick={() => {
+                            const isVoted = selectedSlide.isVoted === 'true';
+                            updateSlideField(presentationMenu, validSlideIndex, 'isVoted', (!isVoted).toString());
+                          }}
+                          className={`flex-1 flex items-center justify-center gap-3 py-3.5 rounded-2xl border text-sm font-black transition-all duration-200 ${selectedSlide.isVoted === 'true'
+                            ? 'bg-rose-600/95 hover:bg-rose-500 text-white border-rose-500 shadow-xl shadow-rose-950/20 scale-[1.01]'
+                            : 'bg-[#131d31]/50 text-slate-400 border-white/[0.06] hover:bg-white/[0.04] hover:text-slate-200'
+                            }`}
+                        >
+                          <Heart className={`w-4.5 h-4.5 transition-transform ${selectedSlide.isVoted === 'true' ? 'fill-current scale-110 text-white' : 'text-slate-500'}`} />
+                          <span>{selectedSlide.isVoted === 'true' ? 'Đã Vote' : 'Vote'}</span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            const isApproved = selectedSlide.isApproved === 'true';
+                            updateSlideField(presentationMenu, validSlideIndex, 'isApproved', (!isApproved).toString());
+                          }}
+                          className={`flex-1 flex items-center justify-center gap-3 py-3.5 rounded-2xl border text-sm font-black transition-all duration-200 ${selectedSlide.isApproved === 'true'
+                            ? 'bg-emerald-600/95 hover:bg-emerald-500 text-white border-emerald-500 shadow-xl shadow-emerald-950/20 scale-[1.01]'
+                            : 'bg-[#131d31]/50 text-slate-400 border-white/[0.06] hover:bg-white/[0.04] hover:text-slate-200'
+                            }`}
+                        >
+                          <CheckSquare className={`w-4.5 h-4.5 transition-transform ${selectedSlide.isApproved === 'true' ? 'scale-110 text-white' : 'text-slate-500'}`} />
+                          <span>{selectedSlide.isApproved === 'true' ? 'Đã Duyệt' : 'Duyệt'}</span>
+                        </button>
                       </div>
                     )}
 
@@ -3067,53 +3152,67 @@ function StatisticsDashboard() {
                     {/* Detailed Analysis Cards Row */}
                     <div className="grid grid-cols-2 gap-6">
 
-                      {/* Analysis Card 1 */}
-                      {presentationMenu !== 'action' && (
-                        <div className="bg-[#0b1f1a]/80 border border-emerald-500/20 p-5 rounded-2xl flex flex-col gap-2 shadow-lg">
-                          <span className="text-xs font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
-                            <Trophy className="w-4 h-4 text-emerald-400" />
-                            {presentationMenu === 'fail' ? 'Tại sao Fail?' : 'Tại sao Win / Bài học'}
-                          </span>
-                          <p className="text-xs font-semibold leading-relaxed text-slate-300">
-                            {presentationMenu === 'fail' ? selectedSlide.failReason : (presentationMenu === 'case' ? selectedSlide.takeaway : selectedSlide.analysis)}
-                          </p>
-                        </div>
-                      )}
+                      {/* Analysis Card 1: Đánh giá phân tích */}
+                      {(() => {
+                        const title = 'Đánh giá phân tích';
+                        let borderClass = 'border-emerald-500/20 bg-[#0b1f1a]/80 text-emerald-400';
+                        let icon = Trophy;
 
-                      {/* Analysis Card 2 */}
-                      {presentationMenu !== 'action' && (
-                        <div className="bg-[#1c1810]/80 border border-amber-500/20 p-5 rounded-2xl flex flex-col gap-2 shadow-lg">
-                          <span className="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
-                            <Sparkles className="w-4 h-4 text-amber-400" />
-                            Đặc điểm nổi bật
-                          </span>
-                          <p className="text-xs font-semibold leading-relaxed text-slate-300">
-                            {selectedSlide.highlights || 'Không có ghi chú đặc biệt.'}
-                          </p>
-                        </div>
-                      )}
+                        if (presentationMenu === 'fail') {
+                          borderClass = 'border-rose-500/20 bg-[#1c1010]/80 text-rose-400';
+                          icon = XCircle;
+                        } else if (presentationMenu === 'case') {
+                          borderClass = 'border-amber-500/20 bg-[#1c1810]/80 text-amber-400';
+                          icon = BookOpen;
+                        } else if (presentationMenu === 'clone') {
+                          borderClass = 'border-indigo-500/20 bg-[#0d0c1d]/80 text-indigo-400';
+                          icon = Copy;
+                        } else if (presentationMenu === 'action') {
+                          borderClass = 'border-cyan-500/20 bg-[#0b1b26]/80 text-cyan-400';
+                          icon = ListTodo;
+                        }
 
-                      {/* Analysis Card 3 */}
-                      <div className="bg-[#0b1b26]/80 border border-sky-500/20 p-5 rounded-2xl flex flex-col gap-2 shadow-lg">
-                        <span className="text-xs font-black uppercase tracking-wider text-sky-400 flex items-center gap-1.5">
-                          <Wrench className="w-4 h-4 text-sky-400" />
-                          {presentationMenu === 'action' ? 'Mức độ ưu tiên' : 'Hướng cải thiện'}
-                        </span>
-                        <p className="text-xs font-semibold leading-relaxed text-slate-300">
-                          {presentationMenu === 'action' ? `Độ ưu tiên: ${selectedSlide.priority}` : (selectedSlide.improvements || 'Tiếp tục duy trì chất lượng hiện tại.')}
-                        </p>
-                      </div>
+                        const CustomIcon = icon;
+                        const value = presentationMenu === 'fail'
+                          ? selectedSlide.failReason
+                          : (presentationMenu === 'case'
+                            ? selectedSlide.takeaway
+                            : (presentationMenu === 'action'
+                              ? selectedSlide.description
+                              : selectedSlide.analysis));
 
-                      {/* Analysis Card 4 */}
-                      <div className="bg-[#160d26]/80 border border-purple-500/20 p-5 rounded-2xl flex flex-col gap-2 shadow-lg">
-                        <span className="text-xs font-black uppercase tracking-wider text-purple-400 flex items-center gap-1.5">
-                          <MessageSquare className="w-4 h-4 text-purple-400" />
-                          Leader nhận xét
-                        </span>
-                        <p className="text-xs font-semibold leading-relaxed text-slate-300">
-                          {selectedSlide.leaderComment || 'Chưa có nhận xét từ leader.'}
-                        </p>
-                      </div>
+                        return (
+                          <div className={`border p-5 rounded-2xl flex flex-col gap-2 shadow-lg ${borderClass.split(' ')[0]} ${borderClass.split(' ')[1]}`}>
+                            <span className={`text-xs font-black uppercase tracking-wider flex items-center gap-1.5 ${borderClass.split(' ')[2]}`}>
+                              <CustomIcon className="w-4 h-4" />
+                              {title}
+                            </span>
+                            <p className="text-xs font-semibold leading-relaxed text-slate-300 whitespace-pre-wrap">
+                              {value || 'Không có nội dung đánh giá.'}
+                            </p>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Analysis Card 2: Điểm có thể cải thiện tốt hơn */}
+                      {(() => {
+                        const isAction = presentationMenu === 'action';
+                        const title = 'Điểm có thể cải thiện tốt hơn';
+                        const value = isAction ? selectedSlide.notes : selectedSlide.improvements;
+                        const Icon = isAction ? BookOpen : Wrench;
+
+                        return (
+                          <div className="bg-[#0b1b26]/80 border border-sky-500/20 p-5 rounded-2xl flex flex-col gap-2 shadow-lg">
+                            <span className="text-xs font-black uppercase tracking-wider text-sky-400 flex items-center gap-1.5">
+                              <Icon className="w-4 h-4 text-sky-400" />
+                              {title}
+                            </span>
+                            <p className="text-xs font-semibold leading-relaxed text-slate-300 whitespace-pre-wrap">
+                              {value || 'Tiếp tục duy trì chất lượng hiện tại.'}
+                            </p>
+                          </div>
+                        );
+                      })()}
 
                     </div>
                   </div>
@@ -3151,130 +3250,1007 @@ function StatisticsDashboard() {
 
       {activeSubTab === 'thong-ke' && (
         <>
-          {/* Teams Selector */}
-          <div className="flex bg-[#121929] border border-white/[0.08] p-1 rounded-xl max-w-xs shadow-inner">
-            {Object.keys(teamsData).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all duration-200 ${activeTab === tab
-                    ? 'bg-[#bfdbfe] text-[#1e3a8a] shadow-md scale-100'
-                    : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
-                  }`}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
+          {/* Dashboard Header Banner */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-gradient-to-r from-[#111827]/80 via-[#131d31]/80 to-[#111827]/80 border border-white/[0.08] p-6 rounded-2xl backdrop-blur-md shadow-2xl relative overflow-hidden group">
+            <div className="absolute inset-0 bg-grid-white/[0.02] pointer-events-none" />
+            <div className="absolute top-0 right-1/4 w-80 h-32 bg-blue-500/10 rounded-full blur-3xl pointer-events-none animate-pulse" />
 
-          {/* Stats Table Overview Grid */}
-          {activeSheet === 'Báo cáo content' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Box 1: 5 Content Win Của Team */}
-              <div className="bg-[#131d31] border border-white/[0.06] rounded-xl overflow-hidden shadow-lg transition-all duration-200 hover:border-white/[0.1]">
-                <div className="px-4 py-3 bg-[#1e2a45]/40 border-b border-white/[0.06] flex items-center gap-2">
-                  <div className="w-5 h-5 rounded-full bg-[#10b981]/10 flex items-center justify-center border border-[#10b981]/20">
-                    <Award className="w-3 h-3 text-[#10b981]" />
-                  </div>
-                  <span className="uppercase text-xs font-extrabold tracking-wider text-slate-200">
-                    5 Content win của team
-                  </span>
-                </div>
-                <div className="p-5">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="border-b border-white/[0.06]">
-                        <th className="pb-3 text-[10px] uppercase font-bold tracking-wider text-slate-400">Tổng Video Team</th>
-                        <th className="pb-3 text-[10px] uppercase font-bold tracking-wider text-slate-400">Win</th>
-                        <th className="pb-3 text-[10px] uppercase font-bold tracking-wider text-slate-400">Fail</th>
-                        <th className="pb-3 text-[10px] uppercase font-bold tracking-wider text-slate-400 text-right">% Win</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td className="pt-4 text-xl font-black text-white">{win5Stats.total}</td>
-                        <td className="pt-4 text-xl font-black text-white">{win5Stats.win}</td>
-                        <td className="pt-4 text-xl font-black text-white">{win5Stats.fail}</td>
-                        <td className="pt-4 text-xl font-black text-emerald-400 text-right">{win5Stats.percent}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
+            <div className="flex items-center gap-3.5 relative z-10">
+              <div className="p-3 bg-gradient-to-br from-blue-500/20 to-indigo-500/15 border border-blue-500/35 rounded-2xl text-blue-400 shadow-[0_0_20px_rgba(59,130,246,0.25)] group-hover:scale-105 transition-transform duration-300">
+                <TrendingUp className="w-6 h-6" />
               </div>
-
-              {/* Box 2: Tổng Video Content Mới Của Team */}
-              <div className="bg-[#131d31] border border-white/[0.06] rounded-xl overflow-hidden shadow-lg transition-all duration-200 hover:border-white/[0.1]">
-                <div className="px-4 py-3 bg-[#1e2a45]/40 border-b border-white/[0.06] flex items-center gap-2">
-                  <div className="w-5 h-5 rounded-full bg-[#10b981]/10 flex items-center justify-center border border-[#10b981]/20">
-                    <FileText className="w-3 h-3 text-[#10b981]" />
-                  </div>
-                  <span className="uppercase text-xs font-extrabold tracking-wider text-slate-200">
-                    Tổng video content mới của team
+              <div>
+                <h1 className="text-lg font-black tracking-tight text-white flex items-center gap-2">
+                  TRUNG TÂM PHÂN TÍCH HIỆU SUẤT
+                  <span className="flex items-center gap-1 text-[9px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+                    <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping" /> Live
                   </span>
-                </div>
-                <div className="p-5">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="border-b border-white/[0.06]">
-                        <th className="pb-3 text-[10px] uppercase font-bold tracking-wider text-slate-400">Tổng Video Content Mới</th>
-                        <th className="pb-3 text-[10px] uppercase font-bold tracking-wider text-slate-400">Win</th>
-                        <th className="pb-3 text-[10px] uppercase font-bold tracking-wider text-slate-400">Fail</th>
-                        <th className="pb-3 text-[10px] uppercase font-bold tracking-wider text-slate-400 text-right">% Win</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td className="pt-4 text-xl font-black text-white">{newVideoStats.total}</td>
-                        <td className="pt-4 text-xl font-black text-white">{newVideoStats.win}</td>
-                        <td className="pt-4 text-xl font-black text-white">{newVideoStats.fail}</td>
-                        <td className="pt-4 text-xl font-black text-emerald-400 text-right">{newVideoStats.percent}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
+                </h1>
+                <p className="text-xs text-slate-400 font-semibold mt-0.5">Báo cáo hiệu quả chiến dịch sản xuất video và hoạt động nhóm</p>
               </div>
             </div>
-          )}
 
-          {/* Render the selected sheet's content (tables / detail views) */}
-          {renderSheetContent()}
+            {/* Right Action Suite (Export Reports & Selector) */}
+            <div className="flex flex-wrap items-center gap-3 relative z-10 self-start lg:self-auto">
+              {/* Export Buttons */}
+              <div className="flex items-center gap-2 mr-2">
+                <button
+                  onClick={() => handleStartExport('pdf')}
+                  disabled={isExporting}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800/80 hover:bg-slate-700/80 border border-white/[0.08] text-slate-300 hover:text-white rounded-lg text-xs font-bold transition shadow-md disabled:opacity-50"
+                  title="Xuất báo cáo PDF tổng hợp"
+                >
+                  <FileDown className="w-3.5 h-3.5 text-rose-400" />
+                  PDF Report
+                </button>
+                <button
+                  onClick={() => handleStartExport('excel')}
+                  disabled={isExporting}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800/80 hover:bg-slate-700/80 border border-white/[0.08] text-slate-300 hover:text-white rounded-lg text-xs font-bold transition shadow-md disabled:opacity-50"
+                  title="Xuất bảng số liệu Excel"
+                >
+                  <Download className="w-3.5 h-3.5 text-emerald-400" />
+                  Excel Data
+                </button>
+              </div>
 
-        </>
-      )}
-
-      {/* Excel Bottom Sheets Tab Bar */}
-      {activeSubTab === 'thong-ke' && (
-        <div className="fixed bottom-0 left-0 right-0 h-11 bg-[#0f172a] border-t border-white/[0.08] flex items-center select-none z-50 text-slate-300">
-          {/* Left Actions: + and Menu */}
-          <div className="flex items-center h-full border-r border-white/[0.08] px-3 gap-3 shrink-0">
-            <button className="hover:bg-white/[0.06] hover:text-white p-1 rounded transition-colors duration-150" title="Thêm trang tính">
-              <Plus className="w-4 h-4 text-slate-400 hover:text-white" />
-            </button>
-            <button className="hover:bg-white/[0.06] hover:text-white p-1 rounded transition-colors duration-150" title="Tất cả trang tính">
-              <Menu className="w-4 h-4 text-slate-400 hover:text-white" />
-            </button>
+              {/* Sliding Group Tab Selector */}
+              <div className="flex bg-slate-950/60 border border-white/[0.08] p-1 rounded-xl shadow-inner shrink-0">
+                {Object.keys(teamsData).map((tab) => {
+                  const isActive = activeTab === tab;
+                  return (
+                    <button
+                      key={tab}
+                      onClick={() => {
+                        setActiveTab(tab);
+                        setSelectedEditorDetail(null);
+                      }}
+                      className={`px-5 py-2 text-xs font-black rounded-lg transition-all duration-300 relative ${isActive
+                        ? 'bg-blue-600 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)] scale-100'
+                        : 'text-slate-400 hover:text-white hover:bg-white/[0.02]'
+                        }`}
+                    >
+                      {tab}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
-          {/* Tab Items */}
-          <div className="flex-1 flex h-full overflow-x-auto scrollbar-none items-center">
-            {SHEETS.map((sheet) => {
-              const isActive = activeSheet === sheet;
+          {/* Interactive Platform Filter Buttons */}
+          <div className="flex items-center gap-2 bg-[#121929] border border-white/[0.06] p-1.5 rounded-xl self-start shadow-inner">
+            {(['All', 'TikTok', 'Instagram Reels', 'YouTube Shorts'] as const).map((filter) => {
+              const isActive = platformFilter === filter;
               return (
                 <button
-                  key={sheet}
-                  onClick={() => setActiveSheet(sheet)}
-                  className={`flex items-center gap-1.5 px-5 h-full text-xs font-semibold border-r border-white/[0.08] transition-all duration-150 shrink-0 ${isActive
-                      ? 'bg-[#1e293b] text-blue-400 font-bold border-b-2 border-blue-500'
-                      : 'text-slate-400 hover:bg-[#1e293b]/30 hover:text-slate-200'
+                  key={filter}
+                  onClick={() => setPlatformFilter(filter)}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 ${isActive
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg'
+                    : 'text-slate-400 hover:text-slate-200'
                     }`}
                 >
-                  <span>{sheet}</span>
-                  <ChevronDown className={`w-3.5 h-3.5 ${isActive ? 'text-blue-400' : 'text-slate-500'}`} />
+                  {filter === 'All' ? 'Tất cả nền tảng' : filter}
                 </button>
               );
             })}
           </div>
-        </div>
+
+          {(() => {
+            const baseData = teamsData[activeTab] || TEAMS_DATA[activeTab];
+
+            // Helper functions declared inside IIFE for scope isolation
+            const parseViewsToNum = (vStr: string): number => {
+              if (!vStr) return 0;
+              const clean = vStr.replace(/\s*views/gi, '').replace(/\./g, '').replace(/,/g, '').trim();
+              const matchM = clean.match(/^([\d.]+)\s*M/i);
+              if (matchM) return Math.round(parseFloat(matchM[1]) * 1000000);
+              const matchK = clean.match(/^([\d.]+)\s*K/i);
+              if (matchK) return Math.round(parseFloat(matchK[1]) * 1000);
+              const parsed = parseInt(clean.replace(/[^\d.]/g, ''), 10);
+              return isNaN(parsed) ? 0 : parsed;
+            };
+
+            const formatViewsCompact = (num: number): string => {
+              if (num >= 1000000) {
+                const millions = num / 1000000;
+                const formatted = Math.floor(millions * 10) / 10;
+                return `${formatted.toString().replace('.', ',')}M`;
+              }
+              if (num >= 1000) {
+                const thousands = num / 1000;
+                const formatted = Math.floor(thousands * 10) / 10;
+                return `${formatted.toString().replace('.', ',')}K`;
+              }
+              return num.toString();
+            };
+
+            // Filter lists based on selected platform filter
+            const filteredVideos = (baseData.videos || []).filter((v: any) => platformFilter === 'All' || v.platform === platformFilter);
+            const filteredFailVideos = (baseData.failVideos || []).filter((v: any) => platformFilter === 'All' || v.platform === platformFilter);
+            const filteredCaseStudies = (baseData.caseStudies || []).filter((c: any) => platformFilter === 'All' || c.platform === platformFilter);
+
+            // 1. Platform Distribution
+            const platformStats = {
+              'TikTok': { count: 0, views: 0, win: 0, fail: 0 },
+              'Instagram Reels': { count: 0, views: 0, win: 0, fail: 0 },
+              'YouTube Shorts': { count: 0, views: 0, win: 0, fail: 0 }
+            } as any;
+
+            (baseData.videos || []).forEach((v: any) => {
+              const pf = v.platform || 'TikTok';
+              if (platformStats[pf]) {
+                platformStats[pf].count += 1;
+                platformStats[pf].views += parseViewsToNum(v.views);
+                platformStats[pf].win += 1;
+              }
+            });
+
+            (baseData.failVideos || []).forEach((v: any) => {
+              const pf = v.platform || 'TikTok';
+              if (platformStats[pf]) {
+                platformStats[pf].count += 1;
+                platformStats[pf].views += parseViewsToNum(v.views);
+                platformStats[pf].fail += 1;
+              }
+            });
+
+            // Determine dominant platform
+            let dominantPlatform = 'TikTok';
+            let maxPlatformViews = -1;
+            Object.keys(platformStats).forEach(key => {
+              if (platformStats[key].views > maxPlatformViews) {
+                maxPlatformViews = platformStats[key].views;
+                dominantPlatform = key;
+              }
+            });
+
+            // Calculate total views (Filtered)
+            let totalViewsNum = 0;
+            filteredVideos.forEach((v: any) => { totalViewsNum += parseViewsToNum(v.views); });
+            filteredFailVideos.forEach((v: any) => { totalViewsNum += parseViewsToNum(v.views); });
+            filteredCaseStudies.forEach((c: any) => { totalViewsNum += parseViewsToNum(c.views); });
+            const formattedTotalViews = formatViewsCompact(totalViewsNum);
+
+            // 2. Win rate overall (Filtered)
+            const totalListVideos = (baseData.videos || []).length + (baseData.failVideos || []).length;
+            const platformShare = platformFilter === 'All'
+              ? 1
+              : totalListVideos > 0
+                ? (filteredVideos.length + filteredFailVideos.length) / totalListVideos
+                : 0.33;
+
+            const totalVal = Math.round(baseData.win5Stats.total * platformShare);
+            const winVal = Math.round(baseData.win5Stats.win * platformShare);
+            const failVal = Math.max(0, totalVal - winVal);
+            const winPct = totalVal > 0 ? (winVal / totalVal) * 100 : 0;
+            const winRatePercent = `${winPct.toFixed(1).replace('.', ',')}%`;
+
+            // 3. Editor performance ranked & filtered & searched & sorted
+            const rankedPerformance = (baseData.editorPerformance || []).map((perf: any) => {
+              const editorWins = (baseData.videos || []).filter((v: any) => v.editor === perf.editor);
+              const editorFails = (baseData.failVideos || []).filter((v: any) => v.editor === perf.editor);
+              const editorTotalInList = editorWins.length + editorFails.length;
+
+              const editorPlatformShare = platformFilter === 'All'
+                ? 1
+                : editorTotalInList > 0
+                  ? (editorWins.filter((v: any) => v.platform === platformFilter).length +
+                    editorFails.filter((v: any) => v.platform === platformFilter).length) / editorTotalInList
+                  : 0.33;
+
+              const total = Math.max(1, Math.round(perf.totalVideos * editorPlatformShare));
+              const win = Math.round(perf.winVideos * editorPlatformShare);
+              const fail = Math.max(0, total - win);
+              const winRateNum = total > 0 ? (win / total) * 100 : 0;
+              const winRate = `${winRateNum.toFixed(1).replace('.', ',')}%`;
+
+              // Calculate avg views from editor's list videos
+              const allViews = [...editorWins, ...editorFails].map(v => parseViewsToNum(v.views));
+              const avgViewsNum = allViews.length > 0 ? Math.round(allViews.reduce((a, b) => a + b, 0) / allViews.length) : 50000;
+              const avgViews = formatViewsCompact(avgViewsNum);
+
+              return {
+                ...perf,
+                total,
+                win,
+                fail,
+                winRate,
+                winRateNum,
+                avgViewsNum,
+                avgViews
+              };
+            });
+
+            // Filter search & Sort
+            const filteredRankedPerformance = rankedPerformance
+              .filter((perf: any) => perf.editor.toLowerCase().includes(editorSearchQuery.toLowerCase().trim()))
+              .sort((a: any, b: any) => {
+                if (editorSortBy === 'winRate') return b.winRateNum - a.winRateNum;
+                if (editorSortBy === 'totalVideos') return b.total - a.total;
+                if (editorSortBy === 'avgViews') return b.avgViewsNum - a.avgViewsNum;
+                return 0;
+              });
+
+            // 4. Actions list (Checklist)
+            const actionsList = baseData.actions || [];
+
+            // 5. Insights (Filtered)
+            const topWinReasons: string[] = [];
+            filteredVideos.slice(0, 3).forEach((v: any) => {
+              if (v.analysis) topWinReasons.push(v.analysis);
+            });
+            const topImprovements: string[] = [];
+            filteredFailVideos.slice(0, 3).forEach((v: any) => {
+              if (v.failReason) topImprovements.push(v.failReason);
+            });
+
+            // 6. Trend values SVG lines
+            const w5 = totalViewsNum;
+            const w4 = Math.round(totalViewsNum * 0.88);
+            const w3 = Math.round(totalViewsNum * 0.94);
+            const w2 = Math.round(totalViewsNum * 0.76);
+            const w1 = Math.round(totalViewsNum * 0.62);
+            const trendPoints = [w1, w2, w3, w4, w5];
+            const maxTrendVal = Math.max(...trendPoints, 1);
+            const minTrendVal = Math.min(...trendPoints, 0);
+            const trendRange = maxTrendVal - minTrendVal;
+            const getX = (idx: number) => 60 + idx * 105;
+            const getY = (val: number) => 130 - (trendRange > 0 ? ((val - minTrendVal) / trendRange) * 100 : 50);
+
+            return (
+              <div className="flex flex-col gap-6 mt-4 pb-16">
+
+                {/* 1. ROW KPI CARDS */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* KPI 1: Tổng Views */}
+                  <div className="bg-[#131d31]/40 border border-white/[0.06] rounded-2xl p-5 flex flex-col gap-1 shadow-xl relative overflow-hidden group hover:border-blue-500/20 transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-full blur-xl pointer-events-none group-hover:bg-blue-500/10 transition-colors" />
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Eye className="w-3.5 h-3.5 text-blue-400" /> Tổng Lượt Xem
+                      </span>
+                      <span className="text-[9px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded font-black flex items-center gap-0.5">
+                        ↑ 14.5%
+                      </span>
+                    </div>
+                    <span className="text-3xl font-black text-white mt-2.5 tracking-tight">
+                      {formattedTotalViews}
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-bold mt-1.5">Lọc theo nền tảng đang chọn</span>
+                  </div>
+
+                  {/* KPI 2: Tỷ Lệ Win */}
+                  <div className="bg-[#131d31]/40 border border-white/[0.06] rounded-2xl p-5 flex flex-col gap-1 shadow-xl relative overflow-hidden group hover:border-[#10b981]/20 transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-[#10b981]/5 rounded-full blur-xl pointer-events-none group-hover:bg-[#10b981]/10 transition-colors" />
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Trophy className="w-3.5 h-3.5 text-[#10b981]" /> Tỷ Lệ Win Chung
+                    </span>
+                    {(() => {
+                      const radius = 18;
+                      const circumference = 2 * Math.PI * radius;
+                      const strokeDashoffset = circumference - (Math.min(winPct, 100) / 100) * circumference;
+                      return (
+                        <div className="flex items-center justify-between mt-2">
+                          <span className="text-3xl font-black text-[#10b981] tracking-tight">
+                            {winRatePercent}
+                          </span>
+                          <div className="relative w-11 h-11 shrink-0 flex items-center justify-center mr-1">
+                            <svg className="w-full h-full transform -rotate-90">
+                              <circle
+                                cx="22"
+                                cy="22"
+                                r={radius}
+                                className="stroke-slate-800"
+                                strokeWidth="3.5"
+                                fill="transparent"
+                              />
+                              <circle
+                                cx="22"
+                                cy="22"
+                                r={radius}
+                                className="stroke-[#10b981] transition-all duration-500"
+                                strokeWidth="3.5"
+                                fill="transparent"
+                                strokeDasharray={circumference}
+                                strokeDashoffset={strokeDashoffset}
+                                strokeLinecap="round"
+                                style={{
+                                  filter: 'drop-shadow(0 0 4px rgba(16, 185, 129, 0.4))'
+                                }}
+                              />
+                            </svg>
+                            <span className="absolute text-[8px] font-black text-[#10b981]">WIN</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                    <span className="text-[10px] text-slate-500 font-bold mt-1">Đạt KPI trên tổng số video của nhóm</span>
+                  </div>
+
+                  {/* KPI 3: Quy Mô Nội Dung */}
+                  <div className="bg-[#131d31]/40 border border-white/[0.06] rounded-2xl p-5 flex flex-col gap-1 shadow-xl relative overflow-hidden group hover:border-[#8b5cf6]/20 transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-[#8b5cf6]/5 rounded-full blur-xl pointer-events-none group-hover:bg-[#8b5cf6]/10 transition-colors" />
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Video className="w-3.5 h-3.5 text-[#8b5cf6]" /> Quy Mô Nội Dung
+                    </span>
+                    {(() => {
+                      const totalListVal = filteredVideos.length + filteredFailVideos.length;
+                      const winListPct = totalListVal > 0 ? (filteredVideos.length / totalListVal) * 100 : 0;
+                      const failListPct = totalListVal > 0 ? (filteredFailVideos.length / totalListVal) * 100 : 0;
+                      return (
+                        <div className="flex flex-col gap-2.5 mt-2">
+                          <span className="text-3xl font-black text-white tracking-tight">
+                            {totalVal} <span className="text-sm text-slate-400 font-bold">Video</span>
+                          </span>
+                          <div className="flex flex-col gap-1">
+                            <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden flex border border-white/[0.04]">
+                              <div className="h-full bg-emerald-500" style={{ width: `${winPct}%` }} />
+                              <div className="h-full bg-rose-500" style={{ width: `${100 - winPct}%` }} />
+                            </div>
+                            <div className="flex items-center justify-between text-[8px] font-black text-slate-500">
+                              <span className="text-emerald-400">{winVal} Win ({winPct.toFixed(0)}%)</span>
+                              <span className="text-rose-400">{failVal} Fail</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* KPI 4: Kênh Chủ Đạo */}
+                  <div className="bg-[#131d31]/40 border border-white/[0.06] rounded-2xl p-5 flex flex-col gap-1 shadow-xl relative overflow-hidden group hover:border-[#f43f5e]/20 transition-all duration-300">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-[#f43f5e]/5 rounded-full blur-xl pointer-events-none group-hover:bg-[#f43f5e]/10 transition-colors" />
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Flame className="w-3.5 h-3.5 text-[#f43f5e]" /> Kênh Chủ Đạo
+                    </span>
+                    {(() => {
+                      const pfViews = platformStats[dominantPlatform]?.views || 0;
+                      const totalViewsSum = Object.keys(platformStats).reduce((a, k) => a + platformStats[k].views, 0) || 1;
+                      const pfPercentage = (pfViews / totalViewsSum) * 100;
+
+                      let brandColor = 'text-cyan-400';
+                      let brandBg = 'bg-cyan-500/10 border-cyan-500/20';
+                      if (dominantPlatform.includes('Reels') || dominantPlatform.includes('Instagram')) {
+                        brandColor = 'text-pink-400';
+                        brandBg = 'bg-pink-500/10 border-pink-500/20';
+                      } else if (dominantPlatform.includes('Shorts') || dominantPlatform.includes('YouTube')) {
+                        brandColor = 'text-red-400';
+                        brandBg = 'bg-red-500/10 border-red-500/20';
+                      }
+
+                      return (
+                        <div className="flex flex-col gap-1 mt-1.5">
+                          <span className={`text-2xl font-black tracking-tight ${brandColor} uppercase truncate`}>
+                            {dominantPlatform}
+                          </span>
+                          <div className="flex items-center justify-between mt-1">
+                            <span className="text-[10px] text-slate-500 font-bold">Thị phần views:</span>
+                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border ${brandBg} ${brandColor}`}>
+                              {pfPercentage.toFixed(0)}%
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* 1B. VIEW TREND LINE CHART BLOCK */}
+                <div className="bg-[#131d31]/40 border border-white/[0.06] rounded-2xl p-5 flex flex-col gap-4 shadow-xl backdrop-blur-md">
+                  <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
+                    <span className="text-[11px] font-black uppercase text-slate-200 tracking-wider flex items-center gap-1.5">
+                      <TrendingUp className="w-4 h-4 text-indigo-400" /> Xu Hướng Tăng Trưởng Views Lũy Kế
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-bold">Đơn vị: Lượt xem</span>
+                  </div>
+
+                  <div className="w-full overflow-x-auto">
+                    <div className="min-w-[550px] h-[160px] relative flex justify-center py-2">
+                      <svg className="w-full h-full max-w-[520px]" viewBox="0 0 520 150">
+                        {/* Define gradients */}
+                        <defs>
+                          <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.3" />
+                            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.0" />
+                          </linearGradient>
+                          <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                            <feGaussianBlur stdDeviation="3" result="blur" />
+                            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                          </filter>
+                        </defs>
+
+                        {/* Grid lines */}
+                        <line x1="60" y1="30" x2="480" y2="30" stroke="white" strokeOpacity="0.04" strokeDasharray="3" />
+                        <line x1="60" y1="80" x2="480" y2="80" stroke="white" strokeOpacity="0.04" strokeDasharray="3" />
+                        <line x1="60" y1="130" x2="480" y2="130" stroke="white" strokeOpacity="0.06" />
+
+                        {/* Area under curve */}
+                        <path
+                          d={`M ${getX(0)} 130 
+                              L ${getX(0)} ${getY(w1)} 
+                              C ${getX(0) + 35} ${getY(w1)}, ${getX(1) - 35} ${getY(w2)}, ${getX(1)} ${getY(w2)}
+                              C ${getX(1) + 35} ${getY(w2)}, ${getX(2) - 35} ${getY(w3)}, ${getX(2)} ${getY(w3)}
+                              C ${getX(2) + 35} ${getY(w3)}, ${getX(3) - 35} ${getY(w4)}, ${getX(3)} ${getY(w4)}
+                              C ${getX(3) + 35} ${getY(w4)}, ${getX(4) - 35} ${getY(w5)}, ${getX(4)} ${getY(w5)}
+                              L ${getX(4)} 130 Z`}
+                          fill="url(#chartGradient)"
+                        />
+
+                        {/* Bezier Path */}
+                        <path
+                          d={`M ${getX(0)} ${getY(w1)} 
+                              C ${getX(0) + 35} ${getY(w1)}, ${getX(1) - 35} ${getY(w2)}, ${getX(1)} ${getY(w2)}
+                              C ${getX(1) + 35} ${getY(w2)}, ${getX(2) - 35} ${getY(w3)}, ${getX(2)} ${getY(w3)}
+                              C ${getX(2) + 35} ${getY(w3)}, ${getX(3) - 35} ${getY(w4)}, ${getX(3)} ${getY(w4)}
+                              C ${getX(3) + 35} ${getY(w4)}, ${getX(4) - 35} ${getY(w5)}, ${getX(4)} ${getY(w5)}`}
+                          fill="none"
+                          stroke="#3b82f6"
+                          strokeWidth="3"
+                          filter="url(#glow)"
+                        />
+
+                        {/* Dots */}
+                        {trendPoints.map((val, idx) => (
+                          <g key={idx} className="cursor-pointer group/dot">
+                            <circle
+                              cx={getX(idx)}
+                              cy={getY(val)}
+                              r="5"
+                              className="fill-blue-500 stroke-slate-900 stroke-2 hover:r-7 transition-all"
+                            />
+                            <text
+                              x={getX(idx)}
+                              y={getY(val) - 12}
+                              textAnchor="middle"
+                              className="text-[9px] font-black fill-slate-300 opacity-0 group-hover/dot:opacity-100 transition-opacity bg-slate-950 px-1 py-0.5 rounded"
+                            >
+                              {formatViewsCompact(val)}
+                            </text>
+                          </g>
+                        ))}
+
+                        {/* X Axis Labels */}
+                        {['Tuần 1', 'Tuần 2', 'Tuần 3', 'Tuần 4', 'Tuần 5'].map((w, idx) => (
+                          <text
+                            key={idx}
+                            x={getX(idx)}
+                            y="148"
+                            textAnchor="middle"
+                            className="text-[9px] font-bold fill-slate-500 uppercase"
+                          >
+                            {w}
+                          </text>
+                        ))}
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. GRID 2 COLS: LEADERBOARD & PLATFORMS */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+                  {/* Left Column: Editor Performance Leaderboard (7 cols) */}
+                  <div className="lg:col-span-7 bg-[#131d31]/40 border border-white/[0.06] rounded-2xl p-5 flex flex-col gap-4 shadow-xl backdrop-blur-md">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/[0.06] pb-3 gap-3">
+                      <span className="text-[11px] font-black uppercase text-slate-200 tracking-wider flex items-center gap-1.5">
+                        <Award className="w-4 h-4 text-amber-400" /> Bảng Xếp Hạng Editor ({activeTab})
+                      </span>
+
+                      {/* Searching & Sorting Actions */}
+                      <div className="flex items-center gap-2">
+                        {/* Search input */}
+                        <input
+                          type="text"
+                          placeholder="Tìm Editor..."
+                          value={editorSearchQuery}
+                          onChange={(e) => setEditorSearchQuery(e.target.value)}
+                          className="bg-slate-950/60 border border-white/[0.08] focus:border-blue-500 rounded-lg px-2.5 py-1 text-[11px] text-white outline-none w-32 focus:w-40 transition-all placeholder-slate-500"
+                        />
+                        {/* Sort dropdown */}
+                        <select
+                          value={editorSortBy}
+                          onChange={(e: any) => setEditorSortBy(e.target.value)}
+                          className="bg-slate-950/60 border border-white/[0.08] focus:border-blue-500 rounded-lg px-2 py-1 text-[11px] text-slate-300 outline-none cursor-pointer"
+                        >
+                          <option value="winRate">Sắp xếp: % Win</option>
+                          <option value="totalVideos">Sắp xếp: Tổng Video</option>
+                          <option value="avgViews">Sắp xếp: Views TB</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Top 3 Podium View */}
+                    <div className="flex items-end justify-center gap-3 sm:gap-6 pt-5 pb-3 border-b border-white/[0.04] mb-2 bg-slate-950/20 rounded-2xl p-4 relative overflow-hidden">
+                      <div className="absolute inset-0 bg-gradient-to-t from-blue-500/[0.02] to-transparent pointer-events-none" />
+
+                      {/* Rank 2 (Silver) */}
+                      {filteredRankedPerformance[1] && (() => {
+                        const perf = filteredRankedPerformance[1];
+                        const initials = perf.editor.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
+                        return (
+                          <div
+                            onClick={() => setSelectedEditorDetail(perf)}
+                            className="flex flex-col items-center w-24 sm:w-28 group relative cursor-pointer"
+                          >
+                            <div className="relative mb-2 flex items-center justify-center">
+                              <div className="absolute -top-3 right-0 bg-slate-300 text-slate-900 text-[8px] font-black px-1 py-0.5 rounded-full border border-white">#2</div>
+                              <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-slate-400 to-slate-200 border-2 border-slate-300 flex items-center justify-center text-slate-800 text-xs font-black shadow-[0_0_15px_rgba(148,163,184,0.3)] group-hover:scale-105 transition-transform duration-300">
+                                {initials}
+                              </div>
+                            </div>
+                            <span className="text-[10px] font-black text-slate-300 truncate w-full text-center">{perf.editor}</span>
+                            <span className="text-[10px] font-bold text-slate-400">{perf.winRate} Win</span>
+                            <div className="w-full bg-gradient-to-t from-slate-800/80 to-slate-700/40 border border-slate-600/20 h-16 rounded-t-xl mt-2 flex flex-col items-center justify-center shadow-lg relative overflow-hidden">
+                              <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-white/20" />
+                              <span className="text-lg font-black text-slate-300">2</span>
+                              <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest mt-0.5">BẠC</span>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Rank 1 (Gold) */}
+                      {filteredRankedPerformance[0] && (() => {
+                        const perf = filteredRankedPerformance[0];
+                        const initials = perf.editor.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
+                        return (
+                          <div
+                            onClick={() => setSelectedEditorDetail(perf)}
+                            className="flex flex-col items-center w-28 sm:w-32 group z-10 relative cursor-pointer"
+                          >
+                            <div className="relative mb-2.5 flex items-center justify-center">
+                              <div className="absolute -top-3.5 right-0 bg-amber-400 text-amber-950 text-[9px] font-black px-1.5 py-0.5 rounded-full border border-white flex items-center gap-0.5 animate-bounce">
+                                👑 #1
+                              </div>
+                              <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-amber-500 to-amber-200 border-2 border-amber-300 flex items-center justify-center text-amber-950 text-sm font-black shadow-[0_0_20px_rgba(245,158,11,0.4)] group-hover:scale-105 transition-transform duration-300 relative overflow-hidden">
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
+                                {initials}
+                              </div>
+                            </div>
+                            <span className="text-xs font-black text-white truncate w-full text-center">{perf.editor}</span>
+                            <span className="text-[11px] font-black text-amber-400">{perf.winRate} Win</span>
+                            <div className="w-full bg-gradient-to-t from-amber-700/80 to-amber-600/40 border border-amber-500/20 h-22 rounded-t-xl mt-2 flex flex-col items-center justify-center shadow-lg relative overflow-hidden">
+                              <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-white/20" />
+                              <span className="text-xl font-black text-amber-200">1</span>
+                              <span className="text-[7.5px] font-black text-amber-300 uppercase tracking-widest mt-0.5">VÀNG</span>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Rank 3 (Bronze) */}
+                      {filteredRankedPerformance[2] && (() => {
+                        const perf = filteredRankedPerformance[2];
+                        const initials = perf.editor.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
+                        return (
+                          <div
+                            onClick={() => setSelectedEditorDetail(perf)}
+                            className="flex flex-col items-center w-24 sm:w-28 group relative cursor-pointer"
+                          >
+                            <div className="relative mb-2 flex items-center justify-center">
+                              <div className="absolute -top-3 right-0 bg-[#b45309] text-amber-50 text-[8px] font-black px-1 py-0.5 rounded-full border border-white">#3</div>
+                              <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-[#92400e] to-[#d97706] border-2 border-[#b45309] flex items-center justify-center text-amber-50 text-xs font-black shadow-[0_0_15px_rgba(180,83,9,0.3)] group-hover:scale-105 transition-transform duration-300">
+                                {initials}
+                              </div>
+                            </div>
+                            <span className="text-[10px] font-black text-slate-300 truncate w-full text-center">{perf.editor}</span>
+                            <span className="text-[10px] font-bold text-slate-400">{perf.winRate} Win</span>
+                            <div className="w-full bg-gradient-to-t from-[#7c2d12]/80 to-[#9a3412]/40 border border-[#9a3412]/20 h-13 rounded-t-xl mt-2 flex flex-col items-center justify-center shadow-lg relative overflow-hidden">
+                              <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-white/10" />
+                              <span className="text-base font-black text-amber-300">3</span>
+                              <span className="text-[7.5px] font-black text-amber-500 uppercase tracking-widest mt-0.5">ĐỒNG</span>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+                    {/* Editor Table List */}
+                    <div className="overflow-x-auto w-full custom-scrollbar">
+                      <table className="w-full border-collapse text-left text-xs min-w-[500px]">
+                        <thead>
+                          <tr className="border-b border-white/[0.06] text-slate-400 font-black tracking-wider uppercase text-[9px]">
+                            <th className="py-2.5 px-2 text-center w-12">Hạng</th>
+                            <th className="py-2.5 px-3">Editor</th>
+                            <th className="py-2.5 px-3">Tỷ lệ Win</th>
+                            <th className="py-2.5 px-3">Phân tách Win/Fail</th>
+                            <th className="py-2.5 px-3 text-center w-16">Tổng Video</th>
+                            <th className="py-2.5 px-3 text-right w-24">Views TB</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/[0.02]">
+                          {filteredRankedPerformance.map((perf, index) => {
+                            const winPercent = perf.total > 0 ? (perf.win / perf.total) * 100 : 0;
+                            return (
+                              <tr
+                                key={perf.editor}
+                                onClick={() => setSelectedEditorDetail(perf)}
+                                className="hover:bg-white/[0.02] transition-colors group cursor-pointer"
+                              >
+                                <td className="py-3 px-2 text-center font-black text-slate-500">
+                                  {index + 1}
+                                </td>
+                                <td className="py-3 px-3 font-bold text-slate-200 group-hover:text-blue-400 transition-colors">
+                                  {perf.editor}
+                                </td>
+                                <td className="py-3 px-3 font-black text-[#10b981]">
+                                  {perf.winRate}
+                                </td>
+                                <td className="py-3 px-3">
+                                  <div className="flex flex-col gap-1 w-full max-w-[140px]">
+                                    <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden flex border border-white/[0.04]">
+                                      <div className="h-full bg-emerald-500 rounded-l" style={{ width: `${winPercent}%` }} />
+                                      <div className="h-full bg-rose-500/70 rounded-r" style={{ width: `${100 - winPercent}%` }} />
+                                    </div>
+                                    <div className="flex items-center justify-between text-[8px] font-bold text-slate-500">
+                                      <span className="text-emerald-400">{perf.win} Win</span>
+                                      <span className="text-rose-400">{perf.fail} Fail</span>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-3 text-center font-bold text-slate-300">
+                                  {perf.total}
+                                </td>
+                                <td className="py-3 px-3 text-right font-black text-blue-400">
+                                  {perf.avgViews || '-'}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Platform Analytics Card (5 cols) */}
+                  <div className="lg:col-span-5 flex flex-col gap-6">
+
+                    {/* Platform Summary Panel */}
+                    <div className="bg-[#131d31]/40 border border-white/[0.06] rounded-2xl p-5 flex flex-col gap-4 shadow-xl backdrop-blur-md flex-1">
+                      <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
+                        <span className="text-[11px] font-black uppercase text-slate-200 tracking-wider flex items-center gap-1.5">
+                          <Share2 className="w-4 h-4 text-blue-400" /> Ma Trận Nền Tảng (Nhấn để Lọc nhanh)
+                        </span>
+                      </div>
+
+                      <div className="flex flex-col gap-4.5 justify-center flex-1 py-1">
+                        {Object.keys(platformStats).map((platformKey) => {
+                          const stats = platformStats[platformKey];
+                          const total = stats.win + stats.fail;
+                          const winRateNum = total > 0 ? (stats.win / total) * 100 : 0;
+                          const formattedWinRate = `${winRateNum.toFixed(1).replace('.', ',')}%`;
+
+                          let totalViewsSum = Object.keys(platformStats).reduce((a, k) => a + platformStats[k].views, 0) || 1;
+                          const viewsPct = (stats.views / totalViewsSum) * 100;
+
+                          let themeColor = 'from-cyan-500 to-blue-600';
+                          let borderTheme = 'border-cyan-500/20 bg-cyan-950/20';
+                          let progressBg = 'bg-cyan-500';
+                          let icon = (
+                            <svg className="w-5 h-5 text-cyan-400" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.02 1.59 4.23.99 1.15 2.37 1.93 3.86 2.19v3.81c-1.63-.09-3.2-.66-4.51-1.67-.32-.24-.62-.51-.89-.8-.08 2.65-.03 5.3-.06 7.95-.08 1.93-.7 3.84-1.85 5.38-1.51 1.97-3.92 3.04-6.38 3.06-2.58.01-5.11-1.12-6.62-3.23-1.63-2.18-2.07-5.09-1.2-7.66.77-2.39 2.62-4.32 5.01-5.1 1.07-.37 2.21-.49 3.33-.36V7.47c-1.39-.24-2.88.08-3.99.98-1.15.91-1.79 2.34-1.74 3.82.02 1.45.69 2.84 1.8 3.73 1.18.98 2.79 1.34 4.27.97 1.47-.35 2.71-1.51 3.19-2.94.24-.68.32-1.4.3-2.11-.01-3.69-.01-7.39-.01-11.08-.01-.27.03-.56-.06-.82z" />
+                            </svg>
+                          );
+
+                          if (platformKey.includes('Reels') || platformKey.includes('Instagram')) {
+                            themeColor = 'from-pink-500 to-rose-600';
+                            borderTheme = 'border-pink-500/20 bg-pink-950/20';
+                            progressBg = 'bg-pink-500';
+                            icon = (
+                              <svg className="w-5 h-5 text-pink-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+                                <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+                                <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+                              </svg>
+                            );
+                          } else if (platformKey.includes('Shorts') || platformKey.includes('YouTube')) {
+                            themeColor = 'from-red-500 to-orange-600';
+                            borderTheme = 'border-red-500/20 bg-red-950/20';
+                            progressBg = 'bg-red-500';
+                            icon = (
+                              <svg className="w-5 h-5 text-red-500" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M23.498 6.163c-.272-1.016-1.071-1.815-2.087-2.087C19.565 3.5 12 3.5 12 3.5s-7.565 0-9.411.576C1.573 4.348.774 5.147.502 6.163.003 8.01.003 12 .003 12s0 3.99.499 5.837c.272 1.016 1.071 1.815 2.087 2.087 1.846.576 9.411.576 9.411.576s7.565 0 9.411-.576c1.016-.272 1.815-1.071 2.087-2.087.499-1.847.499-5.837.499-5.837s0-3.99-.499-5.837z" />
+                                <polygon points="9.75 15.02 15.5 12 9.75 8.98" fill="#0c1322" />
+                              </svg>
+                            );
+                          }
+
+                          const isFilterActive = platformFilter === platformKey;
+
+                          return (
+                            <div
+                              key={platformKey}
+                              onClick={() => setPlatformFilter(isFilterActive ? 'All' : platformKey as any)}
+                              className={`border rounded-2xl p-4 flex flex-col gap-3 transition-all duration-300 hover:scale-[1.01] hover:bg-slate-900/30 cursor-pointer ${isFilterActive
+                                ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-950/10'
+                                : borderTheme
+                                }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="p-2 bg-slate-950/50 rounded-xl border border-white/[0.04]">
+                                    {icon}
+                                  </div>
+                                  <span className="text-xs font-black uppercase tracking-wider text-slate-200">{platformKey}</span>
+                                </div>
+                                <span className="text-xs font-black text-white">{formatViewsCompact(stats.views)} views</span>
+                              </div>
+
+                              {/* Progress bar share of views */}
+                              <div className="flex flex-col gap-1.5">
+                                <div className="flex items-center justify-between text-[10px] font-bold text-slate-400">
+                                  <span>Tỷ trọng lượt xem:</span>
+                                  <span className="text-white font-extrabold">{viewsPct.toFixed(1)}%</span>
+                                </div>
+                                <div className="h-2 w-full bg-slate-950 rounded-full overflow-hidden border border-white/[0.04]">
+                                  <div className={`h-full bg-gradient-to-r ${themeColor} rounded-full`} style={{ width: `${viewsPct}%` }} />
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold border-t border-white/[0.04] pt-2.5 mt-0.5">
+                                <span className="bg-slate-950/40 px-2 py-0.5 rounded border border-white/[0.03]">{total} Video đã đăng</span>
+                                <span className="text-emerald-400 font-extrabold">{stats.win} Win / {stats.fail} Fail ({formattedWinRate})</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* 3. ROW 3: ACTION CHECKLIST & INSIGHTS */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Action Checklist */}
+                  <div className="bg-[#131d31]/40 border border-white/[0.06] rounded-2xl p-5 flex flex-col gap-4 shadow-xl backdrop-blur-md">
+                    <span className="text-[11px] font-black uppercase text-slate-200 tracking-wider flex items-center gap-1.5 border-b border-white/[0.06] pb-3">
+                      <Target className="w-4 h-4 text-cyan-400" /> Nhiệm Vụ Tuần Tới (Checklist)
+                    </span>
+
+                    <div className="flex flex-col gap-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                      {actionsList.length === 0 ? (
+                        <div className="text-center py-8 text-xs text-slate-500 font-bold">Không có nhiệm vụ nào</div>
+                      ) : (
+                        actionsList.map((action: any) => {
+                          let priorityColor = 'text-slate-400 bg-slate-500/10 border-slate-500/30';
+                          if (action.priority === 'Cao') priorityColor = 'text-rose-400 bg-rose-500/10 border-rose-500/30';
+                          else if (action.priority === 'Trung bình') priorityColor = 'text-amber-400 bg-amber-500/10 border-amber-500/30';
+
+                          let statusColor = 'text-slate-500';
+                          if (action.status === 'Đang tiến hành') statusColor = 'text-blue-400 font-black';
+                          else if (action.status === 'Hoàn thành') statusColor = 'text-emerald-400 font-black';
+
+                          return (
+                            <div key={action.id} className="flex gap-3 p-3 bg-[#0c1322]/40 rounded-xl border border-white/[0.02] hover:border-blue-500/10 transition-colors group">
+                              {/* Custom styled checkbox icon */}
+                              <div className="mt-0.5 shrink-0">
+                                {action.status === 'Hoàn thành' ? (
+                                  <div className="w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center text-slate-950 shadow-[0_0_8px_rgba(16,185,129,0.3)]">
+                                    <CheckCircle className="w-3.5 h-3.5 stroke-[3px]" />
+                                  </div>
+                                ) : (
+                                  <div className="w-4 h-4 rounded-full border border-slate-500 flex items-center justify-center text-transparent hover:border-blue-400 hover:text-blue-400/35 transition-colors cursor-pointer text-[8px] font-bold">
+                                    ✓
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="flex-1 min-w-0 flex flex-col gap-1">
+                                <div className="flex items-start justify-between gap-2">
+                                  <span className={`text-xs font-black truncate ${action.status === 'Hoàn thành' ? 'line-through text-slate-500' : 'text-slate-200'}`}>
+                                    {action.title}
+                                  </span>
+                                  <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border shrink-0 flex items-center gap-1 ${priorityColor}`}>
+                                    {action.priority === 'Cao' && <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse" />}
+                                    {action.priority}
+                                  </span>
+                                </div>
+                                <p className={`text-[10.5px] leading-relaxed font-semibold ${action.status === 'Hoàn thành' ? 'text-slate-500' : 'text-slate-400'}`}>
+                                  {action.description}
+                                </p>
+                                <div className="flex items-center justify-between text-[10px] mt-1.5 text-slate-500 font-bold">
+                                  <span>Thời hạn: <span className="text-slate-300">{action.deadline}</span></span>
+                                  <span className={statusColor}>{action.status}</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Insights Summary */}
+                  <div className="bg-[#131d31]/40 border border-white/[0.06] rounded-2xl p-5 flex flex-col gap-4 shadow-xl backdrop-blur-md">
+                    <span className="text-[11px] font-black uppercase text-slate-200 tracking-wider flex items-center gap-1.5 border-b border-white/[0.06] pb-3">
+                      <Sparkles className="w-4 h-4 text-amber-400" /> Đánh Giá & Bài Học Rút Ra
+                    </span>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 h-full">
+                      {/* Top reasons to win */}
+                      <div className="bg-[#0f2d24]/60 border border-emerald-500/20 rounded-xl p-3.5 flex flex-col gap-2">
+                        <span className="text-[10px] font-black uppercase text-emerald-400 tracking-wider flex items-center gap-1">
+                          <Trophy className="w-3 h-3 text-emerald-400" /> Bài học Win hàng đầu
+                        </span>
+                        <div className="flex flex-col gap-2.5 max-h-[220px] overflow-y-auto pr-1 custom-scrollbar text-[10px] text-slate-300 font-bold leading-relaxed">
+                          {topWinReasons.length === 0 ? (
+                            <span className="text-slate-500 text-xs italic font-medium py-4 text-center block">Đang tổng hợp dữ liệu...</span>
+                          ) : (
+                            topWinReasons.map((reason, i) => (
+                              <div key={i} className="flex gap-2 p-2.5 bg-[#0c1322]/40 rounded-xl border border-white/[0.01] hover:bg-[#0c1322]/60 transition-colors">
+                                <span className="text-emerald-400 font-black shrink-0">✓</span>
+                                <span className="flex-1 font-semibold text-slate-300">{reason}</span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Top improvement suggestions */}
+                      <div className="bg-[#341b1b]/60 border border-rose-500/20 rounded-xl p-3.5 flex flex-col gap-2">
+                        <span className="text-[10px] font-black uppercase text-rose-400 tracking-wider flex items-center gap-1">
+                          <XCircle className="w-3 h-3 text-rose-400" /> Điểm Fail cần khắc phục
+                        </span>
+                        <div className="flex flex-col gap-2.5 max-h-[220px] overflow-y-auto pr-1 custom-scrollbar text-[10px] text-slate-300 font-bold leading-relaxed">
+                          {topImprovements.length === 0 ? (
+                            <span className="text-slate-500 text-xs italic font-medium py-4 text-center block">Đang tổng hợp dữ liệu...</span>
+                          ) : (
+                            topImprovements.map((improvement, i) => (
+                              <div key={i} className="flex gap-2 p-2.5 bg-[#0c1322]/40 rounded-xl border border-white/[0.01] hover:bg-[#0c1322]/60 transition-colors">
+                                <span className="text-rose-400 font-black shrink-0">✗</span>
+                                <span className="flex-1 font-semibold text-slate-300">{improvement}</span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* 4. MODALS & FLOATING OVERLAYS */}
+
+                {/* 4A. EXPORT PROGRESS TOAST OVERLAY */}
+                {isExporting && (
+                  <div className="fixed bottom-6 right-6 z-50 bg-[#0f172a] border border-white/[0.08] p-4.5 rounded-2xl flex items-center gap-4.5 shadow-2xl backdrop-blur-md animate-fade-in w-72">
+                    <div className="w-10 h-10 shrink-0 rounded-xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center">
+                      <div className="w-4.5 h-4.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                    <div className="flex-1 min-w-0 flex flex-col gap-1">
+                      <span className="text-xs font-black text-white uppercase tracking-wider">
+                        Đang xuất báo cáo {exportType === 'pdf' ? 'PDF' : 'Excel'}...
+                      </span>
+                      <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden border border-white/[0.04] mt-0.5">
+                        <div className="h-full bg-blue-500 rounded-full transition-all duration-150" style={{ width: `${exportProgress}%` }} />
+                      </div>
+                      <span className="text-[9px] text-slate-500 font-bold text-right">{exportProgress}%</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* 4B. EDITOR DETAILS MODAL OVERLAY */}
+                {selectedEditorDetail && (() => {
+                  const wins = (baseData.videos || []).filter((v: any) => v.editor === selectedEditorDetail.editor);
+                  const fails = (baseData.failVideos || []).filter((v: any) => v.editor === selectedEditorDetail.editor);
+
+                  return (
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-fade-in">
+                      <div className="bg-[#0f172a] border border-white/[0.08] rounded-3xl max-w-2xl w-full max-h-[85vh] overflow-y-auto p-6 flex flex-col gap-6 shadow-2xl relative custom-scrollbar">
+                        <button
+                          onClick={() => setSelectedEditorDetail(null)}
+                          className="absolute top-4 right-4 p-1.5 rounded-full bg-slate-800/80 hover:bg-slate-700/85 hover:text-red-400 text-slate-400 transition-all border border-white/[0.04]"
+                          title="Đóng cửa sổ"
+                        >
+                          <X className="w-4.5 h-4.5" />
+                        </button>
+
+                        {/* Header Profile */}
+                        <div className="flex items-center gap-4.5 border-b border-white/[0.06] pb-4.5">
+                          <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-500 border border-blue-400 flex items-center justify-center text-white text-xl font-black shadow-lg">
+                            {selectedEditorDetail.editor.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-[9px] font-black uppercase text-blue-400 tracking-wider">Hồ Sơ Editor ({activeTab})</span>
+                            <h2 className="text-xl font-black text-white truncate leading-tight mt-0.5">{selectedEditorDetail.editor}</h2>
+                            <div className="flex items-center gap-3 mt-1.5">
+                              <span className="text-xs font-black text-emerald-400">Tỷ lệ Win: {selectedEditorDetail.winRate}</span>
+                              <span className="text-[10px] text-slate-500 font-bold">•</span>
+                              <span className="text-xs font-bold text-slate-400">{selectedEditorDetail.total} Video đã làm</span>
+                              <span className="text-[10px] text-slate-500 font-bold">•</span>
+                              <span className="text-xs font-bold text-slate-400">Views TB: {selectedEditorDetail.avgViews}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Editor Metrics Grid */}
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="bg-[#1e293b]/30 border border-white/[0.04] p-3.5 rounded-2xl text-center shadow">
+                            <span className="text-[9px] font-black uppercase text-slate-500 tracking-wider">Video Win</span>
+                            <p className="text-lg font-black text-emerald-400 mt-1">{selectedEditorDetail.win}</p>
+                          </div>
+                          <div className="bg-[#1e293b]/30 border border-white/[0.04] p-3.5 rounded-2xl text-center shadow">
+                            <span className="text-[9px] font-black uppercase text-slate-500 tracking-wider">Video Fail</span>
+                            <p className="text-lg font-black text-rose-400 mt-1">{selectedEditorDetail.fail}</p>
+                          </div>
+                          <div className="bg-[#1e293b]/30 border border-white/[0.04] p-3.5 rounded-2xl text-center shadow">
+                            <span className="text-[9px] font-black uppercase text-slate-500 tracking-wider">Lượt xem TB</span>
+                            <p className="text-lg font-black text-blue-400 mt-1">{selectedEditorDetail.avgViews}</p>
+                          </div>
+                        </div>
+
+                        {/* Highlights Videos list */}
+                        <div className="flex flex-col gap-3">
+                          <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5 border-b border-white/[0.04] pb-1.5">
+                            <Trophy className="w-3.5 h-3.5 text-amber-400" /> Các Video Win Nổi Bật ({wins.length})
+                          </span>
+                          <div className="flex flex-col gap-2 max-h-[160px] overflow-y-auto pr-1 custom-scrollbar">
+                            {wins.length === 0 ? (
+                              <span className="text-slate-600 text-xs italic font-medium">Chưa ghi nhận video win nào trong danh sách</span>
+                            ) : (
+                              wins.map((w: any) => (
+                                <div key={w.id} className="p-3 bg-[#072419]/35 border border-emerald-500/10 rounded-xl flex flex-col gap-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-black text-white">{w.label} - {w.views}</span>
+                                    <span className="text-[9.5px] font-black text-emerald-400 uppercase tracking-widest bg-emerald-500/10 px-2 py-0.5 rounded-full">{w.platform}</span>
+                                  </div>
+                                  <p className="text-[10.5px] text-slate-300 font-semibold mt-0.5 leading-relaxed">{w.content}</p>
+                                  <p className="text-[10px] text-emerald-400/90 font-medium italic mt-1 bg-emerald-500/5 p-2 rounded-lg border border-emerald-500/5">
+                                    <strong>Lý do win:</strong> {w.analysis}
+                                  </p>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Fail Videos check */}
+                        <div className="flex flex-col gap-3">
+                          <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5 border-b border-white/[0.04] pb-1.5">
+                            <XCircle className="w-3.5 h-3.5 text-rose-400" /> Các Video Fail cần khắc phục ({fails.length})
+                          </span>
+                          <div className="flex flex-col gap-2 max-h-[160px] overflow-y-auto pr-1 custom-scrollbar">
+                            {fails.length === 0 ? (
+                              <span className="text-slate-600 text-xs italic font-medium">Không có video fail nào trong danh sách</span>
+                            ) : (
+                              fails.map((f: any) => (
+                                <div key={f.id} className="p-3 bg-[#240d0d]/35 border border-rose-500/10 rounded-xl flex flex-col gap-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-black text-white">{f.label} - {f.views}</span>
+                                    <span className="text-[9.5px] font-black text-rose-400 uppercase tracking-widest bg-rose-500/10 px-2 py-0.5 rounded-full">{f.platform}</span>
+                                  </div>
+                                  <p className="text-[10.5px] text-slate-300 font-semibold mt-0.5 leading-relaxed">{f.content}</p>
+                                  <p className="text-[10px] text-rose-400/90 font-medium italic mt-1 bg-rose-500/5 p-2 rounded-lg border border-rose-500/5">
+                                    <strong>Điểm yếu:</strong> {f.failReason}
+                                  </p>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Leader Private Feedback Note */}
+                        <div className="bg-purple-950/20 border border-purple-500/15 p-4 rounded-2xl flex flex-col gap-1.5 mt-1">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-purple-400 flex items-center gap-1">
+                            <MessageSquare className="w-3.5 h-3.5" /> Lời khuyên & Định hướng từ Leader
+                          </span>
+                          <p className="text-xs leading-relaxed text-slate-300 font-medium italic">
+                            "{selectedEditorDetail.editor} có thế mạnh lớn về {wins[0] ? 'phát triển concept hình ảnh' : 'dựng nhịp điệu nhanh'}. Cần chú ý hoàn thiện các lỗi nhỏ về {fails[0] ? 'âm thanh nền hoặc captions' : 'hook giữ chân 3 giây đầu'} để tỷ lệ win tăng trưởng mạnh mẽ trong tuần tiếp theo."
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+              </div>
+            );
+          })()}
+
+        </>
       )}
     </div>
   );
