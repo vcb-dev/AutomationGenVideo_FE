@@ -10,9 +10,11 @@ import { ContentStatusBadge } from '@/components/task-auto/StatusBadge'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { ContentFormModal, parseMarkets } from '@/components/task-auto/ContentFormModal'
 import {
-  getContents,
+  getContents, deleteContent,
   getContentLines, createContentLine, deleteContentLine,
 } from '@/lib/api/task-auto'
+import { useAuthStore } from '@/store/auth-store'
+import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
 import { Content, ContentUsageStatus } from '@/types/task-auto'
 
 // ── Helpers ──────────────────────────────────────────
@@ -115,8 +117,12 @@ function MiniList({
 
 // ── Contents Tab ──────────────────────────────────────
 
-export function ContentsTab() {
+type BrandType = 'DO_DA' | 'TRANG_SUC'
+
+export function ContentsTab({ brandType }: { brandType: BrandType }) {
   const qc = useQueryClient()
+  const { user } = useAuthStore()
+  const canDelete = user?.roles?.some((r: string) => ['ADMIN', 'MANAGER'].includes(r)) ?? false
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<ContentUsageStatus | ''>('')
   const [contentLineFilter, setContentLineFilter] = useState('')
@@ -124,11 +130,14 @@ export function ContentsTab() {
   const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Content | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const { data: contentLines } = useQuery({ queryKey: ['task-auto', 'content-lines'], queryFn: getContentLines })
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'contents', search, statusFilter, contentLineFilter, marketFilter, page],
+    queryKey: ['task-auto', 'contents', brandType, search, statusFilter, contentLineFilter, marketFilter, page],
     queryFn: () => getContents({
+      brand_type: brandType,
+      owner: 'global',
       search: search || undefined,
       status: statusFilter || undefined,
       content_line_id: contentLineFilter || undefined,
@@ -146,6 +155,12 @@ export function ContentsTab() {
     mutationFn: deleteContentLine,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['task-auto', 'content-lines'] }),
     onError: () => toast.error('Không thể xóa tuyến nội dung'),
+  })
+
+  const deleteMut = useMutation({
+    mutationFn: deleteContent,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['task-auto', 'contents'] }); toast.success('Đã xóa content'); setDeletingId(null) },
+    onError: () => { toast.error('Không thể xóa content'); setDeletingId(null) },
   })
 
   const openCreate = () => { setEditing(null); setShowModal(true) }
@@ -282,13 +297,34 @@ export function ContentsTab() {
 
                     {/* Hành động */}
                     <td className="px-4 py-4 text-right">
-                      <button
-                        onClick={() => openEdit(c)}
-                        className="p-2.5 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors opacity-0 group-hover:opacity-100"
-                        title="Chỉnh sửa"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => openEdit(c)}
+                          className="p-2 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors"
+                          title="Chỉnh sửa"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        {canDelete && (
+                          c.status === 'IN_TASK' ? (
+                            <button
+                              disabled
+                              title="Content đang được dùng trong task chưa duyệt"
+                              className="p-2 rounded-xl text-slate-200 cursor-not-allowed"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => setDeletingId(c.id)}
+                              className="p-2 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
+                              title="Xóa"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -314,8 +350,20 @@ export function ContentsTab() {
       <ContentFormModal
         open={showModal}
         editing={editing}
+        brandType={brandType}
         onClose={() => setShowModal(false)}
         onSuccess={() => setShowModal(false)}
+      />
+
+      <ConfirmDialog
+        open={!!deletingId}
+        title="Xóa content"
+        message="Content sẽ bị xóa vĩnh viễn. Hành động này không thể hoàn tác."
+        confirmLabel="Xóa content"
+        danger
+        isLoading={deleteMut.isPending}
+        onConfirm={() => deletingId && deleteMut.mutate(deletingId)}
+        onCancel={() => setDeletingId(null)}
       />
     </div>
   )

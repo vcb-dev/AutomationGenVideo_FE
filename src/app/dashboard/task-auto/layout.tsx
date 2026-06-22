@@ -2,20 +2,28 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ListTodo, Users, Package, Target, Settings, LayoutDashboard, Zap } from 'lucide-react'
+import { ListTodo, Users, Package, Target, Settings, LayoutDashboard, Zap, BookUser } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/store/auth-store'
 
 const NAV_ITEMS = [
-  { href: '/dashboard/task-auto', label: 'Tổng quan', icon: LayoutDashboard, exact: true },
-  { href: '/dashboard/task-auto/tasks', label: 'Nhiệm vụ', icon: ListTodo },
-  { href: '/dashboard/task-auto/teams', label: 'Đội nhóm', icon: Users },
-  { href: '/dashboard/task-auto/catalog', label: 'Danh mục', icon: Package },
-  { href: '/dashboard/task-auto/kpi', label: 'KPI', icon: Target },
-  { href: '/dashboard/task-auto/settings', label: 'Cài đặt', icon: Settings },
+  { href: '/dashboard/task-auto',           label: 'Tổng quan',  icon: LayoutDashboard, exact: true },
+  { href: '/dashboard/task-auto/tasks',     label: 'Nhiệm vụ',   icon: ListTodo },
+  { href: '/dashboard/task-auto/teams',     label: 'Đội nhóm',   icon: Users },
+  { href: '/dashboard/task-auto/catalog',   label: 'Danh mục',   icon: Package },
+  { href: '/dashboard/task-auto/my-catalog',label: 'Kho cá nhân',icon: BookUser },
+  { href: '/dashboard/task-auto/kpi',       label: 'KPI',        icon: Target },
+  { href: '/dashboard/task-auto/settings',  label: 'Cài đặt',    icon: Settings, adminOnly: true },
 ]
 
 export default function TaskAutoLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const { user } = useAuthStore()
+
+  const roles: string[] = (user as any)?.roles ?? []
+  const isAdminOrManager = roles.includes('ADMIN') || roles.includes('MANAGER')
+
+  const visibleItems = NAV_ITEMS.filter(item => !item.adminOnly || isAdminOrManager)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -36,7 +44,7 @@ export default function TaskAutoLayout({ children }: { children: React.ReactNode
 
             {/* Nav links */}
             <nav className="flex items-center gap-1.5 overflow-x-auto scrollbar-none flex-1">
-              {NAV_ITEMS.map((item) => {
+              {visibleItems.map((item) => {
                 const isActive = item.exact
                   ? pathname === item.href
                   : pathname.startsWith(item.href)

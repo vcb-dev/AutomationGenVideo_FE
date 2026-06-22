@@ -1,99 +1,278 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Plus, Edit2, Trash2, Loader2, Users, CalendarDays } from 'lucide-react'
+import { Plus, Edit2, Trash2, Loader2, Users, Eye, FileText, Package, Video } from 'lucide-react'
 import { DarkModal, DarkInput, DarkSelect, EmptyState, CustomSelect } from '@/components/task-auto'
 import {
-  getEditorKpis, createEditorKpi, updateEditorKpi,
+  getEditorKpis, createEditorKpi, updateEditorKpi, deleteEditorKpi,
   getApprovals, getTeams,
-  getEditorWeekendKpis, upsertEditorWeekendKpi, deleteEditorWeekendKpi,
 } from '@/lib/api/task-auto'
-import { EditorKpi, EditorWeekendKpi } from '@/types/task-auto'
+import { EditorKpi } from '@/types/task-auto'
+import { cn } from '@/lib/utils'
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Form state ────────────────────────────────────────────────────────────────
 
-function LoadingRows({ cols }: { cols: number }) {
-  return <>
-    {Array.from({ length: 4 }).map((_, i) => (
-      <tr key={i}>{Array.from({ length: cols }).map((_, j) => (
-        <td key={j} className="px-5 py-4"><div className="h-4 bg-gray-100 rounded animate-pulse" /></td>
-      ))}</tr>
-    ))}
-  </>
+type KpiFormState = Omit<EditorKpi, 'id' | 'set_by_id' | 'created_at' | 'updated_at' | 'user' | 'set_by'>
+
+const defaultForm = (): KpiFormState => ({
+  user_id: '', month: '',
+  total_target: 0, video_win: 0, video_fail: 0,
+  ratio_a1: 0, ratio_a2: 0, ratio_a3: 0, ratio_a4: 0, ratio_a5: 0,
+  kpi_extra: 0, content_new: 0, content_collected: 0, content_win_cover: 0,
+  product_planned: 0, product_win_collect: 0,
+  video_traffic: 0, video_gmv: 0, video_profit: 0,
+})
+
+// ── KPI row configs ───────────────────────────────────────────────────────────
+
+const VIDEO_ROWS: { key: keyof KpiFormState; label: string; bold?: boolean }[] = [
+  { key: 'total_target',  label: 'Tổng video sản xuất', bold: true },
+  { key: 'video_win',     label: 'Video win (≥10k views)' },
+  { key: 'video_fail',    label: 'Video fail' },
+  { key: 'ratio_a1',      label: 'A1 — Kéo traffic' },
+  { key: 'ratio_a2',      label: 'A2 — Tạo chuyên gia' },
+  { key: 'ratio_a3',      label: 'A3 — Tạo trust' },
+  { key: 'ratio_a4',      label: 'A4 — Chuyển đổi' },
+  { key: 'ratio_a5',      label: 'A5 — Nhân bản & scale' },
+]
+
+const CONTENT_ROWS: { key: keyof KpiFormState; label: string }[] = [
+  { key: 'kpi_extra',         label: 'KPI sáng tạo tháng' },
+  { key: 'content_new',       label: 'Content mới được làm' },
+  { key: 'content_collected', label: 'Content sưu tầm về kho team' },
+  { key: 'content_win_cover', label: 'Content win được cover lại' },
+]
+
+const PRODUCT_ROWS: { key: keyof KpiFormState; label: string }[] = [
+  { key: 'product_planned',    label: 'SP đẩy video theo kế hoạch' },
+  { key: 'product_win_collect',label: 'SP sưu tầm và test video win' },
+  { key: 'video_traffic',      label: 'Video SP dòng Traffic' },
+  { key: 'video_gmv',          label: 'Video SP dòng GMV' },
+  { key: 'video_profit',       label: 'Video SP dòng Profit' },
+]
+
+const UNIT = 'Số lượng / đánh giá'
+
+// ── Detail modal ──────────────────────────────────────────────────────────────
+
+function KpiDetailModal({ kpi, onClose }: { kpi: EditorKpi; onClose: () => void }) {
+  const monthLabel = kpi.month.replace(/(\d{4})-(\d{2})/, 'Tháng $2/$1')
+  return (
+    <DarkModal
+      open
+      onClose={onClose}
+      title={`Chi tiết KPI — ${kpi.user?.full_name ?? ''}`}
+      subtitle={`${monthLabel} · Người đặt: ${kpi.set_by?.full_name ?? '—'}`}
+      size="xl"
+    >
+      <div className="space-y-4">
+        {/* Summary chips */}
+        <div className="flex flex-wrap gap-2 pb-1">
+          {[
+            { label: 'Tổng video', value: kpi.total_target, color: 'bg-indigo-50 text-indigo-700 border-indigo-100' },
+            { label: 'Video win',  value: kpi.video_win,    color: 'bg-emerald-50 text-emerald-700 border-emerald-100' },
+            { label: 'Video fail', value: kpi.video_fail,   color: 'bg-red-50 text-red-600 border-red-100' },
+            { label: 'Content mới', value: kpi.content_new, color: 'bg-sky-50 text-sky-700 border-sky-100' },
+            { label: 'SP kế hoạch', value: kpi.product_planned, color: 'bg-violet-50 text-violet-700 border-violet-100' },
+          ].map(({ label, value, color }) => (
+            <div key={label} className={cn('flex items-center gap-2 px-3 py-1.5 rounded-xl border text-sm font-semibold', color)}>
+              <span className="text-xs font-medium opacity-70">{label}</span>
+              <span className="font-black">{value}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {/* Video */}
+          <div className="rounded-xl overflow-hidden border border-orange-200">
+            <div className="bg-orange-400 text-white text-xs font-bold px-3 py-2 flex items-center gap-1.5">
+              <Video className="w-3.5 h-3.5" /> Số video sản xuất đạt tiêu chuẩn
+            </div>
+            <div className="divide-y divide-orange-100">
+              {VIDEO_ROWS.map(r => (
+                <div key={r.key} className="flex items-center justify-between px-3 py-2 bg-white text-xs">
+                  <span className={cn('text-slate-600', r.bold && 'font-semibold text-slate-800')}>{r.label}</span>
+                  <span className={cn('font-bold', r.bold ? 'text-indigo-700 text-sm' : 'text-slate-900')}>{kpi[r.key] as number}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="rounded-xl overflow-hidden border border-green-200">
+            <div className="bg-green-500 text-white text-xs font-bold px-3 py-2 flex items-center gap-1.5">
+              <FileText className="w-3.5 h-3.5" /> Content
+            </div>
+            <div className="divide-y divide-green-100">
+              {CONTENT_ROWS.map(r => (
+                <div key={r.key} className="flex items-center justify-between px-3 py-2 bg-white text-xs">
+                  <span className="text-slate-600">{r.label}</span>
+                  <span className="font-bold text-slate-900">{kpi[r.key] as number}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Product */}
+          <div className="rounded-xl overflow-hidden border border-purple-200">
+            <div className="bg-purple-500 text-white text-xs font-bold px-3 py-2 flex items-center gap-1.5">
+              <Package className="w-3.5 h-3.5" /> Product
+            </div>
+            <div className="divide-y divide-purple-100">
+              {PRODUCT_ROWS.map(r => (
+                <div key={r.key} className="flex items-center justify-between px-3 py-2 bg-white text-xs">
+                  <span className="text-slate-600">{r.label}</span>
+                  <span className="font-bold text-slate-900">{kpi[r.key] as number}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </DarkModal>
+  )
 }
 
-function getSundaysInMonth(month: string): string[] {
-  const [y, m] = month.split('-').map(Number)
-  const sundays: string[] = []
-  const d = new Date(y, m - 1, 1)
-  while (d.getMonth() === m - 1) {
-    if (d.getDay() === 0) sundays.push(d.toISOString().split('T')[0])
-    d.setDate(d.getDate() + 1)
-  }
-  return sundays
+// ── Table row ─────────────────────────────────────────────────────────────────
+
+function KpiTableRow({
+  kpi, canEdit, onEdit, onDelete, onViewDetail,
+}: {
+  kpi: EditorKpi
+  canEdit: boolean
+  onEdit: (k: EditorKpi) => void
+  onDelete: (id: string) => void
+  onViewDetail: (k: EditorKpi) => void
+}) {
+  const monthLabel = kpi.month.replace(/(\d{4})-(\d{2})/, 'T$2/$1')
+
+  return (
+    <tr
+      className="hover:bg-indigo-50/20 transition-colors cursor-pointer"
+      onClick={() => onViewDetail(kpi)}
+    >
+      <td className="px-5 py-4">
+        <p className="font-semibold text-slate-900 text-sm">{kpi.user?.full_name ?? '-'}</p>
+        <p className="text-xs text-slate-400">{kpi.user?.email ?? ''}</p>
+      </td>
+      <td className="px-5 py-4 text-sm text-slate-500 whitespace-nowrap">{monthLabel}</td>
+      <td className="px-5 py-4 text-right whitespace-nowrap">
+        <span className="font-bold text-indigo-600 text-base">{kpi.total_target}</span>
+        <span className="text-xs text-slate-400 ml-1">video</span>
+      </td>
+      <td className="px-5 py-4 text-right whitespace-nowrap">
+        <span className="font-semibold text-emerald-600">{kpi.video_win}</span>
+        <span className="text-xs text-slate-400 ml-1">win</span>
+      </td>
+      <td className="px-5 py-4 text-right whitespace-nowrap">
+        <span className="font-semibold text-sky-600">{kpi.content_new}</span>
+        <span className="text-xs text-slate-400 ml-1">content</span>
+      </td>
+      <td className="px-5 py-4 text-right whitespace-nowrap">
+        <span className="font-semibold text-violet-600">{kpi.product_planned}</span>
+        <span className="text-xs text-slate-400 ml-1">SP</span>
+      </td>
+      <td className="px-5 py-4 text-sm text-slate-500 whitespace-nowrap">{kpi.set_by?.full_name ?? '-'}</td>
+      <td className="px-4 py-4 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-end gap-1">
+          <button
+            onClick={e => { e.stopPropagation(); onViewDetail(kpi) }}
+            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+            title="Xem chi tiết"
+          >
+            <Eye className="w-3.5 h-3.5" />
+          </button>
+          {canEdit && (
+            <>
+              <button
+                onClick={e => { e.stopPropagation(); onEdit(kpi) }}
+                className="p-1.5 rounded-lg hover:bg-indigo-50 text-indigo-500 transition-colors"
+                title="Sửa KPI"
+              >
+                <Edit2 className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={e => { e.stopPropagation(); onDelete(kpi.id) }}
+                className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 transition-colors"
+                title="Xóa KPI"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </>
+          )}
+        </div>
+      </td>
+    </tr>
+  )
 }
 
-function formatDate(dateStr: string) {
-  const [y, m, d] = dateStr.split('-')
-  return `CN ${d}/${m}/${y}`
+// ── Loading skeleton ──────────────────────────────────────────────────────────
+
+function LoadingRows() {
+  return (
+    <>
+      {Array.from({ length: 4 }).map((_, i) => (
+        <tr key={i}>
+          {Array.from({ length: 8 }).map((_, j) => (
+            <td key={j} className="px-5 py-4">
+              <div className="h-4 bg-gray-100 rounded animate-pulse" />
+            </td>
+          ))}
+        </tr>
+      ))}
+    </>
+  )
 }
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface Props {
   month: string
-  onMonthChange: (v: string) => void
   canEdit: boolean
   isLeader?: boolean
   userId?: string
+  selectedTeamId?: string
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
+// ── Main ──────────────────────────────────────────────────────────────────────
 
-export function EditorKpiTab({ month, canEdit, isLeader, userId }: Props) {
+export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId }: Props) {
   const qc = useQueryClient()
-
-  // ── Monthly KPI state ──────────────────────────────────────────────────────
   const [modal, setModal] = useState<null | 'create' | 'edit'>(null)
   const [editing, setEditing] = useState<EditorKpi | null>(null)
-  const [form, setForm] = useState({ user_id: '', month, kpi_auto: 0, kpi_extra: 0 })
-  const [teamFilter, setTeamFilter] = useState('')
+  const [viewingKpi, setViewingKpi] = useState<EditorKpi | null>(null)
+  const [form, setForm] = useState<KpiFormState>(defaultForm())
+  const [teamFilter, setTeamFilter] = useState(selectedTeamId ?? '')
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  // ── Sunday KPI state ───────────────────────────────────────────────────────
-  const [sundayModal, setSundayModal] = useState<null | 'create' | 'edit'>(null)
-  const [sundayEditing, setSundayEditing] = useState<EditorWeekendKpi | null>(null)
-  const [sundayForm, setSundayForm] = useState({ user_id: '', date: '', kpi: 0 })
+  // Sync when parent changes selected team (e.g. switching from KPI Team tab)
+  useEffect(() => {
+    if (selectedTeamId !== undefined) setTeamFilter(selectedTeamId)
+  }, [selectedTeamId])
 
   const isManagerOrAdmin = canEdit && !isLeader
 
-  // ── Queries ────────────────────────────────────────────────────────────────
   const { data: editorKpis, isLoading } = useQuery({
     queryKey: ['task-auto', 'editor-kpis', month],
     queryFn: () => getEditorKpis(month),
   })
 
-  const { data: weekendKpis, isLoading: weekendLoading } = useQuery({
-    queryKey: ['task-auto', 'editor-weekend-kpis', month],
-    queryFn: () => getEditorWeekendKpis(month),
-  })
-
   const { data: approvedEditors } = useQuery({
     queryKey: ['task-auto', 'approvals', 'APPROVED'],
     queryFn: () => getApprovals('APPROVED'),
-    enabled: modal !== null || sundayModal !== null,
+    enabled: modal !== null,
   })
 
   const { data: teams } = useQuery({
     queryKey: ['task-auto', 'teams'],
     queryFn: getTeams,
-    enabled: isManagerOrAdmin || (!!isLeader && (modal !== null || sundayModal !== null)),
+    enabled: isManagerOrAdmin || !!isLeader,
   })
 
   const leaderTeam = isLeader && userId ? teams?.find(t => t.leader_id === userId) : undefined
   const leaderTeamMemberIds = new Set(leaderTeam?.members?.map(m => m.user_id) ?? [])
-
   const filteredTeamMemberIds = teamFilter
     ? new Set(teams?.find(t => t.id === teamFilter)?.members?.map(m => m.user_id) ?? [])
     : null
@@ -103,341 +282,321 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId }: Props) {
     ? allApproved.filter(a => leaderTeamMemberIds.has(a.user_id))
     : allApproved
 
-  // ── Monthly KPI mutations ──────────────────────────────────────────────────
-  const createMut = useMutation({
-    mutationFn: createEditorKpi,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['task-auto', 'editor-kpis'] }); toast.success('Đã thêm KPI editor'); setModal(null) },
-    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Không thể thêm KPI editor'),
-  })
-  const updateMut = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: Partial<EditorKpi> }) => updateEditorKpi(id, body),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['task-auto', 'editor-kpis'] }); toast.success('Đã cập nhật KPI editor'); setModal(null) },
-    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Không thể cập nhật KPI editor'),
+  const upsertMut = useMutation({
+    mutationFn: (body: KpiFormState) =>
+      editing
+        ? updateEditorKpi(editing.id, body as any)
+        : createEditorKpi(body as any),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['task-auto', 'editor-kpis'] })
+      toast.success(editing ? 'Đã cập nhật KPI' : 'Đã thêm KPI editor')
+      setModal(null)
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Không thể lưu KPI'),
   })
 
-  const openCreate = () => { setForm({ user_id: '', month, kpi_auto: 0, kpi_extra: 0 }); setEditing(null); setModal('create') }
-  const openEdit = (kpi: EditorKpi) => { setForm({ user_id: kpi.user_id, month: kpi.month, kpi_auto: kpi.total_target, kpi_extra: kpi.kpi_extra }); setEditing(kpi); setModal('edit') }
+  const deleteMut = useMutation({
+    mutationFn: deleteEditorKpi,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['task-auto', 'editor-kpis'] })
+      toast.success('Đã xóa KPI')
+      setDeletingId(null)
+    },
+    onError: () => {
+      toast.error('Không thể xóa KPI')
+      setDeletingId(null)
+    },
+  })
+
+  const openCreate = () => {
+    setForm({ ...defaultForm(), month })
+    setEditing(null)
+    setModal('create')
+  }
+
+  const openEdit = (kpi: EditorKpi) => {
+    setEditing(kpi)
+    setForm({
+      user_id: kpi.user_id, month: kpi.month,
+      total_target: kpi.total_target, video_win: kpi.video_win, video_fail: kpi.video_fail,
+      ratio_a1: kpi.ratio_a1, ratio_a2: kpi.ratio_a2, ratio_a3: kpi.ratio_a3,
+      ratio_a4: kpi.ratio_a4, ratio_a5: kpi.ratio_a5,
+      kpi_extra: kpi.kpi_extra, content_new: kpi.content_new,
+      content_collected: kpi.content_collected, content_win_cover: kpi.content_win_cover,
+      product_planned: kpi.product_planned, product_win_collect: kpi.product_win_collect,
+      video_traffic: kpi.video_traffic, video_gmv: kpi.video_gmv, video_profit: kpi.video_profit,
+    })
+    setModal('edit')
+  }
+
+  const setField = (key: keyof KpiFormState, val: number) =>
+    setForm(f => ({ ...f, [key]: val }))
+
   const handleSubmit = () => {
     if (!form.user_id) return toast.error('Chọn editor')
-    const body = { user_id: form.user_id, month: form.month, kpi_auto: form.kpi_auto, kpi_extra: form.kpi_extra }
-    if (modal === 'create') createMut.mutate(body as any)
-    else if (editing) updateMut.mutate({ id: editing.id, body: body as any })
+    if (!form.month) return toast.error('Chọn tháng')
+    upsertMut.mutate(form)
   }
-  const saving = createMut.isPending || updateMut.isPending
-
-  // ── Sunday KPI mutations ───────────────────────────────────────────────────
-  const upsertSundayMut = useMutation({
-    mutationFn: upsertEditorWeekendKpi,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['task-auto', 'editor-weekend-kpis'] }); toast.success(sundayModal === 'create' ? 'Đã thêm KPI Chủ nhật' : 'Đã cập nhật KPI Chủ nhật'); setSundayModal(null) },
-    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Không thể lưu KPI Chủ nhật'),
-  })
-  const deleteSundayMut = useMutation({
-    mutationFn: deleteEditorWeekendKpi,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['task-auto', 'editor-weekend-kpis'] }); toast.success('Đã xoá KPI Chủ nhật') },
-    onError: () => toast.error('Không thể xoá KPI Chủ nhật'),
-  })
-
-  const openSundayCreate = () => {
-    const sundays = getSundaysInMonth(month)
-    setSundayForm({ user_id: '', date: sundays[0] ?? '', kpi: 0 })
-    setSundayEditing(null)
-    setSundayModal('create')
-  }
-  const openSundayEdit = (k: EditorWeekendKpi) => {
-    setSundayForm({ user_id: k.user_id, date: k.date, kpi: k.kpi })
-    setSundayEditing(k)
-    setSundayModal('edit')
-  }
-  const handleSundaySubmit = () => {
-    if (!sundayForm.user_id) return toast.error('Chọn editor')
-    if (!sundayForm.date) return toast.error('Chọn ngày Chủ nhật')
-    upsertSundayMut.mutate(sundayForm)
-  }
-  const savingSunday = upsertSundayMut.isPending
-
-  // ── Display helpers ────────────────────────────────────────────────────────
-  const formatMonth = (yyyymm: string) => { const [y, m] = yyyymm.split('-'); return `Tháng ${m}/${y}` }
-  const colCount = 5 + (isManagerOrAdmin ? 1 : 0) + (canEdit ? 1 : 0)
-  const sundayColCount = 4 + (canEdit ? 1 : 0)
-  const sundays = getSundaysInMonth(month)
 
   let visibleKpis = editorKpis ?? []
-  if (isLeader && leaderTeamMemberIds.size > 0) {
+  if (isLeader && leaderTeamMemberIds.size > 0)
     visibleKpis = visibleKpis.filter(k => leaderTeamMemberIds.has(k.user_id))
-  } else if (filteredTeamMemberIds) {
+  else if (filteredTeamMemberIds)
     visibleKpis = visibleKpis.filter(k => filteredTeamMemberIds.has(k.user_id))
-  }
-
-  let visibleWeekendKpis = weekendKpis ?? []
-  if (isLeader && leaderTeamMemberIds.size > 0) {
-    visibleWeekendKpis = visibleWeekendKpis.filter(k => leaderTeamMemberIds.has(k.user_id))
-  } else if (filteredTeamMemberIds) {
-    visibleWeekendKpis = visibleWeekendKpis.filter(k => filteredTeamMemberIds.has(k.user_id))
-  }
-
-  const userTeamMap = new Map<string, string>()
-  teams?.forEach(t => t.members?.forEach(m => userTeamMap.set(m.user_id, t.name)))
 
   return (
-    <div className="space-y-8">
-
-      {/* ══════════════════ PHẦN 1: KPI THÁNG ══════════════════ */}
-      <div>
-        {/* ── Toolbar ── */}
-        <div className="flex flex-wrap items-center gap-3 mb-4">
-          {isManagerOrAdmin && (
-            <div className="flex items-center gap-2">
-              <Users className="w-5 h-5 text-slate-400 shrink-0" />
-              <CustomSelect
-                value={teamFilter}
-                onChange={setTeamFilter}
-                options={[
-                  { value: '', label: 'Tất cả nhóm' },
-                  ...(teams?.map(t => ({ value: t.id, label: t.name })) ?? []),
-                ]}
-                className="min-w-[210px]"
-                searchable
-              />
-            </div>
-          )}
-          {isLeader && leaderTeam && (
-            <p className="text-base text-slate-500">
-              Đặt KPI cho editor trong team <span className="font-semibold text-slate-700">{leaderTeam.name}</span>
-            </p>
-          )}
-          {canEdit && (
-            <div className="ml-auto">
-              <button onClick={openCreate} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-3 text-base font-semibold transition-colors">
-                <Plus className="w-5 h-5" /> Thêm KPI Editor
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* ── Bảng KPI tháng ── */}
-        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Editor</th>
-                  {isManagerOrAdmin && <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Nhóm</th>}
-                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Tháng</th>
-                  <th className="text-right px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">KPI Auto/tháng</th>
-                  <th className="text-right px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">KPI Sáng tạo/tháng</th>
-                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Người đặt</th>
-                  {canEdit && <th className="text-right px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Hành động</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {isLoading && <LoadingRows cols={colCount} />}
-                {!isLoading && visibleKpis.length === 0 && (
-                  <tr><td colSpan={colCount}><EmptyState title={`Không có KPI editor nào${teamFilter ? ' trong nhóm này' : ''} tháng ${formatMonth(month)}`} /></td></tr>
-                )}
-                {visibleKpis.map(kpi => (
-                  <tr key={kpi.id} className="hover:bg-indigo-50/30 transition-colors">
-                    <td className="px-5 py-4">
-                      <p className="font-semibold text-slate-900 text-sm">{kpi.user?.full_name ?? '-'}</p>
-                      <p className="text-xs text-slate-400 mt-0.5">{kpi.user?.email ?? ''}</p>
-                    </td>
-                    {isManagerOrAdmin && (
-                      <td className="px-5 py-4 whitespace-nowrap">
-                        {userTeamMap.get(kpi.user_id) ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700">
-                            <Users className="w-3 h-3" />{userTeamMap.get(kpi.user_id)}
-                          </span>
-                        ) : <span className="text-sm text-slate-400 italic">—</span>}
-                      </td>
-                    )}
-                    <td className="px-5 py-4 text-sm text-slate-500 whitespace-nowrap">{formatMonth(kpi.month)}</td>
-                    <td className="px-5 py-4 text-right whitespace-nowrap">
-                      <span className="font-bold text-indigo-600 text-base">{kpi.total_target}</span>
-                      <span className="text-xs text-slate-400 ml-1">task</span>
-                    </td>
-                    <td className="px-5 py-4 text-right whitespace-nowrap">
-                      <span className="font-semibold text-amber-600 text-base">{kpi.kpi_extra}</span>
-                      <span className="text-xs text-slate-400 ml-1">task</span>
-                    </td>
-                    <td className="px-5 py-4 text-sm text-slate-500 whitespace-nowrap">{kpi.set_by?.full_name ?? '-'}</td>
-                    {canEdit && (
-                      <td className="px-5 py-4 text-right whitespace-nowrap">
-                        <button onClick={() => openEdit(kpi)} className="p-2 rounded-xl hover:bg-indigo-50 text-indigo-600 transition-colors">
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      {/* ══════════════════ PHẦN 2: KPI CHỦ NHẬT ══════════════════ */}
-      <div>
-        <div className="flex flex-wrap items-center gap-3 mb-4">
+    <div className="space-y-5">
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-3">
+        {isManagerOrAdmin && (
           <div className="flex items-center gap-2">
-            <CalendarDays className="w-5 h-5 text-violet-500" />
-            <h3 className="text-base font-bold text-slate-800">
-              KPI Chủ nhật — {formatMonth(month)}
-            </h3>
-            <span className="text-xs text-slate-400">
-              ({sundays.length} Chủ nhật: {sundays.map(formatDate).join(', ')})
-            </span>
+            <Users className="w-5 h-5 text-slate-400 shrink-0" />
+            <CustomSelect
+              value={teamFilter}
+              onChange={setTeamFilter}
+              options={[
+                { value: '', label: 'Tất cả nhóm' },
+                ...(teams?.map(t => ({ value: t.id, label: t.name })) ?? []),
+              ]}
+              className="min-w-[200px]"
+              searchable
+            />
           </div>
-          {canEdit && (
-            <div className="ml-auto">
-              <button onClick={openSundayCreate} className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white rounded-xl px-5 py-3 text-base font-semibold transition-colors">
-                <Plus className="w-5 h-5" /> Thêm KPI Chủ nhật
-              </button>
-            </div>
-          )}
-        </div>
+        )}
+        {isLeader && leaderTeam && (
+          <p className="text-sm text-slate-500">
+            Đặt KPI cho editor trong team{' '}
+            <span className="font-semibold text-slate-700">{leaderTeam.name}</span>
+          </p>
+        )}
+        {canEdit && (
+          <button
+            onClick={openCreate}
+            className="ml-auto flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-3 text-base font-semibold transition-colors"
+          >
+            <Plus className="w-5 h-5" /> Thêm KPI Editor
+          </button>
+        )}
+      </div>
 
-        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Editor</th>
-                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Chủ nhật</th>
-                  <th className="text-right px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">KPI ngày đó</th>
-                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Người đặt</th>
-                  {canEdit && <th className="text-right px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Hành động</th>}
+      {/* Table */}
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Editor</th>
+                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Tháng</th>
+                <th className="text-right px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Tổng video</th>
+                <th className="text-right px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Video win</th>
+                <th className="text-right px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Content mới</th>
+                <th className="text-right px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">SP kế hoạch</th>
+                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Người đặt</th>
+                <th className="w-24" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {isLoading && <LoadingRows />}
+              {!isLoading && visibleKpis.length === 0 && (
+                <tr>
+                  <td colSpan={8}>
+                    <EmptyState
+                      title={`Không có KPI editor${teamFilter ? ' trong nhóm này' : ''}`}
+                    />
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {weekendLoading && <LoadingRows cols={sundayColCount} />}
-                {!weekendLoading && visibleWeekendKpis.length === 0 && (
-                  <tr><td colSpan={sundayColCount}><EmptyState title={`Chưa có KPI Chủ nhật nào${teamFilter ? ' trong nhóm này' : ''} tháng ${formatMonth(month)}`} /></td></tr>
-                )}
-                {visibleWeekendKpis.map(k => (
-                  <tr key={k.id} className="hover:bg-violet-50/30 transition-colors">
-                    <td className="px-5 py-4">
-                      <p className="font-semibold text-slate-900 text-sm">{k.user?.full_name ?? '-'}</p>
-                      <p className="text-xs text-slate-400 mt-0.5">{k.user?.email ?? ''}</p>
-                    </td>
-                    <td className="px-5 py-4 whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-violet-50 text-violet-700">
-                        <CalendarDays className="w-3 h-3" />{formatDate(k.date)}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 text-right whitespace-nowrap">
-                      <span className="font-bold text-violet-600 text-base">{k.kpi}</span>
-                      <span className="text-xs text-slate-400 ml-1">task</span>
-                    </td>
-                    <td className="px-5 py-4 text-sm text-slate-500 whitespace-nowrap">{k.set_by?.full_name ?? '-'}</td>
-                    {canEdit && (
-                      <td className="px-5 py-4 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => openSundayEdit(k)} className="p-2 rounded-xl hover:bg-violet-50 text-violet-600 transition-colors">
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => { if (confirm(`Xoá KPI Chủ nhật của ${k.user?.full_name} ngày ${formatDate(k.date)}?`)) deleteSundayMut.mutate(k.id) }}
-                            className="p-2 rounded-xl hover:bg-red-50 text-red-400 transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              )}
+              {visibleKpis.map(kpi => (
+                <KpiTableRow
+                  key={kpi.id}
+                  kpi={kpi}
+                  canEdit={canEdit}
+                  onEdit={openEdit}
+                  onDelete={setDeletingId}
+                  onViewDetail={setViewingKpi}
+                />
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* ══ Modal thêm/sửa KPI tháng ══ */}
+      {/* Create / Edit modal */}
       <DarkModal
         open={modal !== null}
         onClose={() => setModal(null)}
-        title={modal === 'create' ? 'Thêm KPI Editor' : 'Chỉnh sửa KPI Editor'}
-        size="lg"
-        footer={<>
-          <button onClick={() => setModal(null)} className="bg-gray-100 hover:bg-gray-200 text-slate-700 rounded-xl px-5 py-3 text-base font-semibold transition-colors">Hủy</button>
-          <button onClick={handleSubmit} disabled={saving} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-3 text-base font-semibold flex items-center gap-2 transition-colors disabled:opacity-60">
-            {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-            {modal === 'create' ? 'Thêm mới' : 'Lưu thay đổi'}
-          </button>
-        </>}
+        title={modal === 'create' ? 'Thêm KPI Editor' : `Sửa KPI — ${editing?.user?.full_name ?? ''}`}
+        size="xl"
+        footer={
+          <>
+            <button
+              onClick={() => setModal(null)}
+              className="bg-gray-100 hover:bg-gray-200 text-slate-700 rounded-xl px-5 py-3 text-base font-semibold transition-colors"
+            >
+              Hủy
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={upsertMut.isPending}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-3 text-base font-semibold flex items-center gap-2 transition-colors disabled:opacity-60"
+            >
+              {upsertMut.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+              {modal === 'create' ? 'Thêm mới' : 'Lưu thay đổi'}
+            </button>
+          </>
+        }
       >
         <div className="space-y-5">
+          {/* Editor + month */}
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <DarkSelect label="Editor *" value={form.user_id} onChange={e => setForm(f => ({ ...f, user_id: e.target.value }))}>
-                <option value="">-- Chọn editor --</option>
-                {selectableEditors.length === 0 && <option disabled>{isLeader ? 'Chưa có editor trong team' : 'Chưa có editor được phê duyệt'}</option>}
-                {selectableEditors.map(a => (
-                  <option key={a.user_id} value={a.user_id}>{a.user?.full_name ?? a.user_id} ({a.user?.email ?? ''})</option>
-                ))}
-              </DarkSelect>
+            <DarkSelect
+              label="Editor *"
+              value={form.user_id}
+              onChange={e => setForm(f => ({ ...f, user_id: e.target.value }))}
+              disabled={modal === 'edit'}
+            >
+              <option value="">-- Chọn editor --</option>
               {selectableEditors.length === 0 && (
-                <p className="text-xs text-amber-600 mt-1">{isLeader ? 'Cần gán Editor cho thành viên trong tab Nhóm của tôi trước.' : 'Cần phê duyệt Editor trước khi đặt KPI.'}</p>
+                <option disabled>
+                  {isLeader ? 'Chưa có editor trong team' : 'Chưa có editor được phê duyệt'}
+                </option>
               )}
-            </div>
-            <DarkInput label="Tháng *" type="month" value={form.month} onChange={e => setForm(f => ({ ...f, month: e.target.value }))} />
+              {selectableEditors.map(a => (
+                <option key={a.user_id} value={a.user_id}>
+                  {a.user?.full_name ?? a.user_id} ({a.user?.email ?? ''})
+                </option>
+              ))}
+            </DarkSelect>
+            <DarkInput
+              label="Tháng *"
+              type="month"
+              value={form.month}
+              onChange={e => setForm(f => ({ ...f, month: e.target.value }))}
+            />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <DarkInput label="KPI Auto / tháng" type="number" min={0} value={form.kpi_auto} onChange={e => setForm(f => ({ ...f, kpi_auto: Number(e.target.value) }))} />
-              <p className="text-xs text-slate-400 mt-1">Hệ thống sẽ tự tạo task mỗi ngày theo tỉ lệ này</p>
+
+          {/* KPI input table */}
+          <div className="rounded-xl border border-gray-200 overflow-hidden text-sm">
+            {/* Header row */}
+            <div className="grid grid-cols-[1fr_160px_110px] bg-amber-50 border-b border-amber-200">
+              <div className="px-4 py-2 text-xs font-bold text-amber-800 uppercase tracking-wide">Chỉ tiêu KPI</div>
+              <div className="px-4 py-2 text-xs font-bold text-amber-800 uppercase tracking-wide">Đơn vị</div>
+              <div className="px-4 py-2 text-xs font-bold text-amber-800 uppercase tracking-wide text-right">Chỉ tiêu</div>
             </div>
+
+            {/* Video production */}
             <div>
-              <DarkInput label="KPI Sáng tạo / tháng" type="number" min={0} value={form.kpi_extra} onChange={e => setForm(f => ({ ...f, kpi_extra: Number(e.target.value) }))} />
-              <p className="text-xs text-slate-400 mt-1">Chỉ thông báo mỗi ngày, không tạo task</p>
+              <div className="bg-orange-400 text-white font-bold px-4 py-2 text-sm">
+                Số video sản xuất đạt tiêu chuẩn
+              </div>
+              {VIDEO_ROWS.map(row => (
+                <div
+                  key={row.key}
+                  className={cn(
+                    'grid grid-cols-[1fr_160px_110px] px-4 py-2 border-b border-gray-100 items-center',
+                    row.bold ? 'bg-orange-50/70' : 'bg-white hover:bg-gray-50/50',
+                  )}
+                >
+                  <span className={cn('text-slate-600', row.bold && 'font-semibold text-slate-800')}>
+                    {row.label}
+                  </span>
+                  <span className="text-xs text-slate-400">{UNIT}</span>
+                  <input
+                    type="number" min={0}
+                    value={form[row.key] as number}
+                    onChange={e => setField(row.key, Math.max(0, Number(e.target.value)))}
+                    className={cn(
+                      'w-full border rounded-lg px-2 py-1 text-right font-semibold focus:outline-none focus:ring-2 transition-colors',
+                      row.bold
+                        ? 'bg-indigo-50 text-indigo-700 border-indigo-200 focus:ring-indigo-400'
+                        : 'bg-white border-gray-200 text-slate-800 focus:ring-indigo-300',
+                    )}
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* Content */}
+            <div>
+              <div className="bg-green-500 text-white font-bold px-4 py-2 text-sm">Content</div>
+              {CONTENT_ROWS.map(row => (
+                <div
+                  key={row.key}
+                  className="grid grid-cols-[1fr_160px_110px] px-4 py-2 border-b border-gray-100 items-center bg-white hover:bg-gray-50/50"
+                >
+                  <span className="text-slate-600">{row.label}</span>
+                  <span className="text-xs text-slate-400">{UNIT}</span>
+                  <input
+                    type="number" min={0}
+                    value={form[row.key] as number}
+                    onChange={e => setField(row.key, Math.max(0, Number(e.target.value)))}
+                    className="w-full border border-gray-200 rounded-lg px-2 py-1 text-right font-semibold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-green-400"
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* Product */}
+            <div>
+              <div className="bg-purple-500 text-white font-bold px-4 py-2 text-sm">Product</div>
+              {PRODUCT_ROWS.map((row, i) => (
+                <div
+                  key={row.key}
+                  className={cn(
+                    'grid grid-cols-[1fr_160px_110px] px-4 py-2 items-center bg-white hover:bg-gray-50/50',
+                    i < PRODUCT_ROWS.length - 1 && 'border-b border-gray-100',
+                  )}
+                >
+                  <span className="text-slate-600">{row.label}</span>
+                  <span className="text-xs text-slate-400">{UNIT}</span>
+                  <input
+                    type="number" min={0}
+                    value={form[row.key] as number}
+                    onChange={e => setField(row.key, Math.max(0, Number(e.target.value)))}
+                    className="w-full border border-gray-200 rounded-lg px-2 py-1 text-right font-semibold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-400"
+                  />
+                </div>
+              ))}
             </div>
           </div>
+
+          <p className="text-xs text-slate-400 bg-slate-50 rounded-lg px-4 py-2.5 border border-slate-100">
+            <strong>Tổng video sản xuất</strong> được dùng làm chỉ tiêu auto-assign task hàng ngày.
+            KPI sáng tạo chỉ thông báo, không tạo task tự động.
+          </p>
         </div>
       </DarkModal>
 
-      {/* ══ Modal thêm/sửa KPI Chủ nhật ══ */}
-      <DarkModal
-        open={sundayModal !== null}
-        onClose={() => setSundayModal(null)}
-        title={sundayModal === 'create' ? 'Thêm KPI Chủ nhật' : 'Chỉnh sửa KPI Chủ nhật'}
-        size="md"
-        footer={<>
-          <button onClick={() => setSundayModal(null)} className="bg-gray-100 hover:bg-gray-200 text-slate-700 rounded-xl px-5 py-3 text-base font-semibold transition-colors">Hủy</button>
-          <button onClick={handleSundaySubmit} disabled={savingSunday} className="bg-violet-600 hover:bg-violet-700 text-white rounded-xl px-5 py-3 text-base font-semibold flex items-center gap-2 transition-colors disabled:opacity-60">
-            {savingSunday && <Loader2 className="w-4 h-4 animate-spin" />}
-            {sundayModal === 'create' ? 'Thêm mới' : 'Lưu thay đổi'}
-          </button>
-        </>}
-      >
-        <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <DarkSelect label="Editor *" value={sundayForm.user_id} onChange={e => setSundayForm(f => ({ ...f, user_id: e.target.value }))}>
-                <option value="">-- Chọn editor --</option>
-                {selectableEditors.length === 0 && <option disabled>{isLeader ? 'Chưa có editor trong team' : 'Chưa có editor được phê duyệt'}</option>}
-                {selectableEditors.map(a => (
-                  <option key={a.user_id} value={a.user_id}>{a.user?.full_name ?? a.user_id}</option>
-                ))}
-              </DarkSelect>
+      {/* Confirm delete */}
+      {deletingId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
+            <h3 className="text-lg font-bold text-slate-800">Xóa KPI Editor</h3>
+            <p className="text-sm text-slate-500">KPI này sẽ bị xóa vĩnh viễn. Bạn có chắc không?</p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setDeletingId(null)}
+                className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+              >
+                Hủy
+              </button>
+              <button
+                disabled={deleteMut.isPending}
+                onClick={() => deleteMut.mutate(deletingId)}
+                className="px-4 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 flex items-center gap-2 disabled:opacity-60"
+              >
+                {deleteMut.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                Xóa
+              </button>
             </div>
-            <div>
-              <DarkSelect label="Chủ nhật *" value={sundayForm.date} onChange={e => setSundayForm(f => ({ ...f, date: e.target.value }))}>
-                <option value="">-- Chọn ngày --</option>
-                {sundays.map(s => <option key={s} value={s}>{formatDate(s)}</option>)}
-              </DarkSelect>
-            </div>
-          </div>
-          <div>
-            <DarkInput
-              label="KPI ngày đó"
-              type="number"
-              min={0}
-              value={sundayForm.kpi}
-              onChange={e => setSundayForm(f => ({ ...f, kpi: Number(e.target.value) }))}
-            />
-            <p className="text-xs text-slate-400 mt-1">Số task giao riêng cho Chủ nhật này — trừ vào tổng KPI tháng như bình thường</p>
           </div>
         </div>
-      </DarkModal>
+      )}
+
+      {/* Detail modal */}
+      {viewingKpi && (
+        <KpiDetailModal kpi={viewingKpi} onClose={() => setViewingKpi(null)} />
+      )}
     </div>
   )
 }

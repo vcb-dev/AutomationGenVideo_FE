@@ -114,13 +114,13 @@ export function SettingsCard({ canEdit }: { canEdit: boolean }) {
             </div>
           </div>
 
-          {/* Sunday toggle */}
+          {/* Weekend toggle */}
           <div className="flex items-center justify-between py-1">
             <div className="flex items-center gap-3">
               <Calendar className="w-4 h-4 text-slate-400" />
               <div>
-                <p className="text-sm font-semibold text-slate-800">Chạy vào Chủ nhật</p>
-                <p className="text-sm text-slate-500">Bật để phân công vào Chủ nhật theo KPI riêng đã đặt cho từng editor.</p>
+                <p className="text-sm font-semibold text-slate-800">Chạy vào cuối tuần</p>
+                <p className="text-sm text-slate-500">Bật để phân công tự động vào Thứ 7 và Chủ nhật (KPI các ngày đều như nhau).</p>
               </div>
             </div>
             <ToggleSwitch checked={form.weekend_enabled ?? false} onChange={v => setForm(f => ({ ...f, weekend_enabled: v }))} disabled={!canEdit} />

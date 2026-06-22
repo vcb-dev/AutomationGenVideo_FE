@@ -16,7 +16,6 @@ const STATUS_OPTIONS: { value: TaskStatus | ''; label: string }[] = [
 const TASK_TYPE_OPTIONS = [
   { value: '', label: 'Tất cả loại' },
   { value: 'auto', label: 'Auto' },
-  { value: 'extra', label: 'Sáng tạo' },
 ]
 
 function todayString() {
@@ -24,7 +23,7 @@ function todayString() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-type TaskTypeFilter = 'auto' | 'extra' | 'manual' | ''
+type TaskTypeFilter = 'auto' | 'manual' | ''
 
 interface Props {
   statusFilter: TaskStatus | ''

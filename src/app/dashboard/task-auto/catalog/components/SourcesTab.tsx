@@ -3,15 +3,20 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Plus, Edit2, ExternalLink, Loader2, Radio, ChevronLeft, ChevronRight, Search } from 'lucide-react'
+import {
+  Plus, Edit2, Trash2, ExternalLink, Loader2, Radio,
+  ChevronLeft, ChevronRight, Search, Globe, Users, User,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { DarkInput, ProductSearchSelect, CustomSelect } from '@/components/task-auto/DarkInput'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import {
-  getSources, createSource, updateSource,
-  getProducts,
+  getSources, createSource, updateSource, deleteSource,
+  getProducts, getTeams,
 } from '@/lib/api/task-auto'
+import { useAuthStore } from '@/store/auth-store'
+import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
 import { Source, SOURCE_TYPE_LABELS, SourceType } from '@/types/task-auto'
 
 const SOURCE_TYPE_COLORS: Record<SourceType, string> = {
@@ -22,32 +27,33 @@ const SOURCE_TYPE_COLORS: Record<SourceType, string> = {
   HUYK:          'bg-rose-100 text-rose-700',
 }
 
-// ── Pagination ──────────────────────────────────────
+const OWNER_OPTIONS = [
+  { value: '',       label: 'Tất cả nguồn' },
+  { value: 'global', label: 'Kho chung' },
+  { value: 'team',   label: 'Của team' },
+  { value: 'editor', label: 'Của editor' },
+]
 
-function Pagination({ page, totalPages, onChange }: { page: number; totalPages: number; onChange: (p: number) => void }) {
-  if (totalPages <= 1) return null
+function OwnerBadge({ source }: { source: Source }) {
+  if (source.user_id) return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold whitespace-nowrap">
+      <User className="w-3 h-3" />
+      {source.owner_user?.full_name ?? 'Editor'}
+    </span>
+  )
+  if (source.team_id) return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold whitespace-nowrap">
+      <Users className="w-3 h-3" />
+      {source.team?.name ?? 'Team'}
+    </span>
+  )
   return (
-    <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100">
-      <button
-        onClick={() => onChange(page - 1)}
-        disabled={page <= 1}
-        className="p-2 rounded-xl hover:bg-gray-100 text-slate-500 disabled:opacity-40 transition-colors"
-      >
-        <ChevronLeft className="w-5 h-5" />
-      </button>
-      <span className="text-base text-slate-600 font-medium">Trang {page} / {totalPages}</span>
-      <button
-        onClick={() => onChange(page + 1)}
-        disabled={page >= totalPages}
-        className="p-2 rounded-xl hover:bg-gray-100 text-slate-500 disabled:opacity-40 transition-colors"
-      >
-        <ChevronRight className="w-5 h-5" />
-      </button>
-    </div>
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-slate-500 text-xs font-semibold whitespace-nowrap">
+      <Globe className="w-3 h-3" />
+      Chung
+    </span>
   )
 }
-
-// ── Loading skeleton rows ───────────────────────────
 
 function LoadingRows({ cols }: { cols: number }) {
   return (
@@ -65,81 +71,121 @@ function LoadingRows({ cols }: { cols: number }) {
   )
 }
 
-// ── Sources Tab ─────────────────────────────────────
+type BrandType = 'DO_DA' | 'TRANG_SUC'
 
-export function SourcesTab() {
+export function SourcesTab({ brandType }: { brandType: BrandType }) {
   const qc = useQueryClient()
-  const [search, setSearch] = useState('')
-  const [typeFilter, setTypeFilter] = useState<SourceType | ''>('')
+  const { user } = useAuthStore()
+  const isAdminOrManager = user?.roles?.some((r: string) => ['ADMIN', 'MANAGER'].includes(r)) ?? false
+  const canDelete = isAdminOrManager
+
+  const [search, setSearch]           = useState('')
+  const [typeFilter, setTypeFilter]   = useState<SourceType | ''>('')
+  const [ownerFilter, setOwnerFilter] = useState<string>('')
   const [activeFilter, setActiveFilter] = useState<'all' | 'true' | 'false'>('all')
   const [page, setPage] = useState(1)
-  const [modal, setModal] = useState<null | 'create' | 'edit'>(null)
-  const [editing, setEditing] = useState<Source | null>(null)
+  const [modal, setModal]       = useState<null | 'create' | 'edit'>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [editing, setEditing]   = useState<Source | null>(null)
   const [form, setForm] = useState<Partial<Source>>({
-    type: 'PRODUCT_STOCK', name: '', link: '', code: '', product_id: '', is_active: true,
+    type: 'PRODUCT_STOCK', name: '', link: '', code: '',
+    product_id: '', team_id: null, user_id: null, is_active: true,
   })
 
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'sources', search, typeFilter, activeFilter, page],
+    queryKey: ['task-auto', 'sources', brandType, search, typeFilter, ownerFilter, activeFilter, page],
     queryFn: () => getSources({
-      search: search || undefined,
-      type: typeFilter || undefined,
+      brand_type: brandType,
+      search:    search     || undefined,
+      type:      typeFilter || undefined,
+      owner:     (ownerFilter as any) || undefined,
       is_active: activeFilter === 'all' ? undefined : activeFilter === 'true',
-      page, limit: 20,
+      page,
+      limit: 20,
     }),
   })
+
   const { data: productsForSelect } = useQuery({
     queryKey: ['task-auto', 'products-select'],
     queryFn: () => getProducts({ limit: 200 }),
     enabled: modal !== null,
   })
 
+  const { data: teamsData } = useQuery({
+    queryKey: ['task-auto', 'teams'],
+    queryFn: getTeams,
+    enabled: modal !== null && isAdminOrManager,
+  })
+  const teams = teamsData ?? []
+
   const createMut = useMutation({
     mutationFn: createSource,
-    onSuccess: async () => { await qc.refetchQueries({ queryKey: ['task-auto', 'sources'] }); toast.success('Đã thêm Source'); setModal(null) },
+    onSuccess: async () => {
+      await qc.refetchQueries({ queryKey: ['task-auto', 'sources'] })
+      toast.success('Đã thêm Source')
+      setModal(null)
+    },
     onError: () => toast.error('Không thể thêm Source'),
   })
   const updateMut = useMutation({
     mutationFn: ({ id, body }: { id: string; body: Partial<Source> }) => updateSource(id, body),
-    onSuccess: async () => { await qc.refetchQueries({ queryKey: ['task-auto', 'sources'] }); toast.success('Đã cập nhật Source'); setModal(null) },
+    onSuccess: async () => {
+      await qc.refetchQueries({ queryKey: ['task-auto', 'sources'] })
+      toast.success('Đã cập nhật Source')
+      setModal(null)
+    },
     onError: () => toast.error('Không thể cập nhật Source'),
+  })
+  const deleteMut = useMutation({
+    mutationFn: deleteSource,
+    onSuccess: async () => {
+      await qc.refetchQueries({ queryKey: ['task-auto', 'sources'] })
+      toast.success('Đã xóa source')
+      setDeletingId(null)
+    },
+    onError: (e: any) => {
+      toast.error(e?.response?.data?.message || 'Không thể xóa source')
+      setDeletingId(null)
+    },
   })
 
   const openCreate = () => {
-    setForm({ type: 'PRODUCT_STOCK', name: '', link: '', code: '', product_id: '', is_active: true })
+    setForm({ type: 'PRODUCT_STOCK', name: '', link: '', code: '', product_id: '', team_id: null, user_id: null, is_active: true })
     setEditing(null)
     setModal('create')
   }
   const openEdit = (s: Source) => { setForm({ ...s }); setEditing(s); setModal('edit') }
+
   const handleSubmit = () => {
     if (!form.name || !form.link) return toast.error('Tên và link là bắt buộc')
-    const updateBody = {
-      name: form.name,
-      link: form.link,
-      code: form.code || null,
+    const body = {
+      name:       form.name,
+      link:       form.link,
+      code:       form.code || null,
       product_id: form.product_id || null,
-      is_active: form.is_active,
+      team_id:    form.team_id   || null,
+      user_id:    form.user_id   || null,
+      is_active:  form.is_active,
     }
-    if (modal === 'create') createMut.mutate({ type: form.type!, ...updateBody })
-    else if (editing) updateMut.mutate({ id: editing.id, body: updateBody })
+    if (modal === 'create') createMut.mutate({ type: form.type!, brand_type: brandType, ...body })
+    else if (editing)       updateMut.mutate({ id: editing.id, body })
   }
-  const saving = createMut.isPending || updateMut.isPending
 
-  const total = data?.total ?? 0
+  const saving = createMut.isPending || updateMut.isPending
+  const total  = data?.total ?? 0
 
   return (
     <div className="space-y-5">
       {/* Filter bar */}
       <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
         <div className="flex flex-wrap gap-3 items-center">
-          {/* Search */}
-          <div className="relative flex-1 min-w-[240px]">
+          <div className="relative flex-1 min-w-[220px]">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
             <input
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1) }}
               placeholder="Tìm kiếm tên, code source..."
-              className="w-full pl-12 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-base text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+              className="w-full pl-12 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-base text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
             />
           </div>
           <CustomSelect
@@ -152,11 +198,17 @@ export function SourcesTab() {
             className="min-w-[180px]"
           />
           <CustomSelect
+            value={ownerFilter}
+            onChange={v => { setOwnerFilter(v); setPage(1) }}
+            options={OWNER_OPTIONS}
+            className="min-w-[150px]"
+          />
+          <CustomSelect
             value={activeFilter}
             onChange={v => { setActiveFilter(v as 'all' | 'true' | 'false'); setPage(1) }}
             options={[
-              { value: 'all', label: 'Tất cả trạng thái' },
-              { value: 'true', label: 'Đang hoạt động' },
+              { value: 'all',   label: 'Tất cả trạng thái' },
+              { value: 'true',  label: 'Đang hoạt động' },
               { value: 'false', label: 'Không hoạt động' },
             ]}
             className="min-w-[175px]"
@@ -170,7 +222,6 @@ export function SourcesTab() {
         </div>
       </div>
 
-      {/* Summary */}
       {total > 0 && (
         <p className="text-sm text-slate-500 px-1">
           Tổng <span className="font-bold text-slate-700">{total}</span> source
@@ -186,11 +237,11 @@ export function SourcesTab() {
               <tr className="bg-slate-50 border-b-2 border-gray-200">
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Tên source</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Loại</th>
+                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Kho</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Code</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Link</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Sản phẩm</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Trạng thái</th>
-                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Người thêm</th>
                 <th className="w-16" />
               </tr>
             </thead>
@@ -201,54 +252,35 @@ export function SourcesTab() {
               )}
               {data?.data.map(s => (
                 <tr key={s.id} className="hover:bg-indigo-50/20 transition-colors group">
-
-                  {/* Tên */}
                   <td className="px-5 py-4">
-                    <p className="text-base font-semibold text-slate-800 truncate max-w-[260px]" title={s.name}>
-                      {s.name}
-                    </p>
+                    <p className="text-base font-semibold text-slate-800 truncate max-w-[240px]" title={s.name}>{s.name}</p>
                   </td>
-
-                  {/* Loại */}
                   <td className="px-5 py-4 whitespace-nowrap">
-                    <span className={cn(
-                      'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap',
-                      SOURCE_TYPE_COLORS[s.type]
-                    )}>
+                    <span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap', SOURCE_TYPE_COLORS[s.type])}>
                       {SOURCE_TYPE_LABELS[s.type]}
                     </span>
                   </td>
-
-                  {/* Code */}
+                  <td className="px-5 py-4 whitespace-nowrap">
+                    <OwnerBadge source={s} />
+                  </td>
                   <td className="px-5 py-4 whitespace-nowrap">
                     {s.code
                       ? <span className="inline-block bg-slate-100 text-slate-600 font-mono text-xs font-semibold px-2.5 py-1 rounded-lg">{s.code}</span>
                       : <span className="text-slate-300 text-sm">—</span>
                     }
                   </td>
-
-                  {/* Link */}
                   <td className="px-5 py-4 max-w-[220px]">
-                    <a
-                      href={s.link}
-                      target="_blank"
-                      rel="noreferrer"
-                      title={s.link}
-                      className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-400 text-sm transition-colors"
-                    >
+                    <a href={s.link} target="_blank" rel="noreferrer" title={s.link}
+                      className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-400 text-sm transition-colors">
                       <ExternalLink className="w-3.5 h-3.5 shrink-0" />
                       <span className="truncate">{s.link}</span>
                     </a>
                   </td>
-
-                  {/* Sản phẩm */}
                   <td className="px-5 py-4">
-                    <span className="text-sm font-medium text-slate-700 truncate block max-w-[200px]" title={s.product?.name ?? ''}>
+                    <span className="text-sm font-medium text-slate-700 truncate block max-w-[180px]" title={s.product?.name ?? ''}>
                       {s.product?.name ?? <span className="text-slate-300">—</span>}
                     </span>
                   </td>
-
-                  {/* Trạng thái */}
                   <td className="px-5 py-4 whitespace-nowrap">
                     <span className={cn(
                       'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold',
@@ -258,23 +290,19 @@ export function SourcesTab() {
                       {s.is_active ? 'Hoạt động' : 'Ẩn'}
                     </span>
                   </td>
-
-                  {/* Người thêm */}
-                  <td className="px-5 py-4 whitespace-nowrap">
-                    <span className="text-sm text-slate-500">
-                      {s.added_by?.full_name ?? <span className="text-slate-300">—</span>}
-                    </span>
-                  </td>
-
-                  {/* Hành động */}
                   <td className="px-4 py-4 text-right">
-                    <button
-                      onClick={() => openEdit(s)}
-                      className="p-2.5 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors opacity-0 group-hover:opacity-100"
-                      title="Chỉnh sửa"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center justify-end gap-1">
+                      <button onClick={() => openEdit(s)}
+                        className="p-2 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors" title="Chỉnh sửa">
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      {canDelete && (
+                        <button onClick={() => setDeletingId(s.id)}
+                          className="p-2 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors" title="Xóa">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -282,46 +310,31 @@ export function SourcesTab() {
           </table>
         </div>
 
-        {/* Pagination */}
         {data && data.totalPages > 1 && (
           <div className="flex items-center justify-between px-5 py-4 border-t border-gray-100 bg-gray-50/50">
             <span className="text-sm text-slate-500">
               Trang <span className="font-semibold text-slate-700">{page}</span> / {data.totalPages}
             </span>
             <div className="flex items-center gap-1">
-              <button
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page <= 1}
-                className="p-2 rounded-lg hover:bg-gray-200 text-slate-500 disabled:opacity-30 transition-colors"
-              >
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
+                className="p-2 rounded-lg hover:bg-gray-200 text-slate-500 disabled:opacity-30 transition-colors">
                 <ChevronLeft className="w-4 h-4" />
               </button>
               {Array.from({ length: Math.min(data.totalPages, 7) }, (_, i) => {
-                const pg = data.totalPages <= 7
-                  ? i + 1
-                  : page <= 4
-                    ? i + 1
-                    : page >= data.totalPages - 3
-                      ? data.totalPages - 6 + i
-                      : page - 3 + i
+                const pg = data.totalPages <= 7 ? i + 1
+                  : page <= 4 ? i + 1
+                  : page >= data.totalPages - 3 ? data.totalPages - 6 + i
+                  : page - 3 + i
                 return (
-                  <button
-                    key={pg}
-                    onClick={() => setPage(pg)}
-                    className={cn(
-                      'w-9 h-9 rounded-lg text-sm font-semibold transition-colors',
-                      pg === page ? 'bg-indigo-600 text-white' : 'hover:bg-gray-200 text-slate-600'
-                    )}
-                  >
+                  <button key={pg} onClick={() => setPage(pg)}
+                    className={cn('w-9 h-9 rounded-lg text-sm font-semibold transition-colors',
+                      pg === page ? 'bg-indigo-600 text-white' : 'hover:bg-gray-200 text-slate-600')}>
                     {pg}
                   </button>
                 )
               })}
-              <button
-                onClick={() => setPage(p => Math.min(data.totalPages, p + 1))}
-                disabled={page >= data.totalPages}
-                className="p-2 rounded-lg hover:bg-gray-200 text-slate-500 disabled:opacity-30 transition-colors"
-              >
+              <button onClick={() => setPage(p => Math.min(data.totalPages, p + 1))} disabled={page >= data.totalPages}
+                className="p-2 rounded-lg hover:bg-gray-200 text-slate-500 disabled:opacity-30 transition-colors">
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
@@ -329,9 +342,18 @@ export function SourcesTab() {
         )}
       </div>
 
-      
+      <ConfirmDialog
+        open={!!deletingId}
+        title="Xóa source"
+        message="Source sẽ bị xóa vĩnh viễn. Hành động này không thể hoàn tác."
+        confirmLabel="Xóa source"
+        danger
+        isLoading={deleteMut.isPending}
+        onConfirm={() => deletingId && deleteMut.mutate(deletingId)}
+        onCancel={() => setDeletingId(null)}
+      />
 
-      {/* Modal */}
+      {/* Create / Edit modal */}
       <DarkModal
         open={!!modal}
         onClose={() => setModal(null)}
@@ -339,17 +361,12 @@ export function SourcesTab() {
         size="lg"
         footer={
           <>
-            <button
-              onClick={() => setModal(null)}
-              className="bg-gray-100 hover:bg-gray-200 text-slate-800 rounded-xl px-5 py-3 text-base font-semibold transition-colors"
-            >
+            <button onClick={() => setModal(null)}
+              className="bg-gray-100 hover:bg-gray-200 text-slate-800 rounded-xl px-5 py-3 text-base font-semibold transition-colors">
               Hủy
             </button>
-            <button
-              onClick={handleSubmit}
-              disabled={saving}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-3 text-base font-semibold flex items-center gap-2 transition-colors disabled:opacity-60"
-            >
+            <button onClick={handleSubmit} disabled={saving}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-3 text-base font-semibold flex items-center gap-2 transition-colors disabled:opacity-60">
               {saving && <Loader2 className="w-4 h-4 animate-spin" />}
               {modal === 'create' ? 'Thêm mới' : 'Lưu thay đổi'}
             </button>
@@ -358,7 +375,7 @@ export function SourcesTab() {
       >
         <div className="space-y-6">
 
-          {/* ── Phân loại ── */}
+          {/* Phân loại */}
           <div className="space-y-4">
             <p className="text-sm font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
               Phân loại
@@ -379,7 +396,7 @@ export function SourcesTab() {
             </div>
           </div>
 
-          {/* ── Thông tin source ── */}
+          {/* Thông tin source */}
           <div className="space-y-4">
             <p className="text-sm font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
               Thông tin Source
@@ -406,7 +423,37 @@ export function SourcesTab() {
             />
           </div>
 
-          {/* ── Trạng thái ── */}
+          {/* Chủ sở hữu — chỉ ADMIN/MANAGER */}
+          {isAdminOrManager && (
+            <div className="space-y-4">
+              <p className="text-sm font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
+                Kho chứa
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <CustomSelect
+                  label="Thuộc team"
+                  value={form.team_id ?? ''}
+                  onChange={v => setForm(f => ({ ...f, team_id: v || null, user_id: null }))}
+                  options={[
+                    { value: '', label: '— Kho chung —' },
+                    ...teams.map(t => ({ value: t.id, label: t.name })),
+                  ]}
+                />
+              </div>
+              {form.team_id && (
+                <p className="text-xs text-slate-500 bg-blue-50 border border-blue-100 rounded-lg px-4 py-2.5">
+                  Source này sẽ thuộc <strong>kho riêng của team</strong>. Auto-assign sẽ ưu tiên source này cho editor trong team.
+                </p>
+              )}
+              {!form.team_id && (
+                <p className="text-xs text-slate-500 bg-gray-50 border border-gray-100 rounded-lg px-4 py-2.5">
+                  Source này thuộc <strong>kho chung</strong> — tất cả team đều có thể dùng.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Trạng thái */}
           <div className="space-y-3">
             <p className="text-sm font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
               Trạng thái

@@ -10,7 +10,6 @@ import { TaskStatsBar } from './components/TaskStatsBar'
 import { TaskFilters } from './components/TaskFilters'
 import { TasksTable } from './components/TasksTable'
 import { TaskDetailPanel } from './components/TaskDetailPanel'
-import { ExtraTaskGroupPanel } from './components/ExtraTaskGroupPanel'
 import { CreateTaskModal } from './components/TaskModals'
 import { getApprovals, getTasks, getTeams } from '@/lib/api/task-auto'
 import { TaskStatus } from '@/types/task-auto'
@@ -31,7 +30,7 @@ export default function TasksPage() {
   const isLeader  = userRoles.includes('LEADER')
   const isMember  = !isAdmin && !isManager && !isLeader
 
-  const canCreate = isAdmin || isManager || isLeader
+  const canCreate = isAdmin || isManager || isLeader || isMember
 
   const { data: isApprovedEditor = false } = useQuery({
     queryKey: ['task-auto', 'my-editor-approval', user?.id],
@@ -49,11 +48,10 @@ export default function TasksPage() {
   const [teamId, setTeamId]           = useState('')
   const [search, setSearch]           = useState('')
   const [deadlineDate, setDeadlineDate] = useState(todayString())
-  const [taskType, setTaskType]       = useState<'auto' | 'extra' | 'manual' | ''>('')
+  const [taskType, setTaskType]       = useState<'auto' | 'manual' | ''>('')
   const [page, setPage]               = useState(1)
 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
-  const [selectedExtraGroup, setSelectedExtraGroup] = useState<{ assigneeId: string; deadlineDate: string } | null>(null)
   const [showCreate, setShowCreate]   = useState(false)
 
   const { data: teamsData } = useQuery({
@@ -104,7 +102,7 @@ export default function TasksPage() {
   function handleTeamChange(v: string)                               { setTeamId(v);       setPage(1) }
   function handleSearchChange(v: string)                             { setSearch(v);       setPage(1) }
   function handleDeadlineDateChange(v: string)                       { setDeadlineDate(v); setPage(1) }
-  function handleTaskTypeChange(v: 'auto' | 'extra' | 'manual' | '') { setTaskType(v);    setPage(1) }
+  function handleTaskTypeChange(v: 'auto' | 'manual' | '')           { setTaskType(v);    setPage(1) }
 
   const pageTitle = isMember || (isLeaderEditor && viewMode === 'mine')
     ? 'Nhiệm vụ của tôi'
@@ -176,7 +174,6 @@ export default function TasksPage() {
         totalPages={totalPages}
         isLoading={isLoading}
         onViewTask={setSelectedTaskId}
-        onViewExtraGroup={(assigneeId) => setSelectedExtraGroup({ assigneeId, deadlineDate })}
         onPageChange={setPage}
       />
 
@@ -189,22 +186,13 @@ export default function TasksPage() {
         />
       )}
 
-      {selectedExtraGroup && (
-        <ExtraTaskGroupPanel
-          assigneeId={selectedExtraGroup.assigneeId}
-          deadlineDate={selectedExtraGroup.deadlineDate}
-          onClose={() => setSelectedExtraGroup(null)}
-          userRoles={userRoles}
-          currentUserId={user?.id}
-        />
-      )}
-
       {showCreate && (
         <CreateTaskModal
           teams={teams}
           userId={user?.id}
           isLeader={isLeader}
           isAdminOrManager={isAdmin || isManager}
+          isMember={isMember}
           onClose={() => setShowCreate(false)}
           onSuccess={() => setShowCreate(false)}
         />

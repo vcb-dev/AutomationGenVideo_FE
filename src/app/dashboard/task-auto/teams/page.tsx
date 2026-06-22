@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Users, Package, Info, User, BookOpen } from 'lucide-react'
+import { Users, Package, Info, User, BookOpen, Radio } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth-store'
 import { TeamsGrid } from './components/TeamsGrid'
@@ -10,16 +10,26 @@ import { TeamFormModal, DeleteTeamModal } from './components/TeamModals'
 import { MembersTab } from './components/MembersTab'
 import { TeamProductsTab } from './components/TeamProductsTab'
 import { TeamContentsTab } from './components/TeamContentsTab'
+import { TeamSourcesTab } from './components/TeamSourcesTab'
 import { Team } from '@/types/task-auto'
 import { getTeams, getUsers } from '@/lib/api/task-auto'
 
-type TabId = 'teams' | 'members' | 'products' | 'contents'
+type BrandType = 'DO_DA' | 'TRANG_SUC'
+type TabId = 'teams' | 'members' | 'products' | 'contents' | 'sources'
+
+const BRANDS: { key: BrandType; label: string; color: string }[] = [
+  { key: 'DO_DA',     label: 'Đồ da',     color: 'amber' },
+  { key: 'TRANG_SUC', label: 'Trang sức', color: 'violet' },
+]
+
+const BRAND_TABS: TabId[] = ['products', 'contents', 'sources']
 
 const ALL_TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
-  { id: 'teams',    label: 'Đội nhóm',        icon: Users },
-  { id: 'members',  label: 'Nhóm của tôi',    icon: User },
-  { id: 'products', label: 'Kho sản phẩm',    icon: Package },
-  { id: 'contents', label: 'Kho content',      icon: BookOpen },
+  { id: 'teams',    label: 'Đội nhóm',     icon: Users },
+  { id: 'members',  label: 'Nhóm của tôi', icon: User },
+  { id: 'products', label: 'Kho sản phẩm', icon: Package },
+  { id: 'contents', label: 'Kho content',  icon: BookOpen },
+  { id: 'sources',  label: 'Kho source',   icon: Radio },
 ]
 
 export default function TeamsPage() {
@@ -40,6 +50,7 @@ export default function TeamsPage() {
   const canEditTeam = isAdminOrManager
 
   const [activeTab, setActiveTab] = useState<TabId>(isAdminOrManager ? 'teams' : 'members')
+  const [brand, setBrand] = useState<BrandType>('DO_DA')
   const [editTeam, setEditTeam] = useState<Team | null>(null)
   const [showEditForm, setShowEditForm] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Team | null>(null)
@@ -67,6 +78,28 @@ export default function TeamsPage() {
         <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl px-5 py-3 text-blue-700 text-sm">
           <Info className="w-4 h-4 shrink-0" />
           <span>Bạn đang xem với quyền <strong>Thành viên</strong> — chỉ xem thành viên trong team của bạn.</span>
+        </div>
+      )}
+
+      {/* Brand group switcher — chỉ hiện ở tab kho sản phẩm/content/source */}
+      {BRAND_TABS.includes(activeTab) && (
+        <div className="flex gap-3">
+          {BRANDS.map(b => (
+            <button
+              key={b.key}
+              onClick={() => setBrand(b.key)}
+              className={cn(
+                'px-6 py-2.5 rounded-full text-sm font-semibold border-2 transition-all',
+                brand === b.key
+                  ? b.color === 'amber'
+                    ? 'bg-amber-500 border-amber-500 text-white shadow-md'
+                    : 'bg-violet-600 border-violet-600 text-white shadow-md'
+                  : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400 hover:text-slate-700'
+              )}
+            >
+              {b.label}
+            </button>
+          ))}
         </div>
       )}
 
@@ -111,9 +144,9 @@ export default function TeamsPage() {
 
       {activeTab === 'products' && (
         <TeamProductsTab
-          canManage={canManage}
           isAdminOrManager={isAdminOrManager}
           userId={user?.id}
+          brandType={brand}
         />
       )}
 
@@ -122,6 +155,15 @@ export default function TeamsPage() {
           canManage={canManage}
           isAdminOrManager={isAdminOrManager}
           userId={user?.id}
+          brandType={brand}
+        />
+      )}
+
+      {activeTab === 'sources' && (
+        <TeamSourcesTab
+          isAdminOrManager={isAdminOrManager}
+          userId={user?.id}
+          brandType={brand}
         />
       )}
 

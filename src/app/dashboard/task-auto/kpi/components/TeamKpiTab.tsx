@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Plus, Edit2, Trash2, Loader2, FileText, Package, AlertCircle, CheckCircle2, StickyNote, User } from 'lucide-react'
+import { Plus, Edit2, Loader2, FileText, Package, AlertCircle, CheckCircle2, StickyNote, User, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DarkModal, DarkInput, EmptyState, CustomSelect } from '@/components/task-auto'
 import {
@@ -131,7 +131,7 @@ function AllocationSection({
 
 function AllocationForm({ allocations, onChange }: { allocations: AllocationDraft[]; onChange: (a: AllocationDraft[]) => void }) {
   const { data: contentLines = [] } = useQuery({ queryKey: ['task-auto', 'content-lines'], queryFn: getContentLines })
-  const { data: productLines = [] } = useQuery({ queryKey: ['task-auto', 'product-lines'], queryFn: getProductLines })
+  const { data: productLines = [] } = useQuery({ queryKey: ['task-auto', 'product-lines'], queryFn: () => getProductLines() })
 
   const contentMap: Record<string, number> = {}
   allocations.filter(a => a.type === 'CONTENT_LINE' && a.content_line_id).forEach(a => { contentMap[a.content_line_id] = a.percent })
@@ -364,11 +364,14 @@ function LoadingCards() {
 
 interface Props {
   month: string
-  onMonthChange: (v: string) => void
   canEdit: boolean
+  userId?: string
+  isAdminOrManager?: boolean
+  selectedTeamId: string
+  onTeamChange: (id: string) => void
 }
 
-export function TeamKpiTab({ month, canEdit }: Props) {
+export function TeamKpiTab({ month, canEdit, userId, isAdminOrManager, selectedTeamId, onTeamChange }: Props) {
   const qc = useQueryClient()
   const [modal, setModal] = useState<null | 'create' | 'edit'>(null)
   const [editing, setEditing] = useState<TeamKpi | null>(null)
@@ -382,8 +385,24 @@ export function TeamKpiTab({ month, canEdit }: Props) {
   const { data: teams } = useQuery({
     queryKey: ['task-auto', 'teams'],
     queryFn: getTeams,
-    enabled: modal !== null,
   })
+
+  // For non-admin/manager: auto-detect own team and report upward
+  const myTeam = !isAdminOrManager && userId
+    ? teams?.find(t => t.leader_id === userId || t.members?.some(m => m.user_id === userId))
+    : undefined
+
+  useEffect(() => {
+    if (myTeam?.id && !isAdminOrManager) {
+      onTeamChange(myTeam.id)
+    }
+  }, [myTeam?.id, isAdminOrManager])
+
+  // Filter KPIs to show only selected/own team
+  const effectiveTeamId = isAdminOrManager ? selectedTeamId : (myTeam?.id ?? '')
+  const visibleKpis = effectiveTeamId
+    ? (teamKpis ?? []).filter(k => k.team_id === effectiveTeamId)
+    : []
 
   const createMut = useMutation({
     mutationFn: createTeamKpi,
@@ -439,26 +458,52 @@ export function TeamKpiTab({ month, canEdit }: Props) {
 
   return (
     <div>
-      {canEdit && (
-        <div className="flex justify-end mb-5">
+      {/* Toolbar: team selector (admin/manager) + add button */}
+      <div className="flex flex-wrap items-center gap-3 mb-5">
+        {isAdminOrManager && (
+          <div className="flex items-center gap-2">
+            <Users className="w-5 h-5 text-slate-400 shrink-0" />
+            <CustomSelect
+              value={selectedTeamId}
+              onChange={onTeamChange}
+              options={[
+                { value: '', label: 'Chọn team để xem KPI' },
+                ...(teams?.map(t => ({ value: t.id, label: t.name })) ?? []),
+              ]}
+              className="min-w-[220px]"
+              searchable
+            />
+          </div>
+        )}
+        {!isAdminOrManager && myTeam && (
+          <p className="text-sm text-slate-500">
+            KPI team <span className="font-semibold text-slate-700">{myTeam.name}</span>
+          </p>
+        )}
+        {canEdit && effectiveTeamId && (
           <button
             onClick={openCreate}
-            className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors"
+            className="ml-auto flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors"
           >
             <Plus className="w-4 h-4" /> Thêm KPI Team
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
-      {isLoading ? (
+      {/* No team selected yet (admin/manager) */}
+      {isAdminOrManager && !effectiveTeamId ? (
+        <div className="bg-white border border-gray-100 rounded-2xl shadow-sm">
+          <EmptyState title="Chọn một team để xem KPI" />
+        </div>
+      ) : isLoading ? (
         <LoadingCards />
-      ) : !teamKpis || teamKpis.length === 0 ? (
+      ) : visibleKpis.length === 0 ? (
         <div className="bg-white border border-gray-100 rounded-2xl shadow-sm">
           <EmptyState title={`Không có KPI team nào trong ${formatMonth(month)}`} />
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {teamKpis.map(kpi => (
+          {visibleKpis.map(kpi => (
             <TeamKpiCard
               key={kpi.id}
               kpi={kpi}

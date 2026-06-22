@@ -17,7 +17,6 @@ interface Props {
   totalPages: number
   isLoading: boolean
   onViewTask: (id: string) => void
-  onViewExtraGroup: (assigneeId: string) => void
   onPageChange: (page: number) => void
 }
 
@@ -44,7 +43,6 @@ export function TasksTable({
   totalPages,
   isLoading,
   onViewTask,
-  onViewExtraGroup,
   onPageChange,
 }: Props) {
   const [assigneeFilter, setAssigneeFilter] = useState('')
@@ -60,22 +58,7 @@ export function TasksTable({
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  // Group is_extra tasks by assignee — show one row per editor
-  const extraGroupMap = new Map<string, Task[]>()
-  const regularTasks: Task[] = []
-  for (const t of tasks) {
-    if (t.is_extra) {
-      const key = t.assignee_id ?? '__unassigned__'
-      const g = extraGroupMap.get(key) ?? []
-      g.push(t)
-      extraGroupMap.set(key, g)
-    } else {
-      regularTasks.push(t)
-    }
-  }
-  const extraGroups = Array.from(extraGroupMap.values())
-
-  // Unique assignees with task count for dropdown
+  // Unique assignees for dropdown filter
   const assigneeCountMap = new Map<string, { id: string; name: string; count: number }>()
   for (const t of tasks) {
     if (t.assignee_id && t.assignee) {
@@ -86,12 +69,7 @@ export function TasksTable({
   }
   const assigneeOptions = Array.from(assigneeCountMap.values()).sort((a, b) => a.name.localeCompare(b.name, 'vi'))
 
-  const filteredRegular = assigneeFilter
-    ? regularTasks.filter(t => t.assignee_id === assigneeFilter)
-    : regularTasks
-  const filteredExtra = assigneeFilter
-    ? extraGroups.filter(g => g[0]?.assignee_id === assigneeFilter)
-    : extraGroups
+  const filteredTasks = assigneeFilter ? tasks.filter(t => t.assignee_id === assigneeFilter) : tasks
 
   return (
     <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
@@ -184,185 +162,78 @@ export function TasksTable({
           <tbody className="divide-y divide-gray-100">
             {isLoading ? (
               <SkeletonRows />
-            ) : filteredRegular.length === 0 && filteredExtra.length === 0 ? (
+            ) : filteredTasks.length === 0 ? (
               <tr>
                 <td colSpan={8}>
-                  <EmptyState
-                    title="Không có task nào"
-                    description="Thử thay đổi bộ lọc hoặc tạo task mới"
-                  />
+                  <EmptyState title="Không có task nào" description="Thử thay đổi bộ lọc hoặc tạo task mới" />
                 </td>
               </tr>
             ) : (
-              <>
-                {filteredRegular.map((task, idx) => (
-                  <tr
-                    key={task.id}
-                    className="text-slate-700 hover:bg-indigo-50/20 transition-colors cursor-pointer group"
-                    onClick={() => onViewTask(task.id)}
-                  >
-                    <td className="px-5 py-4 text-slate-400 font-mono text-sm whitespace-nowrap">
-                      {(page - 1) * 20 + idx + 1}
-                    </td>
-                    <td className="px-5 py-4 max-w-[300px]">
-                      <p className="font-semibold text-slate-800 truncate text-base">
-                        {task.content?.title || (
-                          <span className="text-slate-400 italic">Không có tiêu đề</span>
-                        )}
-                      </p>
-                      {task.product?.name && (
-                        <p className="text-xs text-slate-400 mt-0.5 truncate">{task.product.name}</p>
-                      )}
-                    </td>
-                    <td className="px-5 py-4 whitespace-nowrap">
-                      {task.team ? (
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-600 whitespace-nowrap">
-                          {task.team.name}
+              filteredTasks.map((task, idx) => (
+                <tr
+                  key={task.id}
+                  className="text-slate-700 hover:bg-indigo-50/20 transition-colors cursor-pointer group"
+                  onClick={() => onViewTask(task.id)}
+                >
+                  <td className="px-5 py-4 text-slate-400 font-mono text-sm whitespace-nowrap">
+                    {(page - 1) * 20 + idx + 1}
+                  </td>
+                  <td className="px-5 py-4 max-w-[300px]">
+                    <p className="font-semibold text-slate-800 truncate text-base">
+                      {task.content?.title || <span className="text-slate-400 italic">Không có tiêu đề</span>}
+                    </p>
+                    {task.product?.name && (
+                      <p className="text-xs text-slate-400 mt-0.5 truncate">{task.product.name}</p>
+                    )}
+                  </td>
+                  <td className="px-5 py-4 whitespace-nowrap">
+                    {task.team ? (
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-600 whitespace-nowrap">
+                        {task.team.name}
+                      </span>
+                    ) : <span className="text-slate-300 text-sm">—</span>}
+                  </td>
+                  <td className="px-5 py-4 whitespace-nowrap">
+                    {task.assignee ? (
+                      <div className="flex items-center gap-2.5">
+                        <AvatarInitials name={task.assignee.full_name} size="sm" />
+                        <span className="text-sm font-medium text-slate-700 truncate max-w-[140px]">
+                          {task.assignee.full_name}
                         </span>
-                      ) : (
-                        <span className="text-slate-300 text-sm">—</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-4 whitespace-nowrap">
-                      {task.assignee ? (
-                        <div className="flex items-center gap-2.5">
-                          <AvatarInitials name={task.assignee.full_name} size="sm" />
-                          <span className="text-sm font-medium text-slate-700 truncate max-w-[140px]">
-                            {task.assignee.full_name}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-slate-300 text-sm italic">Chưa giao</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-4 whitespace-nowrap">
-                      <TaskStatusBadge status={task.status} />
-                    </td>
-                    <td className="px-5 py-4 whitespace-nowrap">
-                      {task.deadline ? (
-                        <span className={cn(
-                          'text-sm font-medium',
-                          isOverdue(task.deadline) && !['APPROVED', 'CANCELLED'].includes(task.status)
-                            ? 'text-red-600 font-semibold'
-                            : 'text-slate-600'
-                        )}>
-                          {formatDateTime(task.deadline)}
-                        </span>
-                      ) : (
-                        <span className="text-slate-300 text-sm">—</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-4 text-center whitespace-nowrap" onClick={e => e.stopPropagation()}>
-                      {task.is_auto && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700" title="Auto assigned">
-                          <Zap className="w-3 h-3" /> Auto
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-4 text-right" onClick={e => e.stopPropagation()}>
-                      <button
-                        onClick={() => onViewTask(task.id)}
-                        className="p-2.5 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors opacity-0 group-hover:opacity-100"
-                        title="Xem chi tiết"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-
-                {/* Extra task group rows — one row per editor */}
-                {filteredExtra.map((group) => {
-                  const first = group[0]
-                  const editor = first.assignee
-                  const total = group.length
-                  const done = group.filter((t: Task) => ['SUBMITTED', 'APPROVED'].includes(t.status)).length
-                  const allDone = done === total
-                  const deadline = first.deadline
-
-                  return (
-                    <tr
-                      key={`extra-group-${first.assignee_id ?? 'none'}`}
-                      className="text-slate-700 hover:bg-violet-50/30 transition-colors cursor-pointer group bg-violet-50/20"
-                      onClick={() => onViewExtraGroup(first.assignee_id ?? '')}
+                      </div>
+                    ) : <span className="text-slate-300 text-sm italic">Chưa giao</span>}
+                  </td>
+                  <td className="px-5 py-4 whitespace-nowrap">
+                    <TaskStatusBadge status={task.status} />
+                  </td>
+                  <td className="px-5 py-4 whitespace-nowrap">
+                    {task.deadline ? (
+                      <span className={cn(
+                        'text-sm font-medium',
+                        isOverdue(task.deadline) && !['APPROVED', 'CANCELLED'].includes(task.status)
+                          ? 'text-red-600 font-semibold' : 'text-slate-600'
+                      )}>
+                        {formatDateTime(task.deadline)}
+                      </span>
+                    ) : <span className="text-slate-300 text-sm">—</span>}
+                  </td>
+                  <td className="px-5 py-4 text-center whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                    {task.is_auto && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
+                        <Zap className="w-3 h-3" /> Auto
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-4 text-right" onClick={e => e.stopPropagation()}>
+                    <button
+                      onClick={() => onViewTask(task.id)}
+                      className="p-2.5 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors opacity-0 group-hover:opacity-100"
                     >
-                      <td className="px-5 py-4 text-slate-300 font-mono text-sm whitespace-nowrap">—</td>
-                      <td className="px-5 py-4 max-w-[300px]">
-                        <div className="flex items-center gap-2">
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-violet-100 text-violet-700 shrink-0 whitespace-nowrap">
-                            <Zap className="w-3 h-3" /> Sáng tạo
-                          </span>
-                          <p className="font-semibold text-slate-800 text-base">
-                            {total} task sáng tạo
-                          </p>
-                        </div>
-                        <p className="text-xs text-slate-400 mt-0.5">
-                          {done}/{total} đã nộp
-                        </p>
-                      </td>
-                      <td className="px-5 py-4 whitespace-nowrap">
-                        {first.team ? (
-                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-600 whitespace-nowrap">
-                            {first.team.name}
-                          </span>
-                        ) : (
-                          <span className="text-slate-300 text-sm">—</span>
-                        )}
-                      </td>
-                      <td className="px-5 py-4 whitespace-nowrap">
-                        {editor ? (
-                          <div className="flex items-center gap-2.5">
-                            <AvatarInitials name={editor.full_name} size="sm" />
-                            <span className="text-sm font-medium text-slate-700 truncate max-w-[140px]">
-                              {editor.full_name}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-slate-300 text-sm italic">Chưa giao</span>
-                        )}
-                      </td>
-                      <td className="px-5 py-4 whitespace-nowrap">
-                        <span className={cn(
-                          'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold',
-                          allDone
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : done > 0
-                              ? 'bg-purple-100 text-purple-700'
-                              : 'bg-blue-100 text-blue-700',
-                        )}>
-                          {allDone ? 'Hoàn thành' : done > 0 ? 'Đang nộp' : 'Đã giao'}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4 whitespace-nowrap">
-                        {deadline ? (
-                          <span className={cn(
-                            'text-sm font-medium',
-                            isOverdue(deadline) && !allDone ? 'text-red-600 font-semibold' : 'text-slate-600'
-                          )}>
-                            {formatDateTime(deadline)}
-                          </span>
-                        ) : (
-                          <span className="text-slate-300 text-sm">—</span>
-                        )}
-                      </td>
-                      <td className="px-5 py-4 text-center whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-violet-100 text-violet-700 whitespace-nowrap">
-                          <Zap className="w-3 h-3" /> Sáng tạo
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-right" onClick={e => e.stopPropagation()}>
-                        <button
-                          onClick={() => onViewExtraGroup(first.assignee_id ?? '')}
-                          className="p-2.5 rounded-xl hover:bg-violet-100 text-slate-400 hover:text-violet-600 transition-colors opacity-0 group-hover:opacity-100"
-                          title="Xem task sáng tạo"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </>
+                      <Eye className="w-4 h-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))
             )}
           </tbody>
         </table>

@@ -125,7 +125,7 @@ export default function HeaderInner({ user, onLogout, allowedMenuIds }: HeaderPr
                 <div className="flex items-center h-16 px-3 gap-0">
                     {/* Mobile: Hamburger / X */}
                     <button
-                        className="md:hidden w-9 h-9 flex items-center justify-center rounded-md text-slate-400 hover:text-white hover:bg-white/[0.07] transition-colors duration-150 flex-shrink-0"
+                        className="lg:hidden w-9 h-9 flex items-center justify-center rounded-md text-slate-400 hover:text-white hover:bg-white/[0.07] transition-colors duration-150 flex-shrink-0"
                         onClick={() => setMobileMenuOpen((v) => !v)}
                         aria-label="Toggle menu"
                     >
@@ -136,7 +136,7 @@ export default function HeaderInner({ user, onLogout, allowedMenuIds }: HeaderPr
                     <Link
                         href="/dashboard"
                         className="flex items-center gap-2 pl-1 pr-3 flex-shrink-0 group
-                            absolute left-1/2 -translate-x-1/2 md:static md:translate-x-0"
+                            absolute left-1/2 -translate-x-1/2 lg:static lg:translate-x-0"
                     >
                         <div className="w-8 h-8 rounded-md overflow-hidden ring-1 ring-white/10 shadow flex-shrink-0">
                             <Image
@@ -153,10 +153,10 @@ export default function HeaderInner({ user, onLogout, allowedMenuIds }: HeaderPr
                     </Link>
 
                     {/* Divider (desktop) */}
-                    <div className="w-px h-5 bg-white/10 mx-1 flex-shrink-0 hidden md:block" />
+                    <div className="w-px h-5 bg-white/10 mx-1 flex-shrink-0 hidden lg:block" />
 
                     {/* Nav menus (desktop) */}
-                    <nav className="hidden md:flex items-stretch h-full gap-0.5 px-1">
+                    <nav className="hidden lg:flex items-stretch h-full gap-0.5 px-1">
                         {allowedNavMenus.map((menu) => (
                             <NavDropdown
                                 key={menu.id}
@@ -185,14 +185,14 @@ export default function HeaderInner({ user, onLogout, allowedMenuIds }: HeaderPr
                             <Link
                                 href="/dashboard/manager/checklist-settings"
                                 title="Cài đặt hệ thống"
-                                className="hidden md:flex w-8 h-8 items-center justify-center rounded-md text-slate-500 hover:text-slate-200 hover:bg-white/[0.07] transition-colors duration-150"
+                                className="hidden lg:flex w-8 h-8 items-center justify-center rounded-md text-slate-500 hover:text-slate-200 hover:bg-white/[0.07] transition-colors duration-150"
                             >
                                 <Settings className="w-4 h-4" />
                             </Link>
                         )}
 
                         {/* Language toggle */}
-                        <div className="hidden md:flex items-center">
+                        <div className="hidden lg:flex items-center">
                             <div className="flex rounded-lg overflow-hidden text-xs font-bold border border-white/20">
                                 <button
                                     onClick={() => setLang('vi')}
@@ -210,14 +210,14 @@ export default function HeaderInner({ user, onLogout, allowedMenuIds }: HeaderPr
                         </div>
 
                         {/* Notification Bell */}
-                        <div className="hidden md:flex items-center">
+                        <div className="hidden lg:flex items-center">
                             <NotificationBell />
                         </div>
 
-                        <div className="hidden md:block w-px h-5 bg-white/10 mx-1.5" />
+                        <div className="hidden lg:block w-px h-5 bg-white/10 mx-1.5" />
 
                         {/* User block */}
-                        <div className={mobileMenuOpen ? "hidden md:flex" : "flex"}>
+                        <div className={mobileMenuOpen ? "hidden lg:flex" : "flex"}>
                             <UserBlock user={user} userInitial={userInitial} />
                         </div>
 
@@ -225,7 +225,7 @@ export default function HeaderInner({ user, onLogout, allowedMenuIds }: HeaderPr
                         <button
                             onClick={onLogout}
                             title="Đăng xuất"
-                            className={`w-8 h-8 flex items-center justify-center rounded-md text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors duration-150 ml-1 ${mobileMenuOpen ? "hidden md:flex" : "flex"}`}
+                            className={`w-8 h-8 flex items-center justify-center rounded-md text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors duration-150 ml-1 ${mobileMenuOpen ? "hidden lg:flex" : "flex"}`}
                         >
                             <LogOut className="w-4 h-4" />
                         </button>

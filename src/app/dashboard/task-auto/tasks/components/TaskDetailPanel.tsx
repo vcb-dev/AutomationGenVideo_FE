@@ -1,157 +1,30 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {
-  X, Loader2, Zap, XCircle, CheckCircle2, Upload, Ban, ExternalLink,
-  Check, FileText, Package, Link2, Mic, Download, Play,
-  User, Star, ShoppingBag, RotateCcw,
+  X, Loader2, Zap, XCircle, CheckCircle2, Upload, Ban,
+  FileText, Package, Link2, Mic, Download, Play,
+  Star, ShoppingBag, RotateCcw,
+  ExternalLink, Edit2, Check,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { TaskStatusBadge } from '@/components/task-auto/StatusBadge'
 import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
 import { formatDateTime, isOverdue } from '@/components/task-auto/helpers'
+import { ServerSearchSelect, CustomSelect } from '@/components/task-auto/DarkInput'
 import {
   getTask, approveTask, cancelTask, getSources,
   getProduct, getContent, startTask,
+  updateTask, getProducts, getContents,
 } from '@/lib/api/task-auto'
 import { SubmitModal, RejectModal } from './TaskModals'
 import { formatPrice } from '../../catalog/components/ProductsTab/product-utils'
-import { Source, SOURCE_TYPE_LABELS, SourceType, TaskStatus } from '@/types/task-auto'
-
-// ── Status Timeline ──────────────────────────────────────────────────────────
-
-const TIMELINE_STEPS: { status: TaskStatus; label: string }[] = [
-  { status: 'PENDING',     label: 'Tạo task' },
-  { status: 'ASSIGNED',    label: 'Đã giao' },
-  { status: 'IN_PROGRESS', label: 'Đang làm' },
-  { status: 'SUBMITTED',   label: 'Đã nộp' },
-  { status: 'APPROVED',    label: 'Hoàn thành' },
-]
-const STATUS_ORDER: Record<string, number> = {
-  PENDING: 0, ASSIGNED: 1, IN_PROGRESS: 2, SUBMITTED: 3, APPROVED: 4,
-  REJECTED: 3, CANCELLED: 3,
-}
-
-function StatusTimeline({ status }: { status: TaskStatus }) {
-  const currentIdx = STATUS_ORDER[status] ?? 0
-  const isTerminal = status === 'REJECTED' || status === 'CANCELLED'
-  const isApproved  = status === 'APPROVED'
-  return (
-    <div className="flex items-start overflow-x-auto">
-      {TIMELINE_STEPS.map((step, idx) => {
-        const isDone    = !isTerminal && (isApproved ? idx <= currentIdx : idx < currentIdx)
-        const isCurrent = !isTerminal && !isApproved && idx === currentIdx
-        return (
-          <div key={step.status} className="flex items-center flex-shrink-0">
-            <div className="flex flex-col items-center gap-1.5">
-              <div className={cn(
-                'w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-bold',
-                isDone    ? 'bg-emerald-500 border-emerald-500 text-white'
-                : isCurrent ? 'bg-indigo-600 border-indigo-600 text-white'
-                : 'bg-white border-gray-200 text-gray-400',
-              )}>
-                {isDone ? <Check className="w-4 h-4" strokeWidth={3} /> : <span>{idx + 1}</span>}
-              </div>
-              <span className={cn(
-                'text-xs whitespace-nowrap font-medium',
-                isCurrent ? 'text-indigo-600' : isDone ? 'text-emerald-600' : 'text-gray-400',
-              )}>
-                {step.label}
-              </span>
-            </div>
-            {idx < TIMELINE_STEPS.length - 1 && (
-              <div className={cn(
-                'h-0.5 w-10 sm:w-16 mx-2 mb-5 rounded-full flex-shrink-0',
-                idx < currentIdx && !isTerminal ? 'bg-emerald-400' : 'bg-gray-200',
-              )} />
-            )}
-          </div>
-        )
-      })}
-      {isTerminal && (
-        <>
-          <div className={cn('h-0.5 w-10 sm:w-16 mx-2 mt-4 rounded-full flex-shrink-0',
-            status === 'REJECTED' ? 'bg-red-200' : 'bg-gray-200')} />
-          <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
-            <div className={cn('w-8 h-8 rounded-full border-2 flex items-center justify-center',
-              status === 'REJECTED' ? 'bg-red-500 border-red-500 text-white' : 'bg-gray-400 border-gray-400 text-white')}>
-              <X className="w-4 h-4" />
-            </div>
-            <span className={cn('text-xs whitespace-nowrap font-semibold',
-              status === 'REJECTED' ? 'text-red-500' : 'text-gray-500')}>
-              {status === 'REJECTED' ? 'Từ chối' : 'Đã huỷ'}
-            </span>
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
-
-// ── Source type styles ────────────────────────────────────────────────────────
-
-const SOURCE_STYLES: Record<SourceType, { dot: string; text: string; hover: string; badge: string }> = {
-  PRODUCT_STOCK: { dot: 'bg-indigo-400',  text: 'text-indigo-700',  hover: 'hover:bg-indigo-50',  badge: 'bg-indigo-100 text-indigo-700' },
-  COLLECTED:     { dot: 'bg-emerald-400', text: 'text-emerald-700', hover: 'hover:bg-emerald-50', badge: 'bg-emerald-100 text-emerald-700' },
-  OUTRO:         { dot: 'bg-purple-400',  text: 'text-purple-700',  hover: 'hover:bg-purple-50',  badge: 'bg-purple-100 text-purple-700' },
-  WORKSHOP:      { dot: 'bg-amber-400',   text: 'text-amber-700',   hover: 'hover:bg-amber-50',   badge: 'bg-amber-100 text-amber-700' },
-  HUYK:          { dot: 'bg-rose-400',    text: 'text-rose-700',    hover: 'hover:bg-rose-50',    badge: 'bg-rose-100 text-rose-700' },
-}
-
-function SourceRow({
-  source,
-  showType,
-  label,
-}: {
-  source: Pick<Source, 'id' | 'name' | 'link' | 'type'>
-  showType?: boolean
-  label?: string
-}) {
-  const style = SOURCE_STYLES[source.type] ?? SOURCE_STYLES.PRODUCT_STOCK
-  return (
-    <a href={source.link} target="_blank" rel="noopener noreferrer"
-      className={cn('flex items-center gap-2.5 group px-3 py-2 rounded-lg transition-colors', style.hover)}>
-      <span className={cn('w-2 h-2 rounded-full shrink-0', style.dot)} />
-      <span className={cn('text-sm group-hover:underline flex-1 min-w-0 truncate', style.text)}>
-        {label ? <span className="font-semibold mr-1.5">[{label}]</span> : null}
-        {source.name}
-      </span>
-      {showType && (
-        <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium shrink-0', style.badge)}>
-          {SOURCE_TYPE_LABELS[source.type]}
-        </span>
-      )}
-      <ExternalLink className={cn('w-3.5 h-3.5 opacity-50 shrink-0', style.text)} />
-    </a>
-  )
-}
-
-// ── Section Card ─────────────────────────────────────────────────────────────
-
-function Section({
-  icon, title, iconColor = 'text-indigo-500', bgColor = 'bg-indigo-50',
-  children,
-}: {
-  icon: React.ReactNode
-  title: string
-  iconColor?: string
-  bgColor?: string
-  children: React.ReactNode
-}) {
-  return (
-    <div className="border border-gray-200 rounded-2xl overflow-hidden">
-      <div className="flex items-center gap-3 px-5 py-3.5 border-b border-gray-100 bg-gray-50">
-        <div className={cn('w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0', bgColor)}>
-          <span className={iconColor}>{icon}</span>
-        </div>
-        <h3 className="text-sm font-bold text-gray-700">{title}</h3>
-      </div>
-      {children}
-    </div>
-  )
-}
+import { StatusTimeline } from './detail/StatusTimeline'
+import { SourceRow } from './detail/SourceRow'
+import { Section } from './detail/Section'
+import { Source } from '@/types/task-auto'
 
 // ── Panel ────────────────────────────────────────────────────────────────────
 
@@ -167,6 +40,16 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
   const [showSubmit, setShowSubmit] = useState(false)
   const [showReject, setShowReject] = useState(false)
   const [showResubmit, setShowResubmit] = useState(false)
+  const [editMode, setEditMode] = useState(false)
+  const [editForm, setEditForm] = useState({
+    product_id: '',
+    content_id: '',
+    source_outro_id: '',
+    source_extra_id: '',
+    extra_source_type: '' as 'COLLECTED' | 'WORKSHOP' | 'HUYK' | '',
+  })
+  const [productSearch, setProductSearch] = useState('')
+  const [contentSearch, setContentSearch] = useState('')
 
   const { data: task, isLoading } = useQuery({
     queryKey: ['task-auto', 'task', taskId],
@@ -194,6 +77,85 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
   })
 
   const productSources: Source[] = productSourcesData?.data ?? []
+
+  // ── Edit mode: initialize form when task loads or mode opens ──
+  useEffect(() => {
+    if (task && editMode) {
+      setEditForm({
+        product_id: task.product_id ?? '',
+        content_id: task.content_id ?? '',
+        source_outro_id: task.source_outro_id ?? '',
+        source_extra_id: task.source_extra_id ?? '',
+        extra_source_type: (['COLLECTED', 'WORKSHOP', 'HUYK'].includes(task.source_extra?.type ?? '')
+          ? task.source_extra!.type
+          : '') as any,
+      })
+    }
+  }, [task?.id, editMode])
+
+  // ── Edit mode: product / content search queries ──
+  const { data: editProductsData, isLoading: loadingEditProducts } = useQuery({
+    queryKey: ['task-auto', 'detail-products', productSearch],
+    queryFn: () => getProducts({ owner: 'all', search: productSearch || undefined, limit: 50 }),
+    enabled: editMode,
+  })
+  const { data: editContentsData, isLoading: loadingEditContents } = useQuery({
+    queryKey: ['task-auto', 'detail-contents', contentSearch],
+    queryFn: () => getContents({ owner: 'all', search: contentSearch || undefined, limit: 50 }),
+    enabled: editMode,
+  })
+
+  // ── Edit mode: source options ──
+  const { data: editPersonalSrcs } = useQuery({
+    queryKey: ['task-auto', 'detail-src-personal', currentUserId],
+    queryFn: () => getSources({ owner: 'editor', user_id: currentUserId, is_active: true, limit: 200 }),
+    enabled: editMode && !!currentUserId,
+  })
+  const { data: editTeamSrcs } = useQuery({
+    queryKey: ['task-auto', 'detail-src-team', task?.team_id],
+    queryFn: () => getSources({ owner: 'team', team_id: task!.team_id!, is_active: true, limit: 200 }),
+    enabled: editMode && !!task?.team_id,
+  })
+  const { data: editGlobalSrcs } = useQuery({
+    queryKey: ['task-auto', 'detail-src-global'],
+    queryFn: () => getSources({ owner: 'global', is_active: true, limit: 200 }),
+    enabled: editMode,
+  })
+
+  const editAllSources: Source[] = useMemo(() => {
+    const seen = new Set<string>()
+    const result: Source[] = []
+    for (const s of [
+      ...(editPersonalSrcs?.data ?? []),
+      ...(editTeamSrcs?.data ?? []),
+      ...(editGlobalSrcs?.data ?? []),
+    ]) {
+      if (!seen.has(s.id)) { seen.add(s.id); result.push(s) }
+    }
+    return result
+  }, [editPersonalSrcs, editTeamSrcs, editGlobalSrcs])
+
+  const outroSources   = editAllSources.filter(s => s.type === 'OUTRO')
+  const collectedSrcs  = editAllSources.filter(s => s.type === 'COLLECTED')
+  const workshopSrcs   = editAllSources.filter(s => s.type === 'WORKSHOP')
+  const huykSrcs       = editAllSources.filter(s => s.type === 'HUYK')
+
+  // ── Edit mode: save mutation ──
+  const updateMut = useMutation({
+    mutationFn: () => updateTask(taskId, {
+      product_id:      editForm.product_id      || undefined,
+      content_id:      editForm.content_id      || undefined,
+      source_outro_id: editForm.source_outro_id || null,
+      source_extra_id: editForm.source_extra_id || null,
+    } as any),
+    onSuccess: () => {
+      toast.success('Đã cập nhật task')
+      qc.invalidateQueries({ queryKey: ['task-auto', 'task', taskId] })
+      qc.invalidateQueries({ queryKey: ['task-auto', 'tasks'] })
+      setEditMode(false)
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Không thể cập nhật task'),
+  })
 
   const isAssignee       = task?.assignee_id === currentUserId
   const canApproveReject = userRoles.some(r => ['ADMIN', 'MANAGER', 'LEADER'].includes(r))
@@ -237,8 +199,8 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
   const productName   = fullProduct?.name ?? task?.product?.name
   const productSku    = fullProduct?.sku  ?? task?.product?.sku
 
-  const primaryImage  = fullProduct?.image_url ?? task?.product?.image_url
-  const extraImages   = fullProduct?.image_urls?.filter(u => u !== primaryImage).slice(0, 3) ?? []
+  const primaryImage  = fullProduct?.image_url ?? fullProduct?.image_urls?.[0] ?? task?.product?.image_url
+  const extraImages   = (fullProduct?.image_urls ?? []).filter(u => u !== primaryImage).slice(0, 3)
 
   return (
     <>
@@ -284,10 +246,27 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                 )
               )}
             </div>
-            <button onClick={onClose}
-              className="p-2 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600 shrink-0 mt-0.5">
-              <X className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-1 shrink-0 mt-0.5">
+              {task && !task.is_extra && (
+                <button
+                  onClick={() => setEditMode(v => !v)}
+                  title={editMode ? 'Thoát chỉnh sửa' : 'Chỉnh sửa task'}
+                  className={cn(
+                    'p-2 rounded-xl transition-colors text-sm font-semibold flex items-center gap-1.5',
+                    editMode
+                      ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
+                      : 'hover:bg-gray-100 text-gray-400 hover:text-gray-600'
+                  )}
+                >
+                  <Edit2 className="w-4 h-4" />
+                  {editMode && <span className="text-xs">Đang sửa</span>}
+                </button>
+              )}
+              <button onClick={onClose}
+                className="p-2 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
           {/* ── Timeline ───────────────────────────────────────────────────── */}
@@ -354,261 +333,323 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                   </div>
                 )}
 
-                {/* ── 2-column grid — chỉ cho task thường ── */}
-                {!task.is_extra && <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4">
-
-                  {/* ─── LEFT: Content + Sources ─── */}
+                {/* ── Layout task thường: 2 cột + meta strip ── */}
+                {!task.is_extra && (
                   <div className="space-y-4">
 
-                    {/* Content */}
-                    <Section icon={<FileText className="w-4 h-4" />} title="Nội dung" bgColor="bg-indigo-50" iconColor="text-indigo-600">
-                      <div className="p-5 space-y-4">
+                    {/* Row 1: Content/Sources | Product */}
+                    <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4">
 
-                        {/* Title */}
-                        <div>
-                          <p className="text-base font-bold text-gray-900 leading-snug">
-                            {contentTitle || <span className="text-gray-400 font-normal italic">Chưa có tiêu đề</span>}
-                          </p>
-                          <div className="flex flex-wrap gap-2 mt-2">
-                            {contentMarket && (
-                              <span className={cn(
-                                'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide',
-                                contentMarket === 'VIETNAM' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700',
-                              )}>
-                                {contentMarket}
-                              </span>
-                            )}
-                            {contentLine && (
-                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
-                                {contentLine}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Script */}
-                        {scriptText && (
-                          <div>
-                            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Script / Nội dung</p>
-                            <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 max-h-40 overflow-y-auto">
-                              <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{scriptText}</p>
+                      {/* LEFT: Content + Sources */}
+                      <div className="flex flex-col gap-4">
+                        <Section icon={<FileText className="w-4 h-4" />} title="Nội dung" bgColor="bg-indigo-50" iconColor="text-indigo-600">
+                          {editMode ? (
+                            <div className="p-4">
+                              <ServerSearchSelect
+                                label="Script / Content"
+                                value={editForm.content_id}
+                                onChange={v => setEditForm(f => ({ ...f, content_id: v }))}
+                                items={(editContentsData?.data ?? []).map(c => ({
+                                  value: c.id,
+                                  label: c.title || c.id,
+                                  sublabel: c.content_line?.name ?? undefined,
+                                }))}
+                                searchValue={contentSearch}
+                                onSearchChange={setContentSearch}
+                                loading={loadingEditContents}
+                                placeholder="Tìm content..."
+                                clearLabel="-- Không chọn --"
+                                searchPlaceholder="Tìm theo tiêu đề..."
+                              />
+                              {editForm.content_id && editForm.content_id === task?.content_id && contentTitle && (
+                                <p className="mt-2 text-xs text-slate-400 pl-1">Hiện tại: <span className="font-medium text-slate-600">{contentTitle}</span></p>
+                              )}
                             </div>
-                          </div>
-                        )}
-
-                        {/* File & voice links */}
-                        {(fileUrl || fullContent?.voice_url) && (
-                          <div className="flex flex-wrap gap-2">
-                            {fileUrl && (
-                              <a href={fileUrl} target="_blank" rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 text-sm font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-4 py-2 rounded-xl transition-colors">
-                                <Link2 className="w-4 h-4" /> File Content
-                              </a>
-                            )}
-                            {fullContent?.voice_url && (
-                              <>
-                                <a href={fullContent.voice_url} target="_blank" rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-2 text-sm font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-4 py-2 rounded-xl transition-colors">
-                                  <Mic className="w-4 h-4" /> Nghe voice
-                                </a>
-                                <a href={fullContent.voice_url} download
-                                  className="inline-flex items-center gap-2 text-sm font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 border border-gray-200 px-4 py-2 rounded-xl transition-colors">
-                                  <Download className="w-4 h-4" /> Tải về
-                                </a>
-                              </>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </Section>
-
-                    {/* Sources */}
-                    <Section icon={<Link2 className="w-4 h-4" />} title="Sources" bgColor="bg-teal-50" iconColor="text-teal-600">
-                      <div className="p-3 space-y-4">
-
-                        {/* Sources liên kết với sản phẩm */}
-                        {task.product_id && (
-                          <div>
-                            {productSources.length === 0 ? (
-                              <p className="text-sm text-gray-400 italic">Chưa có source nào gắn với sản phẩm này</p>
-                            ) : (
-                              <div className="space-y-1.5">
-                                {productSources.map(s => (
-                                  <SourceRow key={s.id} source={s} showType />
-                                ))}
+                          ) : (
+                            <div className="p-5 space-y-4">
+                              <div>
+                                <p className="text-base font-bold text-gray-900 leading-snug">
+                                  {contentTitle || <span className="text-gray-400 font-normal italic">Chưa có tiêu đề</span>}
+                                </p>
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                  {contentMarket && (
+                                    <span className={cn(
+                                      'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide',
+                                      contentMarket === 'VIETNAM' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700',
+                                    )}>
+                                      {contentMarket}
+                                    </span>
+                                  )}
+                                  {contentLine && (
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                      {contentLine}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
+
+                              {scriptText && (
+                                <div>
+                                  <p className="text-xs font-medium text-gray-400 mb-2">Script / Nội dung</p>
+                                  <div className="bg-gray-50 rounded-xl px-4 py-3 max-h-40 overflow-y-auto">
+                                    <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{scriptText}</p>
+                                  </div>
+                                </div>
+                              )}
+
+                              {(fileUrl || fullContent?.voice_url) && (
+                                <div className="flex flex-wrap gap-2">
+                                  {fileUrl && (
+                                    <a href={fileUrl} target="_blank" rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 px-3.5 py-2 rounded-lg transition-colors">
+                                      <Link2 className="w-3.5 h-3.5 text-indigo-500" /> File Content
+                                    </a>
+                                  )}
+                                  {fullContent?.voice_url && (
+                                    <>
+                                      <a href={fullContent.voice_url} target="_blank" rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 px-3.5 py-2 rounded-lg transition-colors">
+                                        <Mic className="w-3.5 h-3.5 text-purple-500" /> Nghe voice
+                                      </a>
+                                      <a href={fullContent.voice_url} download
+                                        className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 px-3.5 py-2 rounded-lg transition-colors">
+                                        <Download className="w-3.5 h-3.5 text-gray-500" /> Tải về
+                                      </a>
+                                    </>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </Section>
+
+                        <Section icon={<Link2 className="w-4 h-4" />} title="Sources" bgColor="bg-teal-50" iconColor="text-teal-600" className="flex-1">
+                          {editMode ? (
+                            <div className="p-4 space-y-3">
+                              <div className="grid grid-cols-2 gap-3">
+                                <CustomSelect
+                                  label="Outro"
+                                  value={editForm.source_outro_id}
+                                  onChange={v => setEditForm(f => ({ ...f, source_outro_id: v }))}
+                                  options={[{ value: '', label: '-- Không chọn --' }, ...outroSources.map(s => ({ value: s.id, label: s.name }))]}
+                                  searchable
+                                />
+                                <CustomSelect
+                                  label="Sưu tầm"
+                                  value={editForm.extra_source_type === 'COLLECTED' ? editForm.source_extra_id : ''}
+                                  onChange={v => setEditForm(f => ({ ...f, source_extra_id: v, extra_source_type: v ? 'COLLECTED' : '' }))}
+                                  options={[{ value: '', label: '-- Không chọn --' }, ...collectedSrcs.map(s => ({ value: s.id, label: s.name }))]}
+                                  searchable
+                                />
+                                <CustomSelect
+                                  label="Chế tác"
+                                  value={editForm.extra_source_type === 'WORKSHOP' ? editForm.source_extra_id : ''}
+                                  onChange={v => setEditForm(f => ({ ...f, source_extra_id: v, extra_source_type: v ? 'WORKSHOP' : '' }))}
+                                  options={[{ value: '', label: '-- Không chọn --' }, ...workshopSrcs.map(s => ({ value: s.id, label: s.name }))]}
+                                  searchable
+                                />
+                                <CustomSelect
+                                  label="Huy-K"
+                                  value={editForm.extra_source_type === 'HUYK' ? editForm.source_extra_id : ''}
+                                  onChange={v => setEditForm(f => ({ ...f, source_extra_id: v, extra_source_type: v ? 'HUYK' : '' }))}
+                                  options={[{ value: '', label: '-- Không chọn --' }, ...huykSrcs.map(s => ({ value: s.id, label: s.name }))]}
+                                  searchable
+                                />
+                              </div>
+                              {task.product_id && productSources.length > 0 && (
+                                <div className="pt-2 border-t border-gray-100">
+                                  <p className="text-xs font-medium text-gray-400 mb-1.5 px-1">Source gắn sản phẩm</p>
+                                  <div className="space-y-1">
+                                    {productSources.map(s => <SourceRow key={s.id} source={s} showType />)}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="p-3 space-y-3">
+                              {task.product_id && (
+                                productSources.length === 0
+                                  ? <p className="text-sm text-gray-400 italic px-1">Chưa có source nào gắn với sản phẩm này</p>
+                                  : <div className="space-y-1">
+                                      {productSources.map(s => <SourceRow key={s.id} source={s} showType />)}
+                                    </div>
+                              )}
+                              {(task.source_outro || task.source_extra) && (
+                                <div className={task.product_id && productSources.length > 0 ? 'pt-3 border-t border-gray-100' : ''}>
+                                  <p className="text-xs font-medium text-gray-400 mb-2 px-1">Sources gắn với task</p>
+                                  <div className="space-y-1">
+                                    {task.source_outro && <SourceRow source={task.source_outro} label="Outro" />}
+                                    {task.source_extra && <SourceRow source={task.source_extra} label="Bổ sung" />}
+                                  </div>
+                                </div>
+                              )}
+                              {!task.product_id && !task.source_outro && !task.source_extra && (
+                                <p className="text-sm text-gray-400 italic px-1">Task chưa gắn source nào</p>
+                              )}
+                            </div>
+                          )}
+                        </Section>
+                      </div>
+
+                      {/* RIGHT: Product */}
+                      <Section icon={<Package className="w-4 h-4" />} title="Sản phẩm" bgColor="bg-orange-50" iconColor="text-orange-600">
+                        {editMode ? (
+                          <div className="p-4">
+                            <ServerSearchSelect
+                              label="Sản phẩm"
+                              value={editForm.product_id}
+                              onChange={v => setEditForm(f => ({ ...f, product_id: v }))}
+                              items={(editProductsData?.data ?? []).map(p => ({
+                                value: p.id,
+                                label: p.name,
+                                sublabel: p.sku,
+                              }))}
+                              searchValue={productSearch}
+                              onSearchChange={setProductSearch}
+                              loading={loadingEditProducts}
+                              placeholder="Tìm sản phẩm..."
+                              clearLabel="-- Không chọn --"
+                              searchPlaceholder="Tìm theo tên hoặc SKU..."
+                            />
+                            {editForm.product_id && editForm.product_id === task?.product_id && productName && (
+                              <p className="mt-2 text-xs text-slate-400 pl-1">Hiện tại: <span className="font-medium text-slate-600">{productName}</span></p>
                             )}
                           </div>
-                        )}
-
-                        {/* Task-level sources: Outro + Extra */}
-                        {(task.source_outro || task.source_extra) && (
-                          <div className={task.product_id && productSources.length > 0 ? 'pt-3 border-t border-gray-100' : ''}>
-                            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Sources gắn với task</p>
-                            <div className="space-y-1.5">
-                              {task.source_outro && (
-                                <SourceRow source={task.source_outro} label="Outro" />
-                              )}
-                              {task.source_extra && (
-                                <SourceRow source={task.source_extra} label="Bổ sung" />
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {!task.product_id && !task.source_outro && !task.source_extra && (
-                          <p className="text-sm text-gray-400 italic">Task chưa gắn source nào</p>
-                        )}
-                      </div>
-                    </Section>
-
-                    {/* Task meta */}
-                    <Section icon={<User className="w-4 h-4" />} title="Thông tin giao việc" bgColor="bg-slate-100" iconColor="text-slate-600">
-                      <div className="px-5 py-4 flex flex-wrap items-center gap-6">
-                        {/* Assignee */}
-                        {task.assignee ? (
-                          <div className="flex items-center gap-2.5">
-                            <AvatarInitials name={task.assignee.full_name} size="md" />
-                            <div>
-                              <p className="text-xs text-gray-400 mb-0.5">Người thực hiện</p>
-                              <p className="text-sm font-bold text-gray-800">{task.assignee.full_name}</p>
-                            </div>
+                        ) : !task.product_id ? (
+                          <div className="flex flex-col items-center justify-center py-12 gap-2 text-gray-400">
+                            <Package className="w-10 h-10 text-gray-200" />
+                            <p className="text-sm italic">Không gắn sản phẩm</p>
                           </div>
                         ) : (
                           <div>
-                            <p className="text-xs text-gray-400 mb-0.5">Người thực hiện</p>
-                            <p className="text-sm text-gray-400 italic">Chưa giao</p>
+                            {/* Image */}
+                            {primaryImage ? (
+                              <a href={primaryImage} target="_blank" rel="noopener noreferrer" className="block">
+                                <img src={primaryImage} alt={productName ?? ''}
+                                  className="w-full h-56 object-cover hover:opacity-95 transition-opacity" />
+                              </a>
+                            ) : (
+                              <div className="w-full h-40 bg-gray-100 flex items-center justify-center">
+                                <Package className="w-12 h-12 text-gray-300" />
+                              </div>
+                            )}
+
+                            {/* Thumbnails */}
+                            {extraImages.length > 0 && (
+                              <div className="flex gap-1.5 px-4 pt-3">
+                                {extraImages.map((url, i) => (
+                                  <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                                    <img src={url} alt="" className="w-12 h-12 object-cover rounded-lg border border-gray-200 hover:opacity-80 transition-opacity" />
+                                  </a>
+                                ))}
+                                {(fullProduct?.image_urls?.length ?? 0) > 4 && (
+                                  <div className="w-12 h-12 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center">
+                                    <span className="text-xs text-gray-400 font-semibold">+{(fullProduct?.image_urls?.length ?? 0) - 4}</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Info */}
+                            <div className="px-5 pt-4 pb-5 space-y-3">
+                              {/* Badges + name */}
+                              <div>
+                                <div className="flex flex-wrap gap-1.5 mb-1.5">
+                                  {fullProduct?.market && (
+                                    <span className={cn(
+                                      'px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide',
+                                      fullProduct.market === 'VIETNAM' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700',
+                                    )}>
+                                      {fullProduct.market}
+                                    </span>
+                                  )}
+                                  {fullProduct?.product_line?.name && (
+                                    <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-700">
+                                      {fullProduct.product_line.name}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-base font-bold text-gray-900 leading-snug">{productName ?? '—'}</p>
+                                {productSku && (
+                                  <span className="inline-block mt-1 font-mono text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded">
+                                    {productSku}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Price row */}
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="text-xs text-gray-400 mb-0.5">Giá bán</p>
+                                  <p className="text-xl font-black text-red-600">
+                                    {formatPrice(fullProduct?.price) ?? <span className="text-gray-400 text-sm font-normal italic">Chưa có giá</span>}
+                                  </p>
+                                </div>
+                                {(fullProduct?.priority_score ?? 0) > 0 && (
+                                  <div className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 rounded-lg border border-amber-100">
+                                    <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                                    <span className="text-sm font-bold text-amber-600">{fullProduct?.priority_score}</span>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Attributes */}
+                              {(fullProduct?.material?.name || fullProduct?.price_segment) && (
+                                <div className="flex gap-6 pt-2 border-t border-gray-100">
+                                  {fullProduct?.material?.name && (
+                                    <div>
+                                      <p className="text-xs text-gray-400 mb-0.5">Chất liệu</p>
+                                      <p className="text-sm font-semibold text-gray-800">{fullProduct.material.name}</p>
+                                    </div>
+                                  )}
+                                  {fullProduct?.price_segment && (
+                                    <div>
+                                      <p className="text-xs text-gray-400 mb-0.5">Phân khúc</p>
+                                      <p className="text-sm font-semibold text-gray-800">{fullProduct.price_segment}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         )}
+                      </Section>
+                    </div>
 
-                        {/* Divider */}
-                        <div className="h-10 w-px bg-gray-200 hidden sm:block" />
+                    {/* Row 2: Task meta */}
+                    <div className="border border-gray-200 rounded-2xl overflow-hidden bg-white">
+                      <div className="grid grid-cols-3 divide-x divide-gray-100">
+                        <div className="px-5 py-4">
+                          <p className="text-xs text-gray-400 mb-2">Người thực hiện</p>
+                          {task.assignee ? (
+                            <div className="flex items-center gap-2 min-w-0">
+                              <AvatarInitials name={task.assignee.full_name} size="xs" />
+                              <span className="text-sm font-semibold text-gray-800 truncate">{task.assignee.full_name}</span>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-gray-400 italic">Chưa giao</p>
+                          )}
+                        </div>
 
-                        {/* Deadline */}
-                        <div>
-                          <p className="text-xs text-gray-400 mb-0.5">Deadline</p>
+                        <div className="px-5 py-4">
+                          <p className="text-xs text-gray-400 mb-2">Deadline</p>
                           <p className={cn(
-                            'text-sm font-bold',
+                            'text-sm font-semibold',
                             isOverdue(task.deadline) && task.status !== 'APPROVED' ? 'text-red-600' : 'text-gray-800',
                           )}>
                             {formatDateTime(task.deadline) || '—'}
                           </p>
                         </div>
 
-                        {/* Team */}
-                        {task.team?.name && (
-                          <>
-                            <div className="h-10 w-px bg-gray-200 hidden sm:block" />
-                            <div>
-                              <p className="text-xs text-gray-400 mb-0.5">Đội nhóm</p>
-                              <p className="text-sm font-semibold text-gray-800">{task.team.name}</p>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </Section>
-                  </div>
-
-                  {/* ─── RIGHT: Product only ─── */}
-                  <div className="space-y-4">
-
-                    {/* Product */}
-                    <Section icon={<Package className="w-4 h-4" />} title="Sản phẩm" bgColor="bg-orange-50" iconColor="text-orange-600">
-                      {!task.product_id ? (
-                        <p className="px-5 py-4 text-sm text-gray-400 italic">Không gắn sản phẩm</p>
-                      ) : (
-                        <div className="p-5 space-y-4">
-                          {/* Primary image */}
-                          {primaryImage && (
-                            <a href={primaryImage} target="_blank" rel="noopener noreferrer" className="block">
-                              <img src={primaryImage} alt={productName ?? ''}
-                                className="w-full h-44 object-cover rounded-xl border border-gray-200 hover:opacity-90 transition-opacity" />
-                            </a>
-                          )}
-                          {/* Extra images */}
-                          {extraImages.length > 0 && (
-                            <div className="flex gap-2">
-                              {extraImages.map((url, i) => (
-                                <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                                  <img src={url} alt=""
-                                    className="w-16 h-16 object-cover rounded-lg border border-gray-200 hover:opacity-80 transition-opacity" />
-                                </a>
-                              ))}
-                              {(fullProduct?.image_urls?.length ?? 0) > 4 && (
-                                <div className="w-16 h-16 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center">
-                                  <span className="text-xs text-gray-400 font-semibold">
-                                    +{(fullProduct?.image_urls?.length ?? 0) - 4}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {/* Name + SKU */}
-                          <div>
-                            <p className="text-base font-bold text-gray-900 leading-snug">
-                              {productName ?? '—'}
-                            </p>
-                            {productSku && (
-                              <span className="inline-block mt-1 font-mono text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-lg">
-                                {productSku}
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Attributes */}
-                          <div className="grid grid-cols-2 gap-x-4 gap-y-3 pt-1 border-t border-gray-100">
-                            {formatPrice(fullProduct?.price) && (
-                              <div>
-                                <p className="text-xs text-gray-400 mb-0.5">Giá</p>
-                                <p className="text-sm font-semibold text-emerald-700">{formatPrice(fullProduct?.price)}</p>
-                              </div>
-                            )}
-                            {fullProduct?.material?.name && (
-                              <div>
-                                <p className="text-xs text-gray-400 mb-0.5">Chất liệu</p>
-                                <p className="text-sm font-semibold text-gray-800">{fullProduct.material.name}</p>
-                              </div>
-                            )}
-                            {fullProduct?.product_line?.name && (
-                              <div>
-                                <p className="text-xs text-gray-400 mb-0.5">Dòng SP</p>
-                                <p className="text-sm font-semibold text-gray-800">{fullProduct.product_line.name}</p>
-                              </div>
-                            )}
-                            {fullProduct?.price_segment && (
-                              <div>
-                                <p className="text-xs text-gray-400 mb-0.5">Phân khúc</p>
-                                <p className="text-sm font-semibold text-gray-800">{fullProduct.price_segment}</p>
-                              </div>
-                            )}
-                            {fullProduct?.priority_score !== undefined && (
-                              <div>
-                                <p className="text-xs text-gray-400 mb-0.5">Độ ưu tiên</p>
-                                <div className="flex items-center gap-1">
-                                  <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                                  <span className="text-sm font-bold text-amber-600">{fullProduct.priority_score}</span>
-                                </div>
-                              </div>
-                            )}
-                            {fullProduct?.market && (
-                              <div>
-                                <p className="text-xs text-gray-400 mb-0.5">Market</p>
-                                <span className={cn(
-                                  'inline-flex px-2 py-0.5 rounded-full text-xs font-bold',
-                                  fullProduct.market === 'VIETNAM' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700',
-                                )}>
-                                  {fullProduct.market}
-                                </span>
-                              </div>
-                            )}
-                          </div>
+                        <div className="px-5 py-4">
+                          <p className="text-xs text-gray-400 mb-2">Đội nhóm</p>
+                          <p className="text-sm font-semibold text-gray-800">{task.team?.name || '—'}</p>
                         </div>
-                      )}
-                    </Section>
+                      </div>
+                    </div>
 
                   </div>
-                </div>}
+                )}
               </div>
             )}
           </div>
@@ -620,49 +661,71 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                 className="px-4 py-2.5 text-sm font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-colors">
                 Đóng
               </button>
-              <div className="flex flex-wrap justify-end gap-2">
-                {canStart && (
-                  <button onClick={() => startMut.mutate()} disabled={startMut.isPending}
-                    className="bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors">
-                    {startMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                    Bắt đầu làm
-                  </button>
-                )}
-                {(task.status === 'ASSIGNED' || task.status === 'IN_PROGRESS') && (
-                  <button onClick={() => setShowSubmit(true)}
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors">
-                    <Upload className="w-4 h-4" /> Nộp task
-                  </button>
-                )}
-                {task.status === 'SUBMITTED' && canApproveReject && !task.is_extra && (
-                  <>
-                    <button onClick={() => approveMut.mutate()} disabled={approveMut.isPending}
-                      className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors">
-                      {approveMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                      Duyệt
-                    </button>
-                    <button onClick={() => setShowReject(true)}
-                      className="bg-red-600 hover:bg-red-500 text-white rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors">
-                      <XCircle className="w-4 h-4" /> Từ chối
-                    </button>
-                  </>
-                )}
-                {task.status === 'REJECTED' && isAssignee && (
-                  <button onClick={() => setShowResubmit(true)}
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors">
-                    <RotateCcw className="w-4 h-4" /> Nộp lại
-                  </button>
-                )}
-                {!['APPROVED', 'REJECTED', 'CANCELLED'].includes(task.status) && canCancel && (
+
+              {editMode ? (
+                /* Edit mode footer */
+                <div className="flex items-center gap-2">
                   <button
-                    onClick={() => { if (confirm('Bạn có chắc muốn huỷ task này?')) cancelMut.mutate() }}
-                    disabled={cancelMut.isPending}
-                    className="border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-60 rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors">
-                    {cancelMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ban className="w-4 h-4" />}
-                    Huỷ task
+                    onClick={() => { setEditMode(false); setProductSearch(''); setContentSearch('') }}
+                    className="px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-xl border border-gray-200 transition-colors"
+                  >
+                    Huỷ
                   </button>
-                )}
-              </div>
+                  <button
+                    onClick={() => updateMut.mutate()}
+                    disabled={updateMut.isPending}
+                    className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-xl px-5 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors"
+                  >
+                    {updateMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                    Lưu thay đổi
+                  </button>
+                </div>
+              ) : (
+                /* Normal footer */
+                <div className="flex flex-wrap justify-end gap-2">
+                  {canStart && (
+                    <button onClick={() => startMut.mutate()} disabled={startMut.isPending}
+                      className="bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors">
+                      {startMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                      Bắt đầu làm
+                    </button>
+                  )}
+                  {(task.status === 'ASSIGNED' || task.status === 'IN_PROGRESS') && (
+                    <button onClick={() => setShowSubmit(true)}
+                      className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors">
+                      <Upload className="w-4 h-4" /> Nộp task
+                    </button>
+                  )}
+                  {task.status === 'SUBMITTED' && canApproveReject && !task.is_extra && (
+                    <>
+                      <button onClick={() => approveMut.mutate()} disabled={approveMut.isPending}
+                        className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors">
+                        {approveMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                        Duyệt
+                      </button>
+                      <button onClick={() => setShowReject(true)}
+                        className="bg-red-600 hover:bg-red-500 text-white rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors">
+                        <XCircle className="w-4 h-4" /> Từ chối
+                      </button>
+                    </>
+                  )}
+                  {task.status === 'REJECTED' && isAssignee && (
+                    <button onClick={() => setShowResubmit(true)}
+                      className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors">
+                      <RotateCcw className="w-4 h-4" /> Nộp lại
+                    </button>
+                  )}
+                  {!['APPROVED', 'REJECTED', 'CANCELLED'].includes(task.status) && canCancel && (
+                    <button
+                      onClick={() => { if (confirm('Bạn có chắc muốn huỷ task này?')) cancelMut.mutate() }}
+                      disabled={cancelMut.isPending}
+                      className="border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-60 rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors">
+                      {cancelMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ban className="w-4 h-4" />}
+                      Huỷ task
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -60,7 +60,7 @@ export interface TeamProduct {
   product_id: string
   added_by_id: string
   added_at: string
-  product?: Pick<Product, 'id' | 'sku' | 'name' | 'image_url' | 'price' | 'market' | 'priority_score'> & {
+  product?: Pick<Product, 'id' | 'sku' | 'name' | 'image_url' | 'image_urls' | 'price' | 'market' | 'priority_score' | 'brand_type'> & {
     product_line?: { id: string; name: string } | null
   }
   added_by?: Pick<UserBasic, 'id' | 'full_name'>
@@ -83,6 +83,7 @@ export interface TeamContent {
     view_count: string
     file_content_url: string | null
     voice_url: string | null
+    brand_type: BrandType
     content_line?: { id: string; name: string } | null
   }
   added_by?: Pick<UserBasic, 'id' | 'full_name'>
@@ -144,14 +145,26 @@ export interface EditorKpi {
   id: string
   user_id: string
   month: string
-  /** KPI thường hàng tháng — auto-assign tạo task */
-  total_target: number
-  /** KPI sáng tạo thêm hàng tháng — chỉ thông báo, không tạo task */
-  kpi_extra: number
-  // legacy fields kept for DB compatibility
-  kpi_day: number
-  kpi_weekend: number
-  kpi_creative: number
+  // ── Video production (Số video sản xuất đạt tiêu chuẩn) ──
+  total_target: number    // Tổng video sản xuất (drives auto-assign)
+  video_win: number
+  video_fail: number
+  ratio_a1: number
+  ratio_a2: number
+  ratio_a3: number
+  ratio_a4: number
+  ratio_a5: number
+  // ── Content ──
+  kpi_extra: number       // KPI sáng tạo (chỉ thông báo)
+  content_new: number
+  content_collected: number
+  content_win_cover: number
+  // ── Product ──
+  product_planned: number
+  product_win_collect: number
+  video_traffic: number
+  video_gmv: number
+  video_profit: number
   set_by_id: string
   created_at: string
   updated_at: string
@@ -164,12 +177,16 @@ export interface EditorKpi {
 export interface ContentLine {
   id: string
   name: string
+  /** A1 | A2 | A3 | A4 | A5 — maps to EditorKpi.ratio_a{n} */
+  a_type?: string | null
   _count?: { contents: number; tasks: number }
 }
 
 export interface ProductLine {
   id: string
   name: string
+  /** TRAFFIC | GMV | PROFIT — maps to EditorKpi.video_traffic/gmv/profit */
+  video_category?: string | null
   _count?: { products: number }
 }
 
@@ -183,6 +200,7 @@ export interface Product {
   id: string
   sku: string
   name: string
+  brand_type: BrandType
   image_url: string | null
   image_urls: string[]
   price: string | null
@@ -191,6 +209,8 @@ export interface Product {
   priority_score: number
   material_id: string | null
   product_line_id: string | null
+  /** null = kho chung; có giá trị = sản phẩm riêng của editor */
+  user_id: string | null
   added_by_id: string
   lark_record_id: string | null
   is_active: boolean
@@ -198,12 +218,14 @@ export interface Product {
   updated_at: string
   material?: Material | null
   product_line?: ProductLine | null
+  owner_user?: Pick<UserBasic, 'id' | 'full_name'> | null
   added_by?: UserBasic
   _count?: { contents: number; tasks: number }
 }
 
 export interface Content {
   id: string
+  brand_type: BrandType
   market: string
   title: string | null
   body: string | null
@@ -212,6 +234,8 @@ export interface Content {
   voice_url: string | null
   voice_id: string | null
   content_line_id: string | null
+  /** null = kho chung; có giá trị = content riêng của editor */
+  user_id: string | null
   status: ContentUsageStatus
   view_count: string
   approved_content_id: string | null
@@ -220,22 +244,30 @@ export interface Content {
   created_at: string
   updated_at: string
   content_line?: ContentLine | null
+  owner_user?: Pick<UserBasic, 'id' | 'full_name'> | null
   added_by?: UserBasic
 }
 
 export interface Source {
   id: string
+  brand_type: BrandType
   type: SourceType
   name: string
   link: string
   code: string | null
   product_id: string | null
+  /** null = kho chung; có giá trị = source của team */
+  team_id: string | null
+  /** null = không thuộc editor; có giá trị = source riêng của editor */
+  user_id: string | null
   added_by_id: string
   lark_record_id: string | null
   is_active: boolean
   created_at: string
   updated_at: string
   product?: Pick<Product, 'id' | 'sku' | 'name'> | null
+  team?: Pick<Team, 'id' | 'name'> | null
+  owner_user?: UserBasic | null
   added_by?: UserBasic
 }
 
@@ -365,9 +397,14 @@ export interface TasksQuery {
   search?: string
 }
 
+export type BrandType = 'DO_DA' | 'TRANG_SUC'
+
 export interface ProductsQuery {
+  brand_type?: BrandType
   product_line_id?: string
   team_id?: string
+  user_id?: string
+  owner?: 'global' | 'personal' | 'all' | ''
   is_active?: boolean
   page?: number
   limit?: number
@@ -375,17 +412,24 @@ export interface ProductsQuery {
 }
 
 export interface ContentsQuery {
+  brand_type?: BrandType
   status?: ContentUsageStatus | ''
   content_line_id?: string
   market?: string
+  user_id?: string
+  owner?: 'global' | 'personal' | 'all' | ''
   page?: number
   limit?: number
   search?: string
 }
 
 export interface SourcesQuery {
+  brand_type?: BrandType
   type?: SourceType | ''
   product_id?: string
+  team_id?: string
+  user_id?: string
+  owner?: 'global' | 'team' | 'editor' | 'all' | ''
   is_active?: boolean
   page?: number
   limit?: number

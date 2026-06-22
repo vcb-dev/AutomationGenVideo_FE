@@ -18,13 +18,14 @@ export default function KpiPage() {
   const isManager = roles.includes('MANAGER')
   const isLeader = roles.includes('LEADER')
 
-  // ADMIN/MANAGER: set KPI team + KPI editor
-  // LEADER: chỉ set KPI editor cho thành viên team mình, xem KPI team (không sửa)
-  const canEditTeamKpi = isAdmin || isManager
-  const canEditEditorKpi = isAdmin || isManager || isLeader
+  const isAdminOrManager = isAdmin || isManager
+  const canEditTeamKpi = isAdminOrManager
+  const canEditEditorKpi = isAdminOrManager || isLeader
 
   const [activeTab, setActiveTab] = useState<KpiTab>('team')
   const [month, setMonth] = useState(currentMonth)
+  // Shared team selection between KPI Team and KPI Editor tabs
+  const [selectedTeamId, setSelectedTeamId] = useState('')
 
   return (
     <div className="space-y-8">
@@ -36,7 +37,7 @@ export default function KpiPage() {
         <MonthPicker value={month} onChange={setMonth} />
       </div>
 
-      {isLeader && !isAdmin && !isManager && (
+      {isLeader && !isAdminOrManager && (
         <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl px-5 py-3.5 text-sm text-blue-700">
           <Info className="w-4 h-4 shrink-0" />
           <span>
@@ -66,17 +67,20 @@ export default function KpiPage() {
       {activeTab === 'team' && (
         <TeamKpiTab
           month={month}
-          onMonthChange={setMonth}
           canEdit={canEditTeamKpi}
+          userId={user?.id}
+          isAdminOrManager={isAdminOrManager}
+          selectedTeamId={selectedTeamId}
+          onTeamChange={setSelectedTeamId}
         />
       )}
       {activeTab === 'editor' && (
         <EditorKpiTab
           month={month}
-          onMonthChange={setMonth}
           canEdit={canEditEditorKpi}
-          isLeader={isLeader && !isAdmin && !isManager}
+          isLeader={isLeader && !isAdminOrManager}
           userId={user?.id}
+          selectedTeamId={selectedTeamId}
         />
       )}
     </div>

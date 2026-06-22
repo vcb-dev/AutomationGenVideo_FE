@@ -106,8 +106,8 @@ export const setMemberEditorRole = (teamId: string, userId: string, isEditor: bo
 
 // ── Team Products ─────────────────────────────────────────────────────────────
 
-export const getTeamProducts = (teamId: string) =>
-  apiClient.get<TeamProduct[]>(`/task-auto/teams/${teamId}/products`).then(r => r.data)
+export const getTeamProducts = (teamId: string, brandType?: string) =>
+  apiClient.get<TeamProduct[]>(`/task-auto/teams/${teamId}/products${brandType ? `?brand_type=${brandType}` : ''}`).then(r => r.data)
 
 export const addTeamProduct = (teamId: string, productId: string) =>
   apiClient.post<TeamProduct>(`/task-auto/teams/${teamId}/products`, { product_id: productId }).then(r => r.data)
@@ -117,8 +117,8 @@ export const removeTeamProduct = (teamId: string, productId: string) =>
 
 // ── Team Contents ─────────────────────────────────────────────────────────────
 
-export const getTeamContents = (teamId: string) =>
-  apiClient.get<TeamContent[]>(`/task-auto/teams/${teamId}/contents`).then(r => r.data)
+export const getTeamContents = (teamId: string, brandType?: string) =>
+  apiClient.get<TeamContent[]>(`/task-auto/teams/${teamId}/contents${brandType ? `?brand_type=${brandType}` : ''}`).then(r => r.data)
 
 export const addTeamContent = (teamId: string, contentId: string) =>
   apiClient.post<TeamContent>(`/task-auto/teams/${teamId}/contents`, { content_id: contentId }).then(r => r.data)
@@ -156,11 +156,18 @@ export type TaskAutoDashboard = {
   team?: { id: string; name: string; member_count: number } | null
   members?: Array<{
     user_id: string; full_name: string; email: string
-    pending: number; in_progress: number; submitted: number; approved: number; kpi_target: number
+    pending: number; in_progress: number; submitted: number; approved: number
+    kpi_target: number; kpi_video_win: number; kpi_content_new: number; kpi_product_planned: number
   }>
   kpi?: {
     month: string; total_target: number; completed: number
-    kpi_day?: number; kpi_weekend?: number; kpi_extra?: number
+    // Video
+    video_win?: number; video_fail?: number
+    // Content
+    kpi_extra?: number; content_new?: number; content_collected?: number; content_win_cover?: number
+    // Product
+    product_planned?: number; product_win_collect?: number
+    video_traffic?: number; video_gmv?: number; video_profit?: number
   } | null
 }
 
@@ -220,20 +227,23 @@ export const deleteEditorKpi = (id: string) =>
 
 // ── Catalog — Lookup Tables ────────────────────────────────────────────────────
 
-export const getProductLines = () =>
-  apiClient.get<ProductLine[]>('/task-auto/product-lines').then(r => r.data)
+export const getProductLines = (brandType?: string) =>
+  apiClient.get<ProductLine[]>(`/task-auto/product-lines${brandType ? `?brand_type=${brandType}` : ''}`).then(r => r.data)
 
-export const createProductLine = (name: string) =>
-  apiClient.post<ProductLine>('/task-auto/product-lines', { name }).then(r => r.data)
+export const createProductLine = (name: string, brandType: string) =>
+  apiClient.post<ProductLine>('/task-auto/product-lines', { name, brand_type: brandType }).then(r => r.data)
+
+export const updateProductLine = (id: string, body: { video_category?: string | null }) =>
+  apiClient.patch<ProductLine>(`/task-auto/product-lines/${id}`, body).then(r => r.data)
 
 export const deleteProductLine = (id: string) =>
   apiClient.delete(`/task-auto/product-lines/${id}`).then(r => r.data)
 
-export const getMaterials = () =>
-  apiClient.get<Material[]>('/task-auto/materials').then(r => r.data)
+export const getMaterials = (brandType?: string) =>
+  apiClient.get<Material[]>(`/task-auto/materials${brandType ? `?brand_type=${brandType}` : ''}`).then(r => r.data)
 
-export const createMaterial = (name: string) =>
-  apiClient.post<Material>('/task-auto/materials', { name }).then(r => r.data)
+export const createMaterial = (name: string, brandType: string) =>
+  apiClient.post<Material>('/task-auto/materials', { name, brand_type: brandType }).then(r => r.data)
 
 export const deleteMaterial = (id: string) =>
   apiClient.delete(`/task-auto/materials/${id}`).then(r => r.data)
@@ -243,6 +253,9 @@ export const getContentLines = () =>
 
 export const createContentLine = (name: string) =>
   apiClient.post<ContentLine>('/task-auto/content-lines', { name }).then(r => r.data)
+
+export const updateContentLine = (id: string, body: { a_type?: string | null }) =>
+  apiClient.patch<ContentLine>(`/task-auto/content-lines/${id}`, body).then(r => r.data)
 
 export const deleteContentLine = (id: string) =>
   apiClient.delete(`/task-auto/content-lines/${id}`).then(r => r.data)
@@ -297,6 +310,14 @@ export const uploadVoiceFile = (file: File): Promise<{ url: string }> => {
   }).then(r => r.data)
 }
 
+export const uploadContentFile = (file: File): Promise<{ url: string }> => {
+  const fd = new FormData()
+  fd.append('file', file)
+  return apiClient.post<{ url: string }>('/task-auto/upload-content', fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then(r => r.data)
+}
+
 // ── Catalog — Sources ─────────────────────────────────────────────────────────
 
 export const getSources = (q: SourcesQuery = {}) =>
@@ -313,6 +334,17 @@ export const updateSource = (id: string, body: Partial<Source>) =>
 
 export const deleteSource = (id: string) =>
   apiClient.delete(`/task-auto/sources/${id}`).then(r => r.data)
+
+// ── Personal Catalog — Push to Team ──────────────────────────────────────────
+
+export const pushProductToTeam = (productId: string, teamId: string) =>
+  apiClient.post(`/task-auto/my-catalog/products/${productId}/push-to-team`, { team_id: teamId }).then(r => r.data)
+
+export const pushContentToTeam = (contentId: string, teamId: string) =>
+  apiClient.post(`/task-auto/my-catalog/contents/${contentId}/push-to-team`, { team_id: teamId }).then(r => r.data)
+
+export const pushSourceToTeam = (sourceId: string, teamId: string) =>
+  apiClient.post(`/task-auto/my-catalog/sources/${sourceId}/push-to-team`, { team_id: teamId }).then(r => r.data)
 
 // ── Auto-Assign Settings & Runs ────────────────────────────────────────────────
 

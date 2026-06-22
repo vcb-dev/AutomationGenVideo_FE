@@ -3,13 +3,13 @@
 import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Loader2, Mic, X, Play, Pause } from 'lucide-react'
+import { Loader2, Mic, X, Play, Pause, FileText, Upload } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { DarkInput, DarkTextarea, CustomSelect } from '@/components/task-auto/DarkInput'
 import {
   createContent, updateContent,
-  getContentLines, uploadVoiceFile,
+  getContentLines, uploadVoiceFile, uploadContentFile,
 } from '@/lib/api/task-auto'
 import type { Content } from '@/types/task-auto'
 
@@ -173,18 +173,146 @@ export function VoicePicker({
   )
 }
 
+// ── ContentFilePicker ─────────────────────────────────────────────────────────
+
+const CONTENT_ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt'
+const CONTENT_MIME = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/plain',
+]
+
+export function ContentFilePicker({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (url: string) => void
+}) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+  const [mode, setMode] = useState<'url' | 'file'>('url')
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!CONTENT_MIME.includes(file.type)) return toast.error('Chỉ chấp nhận PDF, Word, Excel, PowerPoint, TXT')
+    if (file.size > 100 * 1024 * 1024) return toast.error('File tối đa 100MB')
+    setUploading(true)
+    try {
+      const { url } = await uploadContentFile(file)
+      onChange(url)
+    } catch {
+      toast.error('Không thể tải file lên')
+    } finally {
+      setUploading(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
+  const filename = value ? decodeURIComponent(value.split('/').pop() ?? '') : ''
+  const isUploaded = value && !value.startsWith('http') === false && mode === 'file'
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <label className="block text-sm font-semibold text-slate-700">File content</label>
+        <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-semibold">
+          <button
+            type="button"
+            onClick={() => setMode('url')}
+            className={cn('px-3 py-1.5 transition-colors', mode === 'url' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-gray-50')}
+          >
+            Link URL
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('file')}
+            className={cn('px-3 py-1.5 transition-colors', mode === 'file' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-gray-50')}
+          >
+            Tải file lên
+          </button>
+        </div>
+      </div>
+
+      {mode === 'url' ? (
+        <input
+          type="url"
+          placeholder="https://drive.google.com/..."
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+        />
+      ) : (
+        <>
+          <input ref={fileRef} type="file" accept={CONTENT_ACCEPT} className="hidden" onChange={handleFile} />
+          {value && mode === 'file' ? (
+            <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+              <FileText className="w-5 h-5 text-emerald-600 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-emerald-700 truncate">{filename || 'File đã tải lên'}</p>
+                <a href={value} target="_blank" rel="noreferrer" className="text-xs text-emerald-500 hover:underline">Xem file</a>
+              </div>
+              <button
+                type="button"
+                onClick={() => onChange('')}
+                className="p-1 rounded-full hover:bg-emerald-200 text-emerald-500 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className="text-xs text-emerald-600 hover:text-emerald-800 font-medium"
+              >
+                Đổi file
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => !uploading && fileRef.current?.click()}
+              disabled={uploading}
+              className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-gray-200 hover:border-indigo-400 rounded-xl py-4 text-sm text-slate-400 hover:text-indigo-600 transition-colors disabled:opacity-60"
+            >
+              {uploading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
+                  <span className="text-indigo-600">Đang tải lên...</span>
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4" />
+                  <span>Chọn file <span className="text-slate-300">(PDF, Word, Excel, PPT — tối đa 100MB)</span></span>
+                </>
+              )}
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 // ── ContentFormModal ──────────────────────────────────────────────────────────
+
+type BrandType = 'DO_DA' | 'TRANG_SUC'
 
 interface ContentFormModalProps {
   open: boolean
-  /** Khi truyền vào: edit mode. Khi null/undefined: create mode. */
   editing?: Content | null
   onClose: () => void
-  /** Được gọi sau khi tạo/cập nhật thành công, trước khi onClose. */
   onSuccess: (content: Content) => void
+  userId?: string
+  brandType?: BrandType
 }
 
-export function ContentFormModal({ open, editing, onClose, onSuccess }: ContentFormModalProps) {
+export function ContentFormModal({ open, editing, onClose, onSuccess, userId, brandType }: ContentFormModalProps) {
   const qc = useQueryClient()
   const isEdit = !!editing
 
@@ -246,7 +374,7 @@ export function ContentFormModal({ open, editing, onClose, onSuccess }: ContentF
       market: markets.join(','),
     }
     if (!isEdit) {
-      createMut.mutate({ ...sharedBody } as any)
+      createMut.mutate({ ...sharedBody, brand_type: brandType ?? 'DO_DA', ...(userId ? { user_id: userId } : {}) } as any)
     } else {
       updateMut.mutate({ id: editing!.id, body: { ...sharedBody, status: form.status } })
     }
@@ -317,11 +445,9 @@ export function ContentFormModal({ open, editing, onClose, onSuccess }: ContentF
             value={form.body ?? ''}
             onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
           />
-          <DarkInput
-            label="URL file content"
-            placeholder="https://drive.google.com/..."
+          <ContentFilePicker
             value={form.file_content_url ?? ''}
-            onChange={e => setForm(f => ({ ...f, file_content_url: e.target.value }))}
+            onChange={url => setForm(f => ({ ...f, file_content_url: url }))}
           />
         </div>
 

@@ -18,53 +18,116 @@ interface Props {
   onSuccess: () => void
 }
 
-const CHUNK_SIZE = 5 * 1024 * 1024 // 5 MB
+const CHUNK_SIZE = 8 * 1024 * 1024 // 8 MB
 
 async function uploadVideoInChunks(
   file: File,
   onProgress: (pct: number) => void,
 ): Promise<{ url: string; filename: string; originalname: string; mimetype: string; size: number; storage: string }> {
-  // 1. Init
-  const { uploadId } = await apiClient
-    .post<{ uploadId: string; chunkSize: number }>('/social/upload/chunk/init', {
+  // 1. Init — BE tạo Google Drive resumable session, trả về uploadUrl
+  const { uploadId, uploadUrl, chunkSize } = await apiClient
+    .post<{ uploadId: string; uploadUrl: string; chunkSize: number }>('/social/upload/chunk/init', {
       filename: file.name,
       mimetype: file.type || 'video/mp4',
       totalSize: file.size,
     })
     .then(r => r.data)
 
-  // 2. Send chunks
-  const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
-  for (let i = 0; i < totalChunks; i++) {
-    const start = i * CHUNK_SIZE
-    const blob = file.slice(start, Math.min(start + CHUNK_SIZE, file.size))
-    const form = new FormData()
-    form.append('uploadId', uploadId)
-    form.append('chunkIndex', String(i))
-    form.append('chunk', blob, file.name)
-    await apiClient.post('/social/upload/chunk', form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
-    onProgress(Math.round(((i + 1) / totalChunks) * 90))
+  const effectiveChunkSize = chunkSize || CHUNK_SIZE
+  let offset = 0
+  let driveFileId: string | undefined
+
+  const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+  const syncStatus = async () => {
+    const status = await apiClient
+      .post<{ uploadedBytes: number; totalSize: number; completed: boolean; driveFileId?: string }>(
+        '/social/upload/chunk/status', { uploadId },
+      ).then(r => r.data)
+    driveFileId = status.driveFileId || driveFileId
+    offset = Math.min(status.uploadedBytes || 0, file.size)
+    onProgress(Math.round((offset / file.size) * 90))
+    return status
   }
 
-  // 3. Finish
+  // 2. Gửi chunk trực tiếp đến Google Drive resumable uploadUrl
+  while (offset < file.size) {
+    const start = offset
+    const end = Math.min(start + effectiveChunkSize, file.size) - 1
+    const blob = file.slice(start, end + 1)
+    let uploaded = false
+
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      try {
+        const res = await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': file.type || 'video/mp4',
+            'Content-Range': `bytes ${start}-${end}/${file.size}`,
+          },
+          body: blob,
+          signal: AbortSignal.timeout(60_000),
+        })
+
+        if (res.status === 429) {
+          const wait = parseInt(res.headers.get('Retry-After') ?? '5', 10)
+          await sleep(Math.max(wait * 1000, 3000))
+          attempt--
+          continue
+        }
+        if (res.status === 200 || res.status === 201) {
+          const data = await res.json().catch(() => ({}))
+          driveFileId = (data as { id?: string }).id
+          offset = file.size
+          uploaded = true
+          break
+        }
+        if (res.status === 308) {
+          offset = end + 1
+          uploaded = true
+          break
+        }
+        const text = await res.text().catch(() => res.statusText)
+        throw new Error(`Drive upload failed (${res.status}): ${text}`)
+      } catch (err) {
+        if (attempt === 5) {
+          const status = await syncStatus().catch(() => null)
+          if (status?.completed) { driveFileId = status.driveFileId; offset = file.size; uploaded = true; break }
+          if (offset > start) { uploaded = true; break }
+          await apiClient.post('/social/upload/chunk/cancel', { uploadId }).catch(() => {})
+          throw err
+        }
+        await sleep(1000 * attempt)
+      }
+    }
+    if (!uploaded) throw new Error('Google Drive upload failed')
+    onProgress(Math.round((offset / file.size) * 90))
+  }
+
+  if (!driveFileId) {
+    const status = await syncStatus()
+    driveFileId = status.driveFileId
+  }
+  if (!driveFileId) throw new Error('Không lấy được Drive file ID sau khi upload')
+
+  // 3. Finish — BE verify Drive file, lưu metadata
+  onProgress(95)
   const result = await apiClient
-    .post<{ success: boolean; urls: Array<{ url: string; filename: string; originalname: string; mimetype: string; size: number; storage: string }> }>(
+    .post<{ success: boolean; urls: Array<{ url: string; filename: string; originalname: string; mimetype: string; size: number; storage: string; drive_file_id?: string }> }>(
       '/social/upload/chunk/finish',
-      { uploadId, totalChunks },
+      { uploadId, driveFileId },
     )
     .then(r => r.data)
 
   onProgress(100)
-  const uploaded = result.urls[0]
+  const uploaded2 = result.urls[0]
   return {
-    url: uploaded.url,
-    filename: uploaded.filename,
-    originalname: uploaded.originalname ?? file.name,
-    mimetype: uploaded.mimetype ?? file.type,
-    size: uploaded.size ?? file.size,
-    storage: uploaded.storage ?? 'local',
+    url: uploaded2.url,
+    filename: uploaded2.filename,
+    originalname: uploaded2.originalname ?? file.name,
+    mimetype: uploaded2.mimetype ?? file.type,
+    size: uploaded2.size ?? file.size,
+    storage: uploaded2.storage ?? 'google_drive',
   }
 }
 

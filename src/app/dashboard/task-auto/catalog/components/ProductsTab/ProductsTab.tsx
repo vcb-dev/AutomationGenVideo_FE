@@ -3,25 +3,31 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Search, Plus, Edit2, Loader2, Package, ChevronLeft, ChevronRight, ImageIcon } from 'lucide-react'
+import { Search, Plus, Edit2, Trash2, Loader2, Package, ChevronLeft, ChevronRight, ImageIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { DarkInput, CustomSelect, CreatableSelect } from '@/components/task-auto/DarkInput'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import {
-  getProducts, createProduct, updateProduct,
+  getProducts, createProduct, updateProduct, deleteProduct,
   getProductLines, createProductLine, deleteProductLine,
   getMaterials, createMaterial, deleteMaterial,
   createSource,
 } from '@/lib/api/task-auto'
+import { useAuthStore } from '@/store/auth-store'
+import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
 import { parseMarkets, formatPrice, defaultSource } from './product-utils'
 import type { SourceDraft } from './product-utils'
 import { MarketBadge, LoadingRows, MiniList, MarketPicker, PriceInput, MultiImagePicker, SourceForm } from './ProductFormFields'
 import { ProductDetailModal } from './ProductDetailModal'
 import { Product } from '@/types/task-auto'
 
-export function ProductsTab() {
+type BrandType = 'DO_DA' | 'TRANG_SUC'
+
+export function ProductsTab({ brandType }: { brandType: BrandType }) {
   const qc = useQueryClient()
+  const { user } = useAuthStore()
+  const canDelete = user?.roles?.some((r: string) => ['ADMIN', 'MANAGER'].includes(r)) ?? false
   const [search, setSearch] = useState('')
   const [productLineFilter, setProductLineFilter] = useState('')
   const [activeFilter, setActiveFilter] = useState<'all' | 'true' | 'false'>('all')
@@ -29,6 +35,7 @@ export function ProductsTab() {
   const [modal, setModal] = useState<null | 'create' | 'edit'>(null)
   const [editing, setEditing] = useState<Product | null>(null)
   const [viewProduct, setViewProduct] = useState<Product | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [showCatalogPanel, setShowCatalogPanel] = useState(false)
   const [form, setForm] = useState<Partial<Product> & { image_urls: string[] }>({
     sku: '', name: '', image_urls: [], price: '',
@@ -37,11 +44,13 @@ export function ProductsTab() {
   const [markets, setMarkets] = useState<string[]>(['VIETNAM'])
   const [sourceDraft, setSourceDraft] = useState<SourceDraft>(defaultSource)
 
-  const { data: productLines } = useQuery({ queryKey: ['task-auto', 'product-lines'], queryFn: getProductLines })
-  const { data: materials } = useQuery({ queryKey: ['task-auto', 'materials'], queryFn: getMaterials })
+  const { data: productLines } = useQuery({ queryKey: ['task-auto', 'product-lines', brandType], queryFn: () => getProductLines(brandType) })
+  const { data: materials } = useQuery({ queryKey: ['task-auto', 'materials', brandType], queryFn: () => getMaterials(brandType) })
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'products', search, productLineFilter, activeFilter, page],
+    queryKey: ['task-auto', 'products', brandType, search, productLineFilter, activeFilter, page],
     queryFn: () => getProducts({
+      brand_type: brandType,
+      owner: 'global',
       search: search || undefined,
       product_line_id: productLineFilter || undefined,
       is_active: activeFilter === 'all' ? undefined : activeFilter === 'true',
@@ -84,18 +93,18 @@ export function ProductsTab() {
   })
 
   const createLineMut = useMutation({
-    mutationFn: createProductLine,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['task-auto', 'product-lines'] }),
+    mutationFn: ({ name }: { name: string }) => createProductLine(name, brandType),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['task-auto', 'product-lines', brandType] }),
     onError: () => toast.error('Không thể thêm dòng sản phẩm'),
   })
   const deleteLineMut = useMutation({
     mutationFn: deleteProductLine,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['task-auto', 'product-lines'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['task-auto', 'product-lines', brandType] }),
     onError: () => toast.error('Không thể xóa dòng sản phẩm'),
   })
   const createMatMut = useMutation({
-    mutationFn: createMaterial,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['task-auto', 'materials'] }),
+    mutationFn: ({ name }: { name: string }) => createMaterial(name, brandType),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['task-auto', 'materials', brandType] }),
     onError: () => toast.error('Không thể thêm chất liệu'),
   })
   const deleteMatMut = useMutation({
@@ -128,6 +137,7 @@ export function ProductsTab() {
     if (sourceDraft.enabled && (!sourceDraft.name || !sourceDraft.link)) return toast.error('Source cần có tên và link')
     const baseBody = {
       name: form.name,
+      brand_type: brandType,
       image_urls: form.image_urls,
       price: form.price || undefined,
       market: markets.join(','),
@@ -140,6 +150,16 @@ export function ProductsTab() {
     if (modal === 'create') createMut.mutate({ sku: form.sku, ...baseBody })
     else if (editing) updateMut.mutate({ id: editing.id, body: baseBody })
   }
+
+  const deleteMut = useMutation({
+    mutationFn: deleteProduct,
+    onSuccess: async () => { await refresh(); toast.success('Đã xóa sản phẩm'); setDeletingId(null) },
+    onError: (e: any) => {
+      const msg = e?.response?.data?.message || 'Không thể xóa sản phẩm'
+      toast.error(msg)
+      setDeletingId(null)
+    },
+  })
 
   const saving = createMut.isPending || updateMut.isPending
   const total = data?.total ?? 0
@@ -287,13 +307,24 @@ export function ProductsTab() {
                       </span>
                     </td>
                     <td className="px-4 py-4 text-right">
-                      <button
-                        onClick={e => { e.stopPropagation(); openEdit(p) }}
-                        className="p-2.5 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors opacity-0 group-hover:opacity-100"
-                        title="Chỉnh sửa"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center justify-end gap-1 transition-opacity">
+                        <button
+                          onClick={e => { e.stopPropagation(); openEdit(p) }}
+                          className="p-2 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors"
+                          title="Chỉnh sửa"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        {canDelete && (
+                          <button
+                            onClick={e => { e.stopPropagation(); setDeletingId(p.id) }}
+                            className="p-2 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
+                            title="Xóa"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )
@@ -358,14 +389,14 @@ export function ProductsTab() {
               title="Dòng sản phẩm"
               items={productLines ?? []}
               addLabel="Nhập tên dòng sản phẩm..."
-              onAdd={name => createLineMut.mutateAsync(name)}
+              onAdd={name => createLineMut.mutateAsync({ name })}
               onDelete={id => deleteLineMut.mutate(id)}
             />
             <MiniList
               title="Chất liệu"
               items={materials ?? []}
               addLabel="Nhập tên chất liệu..."
-              onAdd={name => createMatMut.mutateAsync(name)}
+              onAdd={name => createMatMut.mutateAsync({ name })}
               onDelete={id => deleteMatMut.mutate(id)}
             />
           </div>
@@ -428,9 +459,9 @@ export function ProductsTab() {
                 options={productLines?.map(l => ({ value: l.id, label: l.name })) ?? []}
                 createLabel="Thêm dòng sản phẩm"
                 onCreate={async (name) => {
-                  const created = await createProductLine(name)
+                  const created = await createProductLine(name, brandType)
                   qc.setQueryData<typeof productLines>(
-                    ['task-auto', 'product-lines'],
+                    ['task-auto', 'product-lines', brandType],
                     old => [...(old ?? []), created]
                   )
                   return { id: created.id, label: created.name }
@@ -443,9 +474,9 @@ export function ProductsTab() {
                 options={materials?.map(m => ({ value: m.id, label: m.name })) ?? []}
                 createLabel="Thêm chất liệu"
                 onCreate={async (name) => {
-                  const created = await createMaterial(name)
+                  const created = await createMaterial(name, brandType)
                   qc.setQueryData<typeof materials>(
-                    ['task-auto', 'materials'],
+                    ['task-auto', 'materials', brandType],
                     old => [...(old ?? []), created]
                   )
                   return { id: created.id, label: created.name }
@@ -527,6 +558,17 @@ export function ProductsTab() {
           onEdit={() => openEdit(viewProduct)}
         />
       )}
+
+      <ConfirmDialog
+        open={!!deletingId}
+        title="Xóa sản phẩm"
+        message="Sản phẩm sẽ bị xóa vĩnh viễn. Hành động này không thể hoàn tác."
+        confirmLabel="Xóa sản phẩm"
+        danger
+        isLoading={deleteMut.isPending}
+        onConfirm={() => deletingId && deleteMut.mutate(deletingId)}
+        onCancel={() => setDeletingId(null)}
+      />
     </div>
   )
 }
