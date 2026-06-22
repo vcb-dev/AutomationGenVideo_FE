@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Hash, X, Check } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useSocialLang } from '@/contexts/SocialLanguageContext';
 
 interface Props {
   hashtags: string[];
@@ -21,6 +22,7 @@ export default function HashtagPanel({
   onAdd, onRemove, onInputChange, onKeyDown,
   onAddSuggested, onRemoveSuggested,
 }: Props) {
+  const { t } = useSocialLang();
   const [showSuggestInput, setShowSuggestInput] = useState(false);
   const [suggestInputVal, setSuggestInputVal] = useState('');
 
@@ -38,7 +40,7 @@ export default function HashtagPanel({
           <div className={`p-1.5 rounded-lg ${hashtags.length === 0 ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-600'}`}>
             <Hash className="w-4 h-4" />
           </div>
-          <span className="text-slate-800 font-extrabold text-[13px]">Hashtag Mục tiêu *</span>
+          <span className="text-slate-800 font-extrabold text-[13px]">{t.hashtagPanel.title}</span>
         </div>
         {showSuggestInput ? (
           <div className="flex items-center gap-1">
@@ -51,14 +53,14 @@ export default function HashtagPanel({
                 if (e.key === 'Enter') handleSubmitSuggested();
                 if (e.key === 'Escape') { setSuggestInputVal(''); setShowSuggestInput(false); }
               }}
-              placeholder="Tên hashtag..."
+              placeholder={t.hashtagPanel.tagNamePlaceholder}
               className="border border-blue-300 rounded-lg px-2 py-0.5 text-[12px] text-slate-700 outline-none focus:border-blue-500 w-32"
             />
             <button onClick={handleSubmitSuggested} className="text-green-600 hover:text-green-700"><Check className="w-4 h-4" /></button>
             <button onClick={() => { setSuggestInputVal(''); setShowSuggestInput(false); }} className="text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
           </div>
         ) : (
-          <button onClick={() => setShowSuggestInput(true)} className="text-blue-600 text-xs font-bold hover:underline">+ Thêm gợi ý</button>
+          <button onClick={() => setShowSuggestInput(true)} className="text-blue-600 text-xs font-bold hover:underline">{t.hashtagPanel.addSuggestion}</button>
         )}
       </div>
 
@@ -71,7 +73,7 @@ export default function HashtagPanel({
         ))}
         <input
           type="text"
-          placeholder={hashtags.length === 0 ? 'Nhập hashtag và nhấn Space...' : 'Thêm...'}
+          placeholder={hashtags.length === 0 ? t.hashtagPanel.inputPlaceholderEmpty : t.hashtagPanel.inputPlaceholderMore}
           value={hashtagInput}
           onChange={e => onInputChange(e.target.value)}
           onKeyDown={onKeyDown}
@@ -80,7 +82,7 @@ export default function HashtagPanel({
       </div>
 
       <div className="space-y-2">
-        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Gợi ý nhanh:</span>
+        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t.hashtagPanel.quickSuggestions}</span>
         <div className="flex flex-wrap gap-2">
           {suggestedHashtags.map(tag => (
             <div key={tag} className="relative group">

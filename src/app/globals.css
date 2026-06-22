@@ -82,4 +82,53 @@
   .glass-card {
     @apply bg-white/60 backdrop-blur-sm border border-white/20 shadow-sm transition-all hover:shadow-md hover:bg-white/80;
   }
+
+  /* Custom Scrollbar Utilities */
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(156, 163, 175, 0.25) transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(156, 163, 175, 0.25);
+    border-radius: 9999px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(156, 163, 175, 0.45);
+  }
+
+  /* Dark mode and dark scrollbar variation */
+  .dark .custom-scrollbar,
+  .custom-scrollbar-dark {
+    scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+  }
+
+  .dark .custom-scrollbar::-webkit-scrollbar-thumb,
+  .custom-scrollbar-dark::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover,
+  .custom-scrollbar-dark::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
+  }
+
+  /* Hide scrollbar utility */
+  .scrollbar-none {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;             /* Chrome, Safari and Opera */
+  }
 }

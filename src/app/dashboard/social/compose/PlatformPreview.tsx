@@ -1,6 +1,7 @@
 'use client';
 
 import { SocialPlatform, PLATFORM_META } from '@/lib/api/social';
+import { useSocialLang } from '@/contexts/SocialLanguageContext';
 
 interface Props {
   platform: SocialPlatform;
@@ -68,6 +69,7 @@ function truncate(text: string, max: number) {
 
 // ── Facebook Preview ──────────────────────────────────────────────────────────
 function FacebookPreview({ message, mediaUrls, accountName, accountAvatar, mediaThumbs }: Props) {
+  const { t } = useSocialLang();
   return (
     <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm max-w-[400px] mx-auto">
       <div className="flex items-center gap-3 px-4 pt-4 pb-3">
@@ -77,7 +79,7 @@ function FacebookPreview({ message, mediaUrls, accountName, accountAvatar, media
         <div>
           <p className="text-sm font-bold text-slate-900">{accountName || 'Viện Chí Bảo'}</p>
           <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
-            <span>Vừa xong</span>
+            <span>{t.platformPreview.justNow}</span>
             <span>·</span>
             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" /></svg>
           </div>
@@ -98,13 +100,13 @@ function FacebookPreview({ message, mediaUrls, accountName, accountAvatar, media
           <span>👍</span><span>0</span>
         </div>
         <div className="flex items-center gap-3 text-[11px] text-slate-500 font-semibold">
-          <span>0 bình luận</span>
-          <span>0 lượt chia sẻ</span>
+          <span>{t.platformPreview.commentsCount(0)}</span>
+          <span>{t.platformPreview.sharesCount(0)}</span>
         </div>
       </div>
 
       <div className="px-2 py-1 border-t border-slate-100 flex items-center justify-around">
-        {['👍 Thích', '💬 Bình luận', '↗ Chia sẻ'].map(a => (
+        {[`👍 ${t.platformPreview.like}`, `💬 ${t.platformPreview.comment}`, `↗ ${t.platformPreview.share}`].map(a => (
           <button key={a} className="flex-1 py-2 text-[11px] font-bold text-slate-500 hover:bg-slate-50 rounded-lg">{a}</button>
         ))}
       </div>
@@ -114,6 +116,7 @@ function FacebookPreview({ message, mediaUrls, accountName, accountAvatar, media
 
 // ── Instagram Preview ─────────────────────────────────────────────────────────
 function InstagramPreview({ message, mediaUrls, accountName, accountAvatar, mediaThumbs }: Props) {
+  const { t } = useSocialLang();
   return (
     <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm max-w-[380px] mx-auto">
       <div className="flex items-center gap-3 px-3 py-3">
@@ -139,20 +142,20 @@ function InstagramPreview({ message, mediaUrls, accountName, accountAvatar, medi
       <div className="px-3 py-3">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-3 text-xl">
-            <span title="Thích">🤍</span>
-            <span title="Bình luận">💬</span>
-            <span title="Chia sẻ">📤</span>
+            <span title={t.platformPreview.like}>🤍</span>
+            <span title={t.platformPreview.comment}>💬</span>
+            <span title={t.platformPreview.share}>📤</span>
           </div>
-          <span className="text-xl" title="Lưu">🔖</span>
+          <span className="text-xl" title={t.platformPreview.save}>🔖</span>
         </div>
-        <p className="text-xs font-bold text-slate-800 mb-1">0 lượt thích</p>
+        <p className="text-xs font-bold text-slate-800 mb-1">{t.platformPreview.likesCount(0)}</p>
         {message && (
           <p className="text-xs text-slate-700 leading-relaxed">
             <span className="font-bold mr-1">{accountName || 'vienchibao'}</span>
             {truncate(message, 150)}
           </p>
         )}
-        <p className="text-[10px] text-slate-400 mt-1">Vừa xong</p>
+        <p className="text-[10px] text-slate-400 mt-1">{t.platformPreview.justNow}</p>
       </div>
     </div>
   );
@@ -160,6 +163,7 @@ function InstagramPreview({ message, mediaUrls, accountName, accountAvatar, medi
 
 // ── TikTok Preview ────────────────────────────────────────────────────────────
 function TikTokPreview({ message, mediaUrls, accountName }: Props) {
+  const { t } = useSocialLang();
   return (
     <div className="bg-black rounded-2xl overflow-hidden shadow-sm max-w-[240px] mx-auto aspect-[9/16] relative flex items-end">
       {mediaUrls.length > 0 ? (
@@ -190,7 +194,7 @@ function TikTokPreview({ message, mediaUrls, accountName }: Props) {
         {message && <p className="text-white text-[11px] leading-relaxed line-clamp-2">{truncate(message, 100)}</p>}
         <div className="flex items-center gap-1.5 mt-2">
           <div className="w-4 h-4 rounded-full bg-slate-600 animate-spin" style={{ animationDuration: '3s' }} />
-          <p className="text-white/80 text-[10px]">Nhạc nền · {accountName || 'Viện Chí Bảo'}</p>
+          <p className="text-white/80 text-[10px]">{t.platformPreview.originalAudio} · {accountName || 'Viện Chí Bảo'}</p>
         </div>
       </div>
     </div>
@@ -199,7 +203,8 @@ function TikTokPreview({ message, mediaUrls, accountName }: Props) {
 
 // ── YouTube Preview ───────────────────────────────────────────────────────────
 function YouTubePreview({ message, mediaUrls, accountName, accountAvatar }: Props) {
-  const title = message ? truncate(message.split('\n')[0], 80) : 'Tiêu đề video';
+  const { t } = useSocialLang();
+  const title = message ? truncate(message.split('\n')[0], 80) : t.platformPreview.videoTitlePlaceholder;
   return (
     <div className="bg-white rounded-2xl overflow-hidden shadow-sm max-w-[380px] mx-auto">
       {mediaUrls.length > 0 ? (
@@ -214,9 +219,9 @@ function YouTubePreview({ message, mediaUrls, accountName, accountAvatar }: Prop
       <div className="p-3">
         <p className="text-sm font-bold text-slate-900 leading-snug mb-1">{title}</p>
         <div className="flex items-center gap-2 text-[11px] text-slate-500">
-          <span>0 lượt xem</span>
+          <span>{t.platformPreview.viewsCount(0)}</span>
           <span>·</span>
-          <span>Vừa xong</span>
+          <span>{t.platformPreview.justNow}</span>
         </div>
         <div className="flex items-center gap-2 mt-2">
           <div className="w-7 h-7 rounded-full bg-red-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 overflow-hidden">
@@ -231,6 +236,7 @@ function YouTubePreview({ message, mediaUrls, accountName, accountAvatar }: Prop
 
 // ── Threads Preview ───────────────────────────────────────────────────────────
 function ThreadsPreview({ message, mediaUrls, accountName, mediaThumbs }: Props) {
+  const { t } = useSocialLang();
   return (
     <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm max-w-[380px] mx-auto p-4">
       <div className="flex gap-3">
@@ -243,7 +249,7 @@ function ThreadsPreview({ message, mediaUrls, accountName, mediaThumbs }: Props)
         <div className="flex-1 min-w-0 pb-3">
           <div className="flex items-center gap-2 mb-1">
             <p className="text-sm font-bold text-slate-900">{accountName?.toLowerCase().replace(/\s+/g, '_') || 'vienchibao'}</p>
-            <span className="text-[10px] text-slate-400">• Vừa xong</span>
+            <span className="text-[10px] text-slate-400">• {t.platformPreview.justNow}</span>
           </div>
           {message && <p className="text-sm text-slate-700 leading-relaxed mb-2">{truncate(message, 200)}</p>}
           {mediaUrls.length > 0 && <MediaGrid urls={mediaUrls} platform="THREADS" mediaThumbs={mediaThumbs} />}
@@ -259,6 +265,7 @@ function ThreadsPreview({ message, mediaUrls, accountName, mediaThumbs }: Props)
 
 // ── Zalo Preview ──────────────────────────────────────────────────────────────
 function ZaloPreview({ message, mediaUrls, accountName, mediaThumbs }: Props) {
+  const { t } = useSocialLang();
   return (
     <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm max-w-[380px] mx-auto">
       <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-100">
@@ -273,9 +280,9 @@ function ZaloPreview({ message, mediaUrls, accountName, mediaThumbs }: Props) {
       {mediaUrls.length > 0 && <MediaGrid urls={mediaUrls} platform="ZALO" mediaThumbs={mediaThumbs} />}
       {message && <p className="px-4 py-3 text-sm text-slate-800 leading-relaxed">{truncate(message, 300)}</p>}
       <div className="px-4 py-2 border-t border-slate-100 flex gap-3">
-        <button className="text-xs font-semibold text-sky-600 hover:underline">Thích</button>
-        <button className="text-xs font-semibold text-slate-500 hover:underline">Bình luận</button>
-        <button className="text-xs font-semibold text-slate-500 hover:underline">Chia sẻ</button>
+        <button className="text-xs font-semibold text-sky-600 hover:underline">{t.platformPreview.like}</button>
+        <button className="text-xs font-semibold text-slate-500 hover:underline">{t.platformPreview.comment}</button>
+        <button className="text-xs font-semibold text-slate-500 hover:underline">{t.platformPreview.share}</button>
       </div>
     </div>
   );

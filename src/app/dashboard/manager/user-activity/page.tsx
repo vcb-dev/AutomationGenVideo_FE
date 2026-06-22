@@ -150,7 +150,7 @@ const UserActivityPageContent = () => {
         reports, summary, rankings,
         teamContributions, groupContributions,
         reportOutstandings, kpiMeta,
-        loading, userRole, userTeam,
+        loading, isFetching, userRole, userTeam,
         personalHistory, fetchReports, fetchHistory,
         handleUpdateStatus,
     } = useActivityData({ user, dateRange, activeTeam, timeType, searchName, activeTab });
@@ -448,6 +448,12 @@ const UserActivityPageContent = () => {
                         onCapture={handleCaptureFullPage}
                         isNavbar={false}
                     />
+                    {isFetching && !loading && (
+                        <div className="absolute bottom-0 left-0 right-0 h-0.5 overflow-hidden">
+                            <div className="h-full bg-blue-500 animate-[shimmer_1.2s_ease-in-out_infinite]" style={{ width: "40%", animation: "progress-slide 1.2s ease-in-out infinite" }} />
+                            <style>{`@keyframes progress-slide { 0% { transform: translateX(-100%); width: 40%; } 50% { width: 60%; } 100% { transform: translateX(280%); width: 40%; } }`}</style>
+                        </div>
+                    )}
                 </div>
             )}
 
