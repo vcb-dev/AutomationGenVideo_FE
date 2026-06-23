@@ -16,6 +16,7 @@ import { socialApi, SocialPost, PLATFORM_META, SocialPlatform, HistoryMember } f
 import { useAuthStore } from '@/store/auth-store';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
+import { useSocialLang } from '@/contexts/SocialLanguageContext';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -32,10 +33,10 @@ function fmt(n: number) { return n.toLocaleString('vi'); }
 function pct(a: number, b: number) { return b === 0 ? 0 : Math.round((a / b) * 100); }
 
 const RANGE_OPTIONS = [
-  { label: '7 ngày', value: 7 },
-  { label: '30 ngày', value: 30 },
-  { label: '90 ngày', value: 90 },
-  { label: 'Tất cả', value: 0 },
+  { key: 'range7d' as const, value: 7 },
+  { key: 'range30d' as const, value: 30 },
+  { key: 'range90d' as const, value: 90 },
+  { key: 'rangeAll' as const, value: 0 },
 ];
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -92,6 +93,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 export default function StatsPage() {
   const { user } = useAuthStore();
+  const { t } = useSocialLang();
 
   // Phân quyền
   const isAdmin  = user?.roles?.some((r: string) => ['ADMIN', 'MANAGER'].includes(r)) ?? false;
@@ -135,7 +137,7 @@ export default function StatsPage() {
       });
       setPosts(data);
     } catch {
-      toast.error('Không tải được dữ liệu thống kê');
+      toast.error(t.stats.loadFailed);
     } finally {
       setLoading(false); setRefreshing(false);
     }
@@ -202,13 +204,13 @@ export default function StatsPage() {
       });
       return {
         label,
-        'Thành công': dayPosts.filter(p => p.status === 'COMPLETED').length,
-        'Thất bại':   dayPosts.filter(p => p.status === 'FAILED').length,
-        'Đang chờ':   dayPosts.filter(p => p.status === 'PENDING').length,
+        [t.stats.success]: dayPosts.filter(p => p.status === 'COMPLETED').length,
+        [t.stats.failed]:  dayPosts.filter(p => p.status === 'FAILED').length,
+        [t.stats.pending]: dayPosts.filter(p => p.status === 'PENDING').length,
         total: dayPosts.length,
       };
     });
-  }, [rangedPosts, rangeDays]);
+  }, [rangedPosts, rangeDays, t]);
 
   // ── Hourly distribution ──
   const hourlyData = useMemo(() => {
@@ -221,16 +223,15 @@ export default function StatsPage() {
     });
     return Array.from({ length: 24 }, (_, h) => ({
       label: `${String(h).padStart(2, '0')}h`,
-      'Thành công': map[h].success,
-      'Thất bại': map[h].failed,
+      [t.stats.success]: map[h].success,
+      [t.stats.failed]: map[h].failed,
       total: map[h].success + map[h].failed,
     }));
-  }, [rangedPosts]);
+  }, [rangedPosts, t]);
 
   const peakHour = hourlyData.reduce((a, b) => (b.total > a.total ? b : a), hourlyData[0]);
 
   // ── Day of week ──
-  const DOW_LABELS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
   const dowData = useMemo(() => {
     const map = Array.from({ length: 7 }, () => ({ success: 0, failed: 0 }));
     rangedPosts.forEach(p => {
@@ -239,15 +240,15 @@ export default function StatsPage() {
       else if (p.status === 'FAILED') map[d].failed++;
     });
     return map.map((v, i) => ({
-      label: DOW_LABELS[i],
-      'Thành công': v.success,
-      'Thất bại': v.failed,
+      label: t.stats.dowLabels[i],
+      [t.stats.success]: v.success,
+      [t.stats.failed]: v.failed,
       total: v.success + v.failed,
     }));
-  }, [rangedPosts]);
+  }, [rangedPosts, t]);
 
   // ── Success rate radial data ──
-  const radialData = [{ name: 'Tỉ lệ', value: successRate, fill: successRate >= 80 ? '#10b981' : successRate >= 50 ? '#f59e0b' : '#ef4444' }];
+  const radialData = [{ name: t.stats.rate, value: successRate, fill: successRate >= 80 ? '#10b981' : successRate >= 50 ? '#f59e0b' : '#ef4444' }];
 
   // ── Member stats (admin/manager only) ──
   const memberStats = useMemo(() => {
@@ -324,7 +325,7 @@ export default function StatsPage() {
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-slate-500 font-medium">Đang tải dữ liệu thống kê...</p>
+          <p className="text-slate-500 font-medium">{t.stats.loading}</p>
         </div>
       </div>
     );
@@ -342,12 +343,12 @@ export default function StatsPage() {
                 <BarChart3 className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h1 className="text-lg font-black text-slate-900">Thống kê đăng bài</h1>
+                <h1 className="text-lg font-black text-slate-900">{t.stats.pageTitle}</h1>
                 <p className="text-xs text-slate-500">
-                  {fmt(total)} bài trong khoảng đã chọn
+                  {t.stats.postsInRange(fmt(total))}
                   {canFilter && teamFilter !== 'all' && ` · Team: ${teamFilter}`}
-                  {canFilter && memberFilter !== 'all' && ` · ${members.find(m => m.id === memberFilter)?.full_name || 'Thành viên'}`}
-                  {!canFilter && <span className="ml-1 text-indigo-400 font-medium">(bài của bạn)</span>}
+                  {canFilter && memberFilter !== 'all' && ` · ${members.find(m => m.id === memberFilter)?.full_name || t.stats.member}`}
+                  {!canFilter && <span className="ml-1 text-indigo-400 font-medium">{t.stats.yourPosts}</span>}
                 </p>
               </div>
             </div>
@@ -365,7 +366,7 @@ export default function StatsPage() {
                         : 'text-slate-500 hover:text-slate-700'
                     }`}
                   >
-                    {opt.label}
+                    {t.stats[opt.key]}
                   </button>
                 ))}
               </div>
@@ -373,7 +374,7 @@ export default function StatsPage() {
                 onClick={() => load(true)}
                 disabled={refreshing}
                 className="p-2 rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 transition-colors disabled:opacity-50"
-                title="Làm mới"
+                title={t.stats.refresh}
               >
                 <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
               </button>
@@ -381,7 +382,7 @@ export default function StatsPage() {
                 href="/dashboard/social/compose"
                 className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-colors shadow-sm"
               >
-                <Send className="w-3.5 h-3.5" /> Đăng bài
+                <Send className="w-3.5 h-3.5" /> {t.stats.createPost}
               </Link>
             </div>
           </div>
@@ -397,14 +398,14 @@ export default function StatsPage() {
               {/* Team filter — chỉ admin thấy nhiều team */}
               {isAdmin && teams.length > 0 && (
                 <div className="flex items-center gap-2">
-                  <label className="text-xs font-bold text-slate-500 whitespace-nowrap">Team:</label>
+                  <label className="text-xs font-bold text-slate-500 whitespace-nowrap">{t.stats.teamLabel}</label>
                   <select
                     value={teamFilter}
                     onChange={e => setTeamFilter(e.target.value)}
                     className="border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 bg-white"
                   >
-                    <option value="all">Tất cả team</option>
-                    {teams.map(t => <option key={t} value={t}>{t}</option>)}
+                    <option value="all">{t.stats.allTeams}</option>
+                    {teams.map(team => <option key={team} value={team}>{team}</option>)}
                   </select>
                 </div>
               )}
@@ -412,14 +413,14 @@ export default function StatsPage() {
               {/* Member filter */}
               <div className="flex items-center gap-2">
                 <label className="text-xs font-bold text-slate-500 whitespace-nowrap">
-                  <Users className="w-3 h-3 inline mr-1" />Thành viên:
+                  <Users className="w-3 h-3 inline mr-1" />{t.stats.memberLabel}
                 </label>
                 <select
                   value={memberFilter}
                   onChange={e => setMemberFilter(e.target.value)}
                   className="border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 bg-white max-w-[200px]"
                 >
-                  <option value="all">Tất cả thành viên</option>
+                  <option value="all">{t.stats.allMembers}</option>
                   {members.map(m => (
                     <option key={m.id} value={m.id}>
                       {m.full_name}{m.team ? ` (${m.team})` : ''}
@@ -433,7 +434,7 @@ export default function StatsPage() {
                   onClick={() => { setTeamFilter('all'); setMemberFilter('all'); }}
                   className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-bold px-2 py-1 border border-indigo-200 rounded-lg bg-indigo-50"
                 >
-                  <X className="w-3 h-3" /> Xoá lọc
+                  <X className="w-3 h-3" /> {t.stats.clearFilter}
                 </button>
               )}
             </div>
@@ -446,28 +447,28 @@ export default function StatsPage() {
         {total === 0 ? (
           <div className="text-center py-32">
             <BarChart3 className="w-20 h-20 text-slate-200 mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-slate-600 mb-2">Chưa có dữ liệu thống kê</h3>
-            <p className="text-slate-400 mb-6">Hãy đăng bài đầu tiên để bắt đầu thống kê</p>
+            <h3 className="text-xl font-bold text-slate-600 mb-2">{t.stats.noDataTitle}</h3>
+            <p className="text-slate-400 mb-6">{t.stats.noDataSub}</p>
             <Link href="/dashboard/social/compose"
               className="px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors">
-              Đăng bài ngay
+              {t.stats.postNow}
             </Link>
           </div>
         ) : (
           <>
             {/* ── KPI Cards ── */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <KpiCard icon={Activity}     label="Tổng bài đăng"   value={fmt(total)}        color="bg-blue-600"    sub={`${avgPerDay} bài/ngày`} />
-              <KpiCard icon={CheckCircle}  label="Thành công"       value={fmt(success)}      color="bg-emerald-500" sub={`${successRate}% tỉ lệ thành công`} />
-              <KpiCard icon={XCircle}      label="Thất bại"         value={fmt(failed)}       color="bg-red-500"     sub={failed > 0 ? `${pct(failed, total)}% tỉ lệ lỗi` : 'Không có lỗi'} />
-              <KpiCard icon={Target}       label="Tỉ lệ thành công" value={`${successRate}%`} color={successRate >= 80 ? 'bg-emerald-500' : successRate >= 50 ? 'bg-amber-500' : 'bg-red-500'} sub={successRate >= 80 ? '🎉 Rất tốt' : successRate >= 50 ? '⚠ Cần cải thiện' : '❌ Cần chú ý'} />
+              <KpiCard icon={Activity}     label={t.stats.totalPosts}     value={fmt(total)}        color="bg-blue-600"    sub={t.stats.postsPerDay(avgPerDay)} />
+              <KpiCard icon={CheckCircle}  label={t.stats.success}        value={fmt(success)}      color="bg-emerald-500" sub={t.stats.successRateSub(successRate)} />
+              <KpiCard icon={XCircle}      label={t.stats.failed}         value={fmt(failed)}       color="bg-red-500"     sub={failed > 0 ? t.stats.errorRateSub(pct(failed, total)) : t.stats.noErrors} />
+              <KpiCard icon={Target}       label={t.stats.successRate}    value={`${successRate}%`} color={successRate >= 80 ? 'bg-emerald-500' : successRate >= 50 ? 'bg-amber-500' : 'bg-red-500'} sub={successRate >= 80 ? t.stats.veryGood : successRate >= 50 ? t.stats.needsImprovement : t.stats.needsAttention} />
             </div>
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <KpiCard icon={Calendar}  label="Lên lịch"        value={fmt(scheduled)}  color="bg-indigo-500" sub={`${pct(scheduled, total)}% tổng bài`} />
-              <KpiCard icon={Zap}       label="Đăng ngay"       value={fmt(immediate)}  color="bg-violet-500" sub={`${pct(immediate, total)}% tổng bài`} />
-              <KpiCard icon={Clock}     label="Đang chờ"        value={fmt(pending)}    color="bg-amber-500"  sub="Chưa xử lý" />
-              <KpiCard icon={Award}     label="Platform tốt nhất" value={bestPlatform ? `${bestPlatform.meta.emoji} ${bestPlatform.meta.label}` : '—'} color="bg-pink-500" sub={bestPlatform ? `${bestPlatform.rate}% thành công` : 'Chưa đủ dữ liệu'} />
+              <KpiCard icon={Calendar}  label={t.stats.scheduled}      value={fmt(scheduled)}  color="bg-indigo-500" sub={t.stats.percentOfTotal(pct(scheduled, total))} />
+              <KpiCard icon={Zap}       label={t.stats.immediate}      value={fmt(immediate)}  color="bg-violet-500" sub={t.stats.percentOfTotal(pct(immediate, total))} />
+              <KpiCard icon={Clock}     label={t.stats.pending}        value={fmt(pending)}    color="bg-amber-500"  sub={t.stats.notProcessed} />
+              <KpiCard icon={Award}     label={t.stats.bestPlatform}   value={bestPlatform ? `${bestPlatform.meta.emoji} ${bestPlatform.meta.label}` : '—'} color="bg-pink-500" sub={bestPlatform ? t.stats.successRateSimple(bestPlatform.rate) : t.stats.notEnoughData} />
             </div>
 
             {/* ── Member leaderboard (admin/manager only) ── */}
@@ -478,8 +479,8 @@ export default function StatsPage() {
                     <Users className="w-4 h-4 text-white" />
                   </div>
                   <div>
-                    <h2 className="font-bold text-slate-800 text-sm">Thống kê theo thành viên</h2>
-                    <p className="text-xs text-slate-400 mt-0.5">{memberStats.length} thành viên · {fmt(total)} bài đăng</p>
+                    <h2 className="font-bold text-slate-800 text-sm">{t.stats.memberStatsTitle}</h2>
+                    <p className="text-xs text-slate-400 mt-0.5">{t.stats.memberStatsSummary(memberStats.length, fmt(total))}</p>
                   </div>
                 </div>
                 <div className="divide-y divide-slate-50">
@@ -526,15 +527,15 @@ export default function StatsPage() {
                         <div className="flex items-center gap-4 flex-shrink-0">
                           <div className="text-center hidden sm:block">
                             <p className="text-sm font-black text-emerald-600">{ms.success}</p>
-                            <p className="text-[10px] text-slate-400">Thành công</p>
+                            <p className="text-[10px] text-slate-400">{t.stats.success}</p>
                           </div>
                           <div className="text-center hidden sm:block">
                             <p className="text-sm font-black text-red-500">{ms.failed}</p>
-                            <p className="text-[10px] text-slate-400">Thất bại</p>
+                            <p className="text-[10px] text-slate-400">{t.stats.failed}</p>
                           </div>
                           <div className="text-center">
                             <p className="text-sm font-black text-slate-800">{ms.total}</p>
-                            <p className="text-[10px] text-slate-400">Tổng</p>
+                            <p className="text-[10px] text-slate-400">{t.stats.totalLabel}</p>
                           </div>
                           <div className={`text-sm font-black w-10 text-right ${rate >= 80 ? 'text-emerald-600' : rate >= 50 ? 'text-amber-600' : 'text-red-500'}`}>
                             {rate}%
@@ -553,8 +554,8 @@ export default function StatsPage() {
               <div className="lg:col-span-3 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h2 className="font-bold text-slate-800 text-sm">Xu hướng đăng bài theo ngày</h2>
-                    <p className="text-xs text-slate-400 mt-0.5">Số lượng bài mỗi ngày trong {rangeDays || 'tất cả'} ngày qua</p>
+                    <h2 className="font-bold text-slate-800 text-sm">{t.stats.trendTitle}</h2>
+                    <p className="text-xs text-slate-400 mt-0.5">{t.stats.trendSub(rangeDays || t.stats.allDaysWord)}</p>
                   </div>
                 </div>
                 <ResponsiveContainer width="100%" height={220}>
@@ -565,17 +566,17 @@ export default function StatsPage() {
                     <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} width={28} />
                     <Tooltip content={<CustomTooltip />} />
                     <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
-                    <Bar dataKey="Thành công" stackId="a" fill="#10b981" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="Thất bại"   stackId="a" fill="#f87171" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="Đang chờ"   stackId="a" fill="#fbbf24" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey={t.stats.success} stackId="a" fill="#10b981" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey={t.stats.failed}   stackId="a" fill="#f87171" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey={t.stats.pending}   stackId="a" fill="#fbbf24" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
 
               {/* Success rate radial */}
               <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col items-center justify-center">
-                <h2 className="font-bold text-slate-800 text-sm mb-1">Tỉ lệ thành công</h2>
-                <p className="text-xs text-slate-400 mb-4">Tổng quan</p>
+                <h2 className="font-bold text-slate-800 text-sm mb-1">{t.stats.successRate}</h2>
+                <p className="text-xs text-slate-400 mb-4">{t.stats.overview}</p>
                 <div className="relative">
                   <ResponsiveContainer width={160} height={160}>
                     <RadialBarChart cx="50%" cy="50%" innerRadius="60%" outerRadius="90%"
@@ -588,14 +589,14 @@ export default function StatsPage() {
                     <span className={`text-3xl font-black ${successRate >= 80 ? 'text-emerald-600' : successRate >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
                       {successRate}%
                     </span>
-                    <span className="text-[10px] text-slate-400 font-medium">thành công</span>
+                    <span className="text-[10px] text-slate-400 font-medium">{t.stats.success}</span>
                   </div>
                 </div>
                 <div className="mt-3 space-y-1.5 w-full">
                   {[
-                    { label: 'Thành công', value: success, color: 'bg-emerald-500' },
-                    { label: 'Thất bại',   value: failed,  color: 'bg-red-400' },
-                    { label: 'Đang chờ',   value: pending, color: 'bg-amber-400' },
+                    { label: t.stats.success, value: success, color: 'bg-emerald-500' },
+                    { label: t.stats.failed,   value: failed,  color: 'bg-red-400' },
+                    { label: t.stats.pending,   value: pending, color: 'bg-amber-400' },
                   ].map(s => (
                     <div key={s.label} className="flex items-center gap-2 text-xs">
                       <div className={`w-2 h-2 rounded-full flex-shrink-0 ${s.color}`} />
@@ -611,8 +612,8 @@ export default function StatsPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* Platform bar chart */}
               <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-                <h2 className="font-bold text-slate-800 text-sm mb-1">Bài đăng theo platform</h2>
-                <p className="text-xs text-slate-400 mb-4">Phân bổ số lượng theo từng nền tảng</p>
+                <h2 className="font-bold text-slate-800 text-sm mb-1">{t.stats.postsByPlatform}</h2>
+                <p className="text-xs text-slate-400 mb-4">{t.stats.postsByPlatformSub}</p>
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={platformStats} layout="vertical" barSize={14}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
@@ -625,20 +626,20 @@ export default function StatsPage() {
                       width={90} axisLine={false} tickLine={false} />
                     <Tooltip content={<CustomTooltip />} />
                     <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
-                    <Bar dataKey="success" name="Thành công" fill="#10b981" radius={[0, 4, 4, 0]} />
-                    <Bar dataKey="failed"  name="Thất bại"   fill="#f87171" radius={[0, 4, 4, 0]} />
-                    <Bar dataKey="pending" name="Đang chờ"   fill="#fbbf24" radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="success" name={t.stats.success} fill="#10b981" radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="failed"  name={t.stats.failed}   fill="#f87171" radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="pending" name={t.stats.pending}   fill="#fbbf24" radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
 
               {/* Platform table */}
               <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-                <h2 className="font-bold text-slate-800 text-sm mb-1">Chi tiết từng platform</h2>
-                <p className="text-xs text-slate-400 mb-4">So sánh hiệu suất</p>
+                <h2 className="font-bold text-slate-800 text-sm mb-1">{t.stats.platformDetailTitle}</h2>
+                <p className="text-xs text-slate-400 mb-4">{t.stats.platformDetailSub}</p>
                 <div className="space-y-3">
                   {platformStats.length === 0 ? (
-                    <p className="text-sm text-slate-400 text-center py-8">Không có dữ liệu</p>
+                    <p className="text-sm text-slate-400 text-center py-8">{t.stats.noData}</p>
                   ) : platformStats.map(ps => (
                     <div key={ps.platform} className="flex items-center gap-3">
                       <div className={`w-8 h-8 ${ps.meta.color} rounded-lg flex items-center justify-center text-white text-base flex-shrink-0`}>
@@ -647,7 +648,7 @@ export default function StatsPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-xs font-bold text-slate-700">{ps.meta.label}</span>
-                          <span className="text-xs font-black text-slate-500">{fmt(ps.total)} bài</span>
+                          <span className="text-xs font-black text-slate-500">{t.stats.postsCount(fmt(ps.total))}</span>
                         </div>
                         {/* Progress bar */}
                         <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
@@ -673,13 +674,13 @@ export default function StatsPage() {
               <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h2 className="font-bold text-slate-800 text-sm">Phân bổ theo giờ</h2>
-                    <p className="text-xs text-slate-400 mt-0.5">Giờ cao điểm đăng bài</p>
+                    <h2 className="font-bold text-slate-800 text-sm">{t.stats.hourlyTitle}</h2>
+                    <p className="text-xs text-slate-400 mt-0.5">{t.stats.hourlySub}</p>
                   </div>
                   {peakHour.total > 0 && (
                     <div className="text-right">
                       <p className="text-lg font-black text-blue-600">{peakHour.label}</p>
-                      <p className="text-[10px] text-slate-400">giờ cao điểm</p>
+                      <p className="text-[10px] text-slate-400">{t.stats.peakHour}</p>
                     </div>
                   )}
                 </div>
@@ -689,8 +690,8 @@ export default function StatsPage() {
                     <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#94a3b8' }} tickLine={false} axisLine={false} interval={3} />
                     <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} width={24} />
                     <Tooltip content={<CustomTooltip />} />
-                    <Bar dataKey="Thành công" stackId="h" fill="#10b981" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="Thất bại"   stackId="h" fill="#f87171" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey={t.stats.success} stackId="h" fill="#10b981" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey={t.stats.failed}   stackId="h" fill="#f87171" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -699,15 +700,15 @@ export default function StatsPage() {
               <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h2 className="font-bold text-slate-800 text-sm">Phân bổ theo ngày trong tuần</h2>
-                    <p className="text-xs text-slate-400 mt-0.5">Ngày nào đăng nhiều nhất</p>
+                    <h2 className="font-bold text-slate-800 text-sm">{t.stats.dowTitle}</h2>
+                    <p className="text-xs text-slate-400 mt-0.5">{t.stats.dowSub}</p>
                   </div>
                   {(() => {
                     const peak = dowData.reduce((a, b) => b.total > a.total ? b : a, dowData[0]);
                     return peak.total > 0 ? (
                       <div className="text-right">
                         <p className="text-lg font-black text-purple-600">{peak.label}</p>
-                        <p className="text-[10px] text-slate-400">ngày cao điểm</p>
+                        <p className="text-[10px] text-slate-400">{t.stats.peakDay}</p>
                       </div>
                     ) : null;
                   })()}
@@ -718,8 +719,8 @@ export default function StatsPage() {
                     <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
                     <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} width={24} />
                     <Tooltip content={<CustomTooltip />} />
-                    <Bar dataKey="Thành công" stackId="d" fill="#818cf8" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="Thất bại"   stackId="d" fill="#f87171" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey={t.stats.success} stackId="d" fill="#818cf8" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey={t.stats.failed}   stackId="d" fill="#f87171" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -735,8 +736,8 @@ export default function StatsPage() {
                         <Hash className="w-4 h-4 text-white" />
                       </div>
                       <div>
-                        <h2 className="font-bold text-slate-800 text-sm">Thống kê theo Hashtag</h2>
-                        <p className="text-xs text-slate-400 mt-0.5">{hashtagStats.length} hashtag · Bấm để xem chi tiết</p>
+                        <h2 className="font-bold text-slate-800 text-sm">{t.stats.hashtagStatsTitle}</h2>
+                        <p className="text-xs text-slate-400 mt-0.5">{t.stats.hashtagStatsSub(hashtagStats.length)}</p>
                       </div>
                     </div>
                     {selectedHashtag && (
@@ -744,7 +745,7 @@ export default function StatsPage() {
                         onClick={() => setSelectedHashtag(null)}
                         className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-700 px-3 py-1.5 bg-slate-100 rounded-xl transition-colors"
                       >
-                        <X className="w-3.5 h-3.5" /> Bỏ chọn
+                        <X className="w-3.5 h-3.5" /> {t.stats.deselect}
                       </button>
                     )}
                   </div>
@@ -759,9 +760,9 @@ export default function StatsPage() {
                       <BarChart
                         data={hashtagStats.slice(0, hashtagLimit).map(h => ({
                           tag: h.tag,
-                          'Thành công': h.success,
-                          'Thất bại':   h.failed,
-                          'Đang chờ':   h.pending,
+                          [t.stats.success]: h.success,
+                          [t.stats.failed]:   h.failed,
+                          [t.stats.pending]:   h.pending,
                           total: h.total,
                         }))}
                         layout="vertical"
@@ -795,12 +796,12 @@ export default function StatsPage() {
                         />
                         <Tooltip content={<CustomTooltip />} />
                         <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
-                        <Bar dataKey="Thành công" stackId="h" fill="#10b981"
+                        <Bar dataKey={t.stats.success} stackId="h" fill="#10b981"
                           radius={[0, 0, 0, 0]}
                           onClick={(data: any) => setSelectedHashtag(prev => prev === data.tag ? null : data.tag)}
                         />
-                        <Bar dataKey="Thất bại"   stackId="h" fill="#f87171" radius={[0, 0, 0, 0]} />
-                        <Bar dataKey="Đang chờ"   stackId="h" fill="#fbbf24" radius={[0, 4, 4, 0]} />
+                        <Bar dataKey={t.stats.failed}   stackId="h" fill="#f87171" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey={t.stats.pending}   stackId="h" fill="#fbbf24" radius={[0, 4, 4, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
 
@@ -809,13 +810,13 @@ export default function StatsPage() {
                         onClick={() => setHashtagLimit(l => l + 15)}
                         className="w-full py-2 text-xs font-bold text-blue-600 border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors"
                       >
-                        Xem thêm {Math.min(hashtagStats.length - hashtagLimit, 15)} hashtag
+                        {t.stats.showMoreHashtags(Math.min(hashtagStats.length - hashtagLimit, 15))}
                       </button>
                     )}
 
                     {/* Tag cloud */}
                     <div>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Tất cả hashtag</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">{t.stats.allHashtags}</p>
                       <div className="flex flex-wrap gap-1.5">
                         {hashtagStats.map(h => {
                           const isSelected = selectedHashtag === h.tag;
@@ -850,8 +851,8 @@ export default function StatsPage() {
                         <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mb-3">
                           <Hash className="w-7 h-7 text-slate-300" />
                         </div>
-                        <p className="text-sm font-bold text-slate-500">Chọn một hashtag</p>
-                        <p className="text-xs text-slate-400 mt-1">Bấm vào biểu đồ hoặc tag cloud để xem chi tiết</p>
+                        <p className="text-sm font-bold text-slate-500">{t.stats.selectHashtag}</p>
+                        <p className="text-xs text-slate-400 mt-1">{t.stats.selectHashtagHint}</p>
                       </div>
                     ) : selectedHashtagData && (
                       <div className="space-y-5">
@@ -862,7 +863,7 @@ export default function StatsPage() {
                           </div>
                           <div>
                             <h3 className="text-lg font-black text-slate-900">{selectedHashtagData.tag}</h3>
-                            <p className="text-xs text-slate-400">{selectedHashtagData.total} bài đăng</p>
+                            <p className="text-xs text-slate-400">{t.stats.postsCount(selectedHashtagData.total)}</p>
                           </div>
                           <div className={`ml-auto text-2xl font-black ${
                             selectedHashtagData.rate >= 80 ? 'text-emerald-600' :
@@ -875,9 +876,9 @@ export default function StatsPage() {
                         {/* KPI mini */}
                         <div className="grid grid-cols-3 gap-2">
                           {[
-                            { label: 'Thành công', value: selectedHashtagData.success, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-                            { label: 'Thất bại',   value: selectedHashtagData.failed,  color: 'text-red-600',     bg: 'bg-red-50' },
-                            { label: 'Đang chờ',   value: selectedHashtagData.pending, color: 'text-amber-600',   bg: 'bg-amber-50' },
+                            { label: t.stats.success, value: selectedHashtagData.success, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                            { label: t.stats.failed,   value: selectedHashtagData.failed,  color: 'text-red-600',     bg: 'bg-red-50' },
+                            { label: t.stats.pending,   value: selectedHashtagData.pending, color: 'text-amber-600',   bg: 'bg-amber-50' },
                           ].map(s => (
                             <div key={s.label} className={`${s.bg} rounded-xl p-3 text-center`}>
                               <p className={`text-xl font-black ${s.color}`}>{s.value}</p>
@@ -888,7 +889,7 @@ export default function StatsPage() {
 
                         {/* Progress bar */}
                         <div>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Tỉ lệ</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">{t.stats.rate}</p>
                           <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
                             <div className="h-full flex">
                               <div className="bg-emerald-400" style={{ width: `${pct(selectedHashtagData.success, selectedHashtagData.total)}%` }} />
@@ -901,7 +902,7 @@ export default function StatsPage() {
                         {/* Platform breakdown for this hashtag */}
                         {selectedHashtagPlatformBreakdown.length > 0 && (
                           <div>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Theo platform</p>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">{t.stats.byPlatform}</p>
                             <div className="space-y-2.5">
                               {selectedHashtagPlatformBreakdown.map(pb => (
                                 <div key={pb.platform} className="flex items-center gap-3">
@@ -911,7 +912,7 @@ export default function StatsPage() {
                                   <div className="flex-1">
                                     <div className="flex justify-between text-xs mb-1">
                                       <span className="font-semibold text-slate-600">{pb.meta.label}</span>
-                                      <span className="font-bold text-slate-700">{pb.total} bài</span>
+                                      <span className="font-bold text-slate-700">{t.stats.postsCount(pb.total)}</span>
                                     </div>
                                     <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
                                       <div className="h-full flex">
@@ -934,7 +935,7 @@ export default function StatsPage() {
 
                         {/* Recent posts with this hashtag */}
                         <div>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Bài đăng gần nhất</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">{t.stats.recentPosts}</p>
                           <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                             {selectedHashtagData.posts
                               .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
@@ -974,17 +975,17 @@ export default function StatsPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               {/* Source split */}
               <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-                <h2 className="font-bold text-slate-800 text-sm mb-1">Loại đăng bài</h2>
-                <p className="text-xs text-slate-400 mb-5">Đăng ngay vs Đặt lịch</p>
+                <h2 className="font-bold text-slate-800 text-sm mb-1">{t.stats.postTypeTitle}</h2>
+                <p className="text-xs text-slate-400 mb-5">{t.stats.postTypeSub}</p>
                 <div className="space-y-4">
                   {[
-                    { label: 'Đăng ngay',  value: immediate, color: 'bg-violet-500', pct: pct(immediate, total) },
-                    { label: 'Đặt lịch',   value: scheduled, color: 'bg-indigo-500', pct: pct(scheduled, total) },
+                    { label: t.stats.immediate,  value: immediate, color: 'bg-violet-500', pct: pct(immediate, total) },
+                    { label: t.stats.scheduled,   value: scheduled, color: 'bg-indigo-500', pct: pct(scheduled, total) },
                   ].map(s => (
                     <div key={s.label}>
                       <div className="flex justify-between text-xs mb-1.5">
                         <span className="font-semibold text-slate-600">{s.label}</span>
-                        <span className="font-black text-slate-800">{fmt(s.value)} bài · {s.pct}%</span>
+                        <span className="font-black text-slate-800">{t.stats.postsCountWithPercent(fmt(s.value), s.pct)}</span>
                       </div>
                       <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
                         <motion.div
@@ -1003,8 +1004,8 @@ export default function StatsPage() {
                   <ResponsiveContainer width="100%" height={140}>
                     <PieChart>
                       <Pie data={[
-                        { name: 'Đăng ngay', value: immediate },
-                        { name: 'Đặt lịch',  value: scheduled },
+                        { name: t.stats.immediate, value: immediate },
+                        { name: t.stats.scheduled,  value: scheduled },
                       ]} cx="50%" cy="50%" innerRadius={35} outerRadius={60} paddingAngle={3} dataKey="value">
                         <Cell fill="#8b5cf6" />
                         <Cell fill="#6366f1" />
@@ -1020,12 +1021,12 @@ export default function StatsPage() {
               <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h2 className="font-bold text-slate-800 text-sm">Bài đăng thất bại gần đây</h2>
-                    <p className="text-xs text-slate-400 mt-0.5">Cần chú ý xử lý</p>
+                    <h2 className="font-bold text-slate-800 text-sm">{t.stats.recentFailuresTitle}</h2>
+                    <p className="text-xs text-slate-400 mt-0.5">{t.stats.recentFailuresSub}</p>
                   </div>
                   {failed > 0 && (
                     <Link href="/dashboard/social/history" className="text-xs text-blue-600 font-bold hover:underline">
-                      Xem tất cả →
+                      {t.stats.viewAll}
                     </Link>
                   )}
                 </div>
@@ -1034,8 +1035,8 @@ export default function StatsPage() {
                     <div className="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center mb-3">
                       <CheckCircle className="w-6 h-6 text-emerald-500" />
                     </div>
-                    <p className="text-sm font-bold text-slate-700">Không có bài thất bại!</p>
-                    <p className="text-xs text-slate-400 mt-1">Tuyệt vời, mọi bài đều thành công</p>
+                    <p className="text-sm font-bold text-slate-700">{t.stats.noFailures}</p>
+                    <p className="text-xs text-slate-400 mt-1">{t.stats.noFailuresSub}</p>
                   </div>
                 ) : (
                   <div className="space-y-3">

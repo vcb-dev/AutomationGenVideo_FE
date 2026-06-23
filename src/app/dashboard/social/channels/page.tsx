@@ -8,6 +8,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { socialApi, SocialAccount, SocialPlatform } from '@/lib/api/social';
 import { useSocialAccounts, useInvalidateAccounts, SOCIAL_ACCOUNTS_KEY } from '@/hooks/useSocialAccounts';
 import { useAuthStore } from '@/store/auth-store';
+import { UserRole } from '@/types/auth';
 import { useSocialLang } from '@/contexts/SocialLanguageContext';
 
 // ─── Platform meta ─────────────────────────────────────────────────────────
@@ -58,6 +59,10 @@ export default function ChannelsPage() {
   const [activeTab, setActiveTab] = useState<Tab>('ALL');
   const { data: accounts = [], isLoading: loading, error } = useSocialAccounts();
   const currentUser = useAuthStore(s => s.user);
+  const isAdmin = currentUser?.roles?.includes(UserRole.ADMIN) ?? false;
+  // Admin gỡ được mọi tài khoản; người khác chỉ gỡ tài khoản mình kết nối (hoặc account cũ chưa gán chủ)
+  const canRemove = (account: SocialAccount) =>
+    isAdmin || !account.user_id || account.user_id === currentUser?.id;
   const [expiringAccounts, setExpiringAccounts] = useState<any[]>([]);
   useEffect(() => {
     socialApi.accounts.expiring().then(setExpiringAccounts).catch(() => {});
@@ -250,7 +255,7 @@ export default function ChannelsPage() {
   };
 
   const handleDisconnect = async (account: SocialAccount) => {
-    if (account.user_id && currentUser?.id && account.user_id !== currentUser.id) {
+    if (!canRemove(account)) {
       toast.error(t.cannotDisconnectOther);
       return;
     }
@@ -545,7 +550,7 @@ export default function ChannelsPage() {
                             </div>
                             <div className="flex flex-col items-end gap-2 flex-shrink-0">
                               <CheckCircle className="w-4 h-4 text-emerald-500" />
-                              {(!account.user_id || account.user_id === currentUser?.id) && (
+                              {canRemove(account) && (
                                 <button
                                   onClick={() => handleDisconnect(account)}
                                   disabled={disconnecting === account.id}
@@ -617,7 +622,7 @@ export default function ChannelsPage() {
                                 : <><ChevronUp className="w-4 h-4" /> {t.hide}</>}
                             </button>
                           )}
-                          {(!account.user_id || account.user_id === currentUser?.id) && (
+                          {canRemove(account) && (
                             <button
                               onClick={() => handleDisconnect(account)}
                               disabled={disconnecting === account.id}

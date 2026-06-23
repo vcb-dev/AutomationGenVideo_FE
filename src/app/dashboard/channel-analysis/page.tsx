@@ -970,7 +970,7 @@ export default function ChannelAnalysisHubPage() {
         });
         if (analyzingChannels.length === 0) return;
 
-        const analyzingPlatforms = [...new Set(analyzingChannels.map((ch) => ch.platform))] as PlatformKey[];
+        const analyzingPlatforms = Array.from(new Set(analyzingChannels.map((ch) => ch.platform))) as PlatformKey[];
 
         const timer = setInterval(() => {
             setStorageTick((x) => x + 1);

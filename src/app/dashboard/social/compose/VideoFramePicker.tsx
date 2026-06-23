@@ -5,6 +5,7 @@ import { X, Film, Check, Loader2, Clock, Image as ImageIcon, Server } from 'luci
 import { motion, AnimatePresence } from 'framer-motion';
 import { socialApi } from '@/lib/api/social';
 import toast from 'react-hot-toast';
+import { useSocialLang } from '@/contexts/SocialLanguageContext';
 
 interface Props {
   videoUrl: string;
@@ -30,6 +31,7 @@ function ServerFramePicker({ mediaLibraryId, open, onClose, onConfirm }: {
   onClose: () => void;
   onConfirm: (coverUrl: string) => void;
 }) {
+  const { t } = useSocialLang();
   const [timeSeconds, setTimeSeconds] = useState(1);
   const [inputVal,    setInputVal]    = useState('1');
   const [previewUrl,  setPreviewUrl]  = useState<string | null>(null);
@@ -58,7 +60,7 @@ function ServerFramePicker({ mediaLibraryId, open, onClose, onConfirm }: {
       const res = await socialApi.library.previewFrame(mediaLibraryId, ts);
       setPreviewUrl(res.previewUrl);
     } catch (e: any) {
-      toast.error(`Không thể xem trước frame: ${e.message}`);
+      toast.error(t.videoFramePicker.previewFailed(e.message));
     } finally {
       setPreviewing(false);
     }
@@ -70,10 +72,10 @@ function ServerFramePicker({ mediaLibraryId, open, onClose, onConfirm }: {
     try {
       const res = await socialApi.library.setThumbnailAt(mediaLibraryId, ts);
       onConfirm(res.thumbnail_url);
-      toast.success('Đã đặt ảnh bìa!');
+      toast.success(t.videoFramePicker.coverSetSuccess);
       onClose();
     } catch (e: any) {
-      toast.error(`Lưu ảnh bìa thất bại: ${e.message}`);
+      toast.error(t.videoFramePicker.saveCoverFailed(e.message));
     } finally {
       setConfirming(false);
     }
@@ -85,14 +87,14 @@ function ServerFramePicker({ mediaLibraryId, open, onClose, onConfirm }: {
       <div className="flex items-center gap-2.5 bg-blue-900/20 border border-blue-500/30 rounded-xl px-4 py-3">
         <Server className="w-4 h-4 text-blue-400 flex-shrink-0" />
         <p className="text-xs text-blue-300">
-          Video lưu trên Google Drive — frame được trích xuất qua server (FFmpeg). Nhập giây cần chọn, bấm <strong>Xem trước</strong> để kiểm tra, rồi bấm <strong>Xác nhận</strong>.
+          {t.videoFramePicker.serverNoticePrefix} <strong>{t.videoFramePicker.previewLabel}</strong> {t.videoFramePicker.serverNoticeMiddle} <strong>{t.videoFramePicker.confirmLabel}</strong>{t.videoFramePicker.serverNoticeSuffix}
         </p>
       </div>
 
       {/* Time input */}
       <div className="space-y-2">
         <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-          <Clock className="w-3.5 h-3.5" /> Chọn giây cần lấy frame
+          <Clock className="w-3.5 h-3.5" /> {t.videoFramePicker.selectSecondLabel}
         </label>
         <div className="flex items-center gap-3">
           <input
@@ -103,15 +105,15 @@ function ServerFramePicker({ mediaLibraryId, open, onClose, onConfirm }: {
             onChange={e => setInputVal(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') handlePreview(); }}
             className="w-28 px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-white text-sm font-mono text-center focus:outline-none focus:border-blue-500"
-            placeholder="giây"
+            placeholder={t.videoFramePicker.secondsPlaceholder}
           />
-          <span className="text-slate-400 text-xs">giây từ đầu video</span>
+          <span className="text-slate-400 text-xs">{t.videoFramePicker.secondsFromStart}</span>
           <button
             onClick={handlePreview}
             disabled={previewing}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-colors"
           >
-            {previewing ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Đang tạo...</> : 'Xem trước'}
+            {previewing ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {t.videoFramePicker.generating}</> : t.videoFramePicker.previewLabel}
           </button>
         </div>
       </div>
@@ -121,8 +123,8 @@ function ServerFramePicker({ mediaLibraryId, open, onClose, onConfirm }: {
         {previewing ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
             <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
-            <p className="text-xs text-slate-400">Đang tải video và trích xuất frame...</p>
-            <p className="text-[10px] text-slate-500">Có thể mất 15–30 giây lần đầu</p>
+            <p className="text-xs text-slate-400">{t.videoFramePicker.loadingFrameExtract}</p>
+            <p className="text-[10px] text-slate-500">{t.videoFramePicker.firstLoadHint}</p>
           </div>
         ) : previewUrl ? (
           <>
@@ -131,13 +133,13 @@ function ServerFramePicker({ mediaLibraryId, open, onClose, onConfirm }: {
               {fmtTime(timeSeconds)}
             </div>
             <div className="absolute top-2.5 right-2.5 bg-green-600/90 text-white text-[10px] font-bold px-2.5 py-1 rounded-lg flex items-center gap-1">
-              <Check className="w-3 h-3" /> Frame đã xem trước
+              <Check className="w-3 h-3" /> {t.videoFramePicker.framePreviewed}
             </div>
           </>
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-slate-500">
             <Film className="w-10 h-10" />
-            <p className="text-xs">{hasPreviewed ? 'Không thể tải frame' : 'Nhập giây và bấm Xem trước'}</p>
+            <p className="text-xs">{hasPreviewed ? t.videoFramePicker.cannotLoadFrame : t.videoFramePicker.enterSecondAndPreview}</p>
           </div>
         )}
       </div>
@@ -151,13 +153,13 @@ function ServerFramePicker({ mediaLibraryId, open, onClose, onConfirm }: {
                 <img src={previewUrl} alt="" className="w-full h-full object-cover" />
               </div>
               <div>
-                <p className="text-[10px] text-slate-400">Frame tại {fmtTime(timeSeconds)}</p>
+                <p className="text-[10px] text-slate-400">{t.videoFramePicker.frameAt(fmtTime(timeSeconds))}</p>
               </div>
             </>
           ) : (
             <div className="flex items-center gap-1.5">
               <ImageIcon className="w-3.5 h-3.5" />
-              <span className="text-xs">Chưa có xem trước</span>
+              <span className="text-xs">{t.videoFramePicker.noPreviewYet}</span>
             </div>
           )}
         </div>
@@ -167,7 +169,7 @@ function ServerFramePicker({ mediaLibraryId, open, onClose, onConfirm }: {
             onClick={onClose}
             className="px-4 py-2 text-xs font-bold text-slate-400 hover:text-white transition-colors rounded-xl hover:bg-white/10"
           >
-            Hủy
+            {t.videoFramePicker.cancel}
           </button>
           <button
             onClick={handleConfirm}
@@ -175,8 +177,8 @@ function ServerFramePicker({ mediaLibraryId, open, onClose, onConfirm }: {
             className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold transition-colors shadow-lg shadow-blue-500/20"
           >
             {confirming
-              ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Đang lưu...</>
-              : <><Check className="w-3.5 h-3.5" /> Xác nhận frame {fmtTime(Math.max(0, Math.floor(Number(inputVal) || 0)))}</>
+              ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {t.videoFramePicker.saving}</>
+              : <><Check className="w-3.5 h-3.5" /> {t.videoFramePicker.confirmFrameAt(fmtTime(Math.max(0, Math.floor(Number(inputVal) || 0))))}</>
             }
           </button>
         </div>
@@ -193,6 +195,7 @@ function BrowserFramePicker({ videoUrl, open, onClose, onConfirm }: {
   onClose: () => void;
   onConfirm: (coverUrl: string) => void;
 }) {
+  const { t } = useSocialLang();
   const videoRef    = useRef<HTMLVideoElement>(null);
   const canvasRef   = useRef<HTMLCanvasElement>(null);
   const thumbsRef   = useRef<HTMLDivElement>(null);
@@ -286,16 +289,16 @@ function BrowserFramePicker({ videoUrl, open, onClose, onConfirm }: {
 
   const handleConfirm = async () => {
     const dataUrl = captureFrame() || previewDataUrl;
-    if (!dataUrl) { toast.error('Không thể chụp frame. Thử kéo thanh video và thử lại.'); return; }
+    if (!dataUrl) { toast.error(t.videoFramePicker.cannotCaptureFrame); return; }
     setUploading(true);
     try {
       const blob = await (await fetch(dataUrl)).blob();
       const file = new File([blob], `thumb_${Date.now()}.jpg`, { type: 'image/jpeg' });
       const item = await socialApi.library.upload(file, undefined, { type: 'thumb', thumbFor: videoUrl.split('/').pop() || 'video' });
       onConfirm(item.url);
-      toast.success('Đã đặt ảnh bìa video!');
+      toast.success(t.videoFramePicker.videoCoverSetSuccess);
       onClose();
-    } catch { toast.error('Lưu ảnh bìa thất bại'); }
+    } catch { toast.error(t.videoFramePicker.saveCoverFailedShort); }
     finally { setUploading(false); }
   };
 
@@ -318,7 +321,7 @@ function BrowserFramePicker({ videoUrl, open, onClose, onConfirm }: {
         </div>
         {selectedTime !== null && (
           <div className="absolute top-2.5 right-2.5 bg-blue-600/90 text-white text-[10px] font-bold px-2.5 py-1 rounded-lg backdrop-blur-sm flex items-center gap-1">
-            <Check className="w-3 h-3" /> Đã chọn tại {fmtTime(selectedTime)}
+            <Check className="w-3 h-3" /> {t.videoFramePicker.selectedAt(fmtTime(selectedTime))}
           </div>
         )}
       </div>
@@ -350,9 +353,9 @@ function BrowserFramePicker({ videoUrl, open, onClose, onConfirm }: {
       <div>
         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
           {loadingThumbs
-            ? <><Loader2 className="w-3 h-3 animate-spin" /> Đang tạo frame thumbnails...</>
-            : thumbnails.length > 0 ? `${thumbnails.length} frame mẫu — bấm để chọn nhanh`
-            : 'Kéo thanh thời gian để chọn frame'}
+            ? <><Loader2 className="w-3 h-3 animate-spin" /> {t.videoFramePicker.generatingThumbnails}</>
+            : thumbnails.length > 0 ? t.videoFramePicker.sampleFramesCount(thumbnails.length)
+            : t.videoFramePicker.dragTimelineToSelect}
         </p>
         <div ref={thumbsRef} className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-slate-700">
           {loadingThumbs
@@ -388,8 +391,9 @@ function BrowserFramePicker({ videoUrl, open, onClose, onConfirm }: {
         <div className="flex items-start gap-2.5 bg-amber-900/20 border border-amber-500/30 rounded-xl px-4 py-3">
           <span className="text-amber-400 text-sm flex-shrink-0">⚠</span>
           <p className="text-xs text-amber-300">
-            Video này không cho phép chụp frame trực tiếp (hạn chế CORS).
-            Hãy dùng nút <strong>&quot;Chọn từ thư viện&quot;</strong> để chọn ảnh bìa.
+            {t.videoFramePicker.corsRestrictionNotice}
+            {' '}
+            {t.videoFramePicker.useLibraryButtonPrefix} <strong>&quot;{t.videoFramePicker.selectFromLibraryLabel}&quot;</strong> {t.videoFramePicker.useLibraryButtonSuffix}
           </p>
         </div>
       )}
@@ -403,20 +407,20 @@ function BrowserFramePicker({ videoUrl, open, onClose, onConfirm }: {
                 <img src={previewDataUrl} alt="" className="w-full h-full object-cover" />
               </div>
               <div>
-                <p className="text-[10px] text-slate-400">Frame hiện tại</p>
+                <p className="text-[10px] text-slate-400">{t.videoFramePicker.currentFrame}</p>
                 <p className="text-xs font-bold text-white font-mono">{fmtTime(currentTime)}</p>
               </div>
             </>
           ) : (
             <div className="flex items-center gap-1.5 text-slate-500">
               <ImageIcon className="w-3.5 h-3.5" />
-              <span className="text-xs">Kéo thanh để xem trước frame</span>
+              <span className="text-xs">{t.videoFramePicker.dragToPreview}</span>
             </div>
           )}
         </div>
         <div className="flex items-center gap-2">
           <button onClick={onClose} className="px-4 py-2 text-xs font-bold text-slate-400 hover:text-white transition-colors rounded-xl hover:bg-white/10">
-            Hủy
+            {t.videoFramePicker.cancel}
           </button>
           <button
             onClick={handleConfirm}
@@ -424,8 +428,8 @@ function BrowserFramePicker({ videoUrl, open, onClose, onConfirm }: {
             className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold transition-colors shadow-lg shadow-blue-500/20"
           >
             {uploading
-              ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Đang lưu...</>
-              : <><Check className="w-3.5 h-3.5" /> Dùng frame {selectedTime !== null ? fmtTime(selectedTime) : 'này'}</>
+              ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {t.videoFramePicker.saving}</>
+              : <><Check className="w-3.5 h-3.5" /> {t.videoFramePicker.useFrameAt(selectedTime !== null ? fmtTime(selectedTime) : t.videoFramePicker.thisFrame)}</>
             }
           </button>
         </div>
@@ -438,6 +442,7 @@ function BrowserFramePicker({ videoUrl, open, onClose, onConfirm }: {
 // ─── Main export ──────────────────────────────────────────────────────────────
 
 export default function VideoFramePicker({ videoUrl, mediaLibraryId, open, onClose, onConfirm }: Props) {
+  const { t } = useSocialLang();
   if (!open) return null;
 
   return (
@@ -464,9 +469,9 @@ export default function VideoFramePicker({ videoUrl, mediaLibraryId, open, onClo
                 <Film className="w-3.5 h-3.5 text-white" />
               </div>
               <div>
-                <p className="text-sm font-bold text-white leading-tight">Chọn ảnh bìa từ video</p>
+                <p className="text-sm font-bold text-white leading-tight">{t.videoFramePicker.pickCoverFromVideo}</p>
                 <p className="text-[10px] text-slate-500">
-                  {mediaLibraryId ? 'Trích xuất frame qua server · Google Drive' : 'Kéo thanh thời gian hoặc chọn nhanh bên dưới'}
+                  {mediaLibraryId ? t.videoFramePicker.serverExtractHint : t.videoFramePicker.dragTimelineOrQuickPick}
                 </p>
               </div>
             </div>

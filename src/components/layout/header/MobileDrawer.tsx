@@ -327,6 +327,21 @@ export default function MobileDrawer({
                                 );
                             })}
 
+                            {/* New Dashboard Thống kê tab */}
+                            <div>
+                                <Link
+                                    href="/dashboard/thong-ke"
+                                    onClick={onClose}
+                                    className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-white/[0.04] transition-colors duration-150"
+                                >
+                                    <span
+                                        className={`text-base font-bold ${pathname.startsWith("/dashboard/thong-ke") ? "text-blue-400" : "text-slate-200"}`}
+                                    >
+                                        Báo cáo content
+                                    </span>
+                                </Link>
+                                <div className="mx-5 border-t border-white/[0.05]" />
+                            </div>
 
                             {/* Settings */}
                             {(allowedMenuIds.includes("settings") || isManagerOrAdmin) && (
