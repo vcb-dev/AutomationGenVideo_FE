@@ -60,7 +60,7 @@ export default function MobileDrawer({
         <AnimatePresence>
             {isOpen && (
                 <div className="fixed inset-0 z-[999] lg:hidden">
-                    {/* Backdrop */}
+                    {/* Backdrop — full screen so clicking outside drawer closes it */}
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -70,13 +70,13 @@ export default function MobileDrawer({
                         onClick={onClose}
                     />
 
-                    {/* Drawer panel */}
+                    {/* Drawer panel — left half only */}
                     <motion.div
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
                         transition={{ duration: 0.2, ease: "easeOut" }}
-                        className="absolute inset-x-0 top-16 bottom-0 bg-[#0d1424] border-t border-white/[0.06] overflow-y-auto"
+                        className="absolute left-0 right-1/2 top-16 bottom-0 bg-[#0d1424] border-t border-white/[0.06] overflow-y-auto"
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* User info banner */}

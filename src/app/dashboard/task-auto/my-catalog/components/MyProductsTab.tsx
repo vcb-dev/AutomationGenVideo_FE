@@ -70,10 +70,12 @@ function PushModal({ product, userId, onClose }: { product: Product; userId: str
 
 function ImportModal({
   userId,
+  brandType,
   onSelect,
   onClose,
 }: {
   userId: string
+  brandType: 'DO_DA' | 'TRANG_SUC'
   onSelect: (p: Product) => void
   onClose: () => void
 }) {
@@ -89,8 +91,9 @@ function ImportModal({
   const mySkuSet = new Set(myProducts?.data?.map(p => p.sku?.trim().toLowerCase()).filter(Boolean) ?? [])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'import-products', scope, myTeam?.id, search, page],
+    queryKey: ['task-auto', 'import-products', scope, myTeam?.id, brandType, search, page],
     queryFn: () => getProducts({
+      brand_type: brandType,
       owner: scope === 'global' ? 'global' : undefined,
       team_id: scope === 'team' ? (myTeam?.id || undefined) : undefined,
       search: search || undefined,
@@ -569,6 +572,7 @@ export function MyProductsTab({ userId, brandType }: Props) {
       {showImport && (
         <ImportModal
           userId={userId}
+          brandType={brandType}
           onSelect={p => { setShowImport(false); openCreate(p) }}
           onClose={() => setShowImport(false)}
         />

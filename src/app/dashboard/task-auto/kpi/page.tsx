@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { MonthPicker } from '@/components/task-auto'
 import { currentMonth } from '@/components/task-auto/helpers'
 import { useAuthStore } from '@/store/auth-store'
+import { UserRole } from '@/types/auth'
 import { TeamKpiTab } from './components/TeamKpiTab'
 import { EditorKpiTab } from './components/EditorKpiTab'
 
@@ -13,10 +14,10 @@ type KpiTab = 'team' | 'editor'
 
 export default function KpiPage() {
   const { user } = useAuthStore()
-  const roles: string[] = user?.roles || []
-  const isAdmin = roles.includes('ADMIN')
-  const isManager = roles.includes('MANAGER')
-  const isLeader = roles.includes('LEADER')
+  const roles: UserRole[] = user?.roles ?? []
+  const isAdmin   = roles.includes(UserRole.ADMIN)
+  const isManager = roles.includes(UserRole.MANAGER)
+  const isLeader  = roles.includes(UserRole.LEADER)
 
   const isAdminOrManager = isAdmin || isManager
   const canEditTeamKpi = isAdminOrManager

@@ -9,15 +9,16 @@ interface Props {
   title: string
   subtitle?: string
   children: React.ReactNode
-  size?: 'sm' | 'md' | 'lg' | 'xl'
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl'
   footer?: React.ReactNode
 }
 
 const SIZE = {
-  sm: 'max-w-sm',
-  md: 'max-w-lg',
-  lg: 'max-w-2xl',
-  xl: 'max-w-3xl',
+  sm:  'max-w-sm',
+  md:  'max-w-lg',
+  lg:  'max-w-2xl',
+  xl:  'max-w-3xl',
+  '2xl': 'max-w-5xl',
 }
 
 export function DarkModal({ open, onClose, title, subtitle, children, size = 'md', footer }: Props) {

@@ -86,8 +86,8 @@ export function TeamSourcesTab({ isAdminOrManager, userId, brandType }: TeamSour
   })
 
   const { data: globalSourcesData, isLoading: loadingGlobal } = useQuery({
-    queryKey: ['task-auto', 'sources-global-pick', globalSearch],
-    queryFn: () => getSources({ owner: 'global', search: globalSearch || undefined, is_active: true, limit: 100 }),
+    queryKey: ['task-auto', 'sources-global-pick', brandType, globalSearch],
+    queryFn: () => getSources({ owner: 'global', brand_type: brandType, search: globalSearch || undefined, is_active: true, limit: 100 }),
     enabled: modal === 'add' && addMode === 'global',
   })
 
@@ -163,6 +163,7 @@ export function TeamSourcesTab({ isAdminOrManager, userId, brandType }: TeamSour
     const src = globalSourcesData?.data?.find(s => s.id === selectedGlobalId)
     if (!src) return
     createMut.mutate({
+      brand_type: src.brand_type ?? brandType,
       type:       src.type,
       name:       src.name,
       link:       src.link,

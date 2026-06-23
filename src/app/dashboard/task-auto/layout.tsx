@@ -5,25 +5,71 @@ import { usePathname } from 'next/navigation'
 import { ListTodo, Users, Package, Target, Settings, LayoutDashboard, Zap, BookUser } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth-store'
+import { UserRole } from '@/types/auth'
 
+/**
+ * Phân quyền nav:
+ *  - Không có `roles`     → hiện cho tất cả
+ *  - `roles: [...]`       → chỉ hiện khi user có ít nhất 1 trong các role đó
+ */
 const NAV_ITEMS = [
-  { href: '/dashboard/task-auto',           label: 'Tổng quan',  icon: LayoutDashboard, exact: true },
-  { href: '/dashboard/task-auto/tasks',     label: 'Nhiệm vụ',   icon: ListTodo },
-  { href: '/dashboard/task-auto/teams',     label: 'Đội nhóm',   icon: Users },
-  { href: '/dashboard/task-auto/catalog',   label: 'Danh mục',   icon: Package },
-  { href: '/dashboard/task-auto/my-catalog',label: 'Kho cá nhân',icon: BookUser },
-  { href: '/dashboard/task-auto/kpi',       label: 'KPI',        icon: Target },
-  { href: '/dashboard/task-auto/settings',  label: 'Cài đặt',    icon: Settings, adminOnly: true },
-]
+  {
+    href: '/dashboard/task-auto',
+    label: 'Tổng quan',
+    icon: LayoutDashboard,
+    exact: true,
+  },
+  {
+    href: '/dashboard/task-auto/tasks',
+    label: 'Nhiệm vụ',
+    icon: ListTodo,
+  },
+  {
+    href: '/dashboard/task-auto/teams',
+    label: 'Đội nhóm',
+    icon: Users,
+  },
+  {
+    href: '/dashboard/task-auto/catalog',
+    label: 'Danh mục',
+    icon: Package,
+  },
+  {
+    // Kho cá nhân — Editor/Leader nhập hàng từ danh mục toàn cục
+    href: '/dashboard/task-auto/my-catalog',
+    label: 'Kho cá nhân',
+    icon: BookUser,
+    roles: [UserRole.LEADER, UserRole.MEMBER, UserRole.EDITOR, UserRole.CONTENT],
+  },
+  {
+    href: '/dashboard/task-auto/kpi',
+    label: 'KPI',
+    icon: Target,
+  },
+  {
+    // Cài đặt hệ thống — chỉ Admin/Manager
+    href: '/dashboard/task-auto/settings',
+    label: 'Cài đặt',
+    icon: Settings,
+    roles: [UserRole.ADMIN, UserRole.MANAGER],
+  },
+] satisfies {
+  href: string
+  label: string
+  icon: React.ElementType
+  exact?: boolean
+  roles?: UserRole[]
+}[]
 
 export default function TaskAutoLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { user } = useAuthStore()
 
-  const roles: string[] = (user as any)?.roles ?? []
-  const isAdminOrManager = roles.includes('ADMIN') || roles.includes('MANAGER')
+  const userRoles: UserRole[] = user?.roles ?? []
 
-  const visibleItems = NAV_ITEMS.filter(item => !item.adminOnly || isAdminOrManager)
+  const visibleItems = NAV_ITEMS.filter(
+    item => !item.roles || item.roles.some(r => userRoles.includes(r)),
+  )
 
   return (
     <div className="min-h-screen bg-gray-50">

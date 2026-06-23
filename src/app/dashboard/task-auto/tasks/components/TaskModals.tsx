@@ -86,8 +86,9 @@ interface CreateForm {
   assignee_id: string
   deadline: string
   source_outro_id: string
-  source_extra_id: string
-  extra_source_type: 'COLLECTED' | 'WORKSHOP' | 'HUYK' | ''
+  source_collected_id: string
+  source_workshop_id: string
+  source_huyk_id: string
 }
 
 interface CreateTaskModalProps {
@@ -116,7 +117,7 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
   const [form, setForm] = useState<CreateForm>({
     content_id: '', product_id: '', team_id: lockedTeam?.id ?? '',
     assignee_id: '', deadline: '',
-    source_outro_id: '', source_extra_id: '', extra_source_type: '',
+    source_outro_id: '', source_collected_id: '', source_workshop_id: '', source_huyk_id: '',
   })
   const [brandType, setBrandType] = useState<BrandType>('DO_DA')
   const [contentScope, setContentScope] = useState<Scope>('personal')
@@ -255,20 +256,18 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
   const selectedTeam    = teams.find(t => t.id === form.team_id)
   const teamMembers     = selectedTeam?.members ?? []
 
-  function setExtraSource(id: string, type: 'COLLECTED' | 'WORKSHOP' | 'HUYK') {
-    setForm(f => ({ ...f, source_extra_id: id, extra_source_type: id ? type : '' }))
-  }
-
   // ── Submit task ──
   const mutation = useMutation({
     mutationFn: () => createTask({
-      content_id:      form.content_id      || undefined,
-      product_id:      form.product_id      || undefined,
-      team_id:         form.team_id         || undefined,
-      assignee_id:     form.assignee_id     || undefined,
-      deadline:        form.deadline        || undefined,
-      source_outro_id: form.source_outro_id || undefined,
-      source_extra_id: form.source_extra_id || undefined,
+      content_id:         form.content_id         || undefined,
+      product_id:         form.product_id         || undefined,
+      team_id:            form.team_id            || undefined,
+      assignee_id:        form.assignee_id        || undefined,
+      deadline:           form.deadline           || undefined,
+      source_outro_id:    form.source_outro_id    || undefined,
+      source_extra_id:    form.source_collected_id || undefined,
+      source_workshop_id: form.source_workshop_id || undefined,
+      source_huyk_id:     form.source_huyk_id     || undefined,
     } as Partial<Task>),
     onSuccess: () => {
       toast.success('Tạo task thành công!')
@@ -334,9 +333,7 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
 
         {/* ── Nội dung ── */}
         <div className="space-y-3">
-          <SectionHeader label="Nội dung">
-            <ScopeSwitch value={contentScope} onChange={setContentScope} hasTeam={!!myTeam} />
-          </SectionHeader>
+          <SectionHeader label="Nội dung" />
           <ServerSearchSelect
             label="Script / Content *"
             value={form.content_id}
@@ -354,6 +351,7 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
             searchPlaceholder="Tìm theo tiêu đề..."
             createLabel="Tạo content mới..."
             onCreateClick={() => setShowContentModal(true)}
+            filterSlot={<ScopeSwitch value={contentScope} onChange={setContentScope} hasTeam={!!myTeam} />}
           />
           {selectedContent?.content_line && (
             <div className="flex items-center gap-2 pl-1">
@@ -367,13 +365,11 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
 
         {/* ── Sản phẩm ── */}
         <div className="space-y-3">
-          <SectionHeader label="Sản phẩm">
-            <ScopeSwitch value={productScope} onChange={setProductScope} hasTeam={!!myTeam} />
-          </SectionHeader>
+          <SectionHeader label="Sản phẩm" />
           <ServerSearchSelect
             label="Sản phẩm *"
             value={form.product_id}
-            onChange={v => setForm(f => ({ ...f, product_id: v, source_extra_id: '', extra_source_type: '' }))}
+            onChange={v => setForm(f => ({ ...f, product_id: v, source_collected_id: '', source_workshop_id: '', source_huyk_id: '' }))}
             items={products.map(p => ({
               value: p.id,
               label: p.name,
@@ -387,6 +383,7 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
             searchPlaceholder="Tìm theo tên hoặc SKU..."
             createLabel="Tạo sản phẩm mới..."
             onCreateClick={() => setShowProductModal(true)}
+            filterSlot={<ScopeSwitch value={productScope} onChange={setProductScope} hasTeam={!!myTeam} />}
           />
           {form.product_id && productSources.length > 0 && (
             <div className="flex flex-wrap gap-2 pl-1">
@@ -492,8 +489,8 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
                 {collectedSrcs.length > 0 && <span className="ml-1.5 text-xs font-normal text-slate-400">{collectedSrcs.length}</span>}
               </label>
               <CustomSelect
-                value={form.extra_source_type === 'COLLECTED' ? form.source_extra_id : ''}
-                onChange={v => setExtraSource(v, 'COLLECTED')}
+                value={form.source_collected_id}
+                onChange={v => setForm(f => ({ ...f, source_collected_id: v }))}
                 options={[{ value: '', label: '-- Không chọn --' }, ...collectedSrcs.map(s => ({ value: s.id, label: s.name }))]}
                 searchable
               />
@@ -505,8 +502,8 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
                 {workshopSrcs.length > 0 && <span className="ml-1.5 text-xs font-normal text-slate-400">{workshopSrcs.length}</span>}
               </label>
               <CustomSelect
-                value={form.extra_source_type === 'WORKSHOP' ? form.source_extra_id : ''}
-                onChange={v => setExtraSource(v, 'WORKSHOP')}
+                value={form.source_workshop_id}
+                onChange={v => setForm(f => ({ ...f, source_workshop_id: v }))}
                 options={[{ value: '', label: '-- Không chọn --' }, ...workshopSrcs.map(s => ({ value: s.id, label: s.name }))]}
                 searchable
               />
@@ -518,8 +515,8 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
                 {huykSrcs.length > 0 && <span className="ml-1.5 text-xs font-normal text-slate-400">{huykSrcs.length}</span>}
               </label>
               <CustomSelect
-                value={form.extra_source_type === 'HUYK' ? form.source_extra_id : ''}
-                onChange={v => setExtraSource(v, 'HUYK')}
+                value={form.source_huyk_id}
+                onChange={v => setForm(f => ({ ...f, source_huyk_id: v }))}
                 options={[{ value: '', label: '-- Không chọn --' }, ...huykSrcs.map(s => ({ value: s.id, label: s.name }))]}
                 searchable
               />

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { Plus, Edit2, Trash2, Loader2, Users, Eye, FileText, Package, Video } from 'lucide-react'
-import { DarkModal, DarkInput, DarkSelect, EmptyState, CustomSelect } from '@/components/task-auto'
+import { DarkModal, DarkInput, EmptyState, CustomSelect, ServerSearchSelect } from '@/components/task-auto'
 import {
   getEditorKpis, createEditorKpi, updateEditorKpi, deleteEditorKpi,
   getApprovals, getTeams,
@@ -38,8 +38,7 @@ const VIDEO_ROWS: { key: keyof KpiFormState; label: string; bold?: boolean }[] =
   { key: 'ratio_a5',      label: 'A5 — Nhân bản & scale' },
 ]
 
-const CONTENT_ROWS: { key: keyof KpiFormState; label: string }[] = [
-  { key: 'kpi_extra',         label: 'KPI sáng tạo tháng' },
+const CONTENT_ROWS: { key: keyof KpiFormState; label: string; bold?: boolean }[] = [
   { key: 'content_new',       label: 'Content mới được làm' },
   { key: 'content_collected', label: 'Content sưu tầm về kho team' },
   { key: 'content_win_cover', label: 'Content win được cover lại' },
@@ -53,8 +52,6 @@ const PRODUCT_ROWS: { key: keyof KpiFormState; label: string }[] = [
   { key: 'video_profit',       label: 'Video SP dòng Profit' },
 ]
 
-const UNIT = 'Số lượng / đánh giá'
-
 // ── Detail modal ──────────────────────────────────────────────────────────────
 
 function KpiDetailModal({ kpi, onClose }: { kpi: EditorKpi; onClose: () => void }) {
@@ -65,66 +62,66 @@ function KpiDetailModal({ kpi, onClose }: { kpi: EditorKpi; onClose: () => void 
       onClose={onClose}
       title={`Chi tiết KPI — ${kpi.user?.full_name ?? ''}`}
       subtitle={`${monthLabel} · Người đặt: ${kpi.set_by?.full_name ?? '—'}`}
-      size="xl"
+      size="2xl"
     >
-      <div className="space-y-4">
+      <div className="space-y-6">
         {/* Summary chips */}
-        <div className="flex flex-wrap gap-2 pb-1">
+        <div className="flex flex-wrap gap-3">
           {[
-            { label: 'Tổng video', value: kpi.total_target, color: 'bg-indigo-50 text-indigo-700 border-indigo-100' },
-            { label: 'Video win',  value: kpi.video_win,    color: 'bg-emerald-50 text-emerald-700 border-emerald-100' },
-            { label: 'Video fail', value: kpi.video_fail,   color: 'bg-red-50 text-red-600 border-red-100' },
-            { label: 'Content mới', value: kpi.content_new, color: 'bg-sky-50 text-sky-700 border-sky-100' },
-            { label: 'SP kế hoạch', value: kpi.product_planned, color: 'bg-violet-50 text-violet-700 border-violet-100' },
+            { label: 'Tổng video',   value: kpi.total_target,    color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+            { label: 'Video win',    value: kpi.video_win,        color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+            { label: 'Video fail',   value: kpi.video_fail,       color: 'bg-red-50 text-red-600 border-red-200' },
+            { label: 'Content mới',  value: kpi.content_new,      color: 'bg-sky-50 text-sky-700 border-sky-200' },
+            { label: 'SP kế hoạch',  value: kpi.product_planned,  color: 'bg-violet-50 text-violet-700 border-violet-200' },
           ].map(({ label, value, color }) => (
-            <div key={label} className={cn('flex items-center gap-2 px-3 py-1.5 rounded-xl border text-sm font-semibold', color)}>
-              <span className="text-xs font-medium opacity-70">{label}</span>
-              <span className="font-black">{value}</span>
+            <div key={label} className={cn('flex items-center gap-3 px-5 py-3 rounded-2xl border font-semibold', color)}>
+              <span className="text-sm font-medium opacity-70">{label}</span>
+              <span className="text-2xl font-black">{value}</span>
             </div>
           ))}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {/* Video */}
-          <div className="rounded-xl overflow-hidden border border-orange-200">
-            <div className="bg-orange-400 text-white text-xs font-bold px-3 py-2 flex items-center gap-1.5">
-              <Video className="w-3.5 h-3.5" /> Số video sản xuất đạt tiêu chuẩn
+          <div className="rounded-2xl overflow-hidden border border-orange-200">
+            <div className="bg-orange-400 text-white text-sm font-bold px-4 py-3 flex items-center gap-2">
+              <Video className="w-4 h-4" /> Số video sản xuất đạt tiêu chuẩn
             </div>
             <div className="divide-y divide-orange-100">
               {VIDEO_ROWS.map(r => (
-                <div key={r.key} className="flex items-center justify-between px-3 py-2 bg-white text-xs">
-                  <span className={cn('text-slate-600', r.bold && 'font-semibold text-slate-800')}>{r.label}</span>
-                  <span className={cn('font-bold', r.bold ? 'text-indigo-700 text-sm' : 'text-slate-900')}>{kpi[r.key] as number}</span>
+                <div key={r.key} className="flex items-center justify-between px-4 py-3 bg-white">
+                  <span className={cn('text-sm text-slate-600', r.bold && 'font-semibold text-slate-800')}>{r.label}</span>
+                  <span className={cn('font-bold', r.bold ? 'text-indigo-700 text-lg' : 'text-slate-900 text-base')}>{kpi[r.key] as number}</span>
                 </div>
               ))}
             </div>
           </div>
 
           {/* Content */}
-          <div className="rounded-xl overflow-hidden border border-green-200">
-            <div className="bg-green-500 text-white text-xs font-bold px-3 py-2 flex items-center gap-1.5">
-              <FileText className="w-3.5 h-3.5" /> Content
+          <div className="rounded-2xl overflow-hidden border border-green-200">
+            <div className="bg-green-500 text-white text-sm font-bold px-4 py-3 flex items-center gap-2">
+              <FileText className="w-4 h-4" /> Content
             </div>
             <div className="divide-y divide-green-100">
               {CONTENT_ROWS.map(r => (
-                <div key={r.key} className="flex items-center justify-between px-3 py-2 bg-white text-xs">
-                  <span className="text-slate-600">{r.label}</span>
-                  <span className="font-bold text-slate-900">{kpi[r.key] as number}</span>
+                <div key={r.key} className="flex items-center justify-between px-4 py-3 bg-white">
+                  <span className={cn('text-sm text-slate-600', r.bold && 'font-semibold text-slate-800')}>{r.label}</span>
+                  <span className={cn('font-bold', r.bold ? 'text-green-700 text-lg' : 'text-slate-900 text-base')}>{kpi[r.key] as number}</span>
                 </div>
               ))}
             </div>
           </div>
 
           {/* Product */}
-          <div className="rounded-xl overflow-hidden border border-purple-200">
-            <div className="bg-purple-500 text-white text-xs font-bold px-3 py-2 flex items-center gap-1.5">
-              <Package className="w-3.5 h-3.5" /> Product
+          <div className="rounded-2xl overflow-hidden border border-purple-200">
+            <div className="bg-purple-500 text-white text-sm font-bold px-4 py-3 flex items-center gap-2">
+              <Package className="w-4 h-4" /> Product
             </div>
             <div className="divide-y divide-purple-100">
               {PRODUCT_ROWS.map(r => (
-                <div key={r.key} className="flex items-center justify-between px-3 py-2 bg-white text-xs">
-                  <span className="text-slate-600">{r.label}</span>
-                  <span className="font-bold text-slate-900">{kpi[r.key] as number}</span>
+                <div key={r.key} className="flex items-center justify-between px-4 py-3 bg-white">
+                  <span className="text-sm text-slate-600">{r.label}</span>
+                  <span className="text-base font-bold text-slate-900">{kpi[r.key] as number}</span>
                 </div>
               ))}
             </div>
@@ -246,6 +243,7 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId 
   const [form, setForm] = useState<KpiFormState>(defaultForm())
   const [teamFilter, setTeamFilter] = useState(selectedTeamId ?? '')
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [editorSearch, setEditorSearch] = useState('')
 
   // Sync when parent changes selected team (e.g. switching from KPI Team tab)
   useEffect(() => {
@@ -426,7 +424,7 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId 
         open={modal !== null}
         onClose={() => setModal(null)}
         title={modal === 'create' ? 'Thêm KPI Editor' : `Sửa KPI — ${editing?.user?.full_name ?? ''}`}
-        size="xl"
+        size="2xl"
         footer={
           <>
             <button
@@ -449,24 +447,25 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId 
         <div className="space-y-5">
           {/* Editor + month */}
           <div className="grid grid-cols-2 gap-4">
-            <DarkSelect
+            <ServerSearchSelect
               label="Editor *"
               value={form.user_id}
-              onChange={e => setForm(f => ({ ...f, user_id: e.target.value }))}
-              disabled={modal === 'edit'}
-            >
-              <option value="">-- Chọn editor --</option>
-              {selectableEditors.length === 0 && (
-                <option disabled>
-                  {isLeader ? 'Chưa có editor trong team' : 'Chưa có editor được phê duyệt'}
-                </option>
-              )}
-              {selectableEditors.map(a => (
-                <option key={a.user_id} value={a.user_id}>
-                  {a.user?.full_name ?? a.user_id} ({a.user?.email ?? ''})
-                </option>
-              ))}
-            </DarkSelect>
+              onChange={v => setForm(f => ({ ...f, user_id: v }))}
+              items={selectableEditors.map(a => ({
+                value: a.user_id,
+                label: a.user?.full_name ?? a.user_id,
+                sublabel: a.user?.email ?? '',
+              }))}
+              searchValue={editorSearch}
+              onSearchChange={setEditorSearch}
+              placeholder={
+                selectableEditors.length === 0
+                  ? (isLeader ? 'Chưa có editor trong team' : 'Chưa có editor được phê duyệt')
+                  : '-- Chọn editor --'
+              }
+              searchPlaceholder="Tìm tên hoặc email..."
+              clearLabel="-- Bỏ chọn --"
+            />
             <DarkInput
               label="Tháng *"
               type="month"
@@ -475,88 +474,76 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId 
             />
           </div>
 
-          {/* KPI input table */}
-          <div className="rounded-xl border border-gray-200 overflow-hidden text-sm">
-            {/* Header row */}
-            <div className="grid grid-cols-[1fr_160px_110px] bg-amber-50 border-b border-amber-200">
-              <div className="px-4 py-2 text-xs font-bold text-amber-800 uppercase tracking-wide">Chỉ tiêu KPI</div>
-              <div className="px-4 py-2 text-xs font-bold text-amber-800 uppercase tracking-wide">Đơn vị</div>
-              <div className="px-4 py-2 text-xs font-bold text-amber-800 uppercase tracking-wide text-right">Chỉ tiêu</div>
-            </div>
-
-            {/* Video production */}
-            <div>
-              <div className="bg-orange-400 text-white font-bold px-4 py-2 text-sm">
-                Số video sản xuất đạt tiêu chuẩn
+          {/* KPI input — same 3-card layout as detail view */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Video */}
+            <div className="rounded-2xl overflow-hidden border border-orange-200">
+              <div className="bg-orange-400 text-white text-sm font-bold px-4 py-3 flex items-center gap-2">
+                <Video className="w-4 h-4" /> Số video sản xuất đạt tiêu chuẩn
               </div>
-              {VIDEO_ROWS.map(row => (
-                <div
-                  key={row.key}
-                  className={cn(
-                    'grid grid-cols-[1fr_160px_110px] px-4 py-2 border-b border-gray-100 items-center',
-                    row.bold ? 'bg-orange-50/70' : 'bg-white hover:bg-gray-50/50',
-                  )}
-                >
-                  <span className={cn('text-slate-600', row.bold && 'font-semibold text-slate-800')}>
-                    {row.label}
-                  </span>
-                  <span className="text-xs text-slate-400">{UNIT}</span>
-                  <input
-                    type="number" min={0}
-                    value={form[row.key] as number}
-                    onChange={e => setField(row.key, Math.max(0, Number(e.target.value)))}
-                    className={cn(
-                      'w-full border rounded-lg px-2 py-1 text-right font-semibold focus:outline-none focus:ring-2 transition-colors',
-                      row.bold
-                        ? 'bg-indigo-50 text-indigo-700 border-indigo-200 focus:ring-indigo-400'
-                        : 'bg-white border-gray-200 text-slate-800 focus:ring-indigo-300',
-                    )}
-                  />
-                </div>
-              ))}
+              <div className="divide-y divide-orange-100">
+                {VIDEO_ROWS.map(row => (
+                  <div key={row.key} className={cn('flex items-center justify-between gap-3 px-4 py-2.5', row.bold ? 'bg-orange-50/60' : 'bg-white')}>
+                    <span className={cn('text-sm text-slate-600 flex-1 leading-snug', row.bold && 'font-semibold text-slate-800')}>{row.label}</span>
+                    <input
+                      type="number" min={0}
+                      value={form[row.key] as number}
+                      onChange={e => setField(row.key, Math.max(0, Number(e.target.value)))}
+                      className={cn(
+                        'w-20 shrink-0 border rounded-lg px-2 py-1 text-right font-bold focus:outline-none focus:ring-2 transition-colors',
+                        row.bold
+                          ? 'bg-indigo-50 text-indigo-700 border-indigo-200 focus:ring-indigo-400'
+                          : 'bg-white border-gray-200 text-slate-800 focus:ring-indigo-300',
+                      )}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* Content */}
-            <div>
-              <div className="bg-green-500 text-white font-bold px-4 py-2 text-sm">Content</div>
-              {CONTENT_ROWS.map(row => (
-                <div
-                  key={row.key}
-                  className="grid grid-cols-[1fr_160px_110px] px-4 py-2 border-b border-gray-100 items-center bg-white hover:bg-gray-50/50"
-                >
-                  <span className="text-slate-600">{row.label}</span>
-                  <span className="text-xs text-slate-400">{UNIT}</span>
-                  <input
-                    type="number" min={0}
-                    value={form[row.key] as number}
-                    onChange={e => setField(row.key, Math.max(0, Number(e.target.value)))}
-                    className="w-full border border-gray-200 rounded-lg px-2 py-1 text-right font-semibold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-green-400"
-                  />
-                </div>
-              ))}
+            <div className="rounded-2xl overflow-hidden border border-green-200">
+              <div className="bg-green-500 text-white text-sm font-bold px-4 py-3 flex items-center gap-2">
+                <FileText className="w-4 h-4" /> Content
+              </div>
+              <div className="divide-y divide-green-100">
+                {CONTENT_ROWS.map(row => (
+                  <div key={row.key} className={cn('flex items-center justify-between gap-3 px-4 py-2.5', row.bold ? 'bg-green-50/60' : 'bg-white')}>
+                    <span className={cn('text-sm text-slate-600 flex-1 leading-snug', row.bold && 'font-semibold text-slate-800')}>{row.label}</span>
+                    <input
+                      type="number" min={0}
+                      value={form[row.key] as number}
+                      onChange={e => setField(row.key, Math.max(0, Number(e.target.value)))}
+                      className={cn(
+                        'w-20 shrink-0 border rounded-lg px-2 py-1 text-right font-bold focus:outline-none focus:ring-2 transition-colors',
+                        row.bold
+                          ? 'bg-green-50 text-green-700 border-green-200 focus:ring-green-400'
+                          : 'bg-white border-gray-200 text-slate-800 focus:ring-green-400',
+                      )}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* Product */}
-            <div>
-              <div className="bg-purple-500 text-white font-bold px-4 py-2 text-sm">Product</div>
-              {PRODUCT_ROWS.map((row, i) => (
-                <div
-                  key={row.key}
-                  className={cn(
-                    'grid grid-cols-[1fr_160px_110px] px-4 py-2 items-center bg-white hover:bg-gray-50/50',
-                    i < PRODUCT_ROWS.length - 1 && 'border-b border-gray-100',
-                  )}
-                >
-                  <span className="text-slate-600">{row.label}</span>
-                  <span className="text-xs text-slate-400">{UNIT}</span>
-                  <input
-                    type="number" min={0}
-                    value={form[row.key] as number}
-                    onChange={e => setField(row.key, Math.max(0, Number(e.target.value)))}
-                    className="w-full border border-gray-200 rounded-lg px-2 py-1 text-right font-semibold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-400"
-                  />
-                </div>
-              ))}
+            <div className="rounded-2xl overflow-hidden border border-purple-200">
+              <div className="bg-purple-500 text-white text-sm font-bold px-4 py-3 flex items-center gap-2">
+                <Package className="w-4 h-4" /> Product
+              </div>
+              <div className="divide-y divide-purple-100">
+                {PRODUCT_ROWS.map(row => (
+                  <div key={row.key} className="flex items-center justify-between gap-3 px-4 py-2.5 bg-white">
+                    <span className="text-sm text-slate-600 flex-1 leading-snug">{row.label}</span>
+                    <input
+                      type="number" min={0}
+                      value={form[row.key] as number}
+                      onChange={e => setField(row.key, Math.max(0, Number(e.target.value)))}
+                      className="w-20 shrink-0 border border-gray-200 rounded-lg px-2 py-1 text-right font-bold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-400 transition-colors"
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 

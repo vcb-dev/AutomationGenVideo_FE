@@ -13,6 +13,7 @@ import { TaskDetailPanel } from './components/TaskDetailPanel'
 import { CreateTaskModal } from './components/TaskModals'
 import { getApprovals, getTasks, getTeams } from '@/lib/api/task-auto'
 import { TaskStatus } from '@/types/task-auto'
+import { UserRole } from '@/types/auth'
 
 type ViewMode = 'team' | 'mine'
 
@@ -23,14 +24,16 @@ function todayString() {
 
 export default function TasksPage() {
   const { user } = useAuthStore()
-  const userRoles: string[] = user?.roles ?? []
+  const userRoles: UserRole[] = user?.roles ?? []
 
-  const isAdmin   = userRoles.includes('ADMIN')
-  const isManager = userRoles.includes('MANAGER')
-  const isLeader  = userRoles.includes('LEADER')
+  const isAdmin   = userRoles.includes(UserRole.ADMIN)
+  const isManager = userRoles.includes(UserRole.MANAGER)
+  const isLeader  = userRoles.includes(UserRole.LEADER)
+  // isMember bắt tất cả role còn lại (MEMBER, EDITOR, CONTENT): họ chỉ xem task của mình
   const isMember  = !isAdmin && !isManager && !isLeader
 
-  const canCreate = isAdmin || isManager || isLeader || isMember
+  // Mọi role đều có thể tạo task (task thủ công hoặc tự nhận)
+  const canCreate = true
 
   const { data: isApprovedEditor = false } = useQuery({
     queryKey: ['task-auto', 'my-editor-approval', user?.id],

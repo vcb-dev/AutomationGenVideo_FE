@@ -84,10 +84,12 @@ function PushModal({ source, userId, onClose }: { source: Source; userId: string
 
 function ImportModal({
   userId,
+  brandType,
   onImported,
   onClose,
 }: {
   userId: string
+  brandType: 'DO_DA' | 'TRANG_SUC'
   onImported: () => void
   onClose: () => void
 }) {
@@ -105,8 +107,9 @@ function ImportModal({
   const myLinkSet = new Set(mySources?.data?.map(s => s.link?.trim().toLowerCase()).filter(Boolean) ?? [])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'import-sources', scope, myTeam?.id, typeFilter, search, page],
+    queryKey: ['task-auto', 'import-sources', scope, myTeam?.id, brandType, typeFilter, search, page],
     queryFn: () => getSources({
+      brand_type: brandType,
       owner: scope === 'global' ? 'global' : 'team',
       team_id: scope === 'team' ? (myTeam?.id || undefined) : undefined,
       type: typeFilter || undefined,
@@ -118,6 +121,7 @@ function ImportModal({
 
   const copyMut = useMutation({
     mutationFn: (s: Source) => createSource({
+      brand_type: brandType,
       type: s.type,
       name: s.name,
       link: s.link,
@@ -557,6 +561,7 @@ export function MySourcesTab({ userId, brandType }: Props) {
       {showImport && (
         <ImportModal
           userId={userId}
+          brandType={brandType}
           onImported={() => setShowImport(false)}
           onClose={() => setShowImport(false)}
         />

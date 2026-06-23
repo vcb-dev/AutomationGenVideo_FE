@@ -12,6 +12,7 @@ import { TeamProductsTab } from './components/TeamProductsTab'
 import { TeamContentsTab } from './components/TeamContentsTab'
 import { TeamSourcesTab } from './components/TeamSourcesTab'
 import { Team } from '@/types/task-auto'
+import { UserRole } from '@/types/auth'
 import { getTeams, getUsers } from '@/lib/api/task-auto'
 
 type BrandType = 'DO_DA' | 'TRANG_SUC'
@@ -34,13 +35,13 @@ const ALL_TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
 
 export default function TeamsPage() {
   const { user } = useAuthStore()
-  const roles: string[] = user?.roles ?? []
+  const roles: UserRole[] = user?.roles ?? []
 
-  const isAdmin = roles.includes('ADMIN')
-  const isManager = roles.includes('MANAGER')
-  const isLeader = roles.includes('LEADER')
+  const isAdmin         = roles.includes(UserRole.ADMIN)
+  const isManager       = roles.includes(UserRole.MANAGER)
+  const isLeader        = roles.includes(UserRole.LEADER)
   const isAdminOrManager = isAdmin || isManager
-  const isMember = !isAdmin && !isManager && !isLeader
+  const isMember        = !isAdmin && !isManager && !isLeader
 
   // canManage = thêm/xoá thành viên, gán editor
   const canManage = isAdmin || isManager || isLeader

@@ -90,10 +90,12 @@ function PushModal({ content, userId, onClose }: { content: Content; userId: str
 
 function ImportModal({
   userId,
+  brandType,
   onImported,
   onClose,
 }: {
   userId: string
+  brandType: 'DO_DA' | 'TRANG_SUC'
   onImported: () => void
   onClose: () => void
 }) {
@@ -112,8 +114,9 @@ function ImportModal({
   )
 
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'import-contents', scope, myTeam?.id, search, page],
+    queryKey: ['task-auto', 'import-contents', scope, myTeam?.id, brandType, search, page],
     queryFn: () => getContents({
+      brand_type: brandType,
       owner: scope === 'global' ? 'global' : undefined,
       ...(scope === 'team' && myTeam ? { team_id: myTeam.id } : {}),
       search: search || undefined,
@@ -124,6 +127,7 @@ function ImportModal({
 
   const copyMut = useMutation({
     mutationFn: (c: Content) => createContent({
+      brand_type: brandType,
       title: c.title ?? undefined,
       body: c.body ?? undefined,
       script: c.script ?? undefined,
@@ -558,6 +562,7 @@ export function MyContentsTab({ userId, brandType }: Props) {
       {showImport && (
         <ImportModal
           userId={userId}
+          brandType={brandType}
           onImported={() => setShowImport(false)}
           onClose={() => setShowImport(false)}
         />

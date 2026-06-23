@@ -370,27 +370,38 @@ export function ProductsTab({ brandType }: { brandType: BrandType }) {
         )}
       </div>
 
-      {/* Accordion: Dòng SP & Chất liệu */}
+      {/* Catalog management panel */}
       <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
         <button
           type="button"
           onClick={() => setShowCatalogPanel(v => !v)}
-          className="w-full flex items-center justify-between px-5 py-4 text-sm font-semibold text-slate-700 hover:bg-gray-50 transition-colors"
+          className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50/80 transition-colors group"
         >
-          <span className="flex items-center gap-2">
-            <Package className="w-4 h-4 text-slate-400" />
-            Quản lý Dòng sản phẩm &amp; Chất liệu
+          <span className="flex items-center gap-3">
+            <span className="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
+              <Package className="w-4 h-4 text-indigo-600" />
+            </span>
+            <span className="text-left">
+              <span className="block text-sm font-bold text-slate-800">Dòng sản phẩm &amp; Chất liệu</span>
+              <span className="block text-xs text-slate-400 mt-0.5">
+                {(productLines?.length ?? 0)} dòng sản phẩm · {(materials?.length ?? 0)} chất liệu
+              </span>
+            </span>
           </span>
-          <ChevronRight className={cn('w-4 h-4 text-slate-400 transition-transform', showCatalogPanel && 'rotate-90')} />
+          <ChevronRight className={cn(
+            'w-4 h-4 text-slate-400 transition-transform duration-200 group-hover:text-slate-600',
+            showCatalogPanel && 'rotate-90'
+          )} />
         </button>
         {showCatalogPanel && (
-          <div className="border-t border-gray-100 p-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div className="border-t border-gray-100 p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
             <MiniList
               title="Dòng sản phẩm"
               items={productLines ?? []}
               addLabel="Nhập tên dòng sản phẩm..."
               onAdd={name => createLineMut.mutateAsync({ name })}
               onDelete={id => deleteLineMut.mutate(id)}
+              color="purple"
             />
             <MiniList
               title="Chất liệu"
@@ -398,6 +409,7 @@ export function ProductsTab({ brandType }: { brandType: BrandType }) {
               addLabel="Nhập tên chất liệu..."
               onAdd={name => createMatMut.mutateAsync({ name })}
               onDelete={id => deleteMatMut.mutate(id)}
+              color="teal"
             />
           </div>
         )}

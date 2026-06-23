@@ -68,7 +68,7 @@ export function CustomSelect({ label, value, onChange, options, searchable, clas
   const [search, setSearch] = useState('')
   const triggerRef = useRef<HTMLButtonElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
-  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 })
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0, openUp: false })
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -85,11 +85,17 @@ export function CustomSelect({ label, value, onChange, options, searchable, clas
 
   const selected = options.find(o => o.value === value)
 
+  function calcPos() {
+    if (!triggerRef.current) return
+    const r = triggerRef.current.getBoundingClientRect()
+    const DROPDOWN_H = Math.min(options.length * 40 + (searchable ? 48 : 0), 260)
+    const spaceBelow = window.innerHeight - r.bottom
+    const openUp = spaceBelow < DROPDOWN_H && r.top > DROPDOWN_H
+    setPos({ top: openUp ? r.top - DROPDOWN_H - 4 : r.bottom + 4, left: r.left, width: r.width, openUp })
+  }
+
   function handleOpen() {
-    if (triggerRef.current) {
-      const r = triggerRef.current.getBoundingClientRect()
-      setPos({ top: r.bottom + 4, left: r.left, width: r.width })
-    }
+    calcPos()
     setOpen(o => !o)
   }
 
@@ -119,7 +125,10 @@ export function CustomSelect({ label, value, onChange, options, searchable, clas
         <div
           ref={dropdownRef}
           style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 9999 }}
-          className="min-w-[200px] bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden"
+          className={cn(
+            'min-w-[200px] bg-white border border-gray-200 shadow-xl overflow-hidden',
+            pos.openUp ? 'rounded-t-xl' : 'rounded-xl'
+          )}
         >
           {searchable && (
             <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100">
@@ -179,6 +188,7 @@ interface ServerSearchSelectProps {
   searchPlaceholder?: string
   createLabel?: string
   onCreateClick?: () => void
+  filterSlot?: React.ReactNode
 }
 
 export function ServerSearchSelect({
@@ -195,11 +205,12 @@ export function ServerSearchSelect({
   searchPlaceholder = 'Tìm kiếm...',
   createLabel,
   onCreateClick,
+  filterSlot,
 }: ServerSearchSelectProps) {
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
-  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 })
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0, openUp: false })
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -215,7 +226,10 @@ export function ServerSearchSelect({
   function handleOpen() {
     if (triggerRef.current) {
       const r = triggerRef.current.getBoundingClientRect()
-      setPos({ top: r.bottom + 4, left: r.left, width: r.width })
+      const DROPDOWN_H = 320
+      const spaceBelow = window.innerHeight - r.bottom
+      const openUp = spaceBelow < DROPDOWN_H && r.top > DROPDOWN_H
+      setPos({ top: openUp ? r.top - DROPDOWN_H - 4 : r.bottom + 4, left: r.left, width: r.width, openUp })
     }
     setOpen(o => !o)
   }
@@ -261,7 +275,10 @@ export function ServerSearchSelect({
         <div
           ref={dropdownRef}
           style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 9999 }}
-          className="min-w-[240px] bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden"
+          className={cn(
+            'min-w-[240px] bg-white border border-gray-200 shadow-xl overflow-hidden',
+            pos.openUp ? 'rounded-t-xl' : 'rounded-xl'
+          )}
         >
           <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100">
             <Search className="w-4 h-4 text-slate-400 shrink-0" />
@@ -278,6 +295,11 @@ export function ServerSearchSelect({
               </button>
             )}
           </div>
+          {filterSlot && (
+            <div className="px-3 py-2 border-b border-gray-100 bg-gray-50/60">
+              {filterSlot}
+            </div>
+          )}
           <ul className="max-h-48 overflow-y-auto py-1">
             {clearLabel && (
               <li>
@@ -353,7 +375,7 @@ export function ProductSearchSelect({
   const [search, setSearch] = useState('')
   const triggerRef = useRef<HTMLButtonElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
-  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 })
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0, openUp: false })
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -373,7 +395,10 @@ export function ProductSearchSelect({
   function handleOpen() {
     if (triggerRef.current) {
       const r = triggerRef.current.getBoundingClientRect()
-      setPos({ top: r.bottom + 4, left: r.left, width: r.width })
+      const DROPDOWN_H = 280
+      const spaceBelow = window.innerHeight - r.bottom
+      const openUp = spaceBelow < DROPDOWN_H && r.top > DROPDOWN_H
+      setPos({ top: openUp ? r.top - DROPDOWN_H - 4 : r.bottom + 4, left: r.left, width: r.width, openUp })
     }
     setOpen(o => !o)
   }
@@ -419,7 +444,10 @@ export function ProductSearchSelect({
         <div
           ref={dropdownRef}
           style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 9999 }}
-          className="min-w-[240px] bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden"
+          className={cn(
+            'min-w-[240px] bg-white border border-gray-200 shadow-xl overflow-hidden',
+            pos.openUp ? 'rounded-t-xl' : 'rounded-xl'
+          )}
         >
           <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100">
             <Search className="w-4 h-4 text-slate-400 shrink-0" />
@@ -506,7 +534,7 @@ export function CreatableSelect({
   const triggerRef = useRef<HTMLButtonElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const createInputRef = useRef<HTMLInputElement>(null)
-  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 })
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0, openUp: false })
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -532,7 +560,10 @@ export function CreatableSelect({
   function handleOpen() {
     if (triggerRef.current) {
       const r = triggerRef.current.getBoundingClientRect()
-      setPos({ top: r.bottom + 4, left: r.left, width: r.width })
+      const DROPDOWN_H = 280
+      const spaceBelow = window.innerHeight - r.bottom
+      const openUp = spaceBelow < DROPDOWN_H && r.top > DROPDOWN_H
+      setPos({ top: openUp ? r.top - DROPDOWN_H - 4 : r.bottom + 4, left: r.left, width: r.width, openUp })
     }
     setOpen(o => !o)
   }
@@ -589,7 +620,10 @@ export function CreatableSelect({
         <div
           ref={dropdownRef}
           style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 9999 }}
-          className="min-w-[240px] bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden"
+          className={cn(
+            'min-w-[240px] bg-white border border-gray-200 shadow-xl overflow-hidden',
+            pos.openUp ? 'rounded-t-xl' : 'rounded-xl'
+          )}
         >
           <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100">
             <Search className="w-4 h-4 text-slate-400 shrink-0" />

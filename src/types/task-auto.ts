@@ -279,8 +279,10 @@ export interface Task {
   content_id: string | null
   product_id: string | null
   content_line_id: string | null
-  source_outro_id: string | null
-  source_extra_id: string | null
+  source_outro_id:    string | null
+  source_extra_id:    string | null
+  source_workshop_id: string | null
+  source_huyk_id:     string | null
   status: TaskStatus
   assignee_id: string | null
   assigned_at: string | null
@@ -301,8 +303,10 @@ export interface Task {
   content?: Pick<Content, 'id' | 'title' | 'script' | 'file_content_url' | 'market'> & { content_line?: ContentLine | null }
   product?: Pick<Product, 'id' | 'sku' | 'name' | 'image_url'> | null
   content_line?: ContentLine | null
-  source_outro?: Pick<Source, 'id' | 'name' | 'link' | 'type'> | null
-  source_extra?: Pick<Source, 'id' | 'name' | 'link' | 'type'> | null
+  source_outro?:    Pick<Source, 'id' | 'name' | 'link' | 'type'> | null
+  source_extra?:    Pick<Source, 'id' | 'name' | 'link' | 'type'> | null
+  source_workshop?: Pick<Source, 'id' | 'name' | 'link' | 'type'> | null
+  source_huyk?:     Pick<Source, 'id' | 'name' | 'link' | 'type'> | null
   assignee?: UserBasic | null
   reviewed_by?: UserBasic | null
   assignments?: TaskAssignment[]

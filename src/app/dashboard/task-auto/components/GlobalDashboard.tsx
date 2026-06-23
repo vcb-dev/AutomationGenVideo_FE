@@ -1,6 +1,6 @@
 'use client'
 
-import { PieChart, Pie, ResponsiveContainer, Tooltip } from 'recharts'
+import { PieChart, Pie, Tooltip, ResponsiveContainer } from 'recharts'
 import { ListTodo, Clock, AlertTriangle, CheckCircle2, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 import { StatCard } from './StatCard'
@@ -10,8 +10,6 @@ interface GlobalData {
   today_deadline: number
   overdue: number
   monthly_completed: number
-  contents: { available: number; in_task: number; used: number; archived: number }
-  editors: { total: number; approved: number; pending_approval: number }
 }
 
 export function buildGlobal(d: any): GlobalData {
@@ -20,8 +18,6 @@ export function buildGlobal(d: any): GlobalData {
     today_deadline: d.today_deadline ?? 0,
     overdue: d.overdue ?? 0,
     monthly_completed: d.monthly_completed ?? 0,
-    contents: d.contents ?? { available: 0, in_task: 0, used: 0, archived: 0 },
-    editors: d.editors ?? { total: 0, approved: 0, pending_approval: 0 },
   }
 }
 
@@ -34,7 +30,7 @@ const STATUS_CONFIG = [
   { key: 'rejected',    label: 'Từ chối',    color: '#ef4444' },
 ] as const
 
-function ChartTooltip({ active, payload }: any) {
+function TaskTooltip({ active, payload }: any) {
   if (!active || !payload?.length) return null
   const d = payload[0]
   return (
@@ -49,7 +45,7 @@ export function GlobalDashboard({ d }: { d: GlobalData }) {
   const tasks = d.tasks
   const total = tasks.total || 1
 
-  const chartData = STATUS_CONFIG
+  const taskChartData = STATUS_CONFIG
     .map(s => ({
       name: s.label,
       value: tasks[s.key] ?? 0,
@@ -59,17 +55,37 @@ export function GlobalDashboard({ d }: { d: GlobalData }) {
     }))
     .filter(item => item.value > 0)
 
-  const isEmpty = chartData.length === 0
-
   return (
     <div className="space-y-5">
 
       {/* Stat row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatCard label="Tổng task"        value={tasks.total}         icon={ListTodo}      iconBg="bg-indigo-50 text-indigo-600" />
-        <StatCard label="Đến hạn hôm nay"  value={d.today_deadline}    icon={Clock}         iconBg="bg-amber-50 text-amber-600" />
-        <StatCard label="Quá hạn"          value={d.overdue}           icon={AlertTriangle} iconBg="bg-red-50 text-red-500" />
-        <StatCard label="Hoàn thành tháng" value={d.monthly_completed} icon={CheckCircle2}  iconBg="bg-emerald-50 text-emerald-600" />
+        <StatCard
+          label="Tổng task"
+          value={tasks.total}
+          icon={ListTodo}
+          iconBg="bg-indigo-50 text-indigo-600"
+        />
+        <StatCard
+          label="Đến hạn hôm nay"
+          value={d.today_deadline}
+          icon={Clock}
+          iconBg="bg-amber-50 text-amber-600"
+          sub={d.today_deadline > 0 ? 'Cần xử lý hôm nay' : undefined}
+        />
+        <StatCard
+          label="Quá hạn"
+          value={d.overdue}
+          icon={AlertTriangle}
+          iconBg={d.overdue > 0 ? 'bg-red-50 text-red-500' : 'bg-gray-50 text-gray-400'}
+          sub={d.overdue > 0 ? 'Cần xử lý ngay!' : undefined}
+        />
+        <StatCard
+          label="Hoàn thành trong kỳ"
+          value={d.monthly_completed}
+          icon={CheckCircle2}
+          iconBg="bg-emerald-50 text-emerald-600"
+        />
       </div>
 
       {/* Status donut chart */}
@@ -84,20 +100,19 @@ export function GlobalDashboard({ d }: { d: GlobalData }) {
           </Link>
         </div>
 
-        {isEmpty ? (
+        {taskChartData.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-14 text-slate-400">
             <ListTodo className="w-10 h-10 mb-2 opacity-20" />
-            <p className="text-sm">Chưa có task nào</p>
+            <p className="text-sm">Chưa có task nào trong khoảng thời gian này</p>
           </div>
         ) : (
           <div className="flex flex-col sm:flex-row items-center gap-8">
-
             {/* Donut */}
             <div className="relative w-48 h-48 shrink-0">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={chartData}
+                    data={taskChartData}
                     cx="50%"
                     cy="50%"
                     innerRadius={60}
@@ -108,12 +123,11 @@ export function GlobalDashboard({ d }: { d: GlobalData }) {
                     startAngle={90}
                     endAngle={-270}
                   />
-
-                  <Tooltip content={<ChartTooltip />} />
+                  <Tooltip content={<TaskTooltip />} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <p className="text-3xl font-bold text-slate-900">{tasks.total}</p>
+                <p className="text-3xl font-extrabold text-slate-900">{tasks.total}</p>
                 <p className="text-xs text-slate-400 mt-0.5">task</p>
               </div>
             </div>
@@ -125,17 +139,11 @@ export function GlobalDashboard({ d }: { d: GlobalData }) {
                 const pct = tasks.total > 0 ? Math.round((count / tasks.total) * 100) : 0
                 return (
                   <div key={s.key} className="flex items-start gap-2.5">
-                    <span
-                      className="w-2.5 h-2.5 rounded-full mt-0.5 shrink-0"
-                      style={{ backgroundColor: s.color }}
-                    />
+                    <span className="w-2.5 h-2.5 rounded-full mt-0.5 shrink-0" style={{ backgroundColor: s.color }} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline justify-between gap-1 mb-1">
                         <span className="text-xs text-slate-500 truncate">{s.label}</span>
-                        <span
-                          className="text-sm font-bold shrink-0"
-                          style={{ color: count > 0 ? s.color : '#cbd5e1' }}
-                        >
+                        <span className="text-sm font-bold shrink-0" style={{ color: count > 0 ? s.color : '#cbd5e1' }}>
                           {count}
                         </span>
                       </div>
@@ -150,7 +158,6 @@ export function GlobalDashboard({ d }: { d: GlobalData }) {
                 )
               })}
             </div>
-
           </div>
         )}
       </div>

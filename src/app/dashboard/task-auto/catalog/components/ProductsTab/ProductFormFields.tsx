@@ -37,17 +37,43 @@ export function LoadingRows({ cols }: { cols: number }) {
 
 // ── MiniList ──────────────────────────────────────────
 
+const MINI_LIST_COLORS = {
+  purple: {
+    header:  'bg-purple-600',
+    dot:     'bg-purple-400',
+    badge:   'bg-purple-100 text-purple-700',
+    addBtn:  'bg-purple-600 hover:bg-purple-700',
+    ring:    'focus:ring-purple-400',
+  },
+  teal: {
+    header:  'bg-teal-600',
+    dot:     'bg-teal-400',
+    badge:   'bg-teal-100 text-teal-700',
+    addBtn:  'bg-teal-600 hover:bg-teal-700',
+    ring:    'focus:ring-teal-400',
+  },
+  indigo: {
+    header:  'bg-indigo-600',
+    dot:     'bg-indigo-400',
+    badge:   'bg-indigo-100 text-indigo-700',
+    addBtn:  'bg-indigo-600 hover:bg-indigo-700',
+    ring:    'focus:ring-indigo-400',
+  },
+} as const
+
 export function MiniList({
-  title, items, onAdd, onDelete, addLabel,
+  title, items, onAdd, onDelete, addLabel, color = 'indigo',
 }: {
   title: string
   items: { id: string; name: string; _count?: Record<string, number> }[]
   onAdd: (name: string) => Promise<unknown>
   onDelete?: (id: string) => void
   addLabel: string
+  color?: keyof typeof MINI_LIST_COLORS
 }) {
   const [newName, setNewName] = useState('')
   const [adding, setAdding] = useState(false)
+  const c = MINI_LIST_COLORS[color]
 
   const handleAdd = async () => {
     if (!newName.trim()) return
@@ -57,35 +83,81 @@ export function MiniList({
   }
 
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-4">
-      <h3 className="text-sm font-bold text-slate-900 mb-3">{title}</h3>
-      <div className="space-y-0.5 max-h-48 overflow-y-auto mb-3">
-        {items.length === 0 && <p className="text-xs text-slate-500 py-2">Chưa có dữ liệu</p>}
-        {items.map(item => (
-          <div key={item.id} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-gray-100/60 group">
-            <span className="text-sm text-slate-700 truncate">{item.name}</span>
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              {item._count && (
-                <span className="text-xs text-slate-500">({Object.values(item._count).reduce((a, b) => a + b, 0)})</span>
-              )}
-              {onDelete && (
-                <button onClick={() => onDelete(item.id)} className="p-0.5 rounded text-red-500 hover:text-red-700 transition-colors">
-                  <Trash2 className="w-3 h-3" />
-                </button>
-              )}
-            </div>
-          </div>
-        ))}
+    <div className="rounded-2xl border border-gray-200 overflow-hidden shadow-sm bg-white">
+      {/* Header */}
+      <div className={cn('px-4 py-3 flex items-center justify-between', c.header)}>
+        <span className="text-sm font-bold text-white">{title}</span>
+        <span className="text-xs font-semibold bg-white/20 text-white px-2.5 py-0.5 rounded-full">
+          {items.length} mục
+        </span>
       </div>
-      <div className="flex gap-2">
-        <input value={newName} onChange={e => setNewName(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handleAdd()}
-          placeholder={addLabel}
-          className="flex-1 bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-        <button onClick={handleAdd} disabled={adding || !newName.trim()}
-          className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold disabled:opacity-50 transition-colors">
-          {adding ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
-        </button>
+
+      {/* List */}
+      <div className="divide-y divide-gray-100 max-h-52 overflow-y-auto">
+        {items.length === 0 ? (
+          <div className="py-8 text-center">
+            <p className="text-sm text-slate-400 italic">Chưa có dữ liệu</p>
+          </div>
+        ) : (
+          items.map((item, i) => {
+            const count = item._count
+              ? Object.values(item._count).reduce((a, b) => a + b, 0)
+              : null
+            return (
+              <div key={item.id}
+                className="flex items-center justify-between px-4 py-2.5 hover:bg-gray-50/80 group transition-colors">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="text-xs text-slate-300 font-mono w-4 text-right shrink-0 select-none">{i + 1}</span>
+                  <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', c.dot)} />
+                  <span className="text-sm text-slate-700 font-medium truncate">{item.name}</span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 ml-2">
+                  {count !== null && count > 0 && (
+                    <span className={cn('text-xs font-bold px-2 py-0.5 rounded-full', c.badge)}>
+                      {count}
+                    </span>
+                  )}
+                  {onDelete && (
+                    <button
+                      onClick={() => onDelete(item.id)}
+                      title="Xóa"
+                      className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })
+        )}
+      </div>
+
+      {/* Add row */}
+      <div className="px-4 py-3 bg-gray-50/60 border-t border-gray-100">
+        <div className="flex gap-2">
+          <input
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleAdd()}
+            placeholder={addLabel}
+            className={cn(
+              'flex-1 bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:border-transparent transition-colors',
+              c.ring,
+            )}
+          />
+          <button
+            onClick={handleAdd}
+            disabled={adding || !newName.trim()}
+            className={cn(
+              'px-4 py-2 text-white rounded-xl text-sm font-semibold flex items-center gap-1.5 disabled:opacity-50 transition-colors shrink-0',
+              c.addBtn,
+            )}
+          >
+            {adding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+            Thêm
+          </button>
+        </div>
       </div>
     </div>
   )
