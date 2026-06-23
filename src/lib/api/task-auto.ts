@@ -65,12 +65,7 @@ export const cancelTask = (id: string) =>
 export const deleteTask = (id: string) =>
   apiClient.delete(`/task-auto/tasks/${id}`).then(r => r.data)
 
-// ── Task Video (pending storage) ──────────────────────────────────────────────
-
-export const attachTaskVideo = (
-  taskId: string,
-  data: { filename: string; originalname: string; mimetype: string; size: number; url: string; storage: string },
-) => apiClient.post(`/task-auto/tasks/${taskId}/attach-video`, data).then(r => r.data)
+// ── Task Video (pending → Drive on approval) ─────────────────────────────────
 
 export const promoteTaskVideo = (taskId: string) =>
   apiClient.post(`/task-auto/tasks/${taskId}/promote-video`, {}).then(r => r.data)
@@ -171,8 +166,8 @@ export type TaskAutoDashboard = {
   } | null
 }
 
-export const getDashboard = () =>
-  apiClient.get<TaskAutoDashboard>('/task-auto/dashboard').then(r => r.data)
+export const getDashboard = (params?: { date_from?: string; date_to?: string }) =>
+  apiClient.get<TaskAutoDashboard>(`/task-auto/dashboard${qs(params ?? {})}`).then(r => r.data)
 
 // ── Editor Approvals ──────────────────────────────────────────────────────────
 

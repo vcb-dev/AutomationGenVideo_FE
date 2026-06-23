@@ -9,7 +9,7 @@ import { DarkModal } from '@/components/task-auto/DarkModal'
 import { DarkInput } from '@/components/task-auto/DarkInput'
 import { apiClient } from '@/lib/api-client'
 import { Task } from '@/types/task-auto'
-import { attachTaskVideo, submitTask, updateTask } from '@/lib/api/task-auto'
+import { submitTask, updateTask } from '@/lib/api/task-auto'
 
 interface Props {
   task: Task
@@ -19,116 +19,62 @@ interface Props {
 }
 
 const CHUNK_SIZE = 8 * 1024 * 1024 // 8 MB
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api'
 
-async function uploadVideoInChunks(
+function authHeaders(): Record<string, string> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+async function uploadVideoToServer(
+  taskId: string,
   file: File,
   onProgress: (pct: number) => void,
 ): Promise<{ url: string; filename: string; originalname: string; mimetype: string; size: number; storage: string }> {
-  // 1. Init — BE tạo Google Drive resumable session, trả về uploadUrl
-  const { uploadId, uploadUrl, chunkSize } = await apiClient
-    .post<{ uploadId: string; uploadUrl: string; chunkSize: number }>('/social/upload/chunk/init', {
-      filename: file.name,
-      mimetype: file.type || 'video/mp4',
-      totalSize: file.size,
-    })
+  // 1. Init — backend tạo upload session cục bộ
+  const { uploadId, chunkSize, totalChunks } = await apiClient
+    .post<{ uploadId: string; chunkSize: number; totalChunks: number }>(
+      `/task-auto/tasks/${taskId}/upload-video/init`,
+      { filename: file.name, mimetype: file.type || 'video/mp4', totalSize: file.size },
+    )
     .then(r => r.data)
 
   const effectiveChunkSize = chunkSize || CHUNK_SIZE
-  let offset = 0
-  let driveFileId: string | undefined
 
-  const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+  // 2. Gửi từng chunk — dùng fetch để browser tự set Content-Type multipart/form-data + boundary
+  for (let i = 0; i < totalChunks; i++) {
+    const start = i * effectiveChunkSize
+    const blob = file.slice(start, Math.min(start + effectiveChunkSize, file.size))
 
-  const syncStatus = async () => {
-    const status = await apiClient
-      .post<{ uploadedBytes: number; totalSize: number; completed: boolean; driveFileId?: string }>(
-        '/social/upload/chunk/status', { uploadId },
-      ).then(r => r.data)
-    driveFileId = status.driveFileId || driveFileId
-    offset = Math.min(status.uploadedBytes || 0, file.size)
-    onProgress(Math.round((offset / file.size) * 90))
-    return status
-  }
+    const formData = new FormData()
+    formData.append('uploadId', uploadId)
+    formData.append('chunkIndex', String(i))
+    formData.append('chunk', blob, file.name)
 
-  // 2. Gửi chunk trực tiếp đến Google Drive resumable uploadUrl
-  while (offset < file.size) {
-    const start = offset
-    const end = Math.min(start + effectiveChunkSize, file.size) - 1
-    const blob = file.slice(start, end + 1)
-    let uploaded = false
-
-    for (let attempt = 1; attempt <= 5; attempt++) {
-      try {
-        const res = await fetch(uploadUrl, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': file.type || 'video/mp4',
-            'Content-Range': `bytes ${start}-${end}/${file.size}`,
-          },
-          body: blob,
-          signal: AbortSignal.timeout(60_000),
-        })
-
-        if (res.status === 429) {
-          const wait = parseInt(res.headers.get('Retry-After') ?? '5', 10)
-          await sleep(Math.max(wait * 1000, 3000))
-          attempt--
-          continue
-        }
-        if (res.status === 200 || res.status === 201) {
-          const data = await res.json().catch(() => ({}))
-          driveFileId = (data as { id?: string }).id
-          offset = file.size
-          uploaded = true
-          break
-        }
-        if (res.status === 308) {
-          offset = end + 1
-          uploaded = true
-          break
-        }
-        const text = await res.text().catch(() => res.statusText)
-        throw new Error(`Drive upload failed (${res.status}): ${text}`)
-      } catch (err) {
-        if (attempt === 5) {
-          const status = await syncStatus().catch(() => null)
-          if (status?.completed) { driveFileId = status.driveFileId; offset = file.size; uploaded = true; break }
-          if (offset > start) { uploaded = true; break }
-          await apiClient.post('/social/upload/chunk/cancel', { uploadId }).catch(() => {})
-          throw err
-        }
-        await sleep(1000 * attempt)
-      }
+    const res = await fetch(`${API_BASE}/task-auto/tasks/${taskId}/upload-video/chunk`, {
+      method: 'POST',
+      headers: authHeaders(), // NO Content-Type — browser sets multipart boundary automatically
+      body: formData,
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error((err as any).message || `Chunk ${i} upload thất bại`)
     }
-    if (!uploaded) throw new Error('Google Drive upload failed')
-    onProgress(Math.round((offset / file.size) * 90))
+    onProgress(Math.round(((i + 1) / totalChunks) * 90))
   }
 
-  if (!driveFileId) {
-    const status = await syncStatus()
-    driveFileId = status.driveFileId
-  }
-  if (!driveFileId) throw new Error('Không lấy được Drive file ID sau khi upload')
-
-  // 3. Finish — BE verify Drive file, lưu metadata
+  // 3. Finish — server ghép chunks, đăng ký video tạm
   onProgress(95)
   const result = await apiClient
-    .post<{ success: boolean; urls: Array<{ url: string; filename: string; originalname: string; mimetype: string; size: number; storage: string; drive_file_id?: string }> }>(
-      '/social/upload/chunk/finish',
-      { uploadId, driveFileId },
+    .post<{ url: string; filename: string; originalname: string; mimetype: string; size: number; storage: string }>(
+      `/task-auto/tasks/${taskId}/upload-video/finish`,
+      { uploadId },
+      { timeout: 300_000 }, // 5 phút — ghép 2GB cần thời gian
     )
     .then(r => r.data)
 
   onProgress(100)
-  const uploaded2 = result.urls[0]
-  return {
-    url: uploaded2.url,
-    filename: uploaded2.filename,
-    originalname: uploaded2.originalname ?? file.name,
-    mimetype: uploaded2.mimetype ?? file.type,
-    size: uploaded2.size ?? file.size,
-    storage: uploaded2.storage ?? 'google_drive',
-  }
+  return result
 }
 
 export function SubmitModal({ task, isResubmit = false, onClose, onSuccess }: Props) {
@@ -140,19 +86,18 @@ export function SubmitModal({ task, isResubmit = false, onClose, onSuccess }: Pr
   const [uploading, setUploading] = useState(false)
   const [uploadedVideo, setUploadedVideo] = useState<{ url: string; filename: string; originalname: string; mimetype: string; size: number; storage: string } | null>(null)
   const [showManual, setShowManual] = useState(false)
-  const [manualUrl, setManualUrl]   = useState(task.result_url || '')
-
-  const resultUrl = uploadedVideo?.url || manualUrl
+  const [manualUrl, setManualUrl]   = useState(task.result_url?.startsWith('/task-auto/') ? '' : (task.result_url || ''))
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
     if (!f) return
     setFile(f)
     setUploadedVideo(null)
+    setManualUrl('')
     setUploading(true)
     setUploadPct(0)
     try {
-      const result = await uploadVideoInChunks(f, pct => setUploadPct(pct))
+      const result = await uploadVideoToServer(task.id, f, pct => setUploadPct(pct))
       setUploadedVideo(result)
       toast.success('Upload video thành công!')
     } catch (err: any) {
@@ -167,13 +112,9 @@ export function SubmitModal({ task, isResubmit = false, onClose, onSuccess }: Pr
   const submitMut = useMutation({
     mutationFn: async () => {
       if (isResubmit) await updateTask(task.id, { status: 'IN_PROGRESS' })
-
-      // Gắn video vào task trước khi submit
-      if (uploadedVideo) {
-        await attachTaskVideo(task.id, uploadedVideo)
-      }
-
-      await submitTask(task.id, resultUrl || undefined)
+      // Video is already registered on the server via upload/finish.
+      // Pass result_url only for manual link; otherwise it's already set by the upload.
+      await submitTask(task.id, manualUrl || undefined)
     },
     onSuccess: () => {
       toast.success(isResubmit ? 'Đã nộp lại task thành công!' : 'Đã nộp task thành công!')
@@ -225,6 +166,14 @@ export function SubmitModal({ task, isResubmit = false, onClose, onSuccess }: Pr
           </div>
         )}
 
+        {/* Info: video upload thẳng lên Drive */}
+        <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5 flex gap-2 items-start">
+          <span className="text-blue-500 mt-0.5 text-sm">ℹ</span>
+          <p className="text-xs text-blue-700 leading-relaxed">
+            Video sẽ được <strong>upload lên Google Drive ngay khi nộp</strong>. Nếu task bị từ chối, video sẽ bị xóa khỏi Drive và bạn cần upload lại khi nộp lại.
+          </p>
+        </div>
+
         {/* Video upload area */}
         <div>
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
@@ -265,7 +214,7 @@ export function SubmitModal({ task, isResubmit = false, onClose, onSuccess }: Pr
                   />
                 </div>
                 <p className="text-xs text-slate-400 text-right">
-                  {uploadPct < 100 ? `Đang upload... ${uploadPct}%` : 'Đang hoàn tất...'}
+                  {uploadPct < 100 ? `Đang tải lên... ${uploadPct}%` : 'Đang hoàn tất...'}
                 </p>
               </div>
             </div>
@@ -292,7 +241,7 @@ export function SubmitModal({ task, isResubmit = false, onClose, onSuccess }: Pr
               <p className="text-xs text-slate-400">
                 {(uploadedVideo.size / 1024 / 1024).toFixed(1)} MB
                 {' · '}
-                <span className="text-emerald-600 font-medium">Sẵn sàng xem trên trình duyệt</span>
+                <span className="text-emerald-600 font-medium">Đã lên Google Drive</span>
               </p>
             </div>
           )}

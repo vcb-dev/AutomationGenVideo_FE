@@ -40,13 +40,15 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
   const [showSubmit, setShowSubmit] = useState(false)
   const [showReject, setShowReject] = useState(false)
   const [showResubmit, setShowResubmit] = useState(false)
+  const [showVideoPreview, setShowVideoPreview] = useState(false)
   const [editMode, setEditMode] = useState(false)
   const [editForm, setEditForm] = useState({
     product_id: '',
     content_id: '',
     source_outro_id: '',
-    source_extra_id: '',
-    extra_source_type: '' as 'COLLECTED' | 'WORKSHOP' | 'HUYK' | '',
+    source_collected_id: '',
+    source_workshop_id: '',
+    source_huyk_id: '',
   })
   const [productSearch, setProductSearch] = useState('')
   const [contentSearch, setContentSearch] = useState('')
@@ -82,13 +84,12 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
   useEffect(() => {
     if (task && editMode) {
       setEditForm({
-        product_id: task.product_id ?? '',
-        content_id: task.content_id ?? '',
-        source_outro_id: task.source_outro_id ?? '',
-        source_extra_id: task.source_extra_id ?? '',
-        extra_source_type: (['COLLECTED', 'WORKSHOP', 'HUYK'].includes(task.source_extra?.type ?? '')
-          ? task.source_extra!.type
-          : '') as any,
+        product_id:          task.product_id          ?? '',
+        content_id:          task.content_id          ?? '',
+        source_outro_id:     task.source_outro_id     ?? '',
+        source_collected_id: task.source_extra_id     ?? '',
+        source_workshop_id:  task.source_workshop_id  ?? '',
+        source_huyk_id:      task.source_huyk_id      ?? '',
       })
     }
   }, [task?.id, editMode])
@@ -143,10 +144,12 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
   // ── Edit mode: save mutation ──
   const updateMut = useMutation({
     mutationFn: () => updateTask(taskId, {
-      product_id:      editForm.product_id      || undefined,
-      content_id:      editForm.content_id      || undefined,
-      source_outro_id: editForm.source_outro_id || null,
-      source_extra_id: editForm.source_extra_id || null,
+      product_id:         editForm.product_id         || undefined,
+      content_id:         editForm.content_id         || undefined,
+      source_outro_id:    editForm.source_outro_id    || null,
+      source_extra_id:    editForm.source_collected_id || null,
+      source_workshop_id: editForm.source_workshop_id || null,
+      source_huyk_id:     editForm.source_huyk_id     || null,
     } as any),
     onSuccess: () => {
       toast.success('Đã cập nhật task')
@@ -299,18 +302,55 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                     </div>
                   </div>
                 )}
-                {task.result_url && (
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 flex gap-3">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-emerald-600 uppercase tracking-wide mb-1">Kết quả đã nộp</p>
-                      <a href={task.result_url} target="_blank" rel="noopener noreferrer"
-                        className="text-sm text-emerald-700 hover:underline flex items-center gap-1.5 break-all">
-                        {task.result_url} <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-                      </a>
+                {task.result_url && (() => {
+                  const isDriveUrl = task.result_url.includes('drive.google.com')
+                  const isLegacyLocal = task.result_url.startsWith('/task-auto/tasks/')
+                  const isPending = isDriveUrl || isLegacyLocal
+
+                  // Drive embed: /view → /preview để dùng native player của Google
+                  const driveEmbedUrl = isDriveUrl
+                    ? task.result_url.replace(/\/view(\?.*)?$/, '/preview')
+                    : null
+
+                  return (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <p className="text-xs font-bold text-emerald-600 uppercase tracking-wide">Kết quả đã nộp</p>
+                        {isPending && task.status === 'SUBMITTED' && (
+                          <span className="text-xs bg-amber-100 text-amber-700 font-semibold px-2 py-0.5 rounded-full ml-auto">
+                            Chờ duyệt
+                          </span>
+                        )}
+                      </div>
+                      {driveEmbedUrl ? (
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            onClick={() => setShowVideoPreview(true)}
+                            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                          >
+                            <Play className="w-3.5 h-3.5 fill-white" />
+                            Xem video
+                          </button>
+                          {/* <a
+                            href={task.result_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                            Mở Drive
+                          </a> */}
+                        </div>
+                      ) : (
+                        <a href={task.result_url} target="_blank" rel="noopener noreferrer"
+                          className="text-sm text-emerald-700 hover:underline flex items-center gap-1.5 break-all">
+                          {task.result_url} <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                        </a>
+                      )}
                     </div>
-                  </div>
-                )}
+                  )
+                })()}
 
                 {/* ── Extra task placeholder ── */}
                 {task.is_extra && (
@@ -324,7 +364,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                         Task này không có nội dung cụ thể. Hãy bắt đầu làm và nộp link kết quả khi hoàn thành.
                       </p>
                     </div>
-                    {task.result_url && (
+                    {task.result_url && !task.result_url.startsWith('/task-auto/tasks/') && (
                       <a href={task.result_url} target="_blank" rel="noopener noreferrer"
                         className="text-sm text-violet-700 hover:underline flex items-center gap-1.5 font-medium">
                         Xem kết quả đã nộp <ExternalLink className="w-3.5 h-3.5" />
@@ -436,22 +476,22 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                                 />
                                 <CustomSelect
                                   label="Sưu tầm"
-                                  value={editForm.extra_source_type === 'COLLECTED' ? editForm.source_extra_id : ''}
-                                  onChange={v => setEditForm(f => ({ ...f, source_extra_id: v, extra_source_type: v ? 'COLLECTED' : '' }))}
+                                  value={editForm.source_collected_id}
+                                  onChange={v => setEditForm(f => ({ ...f, source_collected_id: v }))}
                                   options={[{ value: '', label: '-- Không chọn --' }, ...collectedSrcs.map(s => ({ value: s.id, label: s.name }))]}
                                   searchable
                                 />
                                 <CustomSelect
                                   label="Chế tác"
-                                  value={editForm.extra_source_type === 'WORKSHOP' ? editForm.source_extra_id : ''}
-                                  onChange={v => setEditForm(f => ({ ...f, source_extra_id: v, extra_source_type: v ? 'WORKSHOP' : '' }))}
+                                  value={editForm.source_workshop_id}
+                                  onChange={v => setEditForm(f => ({ ...f, source_workshop_id: v }))}
                                   options={[{ value: '', label: '-- Không chọn --' }, ...workshopSrcs.map(s => ({ value: s.id, label: s.name }))]}
                                   searchable
                                 />
                                 <CustomSelect
                                   label="Huy-K"
-                                  value={editForm.extra_source_type === 'HUYK' ? editForm.source_extra_id : ''}
-                                  onChange={v => setEditForm(f => ({ ...f, source_extra_id: v, extra_source_type: v ? 'HUYK' : '' }))}
+                                  value={editForm.source_huyk_id}
+                                  onChange={v => setEditForm(f => ({ ...f, source_huyk_id: v }))}
                                   options={[{ value: '', label: '-- Không chọn --' }, ...huykSrcs.map(s => ({ value: s.id, label: s.name }))]}
                                   searchable
                                 />
@@ -474,16 +514,18 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                                       {productSources.map(s => <SourceRow key={s.id} source={s} showType />)}
                                     </div>
                               )}
-                              {(task.source_outro || task.source_extra) && (
+                              {(task.source_outro || task.source_extra || task.source_workshop || task.source_huyk) && (
                                 <div className={task.product_id && productSources.length > 0 ? 'pt-3 border-t border-gray-100' : ''}>
                                   <p className="text-xs font-medium text-gray-400 mb-2 px-1">Sources gắn với task</p>
                                   <div className="space-y-1">
-                                    {task.source_outro && <SourceRow source={task.source_outro} label="Outro" />}
-                                    {task.source_extra && <SourceRow source={task.source_extra} label="Bổ sung" />}
+                                    {task.source_outro    && <SourceRow source={task.source_outro}    label="Outro" />}
+                                    {task.source_extra    && <SourceRow source={task.source_extra}    label="Sưu tầm" />}
+                                    {task.source_workshop && <SourceRow source={task.source_workshop} label="Chế tác" />}
+                                    {task.source_huyk     && <SourceRow source={task.source_huyk}     label="Huy-K" />}
                                   </div>
                                 </div>
                               )}
-                              {!task.product_id && !task.source_outro && !task.source_extra && (
+                              {!task.product_id && !task.source_outro && !task.source_extra && !task.source_workshop && !task.source_huyk && (
                                 <p className="text-sm text-gray-400 italic px-1">Task chưa gắn source nào</p>
                               )}
                             </div>
@@ -739,6 +781,37 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
       )}
       {showReject && task && (
         <RejectModal task={task} onClose={() => setShowReject(false)} onSuccess={() => setShowReject(false)} />
+      )}
+
+      {showVideoPreview && task?.result_url && (
+        <div
+          className="fixed inset-0 z-[1100] bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setShowVideoPreview(false)}
+        >
+          <div className="relative flex flex-col items-center" onClick={e => e.stopPropagation()}>
+            <button
+              onClick={() => setShowVideoPreview(false)}
+              className="absolute -top-10 right-0 text-white/70 hover:text-white transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <iframe
+              src={task.result_url.replace(/\/view(\?.*)?$/, '/preview')}
+              style={{ width: '360px', height: '640px', border: 'none', borderRadius: '12px' }}
+              allow="autoplay"
+              allowFullScreen
+            />
+            <a
+              href={task.result_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 flex items-center gap-1.5 text-xs text-white/60 hover:text-white transition-colors"
+            >
+              <ExternalLink className="w-3 h-3" />
+              Mở trong Google Drive
+            </a>
+          </div>
+        </div>
       )}
     </>
   )
