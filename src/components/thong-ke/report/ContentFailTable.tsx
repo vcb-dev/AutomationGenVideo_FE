@@ -27,6 +27,8 @@ export default function ContentFailTable({
       views: '-'
     });
   }
+  const [activeDropdownIdx, setActiveDropdownIdx] = React.useState<number | null>(null);
+
   const handleViewsKeyDown = (e: React.KeyboardEvent<HTMLTableCellElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -159,17 +161,52 @@ export default function ContentFailTable({
                         </label>
                       </div>
                     </td>
-                    <td className="py-3.5 px-4 text-xs text-center">
+                    <td className="py-3.5 px-4 text-xs text-center relative">
                       {isMock ? '-' : (
-                        <select
-                          value={video.platform || 'TikTok'}
-                          onChange={(e) => onUpdateRow(idx, 'platform', e.target.value)}
-                          className="bg-[#131d31]/30 hover:bg-[#131d31]/60 border border-white/5 hover:border-white/10 focus:border-blue-500/40 outline-none rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-slate-300 w-full cursor-pointer transition-all duration-150"
-                        >
-                          <option value="TikTok" className="bg-[#111827] text-slate-300">TikTok</option>
-                          <option value="Instagram Reels" className="bg-[#111827] text-slate-300">Instagram Reels</option>
-                          <option value="YouTube Shorts" className="bg-[#111827] text-slate-300">YouTube Shorts</option>
-                        </select>
+                        <div className="relative inline-block w-full">
+                          <button
+                            type="button"
+                            onClick={() => setActiveDropdownIdx(activeDropdownIdx === idx ? null : idx)}
+                            className="bg-[#0f172a]/60 hover:bg-[#0f172a]/90 border border-white/[0.08] hover:border-white/[0.16] outline-none rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-slate-200 flex items-center justify-between gap-1.5 transition-all duration-150 w-full select-none cursor-pointer"
+                          >
+                            <span className="flex items-center gap-1.5 truncate">
+                              {video.platform === 'Instagram Reels' && <span className="w-1.5 h-1.5 rounded-full bg-pink-500 shrink-0" />}
+                              {video.platform === 'YouTube Shorts' && <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />}
+                              {(video.platform === 'TikTok' || !video.platform) && <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0" />}
+                              {video.platform || 'TikTok'}
+                            </span>
+                            <ChevronDown className="w-3 h-3 text-slate-400 shrink-0" />
+                          </button>
+
+                          {activeDropdownIdx === idx && (
+                            <>
+                              <div
+                                className="fixed inset-0 z-20"
+                                onClick={() => setActiveDropdownIdx(null)}
+                              />
+                              <div className="absolute left-0 right-0 mt-1 bg-[#0f172a] border border-white/[0.08] rounded-xl shadow-2xl z-30 p-1 flex flex-col gap-0.5 animate-in fade-in slide-in-from-top-1 duration-100">
+                                {[
+                                  { name: 'TikTok', color: 'bg-cyan-400' },
+                                  { name: 'Instagram Reels', color: 'bg-pink-500' },
+                                  { name: 'YouTube Shorts', color: 'bg-red-500' }
+                                ].map((opt) => (
+                                  <button
+                                    key={opt.name}
+                                    type="button"
+                                    onClick={() => {
+                                      onUpdateRow(idx, 'platform', opt.name);
+                                      setActiveDropdownIdx(null);
+                                    }}
+                                    className="w-full text-left px-2.5 py-1.5 text-[11px] font-medium text-slate-300 hover:text-white hover:bg-white/[0.06] rounded-md transition-all duration-100 flex items-center gap-2 cursor-pointer"
+                                  >
+                                    <span className={`w-1.5 h-1.5 rounded-full ${opt.color}`} />
+                                    {opt.name}
+                                  </button>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                        </div>
                       )}
                     </td>
                     <td className="py-3.5 px-4 text-xs text-center">
@@ -181,14 +218,14 @@ export default function ContentFailTable({
                             onChange={(e) => onUpdateRow(idx, 'postDate', e.target.value)}
                             className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
                           />
-                          <div className="bg-[#131d31]/30 hover:bg-[#131d31]/60 border border-white/5 group-hover/date:border-white/10 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-slate-300 flex items-center justify-center gap-1.5 transition-all duration-150 select-none">
-                            <svg className="w-3 h-3 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                          <div className="bg-[#0f172a]/60 hover:bg-[#0f172a]/90 border border-white/[0.08] group-hover/date:border-white/[0.16] rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-slate-200 flex items-center justify-between gap-1.5 transition-all duration-150 select-none">
+                            <span className="truncate">{video.postDate ? video.postDate.split('-').reverse().join('/') : 'Chọn ngày'}</span>
+                            <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                               <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
                               <line x1="16" y1="2" x2="16" y2="6" />
                               <line x1="8" y1="2" x2="8" y2="6" />
                               <line x1="3" y1="10" x2="21" y2="10" />
                             </svg>
-                            <span>{video.postDate ? video.postDate.split('-').reverse().join('/') : 'Chọn ngày'}</span>
                           </div>
                         </div>
                       )}
