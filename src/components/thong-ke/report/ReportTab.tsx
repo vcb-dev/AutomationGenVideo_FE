@@ -3,6 +3,7 @@ import { TeamData } from '../types';
 import { getSheetMultiplier, isDateInFilter, formatViews } from '../utils';
 import TeamSelector from './TeamSelector';
 import TimeFilter from './TimeFilter';
+import ReportKpiBar from './ReportKpiBar';
 import ContentWinTable from './ContentWinTable';
 import ContentFailTable from './ContentFailTable';
 import CaseStudyTable from './CaseStudyTable';
@@ -190,6 +191,14 @@ export default function ReportTab({
           onWeekChange={setSelectedWeek}
         />
       </div>
+
+      {/* KPI Dashboard Bar */}
+      <ReportKpiBar
+        teamsData={teamsData}
+        activeTab={activeTab}
+        filterMode={filterMode}
+        selectedWeek={selectedWeek}
+      />
 
       {/* Render all 5 tables stacked */}
       <div className="flex flex-col gap-8 mt-2">

@@ -70,6 +70,8 @@ export interface EditorPerfItem {
   failVideos?: number;
   winRate?: string;
   avgViews?: string;
+  notes?: string;
+  analysis?: string;
 }
 
 export interface CloneVideoItem {

@@ -117,65 +117,39 @@ export default function PresentationTab({
     <div className="flex flex-col gap-6 lg:flex-1 lg:min-h-0">
 
       {/* Team Statistics Overview Summary */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
-        {/* Team name card */}
-        <div className="flex items-center gap-3 bg-[#0c1322] border border-blue-500/20 px-4 py-3.5 rounded-2xl shadow-[0_0_20px_rgba(59,130,246,0.07)] relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/[0.04] to-transparent pointer-events-none" />
-          <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse shadow-md shadow-blue-500/50 shrink-0" />
-          <span className="text-base font-black uppercase text-slate-100 tracking-wider truncate">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 bg-[#131d31] border border-white/[0.06] p-4 rounded-2xl shadow-lg shrink-0">
+        <div className="flex items-center gap-3 bg-[#0c1322] border border-white/[0.04] px-4 py-3 rounded-xl shadow-inner">
+          <span className="w-3 h-3 rounded-full bg-blue-500 animate-pulse shadow-md shadow-blue-500/50" />
+          <span className="text-lg font-black uppercase text-slate-200 tracking-wider">
             {baseData.teamName || `Team ${activeTab}`}
           </span>
         </div>
-
-        {/* Tổng Content Win */}
-        <div className="bg-[#0c1322] border border-amber-500/20 rounded-2xl p-3.5 flex flex-col gap-2 shadow-[0_0_18px_rgba(245,158,11,0.07)] relative overflow-hidden group hover:scale-[1.02] transition-all duration-300">
-          <div className="absolute inset-0 bg-gradient-to-br from-amber-500/[0.04] to-transparent pointer-events-none" />
-          <div className="flex items-center justify-between">
-            <span className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest">Tổng Content Win</span>
-            <div className="w-7 h-7 rounded-xl bg-amber-500/15 border border-amber-500/25 flex items-center justify-center">
-              <Trophy className="w-3.5 h-3.5 text-amber-400" />
-            </div>
+        <div className="bg-[#0c1322] border border-white/[0.04] rounded-xl p-3 flex items-center justify-between shadow">
+          <div className="flex flex-col">
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wide">Tổng Content Win</span>
+            <span className="text-2xl font-black text-white mt-1">
+              {baseData.win5Stats.win}/{baseData.win5Stats.total}
+            </span>
           </div>
-          <span className="text-2xl font-black text-white leading-none">
-            {baseData.win5Stats.win}<span className="text-slate-500 text-base font-bold">/{baseData.win5Stats.total}</span>
-          </span>
-          <div className="h-1 w-full bg-white/[0.04] rounded-full overflow-hidden">
-            <div className="h-full bg-amber-500 rounded-full transition-all duration-700" style={{ width: `${baseData.win5Stats.total > 0 ? (baseData.win5Stats.win / baseData.win5Stats.total) * 100 : 0}%` }} />
-          </div>
+          <Trophy className="w-6 h-6 text-amber-400 shrink-0 ml-2" />
         </div>
-
-        {/* Content mới win */}
-        <div className="bg-[#0c1322] border border-emerald-500/20 rounded-2xl p-3.5 flex flex-col gap-2 shadow-[0_0_18px_rgba(16,185,129,0.07)] relative overflow-hidden group hover:scale-[1.02] transition-all duration-300">
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/[0.04] to-transparent pointer-events-none" />
-          <div className="flex items-center justify-between">
-            <span className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest">Content Mới Win</span>
-            <div className="w-7 h-7 rounded-xl bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center">
-              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-            </div>
+        <div className="bg-[#0c1322] border border-white/[0.04] rounded-xl p-3 flex items-center justify-between shadow">
+          <div className="flex flex-col">
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wide">Content mới win</span>
+            <span className="text-2xl font-black text-white mt-1">
+              {baseData.newVideoStats.win}/{baseData.newVideoStats.total}
+            </span>
           </div>
-          <span className="text-2xl font-black text-white leading-none">
-            {baseData.newVideoStats.win}<span className="text-slate-500 text-base font-bold">/{baseData.newVideoStats.total}</span>
-          </span>
-          <div className="h-1 w-full bg-white/[0.04] rounded-full overflow-hidden">
-            <div className="h-full bg-emerald-500 rounded-full transition-all duration-700" style={{ width: `${baseData.newVideoStats.total > 0 ? (baseData.newVideoStats.win / baseData.newVideoStats.total) * 100 : 0}%` }} />
-          </div>
+          <Sparkles className="w-6 h-6 text-emerald-400 shrink-0 ml-2" />
         </div>
-
-        {/* Tỷ lệ win */}
-        <div className="bg-[#0c1322] border border-cyan-500/20 rounded-2xl p-3.5 flex flex-col gap-2 shadow-[0_0_18px_rgba(6,182,212,0.08)] relative overflow-hidden group hover:scale-[1.02] transition-all duration-300">
-          <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/[0.05] to-transparent pointer-events-none" />
-          <div className="flex items-center justify-between">
-            <span className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest">Tỷ lệ Win Mới</span>
-            <div className="w-7 h-7 rounded-xl bg-cyan-500/15 border border-cyan-500/25 flex items-center justify-center">
-              <TrendingUp className="w-3.5 h-3.5 text-cyan-400" />
-            </div>
+        <div className="bg-[#0c1322] border border-emerald-500/20 bg-emerald-500/[0.02] rounded-xl p-3 flex items-center justify-between shadow">
+          <div className="flex flex-col">
+            <span className="text-[10px] font-extrabold text-emerald-400 uppercase tracking-wide">Tỷ lệ win content mới</span>
+            <span className="text-2xl font-black text-emerald-400 mt-1">
+              {(baseData.newVideoStats.percent || '').replace('.', ',')}
+            </span>
           </div>
-          <span className="text-2xl font-black text-cyan-400 leading-none">
-            {(baseData.newVideoStats.percent || '0%').replace('.', ',')}
-          </span>
-          <div className="h-1 w-full bg-white/[0.04] rounded-full overflow-hidden">
-            <div className="h-full bg-cyan-500 rounded-full transition-all duration-700" style={{ width: `${Math.min(100, parseFloat((baseData.newVideoStats.percent || '0').replace(',', '.')) || 0)}%` }} />
-          </div>
+          <span className="w-6 h-6 text-emerald-400 shrink-0 ml-2">📈</span>
         </div>
       </div>
 
@@ -258,21 +232,6 @@ export default function PresentationTab({
               ) : (
                 slidesList.map((slide: any, index: number) => {
                   const isCurrent = validSlideIndex === index;
-                  const slideTitle = presentationMenu === 'action'
-                    ? slide.title
-                    : (presentationMenu === 'editorPerf' || presentationMenu === 'newWin')
-                      ? `${slide.editor}`
-                      : slide.content;
-                  const slideSubLeft = presentationMenu === 'action'
-                    ? slide.assignee
-                    : (presentationMenu === 'editorPerf' || presentationMenu === 'newWin')
-                      ? 'Editor'
-                      : (slide.editor || 'Ẩn danh');
-                  const slideSubRight = presentationMenu === 'action'
-                    ? slide.deadline
-                    : (presentationMenu === 'editorPerf' || presentationMenu === 'newWin')
-                      ? `${slide.totalVideos > 0 ? ((slide.winVideos / slide.totalVideos) * 100).toFixed(1) : '0'}%`
-                      : slide.views;
                   return (
                     <div
                       key={index}
@@ -280,44 +239,65 @@ export default function PresentationTab({
                         setActiveSlideIndex(index);
                         setIsPlayingVideo(false);
                       }}
-                      className={`flex gap-2.5 p-2.5 rounded-xl cursor-pointer border transition-all duration-200 group select-none relative overflow-hidden flex-shrink-0 ${
-                        isCurrent
-                          ? 'bg-gradient-to-r from-blue-950/60 to-[#1a2540]/60 border-blue-500/60 shadow-md shadow-blue-950/30'
-                          : 'bg-white/[0.015] hover:bg-white/[0.04] border-white/[0.04] hover:border-white/[0.08]'
-                      }`}
+                      className={`flex gap-3 p-3 rounded-xl cursor-pointer border transition-all duration-200 group select-none relative overflow-hidden flex-shrink-0 ${isCurrent
+                        ? 'bg-gradient-to-r from-blue-950/50 to-[#1e293b]/50 border-blue-500 shadow-md shadow-blue-950/20'
+                        : 'bg-white/[0.01] hover:bg-white/[0.03] border-white/[0.04]'
+                        }`}
                     >
-                      {/* Slide number badge */}
-                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5 ${
-                        isCurrent ? 'bg-blue-500 text-white' : 'bg-white/[0.06] text-slate-500'
-                      }`}>
+                      <div className={`text-[10px] font-black px-1.5 py-0.5 rounded h-5 flex items-center justify-center ${isCurrent ? 'bg-blue-500/20 text-blue-400' : 'bg-white/[0.05] text-slate-500'
+                        }`}>
                         {String(index + 1).padStart(2, '0')}
                       </div>
-
-                      {/* Content */}
                       <div className="flex-1 flex flex-col gap-1 min-w-0">
-                        <span className={`text-[11px] font-bold leading-tight line-clamp-2 ${
-                          isCurrent ? 'text-white font-extrabold' : 'text-slate-300 group-hover:text-slate-100'
-                        }`}>
-                          {slideTitle}
+                        <span className={`text-[11px] font-extrabold truncate ${isCurrent ? 'text-white font-black' : 'text-slate-300 group-hover:text-white'}`}>
+
+                          {presentationMenu === 'action'
+
+                            ? slide.title
+
+                            : (presentationMenu === 'editorPerf' || presentationMenu === 'newWin')
+
+                              ? `Hiệu suất: ${slide.editor}`
+
+                              : slide.content
+
+                          }
+
                         </span>
-                        <div className="flex items-center justify-between gap-1 mt-0.5">
-                          <span className="flex items-center gap-1 text-[9px] text-slate-500 font-semibold truncate">
-                            <User className="w-2.5 h-2.5 shrink-0" />
-                            <span className="truncate">{slideSubLeft}</span>
+                        <div className="flex items-center justify-between text-[10px] text-slate-500 mt-1">
+                          <span className="truncate max-w-[100px] flex items-center gap-1 font-semibold">
+                            <User className="w-2.5 h-2.5 text-slate-600" />
+                            {presentationMenu === 'action'
+
+                              ? slide.assignee
+
+                              : (presentationMenu === 'editorPerf' || presentationMenu === 'newWin')
+
+                                ? 'Editor'
+
+                                : (slide.editor || 'Ẩn danh')
+
+                            }
+
                           </span>
-                          <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-md shrink-0 ${
-                            isCurrent
-                              ? 'bg-blue-500/20 text-blue-300'
-                              : 'bg-white/[0.05] text-slate-400'
-                          }`}>
-                            {slideSubRight}
+                          <span className="font-extrabold text-blue-400/80">
+                            {presentationMenu === 'action'
+
+                              ? slide.deadline
+
+                              : (presentationMenu === 'editorPerf' || presentationMenu === 'newWin')
+
+                                ? `Rate: ${slide.totalVideos > 0 ? ((slide.winVideos / slide.totalVideos) * 100).toFixed(1) : '0'}%`
+
+                                : slide.views
+
+                            }
+
                           </span>
                         </div>
                       </div>
-
-                      {/* Active side indicator */}
                       {isCurrent && (
-                        <div className="absolute right-0 top-2 bottom-2 w-0.5 bg-blue-400 rounded-l" />
+                        <div className="absolute right-0 top-0 bottom-0 w-1 bg-blue-500 rounded-r" />
                       )}
                     </div>
                   );
@@ -904,84 +884,62 @@ export default function PresentationTab({
         </div>
 
         {/* Column 3: Right Analysis Cards Panel */}
-        <div className="lg:col-span-3 flex flex-col gap-3 lg:h-[calc(100vh-310px)] lg:min-h-[450px] h-[680px]">
-          {/* Panel header */}
-          <div className="bg-[#0c1322] border border-purple-500/20 rounded-2xl px-4 py-3 flex items-center justify-between shadow-[0_0_18px_rgba(168,85,247,0.07)] shrink-0 relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-r from-purple-500/[0.04] to-transparent pointer-events-none" />
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-xl bg-purple-500/15 border border-purple-500/25 flex items-center justify-center">
-                <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-              </div>
-              <span className="text-[11px] font-black uppercase text-slate-200 tracking-wider">Phân tích & Đánh giá</span>
-            </div>
-            <span className="text-[9px] font-extrabold text-purple-400/70 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
-              AI Review
+        <div className="lg:col-span-3 flex flex-col gap-4 lg:h-[calc(100vh-310px)] lg:min-h-[450px] h-[680px]">
+          <div className="bg-[#131d31] border border-white/[0.06] rounded-2xl p-4 flex items-center justify-between shadow shadow-blue-950/20 shrink-0">
+            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-blue-400" /> Phân tích & Đánh giá
             </span>
           </div>
 
           {selectedSlide ? (
-            <div className="flex-1 overflow-y-auto flex flex-col gap-3 pr-1 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto flex flex-col gap-4 pr-1 custom-scrollbar">
               {/* Analysis Card 1 */}
               {(() => {
                 const isPerf = presentationMenu === 'editorPerf' || presentationMenu === 'newWin';
+
                 const title = isPerf ? 'Phân tích hiệu suất' : 'Đánh giá phân tích';
 
                 let field = 'analysis';
-                let accentColor = 'border-l-emerald-500';
-                let bgGlow = 'bg-emerald-500/[0.025]';
-                let borderColor = 'border-emerald-500/15';
-                let iconBg = 'bg-emerald-500/15 border-emerald-500/25';
+                let borderClass = 'border-emerald-500/20 hover:border-emerald-500/40 bg-emerald-500/[0.02]';
                 let iconColor = 'text-emerald-400';
-                let labelColor = 'text-emerald-300';
                 let icon = Trophy;
 
                 if (isPerf) {
+
                   field = 'analysis';
-                  const isNew = presentationMenu === 'newWin';
-                  accentColor = isNew ? 'border-l-emerald-500' : 'border-l-blue-500';
-                  bgGlow = isNew ? 'bg-emerald-500/[0.025]' : 'bg-blue-500/[0.025]';
-                  borderColor = isNew ? 'border-emerald-500/15' : 'border-blue-500/15';
-                  iconBg = isNew ? 'bg-emerald-500/15 border-emerald-500/25' : 'bg-blue-500/15 border-blue-500/25';
-                  iconColor = isNew ? 'text-emerald-400' : 'text-blue-400';
-                  labelColor = isNew ? 'text-emerald-300' : 'text-blue-300';
+
+                  borderClass = presentationMenu === 'newWin'
+
+                    ? 'border-emerald-500/20 hover:border-emerald-500/40 bg-emerald-500/[0.02]'
+
+                    : 'border-blue-500/20 hover:border-blue-500/40 bg-blue-500/[0.02]';
+
+                  iconColor = presentationMenu === 'newWin' ? 'text-emerald-400' : 'text-blue-400';
+
                   icon = Award;
-                } else if (presentationMenu === 'fail') {
-                  field = 'failReason';
-                  accentColor = 'border-l-rose-500'; bgGlow = 'bg-rose-500/[0.025]'; borderColor = 'border-rose-500/15';
-                  iconBg = 'bg-rose-500/15 border-rose-500/25'; iconColor = 'text-rose-400'; labelColor = 'text-rose-300'; icon = XCircle;
-                } else if (presentationMenu === 'case') {
-                  field = 'takeaway';
-                  accentColor = 'border-l-amber-500'; bgGlow = 'bg-amber-500/[0.025]'; borderColor = 'border-amber-500/15';
-                  iconBg = 'bg-amber-500/15 border-amber-500/25'; iconColor = 'text-amber-400'; labelColor = 'text-amber-300'; icon = BookOpen;
-                } else if (presentationMenu === 'clone') {
-                  field = 'analysis';
-                  accentColor = 'border-l-indigo-500'; bgGlow = 'bg-indigo-500/[0.025]'; borderColor = 'border-indigo-500/15';
-                  iconBg = 'bg-indigo-500/15 border-indigo-500/25'; iconColor = 'text-indigo-400'; labelColor = 'text-indigo-300'; icon = Copy;
-                } else if (presentationMenu === 'action') {
-                  field = 'description';
-                  accentColor = 'border-l-cyan-500'; bgGlow = 'bg-cyan-500/[0.025]'; borderColor = 'border-cyan-500/15';
-                  iconBg = 'bg-cyan-500/15 border-cyan-500/25'; iconColor = 'text-cyan-400'; labelColor = 'text-cyan-300'; icon = ListTodo;
-                }
+
+                } else if (presentationMenu === 'fail') { field = 'failReason'; borderClass = 'border-rose-500/20 hover:border-rose-500/40 bg-rose-500/[0.02]'; iconColor = 'text-rose-400'; icon = XCircle; }
+
+                else if (presentationMenu === 'case') { field = 'takeaway'; borderClass = 'border-amber-500/20 hover:border-amber-500/40 bg-amber-500/[0.02]'; iconColor = 'text-amber-400'; icon = BookOpen; }
+                else if (presentationMenu === 'clone') { field = 'analysis'; borderClass = 'border-indigo-500/20 hover:border-indigo-500/40 bg-indigo-500/[0.02]'; iconColor = 'text-indigo-400'; icon = Copy; }
+                else if (presentationMenu === 'action') { field = 'description'; borderClass = 'border-cyan-500/20 hover:border-cyan-500/40 bg-cyan-500/[0.02]'; iconColor = 'text-cyan-400'; icon = ListTodo; }
 
                 const CustomIcon = icon;
                 const value = selectedSlide[field] || '';
 
                 return (
-                  <div className={`${bgGlow} border ${borderColor} border-l-4 ${accentColor} rounded-xl p-4 flex flex-col gap-3 transition-all duration-200 relative overflow-hidden`}>
-                    <div className="absolute inset-0 bg-gradient-to-br from-white/[0.01] to-transparent pointer-events-none" />
-                    <div className="flex items-center gap-2">
-                      <div className={`w-7 h-7 rounded-lg border flex items-center justify-center shrink-0 ${iconBg}`}>
-                        <CustomIcon className={`w-3.5 h-3.5 ${iconColor}`} />
-                      </div>
-                      <span className={`text-[10px] font-black uppercase tracking-widest ${labelColor}`}>{title}</span>
+                  <div className={`border rounded-xl p-4 flex flex-col gap-2 transition-all duration-200 shadow-md ${borderClass}`}>
+                    <div className="flex items-center gap-1.5">
+                      <CustomIcon className={`w-4 h-4 ${iconColor}`} />
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">{title}</span>
                     </div>
-                    <div className="h-px w-full bg-white/[0.04]" />
                     <textarea
                       rows={4}
                       value={value}
                       onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, field, e.target.value)}
-                      className="bg-transparent border-0 outline-none text-xs leading-relaxed text-slate-300 placeholder-slate-600 resize-none font-medium w-full min-h-[100px] overflow-y-auto custom-scrollbar"
+                      className="bg-transparent border-0 outline-none text-xs leading-relaxed text-slate-300 placeholder-slate-600 resize-none font-medium mt-1 w-full min-h-[120px] overflow-y-auto custom-scrollbar"
                       placeholder={isPerf ? "Nhập đánh giá điểm mạnh, điểm yếu của Editor..." : "Nhập nội dung đánh giá phân tích..."}
+
                     />
                   </div>
                 );
@@ -991,35 +949,37 @@ export default function PresentationTab({
               {(() => {
                 const isAction = presentationMenu === 'action';
                 const isPerf = presentationMenu === 'editorPerf' || presentationMenu === 'newWin';
+
                 const title = isPerf ? 'Ghi chú & Định hướng phát triển' : 'Điểm có thể cải thiện tốt hơn';
+
                 const field = (isAction || isPerf) ? 'notes' : 'improvements';
+
+                const borderClass = 'border-sky-500/20 hover:border-sky-500/40 bg-sky-500/[0.02]';
+                const iconColor = 'text-sky-400';
                 const Icon = (isAction || isPerf) ? BookOpen : Wrench;
 
+
                 return (
-                  <div className="bg-sky-500/[0.025] border border-sky-500/15 border-l-4 border-l-sky-500 rounded-xl p-4 flex flex-col gap-3 transition-all duration-200 relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-br from-white/[0.01] to-transparent pointer-events-none" />
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg border bg-sky-500/15 border-sky-500/25 flex items-center justify-center shrink-0">
-                        <Icon className="w-3.5 h-3.5 text-sky-400" />
-                      </div>
-                      <span className="text-[10px] font-black uppercase tracking-widest text-sky-300">{title}</span>
+                  <div className={`border rounded-xl p-4 flex flex-col gap-2 transition-all duration-200 shadow-md ${borderClass}`}>
+                    <div className="flex items-center gap-1.5">
+                      <Icon className={`w-4 h-4 ${iconColor}`} />
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">{title}</span>
                     </div>
-                    <div className="h-px w-full bg-white/[0.04]" />
                     <textarea
                       rows={4}
                       value={selectedSlide[field] || ''}
                       onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, field, e.target.value)}
-                      className="bg-transparent border-0 outline-none text-xs leading-relaxed text-slate-300 placeholder-slate-600 resize-none font-medium w-full min-h-[100px] overflow-y-auto custom-scrollbar"
+                      className="bg-transparent border-0 outline-none text-xs leading-relaxed text-slate-300 placeholder-slate-600 resize-none font-medium mt-1 w-full min-h-[120px] overflow-y-auto custom-scrollbar"
                       placeholder={isAction ? "Ghi chú thêm..." : isPerf ? "Nhập định hướng cải thiện chỉ số cho Editor..." : "Nhập hướng cải tiến mới..."}
+
                     />
                   </div>
                 );
               })()}
             </div>
           ) : (
-            <div className="border border-white/[0.04] bg-white/[0.01] rounded-2xl p-8 text-center flex-1 flex flex-col items-center justify-center gap-3">
-              <Sparkles className="w-8 h-8 text-slate-600" />
-              <span className="text-slate-600 text-xs font-semibold">Chưa có slide để hiển thị phân tích</span>
+            <div className="border border-white/[0.04] bg-white/[0.01] rounded-2xl p-6 text-center text-slate-600 text-xs flex-1">
+              Chưa có slide để hiển thị phân tích.
             </div>
           )}
         </div>

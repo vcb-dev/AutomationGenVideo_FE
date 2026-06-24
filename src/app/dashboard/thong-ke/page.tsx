@@ -18,7 +18,7 @@ function StatisticsDashboard() {
   const [teamsData, setTeamsData] = useState<Record<string, TeamData>>(() => enrichTeamsData(TEAMS_DATA) as any);
 
   // States for interactive Slide presentation screen
-  const [presentationMenu, setPresentationMenu] = useState<'win' | 'fail' | 'case' | 'clone' | 'action'>('win');
+  const [presentationMenu, setPresentationMenu] = useState<'win' | 'fail' | 'case' | 'clone' | 'action' | 'editorPerf' | 'newWin'>('win');
   const [activeSlideIndex, setActiveSlideIndex] = useState<number>(0);
   const [isFullscreenSlide, setIsFullscreenSlide] = useState<boolean>(false);
   const [isPlayingVideo, setIsPlayingVideo] = useState<boolean>(false);
@@ -41,6 +41,12 @@ function StatisticsDashboard() {
       setActiveSubTab('bao-cao');
     }
   }, [subParam]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.scrollTo(0, 0);
+    }
+  }, [activeSubTab]);
 
   const handleSubTabChange = (tab: 'bao-cao' | 'trinh-bay' | 'thong-ke') => {
     setActiveSubTab(tab);
@@ -237,34 +243,56 @@ function StatisticsDashboard() {
   };
 
   // Actions for PresentationTab
-  const updateSlideField = (category: 'win' | 'fail' | 'case' | 'clone' | 'action', index: number, field: string, value: string) => {
+  const updateSlideField = (category: 'win' | 'fail' | 'case' | 'clone' | 'action' | 'editorPerf' | 'newWin', index: number, field: string, value: string) => {
     setTeamsData(prev => {
       const updated = { ...prev };
       const teamData = { ...updated[activeTab] };
 
-      let listKey: 'videos' | 'failVideos' | 'caseStudies' | 'cloneVideos' | 'actions';
-      if (category === 'win') listKey = 'videos';
-      else if (category === 'fail') listKey = 'failVideos';
-      else if (category === 'case') listKey = 'caseStudies';
-      else if (category === 'clone') listKey = 'cloneVideos';
-      else listKey = 'actions';
+      if (category === 'editorPerf' || category === 'newWin') {
+        const list = [...(teamData.editorPerformance || [])];
+        if (list[index]) {
+          if (field === 'totalVideos' || field === 'winVideos') {
+            list[index] = { ...list[index], [field]: parseInt(value) || 0 };
+          } else {
+            list[index] = { ...list[index], [field]: value };
+          }
+        }
+        teamData.editorPerformance = list;
+      } else {
+        let listKey: 'videos' | 'failVideos' | 'caseStudies' | 'cloneVideos' | 'actions';
+        if (category === 'win') listKey = 'videos';
+        else if (category === 'fail') listKey = 'failVideos';
+        else if (category === 'case') listKey = 'caseStudies';
+        else if (category === 'clone') listKey = 'cloneVideos';
+        else listKey = 'actions';
 
-      const list = [...(teamData[listKey] || [])] as any[];
-      if (list[index]) {
-        list[index] = { ...list[index], [field]: value };
+        const list = [...(teamData[listKey] || [])] as any[];
+        if (list[index]) {
+          list[index] = { ...list[index], [field]: value };
+        }
+        (teamData as any)[listKey] = list;
       }
-      (teamData as any)[listKey] = list;
       updated[activeTab] = teamData;
       return updated;
     });
   };
 
-  const addSlide = (category: 'win' | 'fail' | 'case' | 'clone' | 'action') => {
+  const addSlide = (category: 'win' | 'fail' | 'case' | 'clone' | 'action' | 'editorPerf' | 'newWin') => {
     setTeamsData(prev => {
       const updated = { ...prev };
       const teamData = { ...updated[activeTab] };
 
-      if (category === 'win') {
+      if (category === 'editorPerf' || category === 'newWin') {
+        teamData.editorPerformance = [
+          ...teamData.editorPerformance,
+          {
+            editor: 'Editor mới',
+            totalVideos: 0,
+            winVideos: 0
+          }
+        ];
+        setActiveSlideIndex(teamData.editorPerformance.length - 1);
+      } else if (category === 'win') {
         const newId = teamData.videos.length + 1;
         teamData.videos = [
           ...teamData.videos,
@@ -379,44 +407,54 @@ function StatisticsDashboard() {
     });
   };
 
-  const deleteSlide = (category: 'win' | 'fail' | 'case' | 'clone' | 'action', index: number) => {
+  const deleteSlide = (category: 'win' | 'fail' | 'case' | 'clone' | 'action' | 'editorPerf' | 'newWin', index: number) => {
     setTeamsData(prev => {
       const updated = { ...prev };
       const teamData = { ...updated[activeTab] };
 
-      let listKey: 'videos' | 'failVideos' | 'caseStudies' | 'cloneVideos' | 'actions';
-      if (category === 'win') listKey = 'videos';
-      else if (category === 'fail') listKey = 'failVideos';
-      else if (category === 'case') listKey = 'caseStudies';
-      else if (category === 'clone') listKey = 'cloneVideos';
-      else listKey = 'actions';
-
-      const list = [...(teamData[listKey] || [])] as any[];
-      if (list.length > 0) {
-        list.splice(index, 1);
-        if (category === 'win' || category === 'fail') {
-          list.forEach((v, idx) => {
-            v.id = idx + 1;
-            v.label = `Video ${idx + 1}`;
-          });
-        } else if (category === 'case') {
-          list.forEach((v, idx) => {
-            v.id = idx + 1;
-            v.label = `Case ${idx + 1}`;
-          });
-        } else if (category === 'clone') {
-          list.forEach((v, idx) => {
-            v.id = idx + 1;
-            v.label = `Clone ${idx + 1}`;
-          });
+      if (category === 'editorPerf' || category === 'newWin') {
+        const list = [...(teamData.editorPerformance || [])];
+        if (list.length > 0) {
+          list.splice(index, 1);
         }
+        teamData.editorPerformance = list;
+      } else {
+        let listKey: 'videos' | 'failVideos' | 'caseStudies' | 'cloneVideos' | 'actions';
+        if (category === 'win') listKey = 'videos';
+        else if (category === 'fail') listKey = 'failVideos';
+        else if (category === 'case') listKey = 'caseStudies';
+        else if (category === 'clone') listKey = 'cloneVideos';
+        else listKey = 'actions';
+
+        const list = [...(teamData[listKey] || [])] as any[];
+        if (list.length > 0) {
+          list.splice(index, 1);
+          if (category === 'win' || category === 'fail') {
+            list.forEach((v, idx) => {
+              v.id = idx + 1;
+              v.label = `Video ${idx + 1}`;
+            });
+          } else if (category === 'case') {
+            list.forEach((v, idx) => {
+              v.id = idx + 1;
+              v.label = `Case ${idx + 1}`;
+            });
+          } else if (category === 'clone') {
+            list.forEach((v, idx) => {
+              v.id = idx + 1;
+              v.label = `Clone ${idx + 1}`;
+            });
+          }
+        }
+        (teamData as any)[listKey] = list;
       }
 
-      (teamData as any)[listKey] = list;
       updated[activeTab] = teamData;
+      const listLen = category === 'editorPerf' || category === 'newWin'
+        ? teamData.editorPerformance.length
+        : (teamData[category === 'win' ? 'videos' : category === 'fail' ? 'failVideos' : category === 'case' ? 'caseStudies' : category === 'clone' ? 'cloneVideos' : 'actions'] || []).length;
 
-      const newLen = list.length;
-      setActiveSlideIndex(prev => Math.max(0, Math.min(prev, newLen - 1)));
+      setActiveSlideIndex(prev => Math.max(0, Math.min(prev, listLen - 1)));
 
       return updated;
     });
