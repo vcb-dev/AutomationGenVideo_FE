@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { TrendingUp, Video, Award, XCircle, CheckCircle, ChevronDown, Plus, Trash2 } from 'lucide-react';
 import { EditorPerfItem } from '../types';
 import { formatWinRate } from '../utils';
@@ -21,12 +21,30 @@ export default function EditorNewWinSection({
   editorPerformance, newVideoStats, ratio, multiplier, winFilterRatio, totalFilterRatio,
   isCollapsed, onToggle, onUpdateRow, onDeleteRow, onAddRow
 }: EditorNewWinSectionProps) {
-  const scaledPerformance = editorPerformance.map(perf => {
-    const win = Math.round(perf.winVideos * ratio * winFilterRatio * multiplier);
-    const total = Math.max(win, Math.round(perf.totalVideos * ratio * totalFilterRatio * multiplier));
-    const fail = total - win;
-    const winRate = formatWinRate(win, total);
-    return { editor: perf.editor, total, win, fail, winRate };
+
+  // State quản lý giá trị controlled của các ô nhập
+  const [inputs, setInputs] = useState(() =>
+    editorPerformance.map(perf => {
+      const win = Math.round(perf.winVideos * ratio * winFilterRatio * multiplier);
+      const total = Math.max(win, Math.round(perf.totalVideos * ratio * totalFilterRatio * multiplier));
+      return { total, win };
+    })
+  );
+
+  // Đồng bộ state cục bộ khi props thay đổi (do blur hoặc do các tác vụ khác ngoài mount)
+  React.useEffect(() => {
+    setInputs(editorPerformance.map(perf => {
+      const win = Math.round(perf.winVideos * ratio * winFilterRatio * multiplier);
+      const total = Math.max(win, Math.round(perf.totalVideos * ratio * totalFilterRatio * multiplier));
+      return { total, win };
+    }));
+  }, [editorPerformance, ratio, winFilterRatio, totalFilterRatio, multiplier]);
+
+  // Tính toán trực tiếp giá trị Fail và Tỷ lệ Win khi render
+  const computed = inputs.map(item => {
+    const fail = Math.max(0, item.total - item.win);
+    const winRate = formatWinRate(item.win, item.total);
+    return { fail, winRate };
   });
 
   return (
@@ -95,64 +113,103 @@ export default function EditorNewWinSection({
                   <tr className="border-b border-white/[0.08] text-slate-400 text-[11px] uppercase tracking-wider font-bold">
                     <th className="pb-3 pl-2 w-12">#</th>
                     <th className="pb-3">TÊN</th>
-                    <th className="pb-3 text-center">TỔNG VIDEO</th>
-                    <th className="pb-3 text-center">WIN</th>
-                    <th className="pb-3 text-center">FAIL</th>
-                    <th className="pb-3 text-right pr-2">% WIN</th>
+                    <th className="pb-3 text-center">
+                      TỔNG VIDEO
+                      <span className="ml-1 text-blue-400/50 normal-case font-normal text-[9px]">(nhập)</span>
+                    </th>
+                    <th className="pb-3 text-center">
+                      WIN
+                      <span className="ml-1 text-blue-400/50 normal-case font-normal text-[9px]">(nhập)</span>
+                    </th>
+                    <th className="pb-3 text-center">
+                      FAIL
+                      <span className="ml-1 text-slate-600 normal-case font-normal text-[9px]">(tự tính)</span>
+                    </th>
+                    <th className="pb-3 text-right pr-2">
+                      % WIN
+                      <span className="ml-1 text-slate-600 normal-case font-normal text-[9px]">(tự tính)</span>
+                    </th>
                     <th className="pb-3 w-12 text-center"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/[0.04]">
-                  {scaledPerformance.map((perf, index) => (
-                    <tr key={index} className="hover:bg-white/[0.02] transition-colors">
-                      <td className="py-4 pl-2 text-slate-400 font-medium">{index + 1}</td>
-                      <td
-                        contentEditable
-                        suppressContentEditableWarning
-                        onBlur={(e) => onUpdateRow(index, 'editor', e.currentTarget.textContent || '')}
-                        className="py-4 font-bold text-slate-200 outline-none focus:bg-white/[0.04] cursor-text"
-                      >
-                        {perf.editor}
-                      </td>
-                      <td
-                        contentEditable
-                        suppressContentEditableWarning
-                        onBlur={(e) => {
-                          const val = parseInt(e.currentTarget.textContent || '0') || 0;
-                          const factor = ratio * multiplier;
-                          const rawVal = factor > 0 ? Math.round(val / factor) : 0;
-                          onUpdateRow(index, 'totalVideos', rawVal.toString());
-                        }}
-                        className="py-4 text-center text-slate-300 outline-none focus:bg-white/[0.04] cursor-text"
-                      >
-                        {perf.total}
-                      </td>
-                      <td
-                        contentEditable
-                        suppressContentEditableWarning
-                        onBlur={(e) => {
-                          const val = parseInt(e.currentTarget.textContent || '0') || 0;
-                          const factor = ratio * multiplier;
-                          const rawVal = factor > 0 ? Math.round(val / factor) : 0;
-                          onUpdateRow(index, 'winVideos', rawVal.toString());
-                        }}
-                        className="py-4 text-center text-emerald-400 font-semibold outline-none focus:bg-white/[0.04] cursor-text"
-                      >
-                        {perf.win}
-                      </td>
-                      <td className="py-4 text-center text-red-400">{perf.fail}</td>
-                      <td className="py-4 text-right pr-2 text-[#10b981] font-extrabold">{perf.winRate}</td>
-                      <td className="py-4 text-center pr-2">
-                        <button
-                          onClick={() => onDeleteRow(index)}
-                          className="text-red-500/60 hover:text-red-400 p-1 hover:bg-red-500/10 rounded transition-colors"
-                          title="Xóa dòng"
+                  {editorPerformance.map((perf, index) => {
+                    const item = inputs[index] ?? { total: 0, win: 0 };
+                    const cv = computed[index] ?? { fail: 0, winRate: '0,0%' };
+                    return (
+                      <tr key={index} className="hover:bg-white/[0.02] transition-colors">
+                        <td className="py-3 pl-2 text-slate-400 font-medium">{index + 1}</td>
+
+                        {/* TÊN */}
+                        <td
+                          contentEditable
+                          suppressContentEditableWarning
+                          onBlur={(e) => onUpdateRow(index, 'editor', e.currentTarget.textContent || '')}
+                          className="py-3 font-bold text-slate-200 outline-none focus:bg-white/[0.04] cursor-text"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                          {perf.editor}
+                        </td>
+
+                        {/* TỔNG VIDEO — controlled */}
+                        <td className="py-3 text-center">
+                          <input
+                            type="number"
+                            min="0"
+                            value={item.total || ''}
+                            placeholder="0"
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value) || 0;
+                              setInputs(prev => prev.map((inp, i) => i === index ? { ...inp, total: val } : inp));
+                            }}
+                            onBlur={(e) => {
+                              const val = parseInt(e.target.value) || 0;
+                              const factor = ratio * totalFilterRatio * multiplier;
+                              const rawVal = factor > 0 ? Math.round(val / factor) : val;
+                              onUpdateRow(index, 'totalVideos', rawVal.toString());
+                            }}
+                            className="w-20 text-center bg-transparent text-slate-300 font-semibold outline-none focus:bg-white/[0.04] rounded px-2 py-1 border border-transparent focus:border-blue-500/30 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                        </td>
+
+                        {/* WIN — controlled */}
+                        <td className="py-3 text-center">
+                          <input
+                            type="number"
+                            min="0"
+                            value={item.win || ''}
+                            placeholder="0"
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value) || 0;
+                              setInputs(prev => prev.map((inp, i) => i === index ? { ...inp, win: val } : inp));
+                            }}
+                            onBlur={(e) => {
+                              const val = parseInt(e.target.value) || 0;
+                              const factor = ratio * winFilterRatio * multiplier;
+                              const rawVal = factor > 0 ? Math.round(val / factor) : val;
+                              onUpdateRow(index, 'winVideos', rawVal.toString());
+                            }}
+                            className="w-20 text-center bg-transparent text-emerald-400 font-semibold outline-none focus:bg-white/[0.04] rounded px-2 py-1 border border-transparent focus:border-emerald-500/30 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                        </td>
+
+                        {/* FAIL — tự tính */}
+                        <td className="py-3 text-center text-red-400 font-semibold select-none">{cv.fail}</td>
+
+                        {/* % WIN — tự tính */}
+                        <td className="py-3 text-right pr-2 text-[#10b981] font-extrabold select-none">{cv.winRate}</td>
+
+                        <td className="py-3 text-center pr-2">
+                          <button
+                            onClick={() => onDeleteRow(index)}
+                            className="text-red-500/60 hover:text-red-400 p-1 hover:bg-red-500/10 rounded transition-colors"
+                            title="Xóa dòng"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

@@ -232,6 +232,7 @@ export default function ReportTab({
         />
 
         <EditorWinStatsSection
+          key={`editor-win-${activeTab}-${filterMode}-${selectedWeek}`}
           editorPerformance={baseData.editorPerformance}
           win5Stats={editorWinData.win5Stats}
           multiplier={editorWinData.multiplier}
@@ -245,6 +246,7 @@ export default function ReportTab({
         />
 
         <EditorNewWinSection
+          key={`editor-new-win-${activeTab}-${filterMode}-${selectedWeek}`}
           editorPerformance={baseData.editorPerformance}
           newVideoStats={editorNewWinData.newVideoStats}
           ratio={ratio}
