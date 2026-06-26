@@ -17,14 +17,17 @@ interface ReportTabProps {
   onUpdateRow: (sheetName: string, rowIndex: number, field: string, value: string, defaultPostDate?: string) => void;
   onDeleteRow: (sheetName: string, rowIndex: number) => void;
   onAddRow: (sheetName: string, defaultPostDate?: string) => void;
+  filterMode: 'all' | 'week' | 'month';
+  selectedWeek: 'all' | '1' | '2' | '3' | '4';
+  onFilterModeChange: (mode: 'all' | 'week' | 'month') => void;
+  onWeekChange: (week: 'all' | '1' | '2' | '3' | '4') => void;
 }
 
 export default function ReportTab({
-  teamsData, activeTab, onTabChange, onUpdateRow, onDeleteRow, onAddRow
+  teamsData, activeTab, onTabChange, onUpdateRow, onDeleteRow, onAddRow,
+  filterMode, selectedWeek, onFilterModeChange, onWeekChange
 }: ReportTabProps) {
   const [collapsedSheets, setCollapsedSheets] = useState<Record<string, boolean>>({});
-  const [filterMode, setFilterMode] = useState<'all' | 'week' | 'month'>('week');
-  const [selectedWeek, setSelectedWeek] = useState<'all' | '1' | '2' | '3' | '4'>('1');
 
   const toggleSheetCollapse = (sheetName: string) => {
     setCollapsedSheets(prev => ({
@@ -187,8 +190,8 @@ export default function ReportTab({
         <TimeFilter
           filterMode={filterMode}
           selectedWeek={selectedWeek}
-          onFilterModeChange={setFilterMode}
-          onWeekChange={setSelectedWeek}
+          onFilterModeChange={onFilterModeChange}
+          onWeekChange={onWeekChange}
         />
       </div>
 

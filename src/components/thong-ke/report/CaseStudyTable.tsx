@@ -100,14 +100,15 @@ export default function CaseStudyTable({
             <tbody className="divide-y divide-white/[0.04]">
               {rows.map((video, idx) => {
                 const isMock = video.title === 'Data point';
+                const isSaving = typeof video.dbId === 'string' && video.dbId.startsWith('temp-');
                 return (
-                  <tr key={idx} className="hover:bg-white/[0.02] transition-colors">
+                  <tr key={idx} className={`hover:bg-white/[0.02] transition-colors ${isSaving ? 'opacity-50 pointer-events-none' : ''}`}>
                     <td className="py-3.5 px-4 text-center text-slate-500 font-bold text-xs">{idx + 1}</td>
                     <td className="py-3.5 px-4 text-slate-300 font-semibold text-xs">
                       {isMock ? 'Data point' : 'Bên ngoài'}
                     </td>
                     <td
-                      contentEditable
+                      contentEditable={!isMock && !isSaving}
                       suppressContentEditableWarning
                       onBlur={(e) => onUpdateRow(idx, 'channel', e.currentTarget.textContent || '')}
                       className="py-3.5 px-4 text-slate-300 font-medium text-xs outline-none focus:bg-white/[0.04] cursor-text break-words whitespace-normal"
@@ -115,7 +116,7 @@ export default function CaseStudyTable({
                       {video.channel}
                     </td>
                     <td
-                      contentEditable
+                      contentEditable={!isMock && !isSaving}
                       suppressContentEditableWarning
                       onBlur={(e) => onUpdateRow(idx, 'videoUrl', e.currentTarget.textContent || '')}
                       className={`py-3.5 px-4 text-xs outline-none focus:bg-white/[0.04] cursor-text max-w-[120px] truncate focus:max-w-none focus:whitespace-normal break-all ${isMock
@@ -129,27 +130,23 @@ export default function CaseStudyTable({
                       {isMock ? '-' : (video.videoUrl || 'Dán link video...')}
                     </td>
                     <td className="py-3.5 px-4 text-xs text-center">
-                      {isMock ? '-' : (
-                        <CustomSelect
-                          value={video.platform || 'TikTok'}
-                          onChange={(val) => onUpdateRow(idx, 'platform', val)}
-                          options={['TikTok', 'Instagram Reels', 'YouTube Shorts']}
-                          alignUp={idx >= 3}
-                        />
-                      )}
+                      <CustomSelect
+                        value={isMock ? 'TikTok' : (video.platform || 'TikTok')}
+                        onChange={(val) => onUpdateRow(idx, 'platform', val)}
+                        options={['TikTok', 'Instagram Reels', 'YouTube Shorts']}
+                        alignUp={idx >= 3}
+                      />
                     </td>
                     <td className="py-3.5 px-4 text-xs text-center">
-                      {isMock ? '-' : (
-                        <CustomDatePicker
-                          value={video.postDate || ''}
-                          onChange={(val) => onUpdateRow(idx, 'postDate', val)}
-                          alignUp={idx >= 3}
-                          themeColor="purple"
-                        />
-                      )}
+                      <CustomDatePicker
+                        value={isMock ? '' : (video.postDate || '')}
+                        onChange={(val) => onUpdateRow(idx, 'postDate', val)}
+                        alignUp={idx >= 3}
+                        themeColor="purple"
+                      />
                     </td>
                     <td
-                      contentEditable
+                      contentEditable={!isMock && !isSaving}
                       suppressContentEditableWarning
                       onBlur={(e) => onUpdateRow(idx, 'title', e.currentTarget.textContent || '')}
                       className="py-3.5 px-4 text-slate-300 text-xs leading-relaxed outline-none focus:bg-white/[0.04] cursor-text break-words whitespace-normal"
@@ -157,7 +154,7 @@ export default function CaseStudyTable({
                       {video.title}
                     </td>
                     <td
-                      contentEditable
+                      contentEditable={!isMock && !isSaving}
                       suppressContentEditableWarning
                       onBlur={(e) => onUpdateRow(idx, 'takeaway', e.currentTarget.textContent || '')}
                       className="py-3.5 px-4 text-slate-300 text-xs leading-relaxed outline-none focus:bg-white/[0.04] cursor-text break-words whitespace-normal"
@@ -165,7 +162,7 @@ export default function CaseStudyTable({
                       {video.takeaway}
                     </td>
                     <td
-                      contentEditable
+                      contentEditable={!isMock && !isSaving}
                       suppressContentEditableWarning
                       onKeyDown={handleViewsKeyDown}
                       onInput={handleViewsInput}

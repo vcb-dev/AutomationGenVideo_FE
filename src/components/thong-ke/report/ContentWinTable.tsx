@@ -3,6 +3,7 @@ import { CheckCircle, ChevronDown, Plus, Trash2, Image as ImageIcon } from 'luci
 import { ContentWinItem } from '../types';
 import { formatDotViews } from '../utils';
 import { CustomSelect, CustomDatePicker } from './CustomControls';
+import { apiClient } from '../../../lib/api-client';
 
 interface ContentWinTableProps {
   videos: ContentWinItem[];
@@ -17,6 +18,8 @@ interface ContentWinTableProps {
 export default function ContentWinTable({
   videos, activeTab, isCollapsed, onToggle, onUpdateRow, onDeleteRow, onAddRow
 }: ContentWinTableProps) {
+  const [uploadingIndex, setUploadingIndex] = React.useState<number | null>(null);
+
   const rows = [...videos];
   while (rows.length < 5) {
     rows.push({
@@ -103,14 +106,15 @@ export default function ContentWinTable({
             <tbody className="divide-y divide-white/[0.04]">
               {rows.map((video, idx) => {
                 const isMock = video.label === 'Data point';
+                const isSaving = typeof video.dbId === 'string' && video.dbId.startsWith('temp-');
                 return (
-                  <tr key={idx} className="hover:bg-white/[0.02] transition-colors">
+                  <tr key={idx} className={`hover:bg-white/[0.02] transition-colors ${isSaving ? 'opacity-50 pointer-events-none' : ''}`}>
                     <td className="py-3.5 px-4 text-center text-slate-500 font-bold text-xs">{idx + 1}</td>
                     <td className="py-3.5 px-4 text-slate-300 font-semibold text-xs">
                       {isMock ? 'Data point' : activeTab}
                     </td>
                     <td
-                      contentEditable
+                      contentEditable={!isMock && !isSaving}
                       suppressContentEditableWarning
                       onBlur={(e) => onUpdateRow(idx, 'editor', e.currentTarget.textContent || '')}
                       className="py-3.5 px-4 text-slate-300 font-medium text-xs outline-none focus:bg-white/[0.04] cursor-text break-words whitespace-normal"
@@ -118,7 +122,7 @@ export default function ContentWinTable({
                       {video.editor}
                     </td>
                     <td
-                      contentEditable
+                      contentEditable={!isMock && !isSaving}
                       suppressContentEditableWarning
                       onBlur={(e) => onUpdateRow(idx, 'videoUrl', e.currentTarget.textContent || '')}
                       className={`py-3.5 px-4 text-xs outline-none focus:bg-white/[0.04] cursor-text max-w-[120px] truncate focus:max-w-none focus:whitespace-normal break-all ${isMock
@@ -134,7 +138,11 @@ export default function ContentWinTable({
                     <td className="py-3.5 px-4 text-xs">
                       <div className="flex items-start shrink-0">
                         <label className="cursor-pointer group relative block">
-                          {video.thumbnail && video.thumbnail !== 'Data point' ? (
+                          {uploadingIndex === idx ? (
+                            <div className="w-10 h-10 rounded bg-slate-900 border border-dashed border-blue-500/50 flex items-center justify-center animate-pulse shrink-0">
+                              <span className="text-[10px] text-blue-400 font-medium">Up...</span>
+                            </div>
+                          ) : video.thumbnail && video.thumbnail !== 'Data point' ? (
                             <div className="w-10 h-10 rounded bg-slate-800 border border-white/10 overflow-hidden transition-all duration-200 hover:border-blue-500 hover:scale-105 shrink-0">
                               <img src={video.thumbnail} className="w-full h-full object-cover" alt="Thumb" />
                               <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -149,40 +157,53 @@ export default function ContentWinTable({
                           <input
                             type="file"
                             accept="image/*"
-                            onChange={(e) => {
+                            onChange={async (e) => {
                               const file = e.target.files?.[0];
                               if (file) {
-                                const localUrl = URL.createObjectURL(file);
-                                onUpdateRow(idx, 'thumbnail', localUrl);
+                                setUploadingIndex(idx);
+                                try {
+                                  const formData = new FormData();
+                                  formData.append('files', file);
+                                  const res = await apiClient.post<{ success: boolean; urls: { url: string }[] }>(
+                                    '/social/upload/media',
+                                    formData,
+                                    { headers: { 'Content-Type': 'multipart/form-data' } }
+                                  );
+                                  const uploadedUrl = res.data?.urls?.[0]?.url;
+                                  if (uploadedUrl) {
+                                    onUpdateRow(idx, 'thumbnail', uploadedUrl);
+                                  }
+                                } catch (err) {
+                                  console.error('Error uploading thumbnail:', err);
+                                } finally {
+                                  setUploadingIndex(null);
+                                }
                               }
                             }}
                             className="hidden"
+                            disabled={uploadingIndex !== null}
                           />
                         </label>
                       </div>
                     </td>
                     <td className="py-3.5 px-4 text-xs text-center">
-                      {isMock ? '-' : (
-                        <CustomSelect
-                          value={video.platform || 'TikTok'}
-                          onChange={(val) => onUpdateRow(idx, 'platform', val)}
-                          options={['TikTok', 'Instagram Reels', 'YouTube Shorts']}
-                          alignUp={idx >= 3}
-                        />
-                      )}
+                      <CustomSelect
+                        value={isMock ? 'TikTok' : (video.platform || 'TikTok')}
+                        onChange={(val) => onUpdateRow(idx, 'platform', val)}
+                        options={['TikTok', 'Instagram Reels', 'YouTube Shorts']}
+                        alignUp={idx >= 3}
+                      />
                     </td>
                     <td className="py-3.5 px-4 text-xs text-center">
-                      {isMock ? '-' : (
-                        <CustomDatePicker
-                          value={video.postDate || ''}
-                          onChange={(val) => onUpdateRow(idx, 'postDate', val)}
-                          alignUp={idx >= 3}
-                          themeColor="emerald"
-                        />
-                      )}
+                      <CustomDatePicker
+                        value={isMock ? '' : (video.postDate || '')}
+                        onChange={(val) => onUpdateRow(idx, 'postDate', val)}
+                        alignUp={idx >= 3}
+                        themeColor="emerald"
+                      />
                     </td>
                     <td
-                      contentEditable
+                      contentEditable={!isMock && !isSaving}
                       suppressContentEditableWarning
                       onBlur={(e) => onUpdateRow(idx, 'content', e.currentTarget.textContent || '')}
                       className="py-3.5 px-4 text-slate-300 text-xs leading-relaxed outline-none focus:bg-white/[0.04] cursor-text break-words whitespace-normal"
@@ -190,7 +211,7 @@ export default function ContentWinTable({
                       {video.content}
                     </td>
                     <td
-                      contentEditable
+                      contentEditable={!isMock && !isSaving}
                       suppressContentEditableWarning
                       onBlur={(e) => onUpdateRow(idx, 'analysis', e.currentTarget.textContent || '')}
                       className="py-3.5 px-4 text-slate-300 text-xs leading-relaxed outline-none focus:bg-white/[0.04] cursor-text break-words whitespace-normal"
@@ -198,7 +219,7 @@ export default function ContentWinTable({
                       {video.analysis}
                     </td>
                     <td
-                      contentEditable
+                      contentEditable={!isMock && !isSaving}
                       suppressContentEditableWarning
                       onKeyDown={handleViewsKeyDown}
                       onInput={handleViewsInput}

@@ -1,4 +1,5 @@
 export interface ContentWinItem {
+  dbId?: string;
   id: number;
   label: string;
   content: string;
@@ -21,6 +22,7 @@ export interface ContentWinItem {
 }
 
 export interface FailVideoItem {
+  dbId?: string;
   id: number;
   label: string;
   content: string;
@@ -43,6 +45,7 @@ export interface FailVideoItem {
 }
 
 export interface CaseStudyItem {
+  dbId?: string;
   id: number;
   label: string;
   title: string;
@@ -64,6 +67,7 @@ export interface CaseStudyItem {
 }
 
 export interface EditorPerfItem {
+  dbId?: string;
   editor: string;
   totalVideos: number;
   winVideos: number;
@@ -75,6 +79,7 @@ export interface EditorPerfItem {
 }
 
 export interface CloneVideoItem {
+  dbId?: string;
   id: number;
   label: string;
   content: string;
@@ -98,6 +103,7 @@ export interface CloneVideoItem {
 
 export interface ActionItem {
   id: number;
+  dbId?: string;
   title: string;
   description: string;
   assignee: string;
@@ -109,6 +115,7 @@ export interface ActionItem {
 }
 
 export interface TeamData {
+  teamId?: string;
   teamName: string;
   win5Stats: {
     total: number;
