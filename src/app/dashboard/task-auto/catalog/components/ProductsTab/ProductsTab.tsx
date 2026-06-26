@@ -198,12 +198,14 @@ export function ProductsTab({ brandType }: { brandType: BrandType }) {
             ]}
             className="min-w-[175px]"
           />
-          <button
-            onClick={openCreate}
-            className="ml-auto bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-5 py-3.5 text-base font-semibold flex items-center gap-2 transition-colors shrink-0"
-          >
-            <Plus className="w-5 h-5" /> Thêm sản phẩm
-          </button>
+          {canDelete && (
+            <button
+              onClick={openCreate}
+              className="ml-auto bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-5 py-3.5 text-base font-semibold flex items-center gap-2 transition-colors shrink-0"
+            >
+              <Plus className="w-5 h-5" /> Thêm sản phẩm
+            </button>
+          )}
         </div>
       </div>
 

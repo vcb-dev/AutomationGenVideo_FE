@@ -17,6 +17,7 @@ interface EditProductProps {
   loading: boolean
   currentProductName?: string | null
   currentProductId?: string | null
+  filterSlot?: React.ReactNode
 }
 
 interface ViewProductProps {
@@ -135,6 +136,7 @@ export function ProductSection({ editMode, edit, view }: Props) {
               placeholder="Tìm sản phẩm..."
               clearLabel="-- Không chọn --"
               searchPlaceholder="Tìm theo tên hoặc SKU..."
+              filterSlot={edit.filterSlot}
             />
             {edit.productId && edit.productId === edit.currentProductId && edit.currentProductName && (
               <p className="mt-2 text-xs text-slate-400 pl-1">

@@ -84,7 +84,7 @@ function ImportModal({
 }) {
   const [search, setSearch] = useState('')
   const [scope, setScope] = useState<'global' | 'team'>('global')
-  const [brandType, setBrandType] = useState(initialBrandType)
+  const brandType = initialBrandType
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const qc = useQueryClient()
 
@@ -211,26 +211,15 @@ function ImportModal({
       }
     >
       <div className="space-y-3">
-        {/* Scope + brand switcher */}
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex gap-1.5">
-            {(['global', 'team'] as const).map(s => (
-              <button key={s} onClick={() => { setScope(s); setSelectedIds(new Set()) }}
-                className={cn('px-4 py-1.5 rounded-xl text-sm font-semibold transition-colors',
-                  scope === s ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-slate-600 hover:bg-gray-200')}>
-                {s === 'global' ? 'Kho chung' : 'Kho team'}
-              </button>
-            ))}
-          </div>
-          <div className="flex gap-1.5">
-            {(['DO_DA', 'TRANG_SUC'] as const).map(b => (
-              <button key={b} onClick={() => { setBrandType(b); setSelectedIds(new Set()) }}
-                className={cn('px-3 py-1.5 rounded-full text-xs font-semibold border transition-all',
-                  brandType === b ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-slate-500 hover:border-slate-400')}>
-                {b === 'DO_DA' ? 'Đồ da' : 'Trang sức'}
-              </button>
-            ))}
-          </div>
+        {/* Scope switcher */}
+        <div className="flex gap-1.5">
+          {(['global', 'team'] as const).map(s => (
+            <button key={s} onClick={() => { setScope(s); setSelectedIds(new Set()) }}
+              className={cn('px-4 py-1.5 rounded-xl text-sm font-semibold transition-colors',
+                scope === s ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-slate-600 hover:bg-gray-200')}>
+              {s === 'global' ? 'Kho chung' : 'Kho team'}
+            </button>
+          ))}
         </div>
 
         {scope === 'team' && (myTeam ? (

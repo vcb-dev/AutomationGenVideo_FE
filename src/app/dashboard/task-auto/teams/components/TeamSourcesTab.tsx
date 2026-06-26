@@ -31,13 +31,14 @@ interface TeamSourcesTabProps {
   isAdminOrManager: boolean
   userId?: string
   brandType: 'DO_DA' | 'TRANG_SUC'
+  selectedTeamId: string
+  setSelectedTeamId: (id: string) => void
 }
 
 type AddMode = 'manual' | 'global'
 
-export function TeamSourcesTab({ isAdminOrManager, userId, brandType }: TeamSourcesTabProps) {
+export function TeamSourcesTab({ isAdminOrManager, userId, brandType, selectedTeamId, setSelectedTeamId }: TeamSourcesTabProps) {
   const qc = useQueryClient()
-  const [selectedTeamId, setSelectedTeamId] = useState('')
   const [search, setSearch] = useState('')
 
   const [modal, setModal]           = useState<null | 'add' | 'view' | 'edit'>(null)
@@ -47,6 +48,9 @@ export function TeamSourcesTab({ isAdminOrManager, userId, brandType }: TeamSour
   const [editing, setEditing]       = useState<TeamSource | null>(null)
 
   const [formBrandType, setFormBrandType] = useState<'DO_DA' | 'TRANG_SUC'>(brandType)
+
+  // Sync formBrandType when team changes (brandType derived from team)
+  useEffect(() => { setFormBrandType(brandType) }, [brandType])
   const [form, setForm] = useState<Partial<TeamSource>>({
     type: 'OUTRO', name: '', link: '', code: '', team_product_id: '', is_active: true,
   })
@@ -58,13 +62,6 @@ export function TeamSourcesTab({ isAdminOrManager, userId, brandType }: TeamSour
     queryKey: ['task-auto', 'teams'],
     queryFn: getTeams,
   })
-
-  useEffect(() => {
-    if (!isAdminOrManager && teams && userId) {
-      const myTeam = teams.find(t => t.leader_id === userId || t.members?.some((m: any) => m.user_id === userId))
-      if (myTeam) setSelectedTeamId(myTeam.id)
-    }
-  }, [teams, userId, isAdminOrManager])
 
   const teamOptions = isAdminOrManager
     ? [{ value: '', label: '— Chọn team —' }, ...(teams ?? []).map(t => ({ value: t.id, label: t.name }))]

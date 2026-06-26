@@ -63,13 +63,13 @@ export function TaskFilters({
   const isToday = deadlineDateFilter === todayString()
 
   return (
-    <div className="flex flex-wrap gap-2 items-center flex-1">
+    <div className="flex flex-wrap gap-2.5 items-center flex-1">
       {/* Search */}
       <div className="relative flex-1 min-w-[200px]">
         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
         <input
           type="text"
-          className="w-full pl-10 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-colors"
+          className="w-full pl-10 pr-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-colors"
           placeholder="Tìm kiếm theo tiêu đề..."
           value={searchFilter}
           onChange={e => onSearchChange(e.target.value)}
@@ -81,7 +81,7 @@ export function TaskFilters({
         value={statusFilter}
         onChange={v => onStatusChange(v as TaskStatus | '')}
         options={STATUS_OPTIONS}
-        className="min-w-[160px]"
+        className="min-w-[165px]"
         compact
       />
 
@@ -90,7 +90,7 @@ export function TaskFilters({
         value={taskTypeFilter}
         onChange={v => onTaskTypeChange(v as TaskTypeFilter)}
         options={TASK_TYPE_OPTIONS}
-        className="min-w-[130px]"
+        className="min-w-[135px]"
         compact
       />
 
@@ -103,7 +103,7 @@ export function TaskFilters({
             { value: '', label: 'Tất cả team' },
             ...teams.map(t => ({ value: t.id, label: t.name })),
           ]}
-          className="min-w-[150px]"
+          className="min-w-[155px]"
           searchable
           compact
         />
@@ -112,7 +112,7 @@ export function TaskFilters({
       {/* Deadline date picker */}
       <div className="relative">
         <CalendarDays className={cn(
-          'absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none',
+          'absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none',
           isToday ? 'text-amber-500' : deadlineDateFilter ? 'text-indigo-500' : 'text-slate-400'
         )} />
         <input
@@ -120,8 +120,8 @@ export function TaskFilters({
           value={deadlineDateFilter}
           onChange={e => onDeadlineDateChange(e.target.value)}
           className={cn(
-            'pl-9 py-2.5 bg-gray-50 border rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-colors',
-            deadlineDateFilter ? 'pr-7 min-w-[155px]' : 'pr-3 min-w-[155px]',
+            'pl-9 py-3 bg-gray-50 border rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-colors',
+            deadlineDateFilter ? 'pr-7 min-w-[160px]' : 'pr-3 min-w-[160px]',
             isToday
               ? 'border-amber-300 ring-1 ring-amber-100'
               : deadlineDateFilter
@@ -149,7 +149,7 @@ export function TaskFilters({
       {canCreate && (
         <button
           onClick={onCreateClick}
-          className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-5 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors flex-shrink-0 ml-auto shadow-sm"
+          className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-5 py-3 text-sm font-semibold flex items-center gap-2 transition-colors flex-shrink-0 ml-auto shadow-sm"
         >
           <Plus className="w-4 h-4" />
           Tạo task

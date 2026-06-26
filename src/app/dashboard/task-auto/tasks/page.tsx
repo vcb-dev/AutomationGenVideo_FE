@@ -85,7 +85,7 @@ export default function TasksPage() {
       deadline_date: deadlineDate || undefined,
       task_type:     taskType     || undefined,
       page,
-      limit: 20,
+      limit: 6,
       ...(isMineView && user?.id ? { assignee_id: user.id } : {}),
     }),
     refetchOnWindowFocus: true,
@@ -114,7 +114,7 @@ export default function TasksPage() {
   return (
     <div className="space-y-5">
       {/* Header + Filter bar gộp chung một dải */}
-      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm px-6 py-4 flex items-center gap-5 flex-wrap">
+      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm px-7 py-4 flex items-center gap-5 flex-wrap">
         {/* Title */}
         <div className="flex-shrink-0 min-w-[160px]">
           <h1 className="text-2xl font-black text-slate-900 leading-tight">{pageTitle}</h1>
@@ -178,15 +178,7 @@ export default function TasksPage() {
         />
       </div>
 
-      {/* Banner "đang xem task của bạn" */}
-      {/* {isMineView && (
-        <div className="flex items-center gap-2.5 bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-2.5">
-          <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 flex-shrink-0" />
-          <p className="text-sm font-semibold text-indigo-700">Đang xem task của bạn</p>
-        </div>
-      )} */}
-
-      <TaskStatsBar tasks={tasks} />
+      {/* <TaskStatsBar tasks={tasks} /> */}
 
       <TasksTable
         tasks={tasks}

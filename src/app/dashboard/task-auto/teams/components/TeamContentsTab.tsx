@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { FileText, Plus, Search, X, BookOpen, Mic, Globe, Trash2, Edit2, Loader2 } from 'lucide-react'
@@ -22,11 +22,12 @@ interface TeamContentsTabProps {
   isAdminOrManager: boolean
   userId?: string
   brandType: 'DO_DA' | 'TRANG_SUC'
+  selectedTeamId: string
+  setSelectedTeamId: (id: string) => void
 }
 
-export function TeamContentsTab({ isAdminOrManager, userId, brandType }: TeamContentsTabProps) {
+export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedTeamId, setSelectedTeamId }: TeamContentsTabProps) {
   const qc = useQueryClient()
-  const [selectedTeamId, setSelectedTeamId] = useState('')
   const [showAdd, setShowAdd] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const [editingContent, setEditingContent] = useState<TeamContent | null>(null)
@@ -36,15 +37,6 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType }: TeamCon
     queryKey: ['task-auto', 'teams'],
     queryFn: getTeams,
   })
-
-  useEffect(() => {
-    if (!isAdminOrManager && userId && teams) {
-      const myTeam =
-        teams.find(t => t.leader_id === userId) ||
-        teams.find(t => t.members?.some(m => m.user_id === userId))
-      if (myTeam) setSelectedTeamId(myTeam.id)
-    }
-  }, [isAdminOrManager, userId, teams])
 
   const selectedTeam = teams?.find(t => t.id === selectedTeamId)
   const isLeaderOfSelected = selectedTeam?.leader_id === userId

@@ -98,7 +98,7 @@ function ImportModal({
 }) {
   const [search, setSearch] = useState('')
   const [scope, setScope] = useState<'global' | 'team'>('global')
-  const [brandType, setBrandType] = useState(initialBrandType)
+  const brandType = initialBrandType
   const [typeFilter, setTypeFilter] = useState<SourceType | ''>('')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const qc = useQueryClient()
@@ -198,26 +198,15 @@ function ImportModal({
       }
     >
       <div className="space-y-3">
-        {/* Scope + brand switcher */}
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex gap-1.5">
-            {(['global', 'team'] as const).map(s => (
-              <button key={s} onClick={() => { setScope(s); setSelectedIds(new Set()) }}
-                className={cn('px-4 py-1.5 rounded-xl text-sm font-semibold transition-colors',
-                  scope === s ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-slate-600 hover:bg-gray-200')}>
-                {s === 'global' ? 'Kho chung' : 'Kho team'}
-              </button>
-            ))}
-          </div>
-          <div className="flex gap-1.5">
-            {(['DO_DA', 'TRANG_SUC'] as const).map(b => (
-              <button key={b} onClick={() => { setBrandType(b); setSelectedIds(new Set()) }}
-                className={cn('px-3 py-1.5 rounded-full text-xs font-semibold border transition-all',
-                  brandType === b ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-slate-500 hover:border-slate-400')}>
-                {b === 'DO_DA' ? 'Đồ da' : 'Trang sức'}
-              </button>
-            ))}
-          </div>
+        {/* Scope switcher */}
+        <div className="flex gap-1.5">
+          {(['global', 'team'] as const).map(s => (
+            <button key={s} onClick={() => { setScope(s); setSelectedIds(new Set()) }}
+              className={cn('px-4 py-1.5 rounded-xl text-sm font-semibold transition-colors',
+                scope === s ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-slate-600 hover:bg-gray-200')}>
+              {s === 'global' ? 'Kho chung' : 'Kho team'}
+            </button>
+          ))}
         </div>
 
         {scope === 'team' && (myTeam ? (
@@ -320,9 +309,7 @@ function SourceFormModal({
 }) {
   const qc = useQueryClient()
   const isEdit = !!editing
-  const [brandType, setBrandType] = useState<'DO_DA' | 'TRANG_SUC'>(
-    (editing?.brand_type as 'DO_DA' | 'TRANG_SUC') ?? defaultBrandType
-  )
+  const brandType: 'DO_DA' | 'TRANG_SUC' = (editing?.brand_type as 'DO_DA' | 'TRANG_SUC') ?? defaultBrandType ?? 'TRANG_SUC'
   const [form, setForm] = useState<Partial<Source> & { editor_product_id?: string }>({
     type: editing?.type ?? 'PRODUCT_STOCK',
     name: editing?.name ?? '',
@@ -387,20 +374,12 @@ function SourceFormModal({
           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
             Thông tin source
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <CustomSelect
-              label="Nhóm sản phẩm *"
-              value={brandType}
-              onChange={v => setBrandType(v as 'DO_DA' | 'TRANG_SUC')}
-              options={[{ value: 'DO_DA', label: 'Đồ da' }, { value: 'TRANG_SUC', label: 'Trang sức' }]}
-            />
-            <CustomSelect
-              label="Loại source *"
-              value={form.type ?? 'PRODUCT_STOCK'}
-              onChange={v => setForm(f => ({ ...f, type: v as SourceType }))}
-              options={SOURCE_TYPES.map(t => ({ value: t, label: SOURCE_TYPE_LABELS[t] }))}
-            />
-          </div>
+          <CustomSelect
+            label="Loại source *"
+            value={form.type ?? 'PRODUCT_STOCK'}
+            onChange={v => setForm(f => ({ ...f, type: v as SourceType }))}
+            options={SOURCE_TYPES.map(t => ({ value: t, label: SOURCE_TYPE_LABELS[t] }))}
+          />
           <DarkInput
             label="Mã code"
             placeholder="VD: SRC001"

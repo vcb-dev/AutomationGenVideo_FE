@@ -5,10 +5,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import toast from 'react-hot-toast'
 import { Loader2, Zap, XCircle, CheckCircle2, Play, ExternalLink } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import {
   getTask, approveTask, cancelTask, getSources, getTeamSources,
   getProduct, getContent, startTask,
   updateTask, getProducts, getContents, getTeam, getApprovals,
+  getEditorProducts, getEditorContents, getTeamProducts, getTeamContents,
 } from '@/lib/api/task-auto'
 import { SubmitModal, RejectModal } from './TaskModals'
 import { StatusTimeline } from './detail/StatusTimeline'
@@ -20,6 +22,39 @@ import { SourcesSection } from './detail/SourcesSection'
 import { ProductSection } from './detail/ProductSection'
 import { VideoPreviewOverlay } from './detail/VideoPreviewOverlay'
 import type { Source, TeamSource } from '@/types/task-auto'
+
+type CatalogScope = 'personal' | 'global' | 'team'
+
+function ScopeSwitch({ value, onChange, hasTeam }: {
+  value: CatalogScope
+  onChange: (s: CatalogScope) => void
+  hasTeam: boolean
+}) {
+  return (
+    <div className="flex gap-0.5 p-0.5 bg-gray-100 rounded-lg ml-auto shrink-0">
+      {([
+        { key: 'personal' as CatalogScope, label: 'Cá nhân',  disabled: false },
+        { key: 'global'   as CatalogScope, label: 'Kho tổng', disabled: false },
+        { key: 'team'     as CatalogScope, label: 'Kho team', disabled: !hasTeam },
+      ]).map(({ key, label, disabled }) => (
+        <button
+          key={key}
+          type="button"
+          disabled={disabled}
+          onClick={() => onChange(key)}
+          className={cn(
+            'px-2.5 py-1 rounded-md text-xs font-semibold transition-all',
+            value === key
+              ? 'bg-white shadow-sm text-indigo-700'
+              : 'text-slate-500 hover:text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed'
+          )}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 interface Props {
   taskId: string
@@ -47,6 +82,8 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
   })
   const [productSearch, setProductSearch] = useState('')
   const [contentSearch, setContentSearch] = useState('')
+  const [productScope, setProductScope] = useState<'personal' | 'global' | 'team'>('global')
+  const [contentScope, setContentScope] = useState<'personal' | 'global' | 'team'>('global')
 
   const { data: task, isLoading } = useQuery({
     queryKey: ['task-auto', 'task', taskId],
@@ -80,9 +117,23 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
 
   useEffect(() => {
     if (task && editMode) {
+      const prefixedProductId = task.product_id
+        ? `global:${task.product_id}`
+        : task.editor_product_id
+        ? `editor:${task.editor_product_id}`
+        : task.team_product_id
+        ? `team:${task.team_product_id}`
+        : ''
+      const prefixedContentId = task.content_id
+        ? `global:${task.content_id}`
+        : task.editor_content_id
+        ? `editor:${task.editor_content_id}`
+        : task.team_content_id
+        ? `team:${task.team_content_id}`
+        : ''
       setEditForm({
-        product_id:          task.product_id          ?? '',
-        content_id:          task.content_id          ?? '',
+        product_id:          prefixedProductId,
+        content_id:          prefixedContentId,
         source_outro_id:     task.source_outro_id     ?? '',
         source_collected_id: task.source_extra_id     ?? '',
         source_workshop_id:  task.source_workshop_id  ?? '',
@@ -98,10 +149,34 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
     enabled: editMode,
   })
 
+  const { data: editEditorProductsData, isLoading: loadingEditEditorProducts } = useQuery({
+    queryKey: ['task-auto', 'detail-editor-products', currentUserId, productSearch],
+    queryFn: () => getEditorProducts(currentUserId!, { search: productSearch || undefined, limit: 50 }),
+    enabled: editMode && !!currentUserId,
+  })
+
+  const { data: editTeamProductsData } = useQuery({
+    queryKey: ['task-auto', 'detail-team-products', task?.team_id],
+    queryFn: () => getTeamProducts(task!.team_id!),
+    enabled: editMode && !!task?.team_id,
+  })
+
   const { data: editContentsData, isLoading: loadingEditContents } = useQuery({
     queryKey: ['task-auto', 'detail-contents', contentSearch],
     queryFn: () => getContents({ search: contentSearch || undefined, limit: 50 }),
     enabled: editMode,
+  })
+
+  const { data: editEditorContentsData, isLoading: loadingEditEditorContents } = useQuery({
+    queryKey: ['task-auto', 'detail-editor-contents', currentUserId, contentSearch],
+    queryFn: () => getEditorContents(currentUserId!, { search: contentSearch || undefined, limit: 50 }),
+    enabled: editMode && !!currentUserId,
+  })
+
+  const { data: editTeamContentsData } = useQuery({
+    queryKey: ['task-auto', 'detail-team-contents', task?.team_id],
+    queryFn: () => getTeamContents(task!.team_id!),
+    enabled: editMode && !!task?.team_id,
   })
 
   const { data: editPersonalSrcs } = useQuery({
@@ -126,6 +201,63 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
     enabled: editMode,
   })
 
+  const currentProductPrefixedId = useMemo(() => {
+    if (!task) return ''
+    if (task.product_id) return `global:${task.product_id}`
+    if (task.editor_product_id) return `editor:${task.editor_product_id}`
+    if (task.team_product_id) return `team:${task.team_product_id}`
+    return ''
+  }, [task?.product_id, task?.editor_product_id, task?.team_product_id])
+
+  const currentContentPrefixedId = useMemo(() => {
+    if (!task) return ''
+    if (task.content_id) return `global:${task.content_id}`
+    if (task.editor_content_id) return `editor:${task.editor_content_id}`
+    if (task.team_content_id) return `team:${task.team_content_id}`
+    return ''
+  }, [task?.content_id, task?.editor_content_id, task?.team_content_id])
+
+  const allProductItems = useMemo(() => {
+    if (productScope === 'global') {
+      return (editProductsData?.data ?? []).map(p => ({
+        value: `global:${p.id}`, label: p.name, sublabel: p.sku ?? undefined,
+      }))
+    }
+    if (productScope === 'personal') {
+      return (editEditorProductsData?.data ?? []).map(p => ({
+        value: `editor:${p.id}`, label: p.name, sublabel: p.sku ?? undefined,
+      }))
+    }
+    // team
+    const q = productSearch.toLowerCase()
+    return (editTeamProductsData ?? [])
+      .filter(p => !q || p.name.toLowerCase().includes(q) || (p.sku ?? '').toLowerCase().includes(q))
+      .map(p => ({ value: `team:${p.id}`, label: p.name, sublabel: p.sku ?? undefined }))
+  }, [editProductsData, editEditorProductsData, editTeamProductsData, productSearch, productScope])
+
+  const allContentItems = useMemo(() => {
+    if (contentScope === 'global') {
+      return (editContentsData?.data ?? []).map(c => ({
+        value: `global:${c.id}`, label: c.title || c.id, sublabel: c.content_line?.name ?? undefined,
+      }))
+    }
+    if (contentScope === 'personal') {
+      return (editEditorContentsData?.data ?? []).map(c => ({
+        value: `editor:${c.id}`, label: c.title || c.id, sublabel: c.content_line?.name ?? undefined,
+      }))
+    }
+    // team
+    const q = contentSearch.toLowerCase()
+    return (editTeamContentsData ?? [])
+      .filter(c => !q || (c.title ?? '').toLowerCase().includes(q))
+      .map(c => ({ value: `team:${c.id}`, label: c.title || c.id, sublabel: c.content_line?.name ?? undefined }))
+  }, [editContentsData, editEditorContentsData, editTeamContentsData, contentSearch, contentScope])
+
+  const loadingAllProducts =
+    productScope === 'personal' ? loadingEditEditorProducts : loadingEditProducts
+  const loadingAllContents =
+    contentScope === 'personal' ? loadingEditEditorContents : loadingEditContents
+
   const editAllSources: Source[] = useMemo(() => {
     const seen = new Set<string>()
     const result: Source[] = []
@@ -145,17 +277,29 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
   const huykSrcs      = editAllSources.filter(s => s.type === 'HUYK')
 
   const updateMut = useMutation({
-    mutationFn: () => updateTask(taskId, {
-      product_id:         editForm.product_id         || undefined,
-      content_id:         editForm.content_id         || undefined,
-      source_outro_id:    editForm.source_outro_id    || null,
-      source_extra_id:    editForm.source_collected_id || null,
-      source_workshop_id: editForm.source_workshop_id || null,
-      source_huyk_id:     editForm.source_huyk_id     || null,
-      ...(canAssign && task?.status === 'PENDING' && {
-        assignee_id: editForm.assignee_id || null,
-      }),
-    } as any),
+    mutationFn: () => {
+      const [productSource, rawProductId] = editForm.product_id.includes(':')
+        ? editForm.product_id.split(':', 2)
+        : ['', editForm.product_id]
+      const [contentSource, rawContentId] = editForm.content_id.includes(':')
+        ? editForm.content_id.split(':', 2)
+        : ['', editForm.content_id]
+      return updateTask(taskId, {
+        product_id:        productSource === 'global' ? rawProductId || null : null,
+        editor_product_id: productSource === 'editor' ? rawProductId || null : null,
+        team_product_id:   productSource === 'team'   ? rawProductId || null : null,
+        content_id:        contentSource === 'global' ? rawContentId || null : null,
+        editor_content_id: contentSource === 'editor' ? rawContentId || null : null,
+        team_content_id:   contentSource === 'team'   ? rawContentId || null : null,
+        source_outro_id:    editForm.source_outro_id    || null,
+        source_extra_id:    editForm.source_collected_id || null,
+        source_workshop_id: editForm.source_workshop_id || null,
+        source_huyk_id:     editForm.source_huyk_id     || null,
+        ...(canAssign && task?.status === 'PENDING' && {
+          assignee_id: editForm.assignee_id || null,
+        }),
+      } as any)
+    },
     onSuccess: (updatedTask) => {
       toast.success('Đã cập nhật task')
       qc.setQueryData(['task-auto', 'task', taskId], updatedTask)
@@ -384,16 +528,19 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                           edit={{
                             contentId: editForm.content_id,
                             onChange: v => setEditForm(f => ({ ...f, content_id: v })),
-                            items: (editContentsData?.data ?? []).map(c => ({
-                              value: c.id,
-                              label: c.title || c.id,
-                              sublabel: c.content_line?.name ?? undefined,
-                            })),
+                            items: allContentItems,
                             searchValue: contentSearch,
                             onSearchChange: setContentSearch,
-                            loading: loadingEditContents,
-                            currentContentId: task.content_id ?? undefined,
+                            loading: loadingAllContents,
+                            currentContentId: currentContentPrefixedId || undefined,
                             currentContentTitle: contentTitle,
+                            filterSlot: (
+                              <ScopeSwitch
+                                value={contentScope}
+                                onChange={s => { setContentScope(s); setEditForm(f => ({ ...f, content_id: '' })) }}
+                                hasTeam={!!task?.team_id}
+                              />
+                            ),
                           }}
                           view={{
                             contentTitle,
@@ -440,16 +587,19 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                         edit={{
                           productId: editForm.product_id,
                           onChange: v => setEditForm(f => ({ ...f, product_id: v })),
-                          items: (editProductsData?.data ?? []).map(p => ({
-                            value: p.id,
-                            label: p.name,
-                            sublabel: p.sku ?? undefined,
-                          })),
+                          items: allProductItems,
                           searchValue: productSearch,
                           onSearchChange: setProductSearch,
-                          loading: loadingEditProducts,
-                          currentProductId: task.product_id ?? undefined,
+                          loading: loadingAllProducts,
+                          currentProductId: currentProductPrefixedId || undefined,
                           currentProductName: productName,
+                          filterSlot: (
+                            <ScopeSwitch
+                              value={productScope}
+                              onChange={s => { setProductScope(s); setEditForm(f => ({ ...f, product_id: '' })) }}
+                              hasTeam={!!task?.team_id}
+                            />
+                          ),
                         }}
                         view={{
                           hasProduct: !!(

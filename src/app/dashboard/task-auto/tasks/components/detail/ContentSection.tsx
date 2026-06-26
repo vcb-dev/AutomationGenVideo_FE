@@ -15,6 +15,7 @@ interface EditContentProps {
   loading: boolean
   currentContentTitle?: string | null
   currentContentId?: string | null
+  filterSlot?: React.ReactNode
 }
 
 interface ViewContentProps {
@@ -51,6 +52,7 @@ export function ContentSection({ editMode, edit, view }: Props) {
             placeholder="Tìm content..."
             clearLabel="-- Không chọn --"
             searchPlaceholder="Tìm theo tiêu đề..."
+            filterSlot={edit.filterSlot}
           />
           {edit.contentId && edit.contentId === edit.currentContentId && edit.currentContentTitle && (
             <p className="mt-2 text-xs text-slate-400 pl-1">

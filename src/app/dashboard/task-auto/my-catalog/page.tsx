@@ -1,14 +1,17 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Package, FileText, Radio, BookUser } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth-store'
+import { getTeams } from '@/lib/api/task-auto'
+import { UserRole } from '@/types/auth'
 import { MyProductsTab } from './components/MyProductsTab'
 import { MyContentsTab } from './components/MyContentsTab'
 import { MySourcesTab } from './components/MySourcesTab'
+import type { BrandType } from '@/types/task-auto'
 
-type BrandType = 'DO_DA' | 'TRANG_SUC'
 type TabId = 'products' | 'contents' | 'sources'
 
 const BRANDS: { key: BrandType; label: string; color: string }[] = [
@@ -24,10 +27,30 @@ const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
 
 export default function MyCatalogPage() {
   const { user } = useAuthStore()
-  const [brand, setBrand]       = useState<BrandType>('DO_DA')
+  const roles: UserRole[] = user?.roles ?? []
+  const isAdminOrManager = roles.includes(UserRole.ADMIN) || roles.includes(UserRole.MANAGER)
+
+  const [brand, setBrand]         = useState<BrandType>('TRANG_SUC')
   const [activeTab, setActiveTab] = useState<TabId>('products')
 
+  const { data: teams } = useQuery({
+    queryKey: ['task-auto', 'teams'],
+    queryFn: getTeams,
+    enabled: !isAdminOrManager,
+  })
+
+  // Auto-derive brand from user's team for non-admin/manager
+  useEffect(() => {
+    if (isAdminOrManager || !user?.id || !teams) return
+    const myTeam =
+      teams.find(t => t.leader_id === user.id) ||
+      teams.find(t => t.members?.some(m => m.user_id === user.id))
+    if (myTeam?.brand_type) setBrand(myTeam.brand_type)
+  }, [isAdminOrManager, user?.id, teams])
+
   if (!user) return null
+
+  const currentBrand = BRANDS.find(b => b.key === brand)!
 
   return (
     <div className="space-y-8">
@@ -48,7 +71,7 @@ export default function MyCatalogPage() {
         <strong>đẩy sang kho team</strong> để chia sẻ với cả đội.
       </div>
 
-      {/* Tab bar + Brand group switcher */}
+      {/* Tab bar + Brand indicator */}
       <div className="border-b border-gray-200 flex items-center justify-between">
         {/* Tabs */}
         <div className="flex gap-1">
@@ -69,28 +92,39 @@ export default function MyCatalogPage() {
           ))}
         </div>
 
-        {/* Brand switcher */}
-        <div className="flex gap-3">
-          {BRANDS.map(b => (
-            <button
-              key={b.key}
-              onClick={() => setBrand(b.key)}
-              className={cn(
-                'px-6 py-1.5 rounded-full text-sm font-semibold border-2 transition-all',
-                brand === b.key
-                  ? b.color === 'amber'
-                    ? 'bg-amber-500 border-amber-500 text-white shadow-md'
-                    : 'bg-violet-600 border-violet-600 text-white shadow-md'
-                  : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400 hover:text-slate-700'
-              )}
-            >
-              {b.label}
-            </button>
-          ))}
+        {/* Brand: switcher cho admin/manager, badge cho user thường */}
+        <div className="flex gap-3 pb-1">
+          {isAdminOrManager ? (
+            BRANDS.map(b => (
+              <button
+                key={b.key}
+                onClick={() => setBrand(b.key)}
+                className={cn(
+                  'px-6 py-1.5 rounded-full text-sm font-semibold border-2 transition-all',
+                  brand === b.key
+                    ? b.color === 'amber'
+                      ? 'bg-amber-500 border-amber-500 text-white shadow-md'
+                      : 'bg-violet-600 border-violet-600 text-white shadow-md'
+                    : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400 hover:text-slate-700'
+                )}
+              >
+                {b.label}
+              </button>
+            ))
+          ) : (
+            <span className={cn(
+              'px-6 py-1.5 rounded-full text-sm font-semibold border-2',
+              currentBrand.color === 'amber'
+                ? 'bg-amber-500 border-amber-500 text-white'
+                : 'bg-violet-600 border-violet-600 text-white'
+            )}>
+              {currentBrand.label}
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Tab content — key={brand} resets state khi đổi nhóm sản phẩm */}
+      {/* Tab content — key={brand} resets state khi đổi nhóm */}
       <div>
         {activeTab === 'products' && <MyProductsTab key={brand} userId={user.id} brandType={brand} />}
         {activeTab === 'contents' && <MyContentsTab key={brand} userId={user.id} brandType={brand} />}

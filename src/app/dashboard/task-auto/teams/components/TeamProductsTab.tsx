@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { ShoppingBag, Plus, Search, X, ImageIcon, Edit2, Trash2, Upload } from 'lucide-react'
@@ -19,6 +19,8 @@ interface TeamProductsTabProps {
   isAdminOrManager: boolean
   userId?: string
   brandType: 'DO_DA' | 'TRANG_SUC'
+  selectedTeamId: string
+  setSelectedTeamId: (id: string) => void
 }
 
 function parseMarkets(market?: string | null): string[] {
@@ -31,9 +33,8 @@ function formatPrice(price?: string | number | null): string {
   return Number(price).toLocaleString('vi-VN') + '₫'
 }
 
-export function TeamProductsTab({ isAdminOrManager, userId, brandType }: TeamProductsTabProps) {
+export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedTeamId, setSelectedTeamId }: TeamProductsTabProps) {
   const qc = useQueryClient()
-  const [selectedTeamId, setSelectedTeamId] = useState('')
   const [showAdd, setShowAdd] = useState(false)
   const [editingProduct, setEditingProduct] = useState<TeamProduct | null>(null)
   const [viewProduct, setViewProduct] = useState<TeamProduct | null>(null)
@@ -46,15 +47,6 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType }: TeamPro
     queryKey: ['task-auto', 'teams'],
     queryFn: getTeams,
   })
-
-  useEffect(() => {
-    if (!isAdminOrManager && userId && teams) {
-      const myTeam =
-        teams.find(t => t.leader_id === userId) ||
-        teams.find(t => t.members?.some(m => m.user_id === userId))
-      if (myTeam) setSelectedTeamId(myTeam.id)
-    }
-  }, [isAdminOrManager, userId, teams])
 
   const selectedTeam = teams?.find(t => t.id === selectedTeamId)
   const isLeaderOfSelected = selectedTeam?.leader_id === userId

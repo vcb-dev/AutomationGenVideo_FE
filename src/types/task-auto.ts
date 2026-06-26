@@ -35,6 +35,7 @@ export interface Team {
   id: string
   name: string
   leader_id: string | null
+  brand_type: BrandType
   is_active: boolean
   created_at: string
   updated_at: string
