@@ -139,46 +139,59 @@ export function SubmitModal({ task, isResubmit = false, onClose, onSuccess }: Pr
       onClose={onClose}
       title={isResubmit ? 'Nộp lại task' : 'Nộp task'}
       subtitle={`Task: ${task.content?.title || task.id}`}
-      size="sm"
+      size="md"
       footer={
-        <>
-          <button onClick={onClose}
-            className="bg-gray-100 hover:bg-gray-200 text-slate-700 rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors">
-            Huỷ
-          </button>
-          <button
-            onClick={() => submitMut.mutate()}
-            disabled={!canSubmit}
-            className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-xl px-5 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors"
-          >
-            {submitMut.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-            {submitMut.isPending ? 'Đang nộp...' : isResubmit ? 'Nộp lại' : 'Nộp task'}
-          </button>
-        </>
+        <div className="flex items-center justify-between w-full">
+          <p className="text-xs text-slate-400 hidden sm:block">
+            {uploadedVideo ? '✓ Video đã sẵn sàng' : manualUrl ? '✓ Link đã nhập' : 'Chưa có video'}
+          </p>
+          <div className="flex gap-3 ml-auto">
+            <button
+              onClick={onClose}
+              className="px-5 py-2.5 text-sm font-semibold text-slate-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all"
+            >
+              Huỷ
+            </button>
+            <button
+              onClick={() => submitMut.mutate()}
+              disabled={!canSubmit}
+              className="px-6 py-2.5 text-sm font-semibold text-white rounded-xl flex items-center gap-2 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r bg-indigo-600 hover:bg-indigo-500 hover:shadow-indigo-200 hover:shadow-md"
+            >
+              {submitMut.isPending
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> Đang nộp...</>
+                : <><Upload className="w-4 h-4" />{isResubmit ? 'Nộp lại task' : 'Nộp task'}</>
+              }
+            </button>
+          </div>
+        </div>
       }
     >
-      <div className="space-y-4">
+      <div className="space-y-5">
         {/* Reject reason */}
         {isResubmit && task.reject_reason && (
-          <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-            <p className="text-xs font-bold text-red-500 uppercase tracking-wide mb-1">Lý do từ chối</p>
-            <p className="text-sm text-red-700">{task.reject_reason}</p>
+          <div className="bg-red-50 border border-red-200 rounded-2xl px-4 py-3.5">
+            <p className="text-xs font-bold text-red-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
+              Lý do từ chối
+            </p>
+            <p className="text-sm text-red-700 leading-relaxed">{task.reject_reason}</p>
           </div>
         )}
 
-        {/* Info: video upload thẳng lên Drive */}
-        <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5 flex gap-2 items-start">
-          <span className="text-blue-500 mt-0.5 text-sm">ℹ</span>
-          <p className="text-xs text-blue-700 leading-relaxed">
-            Video sẽ được <strong>upload lên Google Drive ngay khi nộp</strong>. Nếu task bị từ chối, video sẽ bị xóa khỏi Drive và bạn cần upload lại khi nộp lại.
+        {/* Info banner */}
+        <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-50/60 border border-blue-100 rounded-2xl px-4 py-3.5 flex gap-3 items-start">
+          <p className="text-xs text-blue-700 leading-relaxed pt-0.5">
+            Video sẽ được <strong className="font-semibold text-blue-800">upload lên Google Drive ngay khi nộp</strong>.
+            Nếu task bị từ chối, video sẽ bị xóa khỏi Drive và bạn cần upload lại khi nộp lại.
           </p>
         </div>
 
         {/* Video upload area */}
         <div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
-            Video kết quả
-          </p>
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-px h-3.5 bg-indigo-400 rounded-full" />
+            <p className="text-xs font-bold text-slate-600 uppercase tracking-widest">Video kết quả</p>
+          </div>
 
           <input ref={fileInputRef} type="file" accept="video/*" hidden onChange={handleFileChange} />
 
@@ -186,88 +199,98 @@ export function SubmitModal({ task, isResubmit = false, onClose, onSuccess }: Pr
           {!file && !uploading && !uploadedVideo && (
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="w-full flex flex-col items-center justify-center gap-3 py-8 border-2 border-dashed border-gray-200 rounded-xl hover:border-indigo-400 hover:bg-indigo-50/40 transition-colors group"
+              className="w-full group relative overflow-hidden flex flex-col items-center justify-center gap-4 py-10 border-2 border-dashed border-gray-200 rounded-2xl hover:border-indigo-400 transition-all duration-300"
             >
-              <div className="w-12 h-12 rounded-2xl bg-gray-100 group-hover:bg-indigo-100 flex items-center justify-center transition-colors">
-                <Upload className="w-6 h-6 text-slate-400 group-hover:text-indigo-500 transition-colors" />
+              <div className="absolute inset-0 bg-gradient-to-br from-indigo-50/0 to-violet-50/0 group-hover:from-indigo-50/80 group-hover:to-violet-50/50 transition-all duration-300" />
+              <div className="relative w-14 h-14 rounded-2xl bg-gray-100 group-hover:bg-white group-hover:shadow-lg group-hover:shadow-indigo-100 flex items-center justify-center transition-all duration-300">
+                <Upload className="w-6 h-6 text-slate-400 group-hover:text-indigo-500 transition-colors duration-300" />
               </div>
-              <div className="text-center">
-                <p className="text-sm font-semibold text-slate-700">Chọn video từ máy</p>
-                <p className="text-xs text-slate-400 mt-0.5">MP4 • Tối đa 2GB</p>
+              <div className="relative text-center space-y-1">
+                <p className="text-sm font-semibold text-slate-700 group-hover:text-indigo-700 transition-colors">
+                  Nhấn để chọn video
+                </p>
+                <p className="text-xs text-slate-400">MP4 &bull; Tối đa 2GB</p>
               </div>
             </button>
           )}
 
           {/* Uploading */}
           {uploading && file && (
-            <div className="border border-gray-200 rounded-xl px-4 py-4 space-y-3">
+            <div className="border border-indigo-100 bg-gradient-to-br from-indigo-50/50 to-violet-50/30 rounded-2xl px-5 py-5 space-y-4">
               <div className="flex items-center gap-3">
-                <Film className="w-5 h-5 text-indigo-500 shrink-0" />
-                <span className="text-sm text-slate-700 font-medium truncate flex-1">{file.name}</span>
-                <Loader2 className="w-4 h-4 text-indigo-500 animate-spin shrink-0" />
+                <div className="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
+                  <Film className="w-4 h-4 text-indigo-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-700 truncate">{file.name}</p>
+                  <p className="text-xs text-indigo-500 font-medium mt-0.5">Đang tải lên...</p>
+                </div>
+                <Loader2 className="w-5 h-5 text-indigo-500 animate-spin shrink-0" />
               </div>
-              <div className="space-y-1">
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div className="space-y-2">
+                <div className="h-2 bg-indigo-100 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-indigo-500 rounded-full transition-all duration-300"
+                    className="h-full bg-gradient-to-r from-indigo-500 to-violet-500 rounded-full transition-all duration-300"
                     style={{ width: `${uploadPct}%` }}
                   />
                 </div>
-                <p className="text-xs text-slate-400 text-right">
-                  {uploadPct < 100 ? `Đang tải lên... ${uploadPct}%` : 'Đang hoàn tất...'}
-                </p>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-slate-400">
+                    {uploadPct < 100 ? 'Đang upload...' : 'Đang hoàn tất...'}
+                  </p>
+                  <p className="text-xs font-bold text-indigo-600">{uploadPct}%</p>
+                </div>
               </div>
             </div>
           )}
 
           {/* Done */}
           {uploadedVideo && !uploading && (
-            <div className="border border-emerald-200 bg-emerald-50 rounded-xl px-4 py-3 space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span className="text-sm font-semibold text-emerald-700 truncate">
-                    {uploadedVideo.originalname}
-                  </span>
+            <div className="border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50/50 rounded-2xl px-5 py-4">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-700 truncate">{uploadedVideo.originalname}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-xs text-slate-400">{(uploadedVideo.size / 1024 / 1024).toFixed(1)} MB</span>
+                    <span className="w-1 h-1 rounded-full bg-slate-300" />
+                    <span className="text-xs font-semibold text-emerald-600">Đã lên Google Drive</span>
+                  </div>
                 </div>
                 <button
                   onClick={handleRemoveVideo}
-                  className="p-1 rounded-lg hover:bg-emerald-100 text-emerald-500 hover:text-emerald-700 transition-colors shrink-0"
+                  className="w-8 h-8 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-500 flex items-center justify-center transition-all shrink-0"
                   title="Xoá và chọn lại"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
-              <p className="text-xs text-slate-400">
-                {(uploadedVideo.size / 1024 / 1024).toFixed(1)} MB
-                {' · '}
-                <span className="text-emerald-600 font-medium">Đã lên Google Drive</span>
-              </p>
             </div>
           )}
         </div>
 
         {/* Manual URL fallback */}
-        <div>
+        <div className="border border-dashed border-gray-200 rounded-2xl overflow-hidden">
           <button
             onClick={() => setShowManual(v => !v)}
-            className={cn(
-              'flex items-center gap-1.5 text-xs font-semibold transition-colors',
-              showManual ? 'text-slate-600' : 'text-slate-400 hover:text-slate-600',
-            )}
+            className="w-full flex items-center gap-2.5 px-4 py-3 text-xs font-semibold text-slate-500 hover:text-slate-700 hover:bg-gray-50/80 transition-all"
           >
             <Link className="w-3.5 h-3.5" />
-            Nhập link thủ công
-            <ChevronDown className={cn('w-3 h-3 transition-transform', showManual && 'rotate-180')} />
+            <span>Nhập link thủ công thay thế</span>
+            <ChevronDown className={cn('w-3.5 h-3.5 ml-auto transition-transform duration-200', showManual && 'rotate-180')} />
           </button>
           {showManual && (
-            <div className="mt-2">
-              <DarkInput
-                type="url"
-                placeholder="https://..."
-                value={manualUrl}
-                onChange={e => { setManualUrl(e.target.value); setUploadedVideo(null) }}
-              />
+            <div className="px-4 pb-4 pt-0 border-t border-dashed border-gray-200 bg-gray-50/50">
+              <div className="pt-3">
+                <DarkInput
+                  type="url"
+                  placeholder="https://drive.google.com/..."
+                  value={manualUrl}
+                  onChange={e => { setManualUrl(e.target.value); setUploadedVideo(null) }}
+                />
+              </div>
             </div>
           )}
         </div>

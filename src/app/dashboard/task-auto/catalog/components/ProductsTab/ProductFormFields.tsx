@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react'
 import toast from 'react-hot-toast'
 import { Plus, Loader2, Upload, X, Link as LinkIcon, Trash2 } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, driveImageUrl } from '@/lib/utils'
 import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { MARKETS, SourceDraft } from './product-utils'
 import { uploadProductImage } from '@/lib/api/task-auto'
@@ -308,7 +308,7 @@ export function MultiImagePicker({ values, onChange }: { values: string[]; onCha
         <div className="flex flex-wrap gap-3">
           {values.map((url, i) => (
             <div key={i} className="relative w-28 h-28 rounded-xl overflow-hidden border border-gray-200 group shrink-0 shadow-sm">
-              <img src={url} alt={`Ảnh ${i + 1}`} className="w-full h-full object-cover" />
+              <img src={driveImageUrl(url) ?? url} alt={`Ảnh ${i + 1}`} className="w-full h-full object-cover" />
               <button
                 type="button"
                 onClick={() => remove(i)}

@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {
   Plus, Edit2, Trash2, Loader2, Radio, Search, Download,
-  ExternalLink, ChevronLeft, ChevronRight, SendHorizontal,
+  ExternalLink, ChevronLeft, ChevronRight, SendHorizontal, Check, X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
@@ -13,11 +13,14 @@ import { DarkInput, CustomSelect, ProductSearchSelect } from '@/components/task-
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
 import {
-  getSources, createSource, updateSource, deleteSource,
-  getProducts, pushSourceToTeam, getTeams,
+  getSources,
+  getEditorSources, createEditorSource, updateEditorSource, deleteEditorSource, pushEditorSourceToTeam,
+  getEditorProducts,
+  getProducts, getTeams, getTeamSources,
 } from '@/lib/api/task-auto'
-import { Source, SOURCE_TYPE_LABELS, SourceType } from '@/types/task-auto'
+import { Source, TeamSource, SOURCE_TYPE_LABELS, SourceType } from '@/types/task-auto'
 import { SOURCE_TYPE_COLORS } from '../../catalog/components/ProductsTab/product-utils'
+import { SourceViewModal } from '@/components/task-auto/SourceViewModal'
 
 const SOURCE_TYPES = Object.keys(SOURCE_TYPE_LABELS) as SourceType[]
 
@@ -40,7 +43,7 @@ function PushModal({ source, userId, onClose }: { source: Source; userId: string
   const { data: teams } = useQuery({ queryKey: ['task-auto', 'teams'], queryFn: getTeams })
   const myTeam = teams?.find(t => t.leader_id === userId || t.members?.some(m => m.user_id === userId))
   const push = useMutation({
-    mutationFn: () => pushSourceToTeam(source.id, myTeam!.id),
+    mutationFn: () => pushEditorSourceToTeam(userId, source.id, myTeam!.id),
     onSuccess: () => {
       toast.success('Đã đẩy sang kho team')
       qc.invalidateQueries({ queryKey: ['task-auto', 'my-sources'] })
@@ -84,7 +87,7 @@ function PushModal({ source, userId, onClose }: { source: Source; userId: string
 
 function ImportModal({
   userId,
-  brandType,
+  brandType: initialBrandType,
   onImported,
   onClose,
 }: {
@@ -95,135 +98,206 @@ function ImportModal({
 }) {
   const [search, setSearch] = useState('')
   const [scope, setScope] = useState<'global' | 'team'>('global')
+  const [brandType, setBrandType] = useState(initialBrandType)
   const [typeFilter, setTypeFilter] = useState<SourceType | ''>('')
-  const [page, setPage] = useState(1)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const qc = useQueryClient()
+
   const { data: teams } = useQuery({ queryKey: ['task-auto', 'teams'], queryFn: getTeams })
   const myTeam = teams?.find(t => t.leader_id === userId || t.members?.some(m => m.user_id === userId))
-  const { data: mySources } = useQuery({
+
+  const { data: mySources, isLoading: loadingMySources } = useQuery({
     queryKey: ['task-auto', 'my-sources-links', userId],
-    queryFn: () => getSources({ user_id: userId, owner: 'editor', limit: 500 }),
+    queryFn: () => getEditorSources(userId, { limit: 500 }),
   })
   const myLinkSet = new Set(mySources?.data?.map(s => s.link?.trim().toLowerCase()).filter(Boolean) ?? [])
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'import-sources', scope, myTeam?.id, brandType, typeFilter, search, page],
+  const { data: globalData, isLoading: loadingGlobal } = useQuery({
+    queryKey: ['task-auto', 'import-sources-global', brandType, typeFilter, search],
     queryFn: () => getSources({
       brand_type: brandType,
-      owner: scope === 'global' ? 'global' : 'team',
-      team_id: scope === 'team' ? (myTeam?.id || undefined) : undefined,
       type: typeFilter || undefined,
       search: search || undefined,
-      page, limit: 10,
+      limit: 50,
     }),
-    enabled: scope === 'global' || !!myTeam,
+    enabled: scope === 'global',
   })
 
-  const copyMut = useMutation({
-    mutationFn: (s: Source) => createSource({
+  const { data: teamData, isLoading: loadingTeam } = useQuery({
+    queryKey: ['task-auto', 'import-sources-team', myTeam?.id, brandType, typeFilter, search],
+    queryFn: () => getTeamSources(myTeam!.id, {
       brand_type: brandType,
-      type: s.type,
-      name: s.name,
-      link: s.link,
-      code: s.code ?? undefined,
-      product_id: s.product_id ?? undefined,
-      user_id: userId,
-      is_active: true,
-    } as any),
+      type: typeFilter || undefined,
+      search: search || undefined,
+    }),
+    enabled: scope === 'team' && !!myTeam,
+  })
+
+  const isLoading = scope === 'global' ? loadingGlobal : loadingTeam
+
+  const rawList: (Source | TeamSource)[] = scope === 'global'
+    ? (globalData?.data ?? [])
+    : (teamData ?? [])
+
+  const available = rawList.filter(
+    s => !myLinkSet.has(s.link?.trim().toLowerCase() ?? '')
+  )
+
+  const toggleId = (id: string) =>
+    setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  const toggleAll = () =>
+    setSelectedIds(selectedIds.size === available.length ? new Set() : new Set(available.map(s => s.id)))
+  const allSelected = available.length > 0 && selectedIds.size === available.length
+
+  const copyMut = useMutation({
+    mutationFn: async () => {
+      const selected = available.filter(s => selectedIds.has(s.id))
+      const results = await Promise.allSettled(
+        selected.map(s => createEditorSource(userId, {
+          source_source_id: s.id,
+          brand_type: brandType,
+          type: s.type,
+          name: s.name,
+          link: s.link,
+          code: s.code ?? undefined,
+          product_id: s.product_id ?? undefined,
+          is_active: true,
+        } as any))
+      )
+      const failed = results.filter(r => r.status === 'rejected').length
+      if (failed > 0) throw new Error(`${failed} source thêm thất bại`)
+    },
     onSuccess: () => {
-      toast.success('Đã thêm vào kho cá nhân')
+      toast.success(`Đã thêm ${selectedIds.size} source vào kho cá nhân`)
       qc.invalidateQueries({ queryKey: ['task-auto', 'my-sources'] })
+      qc.invalidateQueries({ queryKey: ['task-auto', 'my-sources-links'] })
       onImported()
     },
-    onError: () => toast.error('Không thể thêm source'),
+    onError: (e: any) => toast.error(e?.message || 'Không thể thêm source'),
   })
 
   return (
-    <DarkModal open onClose={onClose} title="Lấy từ kho danh mục" size="lg"
-      subtitle="Chọn source để sao chép vào kho cá nhân"
-      footer={<button onClick={onClose} className="bg-gray-100 hover:bg-gray-200 text-slate-800 rounded-xl px-5 py-2.5 text-sm font-semibold">Đóng</button>}
+    <DarkModal
+      open
+      onClose={onClose}
+      title="Lấy từ kho danh mục"
+      subtitle="Chọn nhiều source để thêm vào kho cá nhân"
+      size="lg"
+      footer={
+        <>
+          <button onClick={onClose} className="bg-gray-100 hover:bg-gray-200 text-slate-800 rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors">Hủy</button>
+          <button
+            onClick={() => copyMut.mutate()}
+            disabled={copyMut.isPending || selectedIds.size === 0}
+            className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-5 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors disabled:opacity-60"
+          >
+            {copyMut.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : selectedIds.size > 0 ? <Check className="w-3.5 h-3.5" /> : null}
+            {selectedIds.size > 0 ? `Thêm ${selectedIds.size} source` : 'Thêm vào kho'}
+          </button>
+        </>
+      }
     >
-      <div className="space-y-4">
-        <div className="flex gap-2">
-          {(['global', 'team'] as const).map(s => (
-            <button key={s} onClick={() => { setScope(s); setPage(1) }}
-              className={cn('px-4 py-2 rounded-xl text-sm font-semibold transition-colors',
-                scope === s ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-slate-600 hover:bg-gray-200')}>
-              {s === 'global' ? 'Kho chung' : 'Kho team'}
-            </button>
-          ))}
-        </div>
-        {scope === 'team' && (
-          myTeam ? (
-            <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-xl text-sm text-indigo-700">
-              <span className="font-semibold">{myTeam.name}</span>
-              <span className="text-indigo-400 text-xs">— kho team của bạn</span>
-            </div>
-          ) : (
-            <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
-              Bạn chưa thuộc team nào
-            </div>
-          )
-        )}
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-            <input value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}
-              placeholder="Tìm tên, code source..."
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+      <div className="space-y-3">
+        {/* Scope + brand switcher */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex gap-1.5">
+            {(['global', 'team'] as const).map(s => (
+              <button key={s} onClick={() => { setScope(s); setSelectedIds(new Set()) }}
+                className={cn('px-4 py-1.5 rounded-xl text-sm font-semibold transition-colors',
+                  scope === s ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-slate-600 hover:bg-gray-200')}>
+                {s === 'global' ? 'Kho chung' : 'Kho team'}
+              </button>
+            ))}
           </div>
-          <CustomSelect value={typeFilter} onChange={v => { setTypeFilter(v as SourceType | ''); setPage(1) }}
-            options={[{ value: '', label: 'Tất cả loại' }, ...SOURCE_TYPES.map(t => ({ value: t, label: SOURCE_TYPE_LABELS[t] }))]}
-            className="min-w-[160px]" />
+          <div className="flex gap-1.5">
+            {(['DO_DA', 'TRANG_SUC'] as const).map(b => (
+              <button key={b} onClick={() => { setBrandType(b); setSelectedIds(new Set()) }}
+                className={cn('px-3 py-1.5 rounded-full text-xs font-semibold border transition-all',
+                  brandType === b ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-slate-500 hover:border-slate-400')}>
+                {b === 'DO_DA' ? 'Đồ da' : 'Trang sức'}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="space-y-2 min-h-[200px]">
-          {isLoading && (
-            <div className="flex items-center justify-center py-12 text-slate-400 text-sm">
-              <Loader2 className="w-5 h-5 animate-spin mr-2" /> Đang tải...
-            </div>
+
+        {scope === 'team' && (myTeam ? (
+          <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-xl text-sm text-indigo-700">
+            <span className="font-semibold">{myTeam.name}</span>
+            <span className="text-indigo-400 text-xs">— kho team của bạn</span>
+          </div>
+        ) : (
+          <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
+            Bạn chưa thuộc team nào
+          </div>
+        ))}
+
+        {/* Search + type filter + select all */}
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              autoFocus
+              value={search}
+              onChange={e => { setSearch(e.target.value); setSelectedIds(new Set()) }}
+              placeholder="Tìm tên, code source..."
+              className="w-full pl-9 pr-9 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          <CustomSelect
+            value={typeFilter}
+            onChange={v => { setTypeFilter(v as SourceType | ''); setSelectedIds(new Set()) }}
+            options={[{ value: '', label: 'Tất cả loại' }, ...SOURCE_TYPES.map(t => ({ value: t, label: SOURCE_TYPE_LABELS[t] }))]}
+            className="min-w-[150px]"
+          />
+          {available.length > 0 && (
+            <button onClick={toggleAll} className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors whitespace-nowrap">
+              {allSelected ? 'Bỏ chọn' : `Chọn tất cả (${available.length})`}
+            </button>
           )}
-          {!isLoading && !data?.data?.length && (
-            <p className="text-center py-12 text-slate-400 text-sm">Không tìm thấy source</p>
+        </div>
+
+        {/* List */}
+        <div className="max-h-72 overflow-y-auto space-y-1">
+          {(isLoading || loadingMySources) && <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 text-indigo-500 animate-spin" /></div>}
+          {!isLoading && !loadingMySources && available.length === 0 && (
+            <p className="text-center text-slate-400 text-sm py-10 italic">
+              {search ? 'Không tìm thấy source phù hợp' : 'Tất cả source đã có trong kho cá nhân'}
+            </p>
           )}
-          {data?.data.map(s => {
-            const alreadyOwned = !!s.link && myLinkSet.has(s.link.trim().toLowerCase())
+          {!isLoading && !loadingMySources && available.map(s => {
+            const selected = selectedIds.has(s.id)
             return (
-            <div key={s.id} className={cn('flex items-center gap-3 p-3 rounded-xl border transition-colors',
-              alreadyOwned ? 'border-gray-100 bg-gray-50' : 'border-gray-100 hover:border-indigo-200 hover:bg-indigo-50/30')}>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-800 truncate">{s.name}</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold', SOURCE_TYPE_COLORS[s.type])}>
-                    {SOURCE_TYPE_LABELS[s.type]}
-                  </span>
-                  {s.code && <span className="font-mono text-xs text-slate-400">{s.code}</span>}
-                  {s.product?.name && <span className="text-xs text-slate-400 truncate">· {s.product.name}</span>}
+              <button
+                key={s.id}
+                onClick={() => toggleId(s.id)}
+                className={cn(
+                  'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors text-left',
+                  selected ? 'bg-indigo-50 border border-indigo-300' : 'hover:bg-gray-50 border border-transparent'
+                )}
+              >
+                <div className={cn('w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors',
+                  selected ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white')}>
+                  {selected && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
                 </div>
-              </div>
-              {alreadyOwned ? (
-                <span className="shrink-0 px-3 py-1.5 bg-gray-100 text-gray-400 text-xs font-semibold rounded-lg">Đã có</span>
-              ) : (
-                <button
-                  disabled={copyMut.isPending}
-                  onClick={() => copyMut.mutate(s)}
-                  className="shrink-0 px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
-                >
-                  {copyMut.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Thêm vào kho'}
-                </button>
-              )}
-            </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-800 truncate">{s.name}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold', SOURCE_TYPE_COLORS[s.type])}>
+                      {SOURCE_TYPE_LABELS[s.type]}
+                    </span>
+                    {s.code && <span className="font-mono text-xs text-slate-400">{s.code}</span>}
+                    {(s.editor_product?.name ?? s.product?.name) && <span className="text-xs text-slate-400 truncate">· {s.editor_product?.name ?? s.product?.name}</span>}
+                  </div>
+                </div>
+              </button>
             )
           })}
         </div>
-        {data && data.totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 pt-2">
-            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
-              className="p-1.5 rounded-lg hover:bg-gray-100 text-slate-500 disabled:opacity-30"><ChevronLeft className="w-4 h-4" /></button>
-            <span className="text-sm text-slate-500">Trang {page} / {data.totalPages}</span>
-            <button onClick={() => setPage(p => Math.min(data.totalPages, p + 1))} disabled={page >= data.totalPages}
-              className="p-1.5 rounded-lg hover:bg-gray-100 text-slate-500 disabled:opacity-30"><ChevronRight className="w-4 h-4" /></button>
-          </div>
-        )}
       </div>
     </DarkModal>
   )
@@ -249,22 +323,22 @@ function SourceFormModal({
   const [brandType, setBrandType] = useState<'DO_DA' | 'TRANG_SUC'>(
     (editing?.brand_type as 'DO_DA' | 'TRANG_SUC') ?? defaultBrandType
   )
-  const [form, setForm] = useState<Partial<Source>>({
+  const [form, setForm] = useState<Partial<Source> & { editor_product_id?: string }>({
     type: editing?.type ?? 'PRODUCT_STOCK',
     name: editing?.name ?? '',
     link: editing?.link ?? '',
     code: editing?.code ?? '',
-    product_id: editing?.product_id ?? '',
+    editor_product_id: editing?.editor_product_id ?? '',
     is_active: editing?.is_active ?? true,
   })
 
   const { data: productsData } = useQuery({
-    queryKey: ['task-auto', 'products-select'],
-    queryFn: () => getProducts({ limit: 200 }),
+    queryKey: ['task-auto', 'editor-products-select', userId],
+    queryFn: () => getEditorProducts(userId, { limit: 200 }),
   })
 
   const createMut = useMutation({
-    mutationFn: () => createSource({ type: form.type!, name: form.name!, link: form.link!, code: form.code || null, product_id: form.product_id || null, user_id: userId, is_active: form.is_active, brand_type: brandType } as any),
+    mutationFn: () => createEditorSource(userId, { type: form.type!, name: form.name!, link: form.link!, code: form.code || null, editor_product_id: form.editor_product_id || null, is_active: form.is_active, brand_type: brandType } as any),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['task-auto', 'my-sources'] })
       toast.success('Đã thêm source')
@@ -274,7 +348,7 @@ function SourceFormModal({
   })
 
   const updateMut = useMutation({
-    mutationFn: () => updateSource(editing!.id, { name: form.name, link: form.link, code: form.code || null, product_id: form.product_id || null, is_active: form.is_active } as any),
+    mutationFn: () => updateEditorSource(userId, editing!.id, { name: form.name, link: form.link, code: form.code || null, editor_product_id: form.editor_product_id || null, is_active: form.is_active } as any),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['task-auto', 'my-sources'] })
       toast.success('Đã cập nhật source')
@@ -353,8 +427,8 @@ function SourceFormModal({
             Liên kết sản phẩm <span className="text-gray-300 font-normal normal-case tracking-normal">(tuỳ chọn)</span>
           </p>
           <ProductSearchSelect
-            value={form.product_id ?? ''}
-            onChange={v => setForm(f => ({ ...f, product_id: v }))}
+            value={form.editor_product_id ?? ''}
+            onChange={v => setForm(f => ({ ...f, editor_product_id: v }))}
             products={productsData?.data ?? []}
           />
         </div>
@@ -392,11 +466,12 @@ export function MySourcesTab({ userId, brandType }: Props) {
   const [editing, setEditing] = useState<Source | null>(null)
   const [pushItem, setPushItem] = useState<Source | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [viewSource, setViewSource] = useState<Source | null>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['task-auto', 'my-sources', userId, brandType, search, typeFilter, page],
-    queryFn: () => getSources({
-      user_id: userId, owner: 'editor', brand_type: brandType,
+    queryFn: () => getEditorSources(userId, {
+      brand_type: brandType,
       search: search || undefined,
       type: typeFilter || undefined,
       page, limit: 20,
@@ -404,7 +479,7 @@ export function MySourcesTab({ userId, brandType }: Props) {
   })
 
   const deleteMut = useMutation({
-    mutationFn: deleteSource,
+    mutationFn: (id: string) => deleteEditorSource(userId, id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['task-auto', 'my-sources'] }); toast.success('Đã xóa source'); setDeletingId(null) },
     onError: (e: any) => { toast.error(e?.response?.data?.message || 'Không thể xóa source'); setDeletingId(null) },
   })
@@ -473,7 +548,7 @@ export function MySourcesTab({ userId, brandType }: Props) {
                 <tr><td colSpan={6}><EmptyState icon={Radio} title="Chưa có source cá nhân nào" /></td></tr>
               )}
               {data?.data.map(s => (
-                <tr key={s.id} className="hover:bg-indigo-50/20 transition-colors group">
+                <tr key={s.id} onClick={() => setViewSource(s)} className="hover:bg-indigo-50/20 transition-colors group cursor-pointer">
                   <td className="px-5 py-4">
                     <a href={s.link} target="_blank" rel="noreferrer"
                       className="flex items-center gap-1.5 group/link"
@@ -495,7 +570,7 @@ export function MySourcesTab({ userId, brandType }: Props) {
                   </td>
                   <td className="px-5 py-4">
                     <span className="text-sm text-slate-600 truncate block max-w-[160px]">
-                      {s.product?.name ?? <span className="text-slate-300">—</span>}
+                      {(s.editor_product?.name ?? s.product?.name) ?? <span className="text-slate-300">—</span>}
                     </span>
                   </td>
                   <td className="px-5 py-4 whitespace-nowrap">
@@ -507,7 +582,7 @@ export function MySourcesTab({ userId, brandType }: Props) {
                       {s.is_active ? 'Hoạt động' : 'Ẩn'}
                     </span>
                   </td>
-                  <td className="px-4 py-4 text-right">
+                  <td className="px-4 py-4 text-right" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1">
                       <button
                         onClick={() => setPushItem(s)}
@@ -568,6 +643,19 @@ export function MySourcesTab({ userId, brandType }: Props) {
       )}
 
       {pushItem && <PushModal source={pushItem} userId={userId} onClose={() => setPushItem(null)} />}
+
+      {viewSource && (
+        <SourceViewModal
+          open
+          item={viewSource as any}
+          catalogType="editor"
+          canEdit
+          canDelete
+          onClose={() => setViewSource(null)}
+          onEdit={() => { openEdit(viewSource); setViewSource(null) }}
+          onDelete={() => { setDeletingId(viewSource.id); setViewSource(null) }}
+        />
+      )}
 
       <ConfirmDialog
         open={!!deletingId}

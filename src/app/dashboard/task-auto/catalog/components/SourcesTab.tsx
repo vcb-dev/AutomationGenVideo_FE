@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {
   Plus, Edit2, Trash2, ExternalLink, Loader2, Radio,
-  ChevronLeft, ChevronRight, Search, Globe, Users, User,
+  ChevronLeft, ChevronRight, Search, Globe, User,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
@@ -13,10 +13,11 @@ import { DarkInput, ProductSearchSelect, CustomSelect } from '@/components/task-
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import {
   getSources, createSource, updateSource, deleteSource,
-  getProducts, getTeams,
+  getProducts,
 } from '@/lib/api/task-auto'
 import { useAuthStore } from '@/store/auth-store'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
+import { SourceViewModal } from '@/components/task-auto/SourceViewModal'
 import { Source, SOURCE_TYPE_LABELS, SourceType } from '@/types/task-auto'
 
 const SOURCE_TYPE_COLORS: Record<SourceType, string> = {
@@ -30,7 +31,6 @@ const SOURCE_TYPE_COLORS: Record<SourceType, string> = {
 const OWNER_OPTIONS = [
   { value: '',       label: 'Tất cả nguồn' },
   { value: 'global', label: 'Kho chung' },
-  { value: 'team',   label: 'Của team' },
   { value: 'editor', label: 'Của editor' },
 ]
 
@@ -39,12 +39,6 @@ function OwnerBadge({ source }: { source: Source }) {
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold whitespace-nowrap">
       <User className="w-3 h-3" />
       {source.owner_user?.full_name ?? 'Editor'}
-    </span>
-  )
-  if (source.team_id) return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold whitespace-nowrap">
-      <Users className="w-3 h-3" />
-      {source.team?.name ?? 'Team'}
     </span>
   )
   return (
@@ -84,12 +78,13 @@ export function SourcesTab({ brandType }: { brandType: BrandType }) {
   const [ownerFilter, setOwnerFilter] = useState<string>('')
   const [activeFilter, setActiveFilter] = useState<'all' | 'true' | 'false'>('all')
   const [page, setPage] = useState(1)
-  const [modal, setModal]       = useState<null | 'create' | 'edit'>(null)
+  const [modal, setModal]         = useState<null | 'create' | 'edit'>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [editing, setEditing]   = useState<Source | null>(null)
+  const [editing, setEditing]     = useState<Source | null>(null)
+  const [viewingSource, setViewingSource] = useState<Source | null>(null)
   const [form, setForm] = useState<Partial<Source>>({
     type: 'PRODUCT_STOCK', name: '', link: '', code: '',
-    product_id: '', team_id: null, user_id: null, is_active: true,
+    product_id: '', user_id: null, is_active: true,
   })
 
   const { data, isLoading } = useQuery({
@@ -110,13 +105,6 @@ export function SourcesTab({ brandType }: { brandType: BrandType }) {
     queryFn: () => getProducts({ limit: 200 }),
     enabled: modal !== null,
   })
-
-  const { data: teamsData } = useQuery({
-    queryKey: ['task-auto', 'teams'],
-    queryFn: getTeams,
-    enabled: modal !== null && isAdminOrManager,
-  })
-  const teams = teamsData ?? []
 
   const createMut = useMutation({
     mutationFn: createSource,
@@ -150,7 +138,7 @@ export function SourcesTab({ brandType }: { brandType: BrandType }) {
   })
 
   const openCreate = () => {
-    setForm({ type: 'PRODUCT_STOCK', name: '', link: '', code: '', product_id: '', team_id: null, user_id: null, is_active: true })
+    setForm({ type: 'PRODUCT_STOCK', name: '', link: '', code: '', product_id: '', user_id: null, is_active: true })
     setEditing(null)
     setModal('create')
   }
@@ -163,8 +151,6 @@ export function SourcesTab({ brandType }: { brandType: BrandType }) {
       link:       form.link,
       code:       form.code || null,
       product_id: form.product_id || null,
-      team_id:    form.team_id   || null,
-      user_id:    form.user_id   || null,
       is_active:  form.is_active,
     }
     if (modal === 'create') createMut.mutate({ type: form.type!, brand_type: brandType, ...body })
@@ -251,7 +237,7 @@ export function SourcesTab({ brandType }: { brandType: BrandType }) {
                 <tr><td colSpan={8}><EmptyState icon={Radio} title="Không có Source nào" /></td></tr>
               )}
               {data?.data.map(s => (
-                <tr key={s.id} className="hover:bg-indigo-50/20 transition-colors group">
+                <tr key={s.id} onClick={() => setViewingSource(s)} className="hover:bg-indigo-50/20 transition-colors group cursor-pointer">
                   <td className="px-5 py-4">
                     <p className="text-base font-semibold text-slate-800 truncate max-w-[240px]" title={s.name}>{s.name}</p>
                   </td>
@@ -290,17 +276,19 @@ export function SourcesTab({ brandType }: { brandType: BrandType }) {
                       {s.is_active ? 'Hoạt động' : 'Ẩn'}
                     </span>
                   </td>
-                  <td className="px-4 py-4 text-right">
+                  <td className="px-4 py-4 text-right" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => openEdit(s)}
-                        className="p-2 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors" title="Chỉnh sửa">
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      {canDelete && (
-                        <button onClick={() => setDeletingId(s.id)}
-                          className="p-2 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors" title="Xóa">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                      {isAdminOrManager && (
+                        <>
+                          <button onClick={() => openEdit(s)}
+                            className="p-2 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors" title="Chỉnh sửa">
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => setDeletingId(s.id)}
+                            className="p-2 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors" title="Xóa">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
                       )}
                     </div>
                   </td>
@@ -342,6 +330,19 @@ export function SourcesTab({ brandType }: { brandType: BrandType }) {
         )}
       </div>
 
+      {viewingSource && (
+        <SourceViewModal
+          open
+          item={viewingSource}
+          catalogType={viewingSource.user_id ? 'editor' : 'global'}
+          canEdit={isAdminOrManager}
+          canDelete={canDelete}
+          onClose={() => setViewingSource(null)}
+          onEdit={() => { setViewingSource(null); openEdit(viewingSource) }}
+          onDelete={() => { setViewingSource(null); setDeletingId(viewingSource.id) }}
+        />
+      )}
+
       <ConfirmDialog
         open={!!deletingId}
         title="Xóa source"
@@ -381,12 +382,21 @@ export function SourcesTab({ brandType }: { brandType: BrandType }) {
               Phân loại
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <CustomSelect
-                label="Loại Source *"
-                value={form.type ?? 'PRODUCT_STOCK'}
-                onChange={v => setForm(f => ({ ...f, type: v as SourceType }))}
-                options={(Object.keys(SOURCE_TYPE_LABELS) as SourceType[]).map(k => ({ value: k, label: SOURCE_TYPE_LABELS[k] }))}
-              />
+              {modal === 'create' ? (
+                <CustomSelect
+                  label="Loại Source *"
+                  value={form.type ?? 'PRODUCT_STOCK'}
+                  onChange={v => setForm(f => ({ ...f, type: v as SourceType }))}
+                  options={(Object.keys(SOURCE_TYPE_LABELS) as SourceType[]).map(k => ({ value: k, label: SOURCE_TYPE_LABELS[k] }))}
+                />
+              ) : (
+                <div>
+                  <p className="text-sm font-semibold text-slate-600 mb-1.5">Loại Source</p>
+                  <span className={cn('inline-flex items-center px-3 py-2 rounded-xl text-sm font-bold', SOURCE_TYPE_COLORS[form.type ?? 'PRODUCT_STOCK'])}>
+                    {SOURCE_TYPE_LABELS[form.type ?? 'PRODUCT_STOCK']}
+                  </span>
+                </div>
+              )}
               <DarkInput
                 label="Mã code"
                 placeholder="VD: SRC001 (tuỳ chọn)"
@@ -422,36 +432,6 @@ export function SourcesTab({ brandType }: { brandType: BrandType }) {
               clearLabel="-- Không liên kết --"
             />
           </div>
-
-          {/* Chủ sở hữu — chỉ ADMIN/MANAGER */}
-          {isAdminOrManager && (
-            <div className="space-y-4">
-              <p className="text-sm font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
-                Kho chứa
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <CustomSelect
-                  label="Thuộc team"
-                  value={form.team_id ?? ''}
-                  onChange={v => setForm(f => ({ ...f, team_id: v || null, user_id: null }))}
-                  options={[
-                    { value: '', label: '— Kho chung —' },
-                    ...teams.map(t => ({ value: t.id, label: t.name })),
-                  ]}
-                />
-              </div>
-              {form.team_id && (
-                <p className="text-xs text-slate-500 bg-blue-50 border border-blue-100 rounded-lg px-4 py-2.5">
-                  Source này sẽ thuộc <strong>kho riêng của team</strong>. Auto-assign sẽ ưu tiên source này cho editor trong team.
-                </p>
-              )}
-              {!form.team_id && (
-                <p className="text-xs text-slate-500 bg-gray-50 border border-gray-100 rounded-lg px-4 py-2.5">
-                  Source này thuộc <strong>kho chung</strong> — tất cả team đều có thể dùng.
-                </p>
-              )}
-            </div>
-          )}
 
           {/* Trạng thái */}
           <div className="space-y-3">

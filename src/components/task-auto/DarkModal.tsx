@@ -2,6 +2,7 @@
 
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useScrollLock } from '@/hooks/useScrollLock'
 
 interface Props {
   open: boolean
@@ -21,8 +22,8 @@ const SIZE = {
   '2xl': 'max-w-5xl',
 }
 
-export function DarkModal({ open, onClose, title, subtitle, children, size = 'md', footer }: Props) {
-  if (!open) return null
+function DarkModalInner({ open, onClose, title, subtitle, children, size = 'md', footer }: Props) {
+  useScrollLock()
   return (
     <div className="fixed inset-0 z-[1003] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
@@ -59,4 +60,9 @@ export function DarkModal({ open, onClose, title, subtitle, children, size = 'md
       </div>
     </div>
   )
+}
+
+export function DarkModal(props: Props) {
+  if (!props.open) return null
+  return <DarkModalInner {...props} />
 }

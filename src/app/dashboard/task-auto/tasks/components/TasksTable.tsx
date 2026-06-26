@@ -20,12 +20,32 @@ interface Props {
   onPageChange: (page: number) => void
 }
 
+// Lấy tiêu đề content theo thứ tự ưu tiên: personal → team → global
+function resolveContentTitle(task: Task): string | null {
+  return (
+    task.editor_content?.title ??
+    task.team_content?.title ??
+    task.content?.title ??
+    null
+  )
+}
+
+// Lấy tên sản phẩm theo thứ tự ưu tiên: personal → team → global
+function resolveProductName(task: Task): string | null {
+  return (
+    task.editor_product?.name ??
+    task.team_product?.name ??
+    task.product?.name ??
+    null
+  )
+}
+
 function SkeletonRows() {
   return (
     <>
       {Array.from({ length: 5 }).map((_, i) => (
         <tr key={i} className="border-b border-gray-100">
-          {Array.from({ length: 8 }).map((_, j) => (
+          {Array.from({ length: 9 }).map((_, j) => (
             <td key={j} className="px-5 py-4">
               <div className="h-5 bg-gray-100 rounded animate-pulse" style={{ width: j === 1 ? '80%' : j === 0 ? '36px' : j >= 6 ? '24px' : '60%' }} />
             </td>
@@ -58,7 +78,6 @@ export function TasksTable({
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  // Unique assignees for dropdown filter
   const assigneeCountMap = new Map<string, { id: string; name: string; count: number }>()
   for (const t of tasks) {
     if (t.assignee_id && t.assignee) {
@@ -104,7 +123,6 @@ export function TasksTable({
                         transition={{ duration: 0.12 }}
                         className="absolute top-full left-0 mt-2 w-56 bg-white border border-slate-200 rounded-2xl shadow-xl shadow-slate-200/60 z-30 overflow-hidden py-1.5"
                       >
-                        {/* Tất cả */}
                         <button
                           onClick={() => { setAssigneeFilter(''); setShowAssigneeDrop(false) }}
                           className={cn(
@@ -156,7 +174,7 @@ export function TasksTable({
               <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Trạng thái</th>
               <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Deadline</th>
               <th className="text-center px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-32">Loại</th>
-              <th className="w-16" />
+              <th className="w-10" />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -164,76 +182,75 @@ export function TasksTable({
               <SkeletonRows />
             ) : filteredTasks.length === 0 ? (
               <tr>
-                <td colSpan={8}>
+                <td colSpan={9}>
                   <EmptyState title="Không có task nào" description="Thử thay đổi bộ lọc hoặc tạo task mới" />
                 </td>
               </tr>
             ) : (
-              filteredTasks.map((task, idx) => (
-                <tr
-                  key={task.id}
-                  className="text-slate-700 hover:bg-indigo-50/20 transition-colors cursor-pointer group"
-                  onClick={() => onViewTask(task.id)}
-                >
-                  <td className="px-5 py-4 text-slate-400 font-mono text-sm whitespace-nowrap">
-                    {(page - 1) * 20 + idx + 1}
-                  </td>
-                  <td className="px-5 py-4 max-w-[300px]">
-                    <p className="font-semibold text-slate-800 truncate text-base">
-                      {task.content?.title || <span className="text-slate-400 italic">Không có tiêu đề</span>}
-                    </p>
-                    {task.product?.name && (
-                      <p className="text-xs text-slate-400 mt-0.5 truncate">{task.product.name}</p>
-                    )}
-                  </td>
-                  <td className="px-5 py-4 whitespace-nowrap">
-                    {task.team ? (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-600 whitespace-nowrap">
-                        {task.team.name}
-                      </span>
-                    ) : <span className="text-slate-300 text-sm">—</span>}
-                  </td>
-                  <td className="px-5 py-4 whitespace-nowrap">
-                    {task.assignee ? (
-                      <div className="flex items-center gap-2.5">
-                        <AvatarInitials name={task.assignee.full_name} size="sm" />
-                        <span className="text-sm font-medium text-slate-700 truncate max-w-[140px]">
-                          {task.assignee.full_name}
+              filteredTasks.map((task, idx) => {
+                const contentTitle = resolveContentTitle(task)
+                const productName = resolveProductName(task)
+                return (
+                  <tr
+                    key={task.id}
+                    className="text-slate-700 hover:bg-indigo-50/60 transition-colors cursor-pointer group border-b border-gray-100 last:border-0"
+                    onClick={() => onViewTask(task.id)}
+                  >
+                    <td className="px-5 py-4 text-slate-400 font-mono text-sm whitespace-nowrap">
+                      {(page - 1) * 20 + idx + 1}
+                    </td>
+                    <td className="px-5 py-4 max-w-[300px]">
+                      <p className="font-semibold text-slate-800 truncate text-base group-hover:text-indigo-700 transition-colors">
+                        {contentTitle ?? <span className="text-slate-400 italic">Không có tiêu đề</span>}
+                      </p>
+                      {productName && (
+                        <p className="text-xs text-slate-400 mt-0.5 truncate">{productName}</p>
+                      )}
+                    </td>
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      {task.team ? (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-600 whitespace-nowrap">
+                          {task.team.name}
                         </span>
-                      </div>
-                    ) : <span className="text-slate-300 text-sm italic">Chưa giao</span>}
-                  </td>
-                  <td className="px-5 py-4 whitespace-nowrap">
-                    <TaskStatusBadge status={task.status} />
-                  </td>
-                  <td className="px-5 py-4 whitespace-nowrap">
-                    {task.deadline ? (
-                      <span className={cn(
-                        'text-sm font-medium',
-                        isOverdue(task.deadline) && !['APPROVED', 'CANCELLED'].includes(task.status)
-                          ? 'text-red-600 font-semibold' : 'text-slate-600'
-                      )}>
-                        {formatDateTime(task.deadline)}
-                      </span>
-                    ) : <span className="text-slate-300 text-sm">—</span>}
-                  </td>
-                  <td className="px-5 py-4 text-center whitespace-nowrap" onClick={e => e.stopPropagation()}>
-                    {task.is_auto && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
-                        <Zap className="w-3 h-3" /> Auto
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-4 text-right" onClick={e => e.stopPropagation()}>
-                    <button
-                      onClick={() => onViewTask(task.id)}
-                      className="p-2.5 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors opacity-0 group-hover:opacity-100"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))
+                      ) : <span className="text-slate-300 text-sm">—</span>}
+                    </td>
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      {task.assignee ? (
+                        <div className="flex items-center gap-2.5">
+                          <AvatarInitials name={task.assignee.full_name} size="sm" />
+                          <span className="text-sm font-medium text-slate-700 truncate max-w-[140px]">
+                            {task.assignee.full_name}
+                          </span>
+                        </div>
+                      ) : <span className="text-slate-300 text-sm italic">Chưa giao</span>}
+                    </td>
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      <TaskStatusBadge status={task.status} />
+                    </td>
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      {task.deadline ? (
+                        <span className={cn(
+                          'text-sm font-medium',
+                          isOverdue(task.deadline) && !['APPROVED', 'CANCELLED'].includes(task.status)
+                            ? 'text-red-600 font-semibold' : 'text-slate-600'
+                        )}>
+                          {formatDateTime(task.deadline)}
+                        </span>
+                      ) : <span className="text-slate-300 text-sm">—</span>}
+                    </td>
+                    <td className="px-5 py-4 text-center whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                      {task.is_auto && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
+                          <Zap className="w-3 h-3" /> Auto
+                        </span>
+                      )}
+                    </td>
+                    <td className="pr-4 py-4 text-right w-10">
+                      <Eye className="w-4 h-4 text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </td>
+                  </tr>
+                )
+              })
             )}
           </tbody>
         </table>

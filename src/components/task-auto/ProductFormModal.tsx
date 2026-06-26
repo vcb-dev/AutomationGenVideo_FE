@@ -3,22 +3,26 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Loader2 } from 'lucide-react'
+import { Loader2, ExternalLink } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { DarkInput, CreatableSelect, CustomSelect } from '@/components/task-auto/DarkInput'
-import { defaultSource } from '@/app/dashboard/task-auto/catalog/components/ProductsTab/product-utils'
+import { defaultSource, SOURCE_TYPE_COLORS } from '@/app/dashboard/task-auto/catalog/components/ProductsTab/product-utils'
 import type { SourceDraft } from '@/app/dashboard/task-auto/catalog/components/ProductsTab/product-utils'
 import {
   MarketPicker, PriceInput, MultiImagePicker, SourceForm,
 } from '@/app/dashboard/task-auto/catalog/components/ProductsTab/ProductFormFields'
 import {
-  createProduct, createProductLine, createMaterial, createSource,
-  getProductLines, getMaterials,
+  createProduct, updateProduct, createProductLine, createMaterial, createSource,
+  createEditorProduct, createEditorSource, getEditorSources,
+  getProductLines, getMaterials, getSources,
 } from '@/lib/api/task-auto'
 import type { Product } from '@/types/task-auto'
+import { SOURCE_TYPE_LABELS } from '@/types/task-auto'
 
 interface Props {
   open: boolean
+  editing?: Product | null
   userId?: string
   title?: string
   defaultBrandType?: 'DO_DA' | 'TRANG_SUC'
@@ -26,8 +30,9 @@ interface Props {
   onSuccess: (product: Product) => void
 }
 
-export function ProductFormModal({ open, userId, title, defaultBrandType = 'DO_DA', onClose, onSuccess }: Props) {
+export function ProductFormModal({ open, editing, userId, title, defaultBrandType = 'DO_DA', onClose, onSuccess }: Props) {
   const qc = useQueryClient()
+  const isEdit = !!editing
 
   const [brandType, setBrandType] = useState<'DO_DA' | 'TRANG_SUC'>(defaultBrandType)
   const [form, setForm] = useState<Partial<Product> & { image_urls: string[] }>({
@@ -47,20 +52,37 @@ export function ProductFormModal({ open, userId, title, defaultBrandType = 'DO_D
     queryFn: () => getMaterials(brandType),
     enabled: open,
   })
+  const { data: sourcesData } = useQuery({
+    queryKey: ['task-auto', 'sources', 'by-product', editing?.id, !!userId],
+    queryFn: () => userId
+      ? getEditorSources(userId, { editor_product_id: editing!.id, limit: 100 })
+      : getSources({ product_id: editing!.id, limit: 100 }),
+    enabled: open && !!editing?.id,
+  })
+  const existingSources = sourcesData?.data ?? []
 
   useEffect(() => {
-    if (!open) {
-      setBrandType(defaultBrandType)
-      setForm({ sku: '', name: '', image_urls: [], price: '', price_segment: '', priority_score: 0, material_id: '', product_line_id: '', is_active: true })
-      setMarkets(['VIETNAM'])
-      setSourceDraft(defaultSource)
+    if (open) {
+      if (editing) {
+        setBrandType((editing.brand_type as 'DO_DA' | 'TRANG_SUC') ?? defaultBrandType)
+        setForm({
+          ...editing,
+          image_urls: editing.image_urls ?? (editing.image_url ? [editing.image_url] : []),
+        })
+        setMarkets(editing.market ? editing.market.split(',').map(m => m.trim()) : ['VIETNAM'])
+        setSourceDraft(defaultSource)
+      } else {
+        setBrandType(defaultBrandType)
+        setForm({ sku: '', name: '', image_urls: [], price: '', price_segment: '', priority_score: 0, material_id: '', product_line_id: '', is_active: true })
+        setMarkets(['VIETNAM'])
+        setSourceDraft(defaultSource)
+      }
     }
-  }, [open, defaultBrandType])
+  }, [open, editing, defaultBrandType])
 
   const mut = useMutation({
     mutationFn: async () => {
-      const product = await createProduct({
-        sku: form.sku,
+      const basePayload = {
         name: form.name,
         brand_type: brandType,
         image_urls: form.image_urls,
@@ -71,26 +93,33 @@ export function ProductFormModal({ open, userId, title, defaultBrandType = 'DO_D
         material_id: form.material_id || null,
         product_line_id: form.product_line_id || null,
         is_active: form.is_active,
-        ...(userId ? { user_id: userId } : {}),
-      })
+      }
+      const product = isEdit
+        ? await updateProduct(editing!.id, basePayload)
+        : userId
+          ? await createEditorProduct(userId, { sku: form.sku, ...basePayload })
+          : await createProduct({ sku: form.sku, ...basePayload })
       if (sourceDraft.enabled && sourceDraft.name && sourceDraft.link) {
-        await createSource({
-          type: sourceDraft.type, name: sourceDraft.name, link: sourceDraft.link,
-          code: sourceDraft.code || undefined, product_id: product.id,
-          ...(userId ? { user_id: userId } : {}),
-          is_active: true,
-        } as any).catch(() => null)
+        const sourcePayload = userId
+          ? { type: sourceDraft.type, name: sourceDraft.name, link: sourceDraft.link, code: sourceDraft.code || undefined, editor_product_id: product.id, is_active: true }
+          : { type: sourceDraft.type, name: sourceDraft.name, link: sourceDraft.link, code: sourceDraft.code || undefined, product_id: product.id, is_active: true }
+        await (userId
+          ? createEditorSource(userId, sourcePayload as any)
+          : createSource(sourcePayload as any)
+        ).catch(() => null)
         qc.invalidateQueries({ queryKey: ['task-auto', 'sources'] })
+        qc.invalidateQueries({ queryKey: ['task-auto', 'sources', 'by-product', product.id] })
       }
       qc.invalidateQueries({ queryKey: ['task-auto', 'products'] })
+      qc.invalidateQueries({ queryKey: ['task-auto', 'product', product.id] })
       return product
     },
     onSuccess: (product: Product) => {
-      toast.success('Đã tạo sản phẩm')
+      toast.success(isEdit ? 'Đã cập nhật sản phẩm' : 'Đã tạo sản phẩm')
       onSuccess(product)
     },
     onError: (e: any) => {
-      const msg = e?.response?.data?.message || 'Không thể tạo sản phẩm'
+      const msg = e?.response?.data?.message || (isEdit ? 'Không thể cập nhật' : 'Không thể tạo sản phẩm')
       toast.error(Array.isArray(msg) ? msg.join(', ') : msg)
     },
   })
@@ -98,7 +127,7 @@ export function ProductFormModal({ open, userId, title, defaultBrandType = 'DO_D
   const handleSubmit = () => {
     if (!form.sku?.trim() || !form.name?.trim()) return toast.error('SKU và tên là bắt buộc')
     if (markets.length === 0) return toast.error('Chọn ít nhất một thị trường')
-    if (sourceDraft.enabled && (!sourceDraft.name || !sourceDraft.link)) return toast.error('Source cần có tên và link')
+    if (!isEdit && sourceDraft.enabled && (!sourceDraft.name || !sourceDraft.link)) return toast.error('Source cần có tên và link')
     mut.mutate()
   }
 
@@ -106,7 +135,7 @@ export function ProductFormModal({ open, userId, title, defaultBrandType = 'DO_D
     <DarkModal
       open={open}
       onClose={onClose}
-      title={title ?? (userId ? 'Thêm sản phẩm cá nhân' : 'Thêm sản phẩm')}
+      title={title ?? (isEdit ? 'Chỉnh sửa sản phẩm' : userId ? 'Thêm sản phẩm cá nhân' : 'Thêm sản phẩm')}
       size="xl"
       footer={
         <>
@@ -114,7 +143,7 @@ export function ProductFormModal({ open, userId, title, defaultBrandType = 'DO_D
           <button onClick={handleSubmit} disabled={mut.isPending || markets.length === 0}
             className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors disabled:opacity-60">
             {mut.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-            Thêm mới
+            {isEdit ? 'Lưu thay đổi' : 'Thêm mới'}
           </button>
         </>
       }
@@ -205,8 +234,43 @@ export function ProductFormModal({ open, userId, title, defaultBrandType = 'DO_D
 
         <div className="space-y-3">
           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
-            Source đi kèm <span className="text-gray-300 font-normal normal-case tracking-normal">(tuỳ chọn)</span>
+            Source{' '}
+            {isEdit
+              ? <span className="text-gray-300 font-normal normal-case tracking-normal">({existingSources.length} hiện có)</span>
+              : <span className="text-gray-300 font-normal normal-case tracking-normal">(tuỳ chọn)</span>
+            }
           </p>
+
+          {/* Danh sách sources hiện có khi edit */}
+          {isEdit && existingSources.length > 0 && (
+            <div className="space-y-1.5 mb-1">
+              {existingSources.map(s => (
+                <a
+                  key={s.id}
+                  href={s.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/30 transition-all group"
+                >
+                  <span className={cn(
+                    'px-2 py-0.5 rounded-full text-xs font-bold shrink-0',
+                    SOURCE_TYPE_COLORS[s.type] ?? 'bg-slate-100 text-slate-500'
+                  )}>
+                    {SOURCE_TYPE_LABELS[s.type]}
+                  </span>
+                  <span className="text-sm text-slate-700 truncate flex-1">{s.name}</span>
+                  {s.code && (
+                    <span className="font-mono text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-lg shrink-0">
+                      {s.code}
+                    </span>
+                  )}
+                  <ExternalLink className="w-3.5 h-3.5 text-slate-300 group-hover:text-indigo-500 shrink-0 transition-colors" />
+                </a>
+              ))}
+            </div>
+          )}
+
+          {/* Form thêm source mới */}
           <SourceForm value={sourceDraft} onChange={setSourceDraft} />
         </div>
       </div>

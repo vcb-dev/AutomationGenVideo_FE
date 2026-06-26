@@ -17,55 +17,54 @@ export function TaskStatsBar({ tasks }: Props) {
     approved:    tasks.filter(t => t.status === 'APPROVED').length,
   }), [tasks])
 
-  const cards = [
+  const pills = [
     {
       label: 'Đã giao',
       value: counts.assigned,
       icon: Send,
-      iconClass: 'text-blue-600',
-      iconBg: 'bg-blue-50',
-      valueClass: 'text-blue-600',
+      pill: 'bg-blue-50 border-blue-200 text-blue-700',
+      iconClass: 'text-blue-500',
+      dot: 'bg-blue-400',
     },
     {
       label: 'Đang làm',
       value: counts.in_progress,
       icon: Play,
-      iconClass: 'text-amber-600',
-      iconBg: 'bg-amber-50',
-      valueClass: 'text-amber-600',
+      pill: 'bg-amber-50 border-amber-200 text-amber-700',
+      iconClass: 'text-amber-500',
+      dot: 'bg-amber-400',
     },
     {
       label: 'Đã nộp',
       value: counts.submitted,
       icon: Upload,
-      iconClass: 'text-purple-700',
-      iconBg: 'bg-purple-50',
-      valueClass: 'text-purple-700',
+      pill: 'bg-purple-50 border-purple-200 text-purple-700',
+      iconClass: 'text-purple-500',
+      dot: 'bg-purple-400',
     },
     {
       label: 'Đã duyệt',
       value: counts.approved,
       icon: CheckCircle2,
-      iconClass: 'text-emerald-600',
-      iconBg: 'bg-emerald-50',
-      valueClass: 'text-emerald-600',
+      pill: 'bg-emerald-50 border-emerald-200 text-emerald-700',
+      iconClass: 'text-emerald-500',
+      dot: 'bg-emerald-400',
     },
   ]
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-      {cards.map(c => (
+    <div className="flex flex-wrap gap-2.5">
+      {pills.map(p => (
         <div
-          key={c.label}
-          className="bg-white border border-gray-200 rounded-2xl p-5 flex items-center gap-4 shadow-sm"
+          key={p.label}
+          className={cn(
+            'flex items-center gap-2.5 px-4 py-2 rounded-full border text-sm font-semibold',
+            p.pill,
+          )}
         >
-          <div className={cn('w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0', c.iconBg)}>
-            <c.icon className={cn('w-5 h-5', c.iconClass)} />
-          </div>
-          <div>
-            <p className={cn('text-3xl font-black leading-none mb-0.5', c.valueClass)}>{c.value}</p>
-            <p className="text-xs text-slate-500 uppercase tracking-wider">{c.label}</p>
-          </div>
+          <p.icon className={cn('w-3.5 h-3.5 shrink-0', p.iconClass)} />
+          <span className="font-black text-base leading-none">{p.value}</span>
+          <span className="font-medium opacity-80">{p.label}</span>
         </div>
       ))}
     </div>

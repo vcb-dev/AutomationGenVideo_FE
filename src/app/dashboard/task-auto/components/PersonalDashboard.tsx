@@ -111,7 +111,7 @@ function TaskRow({ task }: { task: Task }) {
         </div>
       </div>
 
-      {dl && (
+      {dl && task.status !== 'APPROVED' && (
         <span className={cn(
           'text-xs font-bold px-2.5 py-1 rounded-lg shrink-0 whitespace-nowrap',
           dl.danger ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-500',

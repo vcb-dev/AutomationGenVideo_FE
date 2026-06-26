@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { DarkInput, DarkTextarea, CustomSelect } from '@/components/task-auto/DarkInput'
 import {
-  createContent, updateContent,
+  createContent, updateContent, createEditorContent,
   getContentLines, uploadVoiceFile, uploadContentFile,
 } from '@/lib/api/task-auto'
 import type { Content } from '@/types/task-auto'
@@ -374,7 +374,14 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, br
       market: markets.join(','),
     }
     if (!isEdit) {
-      createMut.mutate({ ...sharedBody, brand_type: brandType ?? 'DO_DA', ...(userId ? { user_id: userId } : {}) } as any)
+      const body = { ...sharedBody, brand_type: brandType ?? 'DO_DA' }
+      if (userId) {
+        createEditorContent(userId, body as any)
+          .then(content => { qc.invalidateQueries({ queryKey: ['task-auto', 'contents'] }); toast.success('Đã thêm content'); onSuccess(content) })
+          .catch(() => toast.error('Không thể thêm content'))
+      } else {
+        createMut.mutate(body as any)
+      }
     } else {
       updateMut.mutate({ id: editing!.id, body: { ...sharedBody, status: form.status } })
     }

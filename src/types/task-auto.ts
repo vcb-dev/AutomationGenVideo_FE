@@ -52,40 +52,57 @@ export interface TeamMember {
   team?: Pick<Team, 'id' | 'name'>
 }
 
-// ── Team Products ───────────────────────────────
+// ── Team Products (standalone — không reference bảng products) ──────────────
 
 export interface TeamProduct {
   id: string
   team_id: string
-  product_id: string
+  // Inline product data
+  sku: string
+  name: string
+  brand_type: BrandType
+  image_url: string | null
+  image_urls: string[]
+  price: string | null
+  market: string | null
+  price_segment: string | null
+  priority_score: number
+  material_id: string | null
+  product_line_id: string | null
+  is_active: boolean
+  /** null = tạo mới từ team; có giá trị = được copy từ kho tổng */
+  source_product_id: string | null
   added_by_id: string
   added_at: string
-  product?: Pick<Product, 'id' | 'sku' | 'name' | 'image_url' | 'image_urls' | 'price' | 'market' | 'priority_score' | 'brand_type'> & {
-    product_line?: { id: string; name: string } | null
-  }
+  updated_at: string
+  // Relations
+  material?: { id: string; name: string } | null
+  product_line?: { id: string; name: string } | null
   added_by?: Pick<UserBasic, 'id' | 'full_name'>
 }
 
-// ── Team Contents ───────────────────────────────
+// ── Team Contents (standalone — không reference bảng contents) ──────────────
 
 export interface TeamContent {
   id: string
   team_id: string
-  content_id: string
+  // Inline content data
+  brand_type: BrandType
+  market: string
+  title: string | null
+  body: string | null
+  script: string | null
+  file_content_url: string | null
+  voice_url: string | null
+  content_line_id: string | null
+  status: ContentUsageStatus
+  /** null = tạo mới từ team; có giá trị = được copy từ kho tổng */
+  source_content_id: string | null
   added_by_id: string
   added_at: string
-  content?: {
-    id: string
-    title: string | null
-    body: string | null
-    status: ContentUsageStatus
-    market: string
-    view_count: string
-    file_content_url: string | null
-    voice_url: string | null
-    brand_type: BrandType
-    content_line?: { id: string; name: string } | null
-  }
+  updated_at: string
+  // Relations
+  content_line?: { id: string; name: string } | null
   added_by?: Pick<UserBasic, 'id' | 'full_name'>
 }
 
@@ -211,6 +228,8 @@ export interface Product {
   product_line_id: string | null
   /** null = kho chung; có giá trị = sản phẩm riêng của editor */
   user_id: string | null
+  /** Có khi response là EditorProduct/TeamProduct — global Product.id để gắn vào Task */
+  source_product_id?: string | null
   added_by_id: string
   lark_record_id: string | null
   is_active: boolean
@@ -236,6 +255,8 @@ export interface Content {
   content_line_id: string | null
   /** null = kho chung; có giá trị = content riêng của editor */
   user_id: string | null
+  /** Có khi response là EditorContent/TeamContent — global Content.id để gắn vào Task */
+  source_content_id?: string | null
   status: ContentUsageStatus
   view_count: string
   approved_content_id: string | null
@@ -256,8 +277,7 @@ export interface Source {
   link: string
   code: string | null
   product_id: string | null
-  /** null = kho chung; có giá trị = source của team */
-  team_id: string | null
+  editor_product_id?: string | null
   /** null = không thuộc editor; có giá trị = source riêng của editor */
   user_id: string | null
   added_by_id: string
@@ -266,8 +286,31 @@ export interface Source {
   created_at: string
   updated_at: string
   product?: Pick<Product, 'id' | 'sku' | 'name'> | null
-  team?: Pick<Team, 'id' | 'name'> | null
+  editor_product?: Pick<Product, 'id' | 'name'> | null
   owner_user?: UserBasic | null
+  added_by?: UserBasic
+}
+
+export interface TeamSource {
+  id: string
+  team_id: string
+  brand_type: BrandType
+  type: SourceType
+  name: string
+  link: string
+  code: string | null
+  product_id: string | null
+  team_product_id: string | null
+  /** null = tạo mới từ team; có giá trị = được copy từ source gốc trong kho tổng */
+  source_source_id: string | null
+  added_by_id: string
+  is_active: boolean
+  added_at: string
+  updated_at: string
+  product?: Pick<Product, 'id' | 'sku' | 'name'> | null
+  editor_product?: Pick<Product, 'id' | 'name'> | null
+  team_product?: Pick<TeamProduct, 'id' | 'sku' | 'name'> | null
+  source_source?: Pick<Source, 'id' | 'name'> | null
   added_by?: UserBasic
 }
 
@@ -277,7 +320,11 @@ export interface Task {
   id: string
   team_id: string
   content_id: string | null
+  editor_content_id: string | null
+  team_content_id: string | null
   product_id: string | null
+  editor_product_id: string | null
+  team_product_id: string | null
   content_line_id: string | null
   source_outro_id:    string | null
   source_extra_id:    string | null
@@ -301,7 +348,11 @@ export interface Task {
   // Relations
   team?: Pick<Team, 'id' | 'name'>
   content?: Pick<Content, 'id' | 'title' | 'script' | 'file_content_url' | 'market'> & { content_line?: ContentLine | null }
+  team_content?: Pick<TeamContent, 'id' | 'title' | 'script' | 'file_content_url' | 'market' | 'body' | 'voice_url'> & { content_line?: ContentLine | null } | null
+  editor_content?: Pick<Content, 'id' | 'title' | 'script' | 'file_content_url' | 'market' | 'body' | 'voice_url'> & { content_line?: ContentLine | null } | null
   product?: Pick<Product, 'id' | 'sku' | 'name' | 'image_url'> | null
+  editor_product?: Pick<Product, 'id' | 'sku' | 'name' | 'image_url' | 'image_urls' | 'price' | 'market' | 'price_segment' | 'priority_score'> & { material?: { id: string; name: string } | null; product_line?: { id: string; name: string } | null } | null
+  team_product?: Pick<TeamProduct, 'id' | 'sku' | 'name' | 'image_url' | 'image_urls' | 'price' | 'market' | 'price_segment' | 'priority_score'> & { material?: { id: string; name: string } | null; product_line?: { id: string; name: string } | null } | null
   content_line?: ContentLine | null
   source_outro?:    Pick<Source, 'id' | 'name' | 'link' | 'type'> | null
   source_extra?:    Pick<Source, 'id' | 'name' | 'link' | 'type'> | null
@@ -311,6 +362,7 @@ export interface Task {
   reviewed_by?: UserBasic | null
   assignments?: TaskAssignment[]
   pending_video?: TaskPendingVideo | null
+  product_sources?: Source[]
 }
 
 export interface TaskPendingVideo {
@@ -431,12 +483,20 @@ export interface SourcesQuery {
   brand_type?: BrandType
   type?: SourceType | ''
   product_id?: string
-  team_id?: string
   user_id?: string
-  owner?: 'global' | 'team' | 'editor' | 'all' | ''
+  owner?: 'global' | 'editor' | 'all' | ''
   is_active?: boolean
   page?: number
   limit?: number
+  search?: string
+}
+
+export interface TeamSourcesQuery {
+  brand_type?: BrandType
+  type?: SourceType | ''
+  product_id?: string
+  team_product_id?: string
+  is_active?: boolean
   search?: string
 }
 

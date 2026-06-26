@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { Search, Plus, Edit2, Trash2, Loader2, Package, ChevronLeft, ChevronRight, ImageIcon } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, driveImageUrl } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { DarkInput, CustomSelect, CreatableSelect } from '@/components/task-auto/DarkInput'
 import { EmptyState } from '@/components/task-auto/EmptyState'
@@ -19,7 +19,7 @@ import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
 import { parseMarkets, formatPrice, defaultSource } from './product-utils'
 import type { SourceDraft } from './product-utils'
 import { MarketBadge, LoadingRows, MiniList, MarketPicker, PriceInput, MultiImagePicker, SourceForm } from './ProductFormFields'
-import { ProductDetailModal } from './ProductDetailModal'
+import { ProductViewModal } from '@/components/task-auto/ProductViewModal'
 import { Product } from '@/types/task-auto'
 
 type BrandType = 'DO_DA' | 'TRANG_SUC'
@@ -50,7 +50,6 @@ export function ProductsTab({ brandType }: { brandType: BrandType }) {
     queryKey: ['task-auto', 'products', brandType, search, productLineFilter, activeFilter, page],
     queryFn: () => getProducts({
       brand_type: brandType,
-      owner: 'global',
       search: search || undefined,
       product_line_id: productLineFilter || undefined,
       is_active: activeFilter === 'all' ? undefined : activeFilter === 'true',
@@ -256,7 +255,7 @@ export function ProductsTab({ brandType }: { brandType: BrandType }) {
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
                         {thumb ? (
-                          <img src={thumb} alt="" className="w-12 h-12 rounded-xl object-cover border border-gray-200 shrink-0 shadow-sm" />
+                          <img src={driveImageUrl(thumb) ?? thumb} alt="" className="w-12 h-12 rounded-xl object-cover border border-gray-200 shrink-0 shadow-sm" />
                         ) : (
                           <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
                             <ImageIcon className="w-5 h-5 text-slate-300" />
@@ -308,21 +307,23 @@ export function ProductsTab({ brandType }: { brandType: BrandType }) {
                     </td>
                     <td className="px-4 py-4 text-right">
                       <div className="flex items-center justify-end gap-1 transition-opacity">
-                        <button
-                          onClick={e => { e.stopPropagation(); openEdit(p) }}
-                          className="p-2 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors"
-                          title="Chỉnh sửa"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
                         {canDelete && (
-                          <button
-                            onClick={e => { e.stopPropagation(); setDeletingId(p.id) }}
-                            className="p-2 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
-                            title="Xóa"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <>
+                            <button
+                              onClick={e => { e.stopPropagation(); openEdit(p) }}
+                              className="p-2 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors"
+                              title="Chỉnh sửa"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={e => { e.stopPropagation(); setDeletingId(p.id) }}
+                              className="p-2 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
+                              title="Xóa"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
                         )}
                       </div>
                     </td>
@@ -562,12 +563,16 @@ export function ProductsTab({ brandType }: { brandType: BrandType }) {
         </div>
       </DarkModal>
 
-      {/* Detail modal */}
       {viewProduct && (
-        <ProductDetailModal
-          product={viewProduct}
+        <ProductViewModal
+          open
+          item={viewProduct as any}
+          catalogType="global"
+          canEdit={canDelete}
+          canDelete={canDelete}
           onClose={() => setViewProduct(null)}
-          onEdit={() => openEdit(viewProduct)}
+          onEdit={() => { openEdit(viewProduct); setViewProduct(null) }}
+          onDelete={() => { setDeletingId(viewProduct.id); setViewProduct(null) }}
         />
       )}
 

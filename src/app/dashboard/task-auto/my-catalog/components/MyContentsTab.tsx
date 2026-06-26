@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {
   Plus, Edit2, Trash2, Loader2, FileText, Search, Download,
-  ChevronLeft, ChevronRight, SendHorizontal,
+  ChevronLeft, ChevronRight, SendHorizontal, Check, X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
@@ -18,10 +18,12 @@ import {
 } from '@/components/task-auto/ContentFormModal'
 import { DarkInput, DarkTextarea } from '@/components/task-auto/DarkInput'
 import {
-  getContents, createContent, updateContent, deleteContent,
-  getContentLines, pushContentToTeam, getTeams,
+  getContents, getTeamContents,
+  getEditorContents, createEditorContent, updateEditorContent, deleteEditorContent, pushEditorContentToTeam,
+  getContentLines, getTeams,
 } from '@/lib/api/task-auto'
-import { Content, ContentUsageStatus } from '@/types/task-auto'
+import { Content, TeamContent, ContentUsageStatus } from '@/types/task-auto'
+import { ContentViewModal } from '@/components/task-auto/ContentViewModal'
 
 const MarketBadge = ({ market }: { market: string }) => (
   <span className={cn(
@@ -51,7 +53,7 @@ function PushModal({ content, userId, onClose }: { content: Content; userId: str
   const { data: teams } = useQuery({ queryKey: ['task-auto', 'teams'], queryFn: getTeams })
   const myTeam = teams?.find(t => t.leader_id === userId || t.members?.some(m => m.user_id === userId))
   const push = useMutation({
-    mutationFn: () => pushContentToTeam(content.id, myTeam!.id),
+    mutationFn: () => pushEditorContentToTeam(userId, content.id, myTeam!.id),
     onSuccess: () => { toast.success('Đã đẩy sang kho team'); qc.invalidateQueries({ queryKey: ['task-auto', 'my-contents'] }); onClose() },
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Không thể đẩy sang team'),
   })
@@ -90,7 +92,7 @@ function PushModal({ content, userId, onClose }: { content: Content; userId: str
 
 function ImportModal({
   userId,
-  brandType,
+  brandType: initialBrandType,
   onImported,
   onClose,
 }: {
@@ -101,134 +103,202 @@ function ImportModal({
 }) {
   const [search, setSearch] = useState('')
   const [scope, setScope] = useState<'global' | 'team'>('global')
-  const [page, setPage] = useState(1)
+  const [brandType, setBrandType] = useState(initialBrandType)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const qc = useQueryClient()
+
   const { data: teams } = useQuery({ queryKey: ['task-auto', 'teams'], queryFn: getTeams })
   const myTeam = teams?.find(t => t.leader_id === userId || t.members?.some(m => m.user_id === userId))
-  const { data: myContents } = useQuery({
-    queryKey: ['task-auto', 'my-contents-titles', userId],
-    queryFn: () => getContents({ user_id: userId, owner: 'personal', limit: 500 }),
-  })
-  const myTitleSet = new Set(
-    myContents?.data?.map(c => c.title?.trim().toLowerCase()).filter(Boolean) ?? []
-  )
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'import-contents', scope, myTeam?.id, brandType, search, page],
-    queryFn: () => getContents({
-      brand_type: brandType,
-      owner: scope === 'global' ? 'global' : undefined,
-      ...(scope === 'team' && myTeam ? { team_id: myTeam.id } : {}),
-      search: search || undefined,
-      page, limit: 10,
-    }),
-    enabled: scope === 'global' || !!myTeam,
+  const { data: myContents, isLoading: loadingMyContents } = useQuery({
+    queryKey: ['task-auto', 'my-contents-titles', userId],
+    queryFn: () => getEditorContents(userId, { limit: 500 }),
   })
+  const myTitleSet = new Set(myContents?.data?.map(c => c.title?.trim().toLowerCase()).filter(Boolean) ?? [])
+
+  const { data: globalData, isLoading: loadingGlobal } = useQuery({
+    queryKey: ['task-auto', 'import-contents-global', brandType, search],
+    queryFn: () => getContents({ brand_type: brandType, search: search || undefined, limit: 50, status: 'AVAILABLE' } as any),
+    enabled: scope === 'global',
+  })
+
+  const { data: teamData, isLoading: loadingTeam } = useQuery({
+    queryKey: ['task-auto', 'import-contents-team', myTeam?.id, brandType],
+    queryFn: () => getTeamContents(myTeam!.id, brandType),
+    enabled: scope === 'team' && !!myTeam,
+  })
+
+  const isLoading = scope === 'global' ? loadingGlobal : loadingTeam
+
+  const rawItems: Array<Content | TeamContent> = scope === 'global'
+    ? (globalData?.data ?? [])
+    : (teamData ?? [])
+
+  const available = rawItems.filter(c => {
+    const title = c.title?.trim().toLowerCase() ?? ''
+    if (myTitleSet.has(title)) return false
+    if (scope === 'team' && search) return title.includes(search.toLowerCase())
+    return true
+  })
+
+  const toggleId = (id: string) =>
+    setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  const toggleAll = () =>
+    setSelectedIds(selectedIds.size === available.length ? new Set() : new Set(available.map(c => c.id)))
+  const allSelected = available.length > 0 && selectedIds.size === available.length
 
   const copyMut = useMutation({
-    mutationFn: (c: Content) => createContent({
-      brand_type: brandType,
-      title: c.title ?? undefined,
-      body: c.body ?? undefined,
-      script: c.script ?? undefined,
-      file_content_url: c.file_content_url ?? undefined,
-      voice_url: c.voice_url ?? undefined,
-      content_line_id: c.content_line_id ?? undefined,
-      market: (c.market ?? 'VIETNAM') as any,
-      user_id: userId,
-    } as any),
+    mutationFn: async () => {
+      const selected = available.filter(c => selectedIds.has(c.id))
+      const results = await Promise.allSettled(
+        selected.map(c => {
+          const isTeamContent = scope === 'team'
+          const sourceId = isTeamContent
+            ? (c as TeamContent).source_content_id ?? undefined
+            : c.id
+          return createEditorContent(userId, {
+            ...(sourceId ? { source_content_id: sourceId } : {}),
+            brand_type: brandType,
+            title: c.title ?? undefined,
+            body: c.body ?? undefined,
+            script: c.script ?? undefined,
+            file_content_url: c.file_content_url ?? undefined,
+            voice_url: c.voice_url ?? undefined,
+            content_line_id: (c as any).content_line_id ?? undefined,
+            market: (c.market ?? 'VIETNAM') as any,
+          } as any)
+        })
+      )
+      const failed = results.filter(r => r.status === 'rejected').length
+      if (failed > 0) throw new Error(`${failed} content thêm thất bại`)
+    },
     onSuccess: () => {
-      toast.success('Đã thêm vào kho cá nhân')
+      toast.success(`Đã thêm ${selectedIds.size} content vào kho cá nhân`)
       qc.invalidateQueries({ queryKey: ['task-auto', 'my-contents'] })
+      qc.invalidateQueries({ queryKey: ['task-auto', 'my-contents-titles'] })
       onImported()
     },
-    onError: () => toast.error('Không thể thêm content'),
+    onError: (e: any) => toast.error(e?.message || 'Không thể thêm content'),
   })
 
   return (
-    <DarkModal open onClose={onClose} title="Lấy từ kho danh mục" size="lg"
-      subtitle="Chọn content để sao chép vào kho cá nhân"
-      footer={<button onClick={onClose} className="bg-gray-100 hover:bg-gray-200 text-slate-800 rounded-xl px-5 py-2.5 text-sm font-semibold">Đóng</button>}
+    <DarkModal
+      open
+      onClose={onClose}
+      title="Lấy từ kho danh mục"
+      subtitle="Chọn nhiều content để thêm vào kho cá nhân"
+      size="lg"
+      footer={
+        <>
+          <button onClick={onClose} className="bg-gray-100 hover:bg-gray-200 text-slate-800 rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors">Hủy</button>
+          <button
+            onClick={() => copyMut.mutate()}
+            disabled={copyMut.isPending || selectedIds.size === 0}
+            className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-5 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors disabled:opacity-60"
+          >
+            {copyMut.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : selectedIds.size > 0 ? <Check className="w-3.5 h-3.5" /> : null}
+            {selectedIds.size > 0 ? `Thêm ${selectedIds.size} content` : 'Thêm vào kho'}
+          </button>
+        </>
+      }
     >
-      <div className="space-y-4">
-        <div className="flex gap-2">
-          {(['global', 'team'] as const).map(s => (
-            <button key={s} onClick={() => { setScope(s); setPage(1) }}
-              className={cn('px-4 py-2 rounded-xl text-sm font-semibold transition-colors',
-                scope === s ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-slate-600 hover:bg-gray-200')}>
-              {s === 'global' ? 'Kho chung' : 'Kho team'}
+      <div className="space-y-3">
+        {/* Scope + brand switcher */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex gap-1.5">
+            {(['global', 'team'] as const).map(s => (
+              <button key={s} onClick={() => { setScope(s); setSelectedIds(new Set()) }}
+                className={cn('px-4 py-1.5 rounded-xl text-sm font-semibold transition-colors',
+                  scope === s ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-slate-600 hover:bg-gray-200')}>
+                {s === 'global' ? 'Kho chung' : 'Kho team'}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-1.5">
+            {(['DO_DA', 'TRANG_SUC'] as const).map(b => (
+              <button key={b} onClick={() => { setBrandType(b); setSelectedIds(new Set()) }}
+                className={cn('px-3 py-1.5 rounded-full text-xs font-semibold border transition-all',
+                  brandType === b ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-slate-500 hover:border-slate-400')}>
+                {b === 'DO_DA' ? 'Đồ da' : 'Trang sức'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {scope === 'team' && (myTeam ? (
+          <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-xl text-sm text-indigo-700">
+            <span className="font-semibold">{myTeam.name}</span>
+            <span className="text-indigo-400 text-xs">— kho team của bạn</span>
+          </div>
+        ) : (
+          <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
+            Bạn chưa thuộc team nào
+          </div>
+        ))}
+
+        {/* Search + select all */}
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              autoFocus
+              value={search}
+              onChange={e => { setSearch(e.target.value); setSelectedIds(new Set()) }}
+              placeholder="Tìm tiêu đề content..."
+              className="w-full pl-9 pr-9 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          {available.length > 0 && (
+            <button onClick={toggleAll} className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors whitespace-nowrap">
+              {allSelected ? 'Bỏ chọn tất cả' : `Chọn tất cả (${available.length})`}
             </button>
-          ))}
-        </div>
-        {scope === 'team' && (
-          myTeam ? (
-            <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-xl text-sm text-indigo-700">
-              <span className="font-semibold">{myTeam.name}</span>
-              <span className="text-indigo-400 text-xs">— kho team của bạn</span>
-            </div>
-          ) : (
-            <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
-              Bạn chưa thuộc team nào
-            </div>
-          )
-        )}
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}
-            placeholder="Tìm tiêu đề content..."
-            className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-        </div>
-        <div className="space-y-2 min-h-[200px]">
-          {isLoading && (
-            <div className="flex items-center justify-center py-12 text-slate-400 text-sm">
-              <Loader2 className="w-5 h-5 animate-spin mr-2" /> Đang tải...
-            </div>
           )}
-          {!isLoading && !data?.data?.length && (
-            <p className="text-center py-12 text-slate-400 text-sm">Không tìm thấy content</p>
+        </div>
+
+        {/* List */}
+        <div className="max-h-72 overflow-y-auto space-y-1">
+          {(isLoading || loadingMyContents) && <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 text-indigo-500 animate-spin" /></div>}
+          {!isLoading && !loadingMyContents && available.length === 0 && (
+            <p className="text-center text-slate-400 text-sm py-10 italic">
+              {search ? 'Không tìm thấy content phù hợp' : 'Tất cả content đã có trong kho cá nhân'}
+            </p>
           )}
-          {data?.data.map(c => {
-            const alreadyOwned = !!c.title && myTitleSet.has(c.title.trim().toLowerCase())
+          {!isLoading && !loadingMyContents && available.map(c => {
+            const selected = selectedIds.has(c.id)
             return (
-            <div key={c.id} className={cn('flex items-start gap-3 p-3 rounded-xl border transition-colors',
-              alreadyOwned ? 'border-gray-100 bg-gray-50' : 'border-gray-100 hover:border-indigo-200 hover:bg-indigo-50/30')}>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-800 truncate">
-                  {c.title || <span className="italic text-slate-400">Không tiêu đề</span>}
-                </p>
-                <div className="flex items-center gap-2 mt-1">
-                  {parseMarkets(c.market).map(m => <MarketBadge key={m} market={m} />)}
-                  {c.content_line?.name && <span className="text-xs text-slate-400">{c.content_line.name}</span>}
+              <button
+                key={c.id}
+                onClick={() => toggleId(c.id)}
+                className={cn(
+                  'w-full flex items-start gap-3 px-3 py-2.5 rounded-xl transition-colors text-left',
+                  selected ? 'bg-indigo-50 border border-indigo-300' : 'hover:bg-gray-50 border border-transparent'
+                )}
+              >
+                <div className={cn('w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors',
+                  selected ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white')}>
+                  {selected && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
                 </div>
-              </div>
-              {alreadyOwned ? (
-                <span className="shrink-0 px-3 py-1.5 bg-gray-100 text-gray-400 text-xs font-semibold rounded-lg">Đã có</span>
-              ) : (
-                <button
-                  disabled={copyMut.isPending}
-                  onClick={() => copyMut.mutate(c)}
-                  className="shrink-0 px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
-                >
-                  {copyMut.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Thêm vào kho'}
-                </button>
-              )}
-            </div>
+                <div className="w-9 h-9 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0">
+                  <FileText className="w-4 h-4 text-indigo-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-slate-800 text-sm truncate">
+                    {c.title || <span className="text-slate-400 italic font-normal">Chưa đặt tên</span>}
+                  </p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {parseMarkets(c.market).map(m => <MarketBadge key={m} market={m} />)}
+                    {c.content_line?.name && <span className="text-xs text-slate-400">{c.content_line.name}</span>}
+                  </div>
+                </div>
+              </button>
             )
           })}
         </div>
-        {data && data.totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 pt-2">
-            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
-              className="p-1.5 rounded-lg hover:bg-gray-100 text-slate-500 disabled:opacity-30">
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <span className="text-sm text-slate-500">Trang {page} / {data.totalPages}</span>
-            <button onClick={() => setPage(p => Math.min(data.totalPages, p + 1))} disabled={page >= data.totalPages}
-              className="p-1.5 rounded-lg hover:bg-gray-100 text-slate-500 disabled:opacity-30">
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        )}
       </div>
     </DarkModal>
   )
@@ -267,7 +337,7 @@ function PersonalContentModal({
   const { data: contentLines } = useQuery({ queryKey: ['task-auto', 'content-lines'], queryFn: getContentLines })
 
   const createMut = useMutation({
-    mutationFn: () => createContent({
+    mutationFn: () => createEditorContent(userId, {
       title: form.title,
       body: form.body,
       script: form.script,
@@ -276,7 +346,6 @@ function PersonalContentModal({
       content_line_id: form.content_line_id || null,
       brand_type: brandType,
       market: markets.join(',') as any,
-      user_id: userId,
     } as any),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['task-auto', 'my-contents'] })
@@ -287,7 +356,7 @@ function PersonalContentModal({
   })
 
   const updateMut = useMutation({
-    mutationFn: () => updateContent(editing!.id, {
+    mutationFn: () => updateEditorContent(userId, editing!.id, {
       title: form.title,
       body: form.body,
       script: form.script,
@@ -395,13 +464,14 @@ export function MyContentsTab({ userId, brandType }: Props) {
   const [showModal, setShowModal] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [editing, setEditing] = useState<Content | null>(null)
+  const [detailItem, setDetailItem] = useState<Content | null>(null)
   const [pushItem, setPushItem] = useState<Content | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['task-auto', 'my-contents', userId, brandType, search, statusFilter, page],
-    queryFn: () => getContents({
-      user_id: userId, owner: 'personal', brand_type: brandType,
+    queryFn: () => getEditorContents(userId, {
+      brand_type: brandType,
       search: search || undefined,
       status: statusFilter || undefined,
       page, limit: 20,
@@ -409,7 +479,7 @@ export function MyContentsTab({ userId, brandType }: Props) {
   })
 
   const deleteMut = useMutation({
-    mutationFn: deleteContent,
+    mutationFn: (id: string) => deleteEditorContent(userId, id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['task-auto', 'my-contents'] }); toast.success('Đã xóa content'); setDeletingId(null) },
     onError: () => { toast.error('Không thể xóa content'); setDeletingId(null) },
   })
@@ -483,9 +553,9 @@ export function MyContentsTab({ userId, brandType }: Props) {
                 <tr><td colSpan={5}><EmptyState icon={FileText} title="Chưa có content cá nhân nào" /></td></tr>
               )}
               {data?.data.map(c => (
-                <tr key={c.id} className="hover:bg-indigo-50/20 transition-colors group">
+                <tr key={c.id} className="hover:bg-indigo-50/20 transition-colors group cursor-pointer" onClick={() => setDetailItem(c)}>
                   <td className="px-5 py-4 max-w-0">
-                    <span className="text-base font-semibold text-slate-800 truncate block" title={c.title ?? ''}>
+                    <span className="text-base font-semibold text-slate-800 truncate block hover:text-indigo-600 transition-colors" title={c.title ?? ''}>
                       {c.title || <span className="text-slate-400 italic font-normal text-sm">Chưa đặt tên</span>}
                     </span>
                   </td>
@@ -502,7 +572,7 @@ export function MyContentsTab({ userId, brandType }: Props) {
                   <td className="px-4 py-4 whitespace-nowrap">
                     <ContentStatusBadge status={c.status} />
                   </td>
-                  <td className="px-4 py-4 text-right">
+                  <td className="px-4 py-4 text-right" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1">
                       <button
                         onClick={() => setPushItem(c)}
@@ -565,6 +635,21 @@ export function MyContentsTab({ userId, brandType }: Props) {
           brandType={brandType}
           onImported={() => setShowImport(false)}
           onClose={() => setShowImport(false)}
+        />
+      )}
+
+      {detailItem && (
+        <ContentViewModal
+          open
+          item={detailItem as any}
+          catalogType="editor"
+          canEdit
+          canDelete={detailItem.status !== 'IN_TASK'}
+          canPushToTeam
+          onClose={() => setDetailItem(null)}
+          onEdit={() => { openEdit(detailItem); setDetailItem(null) }}
+          onDelete={() => { setDeletingId(detailItem.id); setDetailItem(null) }}
+          onPushToTeam={() => setPushItem(detailItem)}
         />
       )}
 

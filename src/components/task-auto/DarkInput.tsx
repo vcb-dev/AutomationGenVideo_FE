@@ -54,16 +54,17 @@ export function DarkTextarea({ label, className, ...props }: TextareaProps) {
 
 export interface SelectOption { value: string; label: string }
 
-interface CustomSelectProps {
+export interface CustomSelectProps {
   label?: string
   value: string
   onChange: (value: string) => void
   options: SelectOption[]
   searchable?: boolean
+  compact?: boolean
   className?: string
 }
 
-export function CustomSelect({ label, value, onChange, options, searchable, className }: CustomSelectProps) {
+export function CustomSelect({ label, value, onChange, options, searchable, compact, className }: CustomSelectProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -113,7 +114,13 @@ export function CustomSelect({ label, value, onChange, options, searchable, clas
         ref={triggerRef}
         type="button"
         onClick={handleOpen}
-        className={cn(baseInput, 'flex items-center justify-between gap-2 text-left cursor-pointer', open && 'ring-2 ring-indigo-500 border-indigo-500')}
+        className={cn(
+          compact
+            ? 'w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors'
+            : baseInput,
+          'flex items-center justify-between gap-2 text-left cursor-pointer',
+          open && 'ring-2 ring-indigo-500 border-indigo-500 bg-white'
+        )}
       >
         <span className={selected ? 'text-slate-800' : 'text-slate-400'}>
           {selected?.label ?? '—'}
@@ -375,7 +382,7 @@ export function ProductSearchSelect({
   const [search, setSearch] = useState('')
   const triggerRef = useRef<HTMLButtonElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
-  const [pos, setPos] = useState({ top: 0, left: 0, width: 0, openUp: false })
+  const [pos, setPos] = useState({ top: 0, bottom: 0, left: 0, width: 0, openUp: false })
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -398,7 +405,13 @@ export function ProductSearchSelect({
       const DROPDOWN_H = 280
       const spaceBelow = window.innerHeight - r.bottom
       const openUp = spaceBelow < DROPDOWN_H && r.top > DROPDOWN_H
-      setPos({ top: openUp ? r.top - DROPDOWN_H - 4 : r.bottom + 4, left: r.left, width: r.width, openUp })
+      setPos({
+        top: r.bottom + 4,
+        bottom: window.innerHeight - r.top + 4,
+        left: r.left,
+        width: r.width,
+        openUp,
+      })
     }
     setOpen(o => !o)
   }
@@ -443,7 +456,10 @@ export function ProductSearchSelect({
       {open && createPortal(
         <div
           ref={dropdownRef}
-          style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 9999 }}
+          style={pos.openUp
+            ? { position: 'fixed', bottom: pos.bottom, left: pos.left, width: pos.width, zIndex: 9999 }
+            : { position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 9999 }
+          }
           className={cn(
             'min-w-[240px] bg-white border border-gray-200 shadow-xl overflow-hidden',
             pos.openUp ? 'rounded-t-xl' : 'rounded-xl'

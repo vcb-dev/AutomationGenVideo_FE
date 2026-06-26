@@ -16,6 +16,7 @@ import {
 import { useAuthStore } from '@/store/auth-store'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
 import { Content, ContentUsageStatus } from '@/types/task-auto'
+import { ContentViewModal } from '@/components/task-auto/ContentViewModal'
 
 // ── Helpers ──────────────────────────────────────────
 
@@ -130,6 +131,7 @@ export function ContentsTab({ brandType }: { brandType: BrandType }) {
   const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Content | null>(null)
+  const [detailItem, setDetailItem] = useState<Content | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const { data: contentLines } = useQuery({ queryKey: ['task-auto', 'content-lines'], queryFn: getContentLines })
@@ -137,7 +139,6 @@ export function ContentsTab({ brandType }: { brandType: BrandType }) {
     queryKey: ['task-auto', 'contents', brandType, search, statusFilter, contentLineFilter, marketFilter, page],
     queryFn: () => getContents({
       brand_type: brandType,
-      owner: 'global',
       search: search || undefined,
       status: statusFilter || undefined,
       content_line_id: contentLineFilter || undefined,
@@ -253,11 +254,11 @@ export function ContentsTab({ brandType }: { brandType: BrandType }) {
                 )}
 
                 {data?.data.map(c => (
-                  <tr key={c.id} className="hover:bg-indigo-50/20 transition-colors group">
+                  <tr key={c.id} className="hover:bg-indigo-50/20 transition-colors group cursor-pointer" onClick={() => setDetailItem(c)}>
 
                     {/* Tiêu đề */}
                     <td className="px-5 py-4 max-w-0">
-                      <span className="text-base font-semibold text-slate-800 truncate block" title={c.title ?? ''}>
+                      <span className="text-base font-semibold text-slate-800 truncate block hover:text-indigo-600 transition-colors" title={c.title ?? ''}>
                         {c.title || <span className="text-slate-400 italic font-normal text-sm">Chưa đặt tên</span>}
                       </span>
                     </td>
@@ -296,33 +297,35 @@ export function ContentsTab({ brandType }: { brandType: BrandType }) {
                     </td>
 
                     {/* Hành động */}
-                    <td className="px-4 py-4 text-right">
+                    <td className="px-4 py-4 text-right" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => openEdit(c)}
-                          className="p-2 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors"
-                          title="Chỉnh sửa"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
                         {canDelete && (
-                          c.status === 'IN_TASK' ? (
+                          <>
                             <button
-                              disabled
-                              title="Content đang được dùng trong task chưa duyệt"
-                              className="p-2 rounded-xl text-slate-200 cursor-not-allowed"
+                              onClick={() => openEdit(c)}
+                              className="p-2 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors"
+                              title="Chỉnh sửa"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Edit2 className="w-4 h-4" />
                             </button>
-                          ) : (
-                            <button
-                              onClick={() => setDeletingId(c.id)}
-                              className="p-2 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
-                              title="Xóa"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )
+                            {c.status === 'IN_TASK' ? (
+                              <button
+                                disabled
+                                title="Content đang được dùng trong task chưa duyệt"
+                                className="p-2 rounded-xl text-slate-200 cursor-not-allowed"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => setDeletingId(c.id)}
+                                className="p-2 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
+                                title="Xóa"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </>
                         )}
                       </div>
                     </td>
@@ -346,6 +349,19 @@ export function ContentsTab({ brandType }: { brandType: BrandType }) {
           onDelete={id => deleteLineMut.mutate(id)}
         />
       </div>
+
+      {detailItem && (
+        <ContentViewModal
+          open
+          item={detailItem as any}
+          catalogType="global"
+          canEdit={canDelete}
+          canDelete={canDelete && detailItem.status !== 'IN_TASK'}
+          onClose={() => setDetailItem(null)}
+          onEdit={() => { openEdit(detailItem); setDetailItem(null) }}
+          onDelete={() => { setDeletingId(detailItem.id); setDetailItem(null) }}
+        />
+      )}
 
       <ContentFormModal
         open={showModal}

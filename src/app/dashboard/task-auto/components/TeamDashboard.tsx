@@ -1,7 +1,6 @@
 'use client'
 
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
-import { ListTodo, CheckCircle2, TrendingUp, Users, Target, ArrowRight, Video, FileText, Package, BarChart2 } from 'lucide-react'
+import { ListTodo, CheckCircle2, TrendingUp, Users, Target, ArrowRight, Video, FileText, Package, Send } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { StatCard } from './StatCard'
@@ -40,80 +39,114 @@ export function TeamDashboard({ d }: { d: any }) {
   const members: any[] = d.members ?? []
   const kpi = d.kpi
 
-  const memberBarData = members.map((m: any) => ({
-    name: m.full_name?.split(' ').slice(-2).join(' ') ?? m.email?.split('@')[0] ?? '?',
-    'Đang làm': m.in_progress ?? 0,
-    'Đã nộp':   m.submitted ?? 0,
-    'Đã duyệt': m.approved ?? 0,
-  }))
-
-  const barChartHeight = Math.max(160, members.length * 52)
-
   return (
     <div className="space-y-5">
 
       {/* Stat row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatCard label="Tổng task team" value={tasks.total ?? 0}       icon={ListTodo}     iconBg="bg-indigo-50 text-indigo-600" />
-        <StatCard label="Đang làm"       value={tasks.in_progress ?? 0} icon={TrendingUp}   iconBg="bg-amber-50 text-amber-600" />
-        <StatCard label="Đã nộp"         value={tasks.submitted ?? 0}   icon={CheckCircle2} iconBg="bg-purple-50 text-purple-600" />
-        <StatCard label="Đã duyệt"       value={tasks.approved ?? 0}    icon={CheckCircle2} iconBg="bg-emerald-50 text-emerald-600" />
+        <StatCard
+          label="Tổng task team"
+          value={tasks.total ?? 0}
+          icon={ListTodo}
+          iconBg="bg-indigo-50 text-indigo-600"
+          accent="bg-indigo-400"
+        />
+        <StatCard
+          label="Đang làm"
+          value={tasks.in_progress ?? 0}
+          icon={TrendingUp}
+          iconBg="bg-amber-50 text-amber-500"
+          accent="bg-amber-400"
+          valueCls="text-amber-600"
+        />
+        <StatCard
+          label="Đã nộp"
+          value={tasks.submitted ?? 0}
+          icon={Send}
+          iconBg="bg-violet-50 text-violet-600"
+          accent="bg-violet-400"
+          valueCls="text-violet-600"
+        />
+        <StatCard
+          label="Đã duyệt"
+          value={tasks.approved ?? 0}
+          icon={CheckCircle2}
+          iconBg="bg-emerald-50 text-emerald-600"
+          accent="bg-emerald-500"
+          valueCls="text-emerald-700"
+        />
       </div>
 
       {/* Status + KPI */}
-      <div className={cn('grid grid-cols-1 gap-3', kpi ? 'lg:grid-cols-2' : '')}>
+      <div className={cn('grid grid-cols-1 gap-4', kpi ? 'lg:grid-cols-2' : '')}>
 
-        <div className="bg-white border border-gray-100 rounded-xl p-5">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="text-sm font-bold text-slate-900">Phân bố trạng thái</h2>
+        {/* Phân bố trạng thái */}
+        <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-50">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-slate-50 flex items-center justify-center">
+                <ListTodo className="w-4 h-4 text-slate-500" />
+              </div>
+              <h2 className="text-sm font-bold text-slate-900">Phân bố trạng thái</h2>
+            </div>
             <Link href="/dashboard/task-auto/tasks"
-              className="text-xs text-indigo-600 font-semibold flex items-center gap-1 hover:underline">
+              className="text-xs text-indigo-600 font-semibold flex items-center gap-1 hover:text-indigo-500 transition-colors">
               Chi tiết <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
-          <StatusBar tasks={tasks} />
+          <div className="px-5 py-4">
+            <StatusBar tasks={tasks} />
+          </div>
         </div>
 
+        {/* KPI Team */}
         {kpi && (
-          <div className="bg-white border border-gray-100 rounded-xl p-5">
-            <div className="flex items-center justify-between mb-5">
-              <div className="flex items-center gap-2">
-                <Target className="w-4 h-4 text-indigo-500" />
+          <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-50">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center">
+                  <Target className="w-4 h-4 text-indigo-600" />
+                </div>
                 <h2 className="text-sm font-bold text-slate-900">KPI Team — {formatMonth(kpi.month)}</h2>
               </div>
               <Link href="/dashboard/task-auto/kpi"
-                className="text-xs text-indigo-600 font-semibold flex items-center gap-1 hover:underline">
+                className="text-xs text-indigo-600 font-semibold flex items-center gap-1 hover:text-indigo-500 transition-colors">
                 Xem KPI <ArrowRight className="w-3 h-3" />
               </Link>
             </div>
 
-            <KpiProgress completed={kpi.completed} total_target={kpi.total_target} />
+            <div className="px-5 py-4 space-y-4">
+              {/* KPI Progress */}
+              <div className="p-4 bg-gradient-to-br from-indigo-50 to-slate-50 rounded-xl border border-indigo-100/60">
+                <KpiProgress completed={kpi.completed} total_target={kpi.total_target} />
+              </div>
 
-            {/* KPI 3-section breakdown */}
-            <div className="grid grid-cols-3 gap-2 mt-5">
-              <div className="rounded-xl bg-orange-50 border border-orange-100 px-3 py-3 text-center">
-                <div className="flex items-center justify-center gap-1 mb-1.5">
-                  <Video className="w-3.5 h-3.5 text-orange-500" />
-                  <p className="text-[10px] font-bold text-orange-600 uppercase tracking-wide">Video win</p>
+              {/* KPI 3-section breakdown */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="rounded-xl bg-orange-50 border border-orange-100/80 px-3 py-3.5 text-center">
+                  <div className="flex items-center justify-center gap-1 mb-2">
+                    <Video className="w-3.5 h-3.5 text-orange-500" />
+                    <p className="text-[10px] font-bold text-orange-600 uppercase tracking-wide">Video win</p>
+                  </div>
+                  <p className="text-2xl font-extrabold text-orange-700">{kpi.video_win ?? 0}</p>
+                  <p className="text-[10px] text-orange-400 mt-1">mục tiêu</p>
                 </div>
-                <p className="text-2xl font-extrabold text-orange-700">{kpi.video_win ?? 0}</p>
-                <p className="text-[10px] text-orange-400 mt-0.5">mục tiêu</p>
-              </div>
-              <div className="rounded-xl bg-emerald-50 border border-emerald-100 px-3 py-3 text-center">
-                <div className="flex items-center justify-center gap-1 mb-1.5">
-                  <FileText className="w-3.5 h-3.5 text-emerald-600" />
-                  <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-wide">Content</p>
+                <div className="rounded-xl bg-emerald-50 border border-emerald-100/80 px-3 py-3.5 text-center">
+                  <div className="flex items-center justify-center gap-1 mb-2">
+                    <FileText className="w-3.5 h-3.5 text-emerald-600" />
+                    <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-wide">Content</p>
+                  </div>
+                  <p className="text-2xl font-extrabold text-emerald-700">{kpi.content_new ?? 0}</p>
+                  <p className="text-[10px] text-emerald-400 mt-1">mới tháng này</p>
                 </div>
-                <p className="text-2xl font-extrabold text-emerald-700">{kpi.content_new ?? 0}</p>
-                <p className="text-[10px] text-emerald-400 mt-0.5">mới tháng này</p>
-              </div>
-              <div className="rounded-xl bg-violet-50 border border-violet-100 px-3 py-3 text-center">
-                <div className="flex items-center justify-center gap-1 mb-1.5">
-                  <Package className="w-3.5 h-3.5 text-violet-600" />
-                  <p className="text-[10px] font-bold text-violet-700 uppercase tracking-wide">Sản phẩm</p>
+                <div className="rounded-xl bg-violet-50 border border-violet-100/80 px-3 py-3.5 text-center">
+                  <div className="flex items-center justify-center gap-1 mb-2">
+                    <Package className="w-3.5 h-3.5 text-violet-600" />
+                    <p className="text-[10px] font-bold text-violet-700 uppercase tracking-wide">Sản phẩm</p>
+                  </div>
+                  <p className="text-2xl font-extrabold text-violet-700">{kpi.product_planned ?? 0}</p>
+                  <p className="text-[10px] text-violet-400 mt-1">kế hoạch</p>
                 </div>
-                <p className="text-2xl font-extrabold text-violet-700">{kpi.product_planned ?? 0}</p>
-                <p className="text-[10px] text-violet-400 mt-0.5">kế hoạch</p>
               </div>
             </div>
           </div>
@@ -122,14 +155,16 @@ export function TeamDashboard({ d }: { d: any }) {
       </div>
 
       {/* Member table */}
-      <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
-          <div className="flex items-center gap-2">
-            <Users className="w-4 h-4 text-indigo-500" />
+      <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-50">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center">
+              <Users className="w-4 h-4 text-indigo-600" />
+            </div>
             <h2 className="text-sm font-bold text-slate-900">Thành viên ({members.length})</h2>
           </div>
           <Link href="/dashboard/task-auto/teams"
-            className="text-xs text-indigo-600 font-semibold hover:underline flex items-center gap-1">
+            className="text-xs text-indigo-600 font-semibold hover:text-indigo-500 transition-colors flex items-center gap-1">
             Quản lý <ArrowRight className="w-3 h-3" />
           </Link>
         </div>
@@ -137,10 +172,10 @@ export function TeamDashboard({ d }: { d: any }) {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50/80 border-b border-gray-100">
+              <tr className="bg-slate-50/80 border-b border-slate-100">
                 <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">Thành viên</th>
                 <th className="text-center px-3 py-3 text-xs font-semibold text-amber-500">Đang làm</th>
-                <th className="text-center px-3 py-3 text-xs font-semibold text-purple-500">Đã nộp</th>
+                <th className="text-center px-3 py-3 text-xs font-semibold text-violet-500">Đã nộp</th>
                 <th className="text-center px-3 py-3 text-xs font-semibold text-emerald-600">Duyệt</th>
                 <th className="text-right px-4 py-3 text-xs font-semibold text-orange-500">
                   <span className="flex items-center justify-end gap-1"><Video className="w-3 h-3" /> Win</span>
@@ -153,7 +188,7 @@ export function TeamDashboard({ d }: { d: any }) {
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-slate-50">
               {members.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="text-center py-12 text-slate-400 text-sm">
@@ -178,7 +213,7 @@ export function TeamDashboard({ d }: { d: any }) {
                     <MemberBadge value={m.in_progress} activeColor="text-amber-700" activeBg="bg-amber-100" />
                   </td>
                   <td className="px-3 py-3 text-center">
-                    <MemberBadge value={m.submitted} activeColor="text-purple-700" activeBg="bg-purple-100" />
+                    <MemberBadge value={m.submitted} activeColor="text-violet-700" activeBg="bg-violet-100" />
                   </td>
                   <td className="px-3 py-3 text-center">
                     <MemberBadge value={m.approved} activeColor="text-emerald-700" activeBg="bg-emerald-100" />

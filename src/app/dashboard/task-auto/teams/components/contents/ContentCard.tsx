@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { Globe, Trash2, Mic, FileText } from 'lucide-react'
+import { Globe, Trash2, Mic, FileText, Pencil } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { ContentDetailModal } from './ContentDetailModal'
+import { ContentViewModal } from '@/components/task-auto/ContentViewModal'
 import type { TeamContent } from '@/types/task-auto'
 import { STATUS_LABELS, STATUS_COLORS, MARKET_LABELS } from './constants'
 
@@ -13,6 +13,7 @@ interface Props {
   canPushToGlobal: boolean
   onRemove: () => void
   onPush: () => void
+  onEdit?: () => void
 }
 
 const STATUS_BAR: Record<string, string> = {
@@ -27,9 +28,9 @@ function getInitials(name?: string | null) {
   return name.split(' ').map(w => w[0]).slice(-2).join('').toUpperCase()
 }
 
-export function ContentCard({ teamContent, canRemove, canPushToGlobal, onRemove, onPush }: Props) {
+export function ContentCard({ teamContent, canRemove, canPushToGlobal, onRemove, onPush, onEdit }: Props) {
   const [showDetail, setShowDetail] = useState(false)
-  const c = teamContent.content
+  const c = teamContent
 
   const preview = c?.body?.trim() || c?.title || ''
   const hasVoice = !!c?.voice_url
@@ -115,6 +116,15 @@ export function ContentCard({ teamContent, canRemove, canPushToGlobal, onRemove,
 
           {/* Actions */}
           <div className="flex items-center gap-0.5 shrink-0">
+            {canRemove && onEdit && (
+              <button
+                onClick={e => { e.stopPropagation(); onEdit() }}
+                title="Chỉnh sửa content"
+                className="p-2 rounded-lg text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 transition-colors"
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
+            )}
             {canPushToGlobal && (
               <button
                 onClick={e => { e.stopPropagation(); onPush() }}
@@ -138,13 +148,15 @@ export function ContentCard({ teamContent, canRemove, canPushToGlobal, onRemove,
       </div>
 
       {showDetail && (
-        <ContentDetailModal
-          teamContent={teamContent}
-          canRemove={canRemove}
+        <ContentViewModal
+          open
+          item={teamContent as any}
+          catalogType="team"
+          canDelete={canRemove}
           canPushToGlobal={canPushToGlobal}
-          onRemove={() => { onRemove(); setShowDetail(false) }}
-          onPush={() => { onPush(); setShowDetail(false) }}
           onClose={() => setShowDetail(false)}
+          onDelete={() => { onRemove(); setShowDetail(false) }}
+          onPushToGlobal={() => { onPush(); setShowDetail(false) }}
         />
       )}
     </>

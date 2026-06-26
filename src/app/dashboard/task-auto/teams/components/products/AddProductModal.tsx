@@ -4,55 +4,73 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { Package, Search, Check, Loader2, X, ListFilter, Sparkles } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, driveImageUrl } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
-import { ProductFormModal } from '@/components/task-auto/ProductFormModal'
-import { CustomSelect } from '@/components/task-auto/DarkInput'
+import { TeamProductFormModal } from './TeamProductFormModal'
 
-import type { BrandType, Product } from '@/types/task-auto'
+import type { BrandType } from '@/types/task-auto'
 import { addTeamProduct, getProducts } from '@/lib/api/task-auto'
 
 interface Props {
   open: boolean
   teamId: string
-  existingProductIds: string[]
+  existingSkus: string[]
   onClose: () => void
   onSuccess: () => void
   userId?: string
   initialBrandType?: BrandType
 }
 
-export function AddProductModal({ open, teamId, existingProductIds, onClose, onSuccess, userId, initialBrandType = 'DO_DA' }: Props) {
+export function AddProductModal({ open, teamId, existingSkus, onClose, onSuccess, userId: _userId, initialBrandType = 'DO_DA' }: Props) {
   const qc = useQueryClient()
   const [mode, setMode] = useState<'pick' | 'create'>('pick')
   const [search, setSearch] = useState('')
   const [brandType, setBrandType] = useState<BrandType>(initialBrandType)
-  const [selectedId, setSelectedId] = useState('')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [showCreateModal, setShowCreateModal] = useState(false)
 
   const { data: productsData, isLoading: loadingPick } = useQuery({
     queryKey: ['task-auto', 'products-catalog', brandType, search],
-    queryFn: () => getProducts({ owner: 'global', brand_type: brandType, search: search || undefined, limit: 50, is_active: true }),
+    queryFn: () => getProducts({ brand_type: brandType, search: search || undefined, limit: 50, is_active: true }),
     enabled: open && mode === 'pick',
   })
 
-  const available = (productsData?.data ?? []).filter(p => !existingProductIds.includes(p.id))
+  // Lọc ra những sản phẩm chưa có trong kho team (dựa theo SKU)
+  const available = (productsData?.data ?? []).filter(p => !existingSkus.includes(p.sku))
+
+  const toggleId = (id: string) =>
+    setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+
+  const toggleAll = () => {
+    if (selectedIds.size === available.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(available.map(p => p.id)))
+    }
+  }
 
   const pickMut = useMutation({
-    mutationFn: () => addTeamProduct(teamId, selectedId),
+    mutationFn: async () => {
+      const ids = Array.from(selectedIds)
+      const results = await Promise.allSettled(ids.map(id => addTeamProduct(teamId, { source_product_id: id })))
+      const failed = results.filter(r => r.status === 'rejected').length
+      if (failed > 0) throw new Error(`${failed} sản phẩm thêm thất bại`)
+    },
     onSuccess: () => {
-      toast.success('Đã thêm sản phẩm vào kho team')
+      toast.success(`Đã thêm ${selectedIds.size} sản phẩm vào kho team`)
       qc.invalidateQueries({ queryKey: ['task-auto', 'team-products', teamId] })
       onSuccess()
     },
-    onError: (e: any) => toast.error(e?.response?.data?.message || 'Thêm sản phẩm thất bại'),
+    onError: (e: any) => toast.error(e?.message || 'Thêm sản phẩm thất bại'),
   })
 
   useEffect(() => {
     if (!open) {
-      setSearch(''); setSelectedId(''); setMode('pick'); setShowCreateModal(false); setBrandType(initialBrandType)
+      setSearch(''); setSelectedIds(new Set()); setMode('pick'); setShowCreateModal(false); setBrandType(initialBrandType)
     }
   }, [open, initialBrandType])
+
+  const allSelected = available.length > 0 && selectedIds.size === available.length
 
   return (
     <>
@@ -69,11 +87,16 @@ export function AddProductModal({ open, teamId, existingProductIds, onClose, onS
             {mode === 'pick' && (
               <button
                 onClick={() => pickMut.mutate()}
-                disabled={pickMut.isPending || !selectedId}
+                disabled={pickMut.isPending || selectedIds.size === 0}
                 className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-5 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors disabled:opacity-60"
               >
-                {pickMut.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                Thêm vào kho
+                {pickMut.isPending
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : selectedIds.size > 0
+                    ? <Check className="w-3.5 h-3.5" />
+                    : null
+                }
+                {selectedIds.size > 0 ? `Thêm ${selectedIds.size} sản phẩm` : 'Thêm vào kho'}
               </button>
             )}
           </>
@@ -104,14 +127,21 @@ export function AddProductModal({ open, teamId, existingProductIds, onClose, onS
         {/* Tab: Từ kho tổng */}
         {mode === 'pick' && (
           <>
-            <div className="flex gap-2 mb-3">
-              {(['DO_DA', 'TRANG_SUC'] as BrandType[]).map(b => (
-                <button key={b} onClick={() => { setBrandType(b); setSelectedId('') }}
-                  className={cn('px-4 py-1.5 rounded-full text-xs font-semibold border transition-all',
-                    brandType === b ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-slate-500 hover:border-slate-400')}>
-                  {b === 'DO_DA' ? 'Đồ da' : 'Trang sức'}
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex gap-2">
+                {(['DO_DA', 'TRANG_SUC'] as BrandType[]).map(b => (
+                  <button key={b} onClick={() => { setBrandType(b); setSelectedIds(new Set()) }}
+                    className={cn('px-4 py-1.5 rounded-full text-xs font-semibold border transition-all',
+                      brandType === b ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-slate-500 hover:border-slate-400')}>
+                    {b === 'DO_DA' ? 'Đồ da' : 'Trang sức'}
+                  </button>
+                ))}
+              </div>
+              {available.length > 0 && (
+                <button onClick={toggleAll} className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors">
+                  {allSelected ? 'Bỏ chọn tất cả' : `Chọn tất cả (${available.length})`}
                 </button>
-              ))}
+              )}
             </div>
             <div className="relative mb-3">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -137,34 +167,42 @@ export function AddProductModal({ open, teamId, existingProductIds, onClose, onS
                   {search ? 'Không tìm thấy sản phẩm phù hợp' : 'Tất cả sản phẩm đã có trong kho team'}
                 </p>
               ) : (
-                available.map(p => (
-                  <button
-                    key={p.id}
-                    onClick={() => setSelectedId(p.id)}
-                    className={cn(
-                      'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors text-left',
-                      selectedId === p.id ? 'bg-indigo-50 border border-indigo-300' : 'hover:bg-gray-50 border border-transparent'
-                    )}
-                  >
-                    <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 overflow-hidden">
-                      {p.image_url
-                        ? <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
-                        : <Package className="w-4 h-4 text-slate-400" />
-                      }
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-slate-800 text-sm truncate">{p.name}</p>
-                      <p className="text-xs text-slate-400 truncate">SKU: {p.sku}</p>
-                    </div>
-                    {selectedId === p.id && <Check className="w-4 h-4 text-indigo-600 shrink-0" />}
-                  </button>
-                ))
+                available.map(p => {
+                  const selected = selectedIds.has(p.id)
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => toggleId(p.id)}
+                      className={cn(
+                        'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors text-left',
+                        selected ? 'bg-indigo-50 border border-indigo-300' : 'hover:bg-gray-50 border border-transparent'
+                      )}
+                    >
+                      <div className={cn(
+                        'w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors',
+                        selected ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white'
+                      )}>
+                        {selected && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                      </div>
+                      <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 overflow-hidden">
+                        {p.image_url
+                          ? <img src={driveImageUrl(p.image_url) ?? p.image_url} alt={p.name} className="w-full h-full object-cover" />
+                          : <Package className="w-4 h-4 text-slate-400" />
+                        }
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-slate-800 text-sm truncate">{p.name}</p>
+                        <p className="text-xs text-slate-400 truncate">SKU: {p.sku}</p>
+                      </div>
+                    </button>
+                  )
+                })
               )}
             </div>
           </>
         )}
 
-        {/* Tab: Tạo sản phẩm mới — mở ProductFormModal */}
+        {/* Tab: Tạo sản phẩm mới */}
         {mode === 'create' && (
           <div className="flex flex-col items-center justify-center py-10 gap-3">
             <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center">
@@ -181,22 +219,14 @@ export function AddProductModal({ open, teamId, existingProductIds, onClose, onS
         )}
       </DarkModal>
 
-      <ProductFormModal
+      <TeamProductFormModal
         open={showCreateModal}
-        userId={userId}
+        teamId={teamId}
         defaultBrandType={brandType}
-        title="Tạo sản phẩm mới cho kho team"
         onClose={() => { setShowCreateModal(false); setMode('pick') }}
-        onSuccess={async (product: Product) => {
-          try {
-            await addTeamProduct(teamId, product.id)
-            qc.invalidateQueries({ queryKey: ['task-auto', 'team-products', teamId] })
-            toast.success('Đã thêm sản phẩm vào kho team')
-            setShowCreateModal(false)
-            onSuccess()
-          } catch (e: any) {
-            toast.error(e?.response?.data?.message || 'Không thể thêm vào kho team')
-          }
+        onSuccess={() => {
+          setShowCreateModal(false)
+          onSuccess()
         }}
       />
     </>

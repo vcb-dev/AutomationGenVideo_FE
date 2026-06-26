@@ -1,23 +1,24 @@
 'use client'
 
 import { useState } from 'react'
-import { Package, Star, Trash2 } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { ProductDetailModal } from './ProductDetailModal'
+import { Package, Star, Trash2, Pencil } from 'lucide-react'
+import { cn, driveImageUrl } from '@/lib/utils'
+import { ProductViewModal } from '@/components/task-auto/ProductViewModal'
 import type { TeamProduct } from '@/types/task-auto'
 
 interface Props {
   teamProduct: TeamProduct
   canRemove: boolean
   onRemove: () => void
+  onEdit?: () => void
 }
 
-export function ProductCard({ teamProduct, canRemove, onRemove }: Props) {
+export function ProductCard({ teamProduct, canRemove, onRemove, onEdit }: Props) {
   const [showDetail, setShowDetail] = useState(false)
   const [imgError, setImgError] = useState(false)
-  const p = teamProduct.product
+  const p = teamProduct
   const rawThumb = p?.image_urls?.[0] ?? p?.image_url ?? null
-  const thumb = rawThumb && !imgError ? rawThumb : null
+  const thumb = rawThumb && !imgError ? (driveImageUrl(rawThumb) ?? rawThumb) : null
 
   return (
     <>
@@ -50,15 +51,26 @@ export function ProductCard({ teamProduct, canRemove, onRemove }: Props) {
             </span>
           )}
 
-          {/* Delete */}
+          {/* Actions */}
           {canRemove && (
-            <button
-              onClick={e => { e.stopPropagation(); onRemove() }}
-              className="absolute top-1.5 right-1.5 p-1.5 rounded-lg bg-white/90 text-slate-400 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all shadow-sm"
-              title="Xóa khỏi kho team"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
+            <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+              {onEdit && (
+                <button
+                  onClick={e => { e.stopPropagation(); onEdit() }}
+                  className="p-1.5 rounded-lg bg-white/90 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 shadow-sm transition-colors"
+                  title="Chỉnh sửa sản phẩm"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              )}
+              <button
+                onClick={e => { e.stopPropagation(); onRemove() }}
+                className="p-1.5 rounded-lg bg-white/90 text-slate-400 hover:text-red-500 hover:bg-red-50 shadow-sm transition-colors"
+                title="Xóa khỏi kho team"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
           )}
 
           {/* Product line overlay */}
@@ -94,11 +106,16 @@ export function ProductCard({ teamProduct, canRemove, onRemove }: Props) {
       </div>
 
       {showDetail && (
-        <ProductDetailModal
-          teamProduct={teamProduct}
-          canRemove={canRemove}
-          onRemove={() => { onRemove(); setShowDetail(false) }}
+        <ProductViewModal
+          open
+          item={teamProduct as any}
+          catalogType="team"
+          teamId={teamProduct.team_id}
+          canEdit={!!onEdit}
+          canDelete={canRemove}
           onClose={() => setShowDetail(false)}
+          onEdit={onEdit ? () => { setShowDetail(false); onEdit() } : undefined}
+          onDelete={() => { setShowDetail(false); onRemove() }}
         />
       )}
     </>

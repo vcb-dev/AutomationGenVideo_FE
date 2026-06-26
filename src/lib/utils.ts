@@ -27,3 +27,30 @@ export function formatDate(date: string): string {
     day: 'numeric',
   });
 }
+
+/** Convert bất kỳ Google Drive URL nào sang thumbnail URL để dùng trong <img src>. */
+export function driveImageUrl(url: string | null | undefined, sz = 400): string | null {
+  if (!url) return null;
+  if (!url.includes('drive.google.com')) return url;
+  const id = (url.match(/[?&]id=([a-zA-Z0-9_-]+)/) ?? url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/))?.[1];
+  if (!id) return url;
+  return `https://drive.google.com/thumbnail?id=${id}&sz=w${sz}`;
+}
+
+/** Convert bất kỳ Google Drive URL nào sang preview URL để nhúng vào <iframe>. */
+export function drivePreviewUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (!url.includes('drive.google.com')) return url;
+  const id = (url.match(/[?&]id=([a-zA-Z0-9_-]+)/) ?? url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/))?.[1];
+  if (!id) return url;
+  return `https://drive.google.com/file/d/${id}/preview`;
+}
+
+/** Convert bất kỳ Google Drive URL nào sang direct stream URL để dùng trong <audio src>. */
+export function driveDirectUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (!url.includes('drive.google.com')) return url;
+  const id = (url.match(/[?&]id=([a-zA-Z0-9_-]+)/) ?? url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/))?.[1];
+  if (!id) return url;
+  return `https://drive.google.com/uc?export=view&id=${id}`;
+}

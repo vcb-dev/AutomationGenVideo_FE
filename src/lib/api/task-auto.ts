@@ -16,6 +16,8 @@ import type {
   ContentsQuery,
   Source,
   SourcesQuery,
+  TeamSource,
+  TeamSourcesQuery,
   AssignmentRun,
   AutoAssignSetting,
   PaginatedResult,
@@ -41,8 +43,10 @@ export const getTasks = (q: TasksQuery = {}) =>
 export const getTask = (id: string) =>
   apiClient.get<Task>(`/task-auto/tasks/${id}`).then(r => r.data)
 
-export const createTask = (body: Partial<Task>) =>
-  apiClient.post<Task>('/task-auto/tasks', body).then(r => r.data)
+export const createTask = (body: Partial<Task>) =>{
+  console.log( body)
+  return apiClient.post<Task>('/task-auto/tasks', body).then(r => r.data)
+}
 
 export const updateTask = (id: string, body: Partial<Task>) =>
   apiClient.put<Task>(`/task-auto/tasks/${id}`, body).then(r => r.data)
@@ -99,30 +103,58 @@ export const removeTeamMember = (teamId: string, userId: string) =>
 export const setMemberEditorRole = (teamId: string, userId: string, isEditor: boolean) =>
   apiClient.patch(`/task-auto/teams/${teamId}/members/${userId}/editor`, { is_editor: isEditor }).then(r => r.data)
 
-// ── Team Products ─────────────────────────────────────────────────────────────
+// ── Team Products (standalone) ────────────────────────────────────────────────
 
 export const getTeamProducts = (teamId: string, brandType?: string) =>
   apiClient.get<TeamProduct[]>(`/task-auto/teams/${teamId}/products${brandType ? `?brand_type=${brandType}` : ''}`).then(r => r.data)
 
-export const addTeamProduct = (teamId: string, productId: string) =>
-  apiClient.post<TeamProduct>(`/task-auto/teams/${teamId}/products`, { product_id: productId }).then(r => r.data)
+/** Copy từ kho tổng: truyền { source_product_id }. Tạo mới: truyền full product data */
+export const addTeamProduct = (teamId: string, data: { source_product_id?: string; name?: string; sku?: string; brand_type?: string; [key: string]: any }) =>
+  apiClient.post<TeamProduct>(`/task-auto/teams/${teamId}/products`, data).then(r => r.data)
 
-export const removeTeamProduct = (teamId: string, productId: string) =>
-  apiClient.delete(`/task-auto/teams/${teamId}/products/${productId}`).then(r => r.data)
+export const updateTeamProduct = (teamId: string, teamProductId: string, data: Partial<TeamProduct>) =>
+  apiClient.patch<TeamProduct>(`/task-auto/teams/${teamId}/products/${teamProductId}`, data).then(r => r.data)
 
-// ── Team Contents ─────────────────────────────────────────────────────────────
+export const removeTeamProduct = (teamId: string, teamProductId: string) =>
+  apiClient.delete(`/task-auto/teams/${teamId}/products/${teamProductId}`).then(r => r.data)
+
+export const pushTeamProductToGlobal = (teamId: string, teamProductId: string) =>
+  apiClient.patch(`/task-auto/teams/${teamId}/products/${teamProductId}/push`).then(r => r.data)
+
+// ── Team Contents (standalone) ────────────────────────────────────────────────
 
 export const getTeamContents = (teamId: string, brandType?: string) =>
   apiClient.get<TeamContent[]>(`/task-auto/teams/${teamId}/contents${brandType ? `?brand_type=${brandType}` : ''}`).then(r => r.data)
 
-export const addTeamContent = (teamId: string, contentId: string) =>
-  apiClient.post<TeamContent>(`/task-auto/teams/${teamId}/contents`, { content_id: contentId }).then(r => r.data)
+/** Copy từ kho tổng: truyền { source_content_id }. Tạo mới: truyền full content data */
+export const addTeamContent = (teamId: string, data: { source_content_id?: string; brand_type?: string; [key: string]: any }) =>
+  apiClient.post<TeamContent>(`/task-auto/teams/${teamId}/contents`, data).then(r => r.data)
 
-export const removeTeamContent = (teamId: string, contentId: string) =>
-  apiClient.delete(`/task-auto/teams/${teamId}/contents/${contentId}`).then(r => r.data)
+export const updateTeamContent = (teamId: string, teamContentId: string, data: Partial<TeamContent>) =>
+  apiClient.patch<TeamContent>(`/task-auto/teams/${teamId}/contents/${teamContentId}`, data).then(r => r.data)
 
-export const pushTeamContentToGlobal = (teamId: string, contentId: string) =>
-  apiClient.patch(`/task-auto/teams/${teamId}/contents/${contentId}/push`).then(r => r.data)
+export const removeTeamContent = (teamId: string, teamContentId: string) =>
+  apiClient.delete(`/task-auto/teams/${teamId}/contents/${teamContentId}`).then(r => r.data)
+
+export const pushTeamContentToGlobal = (teamId: string, teamContentId: string) =>
+  apiClient.patch(`/task-auto/teams/${teamId}/contents/${teamContentId}/push`).then(r => r.data)
+
+// ── Team Sources ──────────────────────────────────────────────────────────────
+
+export const getTeamSources = (teamId: string, q: TeamSourcesQuery = {}) =>
+  apiClient.get<TeamSource[]>(`/task-auto/teams/${teamId}/sources${qs(q as any)}`).then(r => r.data)
+
+export const addTeamSource = (teamId: string, data: { source_source_id?: string; brand_type?: string; type?: string; name?: string; link?: string; [key: string]: any }) =>
+  apiClient.post<TeamSource>(`/task-auto/teams/${teamId}/sources`, data).then(r => r.data)
+
+export const updateTeamSource = (teamId: string, teamSourceId: string, data: Partial<TeamSource>) =>
+  apiClient.patch<TeamSource>(`/task-auto/teams/${teamId}/sources/${teamSourceId}`, data).then(r => r.data)
+
+export const removeTeamSource = (teamId: string, teamSourceId: string) =>
+  apiClient.delete(`/task-auto/teams/${teamId}/sources/${teamSourceId}`).then(r => r.data)
+
+export const pushTeamSourceToGlobal = (teamId: string, teamSourceId: string) =>
+  apiClient.patch(`/task-auto/teams/${teamId}/sources/${teamSourceId}/push`).then(r => r.data)
 
 // ── Users ─────────────────────────────────────────────────────────────────────
 
@@ -330,16 +362,76 @@ export const updateSource = (id: string, body: Partial<Source>) =>
 export const deleteSource = (id: string) =>
   apiClient.delete(`/task-auto/sources/${id}`).then(r => r.data)
 
-// ── Personal Catalog — Push to Team ──────────────────────────────────────────
+// ── Editor Catalog — Products ─────────────────────────────────────────────────
 
-export const pushProductToTeam = (productId: string, teamId: string) =>
-  apiClient.post(`/task-auto/my-catalog/products/${productId}/push-to-team`, { team_id: teamId }).then(r => r.data)
+export const getEditorProducts = (userId: string, q: Record<string, any> = {}) =>
+  apiClient.get<PaginatedResult<Product>>(`/task-auto/editors/${userId}/products${qs(q as any)}`).then(r => r.data)
 
-export const pushContentToTeam = (contentId: string, teamId: string) =>
-  apiClient.post(`/task-auto/my-catalog/contents/${contentId}/push-to-team`, { team_id: teamId }).then(r => r.data)
+export const createEditorProduct = (userId: string, body: Partial<Product>) =>
+  apiClient.post<Product>(`/task-auto/editors/${userId}/products`, body).then(r => r.data)
 
-export const pushSourceToTeam = (sourceId: string, teamId: string) =>
-  apiClient.post(`/task-auto/my-catalog/sources/${sourceId}/push-to-team`, { team_id: teamId }).then(r => r.data)
+export const updateEditorProduct = (userId: string, id: string, body: Partial<Product>) =>
+  apiClient.patch<Product>(`/task-auto/editors/${userId}/products/${id}`, body).then(r => r.data)
+
+export const deleteEditorProduct = (userId: string, id: string) =>
+  apiClient.delete(`/task-auto/editors/${userId}/products/${id}`).then(r => r.data)
+
+export const pushEditorProductToTeam = (userId: string, id: string, teamId: string) =>
+  apiClient.patch(`/task-auto/editors/${userId}/products/${id}/push-to-team`, { team_id: teamId }).then(r => r.data)
+
+export const pushEditorProductToGlobal = (userId: string, id: string) =>
+  apiClient.patch(`/task-auto/editors/${userId}/products/${id}/push-to-global`).then(r => r.data)
+
+// ── Editor Catalog — Contents ─────────────────────────────────────────────────
+
+export const getEditorContents = (userId: string, q: Record<string, any> = {}) =>
+  apiClient.get<PaginatedResult<Content>>(`/task-auto/editors/${userId}/contents${qs(q as any)}`).then(r => r.data)
+
+export const createEditorContent = (userId: string, body: Partial<Content>) =>
+  apiClient.post<Content>(`/task-auto/editors/${userId}/contents`, body).then(r => r.data)
+
+export const updateEditorContent = (userId: string, id: string, body: Partial<Content>) =>
+  apiClient.patch<Content>(`/task-auto/editors/${userId}/contents/${id}`, body).then(r => r.data)
+
+export const deleteEditorContent = (userId: string, id: string) =>
+  apiClient.delete(`/task-auto/editors/${userId}/contents/${id}`).then(r => r.data)
+
+export const pushEditorContentToTeam = (userId: string, id: string, teamId: string) =>
+  apiClient.patch(`/task-auto/editors/${userId}/contents/${id}/push-to-team`, { team_id: teamId }).then(r => r.data)
+
+export const pushEditorContentToGlobal = (userId: string, id: string) =>
+  apiClient.patch(`/task-auto/editors/${userId}/contents/${id}/push-to-global`).then(r => r.data)
+
+// ── Editor Catalog — Sources ──────────────────────────────────────────────────
+
+export const getEditorSources = (userId: string, q: Record<string, any> = {}) =>
+  apiClient.get<PaginatedResult<Source>>(`/task-auto/editors/${userId}/sources${qs(q as any)}`).then(r => r.data)
+
+export const createEditorSource = (userId: string, body: Partial<Source>) =>
+  apiClient.post<Source>(`/task-auto/editors/${userId}/sources`, body).then(r => r.data)
+
+export const updateEditorSource = (userId: string, id: string, body: Partial<Source>) =>
+  apiClient.patch<Source>(`/task-auto/editors/${userId}/sources/${id}`, body).then(r => r.data)
+
+export const deleteEditorSource = (userId: string, id: string) =>
+  apiClient.delete(`/task-auto/editors/${userId}/sources/${id}`).then(r => r.data)
+
+export const pushEditorSourceToTeam = (userId: string, id: string, teamId: string) =>
+  apiClient.patch(`/task-auto/editors/${userId}/sources/${id}/push-to-team`, { team_id: teamId }).then(r => r.data)
+
+export const pushEditorSourceToGlobal = (userId: string, id: string) =>
+  apiClient.patch(`/task-auto/editors/${userId}/sources/${id}/push-to-global`).then(r => r.data)
+
+// ── Personal Catalog — Push to Team (legacy aliases) ─────────────────────────
+
+export const pushProductToTeam = (userId: string, productId: string, teamId: string) =>
+  pushEditorProductToTeam(userId, productId, teamId)
+
+export const pushContentToTeam = (userId: string, contentId: string, teamId: string) =>
+  pushEditorContentToTeam(userId, contentId, teamId)
+
+export const pushSourceToTeam = (userId: string, sourceId: string, teamId: string) =>
+  pushEditorSourceToTeam(userId, sourceId, teamId)
 
 // ── Auto-Assign Settings & Runs ────────────────────────────────────────────────
 

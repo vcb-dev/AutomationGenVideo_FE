@@ -5,15 +5,19 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {
   Radio, Plus, Search, ExternalLink, Trash2, Edit2,
-  Loader2, Globe, ListFilter, PenLine, Check, X,
+  Loader2, Globe, ListFilter, PenLine, Check, X, ArrowUpToLine, Link2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { CustomSelect, DarkInput, ProductSearchSelect } from '@/components/task-auto/DarkInput'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
-import { getSources, createSource, updateSource, deleteSource, getTeams, getProducts } from '@/lib/api/task-auto'
-import { Source, SOURCE_TYPE_LABELS, SourceType } from '@/types/task-auto'
+import {
+  getTeamSources, addTeamSource, updateTeamSource, removeTeamSource,
+  pushTeamSourceToGlobal, getSources, getTeams, getTeamProducts,
+} from '@/lib/api/task-auto'
+import { TeamSource, Source, SOURCE_TYPE_LABELS, SourceType } from '@/types/task-auto'
+import { SourceViewModal } from '@/components/task-auto/SourceViewModal'
 
 const SOURCE_TYPE_COLORS: Record<SourceType, string> = {
   PRODUCT_STOCK: 'bg-indigo-100 text-indigo-700',
@@ -36,21 +40,19 @@ export function TeamSourcesTab({ isAdminOrManager, userId, brandType }: TeamSour
   const [selectedTeamId, setSelectedTeamId] = useState('')
   const [search, setSearch] = useState('')
 
-  // modal states
-  const [modal, setModal]           = useState<null | 'add' | 'edit'>(null)
+  const [modal, setModal]           = useState<null | 'add' | 'view' | 'edit'>(null)
   const [addMode, setAddMode]       = useState<AddMode>('manual')
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [editing, setEditing]       = useState<Source | null>(null)
+  const [pushingId, setPushingId]   = useState<string | null>(null)
+  const [editing, setEditing]       = useState<TeamSource | null>(null)
 
-  // manual form — dùng brandType từ props (page-level selection)
   const [formBrandType, setFormBrandType] = useState<'DO_DA' | 'TRANG_SUC'>(brandType)
-  const [form, setForm] = useState<Partial<Source>>({
-    type: 'OUTRO', name: '', link: '', code: '', product_id: '', is_active: true,
+  const [form, setForm] = useState<Partial<TeamSource>>({
+    type: 'OUTRO', name: '', link: '', code: '', team_product_id: '', is_active: true,
   })
 
-  // global pick state
-  const [globalSearch, setGlobalSearch]         = useState('')
-  const [selectedGlobalId, setSelectedGlobalId] = useState('')
+  const [globalSearch, setGlobalSearch]           = useState('')
+  const [selectedGlobalIds, setSelectedGlobalIds] = useState<Set<string>>(new Set())
 
   const { data: teams } = useQuery({
     queryKey: ['task-auto', 'teams'],
@@ -69,61 +71,72 @@ export function TeamSourcesTab({ isAdminOrManager, userId, brandType }: TeamSour
     : (teams ?? []).map(t => ({ value: t.id, label: t.name }))
 
   const selectedTeam = teams?.find(t => t.id === selectedTeamId)
-  const isLeaderOfSelected  = selectedTeam?.leader_id === userId
-  const isMemberOfSelected  = selectedTeam?.members?.some((m: any) => m.user_id === userId) ?? false
-  const canManageSelected   = isAdminOrManager || isLeaderOfSelected || isMemberOfSelected
+  const isLeaderOfSelected = selectedTeam?.leader_id === userId
+  const isMemberOfSelected = selectedTeam?.members?.some((m: any) => m.user_id === userId) ?? false
+  const canManageSelected  = isAdminOrManager || isLeaderOfSelected || isMemberOfSelected
+  const canPushToGlobal    = isAdminOrManager || isLeaderOfSelected
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'sources', 'team', selectedTeamId, brandType, search],
-    queryFn: () => getSources({ team_id: selectedTeamId, brand_type: brandType, search: search || undefined, limit: 100 }),
+  const { data: sources = [], isLoading } = useQuery({
+    queryKey: ['task-auto', 'team-sources', selectedTeamId, brandType],
+    queryFn: () => getTeamSources(selectedTeamId, { brand_type: brandType }),
     enabled: !!selectedTeamId,
   })
 
+  const filtered = search
+    ? sources.filter(s => s.name.toLowerCase().includes(search.toLowerCase()) || s.link.includes(search))
+    : sources
+
   const { data: productsForSelect } = useQuery({
-    queryKey: ['task-auto', 'products-select'],
-    queryFn: () => getProducts({ limit: 200 }),
-    enabled: modal !== null,
+    queryKey: ['task-auto', 'team-products-select', selectedTeamId],
+    queryFn: () => getTeamProducts(selectedTeamId),
+    enabled: modal !== null && !!selectedTeamId,
   })
 
   const { data: globalSourcesData, isLoading: loadingGlobal } = useQuery({
     queryKey: ['task-auto', 'sources-global-pick', brandType, globalSearch],
-    queryFn: () => getSources({ owner: 'global', brand_type: brandType, search: globalSearch || undefined, is_active: true, limit: 100 }),
+    queryFn: () => getSources({ brand_type: brandType, search: globalSearch || undefined, is_active: true, limit: 100 }),
     enabled: modal === 'add' && addMode === 'global',
   })
 
   const resetAddModal = () => {
     setModal(null)
     setAddMode('manual')
-    setForm({ type: 'OUTRO', name: '', link: '', code: '', product_id: '', is_active: true })
+    setForm({ type: 'OUTRO', name: '', link: '', code: '', team_product_id: '', is_active: true })
     setGlobalSearch('')
-    setSelectedGlobalId('')
+    setSelectedGlobalIds(new Set())
     setEditing(null)
   }
 
-  const createMut = useMutation({
-    mutationFn: createSource,
+  const refetchKey = ['task-auto', 'team-sources', selectedTeamId, brandType]
+
+  const addMut = useMutation({
+    mutationFn: (data: Parameters<typeof addTeamSource>[1]) => addTeamSource(selectedTeamId, data),
     onSuccess: async () => {
-      await qc.refetchQueries({ queryKey: ['task-auto', 'sources', 'team', selectedTeamId] })
+      await qc.refetchQueries({ queryKey: refetchKey })
       toast.success('Đã thêm source vào kho team')
       resetAddModal()
     },
-    onError: () => toast.error('Không thể thêm source'),
+    onError: (e: any) => toast.error(e?.response?.data?.message || 'Không thể thêm source'),
   })
 
   const updateMut = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: Partial<Source> }) => updateSource(id, body),
-    onSuccess: async () => {
-      await qc.refetchQueries({ queryKey: ['task-auto', 'sources', 'team', selectedTeamId] })
+    mutationFn: ({ id, body }: { id: string; body: Partial<TeamSource> }) =>
+      updateTeamSource(selectedTeamId, id, body),
+    onSuccess: async (_, { id }) => {
+      const updated = await qc.fetchQuery({ queryKey: refetchKey, queryFn: () => getTeamSources(selectedTeamId, { brand_type: brandType }) }).catch(() => null)
+      const fresh = (updated as TeamSource[] | null)?.find(s => s.id === id)
+      if (fresh) setEditing(fresh)
+      await qc.refetchQueries({ queryKey: refetchKey })
       toast.success('Đã cập nhật source')
-      setModal(null)
+      setModal('view')
     },
     onError: () => toast.error('Không thể cập nhật source'),
   })
 
   const deleteMut = useMutation({
-    mutationFn: deleteSource,
+    mutationFn: (id: string) => removeTeamSource(selectedTeamId, id),
     onSuccess: async () => {
-      await qc.refetchQueries({ queryKey: ['task-auto', 'sources', 'team', selectedTeamId] })
+      await qc.refetchQueries({ queryKey: refetchKey })
       toast.success('Đã xóa source')
       setDeletingId(null)
     },
@@ -133,52 +146,78 @@ export function TeamSourcesTab({ isAdminOrManager, userId, brandType }: TeamSour
     },
   })
 
+  const pushMut = useMutation({
+    mutationFn: (id: string) => pushTeamSourceToGlobal(selectedTeamId, id),
+    onSuccess: async (_, id) => {
+      await qc.refetchQueries({ queryKey: refetchKey })
+      await qc.refetchQueries({ queryKey: ['task-auto', 'sources'] })
+      toast.success('Đã đẩy source ra kho tổng')
+      setPushingId(null)
+    },
+    onError: (e: any) => {
+      toast.error(e?.response?.data?.message || 'Không thể đẩy source')
+      setPushingId(null)
+    },
+  })
+
+  const openView = (s: TeamSource) => {
+    setEditing(s)
+    setModal('view')
+  }
+
   const openAdd = () => {
-    setForm({ type: 'OUTRO', name: '', link: '', code: '', product_id: '', is_active: true })
+    setForm({ type: 'OUTRO', name: '', link: '', code: '', team_product_id: '', is_active: true })
     setEditing(null)
     setAddMode('manual')
     setGlobalSearch('')
-    setSelectedGlobalId('')
+    setSelectedGlobalIds(new Set())
     setModal('add')
   }
 
-  const openEdit = (s: Source) => { setForm({ ...s }); setEditing(s); setModal('edit') }
+  const openEdit = (s: TeamSource) => {
+    setForm({ ...s })
+    setFormBrandType(s.brand_type as 'DO_DA' | 'TRANG_SUC')
+    setEditing(s)
+    setModal('edit')
+  }
 
   const handleManualSubmit = () => {
     if (!form.name || !form.link) return toast.error('Tên và link là bắt buộc')
     const body = {
+      brand_type: formBrandType,
+      type:       form.type!,
       name:       form.name,
       link:       form.link,
-      code:       form.code || null,
-      product_id: form.product_id || null,
-      team_id:    selectedTeamId,
-      user_id:    null,
-      is_active:  form.is_active ?? true,
+      code:            form.code || undefined,
+      team_product_id: form.team_product_id || undefined,
+      is_active:       form.is_active ?? true,
     }
-    if (modal === 'add') createMut.mutate({ type: form.type!, brand_type: formBrandType, ...body })
-    else if (editing)    updateMut.mutate({ id: editing.id, body })
+    if (modal === 'add') addMut.mutate(body)
+    else if (editing)   updateMut.mutate({ id: editing.id, body })
   }
 
-  const handleGlobalPick = () => {
-    const src = globalSourcesData?.data?.find(s => s.id === selectedGlobalId)
-    if (!src) return
-    createMut.mutate({
-      brand_type: src.brand_type ?? brandType,
-      type:       src.type,
-      name:       src.name,
-      link:       src.link,
-      code:       src.code || null,
-      product_id: src.product_id || null,
-      team_id:    selectedTeamId,
-      user_id:    null,
-      is_active:  true,
-    } as any)
+  const toggleGlobalId = (id: string) =>
+    setSelectedGlobalIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+
+  const handleGlobalPick = async () => {
+    const srcList = (globalSourcesData?.data ?? []).filter(s => selectedGlobalIds.has(s.id))
+    if (srcList.length === 0) return
+    const results = await Promise.allSettled(
+      srcList.map((src: Source) => addMut.mutateAsync({ source_source_id: src.id }))
+    )
+    const failed = results.filter(r => r.status === 'rejected').length
+    if (failed > 0) toast.error(`${failed} source thêm thất bại`)
+    else toast.success(`Đã thêm ${srcList.length} source vào kho team`)
+    await qc.refetchQueries({ queryKey: refetchKey })
+    resetAddModal()
   }
 
-  const saving = createMut.isPending || updateMut.isPending
-  const sources = data?.data ?? []
+  const saving = addMut.isPending || updateMut.isPending
   const existingLinks = new Set(sources.map(s => s.link))
   const availableGlobal = (globalSourcesData?.data ?? []).filter(s => !existingLinks.has(s.link))
+  const allGlobalSelected = availableGlobal.length > 0 && selectedGlobalIds.size === availableGlobal.length
+  const toggleAllGlobal = () =>
+    setSelectedGlobalIds(allGlobalSelected ? new Set() : new Set(availableGlobal.map(s => s.id)))
 
   return (
     <div className="space-y-5">
@@ -220,21 +259,15 @@ export function TeamSourcesTab({ isAdminOrManager, userId, brandType }: TeamSour
         </div>
       </div>
 
-      {/* Chưa chọn team */}
-      {!selectedTeamId && (
-        <div className="bg-white border border-gray-200 rounded-2xl p-12">
-          <EmptyState icon={Radio} title="Chọn team để xem kho source" />
-        </div>
-      )}
+      {!selectedTeamId && <EmptyState icon={Radio} title="Chọn team để xem kho source" />}
 
-      {/* Danh sách */}
       {selectedTeamId && (
         <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
           {isLoading ? (
             <div className="flex justify-center items-center py-16">
               <Loader2 className="w-7 h-7 animate-spin text-indigo-500" />
             </div>
-          ) : sources.length === 0 ? (
+          ) : filtered.length === 0 ? (
             <EmptyState icon={Radio} title="Team chưa có source nào"
               description={canManageSelected ? 'Nhấn "Thêm Source" để thêm source vào kho của team.' : 'Chưa có source nào được thêm vào kho team.'} />
           ) : (
@@ -248,14 +281,18 @@ export function TeamSourcesTab({ isAdminOrManager, userId, brandType }: TeamSour
                     <th className="text-left px-5 py-4 text-sm font-bold text-slate-600">Link</th>
                     <th className="text-left px-5 py-4 text-sm font-bold text-slate-600">Sản phẩm</th>
                     <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 whitespace-nowrap">Trạng thái</th>
-                    <th className="w-20" />
+                    <th className="w-28" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {sources.map(s => (
-                    <tr key={s.id} className="hover:bg-indigo-50/20 transition-colors group">
+                  {filtered.map(s => (
+                    <tr key={s.id} onClick={() => openView(s)}
+                      className="hover:bg-indigo-50/30 transition-colors group cursor-pointer">
                       <td className="px-5 py-4">
                         <p className="text-base font-semibold text-slate-800 truncate max-w-[240px]" title={s.name}>{s.name}</p>
+                        {s.source_source_id && (
+                          <span className="text-xs text-slate-400 mt-0.5">· copy từ kho tổng</span>
+                        )}
                       </td>
                       <td className="px-5 py-4 whitespace-nowrap">
                         <span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold', SOURCE_TYPE_COLORS[s.type])}>
@@ -269,6 +306,7 @@ export function TeamSourcesTab({ isAdminOrManager, userId, brandType }: TeamSour
                       </td>
                       <td className="px-5 py-4 max-w-[200px]">
                         <a href={s.link} target="_blank" rel="noreferrer" title={s.link}
+                          onClick={e => e.stopPropagation()}
                           className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-400 text-sm transition-colors">
                           <ExternalLink className="w-3.5 h-3.5 shrink-0" />
                           <span className="truncate">{s.link}</span>
@@ -276,7 +314,7 @@ export function TeamSourcesTab({ isAdminOrManager, userId, brandType }: TeamSour
                       </td>
                       <td className="px-5 py-4">
                         <span className="text-sm text-slate-700 truncate block max-w-[160px]">
-                          {s.product?.name ?? <span className="text-slate-300">—</span>}
+                          {(s.team_product?.name ?? s.product?.name) ?? <span className="text-slate-300">—</span>}
                         </span>
                       </td>
                       <td className="px-5 py-4 whitespace-nowrap">
@@ -286,14 +324,20 @@ export function TeamSourcesTab({ isAdminOrManager, userId, brandType }: TeamSour
                           {s.is_active ? 'Hoạt động' : 'Ẩn'}
                         </span>
                       </td>
-                      <td className="px-4 py-4 text-right">
+                      <td className="px-4 py-4 text-right" onClick={e => e.stopPropagation()}>
                         {canManageSelected && (
                           <div className="flex items-center justify-end gap-1">
-                            <button onClick={() => openEdit(s)}
+                            {canPushToGlobal && (
+                              <button onClick={() => setPushingId(s.id)} title="Đẩy ra kho tổng"
+                                className="p-2 rounded-xl hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition-colors">
+                                <ArrowUpToLine className="w-4 h-4" />
+                              </button>
+                            )}
+                            <button onClick={() => openEdit(s)} title="Chỉnh sửa"
                               className="p-2 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors">
                               <Edit2 className="w-4 h-4" />
                             </button>
-                            <button onClick={() => setDeletingId(s.id)}
+                            <button onClick={() => setDeletingId(s.id)} title="Xóa"
                               className="p-2 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors">
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -320,7 +364,35 @@ export function TeamSourcesTab({ isAdminOrManager, userId, brandType }: TeamSour
         onCancel={() => setDeletingId(null)}
       />
 
-      {/* ─── Modal Thêm Source (2 tab) ─── */}
+      <ConfirmDialog
+        open={!!pushingId}
+        title="Đẩy source ra kho tổng"
+        message={pushingId && sources.find(s => s.id === pushingId)?.source_source_id
+          ? 'Source sẽ cập nhật lại source gốc trong kho tổng.'
+          : 'Source sẽ được tạo mới trong kho tổng và liên kết lại.'}
+        confirmLabel="Đẩy ra kho tổng"
+        isLoading={pushMut.isPending}
+        onConfirm={() => pushingId && pushMut.mutate(pushingId)}
+        onCancel={() => setPushingId(null)}
+      />
+
+      {/* ─── Modal Chi tiết Source ─── */}
+      {editing && modal === 'view' && (
+        <SourceViewModal
+          open
+          item={editing as any}
+          catalogType="team"
+          canEdit={canManageSelected}
+          canDelete={canManageSelected}
+          canPushToGlobal={canPushToGlobal}
+          onClose={() => setModal(null)}
+          onEdit={() => openEdit(editing)}
+          onDelete={() => setDeletingId(editing.id)}
+          onPushToGlobal={() => { setModal(null); setPushingId(editing.id) }}
+        />
+      )}
+
+      {/* ─── Modal Thêm Source ─── */}
       <DarkModal
         open={modal === 'add'}
         onClose={resetAddModal}
@@ -339,10 +411,10 @@ export function TeamSourcesTab({ isAdminOrManager, userId, brandType }: TeamSour
                 Thêm vào kho
               </button>
             ) : (
-              <button onClick={handleGlobalPick} disabled={saving || !selectedGlobalId}
+              <button onClick={handleGlobalPick} disabled={saving || selectedGlobalIds.size === 0}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-3 text-base font-semibold flex items-center gap-2 transition-colors disabled:opacity-60">
-                {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-                Thêm vào kho
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : selectedGlobalIds.size > 0 ? <Check className="w-4 h-4" /> : null}
+                {selectedGlobalIds.size > 0 ? `Thêm ${selectedGlobalIds.size} source` : 'Thêm vào kho'}
               </button>
             )}
           </>
@@ -350,190 +422,112 @@ export function TeamSourcesTab({ isAdminOrManager, userId, brandType }: TeamSour
       >
         {/* Tab switcher */}
         <div className="flex gap-1 mb-6 bg-gray-100 rounded-xl p-1">
-          <button
-            onClick={() => setAddMode('manual')}
-            className={cn(
-              'flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-semibold transition-all',
-              addMode === 'manual' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-            )}
-          >
+          <button onClick={() => setAddMode('manual')}
+            className={cn('flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-semibold transition-all',
+              addMode === 'manual' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700')}>
             <PenLine className="w-4 h-4" /> Nhập tay
           </button>
-          <button
-            onClick={() => setAddMode('global')}
-            className={cn(
-              'flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-semibold transition-all',
-              addMode === 'global' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-            )}
-          >
+          <button onClick={() => setAddMode('global')}
+            className={cn('flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-semibold transition-all',
+              addMode === 'global' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700')}>
             <ListFilter className="w-4 h-4" /> Từ kho tổng
           </button>
         </div>
 
-        {/* ── Tab: Nhập tay ── */}
+        {/* ── Nhập tay ── */}
         {addMode === 'manual' && (
           <div className="space-y-6">
             <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
               <Globe className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
-              <p className="text-sm text-blue-700">
-                Source này sẽ thuộc <strong>kho riêng của team</strong>.
-                Khi auto-assign, editor trong team này sẽ được ưu tiên dùng source này.
-              </p>
+              <p className="text-sm text-blue-700">Source này sẽ thuộc <strong>kho riêng của team</strong>.</p>
             </div>
-
             <div className="space-y-4">
-              <p className="text-sm font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
-                Phân loại
-              </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <CustomSelect
-                  label="Nhóm sản phẩm *"
-                  value={formBrandType}
+                <CustomSelect label="Nhóm sản phẩm *" value={formBrandType}
                   onChange={v => setFormBrandType(v as 'DO_DA' | 'TRANG_SUC')}
-                  options={[{ value: 'DO_DA', label: 'Đồ da' }, { value: 'TRANG_SUC', label: 'Trang sức' }]}
-                />
-                <CustomSelect
-                  label="Loại Source *"
-                  value={form.type ?? 'OUTRO'}
+                  options={[{ value: 'DO_DA', label: 'Đồ da' }, { value: 'TRANG_SUC', label: 'Trang sức' }]} />
+                <CustomSelect label="Loại Source *" value={form.type ?? 'OUTRO'}
                   onChange={v => setForm(f => ({ ...f, type: v as SourceType }))}
-                  options={(Object.keys(SOURCE_TYPE_LABELS) as SourceType[]).map(k => ({ value: k, label: SOURCE_TYPE_LABELS[k] }))}
-                />
+                  options={(Object.keys(SOURCE_TYPE_LABELS) as SourceType[]).map(k => ({ value: k, label: SOURCE_TYPE_LABELS[k] }))} />
               </div>
-              <DarkInput
-                label="Mã code"
-                placeholder="VD: SRC001 (tuỳ chọn)"
-                value={form.code ?? ''}
-                onChange={e => setForm(f => ({ ...f, code: e.target.value }))}
-              />
+              <DarkInput label="Mã code" placeholder="VD: SRC001 (tuỳ chọn)" value={form.code ?? ''}
+                onChange={e => setForm(f => ({ ...f, code: e.target.value }))} />
+              <DarkInput label="Tên Source *" placeholder="Tên nguồn tài liệu..." value={form.name ?? ''}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+              <DarkInput label="Link *" placeholder="https://drive.google.com/..." value={form.link ?? ''}
+                onChange={e => setForm(f => ({ ...f, link: e.target.value }))} />
+              <ProductSearchSelect label="Sản phẩm liên kết" value={form.team_product_id ?? ''}
+                onChange={id => setForm(f => ({ ...f, team_product_id: id }))}
+                products={productsForSelect ?? []}
+                placeholder="-- Không liên kết sản phẩm --" clearLabel="-- Không liên kết --" />
             </div>
-
-            <div className="space-y-4">
-              <p className="text-sm font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
-                Thông tin Source
-              </p>
-              <DarkInput
-                label="Tên Source *"
-                placeholder="Tên nguồn tài liệu..."
-                value={form.name ?? ''}
-                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-              />
-              <DarkInput
-                label="Link *"
-                placeholder="https://drive.google.com/..."
-                value={form.link ?? ''}
-                onChange={e => setForm(f => ({ ...f, link: e.target.value }))}
-              />
-              <ProductSearchSelect
-                label="Sản phẩm liên kết"
-                value={form.product_id ?? ''}
-                onChange={id => setForm(f => ({ ...f, product_id: id }))}
-                products={productsForSelect?.data ?? []}
-                placeholder="-- Không liên kết sản phẩm --"
-                clearLabel="-- Không liên kết --"
-              />
-            </div>
-
-            <div className="space-y-3">
-              <p className="text-sm font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
-                Trạng thái
-              </p>
-              <div className="flex items-center gap-4 bg-gray-50 rounded-xl px-5 py-4 border border-gray-200">
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" checked={form.is_active ?? true}
-                    onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))}
-                    className="sr-only peer" />
-                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-indigo-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5" />
-                </label>
-                <div>
-                  <p className="text-base font-semibold text-slate-800">{form.is_active ? 'Đang hoạt động' : 'Không hoạt động'}</p>
-                  <p className="text-sm text-slate-500 mt-0.5">{form.is_active ? 'Source hiển thị và có thể gán vào task' : 'Source bị ẩn'}</p>
-                </div>
-              </div>
+            <div className="flex items-center gap-4 bg-gray-50 rounded-xl px-5 py-4 border border-gray-200">
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" checked={form.is_active ?? true}
+                  onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))} className="sr-only peer" />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-indigo-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5" />
+              </label>
+              <p className="text-base font-semibold text-slate-800">{form.is_active ? 'Đang hoạt động' : 'Không hoạt động'}</p>
             </div>
           </div>
         )}
 
-        {/* ── Tab: Từ kho tổng ── */}
+        {/* ── Từ kho tổng ── */}
         {addMode === 'global' && (
           <div className="space-y-4">
             <div className="flex items-start gap-3 bg-violet-50 border border-violet-100 rounded-xl px-4 py-3">
               <Globe className="w-5 h-5 text-violet-500 shrink-0 mt-0.5" />
-              <p className="text-sm text-violet-700">
-                Chọn source từ kho tổng để sao chép vào kho team.
-                Source gốc vẫn ở kho tổng, team sẽ có bản riêng để tuỳ chỉnh.
-              </p>
+              <p className="text-sm text-violet-700">Chọn source từ kho tổng để sao chép vào kho team. Source gốc vẫn ở kho tổng.</p>
             </div>
-
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input
-                autoFocus
-                type="text"
-                value={globalSearch}
-                onChange={e => { setGlobalSearch(e.target.value); setSelectedGlobalId('') }}
-                placeholder="Tìm tên hoặc code source..."
-                className="w-full pl-9 pr-9 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
-              />
-              {globalSearch && (
-                <button onClick={() => setGlobalSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                  <X className="w-3.5 h-3.5" />
+            <div className="flex items-center gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input autoFocus type="text" value={globalSearch} onChange={e => setGlobalSearch(e.target.value)}
+                  placeholder="Tìm tên hoặc code source..."
+                  className="w-full pl-9 pr-9 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                {globalSearch && (
+                  <button onClick={() => setGlobalSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              {availableGlobal.length > 0 && (
+                <button onClick={toggleAllGlobal} className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 whitespace-nowrap shrink-0">
+                  {allGlobalSelected ? 'Bỏ chọn tất cả' : `Chọn tất cả (${availableGlobal.length})`}
                 </button>
               )}
             </div>
-
             <div className="max-h-72 overflow-y-auto space-y-1">
               {loadingGlobal ? (
-                <div className="flex justify-center py-10">
-                  <Loader2 className="w-6 h-6 text-indigo-500 animate-spin" />
-                </div>
+                <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 text-indigo-500 animate-spin" /></div>
               ) : availableGlobal.length === 0 ? (
                 <p className="text-center text-slate-400 text-sm py-10 italic">
                   {globalSearch ? 'Không tìm thấy source phù hợp' : 'Kho tổng chưa có source nào'}
                 </p>
-              ) : (
-                availableGlobal.map(s => (
-                  <button
-                    key={s.id}
-                    onClick={() => setSelectedGlobalId(s.id)}
-                    className={cn(
-                      'w-full flex items-start gap-3 px-3 py-3 rounded-xl transition-colors text-left',
-                      selectedGlobalId === s.id
-                        ? 'bg-indigo-50 border border-indigo-300'
-                        : 'hover:bg-gray-50 border border-transparent'
-                    )}
-                  >
-                    <span className={cn(
-                      'mt-0.5 shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold',
-                      SOURCE_TYPE_COLORS[s.type]
-                    )}>
+              ) : availableGlobal.map(s => {
+                const selected = selectedGlobalIds.has(s.id)
+                return (
+                  <button key={s.id} onClick={() => toggleGlobalId(s.id)}
+                    className={cn('w-full flex items-start gap-3 px-3 py-3 rounded-xl transition-colors text-left',
+                      selected ? 'bg-indigo-50 border border-indigo-300' : 'hover:bg-gray-50 border border-transparent')}>
+                    <div className={cn('w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5',
+                      selected ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white')}>
+                      {selected && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                    </div>
+                    <span className={cn('mt-0.5 shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold', SOURCE_TYPE_COLORS[s.type])}>
                       {SOURCE_TYPE_LABELS[s.type]}
                     </span>
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-slate-800 text-sm truncate">{s.name}</p>
                       <div className="flex items-center gap-2 mt-0.5">
-                        {s.code && (
-                          <span className="text-[11px] font-mono text-slate-400">{s.code}</span>
-                        )}
-                        <a
-                          href={s.link}
-                          target="_blank"
-                          rel="noreferrer"
-                          onClick={e => e.stopPropagation()}
-                          className="text-[11px] text-indigo-400 hover:text-indigo-600 flex items-center gap-0.5 truncate max-w-[200px]"
-                        >
-                          <ExternalLink className="w-2.5 h-2.5 shrink-0" />
-                          <span className="truncate">{s.link}</span>
-                        </a>
+                        {s.code && <span className="text-[11px] font-mono text-slate-400">{s.code}</span>}
+                        <span className="text-[11px] text-indigo-400 truncate max-w-[200px]">{s.link}</span>
                       </div>
                     </div>
-                    {selectedGlobalId === s.id && (
-                      <Check className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
-                    )}
                   </button>
-                ))
-              )}
+                )
+              })}
             </div>
-
             {(globalSourcesData?.data ?? []).length > availableGlobal.length && (
               <p className="text-xs text-slate-400 text-center">
                 Đã ẩn {(globalSourcesData?.data ?? []).length - availableGlobal.length} source đã có trong kho team
@@ -564,74 +558,42 @@ export function TeamSourcesTab({ isAdminOrManager, userId, brandType }: TeamSour
         }
       >
         <div className="space-y-6">
-          <div className="space-y-4">
-            <p className="text-sm font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
-              Phân loại
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <CustomSelect
-                label="Nhóm sản phẩm *"
-                value={formBrandType}
-                onChange={v => setFormBrandType(v as 'DO_DA' | 'TRANG_SUC')}
-                options={[{ value: 'DO_DA', label: 'Đồ da' }, { value: 'TRANG_SUC', label: 'Trang sức' }]}
-              />
-              <CustomSelect
-                label="Loại Source *"
-                value={form.type ?? 'OUTRO'}
-                onChange={v => setForm(f => ({ ...f, type: v as SourceType }))}
-                options={(Object.keys(SOURCE_TYPE_LABELS) as SourceType[]).map(k => ({ value: k, label: SOURCE_TYPE_LABELS[k] }))}
-              />
-            </div>
-            <DarkInput
-              label="Mã code"
-              placeholder="VD: SRC001 (tuỳ chọn)"
-              value={form.code ?? ''}
-              onChange={e => setForm(f => ({ ...f, code: e.target.value }))}
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <CustomSelect label="Nhóm sản phẩm *" value={formBrandType}
+              onChange={v => setFormBrandType(v as 'DO_DA' | 'TRANG_SUC')}
+              options={[{ value: 'DO_DA', label: 'Đồ da' }, { value: 'TRANG_SUC', label: 'Trang sức' }]} />
+            <CustomSelect label="Loại Source *" value={form.type ?? 'OUTRO'}
+              onChange={v => setForm(f => ({ ...f, type: v as SourceType }))}
+              options={(Object.keys(SOURCE_TYPE_LABELS) as SourceType[]).map(k => ({ value: k, label: SOURCE_TYPE_LABELS[k] }))} />
           </div>
-
-          <div className="space-y-4">
-            <p className="text-sm font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
-              Thông tin Source
-            </p>
-            <DarkInput
-              label="Tên Source *"
-              placeholder="Tên nguồn tài liệu..."
-              value={form.name ?? ''}
-              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-            />
-            <DarkInput
-              label="Link *"
-              placeholder="https://drive.google.com/..."
-              value={form.link ?? ''}
-              onChange={e => setForm(f => ({ ...f, link: e.target.value }))}
-            />
-            <ProductSearchSelect
-              label="Sản phẩm liên kết"
-              value={form.product_id ?? ''}
-              onChange={id => setForm(f => ({ ...f, product_id: id }))}
-              products={productsForSelect?.data ?? []}
-              placeholder="-- Không liên kết sản phẩm --"
-              clearLabel="-- Không liên kết --"
-            />
-          </div>
-
-          <div className="space-y-3">
-            <p className="text-sm font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
-              Trạng thái
-            </p>
-            <div className="flex items-center gap-4 bg-gray-50 rounded-xl px-5 py-4 border border-gray-200">
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" checked={form.is_active ?? true}
-                  onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))}
-                  className="sr-only peer" />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-indigo-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5" />
-              </label>
-              <div>
-                <p className="text-base font-semibold text-slate-800">{form.is_active ? 'Đang hoạt động' : 'Không hoạt động'}</p>
-                <p className="text-sm text-slate-500 mt-0.5">{form.is_active ? 'Source hiển thị và có thể gán vào task' : 'Source bị ẩn'}</p>
+          <DarkInput label="Mã code" placeholder="VD: SRC001" value={form.code ?? ''}
+            onChange={e => setForm(f => ({ ...f, code: e.target.value }))} />
+          <DarkInput label="Tên Source *" placeholder="Tên nguồn tài liệu..." value={form.name ?? ''}
+            onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+          <DarkInput label="Link *" placeholder="https://drive.google.com/..." value={form.link ?? ''}
+            onChange={e => setForm(f => ({ ...f, link: e.target.value }))} />
+          {editing?.team_product ? (
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-slate-700">Sản phẩm liên kết</p>
+              <div className="flex items-center gap-2 rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3">
+                <span className="text-xs text-indigo-400 font-mono bg-white border border-indigo-100 px-2 py-0.5 rounded-lg">{editing.team_product.sku}</span>
+                <span className="text-sm font-semibold text-slate-800">{editing.team_product.name}</span>
+                <span className="ml-auto text-xs text-indigo-400 shrink-0">Kho team</span>
               </div>
             </div>
+          ) : (
+            <ProductSearchSelect label="Sản phẩm liên kết" value={form.team_product_id ?? ''}
+              onChange={id => setForm(f => ({ ...f, team_product_id: id }))}
+              products={productsForSelect ?? []}
+              placeholder="-- Không liên kết sản phẩm --" clearLabel="-- Không liên kết --" />
+          )}
+          <div className="flex items-center gap-4 bg-gray-50 rounded-xl px-5 py-4 border border-gray-200">
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" checked={form.is_active ?? true}
+                onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))} className="sr-only peer" />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-indigo-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5" />
+            </label>
+            <p className="text-base font-semibold text-slate-800">{form.is_active ? 'Đang hoạt động' : 'Không hoạt động'}</p>
           </div>
         </div>
       </DarkModal>

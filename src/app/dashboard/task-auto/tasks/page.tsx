@@ -112,61 +112,79 @@ export default function TasksPage() {
     : 'Quản lý Task'
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-3xl font-black text-slate-900">{pageTitle}</h1>
-          <p className="text-slate-500 text-base mt-1">
+    <div className="space-y-5">
+      {/* Header + Filter bar gộp chung một dải */}
+      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm px-6 py-4 flex items-center gap-5 flex-wrap">
+        {/* Title */}
+        <div className="flex-shrink-0 min-w-[160px]">
+          <h1 className="text-2xl font-black text-slate-900 leading-tight">{pageTitle}</h1>
+          <p className="text-sm text-slate-400 mt-0.5">
             {leaderTeam && !isMineView
-              ? <span>{leaderTeam.name} · {total > 0 ? `${total} task` : 'Danh sách task'}</span>
+              ? `${leaderTeam.name} · ${total > 0 ? `${total} task` : 'Danh sách task'}`
               : total > 0 ? `${total} task` : 'Danh sách task'
             }
           </p>
         </div>
 
+        {/* Divider dọc */}
+        <div className="w-px h-10 bg-gray-200 flex-shrink-0 hidden sm:block" />
+
+        {/* View mode toggle (LeaderEditor) */}
         {isLeaderEditor && (
-          <div className="flex rounded-xl overflow-hidden border border-gray-200 shadow-sm bg-white">
-            <button
-              onClick={() => switchView('team')}
-              className={cn(
-                'flex items-center gap-2 px-5 py-2.5 text-sm font-semibold transition-colors',
-                viewMode === 'team' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-gray-50'
-              )}
-            >
-              <Users className="w-4 h-4" />
-              Quản lý team
-            </button>
-            <button
-              onClick={() => switchView('mine')}
-              className={cn(
-                'flex items-center gap-2 px-5 py-2.5 text-sm font-semibold transition-colors border-l border-gray-200',
-                viewMode === 'mine' ? 'bg-indigo-600 text-white border-indigo-600' : 'text-slate-600 hover:bg-gray-50'
-              )}
-            >
-              <User className="w-4 h-4" />
-              Nhiệm vụ của tôi
-            </button>
-          </div>
+          <>
+            <div className="flex rounded-xl overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0">
+              <button
+                onClick={() => switchView('team')}
+                className={cn(
+                  'flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors',
+                  viewMode === 'team' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-gray-100'
+                )}
+              >
+                <Users className="w-4 h-4" />
+                Quản lý team
+              </button>
+              <button
+                onClick={() => switchView('mine')}
+                className={cn(
+                  'flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors border-l border-gray-200',
+                  viewMode === 'mine' ? 'bg-indigo-600 text-white border-indigo-600' : 'text-slate-600 hover:bg-gray-100'
+                )}
+              >
+                <User className="w-4 h-4" />
+                Của tôi
+              </button>
+            </div>
+            <div className="w-px h-10 bg-gray-200 flex-shrink-0 hidden sm:block" />
+          </>
         )}
+
+        {/* Filters */}
+        <TaskFilters
+          statusFilter={status}
+          teamFilter={teamId}
+          searchFilter={search}
+          deadlineDateFilter={deadlineDate}
+          taskTypeFilter={taskType}
+          teams={teams}
+          canCreate={canCreate}
+          isMember={isMineView}
+          hideTeamFilter={isLeader}
+          onStatusChange={handleStatusChange}
+          onTeamChange={handleTeamChange}
+          onSearchChange={handleSearchChange}
+          onDeadlineDateChange={handleDeadlineDateChange}
+          onTaskTypeChange={handleTaskTypeChange}
+          onCreateClick={() => setShowCreate(true)}
+        />
       </div>
 
-      <TaskFilters
-        statusFilter={status}
-        teamFilter={teamId}
-        searchFilter={search}
-        deadlineDateFilter={deadlineDate}
-        taskTypeFilter={taskType}
-        teams={teams}
-        canCreate={canCreate}
-        isMember={isMineView}
-        hideTeamFilter={isLeader}
-        onStatusChange={handleStatusChange}
-        onTeamChange={handleTeamChange}
-        onSearchChange={handleSearchChange}
-        onDeadlineDateChange={handleDeadlineDateChange}
-        onTaskTypeChange={handleTaskTypeChange}
-        onCreateClick={() => setShowCreate(true)}
-      />
+      {/* Banner "đang xem task của bạn" */}
+      {/* {isMineView && (
+        <div className="flex items-center gap-2.5 bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-2.5">
+          <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 flex-shrink-0" />
+          <p className="text-sm font-semibold text-indigo-700">Đang xem task của bạn</p>
+        </div>
+      )} */}
 
       <TaskStatsBar tasks={tasks} />
 

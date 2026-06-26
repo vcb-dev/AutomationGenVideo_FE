@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useScrollLock } from '@/hooks/useScrollLock'
 import toast from 'react-hot-toast'
 import {
   X, Zap, Play, Upload, Loader2, CheckCircle2, CheckCircle, XCircle, ExternalLink,
@@ -23,6 +24,7 @@ interface Props {
 }
 
 export function ExtraTaskGroupPanel({ assigneeId, deadlineDate, onClose, userRoles, currentUserId }: Props) {
+  useScrollLock()
   const qc = useQueryClient()
   const [submitTask, setSubmitTask]   = useState<Task | null>(null)
   const [rejectTask, setRejectTask]   = useState<Task | null>(null)

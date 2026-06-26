@@ -33,43 +33,46 @@ export default function CatalogPage() {
         <p className="text-slate-500 text-base mt-1">Quản lý sản phẩm, content và nguồn tài liệu</p>
       </div>
 
-      {/* Brand group switcher */}
-      <div className="flex gap-3">
-        {BRANDS.map(b => (
-          <button
-            key={b.key}
-            onClick={() => setBrand(b.key)}
-            className={cn(
-              'px-6 py-2.5 rounded-full text-sm font-semibold border-2 transition-all',
-              brand === b.key
-                ? b.color === 'amber'
-                  ? 'bg-amber-500 border-amber-500 text-white shadow-md'
-                  : 'bg-violet-600 border-violet-600 text-white shadow-md'
-                : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400 hover:text-slate-700'
-            )}
-          >
-            {b.label}
-          </button>
-        ))}
-      </div>
+      {/* Tab bar + Brand group switcher */}
+      <div className="border-b border-gray-200 flex items-center justify-between">
+        {/* Tabs */}
+        <div className="flex gap-1">
+          {TABS.map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={cn(
+                'flex items-center gap-2 px-6 py-3 text-base font-medium rounded-t-lg transition-colors',
+                activeTab === tab.key
+                  ? 'bg-indigo-50 text-indigo-700 font-semibold'
+                  : 'text-slate-500 hover:text-slate-800 hover:bg-gray-100'
+              )}
+            >
+              <tab.icon className="w-4 h-4" />
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-      {/* Tab bar */}
-      <div className="border-b border-gray-200 flex gap-1">
-        {TABS.map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={cn(
-              'flex items-center gap-2 px-6 py-3 text-base font-medium rounded-t-lg transition-colors',
-              activeTab === tab.key
-                ? 'bg-indigo-50 text-indigo-700 font-semibold'
-                : 'text-slate-500 hover:text-slate-800 hover:bg-gray-100'
-            )}
-          >
-            <tab.icon className="w-4 h-4" />
-            {tab.label}
-          </button>
-        ))}
+        {/* Brand switcher */}
+        <div className="flex gap-3">
+          {BRANDS.map(b => (
+            <button
+              key={b.key}
+              onClick={() => setBrand(b.key)}
+              className={cn(
+                'px-6 py-1.5 rounded-full text-sm font-semibold border-2 transition-all',
+                brand === b.key
+                  ? b.color === 'amber'
+                    ? 'bg-amber-500 border-amber-500 text-white shadow-md'
+                    : 'bg-violet-600 border-violet-600 text-white shadow-md'
+                  : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400 hover:text-slate-700'
+              )}
+            >
+              {b.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Tab content — key={brand} reset state khi đổi nhóm */}

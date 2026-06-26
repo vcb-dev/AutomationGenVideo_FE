@@ -1,10 +1,10 @@
 'use client'
 
-import { Check, X } from 'lucide-react'
+import { Check, X, Ban } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { TaskStatus } from '@/types/task-auto'
 
-const TIMELINE_STEPS: { status: TaskStatus; label: string }[] = [
+const STEPS: { status: TaskStatus; label: string }[] = [
   { status: 'PENDING',     label: 'Tạo task' },
   { status: 'ASSIGNED',    label: 'Đã giao' },
   { status: 'IN_PROGRESS', label: 'Đang làm' },
@@ -12,63 +12,105 @@ const TIMELINE_STEPS: { status: TaskStatus; label: string }[] = [
   { status: 'APPROVED',    label: 'Hoàn thành' },
 ]
 
-const STATUS_ORDER: Record<string, number> = {
+const ORDER: Record<string, number> = {
   PENDING: 0, ASSIGNED: 1, IN_PROGRESS: 2, SUBMITTED: 3, APPROVED: 4,
   REJECTED: 3, CANCELLED: 3,
 }
 
 export function StatusTimeline({ status }: { status: TaskStatus }) {
-  const currentIdx = STATUS_ORDER[status] ?? 0
-  const isTerminal = status === 'REJECTED' || status === 'CANCELLED'
+  const currentIdx  = ORDER[status] ?? 0
+  const isRejected  = status === 'REJECTED'
+  const isCancelled = status === 'CANCELLED'
+  const isTerminal  = isRejected || isCancelled
   const isApproved  = status === 'APPROVED'
+
+  // Terminal: only show steps up to and including currentIdx (e.g. SUBMITTED = idx 3)
+  // Normal: show all 5 steps
+  const steps = isTerminal ? STEPS.slice(0, currentIdx + 1) : STEPS
+
   return (
-    <div className="flex items-start overflow-x-auto">
-      {TIMELINE_STEPS.map((step, idx) => {
-        const isDone    = !isTerminal && (isApproved ? idx <= currentIdx : idx < currentIdx)
-        const isCurrent = !isTerminal && !isApproved && idx === currentIdx
-        return (
-          <div key={step.status} className="flex items-center flex-shrink-0">
-            <div className="flex flex-col items-center gap-1.5">
-              <div className={cn(
-                'w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-bold',
-                isDone    ? 'bg-emerald-500 border-emerald-500 text-white'
-                : isCurrent ? 'bg-indigo-600 border-indigo-600 text-white'
-                : 'bg-white border-gray-200 text-gray-400',
-              )}>
-                {isDone ? <Check className="w-4 h-4" strokeWidth={3} /> : <span>{idx + 1}</span>}
+    <div className="w-full overflow-x-auto">
+      <div className="flex items-center min-w-max px-1 py-3">
+        {steps.map((step, idx) => {
+          const isDone    = isTerminal
+            ? true                                              // all shown steps are done
+            : isApproved
+              ? idx <= currentIdx
+              : idx < currentIdx
+          const isCurrent = !isTerminal && !isApproved && idx === currentIdx
+
+          const isLastStep    = idx === steps.length - 1
+          const connectorFill = isDone && !isLastStep
+
+          return (
+            <div key={step.status} className="flex items-center">
+              {/* Step node */}
+              <div className="flex flex-col items-center gap-2">
+                <div className="relative flex items-center justify-center w-9 h-9">
+                  {isCurrent && (
+                    <span className="absolute inset-0 rounded-full bg-indigo-400/30 animate-ping" />
+                  )}
+                  <div className={cn(
+                    'w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 relative',
+                    isDone      ? 'bg-emerald-500 text-white shadow-md shadow-emerald-200/60'
+                    : isCurrent ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200/60 ring-[3px] ring-indigo-200'
+                    :             'bg-white border-2 border-gray-200 text-gray-400',
+                  )}>
+                    {isDone
+                      ? <Check className="w-4 h-4" strokeWidth={2.5} />
+                      : <span className="text-[13px]">{idx + 1}</span>
+                    }
+                  </div>
+                </div>
+                <span className={cn(
+                  'text-[11px] font-semibold whitespace-nowrap leading-none',
+                  isDone      ? 'text-emerald-600'
+                  : isCurrent ? 'text-indigo-700'
+                  :             'text-gray-400',
+                )}>
+                  {step.label}
+                </span>
               </div>
-              <span className={cn(
-                'text-xs whitespace-nowrap font-medium',
-                isCurrent ? 'text-indigo-600' : isDone ? 'text-emerald-600' : 'text-gray-400',
-              )}>
-                {step.label}
-              </span>
+
+              {/* Connector */}
+              {(!isLastStep || isTerminal) && (
+                <div className="relative w-14 sm:w-20 h-0.5 mx-1.5 mb-5 flex-shrink-0">
+                  <div className="absolute inset-0 rounded-full bg-gray-200" />
+                  <div className={cn(
+                    'absolute inset-0 rounded-full transition-all duration-500',
+                    isTerminal && isLastStep
+                      ? isRejected ? 'bg-red-300' : 'bg-gray-300'
+                      : connectorFill ? 'bg-emerald-400' : '',
+                  )} />
+                </div>
+              )}
+
+              {/* Terminal node — rendered after the last visible step */}
+              {isTerminal && isLastStep && (
+                <div className="flex flex-col items-center gap-2">
+                  <div className={cn(
+                    'w-9 h-9 rounded-full flex items-center justify-center shadow-md',
+                    isRejected
+                      ? 'bg-red-500 text-white shadow-red-200/60'
+                      : 'bg-gray-400 text-white shadow-gray-200/60',
+                  )}>
+                    {isRejected
+                      ? <X className="w-4 h-4" strokeWidth={2.5} />
+                      : <Ban className="w-4 h-4" />
+                    }
+                  </div>
+                  <span className={cn(
+                    'text-[11px] font-semibold whitespace-nowrap leading-none',
+                    isRejected ? 'text-red-500' : 'text-gray-500',
+                  )}>
+                    {isRejected ? 'Từ chối' : 'Đã huỷ'}
+                  </span>
+                </div>
+              )}
             </div>
-            {idx < TIMELINE_STEPS.length - 1 && (
-              <div className={cn(
-                'h-0.5 w-10 sm:w-16 mx-2 mb-5 rounded-full flex-shrink-0',
-                idx < currentIdx && !isTerminal ? 'bg-emerald-400' : 'bg-gray-200',
-              )} />
-            )}
-          </div>
-        )
-      })}
-      {isTerminal && (
-        <>
-          <div className={cn('h-0.5 w-10 sm:w-16 mx-2 mt-4 rounded-full flex-shrink-0',
-            status === 'REJECTED' ? 'bg-red-200' : 'bg-gray-200')} />
-          <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
-            <div className={cn('w-8 h-8 rounded-full border-2 flex items-center justify-center',
-              status === 'REJECTED' ? 'bg-red-500 border-red-500 text-white' : 'bg-gray-400 border-gray-400 text-white')}>
-              <X className="w-4 h-4" />
-            </div>
-            <span className={cn('text-xs whitespace-nowrap font-semibold',
-              status === 'REJECTED' ? 'text-red-500' : 'text-gray-500')}>
-              {status === 'REJECTED' ? 'Từ chối' : 'Đã huỷ'}
-            </span>
-          </div>
-        </>
-      )}
+          )
+        })}
+      </div>
     </div>
   )
 }

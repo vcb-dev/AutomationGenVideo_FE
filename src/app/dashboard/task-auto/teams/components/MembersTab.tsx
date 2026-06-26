@@ -58,30 +58,21 @@ export function MembersTab({ canManage, isAdminOrManager, userId }: MembersTabPr
 
   return (
     <div className="space-y-5">
-      {/* Team selector */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
-        <div className="flex items-center gap-3 flex-wrap">
-          {isAdminOrManager ? (
-            <CustomSelect
-              value={selectedTeamId}
-              onChange={setSelectedTeamId}
-              options={[
-                { value: '', label: 'Tất cả đội nhóm' },
-                ...(teams ?? []).map(t => ({ value: t.id, label: t.name })),
-              ]}
-              className="min-w-[220px]"
-              searchable
-            />
-          ) : (
-            selectedTeam && (
-              <div className="flex items-center gap-2 px-4 py-3.5 bg-indigo-50 border border-indigo-200 rounded-xl text-base font-semibold text-indigo-700">
-                <Users className="w-4 h-4" />
-                {selectedTeam.name}
-              </div>
-            )
-          )}
+      {/* Team selector — chỉ hiện với admin/manager */}
+      {isAdminOrManager && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
+          <CustomSelect
+            value={selectedTeamId}
+            onChange={setSelectedTeamId}
+            options={[
+              { value: '', label: 'Tất cả đội nhóm' },
+              ...(teams ?? []).map(t => ({ value: t.id, label: t.name })),
+            ]}
+            className="min-w-[220px]"
+            searchable
+          />
         </div>
-      </div>
+      )}
 
       {/* Content */}
       {!selectedTeamId ? (
