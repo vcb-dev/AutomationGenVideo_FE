@@ -13,6 +13,8 @@ export const STATUS_COLORS: Record<string, string> = {
 }
 
 export const MARKET_LABELS: Record<string, string> = {
-  VIETNAM: 'VN',
-  GLOBAL:  'Global',
+  VIETNAM:   'VN',
+  INDONESIA: 'ID',
+  JAPAN:     'JP',
+  THAILAND:  'TH',
 }

@@ -10,12 +10,29 @@ import { EmptyState } from '@/components/task-auto/EmptyState'
 import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { formatDateTime } from '@/components/task-auto/helpers'
 import { getTeams, getApprovals, setMemberEditorRole, updateTeam } from '@/lib/api/task-auto'
-import type { BrandType, TeamMember } from '@/types/task-auto'
+import type { BrandType, TeamMarket, TeamMember } from '@/types/task-auto'
 
 const BRANDS: { key: BrandType; label: string; color: string }[] = [
   { key: 'DO_DA',     label: 'Đồ da',     color: 'amber' },
   { key: 'TRANG_SUC', label: 'Trang sức', color: 'violet' },
 ]
+
+const MARKETS: { key: TeamMarket; label: string; color: string }[] = [
+  { key: 'VIETNAM',   label: 'Việt Nam',  color: 'emerald' },
+  { key: 'INDONESIA', label: 'Indonesia', color: 'amber' },
+  { key: 'JAPAN',     label: 'Nhật Bản', color: 'rose' },
+  { key: 'THAILAND',  label: 'Thái Lan',  color: 'sky' },
+]
+
+const marketBtnClass = (color: string, active: boolean) => cn(
+  'px-3 py-1 rounded-full text-xs font-semibold border-2 transition-all',
+  active ? {
+    emerald: 'bg-emerald-500 border-emerald-500 text-white shadow-sm',
+    amber:   'bg-amber-500 border-amber-500 text-white shadow-sm',
+    rose:    'bg-rose-500 border-rose-500 text-white shadow-sm',
+    sky:     'bg-sky-500 border-sky-500 text-white shadow-sm',
+  }[color] : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'
+)
 
 interface MembersTabProps {
   canManage: boolean
@@ -27,8 +44,9 @@ interface MembersTabProps {
 
 export function MembersTab({ canManage, isAdminOrManager, userId, selectedTeamId, setSelectedTeamId }: MembersTabProps) {
   const qc = useQueryClient()
-  const [editingBrand, setEditingBrand] = useState(false)
+  const [editingTeam, setEditingTeam] = useState(false)
   const [pendingBrand, setPendingBrand] = useState<BrandType | null>(null)
+  const [pendingMarket, setPendingMarket] = useState<TeamMarket | null>(null)
 
   const { data: teams } = useQuery({
     queryKey: ['task-auto', 'teams'],
@@ -58,20 +76,30 @@ export function MembersTab({ canManage, isAdminOrManager, userId, selectedTeamId
     onError: () => toast.error('Thao tác thất bại'),
   })
 
-  const brandMut = useMutation({
-    mutationFn: (newBrand: BrandType) => updateTeam(selectedTeamId, { brand_type: newBrand }),
-    onSuccess: (_, newBrand) => {
-      toast.success(`Đã đổi loại team sang ${BRANDS.find(b => b.key === newBrand)?.label}`)
+  const market: TeamMarket = selectedTeam?.market ?? 'VIETNAM'
+  const currentMarket = MARKETS.find(m => m.key === market)!
+
+  const teamMut = useMutation({
+    mutationFn: ({ brand, mkt }: { brand: BrandType; mkt: TeamMarket }) =>
+      updateTeam(selectedTeamId, { brand_type: brand, market: mkt } as any),
+    onSuccess: () => {
+      toast.success('Đã cập nhật thông tin team')
       qc.invalidateQueries({ queryKey: ['task-auto', 'teams'] })
-      setEditingBrand(false)
+      setEditingTeam(false)
       setPendingBrand(null)
+      setPendingMarket(null)
     },
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Thay đổi thất bại'),
   })
 
-  const handleBrandSave = () => {
-    if (pendingBrand && pendingBrand !== brand) brandMut.mutate(pendingBrand)
-    else setEditingBrand(false)
+  const handleSave = () => {
+    const newBrand = pendingBrand ?? brand
+    const newMarket = pendingMarket ?? market
+    if (newBrand !== brand || newMarket !== market) {
+      teamMut.mutate({ brand: newBrand, mkt: newMarket })
+    } else {
+      setEditingTeam(false)
+    }
   }
 
   const currentBrand = BRANDS.find(b => b.key === brand)!
@@ -83,7 +111,7 @@ export function MembersTab({ canManage, isAdminOrManager, userId, selectedTeamId
         <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
           <CustomSelect
             value={selectedTeamId}
-            onChange={v => { setSelectedTeamId(v); setEditingBrand(false); setPendingBrand(null) }}
+            onChange={v => { setSelectedTeamId(v); setEditingTeam(false); setPendingBrand(null); setPendingMarket(null) }}
             options={[
               { value: '', label: 'Tất cả đội nhóm' },
               ...(teams ?? []).map(t => ({ value: t.id, label: t.name })),
@@ -108,16 +136,18 @@ export function MembersTab({ canManage, isAdminOrManager, userId, selectedTeamId
               <p className="text-xs text-slate-400 mt-0.5">{members.length} thành viên</p>
             </div>
 
-            {/* Brand-type editor */}
-            <div className="flex items-center gap-2">
-              {editingBrand ? (
+            {/* Brand + Market editor */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {editingTeam ? (
                 <>
+                  {/* Brand buttons */}
+                  <span className="text-xs text-slate-400 font-medium">Loại:</span>
                   {BRANDS.map(b => (
                     <button
                       key={b.key}
                       onClick={() => setPendingBrand(b.key)}
                       className={cn(
-                        'px-4 py-1.5 rounded-full text-sm font-semibold border-2 transition-all',
+                        'px-3 py-1 rounded-full text-xs font-semibold border-2 transition-all',
                         (pendingBrand ?? brand) === b.key
                           ? b.color === 'amber'
                             ? 'bg-amber-500 border-amber-500 text-white shadow-sm'
@@ -128,15 +158,28 @@ export function MembersTab({ canManage, isAdminOrManager, userId, selectedTeamId
                       {b.label}
                     </button>
                   ))}
+                  <span className="text-slate-300 mx-1">|</span>
+                  {/* Market buttons */}
+                  <span className="text-xs text-slate-400 font-medium">TT:</span>
+                  {MARKETS.map(m => (
+                    <button
+                      key={m.key}
+                      onClick={() => setPendingMarket(m.key)}
+                      className={marketBtnClass(m.color, (pendingMarket ?? market) === m.key)}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                  <span className="text-slate-300 mx-1">|</span>
                   <button
-                    onClick={handleBrandSave}
-                    disabled={brandMut.isPending}
+                    onClick={handleSave}
+                    disabled={teamMut.isPending}
                     className="p-1.5 rounded-lg bg-green-500 text-white hover:bg-green-600 disabled:opacity-50 transition-colors"
                   >
                     <Check className="w-3.5 h-3.5" />
                   </button>
                   <button
-                    onClick={() => { setEditingBrand(false); setPendingBrand(null) }}
+                    onClick={() => { setEditingTeam(false); setPendingBrand(null); setPendingMarket(null) }}
                     className="p-1.5 rounded-lg bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors"
                   >
                     <X className="w-3.5 h-3.5" />
@@ -152,11 +195,19 @@ export function MembersTab({ canManage, isAdminOrManager, userId, selectedTeamId
                   )}>
                     {currentBrand.label}
                   </span>
+                  <span className={cn('px-3 py-1 rounded-full text-xs font-semibold border-2', {
+                    emerald: 'bg-emerald-500 border-emerald-500 text-white',
+                    amber:   'bg-amber-500 border-amber-500 text-white',
+                    rose:    'bg-rose-500 border-rose-500 text-white',
+                    sky:     'bg-sky-500 border-sky-500 text-white',
+                  }[currentMarket.color])}>
+                    {currentMarket.label}
+                  </span>
                   {canEditBrand && (
                     <button
-                      onClick={() => { setEditingBrand(true); setPendingBrand(brand) }}
+                      onClick={() => { setEditingTeam(true); setPendingBrand(brand); setPendingMarket(market) }}
                       className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors"
-                      title="Đổi loại team"
+                      title="Đổi loại & thị trường"
                     >
                       <Pencil className="w-3.5 h-3.5" />
                     </button>

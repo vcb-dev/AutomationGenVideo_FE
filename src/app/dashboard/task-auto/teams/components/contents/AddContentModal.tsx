@@ -16,17 +16,18 @@ interface Props {
   onClose: () => void
   onSuccess: () => void
   initialBrandType?: BrandType
+  initialMarket?: string
 }
 
-export function AddContentModal({ open, teamId, existingContentIds, onClose, onSuccess, initialBrandType = 'DO_DA' }: Props) {
+export function AddContentModal({ open, teamId, existingContentIds, onClose, onSuccess, initialBrandType = 'DO_DA', initialMarket }: Props) {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [brandType, setBrandType] = useState<BrandType>(initialBrandType)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const { data: contentsData, isLoading } = useQuery({
-    queryKey: ['task-auto', 'contents-catalog', brandType, search],
-    queryFn: () => getContents({ brand_type: brandType, search: search || undefined, limit: 50, status: 'AVAILABLE' } as any),
+    queryKey: ['task-auto', 'contents-catalog', brandType, initialMarket, search],
+    queryFn: () => getContents({ brand_type: brandType, market: initialMarket, search: search || undefined, limit: 50, status: 'AVAILABLE' } as any),
     enabled: open,
   })
 

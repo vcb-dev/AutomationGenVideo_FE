@@ -15,41 +15,42 @@ import type { Content } from '@/types/task-auto'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const MARKETS = [
-  { value: 'VIETNAM', label: 'Vietnam', activeClass: 'bg-emerald-50 text-emerald-700 border-emerald-400' },
-  { value: 'GLOBAL',  label: 'Global',  activeClass: 'bg-blue-50 text-blue-700 border-blue-400' },
+export const MARKETS = [
+  { value: 'VIETNAM',   label: 'Việt Nam',   activeClass: 'bg-emerald-50 text-emerald-700 border-emerald-400' },
+  { value: 'INDONESIA', label: 'Indonesia',  activeClass: 'bg-amber-50 text-amber-700 border-amber-400' },
+  { value: 'JAPAN',     label: 'Nhật Bản',  activeClass: 'bg-rose-50 text-rose-700 border-rose-400' },
+  { value: 'THAILAND',  label: 'Thái Lan',   activeClass: 'bg-sky-50 text-sky-700 border-sky-400' },
 ]
+
+export const MARKET_LABEL: Record<string, string> = Object.fromEntries(MARKETS.map(m => [m.value, m.label]))
 
 export function parseMarkets(market: string | null | undefined): string[] {
   if (!market) return ['VIETNAM']
   return market.split(',').map(m => m.trim()).filter(Boolean)
 }
 
-// ── MarketPicker ──────────────────────────────────────────────────────────────
+// ── MarketPicker (single-select) ──────────────────────────────────────────────
 
 export function MarketPicker({
   value,
   onChange,
   label,
 }: {
-  value: string[]
-  onChange: (v: string[]) => void
+  value: string
+  onChange: (v: string) => void
   label?: string
 }) {
-  const toggle = (m: string) =>
-    onChange(value.includes(m) ? value.filter(x => x !== m) : [...value, m])
-
   return (
     <div>
       {label && <label className="block text-sm font-semibold text-slate-700 mb-2">{label}</label>}
       <div className="flex gap-2">
         {MARKETS.map(m => {
-          const active = value.includes(m.value)
+          const active = value === m.value
           return (
             <button
               key={m.value}
               type="button"
-              onClick={() => toggle(m.value)}
+              onClick={() => onChange(m.value)}
               className={cn(
                 'flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 text-sm font-semibold transition-all',
                 active
@@ -67,9 +68,6 @@ export function MarketPicker({
           )
         })}
       </div>
-      {value.length === 0 && (
-        <p className="text-xs text-amber-600 mt-1.5">Chọn ít nhất một thị trường</p>
-      )}
     </div>
   )
 }
@@ -310,9 +308,10 @@ interface ContentFormModalProps {
   onSuccess: (content: Content) => void
   userId?: string
   brandType?: BrandType
+  initialMarket?: string
 }
 
-export function ContentFormModal({ open, editing, onClose, onSuccess, userId, brandType }: ContentFormModalProps) {
+export function ContentFormModal({ open, editing, onClose, onSuccess, userId, brandType, initialMarket }: ContentFormModalProps) {
   const qc = useQueryClient()
   const isEdit = !!editing
 
@@ -320,19 +319,19 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, br
     title: '', body: '', script: '', file_content_url: '', voice_url: '',
     content_line_id: '',
   })
-  const [markets, setMarkets] = useState<string[]>(['VIETNAM'])
+  const [market, setMarket] = useState<string>(initialMarket ?? 'VIETNAM')
 
   useEffect(() => {
     if (open) {
       if (editing) {
         setForm({ ...editing })
-        setMarkets(parseMarkets(editing.market))
+        setMarket(editing.market ?? initialMarket ?? 'VIETNAM')
       } else {
         setForm({ title: '', body: '', script: '', file_content_url: '', voice_url: '', content_line_id: '' })
-        setMarkets(['VIETNAM'])
+        setMarket(initialMarket ?? 'VIETNAM')
       }
     }
-  }, [open, editing])
+  }, [open, editing, initialMarket])
 
   const { data: contentLines } = useQuery({
     queryKey: ['task-auto', 'content-lines'],
@@ -363,7 +362,6 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, br
   const saving = createMut.isPending || updateMut.isPending
 
   const handleSubmit = () => {
-    if (markets.length === 0) return toast.error('Chọn ít nhất một thị trường')
     const sharedBody = {
       title: form.title,
       body: form.body,
@@ -371,7 +369,7 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, br
       file_content_url: form.file_content_url,
       voice_url: form.voice_url,
       content_line_id: form.content_line_id || null,
-      market: markets.join(','),
+      market,
     }
     if (!isEdit) {
       const body = { ...sharedBody, brand_type: brandType ?? 'DO_DA' }
@@ -403,7 +401,7 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, br
           </button>
           <button
             onClick={handleSubmit}
-            disabled={saving || markets.length === 0}
+            disabled={saving}
             className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors disabled:opacity-60"
           >
             {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
@@ -425,7 +423,7 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, br
             value={form.title ?? ''}
             onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
           />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className='w-1/2'>
             <CustomSelect
               label="Tuyến nội dung"
               value={form.content_line_id ?? ''}
@@ -436,8 +434,10 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, br
               ]}
               searchable
             />
-            <MarketPicker label="Thị trường" value={markets} onChange={setMarkets} />
           </div>
+            
+
+          <MarketPicker label="Thị trường" value={market} onChange={setMarket} />
         </div>
 
         {/* ── Nội dung văn bản ── */}

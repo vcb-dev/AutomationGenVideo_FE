@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Package, User, BookOpen, Radio } from 'lucide-react'
+import { Package, User, BookOpen, Radio, Archive } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth-store'
@@ -9,17 +9,19 @@ import { MembersTab } from './components/MembersTab'
 import { TeamProductsTab } from './components/TeamProductsTab'
 import { TeamContentsTab } from './components/TeamContentsTab'
 import { TeamSourcesTab } from './components/TeamSourcesTab'
+import { TeamWarehouseTab } from './components/TeamWarehouseTab'
 import { UserRole } from '@/types/auth'
 import { getTeams } from '@/lib/api/task-auto'
 import type { BrandType } from '@/types/task-auto'
 
-type TabId = 'members' | 'products' | 'contents' | 'sources'
+type TabId = 'members' | 'products' | 'contents' | 'sources' | 'warehouse'
 
 const ALL_TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
-  { id: 'members',  label: 'Nhóm của tôi', icon: User },
-  { id: 'products', label: 'Kho sản phẩm', icon: Package },
-  { id: 'contents', label: 'Kho content',  icon: BookOpen },
-  { id: 'sources',  label: 'Kho source',   icon: Radio },
+  { id: 'members',   label: 'Nhóm của tôi', icon: User },
+  { id: 'products',  label: 'Kho sản phẩm', icon: Package },
+  { id: 'contents',  label: 'Kho content',  icon: BookOpen },
+  { id: 'sources',   label: 'Kho source',   icon: Radio },
+  { id: 'warehouse', label: 'Kho tháng',    icon: Archive },
 ]
 
 export default function TeamsPage() {
@@ -114,6 +116,16 @@ export default function TeamsPage() {
 
       {activeTab === 'sources' && (
         <TeamSourcesTab
+          isAdminOrManager={isAdminOrManager}
+          userId={user?.id}
+          brandType={brand}
+          selectedTeamId={selectedTeamId}
+          setSelectedTeamId={setSelectedTeamId}
+        />
+      )}
+
+      {activeTab === 'warehouse' && (
+        <TeamWarehouseTab
           isAdminOrManager={isAdminOrManager}
           userId={user?.id}
           brandType={brand}

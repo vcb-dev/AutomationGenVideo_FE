@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Package, FileText, Radio, BookUser } from 'lucide-react'
+import { Package, FileText, Radio, BookUser, Archive } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth-store'
@@ -10,9 +10,10 @@ import { UserRole } from '@/types/auth'
 import { MyProductsTab } from './components/MyProductsTab'
 import { MyContentsTab } from './components/MyContentsTab'
 import { MySourcesTab } from './components/MySourcesTab'
-import type { BrandType } from '@/types/task-auto'
+import { MyWarehouseTab } from './components/MyWarehouseTab'
+import type { BrandType, TeamMarket } from '@/types/task-auto'
 
-type TabId = 'products' | 'contents' | 'sources'
+type TabId = 'products' | 'contents' | 'sources' | 'warehouse'
 
 const BRANDS: { key: BrandType; label: string; color: string }[] = [
   { key: 'DO_DA',     label: 'Đồ da',     color: 'amber' },
@@ -20,9 +21,10 @@ const BRANDS: { key: BrandType; label: string; color: string }[] = [
 ]
 
 const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
-  { id: 'products', label: 'Sản phẩm', icon: Package },
-  { id: 'contents', label: 'Content',  icon: FileText },
-  { id: 'sources',  label: 'Source',   icon: Radio },
+  { id: 'products',  label: 'Sản phẩm',  icon: Package },
+  { id: 'contents',  label: 'Content',   icon: FileText },
+  { id: 'sources',   label: 'Source',    icon: Radio },
+  { id: 'warehouse', label: 'Kho tháng', icon: Archive },
 ]
 
 export default function MyCatalogPage() {
@@ -30,8 +32,9 @@ export default function MyCatalogPage() {
   const roles: UserRole[] = user?.roles ?? []
   const isAdminOrManager = roles.includes(UserRole.ADMIN) || roles.includes(UserRole.MANAGER)
 
-  const [brand, setBrand]         = useState<BrandType>('TRANG_SUC')
-  const [activeTab, setActiveTab] = useState<TabId>('products')
+  const [brand, setBrand]           = useState<BrandType>('TRANG_SUC')
+  const [teamMarket, setTeamMarket] = useState<TeamMarket>('VIETNAM')
+  const [activeTab, setActiveTab]   = useState<TabId>('products')
 
   const { data: teams } = useQuery({
     queryKey: ['task-auto', 'teams'],
@@ -39,13 +42,14 @@ export default function MyCatalogPage() {
     enabled: !isAdminOrManager,
   })
 
-  // Auto-derive brand from user's team for non-admin/manager
+  // Auto-derive brand + market from user's team for non-admin/manager
   useEffect(() => {
     if (isAdminOrManager || !user?.id || !teams) return
     const myTeam =
       teams.find(t => t.leader_id === user.id) ||
       teams.find(t => t.members?.some(m => m.user_id === user.id))
     if (myTeam?.brand_type) setBrand(myTeam.brand_type)
+    if (myTeam?.market) setTeamMarket(myTeam.market)
   }, [isAdminOrManager, user?.id, teams])
 
   if (!user) return null
@@ -126,9 +130,10 @@ export default function MyCatalogPage() {
 
       {/* Tab content — key={brand} resets state khi đổi nhóm */}
       <div>
-        {activeTab === 'products' && <MyProductsTab key={brand} userId={user.id} brandType={brand} />}
-        {activeTab === 'contents' && <MyContentsTab key={brand} userId={user.id} brandType={brand} />}
-        {activeTab === 'sources'  && <MySourcesTab  key={brand} userId={user.id} brandType={brand} />}
+        {activeTab === 'products'  && <MyProductsTab  key={brand} userId={user.id} brandType={brand} />}
+        {activeTab === 'contents'  && <MyContentsTab  key={brand} userId={user.id} brandType={brand} teamMarket={teamMarket} />}
+        {activeTab === 'sources'   && <MySourcesTab   key={brand} userId={user.id} brandType={brand} />}
+        {activeTab === 'warehouse' && <MyWarehouseTab key={brand} userId={user.id} brandType={brand} teamMarket={teamMarket} />}
       </div>
     </div>
   )

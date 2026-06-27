@@ -448,3 +448,61 @@ export const triggerAutoAssign = () =>
 
 export const getAssignmentRuns = (limit = 50) =>
   apiClient.get<AssignmentRun[]>(`/task-auto/assignment-runs${qs({ limit })}`).then(r => r.data)
+
+// ── Warehouse — Kho tháng ─────────────────────────────────────────────────────
+
+export type WarehouseCatalogType = 'products' | 'contents' | 'sources'
+
+export interface WarehouseData {
+  month: string
+  products: Product[]
+  contents: Content[]
+  sources: Source[]
+}
+
+export interface TeamWarehouseData extends WarehouseData {
+  team_id: string
+}
+
+export interface EditorWarehouseData extends WarehouseData {
+  editor_id: string
+}
+
+// Global
+export const getGlobalWarehouse = (month: string) =>
+  apiClient.get<WarehouseData>(`/task-auto/warehouse/global${qs({ month })}`).then(r => r.data)
+
+export const addGlobalWarehouse = (type: WarehouseCatalogType, month: string, ids: string[]) =>
+  apiClient.post(`/task-auto/warehouse/global/${type}/add`, { month, ids }).then(r => r.data)
+
+export const removeGlobalWarehouse = (type: WarehouseCatalogType, month: string, ids: string[]) =>
+  apiClient.post(`/task-auto/warehouse/global/${type}/remove`, { month, ids }).then(r => r.data)
+
+export const autoCarryGlobal = (month: string) =>
+  apiClient.post('/task-auto/warehouse/global/auto-carry', { month }).then(r => r.data)
+
+// Team
+export const getTeamWarehouse = (teamId: string, month: string) =>
+  apiClient.get<TeamWarehouseData>(`/task-auto/warehouse/teams/${teamId}${qs({ month })}`).then(r => r.data)
+
+export const addTeamWarehouse = (teamId: string, type: WarehouseCatalogType, month: string, ids: string[]) =>
+  apiClient.post(`/task-auto/warehouse/teams/${teamId}/${type}/add`, { month, ids }).then(r => r.data)
+
+export const removeTeamWarehouse = (teamId: string, type: WarehouseCatalogType, month: string, ids: string[]) =>
+  apiClient.post(`/task-auto/warehouse/teams/${teamId}/${type}/remove`, { month, ids }).then(r => r.data)
+
+export const pushTeamToMonth = (teamId: string, fromMonth: string, toMonth: string, ids?: string[]) =>
+  apiClient.post(`/task-auto/warehouse/teams/${teamId}/push`, { from_month: fromMonth, to_month: toMonth, ids }).then(r => r.data)
+
+// Editor
+export const getEditorWarehouse = (editorId: string, month: string) =>
+  apiClient.get<EditorWarehouseData>(`/task-auto/warehouse/editors/${editorId}${qs({ month })}`).then(r => r.data)
+
+export const addEditorWarehouse = (editorId: string, type: WarehouseCatalogType, month: string, ids: string[]) =>
+  apiClient.post(`/task-auto/warehouse/editors/${editorId}/${type}/add`, { month, ids }).then(r => r.data)
+
+export const removeEditorWarehouse = (editorId: string, type: WarehouseCatalogType, month: string, ids: string[]) =>
+  apiClient.post(`/task-auto/warehouse/editors/${editorId}/${type}/remove`, { month, ids }).then(r => r.data)
+
+export const pushEditorToMonth = (editorId: string, fromMonth: string, toMonth: string, ids?: string[]) =>
+  apiClient.post(`/task-auto/warehouse/editors/${editorId}/push`, { from_month: fromMonth, to_month: toMonth, ids }).then(r => r.data)

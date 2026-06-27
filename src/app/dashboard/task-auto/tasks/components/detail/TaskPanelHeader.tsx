@@ -1,6 +1,6 @@
 'use client'
 
-import { X, Edit2, Zap, ShoppingBag } from 'lucide-react'
+import { X, Edit2, Zap, Target, ShoppingBag } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { TaskStatusBadge } from '@/components/task-auto/StatusBadge'
 import type { Task } from '@/types/task-auto'
@@ -35,6 +35,11 @@ export function TaskPanelHeader({
           {task?.is_extra && (
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-violet-100 text-violet-700">
               <Zap className="w-3 h-3" /> Sáng tạo
+            </span>
+          )}
+          {task?.is_planned && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
+              <Target className="w-3 h-3" /> SP kế hoạch
             </span>
           )}
         </div>

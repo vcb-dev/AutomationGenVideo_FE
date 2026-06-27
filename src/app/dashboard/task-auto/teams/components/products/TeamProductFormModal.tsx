@@ -24,7 +24,7 @@ interface Props {
   teamProduct?: TeamProduct | null
   defaultBrandType?: BrandType
   onClose: () => void
-  onSuccess: () => void
+  onSuccess: (product?: TeamProduct) => void
 }
 
 interface FormState {
@@ -136,17 +136,19 @@ export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandTy
       if (isEdit) {
         await updateTeamProduct(teamId, teamProduct!.id, payload)
         await addSourceIfNeeded(teamProduct!.id)
+        return undefined
       } else {
         const newProduct = await addTeamProduct(teamId, { sku: form.sku, ...payload })
         await addSourceIfNeeded(newProduct.id)
+        return newProduct
       }
     },
-    onSuccess: () => {
+    onSuccess: (newProduct) => {
       toast.success(isEdit ? 'Đã cập nhật sản phẩm' : 'Đã thêm sản phẩm vào kho team')
       qc.invalidateQueries({ queryKey: ['task-auto', 'team-products', teamId] })
       qc.invalidateQueries({ queryKey: ['task-auto', 'team-sources', teamId] })
       setSourceDraft(defaultSource)
-      onSuccess()
+      onSuccess(newProduct)
     },
     onError: (e: any) => {
       const msg = e?.response?.data?.message || (isEdit ? 'Không thể cập nhật' : 'Không thể thêm sản phẩm')

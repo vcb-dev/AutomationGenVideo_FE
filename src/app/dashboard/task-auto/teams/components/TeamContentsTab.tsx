@@ -39,6 +39,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
   })
 
   const selectedTeam = teams?.find(t => t.id === selectedTeamId)
+  const teamMarket: string = selectedTeam?.market ?? 'VIETNAM'
   const isLeaderOfSelected = selectedTeam?.leader_id === userId
   const isMemberOfSelected = selectedTeam?.members?.some(m => m.user_id === userId) ?? false
   const canManageSelected = isAdminOrManager || isLeaderOfSelected || isMemberOfSelected
@@ -55,6 +56,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
     onSuccess: () => {
       toast.success('Đã xóa content khỏi kho team')
       qc.invalidateQueries({ queryKey: ['task-auto', 'team-contents', selectedTeamId, brandType] })
+      setRemovingContent(null)
     },
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Xóa thất bại'),
   })
@@ -65,6 +67,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
       toast.success('Đã đẩy content ra kho tổng')
       qc.invalidateQueries({ queryKey: ['task-auto', 'team-contents', selectedTeamId, brandType] })
       qc.invalidateQueries({ queryKey: ['task-auto', 'contents'] })
+      setPushingContent(null)
     },
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Đẩy ra kho tổng thất bại'),
   })
@@ -75,6 +78,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
   const [pushingContent, setPushingContent] = useState<TeamContent | null>(null)
 
   const filtered = (teamContents ?? []).filter(tc => {
+    if (tc.market && tc.market !== teamMarket) return false
     if (!search) return true
     const q = search.toLowerCase()
     return (
@@ -240,8 +244,8 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
                         <div className="flex flex-wrap gap-1">
                           {markets.length > 0
                             ? markets.map(m => (
-                              <span key={m} className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${m === 'GLOBAL' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'}`}>
-                                {m === 'VIETNAM' ? 'VN' : m}
+                              <span key={m} className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${{ VIETNAM: 'bg-emerald-100 text-emerald-700', INDONESIA: 'bg-amber-100 text-amber-700', JAPAN: 'bg-rose-100 text-rose-700', THAILAND: 'bg-sky-100 text-sky-700' }[m] ?? 'bg-gray-100 text-gray-600'}`}>
+                                {{ VIETNAM: 'VN', INDONESIA: 'ID', JAPAN: 'JP', THAILAND: 'TH' }[m] ?? m}
                               </span>
                             ))
                             : <span className="text-slate-300 text-sm">—</span>
@@ -362,6 +366,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
         editing={editingContent as unknown as Content}
         userId={userId}
         brandType={brandType}
+        initialMarket={teamMarket}
         onClose={() => { setShowCreate(false); setEditingContent(null) }}
         onSuccess={async (content: Content) => {
           if (editingContent) {
@@ -394,6 +399,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
           teamId={selectedTeamId}
           existingContentIds={existingContentIds}
           initialBrandType={brandType}
+          initialMarket={teamMarket}
           onClose={() => setShowAdd(false)}
           onSuccess={() => setShowAdd(false)}
         />

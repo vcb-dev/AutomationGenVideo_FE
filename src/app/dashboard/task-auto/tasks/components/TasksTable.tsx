@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Eye, Zap, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react'
+import { Eye, Zap, Target, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { TaskStatusBadge } from '@/components/task-auto/StatusBadge'
@@ -239,11 +239,18 @@ export function TasksTable({
                       ) : <span className="text-slate-300 text-sm">—</span>}
                     </td>
                     <td className="px-5 py-4 text-center whitespace-nowrap" onClick={e => e.stopPropagation()}>
-                      {task.is_auto && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
-                          <Zap className="w-3 h-3" /> Auto
-                        </span>
-                      )}
+                      <div className="flex items-center justify-center gap-1 flex-wrap">
+                        {task.is_auto && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
+                            <Zap className="w-3 h-3" /> Auto
+                          </span>
+                        )}
+                        {task.is_planned && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
+                            <Target className="w-3 h-3" /> SP KH
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="pr-4 py-4 text-right w-10">
                       <Eye className="w-4 h-4 text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity" />

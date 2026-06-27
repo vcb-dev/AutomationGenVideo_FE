@@ -240,10 +240,10 @@ export function ProductSection({ editMode, edit, view }: Props) {
                   </p>
                 </div>
                 {(view.fullProduct?.priority_score ?? 0) > 0 && (
-                  <div className="flex flex-col items-center gap-0.5 px-3 py-2 bg-amber-50 rounded-xl border border-amber-100">
+                  <span className="flex items-center gap-2 px-3 py-2 bg-amber-50 rounded-xl border border-amber-100">
                     <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
                     <span className="text-base font-black text-amber-600 leading-none">{view.fullProduct?.priority_score}</span>
-                  </div>
+                  </span>
                 )}
               </div>
 

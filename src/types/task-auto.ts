@@ -13,7 +13,8 @@ export type TaskStatus =
   | 'CANCELLED'
 
 export type ContentUsageStatus = 'AVAILABLE' | 'IN_TASK' | 'USED' | 'ARCHIVED'
-export type ContentMarket = 'GLOBAL' | 'VIETNAM'
+export type ContentMarket = 'VIETNAM' | 'INDONESIA' | 'JAPAN' | 'THAILAND'
+export type TeamMarket = 'VIETNAM' | 'INDONESIA' | 'JAPAN' | 'THAILAND'
 export type SourceType = 'PRODUCT_STOCK' | 'COLLECTED' | 'OUTRO' | 'WORKSHOP' | 'HUYK'
 export type KpiAllocationType = 'CONTENT_LINE' | 'PRODUCT_LINE'
 export type AssignmentOutcome = 'COMPLETED' | 'OVERDUE' | 'REASSIGNED' | 'CANCELLED'
@@ -36,6 +37,7 @@ export interface Team {
   name: string
   leader_id: string | null
   brand_type: BrandType
+  market: TeamMarket
   is_active: boolean
   created_at: string
   updated_at: string
@@ -337,6 +339,7 @@ export interface Task {
   deadline: string | null
   is_auto: boolean
   is_extra: boolean
+  is_planned: boolean
   run_id: string | null
   result_url: string | null
   submitted_at: string | null

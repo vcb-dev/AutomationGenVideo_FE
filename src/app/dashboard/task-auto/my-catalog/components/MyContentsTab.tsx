@@ -25,12 +25,16 @@ import {
 import { Content, TeamContent, ContentUsageStatus } from '@/types/task-auto'
 import { ContentViewModal } from '@/components/task-auto/ContentViewModal'
 
+const MARKET_COLOR: Record<string, string> = {
+  VIETNAM: 'bg-emerald-100 text-emerald-700',
+  INDONESIA: 'bg-amber-100 text-amber-700',
+  JAPAN: 'bg-rose-100 text-rose-700',
+  THAILAND: 'bg-sky-100 text-sky-700',
+}
+const MARKET_SHORT: Record<string, string> = { VIETNAM: 'VN', INDONESIA: 'ID', JAPAN: 'JP', THAILAND: 'TH' }
 const MarketBadge = ({ market }: { market: string }) => (
-  <span className={cn(
-    'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold',
-    market === 'GLOBAL' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700',
-  )}>
-    {market === 'VIETNAM' ? 'VN' : market}
+  <span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold', MARKET_COLOR[market] ?? 'bg-gray-100 text-gray-600')}>
+    {MARKET_SHORT[market] ?? market}
   </span>
 )
 
@@ -93,11 +97,13 @@ function PushModal({ content, userId, onClose }: { content: Content; userId: str
 function ImportModal({
   userId,
   brandType: initialBrandType,
+  teamMarket,
   onImported,
   onClose,
 }: {
   userId: string
   brandType: 'DO_DA' | 'TRANG_SUC'
+  teamMarket?: string
   onImported: () => void
   onClose: () => void
 }) {
@@ -117,8 +123,8 @@ function ImportModal({
   const myTitleSet = new Set(myContents?.data?.map(c => c.title?.trim().toLowerCase()).filter(Boolean) ?? [])
 
   const { data: globalData, isLoading: loadingGlobal } = useQuery({
-    queryKey: ['task-auto', 'import-contents-global', brandType, search],
-    queryFn: () => getContents({ brand_type: brandType, search: search || undefined, limit: 50, status: 'AVAILABLE' } as any),
+    queryKey: ['task-auto', 'import-contents-global', brandType, teamMarket, search],
+    queryFn: () => getContents({ brand_type: brandType, market: teamMarket, search: search || undefined, limit: 50, status: 'AVAILABLE' } as any),
     enabled: scope === 'global',
   })
 
@@ -299,12 +305,14 @@ function PersonalContentModal({
   editing,
   userId,
   defaultBrandType = 'DO_DA',
+  defaultMarket = 'VIETNAM',
   onClose,
   onSuccess,
 }: {
   editing?: Content | null
   userId: string
   defaultBrandType?: 'DO_DA' | 'TRANG_SUC'
+  defaultMarket?: string
   onClose: () => void
   onSuccess: () => void
 }) {
@@ -319,7 +327,7 @@ function PersonalContentModal({
     voice_url: editing?.voice_url ?? '',
     content_line_id: editing?.content_line_id ?? '',
   })
-  const [markets, setMarkets] = useState<string[]>(parseMarkets(editing?.market) || ['VIETNAM'])
+  const [market, setMarket] = useState<string>(editing?.market ?? defaultMarket)
 
   const { data: contentLines } = useQuery({ queryKey: ['task-auto', 'content-lines'], queryFn: getContentLines })
 
@@ -332,7 +340,7 @@ function PersonalContentModal({
       voice_url: form.voice_url,
       content_line_id: form.content_line_id || null,
       brand_type: brandType,
-      market: markets.join(',') as any,
+      market: market as any,
     } as any),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['task-auto', 'my-contents'] })
@@ -350,7 +358,7 @@ function PersonalContentModal({
       file_content_url: form.file_content_url,
       voice_url: form.voice_url,
       content_line_id: form.content_line_id || null,
-      market: markets.join(',') as any,
+      market: market as any,
     } as any),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['task-auto', 'my-contents'] })
@@ -372,8 +380,8 @@ function PersonalContentModal({
         <>
           <button onClick={onClose} className="bg-gray-100 hover:bg-gray-200 text-slate-800 rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors">Hủy</button>
           <button
-            onClick={() => { if (markets.length === 0) return toast.error('Chọn ít nhất một thị trường'); isEdit ? updateMut.mutate() : createMut.mutate() }}
-            disabled={saving || markets.length === 0}
+            onClick={() => { isEdit ? updateMut.mutate() : createMut.mutate() }}
+            disabled={saving}
             className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors disabled:opacity-60"
           >
             {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
@@ -393,7 +401,7 @@ function PersonalContentModal({
             value={form.title ?? ''}
             onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
           />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="w-1/2">
             <CustomSelect
               label="Tuyến nội dung"
               value={form.content_line_id ?? ''}
@@ -401,8 +409,9 @@ function PersonalContentModal({
               options={[{ value: '', label: '-- Không chọn --' }, ...(contentLines?.map(l => ({ value: l.id, label: l.name })) ?? [])]}
               searchable
             />
-            <MarketPicker label="Thị trường" value={markets} onChange={setMarkets} />
           </div>
+          <MarketPicker label="Thị trường" value={market} onChange={setMarket} />
+
         </div>
         <div className="space-y-4">
           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
@@ -435,9 +444,9 @@ function PersonalContentModal({
 
 // ── Main tab ──────────────────────────────────────────────────────────────────
 
-interface Props { userId: string; brandType: 'DO_DA' | 'TRANG_SUC' }
+interface Props { userId: string; brandType: 'DO_DA' | 'TRANG_SUC'; teamMarket?: string }
 
-export function MyContentsTab({ userId, brandType }: Props) {
+export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM' }: Props) {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<ContentUsageStatus | ''>('')
@@ -450,9 +459,10 @@ export function MyContentsTab({ userId, brandType }: Props) {
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'my-contents', userId, brandType, search, statusFilter, page],
+    queryKey: ['task-auto', 'my-contents', userId, brandType, teamMarket, search, statusFilter, page],
     queryFn: () => getEditorContents(userId, {
       brand_type: brandType,
+      market: teamMarket,
       search: search || undefined,
       status: statusFilter || undefined,
       page, limit: 20,
@@ -605,6 +615,7 @@ export function MyContentsTab({ userId, brandType }: Props) {
           editing={editing}
           userId={userId}
           defaultBrandType={brandType}
+          defaultMarket={teamMarket}
           onClose={() => setShowModal(false)}
           onSuccess={() => setShowModal(false)}
         />
@@ -614,6 +625,7 @@ export function MyContentsTab({ userId, brandType }: Props) {
         <ImportModal
           userId={userId}
           brandType={brandType}
+          teamMarket={teamMarket}
           onImported={() => setShowImport(false)}
           onClose={() => setShowImport(false)}
         />

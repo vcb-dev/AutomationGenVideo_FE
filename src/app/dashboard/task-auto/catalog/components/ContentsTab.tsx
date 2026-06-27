@@ -20,12 +20,16 @@ import { ContentViewModal } from '@/components/task-auto/ContentViewModal'
 
 // ── Helpers ──────────────────────────────────────────
 
+const MARKET_COLOR: Record<string, string> = {
+  VIETNAM:   'bg-emerald-100 text-emerald-700',
+  INDONESIA: 'bg-amber-100 text-amber-700',
+  JAPAN:     'bg-rose-100 text-rose-700',
+  THAILAND:  'bg-sky-100 text-sky-700',
+}
+const MARKET_SHORT: Record<string, string> = { VIETNAM: 'VN', INDONESIA: 'ID', JAPAN: 'JP', THAILAND: 'TH' }
 const MarketBadge = ({ market }: { market: string }) =>
-  <span className={cn(
-    'inline-flex items-center px-2.5 py-1 rounded-full text-sm font-semibold',
-    market === 'GLOBAL' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'
-  )}>
-    {market === 'VIETNAM' ? 'VN' : market}
+  <span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-sm font-semibold', MARKET_COLOR[market] ?? 'bg-gray-100 text-gray-600')}>
+    {MARKET_SHORT[market] ?? market}
   </span>
 
 // ── Pagination ────────────────────────────────────────
@@ -207,8 +211,10 @@ export function ContentsTab({ brandType }: { brandType: BrandType }) {
               onChange={v => { setMarketFilter(v); setPage(1) }}
               options={[
                 { value: '', label: 'Tất cả thị trường' },
-                { value: 'VIETNAM', label: 'Vietnam' },
-                { value: 'GLOBAL', label: 'Global' },
+                { value: 'VIETNAM',   label: 'Việt Nam' },
+                { value: 'INDONESIA', label: 'Indonesia' },
+                { value: 'JAPAN',     label: 'Nhật Bản' },
+                { value: 'THAILAND',  label: 'Thái Lan' },
               ]}
               className="min-w-[160px]"
             />
