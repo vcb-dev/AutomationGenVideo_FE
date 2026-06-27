@@ -133,6 +133,12 @@ export default function HRManagementPage() {
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   useEffect(() => { setPage(1); }, [search, filterStatus]);
+  // Clamp back when the list shrinks (e.g. deactivating the last member on the
+  // current page while filtered to a status tab) and the page would otherwise
+  // render past the end, showing an empty table even though earlier pages have data.
+  useEffect(() => {
+    if (totalPages > 0 && page > totalPages) setPage(totalPages);
+  }, [totalPages, page]);
 
   // ── Stats ─────────────────────────────────────────────────────────────────
   const totalCount = members.length;
@@ -180,8 +186,9 @@ export default function HRManagementPage() {
       const d = await res.json().catch(() => ({}));
       throw new Error(d.message ?? (editing ? 'Cập nhật thất bại' : 'Thêm thất bại'));
     }
-    await fetchMembers();
-    await fetchUnassignedCount();
+    // Team/role/manager can all change here in ways that aren't worth hand-merging locally —
+    // refetch, but run both requests concurrently instead of one-after-the-other.
+    await Promise.all([fetchMembers(), fetchUnassignedCount()]);
     toast.success(editing ? 'Đã cập nhật nhân sự' : 'Đã thêm nhân sự mới');
   };
 
@@ -193,8 +200,9 @@ export default function HRManagementPage() {
         method: 'PATCH', headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.message ?? 'Thao tác thất bại'); return; }
-      await fetchMembers();
-      await fetchUnassignedCount();
+      // is_active doesn't affect team/unassigned status — update locally instead of
+      // re-fetching the whole list (was 2 extra full GETs per click).
+      setMembers(prev => prev.map(m => (m.id === member.id ? { ...m, is_active: !m.is_active } : m)));
       toast.success(member.is_active ? 'Đã vô hiệu hóa tài khoản' : 'Đã kích hoạt lại tài khoản');
     } finally { setActionLoading(null); }
   };

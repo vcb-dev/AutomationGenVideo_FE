@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { UserRole } from '@/types/auth';
-import { UserCog, Crown, X, Loader2 } from 'lucide-react';
+import { UserCog, Crown, X, Loader2, UserMinus } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -66,7 +66,9 @@ export function RoleBadge({ role }: { role: string }) {
 export function Avatar({ name, imageUrl }: { name: string; imageUrl: string | null }) {
   const initials = name.trim().split(' ').map(w => w[0]).slice(-2).join('').toUpperCase();
   const COLORS = ['bg-blue-500', 'bg-violet-500', 'bg-emerald-500', 'bg-orange-500', 'bg-pink-500', 'bg-cyan-500', 'bg-amber-500'];
-  const color = COLORS[(name.charCodeAt(0) ?? 0) % COLORS.length];
+  // charCodeAt(0) on an empty string returns NaN, which `??` does not catch (only null/undefined do) —
+  // use `||` so an empty name falls back to index 0 instead of an invalid `bg-undefined` class.
+  const color = COLORS[(name.charCodeAt(0) || 0) % COLORS.length];
   if (imageUrl) return <img src={imageUrl} alt={name} className="w-9 h-9 rounded-full object-cover shrink-0" />;
   return (
     <div className={`w-9 h-9 rounded-full ${color} flex items-center justify-center text-white text-xs font-semibold shrink-0`}>
@@ -221,7 +223,8 @@ export function HRModal({ open, onClose, onSave, editing, callerRole, managers, 
                     const tl = teamLeaderMap[t] ?? [];
                     setForm(f => ({ ...f, team: t, team_leader_id: tl.length === 1 ? tl[0].id : '' }));
                   }}
-                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  disabled={callerRole === 'LEADER'}
+                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50">
                   <option value="">— Chọn team —</option>
                   {existingTeams.map(t => {
                     const tl = teamLeaderMap[t] ?? [];
@@ -234,6 +237,33 @@ export function HRModal({ open, onClose, onSave, editing, callerRole, managers, 
                   disabled={callerRole === 'LEADER'}
                   placeholder="VD: Global Thái Lan..."
                   className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50" />
+              )}
+              {/* Leader can release their own member back to the shared "unassigned" pool (for
+                  another leader to claim), but can't redirect them straight to a specific team —
+                  that still requires a manager, hence the field above stays locked. */}
+              {callerRole === 'LEADER' && isEdit && editing?.team && (
+                <div className="mt-2">
+                  {form.team ? (
+                    <button type="button"
+                      onClick={() => setForm(f => ({ ...f, team: '', team_leader_id: '' }))}
+                      className="px-4 py-2 rounded-xl text-sm font-medium border border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 transition flex items-center gap-2">
+                      <UserMinus className="w-4 h-4" />
+                      Thả về pool chung
+                    </button>
+                  ) : (
+                    <div className="flex items-center justify-between gap-3 px-4 py-2 rounded-xl border border-amber-200 bg-amber-50 text-sm text-amber-700">
+                      <span className="flex items-center gap-2 font-medium">
+                        <UserMinus className="w-4 h-4" />
+                        Sẽ thả về pool chung sau khi lưu
+                      </span>
+                      <button type="button"
+                        onClick={() => setForm(f => ({ ...f, team: editing.team ?? '', team_leader_id: editing.team_leader_id ?? '' }))}
+                        className="px-3 py-1 rounded-lg text-xs font-medium text-amber-700 hover:bg-amber-100 transition">
+                        Hủy
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>
