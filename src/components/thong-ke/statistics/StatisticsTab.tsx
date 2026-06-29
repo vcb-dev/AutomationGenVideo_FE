@@ -53,12 +53,12 @@ export default function StatisticsTab({
     if (num >= 1000000) {
       const millions = num / 1000000;
       const formatted = Math.floor(millions * 10) / 10;
-      return `${formatted.toString().replace('.', ',')}M`;
+      return `${formatted}M`;
     }
     if (num >= 1000) {
       const thousands = num / 1000;
       const formatted = Math.floor(thousands * 10) / 10;
-      return `${formatted.toString().replace('.', ',')}K`;
+      return `${formatted}K`;
     }
     return num.toString();
   };
@@ -96,15 +96,6 @@ export default function StatisticsTab({
   filteredCaseStudies.forEach((c: any) => { totalViewsNum += parseViewsToNum(c.views); });
   const formattedTotalViews = formatViewsCompact(totalViewsNum);
 
-  const totalListVideos = (baseData.videos || []).length + (baseData.failVideos || []).length;
-  const platformShare = platformFilter === 'All' ? 1 : totalListVideos > 0 ? (filteredVideos.length + filteredFailVideos.length) / totalListVideos : 0.33;
-
-  const totalVal = Math.round(baseData.win5Stats.total * platformShare);
-  const winVal = Math.round(baseData.win5Stats.win * platformShare);
-  const failVal = Math.max(0, totalVal - winVal);
-  const winPct = totalVal > 0 ? (winVal / totalVal) * 100 : 0;
-  const winRatePercent = `${winPct.toFixed(1).replace('.', ',')}%`;
-
   // Editor performance
   const rankedPerformance = (baseData.editorPerformance || []).map((perf: any) => {
     const editorWins = (baseData.videos || []).filter((v: any) => v.editor === perf.editor);
@@ -114,18 +105,24 @@ export default function StatisticsTab({
     const editorPlatformShare = platformFilter === 'All' ? 1 : editorTotalInList > 0
       ? (editorWins.filter((v: any) => v.platform === platformFilter).length + editorFails.filter((v: any) => v.platform === platformFilter).length) / editorTotalInList : 0.33;
 
-    const total = Math.max(1, Math.round(perf.totalVideos * editorPlatformShare));
+    const total = Math.max(0, Math.round(perf.totalVideos * editorPlatformShare));
     const win = Math.round(perf.winVideos * editorPlatformShare);
     const fail = Math.max(0, total - win);
     const winRateNum = total > 0 ? (win / total) * 100 : 0;
     const winRate = `${winRateNum.toFixed(1).replace('.', ',')}%`;
 
     const allViews = [...editorWins, ...editorFails].map((v: any) => parseViewsToNum(v.views));
-    const avgViewsNum = allViews.length > 0 ? Math.round(allViews.reduce((a: number, b: number) => a + b, 0) / allViews.length) : 50000;
+    const avgViewsNum = allViews.length > 0 ? Math.round(allViews.reduce((a: number, b: number) => a + b, 0) / allViews.length) : 0;
     const avgViews = formatViewsCompact(avgViewsNum);
 
     return { ...perf, total, win, fail, winRate, winRateNum, avgViewsNum, avgViews };
   });
+
+  const totalVal = rankedPerformance.reduce((sum, p) => sum + p.total, 0);
+  const winVal = rankedPerformance.reduce((sum, p) => sum + p.win, 0);
+  const failVal = Math.max(0, totalVal - winVal);
+  const winPct = totalVal > 0 ? (winVal / totalVal) * 100 : 0;
+  const winRatePercent = `${winPct.toFixed(1).replace('.', ',')}%`;
 
   const filteredRankedPerformance = rankedPerformance
     .filter((perf: any) => perf.editor.toLowerCase().includes(editorSearchQuery.toLowerCase().trim()))

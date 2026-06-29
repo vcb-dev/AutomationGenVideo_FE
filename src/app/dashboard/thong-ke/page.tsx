@@ -55,6 +55,13 @@ function StatisticsDashboard() {
   const [exportProgress, setExportProgress] = useState<number>(0);
   const [exportType, setExportType] = useState<'pdf' | 'excel' | null>(null);
 
+  // Toast notification state
+  const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
+  const showToast = (message: string, type: 'error' | 'success' = 'error') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 5000);
+  };
+
   // 1. Fetch initialization data (teams and periods list)
   useEffect(() => {
     const initData = async () => {
@@ -278,8 +285,9 @@ function StatisticsDashboard() {
 
       try {
         await apiClient.patch(`/content-report/${endpoint}/${item.dbId}`, payload);
-      } catch (err) {
-        console.error('Error updating row:', err);
+      } catch (err: any) {
+        console.error('Error updating row:', err?.response?.data || err);
+        showToast(`Lỗi cập nhật: ${err?.response?.data?.message || err?.message || 'Không xác định'}`);
         fetchReportData();
       }
     } else {
@@ -418,8 +426,10 @@ function StatisticsDashboard() {
       try {
         await apiClient.post(`/content-report/${endpoint}`, payload);
         fetchReportData();
-      } catch (err) {
-        console.error('Error creating row:', err);
+      } catch (err: any) {
+        console.error('Error creating row:', err?.response?.data || err);
+        showToast(`Lỗi tạo dòng mới: ${err?.response?.data?.message || err?.message || 'Không xác định'}`);
+        fetchReportData();
       }
     }
   };
@@ -453,8 +463,9 @@ function StatisticsDashboard() {
 
       try {
         await apiClient.delete(`/content-report/${endpoint}/${item.dbId}`);
-      } catch (err) {
-        console.error('Error deleting row:', err);
+      } catch (err: any) {
+        console.error('Error deleting row:', err?.response?.data || err);
+        showToast(`Lỗi xóa dòng: ${err?.response?.data?.message || err?.message || 'Không xác định'}`);
         fetchReportData();
       }
     }
@@ -668,7 +679,7 @@ function StatisticsDashboard() {
       else if (field === 'totalVideos') payload.total_videos = parseInt(value) || 0;
       else if (field === 'winVideos') payload.win_videos = parseInt(value) || 0;
       else if (field === 'notes') payload.notes = value;
-      
+
       // Clone specifics
       else if (field === 'targetChannel') payload.target_channel = value;
       else if (field === 'likes') payload.likes = parseInt(value) || 0;
@@ -705,8 +716,9 @@ function StatisticsDashboard() {
 
       try {
         await apiClient.patch(`/content-report/${endpoint}/${item.dbId}`, payload);
-      } catch (err) {
-        console.error('Error updating slide field:', err);
+      } catch (err: any) {
+        console.error('Error updating slide field:', err?.response?.data || err);
+        showToast(`Lỗi cập nhật slide: ${err?.response?.data?.message || err?.message || 'Không xác định'}`);
         fetchReportData();
       }
     }
@@ -814,8 +826,9 @@ function StatisticsDashboard() {
       else targetListLength = (activeTeamData?.editorPerformance.length || 0) + 1;
 
       setActiveSlideIndex(targetListLength - 1);
-    } catch (err) {
-      console.error('Error adding slide:', err);
+    } catch (err: any) {
+      console.error('Error adding slide:', err?.response?.data || err);
+      showToast(`Lỗi thêm slide: ${err?.response?.data?.message || err?.message || 'Không xác định'}`);
     }
   };
 
@@ -852,8 +865,9 @@ function StatisticsDashboard() {
       try {
         await apiClient.delete(`/content-report/${endpoint}/${item.dbId}`);
         setActiveSlideIndex(prev => Math.max(0, prev - 1));
-      } catch (err) {
-        console.error('Error deleting slide:', err);
+      } catch (err: any) {
+        console.error('Error deleting slide:', err?.response?.data || err);
+        showToast(`Lỗi xóa slide: ${err?.response?.data?.message || err?.message || 'Không xác định'}`);
         fetchReportData();
       }
     }
@@ -952,6 +966,25 @@ function StatisticsDashboard() {
         title={activeVideoModal?.title}
         platform={activeVideoModal?.platform}
       />
+
+      {/* Toast notification */}
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-[9999] px-5 py-3 rounded-xl shadow-2xl text-sm font-semibold flex items-center gap-3 animate-[slideUp_0.3s_ease-out] ${
+          toast.type === 'error'
+            ? 'bg-red-500/90 text-white border border-red-400/30'
+            : 'bg-emerald-500/90 text-white border border-emerald-400/30'
+        }`}>
+          <span>{toast.type === 'error' ? '❌' : '✅'}</span>
+          <span className="max-w-[400px] truncate">{toast.message}</span>
+          <button onClick={() => setToast(null)} className="ml-2 text-white/70 hover:text-white text-lg leading-none">&times;</button>
+        </div>
+      )}
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes slideUp {
+          from { transform: translateY(20px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
+      `}} />
     </div>
   );
 }

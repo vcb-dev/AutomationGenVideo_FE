@@ -135,4 +135,5 @@ export interface TeamData {
   editorPerformance: EditorPerfItem[];
   cloneVideos?: CloneVideoItem[];
   actions?: ActionItem[];
+  members?: string[];
 }

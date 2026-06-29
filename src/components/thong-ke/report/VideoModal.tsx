@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Play, ExternalLink, XCircle } from 'lucide-react';
+import { X, Play, ExternalLink, XCircle, Image } from 'lucide-react';
 import { apiClient } from '../../../lib/api-client';
 
 interface VideoModalProps {
@@ -185,7 +185,7 @@ export default function VideoModal({ isOpen, onClose, videoUrl, title, platform 
           ) : isPhoto ? (
             <div className="w-full h-full flex flex-col items-center justify-center bg-[#090e18] p-6 text-center select-none">
               <div className="w-16 h-16 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mb-4">
-                <ImageIcon className="w-6 h-6 text-blue-400" />
+                <Image className="w-6 h-6 text-blue-400" />
               </div>
               <h4 className="text-xs md:text-sm font-black text-slate-200 uppercase tracking-widest">
                 Bài đăng dạng album ảnh (slideshow)

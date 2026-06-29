@@ -4,6 +4,7 @@ import { FailVideoItem } from '../types';
 import { formatDotViews } from '../utils';
 import { CustomSelect, CustomDatePicker } from './CustomControls';
 import { apiClient } from '../../../lib/api-client';
+import EditableCell from './EditableCell';
 
 interface ContentFailTableProps {
   failVideos: FailVideoItem[];
@@ -13,10 +14,11 @@ interface ContentFailTableProps {
   onUpdateRow: (index: number, field: string, value: string) => void;
   onDeleteRow: (index: number) => void;
   onAddRow: () => void;
+  editors?: string[];
 }
 
 export default function ContentFailTable({
-  failVideos, activeTab, isCollapsed, onToggle, onUpdateRow, onDeleteRow, onAddRow
+  failVideos, activeTab, isCollapsed, onToggle, onUpdateRow, onDeleteRow, onAddRow, editors = []
 }: ContentFailTableProps) {
   const [uploadingIndex, setUploadingIndex] = React.useState<number | null>(null);
 
@@ -38,7 +40,7 @@ export default function ContentFailTable({
     ) {
       return;
     }
-    if (!/^[0-9.]$/.test(e.key)) {
+    if (!/^[0-9.kKmM]$/.test(e.key)) {
       e.preventDefault();
     }
   };
@@ -46,7 +48,7 @@ export default function ContentFailTable({
   const handleViewsInput = (e: React.FormEvent<HTMLTableCellElement>) => {
     const target = e.currentTarget;
     const originalText = target.textContent || '';
-    const sanitized = originalText.replace(/[^0-9.]/g, '');
+    const sanitized = originalText.replace(/[^0-9.kKmM]/gi, '');
     if (originalText !== sanitized) {
       target.textContent = sanitized;
       const range = document.createRange();
@@ -64,7 +66,8 @@ export default function ContentFailTable({
 
   return (
     <div className="flex flex-col rounded-xl overflow-hidden border border-red-500/20 shadow-lg shadow-red-950/10">
-      <style dangerouslySetInnerHTML={{__html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         .editable-placeholder:empty::before {
           content: attr(data-placeholder);
           color: #64748b !important;
@@ -90,7 +93,7 @@ export default function ContentFailTable({
               <tr className="border-b border-white/[0.08] text-slate-400 text-[10px] uppercase tracking-wider font-bold bg-white/[0.02]">
                 <th className="py-3 px-4 w-12 text-center">#</th>
                 <th className="py-3 px-4 w-16">TEAM</th>
-                <th className="py-3 px-4 w-28">EDITOR</th>
+                <th className="py-3 px-4 w-44">EDITOR</th>
                 <th className="py-3 px-4 w-32">LINK</th>
                 <th className="py-3 px-4 w-24">THUMBNAIL</th>
                 <th className="py-3 px-4 w-36">NỀN TẢNG</th>
@@ -111,13 +114,17 @@ export default function ContentFailTable({
                     <td className="py-3.5 px-4 text-slate-300 font-semibold text-xs">
                       {isMock ? 'Data point' : activeTab}
                     </td>
-                    <td
-                      contentEditable={!isMock}
-                      suppressContentEditableWarning
-                      onBlur={(e) => onUpdateRow(idx, 'editor', e.currentTarget.textContent || '')}
-                      className="py-3.5 px-4 text-slate-300 font-medium text-xs outline-none focus:bg-white/[0.04] cursor-text break-words whitespace-normal"
-                    >
-                      {video.editor}
+                    <td className="py-3.5 px-4 text-xs font-semibold text-slate-300">
+                      {isMock ? (
+                        '-'
+                      ) : (
+                        <CustomSelect
+                          value={video.editor || ''}
+                          onChange={(val) => onUpdateRow(idx, 'editor', val)}
+                          options={Array.from(new Set([...editors, video.editor].filter(Boolean)))
+                            .filter((name) => name !== 'Test User' && name !== 'Unknown')}
+                        />
+                      )}
                     </td>
                     <td
                       contentEditable={!isMock}
@@ -201,32 +208,24 @@ export default function ContentFailTable({
                       />
                     </td>
                     <td className="py-3 px-4">
-                      <div
-                        contentEditable={!isMock}
-                        suppressContentEditableWarning
-                        data-placeholder="Nhấp đúp để nhập nội dung..."
-                        onBlur={(e) => {
-                          const val = e.currentTarget.textContent || '';
-                          onUpdateRow(idx, 'content', val);
-                        }}
-                        className="editable-placeholder text-slate-300 text-xs leading-relaxed outline-none cursor-text break-words whitespace-normal min-h-[1.5em] w-full"
-                      >
-                        {video.content && video.content !== 'Nhấp đúp để nhập nội dung...' ? video.content : ''}
-                      </div>
+                      <EditableCell
+                        value={video.content || ''}
+                        placeholder="Nhấp đúp để nhập nội dung..."
+                        dataPlaceholder="Nhấp đúp để nhập nội dung..."
+                        onSave={(val) => onUpdateRow(idx, 'content', val)}
+                        disabled={isMock}
+                        className="text-slate-300 text-xs leading-relaxed"
+                      />
                     </td>
                     <td className="py-3 px-4">
-                      <div
-                        contentEditable={!isMock}
-                        suppressContentEditableWarning
-                        data-placeholder="Nhấp đúp để nhập lý do..."
-                        onBlur={(e) => {
-                          const val = e.currentTarget.textContent || '';
-                          onUpdateRow(idx, 'failReason', val);
-                        }}
-                        className="editable-placeholder text-slate-300 text-xs leading-relaxed outline-none cursor-text break-words whitespace-normal min-h-[1.5em] w-full"
-                      >
-                        {video.failReason && video.failReason !== 'Nhấp đúp để nhập lý do...' ? video.failReason : ''}
-                      </div>
+                      <EditableCell
+                        value={video.failReason || ''}
+                        placeholder="Nhấp đúp để nhập lý do..."
+                        dataPlaceholder="Nhấp đúp để nhập lý do..."
+                        onSave={(val) => onUpdateRow(idx, 'failReason', val)}
+                        disabled={isMock}
+                        className="text-slate-300 text-xs leading-relaxed"
+                      />
                     </td>
                     <td
                       contentEditable={!isMock}

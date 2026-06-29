@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { TeamData } from '../types';
-import { getSheetMultiplier, isDateInFilter, formatViews } from '../utils';
+import { getSheetMultiplier, formatViews } from '../utils';
 import TeamSelector from './TeamSelector';
 import TimeFilter from './TimeFilter';
 import ReportKpiBar from './ReportKpiBar';
@@ -37,34 +37,28 @@ export default function ReportTab({
   };
 
   const baseData = teamsData[activeTab];
+  const editors = baseData?.members || (baseData?.editorPerformance || []).map(e => e.editor).filter(Boolean);
 
-  // Helper to compute filtered data for each sheet
+  // Helper to compute KPI data for each sheet
   const computeSheetData = (sheetName: string) => {
     const multiplier = getSheetMultiplier(sheetName);
 
-    const filteredWinsCount = baseData.videos.filter(v => isDateInFilter(v.postDate, filterMode, selectedWeek)).length;
-    const filteredFailsCount = baseData.failVideos.filter(v => isDateInFilter(v.postDate, filterMode, selectedWeek)).length;
-    const overallWinsCount = baseData.videos.length;
-    const overallFailsCount = baseData.failVideos.length;
-
-    const winFilterRatio = overallWinsCount > 0 ? filteredWinsCount / overallWinsCount : 1;
-    const totalFilterRatio = (overallWinsCount + overallFailsCount) > 0
-      ? (filteredWinsCount + filteredFailsCount) / (overallWinsCount + overallFailsCount)
-      : 1;
+    const winsCount = baseData?.videos?.length || 0;
+    const failsCount = baseData?.failVideos?.length || 0;
+    const totalCount = winsCount + failsCount;
 
     const win5Stats = {
-      total: Math.round(baseData.win5Stats.total * totalFilterRatio * multiplier),
-      win: Math.round(baseData.win5Stats.win * winFilterRatio * multiplier),
-      fail: 0,
-      percent: ''
+      total: totalCount,
+      win: winsCount,
+      fail: failsCount,
+      percent: totalCount > 0
+        ? `${((winsCount / totalCount) * 100).toFixed(1).replace('.', ',')}%`
+        : '0,0%',
     };
-    win5Stats.fail = Math.max(0, win5Stats.total - win5Stats.win);
-    const rawWin5Percent = win5Stats.total > 0 ? (win5Stats.win / win5Stats.total) * 100 : 0;
-    win5Stats.percent = `${rawWin5Percent.toFixed(1).replace('.', ',')}%`;
 
     const newVideoStats = {
-      total: Math.round(baseData.newVideoStats.total * totalFilterRatio * multiplier),
-      win: Math.round(baseData.newVideoStats.win * winFilterRatio * multiplier),
+      total: Math.round((baseData?.newVideoStats?.total || 0) * multiplier),
+      win: Math.round((baseData?.newVideoStats?.win || 0) * multiplier),
       fail: 0,
       percent: ''
     };
@@ -72,29 +66,23 @@ export default function ReportTab({
     const rawNewVideoPercent = newVideoStats.total > 0 ? (newVideoStats.win / newVideoStats.total) * 100 : 0;
     newVideoStats.percent = `${rawNewVideoPercent.toFixed(1).replace('.', ',')}%`;
 
-    return { multiplier, winFilterRatio, totalFilterRatio, win5Stats, newVideoStats };
+    return { multiplier, winFilterRatio: 1, totalFilterRatio: 1, win5Stats, newVideoStats };
   };
 
-  // Filtered video data
-  const filterAndFormatVideos = (sheetName: string) => {
+  // Video data — no client-side date filter needed, BE already filters by periodId
+  const formatVideos = (sheetName: string) => {
     const multiplier = getSheetMultiplier(sheetName);
-    return baseData.videos
-      .filter(v => isDateInFilter(v.postDate, filterMode, selectedWeek))
-      .map(v => ({ ...v, views: formatViews(v.views, multiplier) }));
+    return (baseData?.videos || []).map(v => ({ ...v, views: formatViews(v.views, multiplier) }));
   };
 
-  const filterAndFormatFailVideos = (sheetName: string) => {
+  const formatFailVideos = (sheetName: string) => {
     const multiplier = getSheetMultiplier(sheetName);
-    return baseData.failVideos
-      .filter(v => isDateInFilter(v.postDate, filterMode, selectedWeek))
-      .map(v => ({ ...v, views: formatViews(v.views, multiplier) }));
+    return (baseData?.failVideos || []).map(v => ({ ...v, views: formatViews(v.views, multiplier) }));
   };
 
-  const filterAndFormatCaseStudies = (sheetName: string) => {
+  const formatCaseStudies = (sheetName: string) => {
     const multiplier = getSheetMultiplier(sheetName);
-    return baseData.caseStudies
-      .filter(v => isDateInFilter(v.postDate, filterMode, selectedWeek))
-      .map(v => ({ ...v, views: formatViews(v.views, multiplier) }));
+    return (baseData?.caseStudies || []).map(v => ({ ...v, views: formatViews(v.views, multiplier) }));
   };
 
   // Sheet name constants
@@ -104,7 +92,7 @@ export default function ReportTab({
   const EDITOR_WIN_SHEET = 'Số video content win của cá nhân trong team';
   const EDITOR_NEW_WIN_SHEET = 'Content mới win của cá nhân trong team/trên số video đã làm';
 
-  // Helper logic to map indexes from filtered and padded list to unfiltered lists
+  // Helper logic to map indexes — no more filter mismatch
   const getDefaultPostDate = () => {
     if (filterMode === 'week') {
       const week = selectedWeek === 'all' ? '1' : selectedWeek;
@@ -118,55 +106,28 @@ export default function ReportTab({
     return '2026-06-03';
   };
 
-  const getLists = (sheetName: string) => {
-    let rawList: any[] = [];
-    let filteredList: any[] = [];
-    
-    if (sheetName === WIN_SHEET) {
-      rawList = baseData.videos;
-      filteredList = baseData.videos.filter(v => isDateInFilter(v.postDate, filterMode, selectedWeek));
-    } else if (sheetName === FAIL_SHEET) {
-      rawList = baseData.failVideos;
-      filteredList = baseData.failVideos.filter(v => isDateInFilter(v.postDate, filterMode, selectedWeek));
-    } else if (sheetName === CASE_SHEET) {
-      rawList = baseData.caseStudies;
-      filteredList = baseData.caseStudies.filter(v => isDateInFilter(v.postDate, filterMode, selectedWeek));
-    } else {
-      rawList = baseData.editorPerformance;
-      filteredList = baseData.editorPerformance;
-    }
-    
-    return { rawList, filteredList };
+  const getList = (sheetName: string): any[] => {
+    if (sheetName === WIN_SHEET) return baseData?.videos || [];
+    if (sheetName === FAIL_SHEET) return baseData?.failVideos || [];
+    if (sheetName === CASE_SHEET) return baseData?.caseStudies || [];
+    return baseData?.editorPerformance || [];
   };
 
   const handleUpdateRow = (sheetName: string, tableIndex: number, field: string, value: string) => {
-    const { rawList, filteredList } = getLists(sheetName);
-    
-    if (tableIndex < filteredList.length) {
-      const targetItem = filteredList[tableIndex];
-      const rawIndex = targetItem.id !== undefined
-        ? rawList.findIndex(v => v.id === targetItem.id)
-        : tableIndex;
-      if (rawIndex !== -1) {
-        onUpdateRow(sheetName, rawIndex, field, value);
-      }
+    const list = getList(sheetName);
+    if (tableIndex < list.length) {
+      onUpdateRow(sheetName, tableIndex, field, value);
     } else {
-      // Mock row mapping to append logic
-      const rawIndex = rawList.length + (tableIndex - filteredList.length);
+      // New row beyond existing list
+      const rawIndex = list.length + (tableIndex - list.length);
       onUpdateRow(sheetName, rawIndex, field, value, getDefaultPostDate());
     }
   };
 
   const handleDeleteRow = (sheetName: string, tableIndex: number) => {
-    const { rawList, filteredList } = getLists(sheetName);
-    if (tableIndex < filteredList.length) {
-      const targetItem = filteredList[tableIndex];
-      const rawIndex = targetItem.id !== undefined
-        ? rawList.findIndex(v => v.id === targetItem.id)
-        : tableIndex;
-      if (rawIndex !== -1) {
-        onDeleteRow(sheetName, rawIndex);
-      }
+    const list = getList(sheetName);
+    if (tableIndex < list.length) {
+      onDeleteRow(sheetName, tableIndex);
     }
   };
 
@@ -206,27 +167,29 @@ export default function ReportTab({
       {/* Render all 5 tables stacked */}
       <div className="flex flex-col gap-8 mt-2">
         <ContentWinTable
-          videos={filterAndFormatVideos(WIN_SHEET)}
+          videos={formatVideos(WIN_SHEET)}
           activeTab={activeTab}
           isCollapsed={collapsedSheets[WIN_SHEET] || false}
           onToggle={() => toggleSheetCollapse(WIN_SHEET)}
           onUpdateRow={(idx, field, value) => handleUpdateRow(WIN_SHEET, idx, field, value)}
           onDeleteRow={(idx) => handleDeleteRow(WIN_SHEET, idx)}
           onAddRow={() => handleAddRow(WIN_SHEET)}
+          editors={editors}
         />
 
         <ContentFailTable
-          failVideos={filterAndFormatFailVideos(FAIL_SHEET)}
+          failVideos={formatFailVideos(FAIL_SHEET)}
           activeTab={activeTab}
           isCollapsed={collapsedSheets[FAIL_SHEET] || false}
           onToggle={() => toggleSheetCollapse(FAIL_SHEET)}
           onUpdateRow={(idx, field, value) => handleUpdateRow(FAIL_SHEET, idx, field, value)}
           onDeleteRow={(idx) => handleDeleteRow(FAIL_SHEET, idx)}
           onAddRow={() => handleAddRow(FAIL_SHEET)}
+          editors={editors}
         />
 
         <CaseStudyTable
-          caseStudies={filterAndFormatCaseStudies(CASE_SHEET)}
+          caseStudies={formatCaseStudies(CASE_SHEET)}
           isCollapsed={collapsedSheets[CASE_SHEET] || false}
           onToggle={() => toggleSheetCollapse(CASE_SHEET)}
           onUpdateRow={(idx, field, value) => handleUpdateRow(CASE_SHEET, idx, field, value)}

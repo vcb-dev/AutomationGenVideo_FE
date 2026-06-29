@@ -33,6 +33,29 @@ export const formatDotViews = (viewsStr: string): string => {
   return val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 };
 
+export const formatPresentationViews = (viewsStr: string): string => {
+  if (!viewsStr || viewsStr === '-') return '-';
+  const clean = viewsStr.replace(/\s*views/gi, '').replace(/\./g, '').replace(/,/g, '').trim();
+  const matchM = clean.match(/^([\d.]+)\s*M/i);
+  let val: number;
+  if (matchM) {
+    val = Math.round(parseFloat(matchM[1]) * 1000000);
+  } else {
+    const matchK = clean.match(/^([\d.]+)\s*K/i);
+    if (matchK) {
+      val = Math.round(parseFloat(matchK[1]) * 1000);
+    } else {
+      const parsed = parseInt(clean.replace(/[^\d.]/g, ''), 10);
+      val = isNaN(parsed) ? 0 : parsed;
+    }
+  }
+  if (val >= 1000000) {
+    const floored = Math.floor(val / 100000) / 10;
+    return `${floored}M`;
+  }
+  return val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+};
+
 export const formatWinRate = (win: number, total: number) => {
   if (total === 0) return '0,00%';
   const rate = (win / total) * 100;
@@ -40,17 +63,23 @@ export const formatWinRate = (win: number, total: number) => {
 };
 
 export const formatViews = (viewsStr: string, mult: number) => {
-  const matchM = viewsStr.match(/^([\d.]+)\s*M/i);
+  if (!viewsStr || viewsStr === '-') return '-';
+  const clean = viewsStr.replace(/\s*views/gi, '').replace(/\./g, '').replace(/,/g, '').trim();
+  const matchM = clean.match(/^([\d.]+)\s*M/i);
+  let val: number;
   if (matchM) {
-    const val = parseFloat(matchM[1]) * mult;
-    return `${val.toFixed(1)}M views`;
+    val = Math.round(parseFloat(matchM[1]) * 1000000);
+  } else {
+    const matchK = clean.match(/^([\d.]+)\s*K/i);
+    if (matchK) {
+      val = Math.round(parseFloat(matchK[1]) * 1000);
+    } else {
+      const parsed = parseInt(clean.replace(/[^\d.]/g, ''), 10);
+      val = isNaN(parsed) ? 0 : parsed;
+    }
   }
-  const matchK = viewsStr.match(/^([\d.]+)\s*K/i);
-  if (matchK) {
-    const val = Math.round(parseFloat(matchK[1]) * mult);
-    return `${val}K views`;
-  }
-  return viewsStr;
+  const multiplied = Math.round(val * mult);
+  return multiplied.toString();
 };
 
 export const getSheetMultiplier = (sheet: string) => {

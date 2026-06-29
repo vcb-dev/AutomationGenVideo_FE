@@ -48,9 +48,8 @@ export function CustomSelect({ value, onChange, options, alignUp = false }: Cust
 
       {isOpen && (
         <div
-          className={`absolute left-0 w-full min-w-[140px] bg-[#111827] border border-white/10 rounded-lg shadow-xl shadow-black/80 z-50 py-1 overflow-hidden transition-all ${
-            alignUp ? 'bottom-full mb-1' : 'top-full mt-1'
-          }`}
+          className={`absolute left-0 w-full min-w-[140px] bg-[#111827] border border-white/10 rounded-lg shadow-xl shadow-black/80 z-50 py-1 overflow-hidden transition-all ${alignUp ? 'bottom-full mb-1' : 'top-full mt-1'
+            }`}
         >
           {options.map((opt) => {
             const isSelected = opt === value;
@@ -62,11 +61,10 @@ export function CustomSelect({ value, onChange, options, alignUp = false }: Cust
                   onChange(opt);
                   setIsOpen(false);
                 }}
-                className={`flex items-center justify-between w-full px-2.5 py-1.5 text-[11px] font-semibold text-left transition-colors duration-100 ${
-                  isSelected 
-                    ? 'bg-blue-600/20 text-white' 
+                className={`flex items-center justify-between w-full px-2.5 py-1.5 text-[11px] font-semibold text-left transition-colors duration-100 ${isSelected
+                    ? 'bg-blue-600/20 text-white'
                     : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
-                }`}
+                  }`}
               >
                 <span className={getPlatformStyle(opt)}>{opt}</span>
                 {isSelected && <Check className="w-3.5 h-3.5 text-blue-400" />}
@@ -237,9 +235,8 @@ export function CustomDatePicker({ value, onChange, alignUp = false, themeColor 
 
       {isOpen && (
         <div
-          className={`absolute left-1/2 -translate-x-1/2 w-[220px] bg-[#0c1322] border border-white/10 rounded-xl shadow-2xl shadow-black/90 z-50 p-3 select-none ${
-            alignUp ? 'bottom-full mb-2' : 'top-full mt-2'
-          }`}
+          className={`absolute left-1/2 -translate-x-1/2 w-[220px] bg-[#0c1322] border border-white/10 rounded-xl shadow-2xl shadow-black/90 z-50 p-3 select-none ${alignUp ? 'bottom-full mb-2' : 'top-full mt-2'
+            }`}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between mb-2">
@@ -291,10 +288,9 @@ export function CustomDatePicker({ value, onChange, alignUp = false, themeColor 
                   onClick={() => handleSelectDay(cell.year, cell.month, cell.day)}
                   className={`
                     w-6 h-6 text-[10px] rounded-md transition-all duration-100 flex items-center justify-center font-semibold
-                    ${
-                      cell.isCurrentMonth
-                        ? 'text-slate-200'
-                        : 'text-slate-600 hover:text-slate-400'
+                    ${cell.isCurrentMonth
+                      ? 'text-slate-200'
+                      : 'text-slate-600 hover:text-slate-400'
                     }
                     ${isSelected ? themeClasses.selectedBg : ''}
                     ${!isSelected && isToday ? themeClasses.todayBorder : ''}

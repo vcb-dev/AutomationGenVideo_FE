@@ -8,6 +8,7 @@ import {
   Eye, ClipboardList, Instagram, Youtube
 } from 'lucide-react';
 import { TeamData } from '../types';
+import { formatPresentationViews } from '../utils';
 
 interface PresentationTabProps {
   teamsData: Record<string, TeamData>;
@@ -108,6 +109,16 @@ export default function PresentationTab({
     );
   };
 
+  const editorPerfList = baseData.editorPerformance || [];
+  const totalWinVideosSum = editorPerfList.reduce((s, e) => s + (e.winVideos || 0), 0);
+  const totalVideosSum = editorPerfList.reduce((s, e) => s + (e.totalVideos || 0), 0);
+
+  const ratio = baseData.win5Stats.total > 0 ? (baseData.newVideoStats.total / baseData.win5Stats.total) : 0;
+  const newWinSum = editorPerfList.reduce((s, e) => s + Math.round((e.winVideos || 0) * ratio), 0);
+  const newTotalSum = editorPerfList.reduce((s, e) => s + Math.round((e.totalVideos || 0) * ratio), 0);
+  const newRatePct = newTotalSum > 0 ? (newWinSum / newTotalSum) * 100 : 0;
+  const newRateFormatted = `${newRatePct.toFixed(1).replace('.', ',')}%`;
+
   return (
     <div className="flex flex-col gap-6 lg:flex-1 lg:min-h-0">
 
@@ -132,10 +143,10 @@ export default function PresentationTab({
             </div>
           </div>
           <span className="text-2xl font-black text-white leading-none">
-            {baseData.win5Stats.win}<span className="text-slate-500 text-base font-bold">/{baseData.win5Stats.total}</span>
+            {totalWinVideosSum}<span className="text-slate-500 text-base font-bold">/{totalVideosSum}</span>
           </span>
           <div className="h-1 w-full bg-white/[0.04] rounded-full overflow-hidden">
-            <div className="h-full bg-amber-500 rounded-full transition-all duration-700" style={{ width: `${baseData.win5Stats.total > 0 ? (baseData.win5Stats.win / baseData.win5Stats.total) * 100 : 0}%` }} />
+            <div className="h-full bg-amber-500 rounded-full transition-all duration-700" style={{ width: `${totalVideosSum > 0 ? (totalWinVideosSum / totalVideosSum) * 100 : 0}%` }} />
           </div>
         </div>
 
@@ -149,10 +160,10 @@ export default function PresentationTab({
             </div>
           </div>
           <span className="text-2xl font-black text-white leading-none">
-            {baseData.newVideoStats.win}<span className="text-slate-500 text-base font-bold">/{baseData.newVideoStats.total}</span>
+            {newWinSum}<span className="text-slate-500 text-base font-bold">/{newTotalSum}</span>
           </span>
           <div className="h-1 w-full bg-white/[0.04] rounded-full overflow-hidden">
-            <div className="h-full bg-emerald-500 rounded-full transition-all duration-700" style={{ width: `${baseData.newVideoStats.total > 0 ? (baseData.newVideoStats.win / baseData.newVideoStats.total) * 100 : 0}%` }} />
+            <div className="h-full bg-emerald-500 rounded-full transition-all duration-700" style={{ width: `${newTotalSum > 0 ? (newWinSum / newTotalSum) * 100 : 0}%` }} />
           </div>
         </div>
 
@@ -166,10 +177,10 @@ export default function PresentationTab({
             </div>
           </div>
           <span className="text-2xl font-black text-cyan-400 leading-none">
-            {(baseData.newVideoStats.percent || '0%').replace('.', ',')}
+            {newRateFormatted}
           </span>
           <div className="h-1 w-full bg-white/[0.04] rounded-full overflow-hidden">
-            <div className="h-full bg-cyan-500 rounded-full transition-all duration-700" style={{ width: `${Math.min(100, parseFloat((baseData.newVideoStats.percent || '0').replace(',', '.')) || 0)}%` }} />
+            <div className="h-full bg-cyan-500 rounded-full transition-all duration-700" style={{ width: `${newRatePct}%` }} />
           </div>
         </div>
       </div>
@@ -267,7 +278,7 @@ export default function PresentationTab({
                     ? slide.deadline
                     : (presentationMenu === 'editorPerf' || presentationMenu === 'newWin')
                       ? `${slide.totalVideos > 0 ? ((slide.winVideos / slide.totalVideos) * 100).toFixed(1) : '0'}%`
-                      : slide.views;
+                      : formatPresentationViews(slide.views);
                   return (
                     <div
                       key={index}
@@ -275,24 +286,21 @@ export default function PresentationTab({
                         setActiveSlideIndex(index);
                         setIsPlayingVideo(false);
                       }}
-                      className={`flex gap-2.5 p-2.5 rounded-xl cursor-pointer border transition-all duration-200 group select-none relative overflow-hidden flex-shrink-0 ${
-                        isCurrent
+                      className={`flex gap-2.5 p-2.5 rounded-xl cursor-pointer border transition-all duration-200 group select-none relative overflow-hidden flex-shrink-0 ${isCurrent
                           ? 'bg-gradient-to-r from-blue-950/60 to-[#1a2540]/60 border-blue-500/60 shadow-md shadow-blue-950/30'
                           : 'bg-white/[0.015] hover:bg-white/[0.04] border-white/[0.04] hover:border-white/[0.08]'
-                      }`}
+                        }`}
                     >
                       {/* Slide number badge */}
-                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5 ${
-                        isCurrent ? 'bg-blue-500 text-white' : 'bg-white/[0.06] text-slate-500'
-                      }`}>
+                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5 ${isCurrent ? 'bg-blue-500 text-white' : 'bg-white/[0.06] text-slate-500'
+                        }`}>
                         {String(index + 1).padStart(2, '0')}
                       </div>
 
                       {/* Content */}
                       <div className="flex-1 flex flex-col gap-1 min-w-0">
-                        <span className={`text-[11px] font-bold leading-tight line-clamp-2 ${
-                          isCurrent ? 'text-white font-extrabold' : 'text-slate-300 group-hover:text-slate-100'
-                        }`}>
+                        <span className={`text-[11px] font-bold leading-tight line-clamp-2 ${isCurrent ? 'text-white font-extrabold' : 'text-slate-300 group-hover:text-slate-100'
+                          }`}>
                           {slideTitle}
                         </span>
                         <div className="flex items-center justify-between gap-1 mt-0.5">
@@ -300,11 +308,10 @@ export default function PresentationTab({
                             <User className="w-2.5 h-2.5 shrink-0" />
                             <span className="truncate">{slideSubLeft}</span>
                           </span>
-                          <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-md shrink-0 ${
-                            isCurrent
+                          <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-md shrink-0 ${isCurrent
                               ? 'bg-blue-500/20 text-blue-300'
                               : 'bg-white/[0.05] text-slate-400'
-                          }`}>
+                            }`}>
                             {slideSubRight}
                           </span>
                         </div>
@@ -673,7 +680,7 @@ export default function PresentationTab({
 
                           type="text"
 
-                          value={presentationMenu === 'action' ? (selectedSlide.deadline || '') : (selectedSlide.views || '').replace(/\s*views/i, '').trim()}
+                          value={presentationMenu === 'action' ? (selectedSlide.deadline || '') : formatPresentationViews((selectedSlide.views || '').replace(/\s*views/i, '').trim())}
 
                           onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, presentationMenu === 'action' ? 'deadline' : 'views', e.target.value)}
 
@@ -980,7 +987,7 @@ export default function PresentationTab({
       {/* Fullscreen Modal */}
       {isFullscreenSlide && selectedSlide && (() => {
         const isPerf = presentationMenu === 'editorPerf' || presentationMenu === 'newWin';
-        
+
         // Dynamic titles & subtitles
         const titles: Record<string, string> = {
           win: 'CONTENT WIN MỚI',
@@ -1018,7 +1025,7 @@ export default function PresentationTab({
 
         // Parse improvements into bullet points
         const improvementsField = (presentationMenu === 'action' || isPerf) ? selectedSlide.notes : selectedSlide.improvements;
-        const improvementPoints = improvementsField 
+        const improvementPoints = improvementsField
           ? improvementsField.split('\n').map((p: string) => p.trim()).filter((p: string) => p.length > 0)
           : [];
 
@@ -1099,7 +1106,7 @@ export default function PresentationTab({
                     {/* Background track */}
                     <div className="absolute left-0 right-0 h-1 bg-[#1E293B] rounded-full" />
                     {/* Active track */}
-                    <div 
+                    <div
                       className="absolute left-0 h-1 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-300 shadow-[0_0_8px_rgba(59,130,246,0.3)]"
                       style={{ width: `${(validSlideIndex / Math.max(1, slidesList.length - 1)) * 100}%` }}
                     />
@@ -1112,13 +1119,12 @@ export default function PresentationTab({
                           <button
                             key={dotIdx}
                             onClick={() => setActiveSlideIndex(dotIdx)}
-                            className={`h-2.5 rounded-full transition-all duration-300 relative z-10 ${
-                              isCurrent 
-                                ? 'w-6 bg-gradient-to-r from-blue-500 to-indigo-500 ring-4 ring-blue-500/15 shadow-[0_0_12px_rgba(59,130,246,0.5)]' 
-                                : isActive 
-                                  ? 'w-2.5 bg-blue-500/80 hover:bg-blue-400' 
+                            className={`h-2.5 rounded-full transition-all duration-300 relative z-10 ${isCurrent
+                                ? 'w-6 bg-gradient-to-r from-blue-500 to-indigo-500 ring-4 ring-blue-500/15 shadow-[0_0_12px_rgba(59,130,246,0.5)]'
+                                : isActive
+                                  ? 'w-2.5 bg-blue-500/80 hover:bg-blue-400'
                                   : 'w-2.5 bg-white/[0.08] hover:bg-white/[0.15]'
-                            }`}
+                              }`}
                             title={`Đến Slide ${dotIdx + 1}`}
                           />
                         );
@@ -1138,13 +1144,13 @@ export default function PresentationTab({
 
             {/* Layout content 3 hàng dọc chính */}
             <div className="flex-1 flex flex-col justify-between gap-4 my-2 z-10 overflow-y-auto custom-scrollbar">
-              
+
               {/* Glowing blue separator line under the header */}
               <div className="w-full h-[1.5px] bg-gradient-to-r from-blue-500/80 via-blue-600/40 to-transparent shadow-[0_0_8px_rgba(59,130,246,0.3)] -mt-2 mb-2 z-10" />
 
               {/* Hàng 1: Video Player, Content Script & Right Stats */}
               <div className="grid grid-cols-12 gap-6 items-stretch min-h-[460px]" style={{ flex: '3 3 0%' }}>
-                
+
                 {/* Hàng 1 - Cột Trái: Video Player hoặc circular chart (col-span-3) */}
                 <div className="col-span-3">
                   <div className="bg-[#090F1C]/40 border border-white/[0.06] rounded-2xl p-4 flex items-center justify-center relative min-h-[350px] shadow-lg h-full">
@@ -1211,7 +1217,7 @@ export default function PresentationTab({
                         className={`h-[420px] w-[270px] rounded-2xl overflow-hidden relative border border-white/10 bg-[#0C1322] cursor-pointer transition-all duration-300 group shadow-lg flex flex-col justify-between z-10`}
                       >
                         <img src={getSlideUnsplashImage(selectedSlide)} alt="mock" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
-                        
+
                         {/* Play button overlay in the center of display */}
                         <div className="absolute inset-0 flex items-center justify-center">
                           <div className="w-12 h-12 rounded-full bg-purple-600/40 backdrop-blur-sm border border-purple-400/40 flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:bg-purple-600/60 shadow-lg">
@@ -1249,12 +1255,12 @@ export default function PresentationTab({
                 {/* Hàng 1 - Cột Giữa: Script & Meta (col-span-6) */}
                 <div className="col-span-6 flex flex-col justify-between h-full">
                   <div className="bg-[#090F1C]/40 border border-white/[0.05] p-6 rounded-2xl flex flex-col justify-between h-full relative overflow-hidden shadow-lg">
-                    
+
                     {/* Large double quote watermark in the top-right corner */}
                     <span className="absolute right-6 top-4 text-blue-500/[0.04] font-serif text-[180px] leading-none select-none pointer-events-none">
                       “
                     </span>
-                    
+
                     <div className="relative z-10 flex-1 flex flex-col justify-between">
                       <div>
                         {/* Title badge with icon */}
@@ -1295,8 +1301,8 @@ export default function PresentationTab({
                             )}
                             {displayBody && (
                               <p className="text-[14px] font-medium leading-relaxed text-slate-300 whitespace-pre-wrap max-h-[140px] overflow-y-auto custom-scrollbar pr-1 pb-4">
-                                {presentationMenu === 'fail' || presentationMenu === 'case' || presentationMenu === 'clone' 
-                                  ? displayBody 
+                                {presentationMenu === 'fail' || presentationMenu === 'case' || presentationMenu === 'clone'
+                                  ? displayBody
                                   : `- ${displayBody}`}
                               </p>
                             )}
@@ -1313,7 +1319,7 @@ export default function PresentationTab({
                           </div>
                           <div className="flex items-center gap-2 bg-[#091122]/60 border border-white/[0.05] px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 flex-1 justify-center">
                             <Eye className="w-4 h-4 text-blue-400 shrink-0" />
-                            <span className="truncate">LƯỢT XEM: <span className="text-white font-extrabold">{selectedSlide.views || '0'}</span></span>
+                            <span className="truncate">LƯỢT XEM: <span className="text-white font-extrabold">{formatPresentationViews(selectedSlide.views || '0')}</span></span>
                           </div>
                           <div className="flex items-center gap-2 bg-[#091122]/60 border border-white/[0.05] px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 flex-1 justify-center">
                             <span className="text-blue-400 shrink-0 flex items-center justify-center">{renderPlatformLogo(selectedSlide.platform)}</span>
@@ -1339,7 +1345,7 @@ export default function PresentationTab({
                     <div>
                       <div className="text-[9px] text-slate-500 uppercase tracking-widest font-black mb-0.5">LƯỢT XEM (VIEWS)</div>
                       <div className="text-sm font-bold text-white">
-                        {isPerf ? selectedSlide.totalVideos + ' video' : selectedSlide.views || '0'}
+                        {isPerf ? selectedSlide.totalVideos + ' video' : formatPresentationViews(selectedSlide.views || '0')}
                       </div>
                     </div>
                   </div>
@@ -1400,13 +1406,13 @@ export default function PresentationTab({
 
               {/* Hàng 2: Đánh giá & Cải thiện (Grid 2 cột) */}
               <div className="grid grid-cols-2 gap-6 min-h-[120px]" style={{ flex: '1.2 1.2 0%' }}>
-                
+
                 {/* Cột Trái: Đánh giá phân tích */}
                 {(() => {
                   const title = isPerf ? 'PHÂN TÍCH HIỆU SUẤT' : 'ĐÁNH GIÁ PHÂN TÍCH';
                   const borderClass = 'border-emerald-500/20 bg-[#090F1C]/40 text-emerald-400 shadow-lg';
                   const value = presentationMenu === 'fail' ? selectedSlide.failReason : (presentationMenu === 'case' ? selectedSlide.takeaway : (presentationMenu === 'action' ? selectedSlide.description : selectedSlide.analysis));
-                  
+
                   return (
                     <div className={`border p-5 rounded-2xl flex flex-col justify-between gap-2 relative overflow-hidden ${borderClass} h-full`}>
                       {/* Floating watermark */}
@@ -1432,7 +1438,7 @@ export default function PresentationTab({
                   </span>
 
                   <span className="text-xs font-black uppercase tracking-wider text-blue-400 flex items-center gap-1.5 z-10">
-                    <Target className="w-4 h-4 text-blue-400" /> 
+                    <Target className="w-4 h-4 text-blue-400" />
                     {isPerf ? 'GHI CHÚ & ĐỊNH HƯỚNG PHÁT TRIỂN' : 'ĐIỂM CÓ THỂ CẢI THIỆN TỐT HƠN'}
                   </span>
 
@@ -1472,7 +1478,7 @@ export default function PresentationTab({
                   <span className="text-xs font-black uppercase tracking-wider text-purple-400 flex items-center gap-1.5 z-10">
                     <ClipboardList className="w-4 h-4 text-purple-400" /> GHI CHÚ ĐỊNH HƯỚNG NỘI BỘ
                   </span>
-                  
+
                   <p className="text-[13px] font-semibold leading-relaxed text-slate-300 z-10 relative mt-1 whitespace-pre-wrap flex-1 overflow-y-auto custom-scrollbar max-h-[50px]">
                     {selectedSlide.notes || 'Đã phân phối trên đa nền tảng, thu hút tệp đối tượng học sinh sinh viên tốt.'}
                   </p>

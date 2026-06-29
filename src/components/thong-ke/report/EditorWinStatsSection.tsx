@@ -46,6 +46,13 @@ export default function EditorWinStatsSection({
     return { fail, winRate };
   });
 
+  // Tính toán tổng số liệu cá nhân trong team
+  const totalSum = inputs.reduce((sum, item) => sum + item.total, 0);
+  const winSum = inputs.reduce((sum, item) => sum + item.win, 0);
+  const failSum = Math.max(0, totalSum - winSum);
+  const percentSum = totalSum > 0 ? (winSum / totalSum) * 100 : 0;
+  const percentFormatted = `${percentSum.toFixed(1).replace('.', ',')}%`;
+
   return (
     <div className="flex flex-col rounded-xl overflow-hidden border border-blue-500/20 shadow-lg shadow-blue-950/10">
       <div
@@ -67,7 +74,7 @@ export default function EditorWinStatsSection({
               <div className="bg-[#1e293b]/30 border border-white/[0.04] rounded-xl p-4 flex items-center justify-between transition-all hover:border-blue-500/20 shadow-md">
                 <div className="flex flex-col">
                   <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Tổng Video</span>
-                  <span className="text-2xl font-black text-white mt-1">{win5Stats.total}</span>
+                  <span className="text-2xl font-black text-white mt-1">{totalSum}</span>
                 </div>
                 <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
                   <Video className="w-5 h-5 text-blue-400" />
@@ -76,7 +83,7 @@ export default function EditorWinStatsSection({
               <div className="bg-[#1e293b]/30 border border-white/[0.04] rounded-xl p-4 flex items-center justify-between transition-all hover:border-emerald-500/20 shadow-md">
                 <div className="flex flex-col">
                   <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Video Win</span>
-                  <span className="text-2xl font-black text-emerald-400 mt-1">{win5Stats.win}</span>
+                  <span className="text-2xl font-black text-emerald-400 mt-1">{winSum}</span>
                 </div>
                 <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
                   <Award className="w-5 h-5 text-emerald-400" />
@@ -85,7 +92,7 @@ export default function EditorWinStatsSection({
               <div className="bg-[#1e293b]/30 border border-white/[0.04] rounded-xl p-4 flex items-center justify-between transition-all hover:border-red-500/20 shadow-md">
                 <div className="flex flex-col">
                   <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Video Fail</span>
-                  <span className="text-2xl font-black text-red-400 mt-1">{win5Stats.fail}</span>
+                  <span className="text-2xl font-black text-red-400 mt-1">{failSum}</span>
                 </div>
                 <div className="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center border border-red-500/20">
                   <XCircle className="w-5 h-5 text-red-400" />
@@ -94,7 +101,7 @@ export default function EditorWinStatsSection({
               <div className="bg-[#1e293b]/30 border border-white/[0.04] rounded-xl p-4 flex items-center justify-between transition-all hover:border-emerald-500/20 shadow-md">
                 <div className="flex flex-col">
                   <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Tỷ Lệ Win</span>
-                  <span className="text-2xl font-black text-emerald-400 mt-1">{win5Stats.percent}</span>
+                  <span className="text-2xl font-black text-emerald-400 mt-1">{percentFormatted}</span>
                 </div>
                 <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
                   <TrendingUp className="w-5 h-5 text-emerald-400" />

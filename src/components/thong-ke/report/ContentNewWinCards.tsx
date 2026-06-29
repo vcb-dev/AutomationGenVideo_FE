@@ -30,7 +30,7 @@ export default function ContentNewWinCards({
     ) {
       return;
     }
-    if (!/^[0-9.]$/.test(e.key)) {
+    if (!/^[0-9.kKmM]$/.test(e.key)) {
       e.preventDefault();
     }
   };
@@ -38,7 +38,7 @@ export default function ContentNewWinCards({
   const handleViewsInput = (e: React.FormEvent<HTMLSpanElement>) => {
     const target = e.currentTarget;
     const originalText = target.textContent || '';
-    const sanitized = originalText.replace(/[^0-9.]/g, '');
+    const sanitized = originalText.replace(/[^0-9.kKmM]/gi, '');
     if (originalText !== sanitized) {
       target.textContent = sanitized;
       const range = document.createRange();

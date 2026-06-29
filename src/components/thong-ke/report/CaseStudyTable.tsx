@@ -3,6 +3,7 @@ import { Lightbulb, ChevronDown, Plus, Trash2 } from 'lucide-react';
 import { CaseStudyItem } from '../types';
 import { formatDotViews } from '../utils';
 import { CustomSelect, CustomDatePicker } from './CustomControls';
+import EditableCell from './EditableCell';
 
 interface CaseStudyTableProps {
   caseStudies: CaseStudyItem[];
@@ -34,7 +35,7 @@ export default function CaseStudyTable({
     ) {
       return;
     }
-    if (!/^[0-9.]$/.test(e.key)) {
+    if (!/^[0-9.kKmM]$/.test(e.key)) {
       e.preventDefault();
     }
   };
@@ -42,7 +43,7 @@ export default function CaseStudyTable({
   const handleViewsInput = (e: React.FormEvent<HTMLTableCellElement>) => {
     const target = e.currentTarget;
     const originalText = target.textContent || '';
-    const sanitized = originalText.replace(/[^0-9.]/g, '');
+    const sanitized = originalText.replace(/[^0-9.kKmM]/gi, '');
     if (originalText !== sanitized) {
       target.textContent = sanitized;
       const range = document.createRange();
@@ -60,7 +61,8 @@ export default function CaseStudyTable({
 
   return (
     <div className="flex flex-col rounded-xl overflow-hidden border border-purple-500/20 shadow-lg shadow-purple-950/10">
-      <style dangerouslySetInnerHTML={{__html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         .editable-placeholder:empty::before {
           content: attr(data-placeholder);
           color: #64748b !important;
@@ -145,32 +147,24 @@ export default function CaseStudyTable({
                       />
                     </td>
                     <td className="py-3 px-4">
-                      <div
-                        contentEditable={!isMock}
-                        suppressContentEditableWarning
-                        data-placeholder="Case Study mới"
-                        onBlur={(e) => {
-                          const val = e.currentTarget.textContent || '';
-                          onUpdateRow(idx, 'title', val);
-                        }}
-                        className="editable-placeholder text-slate-300 text-xs leading-relaxed outline-none cursor-text break-words whitespace-normal min-h-[1.5em] w-full"
-                      >
-                        {video.title && video.title !== 'Case Study mới' ? video.title : ''}
-                      </div>
+                      <EditableCell
+                        value={video.title || ''}
+                        placeholder="Case Study mới"
+                        dataPlaceholder="Case Study mới"
+                        onSave={(val) => onUpdateRow(idx, 'title', val)}
+                        disabled={isMock}
+                        className="text-slate-300 text-xs leading-relaxed"
+                      />
                     </td>
                     <td className="py-3 px-4">
-                      <div
-                        contentEditable={!isMock}
-                        suppressContentEditableWarning
-                        data-placeholder="Nhấp đúp để nhập bài học..."
-                        onBlur={(e) => {
-                          const val = e.currentTarget.textContent || '';
-                          onUpdateRow(idx, 'takeaway', val);
-                        }}
-                        className="editable-placeholder text-slate-300 text-xs leading-relaxed outline-none cursor-text break-words whitespace-normal min-h-[1.5em] w-full"
-                      >
-                        {video.takeaway && video.takeaway !== 'Nhấp đúp để nhập bài học...' ? video.takeaway : ''}
-                      </div>
+                      <EditableCell
+                        value={video.takeaway || ''}
+                        placeholder="Nhấp đúp để nhập bài học..."
+                        dataPlaceholder="Nhấp đúp để nhập bài học..."
+                        onSave={(val) => onUpdateRow(idx, 'takeaway', val)}
+                        disabled={isMock}
+                        className="text-slate-300 text-xs leading-relaxed"
+                      />
                     </td>
                     <td
                       contentEditable={!isMock}
