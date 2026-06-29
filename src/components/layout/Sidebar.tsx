@@ -63,22 +63,22 @@ function SmartSidebar({ user, onLogout, isPinned, onTogglePin }: SidebarProps) {
   }, [token, apiBaseUrl]);
 
   return (
-    <Suspense fallback={<div className="w-[80px] bg-[#0f172a]" />}>
-      <SidebarContent 
-        user={user} 
-        onLogout={onLogout} 
-        isPinned={isPinned} 
-        onTogglePin={onTogglePin} 
+    // <Suspense fallback={<div className="w-[80px] bg-[#0f172a]" />}>
+      <SidebarContent
+        user={user}
+        onLogout={onLogout}
+        isPinned={isPinned}
+        onTogglePin={onTogglePin}
         allowedMenuIds={allowedMenuIds}
       />
-    </Suspense>
+    // </Suspense>
   );
 }
 
-function SidebarContent({ 
-  user, 
-  onLogout, 
-  isPinned, 
+function SidebarContent({
+  user,
+  onLogout,
+  isPinned,
   onTogglePin,
   allowedMenuIds
 }: any) {
@@ -122,26 +122,60 @@ function SidebarContent({
   // Directly derive activePlatform
   const activePlatform = useMemo(() => {
     const path = pathname?.toLowerCase() || '';
+
     if (path === '/dashboard/manager') {
       return 'dashboard-general';
-    } else if (path.startsWith('/dashboard/manager/user-activity') || path.startsWith('/dashboard/editor-management') || path.startsWith('/dashboard/hieu-suat')) {
+    }
+
+    if (
+      path.startsWith('/dashboard/manager/user-activity') ||
+      path.startsWith('/dashboard/editor-management') ||
+      path.startsWith('/dashboard/hieu-suat')
+    ) {
       return 'user-management';
-    } else if (
-      pathname.startsWith('/dashboard/facebook') ||
-      pathname.startsWith('/dashboard/instagram') ||
-      pathname.startsWith('/dashboard/tiktok') ||
-      pathname.startsWith('/dashboard/douyin') ||
-      pathname.startsWith('/dashboard/xiaohongshu') ||
-      pathname.startsWith('/dashboard/youtube') ||
-      pathname.startsWith('/dashboard/ai') ||
-      pathname.startsWith('/dashboard/search-video') ||
-      pathname.startsWith('/dashboard/channel-analysis') ||
-      pathname.startsWith('/dashboard/channels')
+    }
+
+    if (
+      path.startsWith('/dashboard/facebook') ||
+      path.startsWith('/dashboard/instagram') ||
+      path.startsWith('/dashboard/tiktok') ||
+      path.startsWith('/dashboard/douyin') ||
+      path.startsWith('/dashboard/xiaohongshu') ||
+      path.startsWith('/dashboard/youtube') ||
+      path.startsWith('/dashboard/ai') ||
+      path.startsWith('/dashboard/search-video') ||
+      path.startsWith('/dashboard/channel-analysis') ||
+      path.startsWith('/dashboard/channels') ||
+      path.startsWith('/dashboard/video-library') ||
+      path.startsWith('/dashboard/content')
     ) {
       return 'social-discovery';
     }
+
     return isManagement ? 'user-management' : 'social-discovery';
   }, [pathname, isManagement]);
+  // const activePlatform = useMemo(() => {
+  //   const path = pathname?.toLowerCase() || '';
+  //   if (path === '/dashboard/manager') {
+  //     return 'dashboard-general';
+  //   } else if (path.startsWith('/dashboard/manager/user-activity') || path.startsWith('/dashboard/editor-management') || path.startsWith('/dashboard/hieu-suat')) {
+  //     return 'user-management';
+  //   } else if (
+  //     pathname.startsWith('/dashboard/facebook') ||
+  //     pathname.startsWith('/dashboard/instagram') ||
+  //     pathname.startsWith('/dashboard/tiktok') ||
+  //     pathname.startsWith('/dashboard/douyin') ||
+  //     pathname.startsWith('/dashboard/xiaohongshu') ||
+  //     pathname.startsWith('/dashboard/youtube') ||
+  //     pathname.startsWith('/dashboard/ai') ||
+  //     pathname.startsWith('/dashboard/search-video') ||
+  //     pathname.startsWith('/dashboard/channel-analysis') ||
+  //     pathname.startsWith('/dashboard/channels')
+  //   ) {
+  //     return 'social-discovery';
+  //   }
+  //   return isManagement ? 'user-management' : 'social-discovery';
+  // }, [pathname, isManagement]);
 
   // Platforms configuration
   const platforms = useMemo(() => {
@@ -192,8 +226,9 @@ function SidebarContent({
           {
             section: 'PHÂN TÍCH',
             items: [
-              { label: 'Channels', href: '/dashboard/facebook/channels', icon: Users },
+              // { label: 'Channels', href: '/dashboard/facebook/channels', icon: Users },
               { label: 'Phân tích kênh', href: '/dashboard/channel-analysis', icon: BarChart3 },
+              { label: 'Kênh nội bộ', href: '/dashboard/channels', icon: BookOpen },
               { label: 'Kênh nội bộ', href: '/dashboard/channels', icon: BookOpen },
             ]
           },
@@ -213,10 +248,16 @@ function SidebarContent({
         ]
       }
     ];
+    // LOG RA ĐỂ XEM ĐÃ CÓ "Kênh nội bộ" CHƯA
+    console.log("Full Platform Config:", JSON.stringify(items));
     return items;
   }, [user?.roles, isManagement, isManagerOrAdmin, isManagerRole, isAdminRole]);
 
-  const currentPlatform = useMemo(() => platforms.find(p => p.id === activePlatform), [platforms, activePlatform]);
+  const currentPlatform = useMemo(() =>
+    platforms.find(p => p.id === activePlatform),
+    [platforms, activePlatform]);
+  console.log("activePlatform:", activePlatform);
+  console.log("currentPlatform menus:", currentPlatform?.menus);
 
   const handleMouseEnter = useCallback(() => {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
@@ -267,7 +308,7 @@ function SidebarContent({
               alt="VCB"
               className="w-full h-full object-cover transition-transform duration-300 ease-out group-hover:scale-110"
               loading="eager"
-             width={0} height={0} sizes="100vw" unoptimized/>
+              width={0} height={0} sizes="100vw" unoptimized />
           </div>
 
           <div className="flex-1 flex flex-col gap-4 w-full px-4">
@@ -358,10 +399,10 @@ function SidebarContent({
                         href={item.href}
                         prefetch={true}
                         onClick={() => {
-                            handleLinkClick();
-                            if (item.href.includes("tab=daily_report")) {
-                                window.dispatchEvent(new CustomEvent("resetUserActivityDailyReport", { detail: { type: item.href.includes("report=monthly") ? "monthly" : item.href.includes("report=daily") ? "daily" : "select" } }));
-                            }
+                          handleLinkClick();
+                          if (item.href.includes("tab=daily_report")) {
+                            window.dispatchEvent(new CustomEvent("resetUserActivityDailyReport", { detail: { type: item.href.includes("report=monthly") ? "monthly" : item.href.includes("report=daily") ? "daily" : "select" } }));
+                          }
                         }}
                         className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors duration-150 ease-out text-sm font-medium
                                              ${isActive
