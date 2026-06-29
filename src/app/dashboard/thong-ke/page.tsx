@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import ReportTab from '../../../components/thong-ke/report/ReportTab';
 import PresentationTab from '../../../components/thong-ke/presentation/PresentationTab';
 import StatisticsTab from '../../../components/thong-ke/statistics/StatisticsTab';
+import VideoModal from '../../../components/thong-ke/report/VideoModal';
 import { TeamData } from '../../../components/thong-ke/types';
 import { apiClient } from '../../../lib/api-client';
 
@@ -29,6 +30,11 @@ function StatisticsDashboard() {
   const [periodsList, setPeriodsList] = useState<any[]>([]);
   const [activeTeamData, setActiveTeamData] = useState<TeamData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [activeVideoModal, setActiveVideoModal] = useState<{
+    url: string;
+    title?: string;
+    platform?: string;
+  } | null>(null);
 
   // States for time filter (mapped to periods list on BE)
   const [filterMode, setFilterMode] = useState<'all' | 'week' | 'month'>('week');
@@ -94,7 +100,8 @@ function StatisticsDashboard() {
     if (!activeTab || !currentPeriod?.id) return;
     try {
       setLoading(true);
-      const res = await apiClient.get(`/content-report/data?team=${activeTab}&periodId=${currentPeriod.id}`);
+      // Added _t timestamp to prevent aggressive browser caching
+      const res = await apiClient.get(`/content-report/data?team=${activeTab}&periodId=${currentPeriod.id}&_t=${Date.now()}`);
       setActiveTeamData(res.data);
     } catch (err) {
       console.error('Error fetching report data:', err);
@@ -457,40 +464,175 @@ function StatisticsDashboard() {
     const endpoint = getSheetEndpoint(sheetName);
     if (!endpoint || !activeTeamData || !currentPeriod) return;
 
+    let list: any[] = [];
+    if (sheetName === '5 Content win của team') list = activeTeamData.videos;
+    else if (sheetName === '5 Content fail của team') list = activeTeamData.failVideos;
+    else if (sheetName === '5 Case Study hay bên ngoài') list = activeTeamData.caseStudies;
+    else if (sheetName === 'Số video content win của cá nhân trong team' || sheetName === 'Content mới win của cá nhân trong team/trên số video đã làm') {
+      list = activeTeamData.editorPerformance;
+    }
+
+    const tempDbId = `temp-${Date.now()}`;
+    let tempItem: any = { dbId: tempDbId };
+    const defaultDateStr = defaultPostDate || new Date().toISOString().split('T')[0];
+
     const payload: any = {
       team_id: activeTeamData.teamId,
       period_id: currentPeriod.id,
     };
 
     if (sheetName === '5 Content win của team') {
+      tempItem = {
+        ...tempItem,
+        id: list.length + 1,
+        label: `Video ${list.length + 1}`,
+        content: 'Nhấp đúp để nhập nội dung...',
+        analysis: 'Nhấp đúp để nhập phân tích...',
+        editor: 'Tên Editor',
+        views: '-',
+        likes: '0',
+        comments: '0',
+        shares: '0',
+        platform: 'TikTok',
+        postDate: defaultDateStr,
+        highlights: '',
+        improvements: '',
+        leaderComment: '',
+        notes: '',
+        thumbnail: '',
+        videoUrl: '',
+      };
+
       payload.status = 'WIN';
-      payload.content = 'Nhấp đúp để nhập nội dung...';
-      payload.analysis = 'Nhấp đúp để nhập phân tích...';
-      payload.editor = 'Tên Editor';
-      payload.post_date = defaultPostDate || new Date().toISOString().split('T')[0];
+      payload.content = tempItem.content;
+      payload.analysis = tempItem.analysis;
+      payload.editor = tempItem.editor;
+      payload.post_date = tempItem.postDate;
+      payload.platform = tempItem.platform;
     } else if (sheetName === '5 Content fail của team') {
+      tempItem = {
+        ...tempItem,
+        id: list.length + 1,
+        label: `Video ${list.length + 1}`,
+        content: 'Nhấp đúp để nhập nội dung...',
+        failReason: 'Nhấp đúp để nhập lý do...',
+        editor: 'Tên Editor',
+        views: '-',
+        likes: '0',
+        comments: '0',
+        shares: '0',
+        platform: 'TikTok',
+        postDate: defaultDateStr,
+        highlights: '',
+        improvements: '',
+        leaderComment: '',
+        notes: '',
+        thumbnail: '',
+        videoUrl: '',
+      };
+
       payload.status = 'FAIL';
-      payload.content = 'Nhấp đúp để nhập nội dung...';
-      payload.analysis = 'Nhấp đúp để nhập lý do...';
-      payload.editor = 'Tên Editor';
-      payload.post_date = defaultPostDate || new Date().toISOString().split('T')[0];
+      payload.content = tempItem.content;
+      payload.analysis = tempItem.failReason;
+      payload.editor = tempItem.editor;
+      payload.post_date = tempItem.postDate;
+      payload.platform = tempItem.platform;
     } else if (sheetName === '5 Case Study hay bên ngoài') {
-      payload.title = 'Nhấp đúp để nhập tiêu đề...';
-      payload.channel = 'Tên kênh';
+      tempItem = {
+        ...tempItem,
+        id: list.length + 1,
+        label: `Case ${list.length + 1}`,
+        title: 'Case Study mới',
+        channel: 'Tên kênh',
+        views: '-',
+        takeaway: 'Nhấp đúp để nhập bài học...',
+        postDate: defaultDateStr,
+        platform: 'TikTok',
+      };
+
+      payload.title = tempItem.title;
+      payload.channel = tempItem.channel;
       payload.views = 0;
-      payload.takeaway = 'Nhấp đúp để nhập bài học...';
-      payload.post_date = defaultPostDate || new Date().toISOString().split('T')[0];
+      payload.takeaway = tempItem.takeaway;
+      payload.post_date = tempItem.postDate;
+      payload.platform = tempItem.platform;
     } else if (sheetName === 'Số video content win của cá nhân trong team' || sheetName === 'Content mới win của cá nhân trong team/trên số video đã làm') {
-      payload.editor = 'Editor mới';
+      tempItem = {
+        ...tempItem,
+        editor: 'Editor mới',
+        totalVideos: 0,
+        winVideos: 0,
+        failVideos: 0,
+        winRate: '0%',
+        notes: '',
+        analysis: '',
+      };
+
+      payload.editor = tempItem.editor;
       payload.total_videos = 0;
       payload.win_videos = 0;
     }
 
+    // Optimistic state update: append the temporary row immediately
+    setActiveTeamData(prev => {
+      if (!prev) return null;
+      const updated = { ...prev };
+      const updatedList = [...list, tempItem];
+      if (sheetName === '5 Content win của team') updated.videos = updatedList;
+      else if (sheetName === '5 Content fail của team') updated.failVideos = updatedList;
+      else if (sheetName === '5 Case Study hay bên ngoài') updated.caseStudies = updatedList;
+      else updated.editorPerformance = updatedList;
+      return updated;
+    });
+
     try {
-      await apiClient.post(`/content-report/${endpoint}`, payload);
-      fetchReportData();
+      const res = await apiClient.post(`/content-report/${endpoint}`, payload);
+      const newDbId = res.data?.id;
+      if (newDbId) {
+        // Swap temp ID with real DB ID in state immediately
+        setActiveTeamData(prev => {
+          if (!prev) return null;
+          const updated = { ...prev };
+
+          const updateList = (items: any[]) =>
+            items.map(item => {
+              if (item.dbId === tempDbId) {
+                const updatedItem = { ...item, dbId: newDbId };
+                // If user edited fields while creation was pending, sync those edits
+                const modifiedFields: any = {};
+                if (item.content !== tempItem.content) modifiedFields.content = item.content;
+                if (item.analysis !== tempItem.analysis) modifiedFields.analysis = item.analysis;
+                if (item.failReason !== tempItem.failReason) modifiedFields.analysis = item.failReason;
+                if (item.editor !== tempItem.editor) modifiedFields.editor = item.editor;
+                if (item.postDate !== tempItem.postDate) modifiedFields.post_date = item.postDate;
+                if (item.platform !== tempItem.platform) modifiedFields.platform = item.platform;
+                if (item.videoUrl !== tempItem.videoUrl) {
+                  modifiedFields.video_url = item.videoUrl;
+                  modifiedFields.link = item.videoUrl;
+                }
+                if (item.thumbnail !== tempItem.thumbnail) modifiedFields.thumbnail_url = item.thumbnail;
+                if (item.views !== tempItem.views) modifiedFields.views = viewsToNum(item.views);
+
+                if (Object.keys(modifiedFields).length > 0) {
+                  apiClient.patch(`/content-report/${endpoint}/${newDbId}`, modifiedFields)
+                    .catch(e => console.error('Error syncing deferred edits:', e));
+                }
+                return updatedItem;
+              }
+              return item;
+            });
+
+          if (sheetName === '5 Content win của team') updated.videos = updateList(updated.videos);
+          else if (sheetName === '5 Content fail của team') updated.failVideos = updateList(updated.failVideos);
+          else if (sheetName === '5 Case Study hay bên ngoài') updated.caseStudies = updateList(updated.caseStudies);
+          else updated.editorPerformance = updateList(updated.editorPerformance);
+          return updated;
+        });
+      }
     } catch (err) {
       console.error('Error adding row:', err);
+      // Revert optimistic update on error by reloading
+      fetchReportData();
     }
   };
 
@@ -568,6 +710,11 @@ function StatisticsDashboard() {
         fetchReportData();
       }
     }
+  };
+
+  const handlePlayVideo = (url: string, title?: string, platform?: string) => {
+    if (!url) return;
+    setActiveVideoModal({ url, title, platform });
   };
 
   const addSlide = async (category: 'win' | 'fail' | 'case' | 'clone' | 'action' | 'editorPerf' | 'newWin') => {
@@ -797,6 +944,14 @@ function StatisticsDashboard() {
           handleStartExport={handleStartExport}
         />
       )}
+
+      <VideoModal
+        isOpen={!!activeVideoModal}
+        onClose={() => setActiveVideoModal(null)}
+        videoUrl={activeVideoModal?.url || ''}
+        title={activeVideoModal?.title}
+        platform={activeVideoModal?.platform}
+      />
     </div>
   );
 }

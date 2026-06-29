@@ -21,16 +21,6 @@ export default function ContentWinTable({
   const [uploadingIndex, setUploadingIndex] = React.useState<number | null>(null);
 
   const rows = [...videos];
-  while (rows.length < 5) {
-    rows.push({
-      id: rows.length + 1,
-      label: 'Data point',
-      content: 'Data point',
-      analysis: 'Data point',
-      editor: 'Data point',
-      views: '-'
-    });
-  }
 
   const handleViewsKeyDown = (e: React.KeyboardEvent<HTMLTableCellElement>) => {
     if (e.key === 'Enter') {
@@ -75,6 +65,15 @@ export default function ContentWinTable({
 
   return (
     <div className="flex flex-col rounded-xl overflow-hidden border border-[#10b981]/20 shadow-lg shadow-emerald-950/10">
+      <style dangerouslySetInnerHTML={{__html: `
+        .editable-placeholder:empty::before {
+          content: attr(data-placeholder);
+          color: #64748b !important;
+          font-style: italic;
+          pointer-events: none;
+          display: inline;
+        }
+      `}} />
       <div
         onClick={onToggle}
         className="bg-[#063529] px-4 py-3 flex items-center justify-between border-b border-[#10b981]/20 cursor-pointer select-none hover:bg-[#0a4d3b] transition-colors"
@@ -104,33 +103,31 @@ export default function ContentWinTable({
               </tr>
             </thead>
             <tbody className="divide-y divide-white/[0.04]">
-              {rows.map((video, idx) => {
-                const isMock = video.label === 'Data point';
-                const isSaving = typeof video.dbId === 'string' && video.dbId.startsWith('temp-');
+              {videos.map((video, idx) => {
+                const isMock = video.dbId === 'mock-point';
                 return (
-                  <tr key={idx} className={`hover:bg-white/[0.02] transition-colors ${isSaving ? 'opacity-50 pointer-events-none' : ''}`}>
-                    <td className="py-3.5 px-4 text-center text-slate-500 font-bold text-xs">{idx + 1}</td>
-                    <td className="py-3.5 px-4 text-slate-300 font-semibold text-xs">
-                      {isMock ? 'Data point' : activeTab}
-                    </td>
+                  <tr key={video.dbId} className="hover:bg-white/[0.02] transition-colors border-b border-white/[0.04]">
+                    <td className="py-3.5 px-4 text-center text-xs font-bold text-slate-500">{video.label}</td>
+                    <td className="py-3.5 px-4 text-xs text-slate-400 font-bold">{video.teamName || activeTab}</td>
                     <td
-                      contentEditable={!isMock && !isSaving}
+                      contentEditable={!isMock}
                       suppressContentEditableWarning
                       onBlur={(e) => onUpdateRow(idx, 'editor', e.currentTarget.textContent || '')}
-                      className="py-3.5 px-4 text-slate-300 font-medium text-xs outline-none focus:bg-white/[0.04] cursor-text break-words whitespace-normal"
+                      className="py-3.5 px-4 text-slate-300 text-xs outline-none focus:bg-white/[0.04] cursor-text truncate max-w-[110px]"
                     >
                       {video.editor}
                     </td>
                     <td
-                      contentEditable={!isMock && !isSaving}
+                      contentEditable={!isMock}
                       suppressContentEditableWarning
                       onBlur={(e) => onUpdateRow(idx, 'videoUrl', e.currentTarget.textContent || '')}
-                      className={`py-3.5 px-4 text-xs outline-none focus:bg-white/[0.04] cursor-text max-w-[120px] truncate focus:max-w-none focus:whitespace-normal break-all ${isMock
-                        ? 'text-slate-500 font-bold text-center'
-                        : !video.videoUrl
-                          ? 'text-blue-400/50 italic'
-                          : 'text-blue-400 hover:text-blue-300 underline font-medium'
-                        }`}
+                      className={`py-3.5 px-4 text-xs truncate max-w-[130px] outline-none focus:bg-white/[0.04] cursor-text ${
+                        isMock
+                          ? 'text-slate-500'
+                          : !video.videoUrl
+                            ? 'text-blue-400/50 italic'
+                            : 'text-blue-400 hover:text-blue-300 underline font-medium'
+                      }`}
                       title={isMock ? '' : (video.videoUrl || 'Dán link video...')}
                     >
                       {isMock ? '-' : (video.videoUrl || 'Dán link video...')}
@@ -202,24 +199,36 @@ export default function ContentWinTable({
                         themeColor="emerald"
                       />
                     </td>
-                    <td
-                      contentEditable={!isMock && !isSaving}
-                      suppressContentEditableWarning
-                      onBlur={(e) => onUpdateRow(idx, 'content', e.currentTarget.textContent || '')}
-                      className="py-3.5 px-4 text-slate-300 text-xs leading-relaxed outline-none focus:bg-white/[0.04] cursor-text break-words whitespace-normal"
-                    >
-                      {video.content}
+                    <td className="py-3 px-4">
+                      <div
+                        contentEditable={!isMock}
+                        suppressContentEditableWarning
+                        data-placeholder="Nhấp đúp để nhập nội dung..."
+                        onBlur={(e) => {
+                          const val = e.currentTarget.textContent || '';
+                          onUpdateRow(idx, 'content', val);
+                        }}
+                        className="editable-placeholder text-slate-300 text-xs leading-relaxed outline-none cursor-text break-words whitespace-normal min-h-[1.5em] w-full"
+                      >
+                        {video.content && video.content !== 'Nhấp đúp để nhập nội dung...' ? video.content : ''}
+                      </div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div
+                        contentEditable={!isMock}
+                        suppressContentEditableWarning
+                        data-placeholder="Nhấp đúp để nhập phân tích..."
+                        onBlur={(e) => {
+                          const val = e.currentTarget.textContent || '';
+                          onUpdateRow(idx, 'analysis', val);
+                        }}
+                        className="editable-placeholder text-slate-300 text-xs leading-relaxed outline-none cursor-text break-words whitespace-normal min-h-[1.5em] w-full"
+                      >
+                        {video.analysis && video.analysis !== 'Nhấp đúp để nhập phân tích...' ? video.analysis : ''}
+                      </div>
                     </td>
                     <td
-                      contentEditable={!isMock && !isSaving}
-                      suppressContentEditableWarning
-                      onBlur={(e) => onUpdateRow(idx, 'analysis', e.currentTarget.textContent || '')}
-                      className="py-3.5 px-4 text-slate-300 text-xs leading-relaxed outline-none focus:bg-white/[0.04] cursor-text break-words whitespace-normal"
-                    >
-                      {video.analysis}
-                    </td>
-                    <td
-                      contentEditable={!isMock && !isSaving}
+                      contentEditable={!isMock}
                       suppressContentEditableWarning
                       onKeyDown={handleViewsKeyDown}
                       onInput={handleViewsInput}

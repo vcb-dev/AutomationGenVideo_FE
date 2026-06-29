@@ -21,16 +21,6 @@ export default function ContentFailTable({
   const [uploadingIndex, setUploadingIndex] = React.useState<number | null>(null);
 
   const rows = [...failVideos];
-  while (rows.length < 5) {
-    rows.push({
-      id: rows.length + 1,
-      label: 'Data point',
-      content: 'Data point',
-      failReason: 'Data point',
-      editor: 'Data point',
-      views: '-'
-    });
-  }
   const handleViewsKeyDown = (e: React.KeyboardEvent<HTMLTableCellElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -74,6 +64,15 @@ export default function ContentFailTable({
 
   return (
     <div className="flex flex-col rounded-xl overflow-hidden border border-red-500/20 shadow-lg shadow-red-950/10">
+      <style dangerouslySetInnerHTML={{__html: `
+        .editable-placeholder:empty::before {
+          content: attr(data-placeholder);
+          color: #64748b !important;
+          font-style: italic;
+          pointer-events: none;
+          display: inline;
+        }
+      `}} />
       <div
         onClick={onToggle}
         className="bg-[#271414] px-4 py-3 flex items-center justify-between border-b border-red-500/20 cursor-pointer select-none hover:bg-[#341b1b] transition-colors"
@@ -107,13 +106,13 @@ export default function ContentFailTable({
                 const isMock = video.label === 'Data point';
                 const isSaving = typeof video.dbId === 'string' && video.dbId.startsWith('temp-');
                 return (
-                  <tr key={idx} className={`hover:bg-white/[0.02] transition-colors ${isSaving ? 'opacity-50 pointer-events-none' : ''}`}>
+                  <tr key={idx} className={`hover:bg-white/[0.02] transition-colors ${isSaving ? 'opacity-70' : ''}`}>
                     <td className="py-3.5 px-4 text-center text-slate-500 font-bold text-xs">{idx + 1}</td>
                     <td className="py-3.5 px-4 text-slate-300 font-semibold text-xs">
                       {isMock ? 'Data point' : activeTab}
                     </td>
                     <td
-                      contentEditable={!isMock && !isSaving}
+                      contentEditable={!isMock}
                       suppressContentEditableWarning
                       onBlur={(e) => onUpdateRow(idx, 'editor', e.currentTarget.textContent || '')}
                       className="py-3.5 px-4 text-slate-300 font-medium text-xs outline-none focus:bg-white/[0.04] cursor-text break-words whitespace-normal"
@@ -121,7 +120,7 @@ export default function ContentFailTable({
                       {video.editor}
                     </td>
                     <td
-                      contentEditable={!isMock && !isSaving}
+                      contentEditable={!isMock}
                       suppressContentEditableWarning
                       onBlur={(e) => onUpdateRow(idx, 'videoUrl', e.currentTarget.textContent || '')}
                       className={`py-3.5 px-4 text-xs outline-none focus:bg-white/[0.04] cursor-text max-w-[120px] truncate focus:max-w-none focus:whitespace-normal break-all ${isMock
@@ -201,24 +200,36 @@ export default function ContentFailTable({
                         themeColor="red"
                       />
                     </td>
-                    <td
-                      contentEditable={!isMock && !isSaving}
-                      suppressContentEditableWarning
-                      onBlur={(e) => onUpdateRow(idx, 'content', e.currentTarget.textContent || '')}
-                      className="py-3.5 px-4 text-slate-300 text-xs leading-relaxed outline-none focus:bg-white/[0.04] cursor-text break-words whitespace-normal"
-                    >
-                      {video.content}
+                    <td className="py-3 px-4">
+                      <div
+                        contentEditable={!isMock}
+                        suppressContentEditableWarning
+                        data-placeholder="Nhấp đúp để nhập nội dung..."
+                        onBlur={(e) => {
+                          const val = e.currentTarget.textContent || '';
+                          onUpdateRow(idx, 'content', val);
+                        }}
+                        className="editable-placeholder text-slate-300 text-xs leading-relaxed outline-none cursor-text break-words whitespace-normal min-h-[1.5em] w-full"
+                      >
+                        {video.content && video.content !== 'Nhấp đúp để nhập nội dung...' ? video.content : ''}
+                      </div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div
+                        contentEditable={!isMock}
+                        suppressContentEditableWarning
+                        data-placeholder="Nhấp đúp để nhập lý do..."
+                        onBlur={(e) => {
+                          const val = e.currentTarget.textContent || '';
+                          onUpdateRow(idx, 'failReason', val);
+                        }}
+                        className="editable-placeholder text-slate-300 text-xs leading-relaxed outline-none cursor-text break-words whitespace-normal min-h-[1.5em] w-full"
+                      >
+                        {video.failReason && video.failReason !== 'Nhấp đúp để nhập lý do...' ? video.failReason : ''}
+                      </div>
                     </td>
                     <td
-                      contentEditable={!isMock && !isSaving}
-                      suppressContentEditableWarning
-                      onBlur={(e) => onUpdateRow(idx, 'failReason', e.currentTarget.textContent || '')}
-                      className="py-3.5 px-4 text-slate-300 text-xs leading-relaxed outline-none focus:bg-white/[0.04] cursor-text break-words whitespace-normal"
-                    >
-                      {video.failReason}
-                    </td>
-                    <td
-                      contentEditable={!isMock && !isSaving}
+                      contentEditable={!isMock}
                       suppressContentEditableWarning
                       onKeyDown={handleViewsKeyDown}
                       onInput={handleViewsInput}

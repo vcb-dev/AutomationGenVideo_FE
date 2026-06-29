@@ -17,16 +17,6 @@ export default function CaseStudyTable({
   caseStudies, isCollapsed, onToggle, onUpdateRow, onDeleteRow, onAddRow
 }: CaseStudyTableProps) {
   const rows = [...caseStudies];
-  while (rows.length < 5) {
-    rows.push({
-      id: rows.length + 1,
-      label: 'Data point',
-      title: 'Data point',
-      channel: 'Data point',
-      views: '-',
-      takeaway: 'Data point'
-    });
-  }
   const handleViewsKeyDown = (e: React.KeyboardEvent<HTMLTableCellElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -70,6 +60,15 @@ export default function CaseStudyTable({
 
   return (
     <div className="flex flex-col rounded-xl overflow-hidden border border-purple-500/20 shadow-lg shadow-purple-950/10">
+      <style dangerouslySetInnerHTML={{__html: `
+        .editable-placeholder:empty::before {
+          content: attr(data-placeholder);
+          color: #64748b !important;
+          font-style: italic;
+          pointer-events: none;
+          display: inline;
+        }
+      `}} />
       <div
         onClick={onToggle}
         className="bg-[#1e1b4b] px-4 py-3 flex items-center justify-between border-b border-purple-500/20 cursor-pointer select-none hover:bg-[#2e2a72] transition-colors"
@@ -102,13 +101,13 @@ export default function CaseStudyTable({
                 const isMock = video.title === 'Data point';
                 const isSaving = typeof video.dbId === 'string' && video.dbId.startsWith('temp-');
                 return (
-                  <tr key={idx} className={`hover:bg-white/[0.02] transition-colors ${isSaving ? 'opacity-50 pointer-events-none' : ''}`}>
+                  <tr key={idx} className={`hover:bg-white/[0.02] transition-colors ${isSaving ? 'opacity-70' : ''}`}>
                     <td className="py-3.5 px-4 text-center text-slate-500 font-bold text-xs">{idx + 1}</td>
                     <td className="py-3.5 px-4 text-slate-300 font-semibold text-xs">
                       {isMock ? 'Data point' : 'Bên ngoài'}
                     </td>
                     <td
-                      contentEditable={!isMock && !isSaving}
+                      contentEditable={!isMock}
                       suppressContentEditableWarning
                       onBlur={(e) => onUpdateRow(idx, 'channel', e.currentTarget.textContent || '')}
                       className="py-3.5 px-4 text-slate-300 font-medium text-xs outline-none focus:bg-white/[0.04] cursor-text break-words whitespace-normal"
@@ -116,7 +115,7 @@ export default function CaseStudyTable({
                       {video.channel}
                     </td>
                     <td
-                      contentEditable={!isMock && !isSaving}
+                      contentEditable={!isMock}
                       suppressContentEditableWarning
                       onBlur={(e) => onUpdateRow(idx, 'videoUrl', e.currentTarget.textContent || '')}
                       className={`py-3.5 px-4 text-xs outline-none focus:bg-white/[0.04] cursor-text max-w-[120px] truncate focus:max-w-none focus:whitespace-normal break-all ${isMock
@@ -145,24 +144,36 @@ export default function CaseStudyTable({
                         themeColor="purple"
                       />
                     </td>
-                    <td
-                      contentEditable={!isMock && !isSaving}
-                      suppressContentEditableWarning
-                      onBlur={(e) => onUpdateRow(idx, 'title', e.currentTarget.textContent || '')}
-                      className="py-3.5 px-4 text-slate-300 text-xs leading-relaxed outline-none focus:bg-white/[0.04] cursor-text break-words whitespace-normal"
-                    >
-                      {video.title}
+                    <td className="py-3 px-4">
+                      <div
+                        contentEditable={!isMock}
+                        suppressContentEditableWarning
+                        data-placeholder="Case Study mới"
+                        onBlur={(e) => {
+                          const val = e.currentTarget.textContent || '';
+                          onUpdateRow(idx, 'title', val);
+                        }}
+                        className="editable-placeholder text-slate-300 text-xs leading-relaxed outline-none cursor-text break-words whitespace-normal min-h-[1.5em] w-full"
+                      >
+                        {video.title && video.title !== 'Case Study mới' ? video.title : ''}
+                      </div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div
+                        contentEditable={!isMock}
+                        suppressContentEditableWarning
+                        data-placeholder="Nhấp đúp để nhập bài học..."
+                        onBlur={(e) => {
+                          const val = e.currentTarget.textContent || '';
+                          onUpdateRow(idx, 'takeaway', val);
+                        }}
+                        className="editable-placeholder text-slate-300 text-xs leading-relaxed outline-none cursor-text break-words whitespace-normal min-h-[1.5em] w-full"
+                      >
+                        {video.takeaway && video.takeaway !== 'Nhấp đúp để nhập bài học...' ? video.takeaway : ''}
+                      </div>
                     </td>
                     <td
-                      contentEditable={!isMock && !isSaving}
-                      suppressContentEditableWarning
-                      onBlur={(e) => onUpdateRow(idx, 'takeaway', e.currentTarget.textContent || '')}
-                      className="py-3.5 px-4 text-slate-300 text-xs leading-relaxed outline-none focus:bg-white/[0.04] cursor-text break-words whitespace-normal"
-                    >
-                      {video.takeaway}
-                    </td>
-                    <td
-                      contentEditable={!isMock && !isSaving}
+                      contentEditable={!isMock}
                       suppressContentEditableWarning
                       onKeyDown={handleViewsKeyDown}
                       onInput={handleViewsInput}
