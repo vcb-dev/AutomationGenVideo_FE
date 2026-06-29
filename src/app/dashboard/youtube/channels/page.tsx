@@ -164,10 +164,10 @@ export default function YoutubeChannelsPage() {
 
             if (!response.ok) {
                 if (response.status === 429) {
-                    alert('Apify quota exceeded. Vui lòng thử lại sau.');
+                    toast.error('Apify quota exceeded. Vui lòng thử lại sau.');
                     return;
                 }
-                alert(data.error || data.message || 'Lỗi kết nối server. Vui lòng thử lại.');
+                toast.error(data.error || data.message || 'Lỗi kết nối server. Vui lòng thử lại.');
                 return;
             }
 
@@ -200,7 +200,7 @@ export default function YoutubeChannelsPage() {
                     engagement_rate: 0,
                 };
             } else {
-                alert('Không tìm thấy kênh YouTube này. Kiểm tra lại username hoặc link.');
+                toast.error('Không tìm thấy kênh YouTube này. Kiểm tra lại username hoặc link.');
                 return;
             }
 
@@ -212,14 +212,14 @@ export default function YoutubeChannelsPage() {
                 toast.success('Đã thêm kênh YouTube thành công!');
             } catch (saveError: any) {
                 if (saveError.response?.status === 401) {
-                    alert('Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.');
+                    toast.error('Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.');
                 } else {
-                    alert(saveError.response?.data?.message || 'Có lỗi xảy ra khi lưu kênh');
+                    toast.error(saveError.response?.data?.message || 'Có lỗi xảy ra khi lưu kênh');
                 }
             }
         } catch (error) {
             console.error('Error fetching YouTube channel:', error);
-            alert(`Lỗi: ${error instanceof Error ? error.message : 'Vui lòng thử lại sau.'}`);
+            toast.error(`Lỗi: ${error instanceof Error ? error.message : 'Vui lòng thử lại sau.'}`);
         } finally {
             setLoading(false);
         }

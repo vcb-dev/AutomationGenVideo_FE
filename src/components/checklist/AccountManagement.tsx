@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import {
     Users,
     Search,
@@ -172,7 +173,7 @@ export default function AccountManagement() {
             await fetchUsers();
             setIsEditModalOpen(false);
         } catch (err: any) {
-            alert(err.message);
+            toast.error(err.message);
         } finally {
             setIsSaving(false);
         }
@@ -197,7 +198,7 @@ export default function AccountManagement() {
             setUsers(prev => prev.filter(u => u.id !== userToDelete.id));
             setIsDeleteModalOpen(false);
         } catch (err: any) {
-            alert(err.message);
+            toast.error(err.message);
         }
     };
 

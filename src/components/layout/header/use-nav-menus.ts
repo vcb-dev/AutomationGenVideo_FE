@@ -9,6 +9,7 @@ import {
     ClipboardList,
     CheckSquare,
     Users,
+    UserCog,
     Search,
     BarChart3,
     Calendar,
@@ -38,6 +39,7 @@ export function useNavMenus(
                 activePathPrefixes: [
                     "/dashboard/manager",
                     "/dashboard/editor-management",
+                    "/dashboard/hr-management",
                     "/dashboard/hieu-suat",
                     "/dashboard/admin",
                     "/dashboard/leader",
@@ -175,6 +177,12 @@ export function useNavMenus(
                                         href: "/dashboard/editor-management",
                                         icon: Users,
                                         description: "Quản lý danh sách Editor trong hệ thống",
+                                    },
+                                    {
+                                        label: "Quản lý nhân sự",
+                                        href: "/dashboard/hr-management",
+                                        icon: UserCog,
+                                        description: "Thêm, sửa, xóa nhân sự trong team",
                                     },
                                 ],
                             },

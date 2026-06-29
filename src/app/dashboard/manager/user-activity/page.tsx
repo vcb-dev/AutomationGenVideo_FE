@@ -1,9 +1,9 @@
 "use client";
 
 import React, { Suspense, useMemo, useDeferredValue } from "react";
+import toast from "react-hot-toast";
 import dynamic from "next/dynamic";
 import ActivityKPIs from "./components/ActivityKPIs";
-import AdminActivityKPIs from "./components/AdminActivityKPIs";
 import ActivityFilters from "./components/ActivityFilters";
 
 
@@ -150,7 +150,7 @@ const UserActivityPageContent = () => {
         reports, summary, rankings,
         teamContributions, groupContributions,
         reportOutstandings, kpiMeta,
-        loading, userRole, userTeam,
+        loading, isFetching, userRole, userTeam,
         personalHistory, fetchReports, fetchHistory,
         handleUpdateStatus,
     } = useActivityData({ user, dateRange, activeTeam, timeType, searchName, activeTab });
@@ -206,18 +206,30 @@ const UserActivityPageContent = () => {
         const hasReports = reports && reports.length > 0;
         if (!hasContrib && !hasReports) return;
         setAllKnownTeams((prev) => {
-            const next = new Set(prev);
+            // Use broad normKey (strip all spaces AND dashes) to deduplicate variants like
+            // "Global - Thái Lan 1", "Global- Thái Lan 1", "Global Thái Lan 1" → same team
+            const normKey = (s: string) => s.toLowerCase().replace(/[\s-]/g, '');
+            const keyMap = new Map<string, string>(prev.map(t => [normKey(t), t]));
             let changed = false;
             const addTeamString = (t: string | null | undefined) => {
                 if (!t || t === "Khác") return;
                 const parts = t.includes(",") ? t.split(",").map((p: string) => p.trim()).filter(Boolean) : [t];
                 for (const part of parts) {
-                    if (part && part !== "Khác" && !next.has(part)) { next.add(part); changed = true; }
+                    if (!part || part === "Khác") continue;
+                    const key = normKey(part);
+                    if (!keyMap.has(key)) {
+                        keyMap.set(key, part);
+                        changed = true;
+                    } else if (part.includes(' - ') && !keyMap.get(key)!.includes(' - ')) {
+                        // Prefer canonical form with " - " separator (e.g. "Global - Thái Lan 1")
+                        keyMap.set(key, part);
+                        changed = true;
+                    }
                 }
             };
             teamContributions?.forEach((item) => addTeamString(item.team));
             reports?.forEach((r) => addTeamString(r.team));
-            return changed ? Array.from(next) : prev;
+            return changed ? Array.from(keyMap.values()) : prev;
         });
     }, [teamContributions, reports]);
 
@@ -232,6 +244,15 @@ const UserActivityPageContent = () => {
         return { globalTeams: globals.sort(), vnTeams: vns.sort() };
     }, [allKnownTeams]);
 
+    // "Global Thái Lan" (tên cũ, không số) được coi là alias cho cả hai sub-team mới.
+    // Bao gồm đủ các variant tên (có/không có dấu gạch ngang, khoảng trắng khác nhau)
+    const THAI_LAN_ALIASES: Record<string, string[]> = {
+        [normalize("Global- Thái Lan 1")]:  [normalize("Global Thái Lan")],  // "global-tháilan1"
+        [normalize("Global- Thái Lan 2")]:  [normalize("Global Thái Lan")],  // "global-tháilan2"
+        [normalize("Global Thái Lan 1")]:   [normalize("Global Thái Lan")],  // "globaltháilan1"
+        [normalize("Global Thái Lan 2")]:   [normalize("Global Thái Lan")],  // "globaltháilan2"
+    };
+
     const matchTeam = React.useCallback(
         (teamName: string | null | undefined): boolean => {
             if (activeTeam === "All") return true;
@@ -240,7 +261,9 @@ const UserActivityPageContent = () => {
             const safeActive = normalize(activeTeam);
             if (activeTeam === "All Global") return parts.some((p) => globalTeams.some((t) => normalize(t) === p));
             if (activeTeam === "All VN") return parts.some((p) => vnTeams.some((t) => normalize(t) === p));
-            return parts.includes(safeActive);
+            // Khi filter theo "Global- Thái Lan 1/2", cũng match record có tên cũ "Global Thái Lan"
+            const aliases = THAI_LAN_ALIASES[safeActive] ?? [];
+            return parts.includes(safeActive) || parts.some((p) => aliases.includes(p));
         },
         [activeTeam, globalTeams, vnTeams],
     );
@@ -312,7 +335,7 @@ const UserActivityPageContent = () => {
             link.click();
         } catch (e) {
             console.error("Capture screenshot failed:", e);
-            alert("Lỗi chụp màn hình. Hãy thử lại.");
+            toast.error("Lỗi chụp màn hình. Hãy thử lại.");
         } finally {
             revertImgs?.();
             setIsCapturing(false);
@@ -425,6 +448,12 @@ const UserActivityPageContent = () => {
                         onCapture={handleCaptureFullPage}
                         isNavbar={false}
                     />
+                    {isFetching && !loading && (
+                        <div className="absolute bottom-0 left-0 right-0 h-0.5 overflow-hidden">
+                            <div className="h-full bg-blue-500 animate-[shimmer_1.2s_ease-in-out_infinite]" style={{ width: "40%", animation: "progress-slide 1.2s ease-in-out infinite" }} />
+                            <style>{`@keyframes progress-slide { 0% { transform: translateX(-100%); width: 40%; } 50% { width: 60%; } 100% { transform: translateX(280%); width: 40%; } }`}</style>
+                        </div>
+                    )}
                 </div>
             )}
 

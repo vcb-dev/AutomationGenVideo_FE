@@ -714,7 +714,7 @@ export default function ChannelAnalysisHubPage() {
             m[p] = (channelsByPlatform[p] || []).filter((ch) => !hiddenIds.has(getHiddenId(ch.platform, ch.username)));
         });
         return m;
-    }, [channelsByPlatform, hiddenIds, storageTick]);
+    }, [channelsByPlatform, hiddenIds]);
 
   const extractUsername = (platform: PlatformKey, input: string): string => {
     let clean = (input || '').trim();
@@ -957,9 +957,9 @@ export default function ChannelAnalysisHubPage() {
     executeAnalysisBatch(pendingRow, pendingStartDate, pendingEndDate, pendingMaxPosts, pendingMode === 'rerun');
   }, [pendingRow, pendingStartDate, pendingEndDate, pendingMaxPosts, pendingMode, executeAnalysisBatch]);
 
-    // Poll localStorage every 2s while any row is 'analyzing' to detect completion
+    // Poll while any channel is 'analyzing' — only fetch platforms that actually have analyzing channels
     useEffect(() => {
-        const hasAnalyzing = channels.some((ch) => {
+        const analyzingChannels = channels.filter((ch) => {
             try {
                 const raw = localStorage.getItem(getAnalysisKey(ch.platform, ch.username));
                 if (!raw) return false;
@@ -968,18 +968,22 @@ export default function ChannelAnalysisHubPage() {
                 return false;
             }
         });
-        if (!hasAnalyzing) return;
-        // Poll every 3s to pick up completion from server DB
+        if (analyzingChannels.length === 0) return;
+
+        const analyzingPlatforms = Array.from(new Set(analyzingChannels.map((ch) => ch.platform))) as PlatformKey[];
+
         const timer = setInterval(() => {
-           setStorageTick((x) => x + 1);
-           // Silent fetch to update channels from DB
-           const platforms: PlatformKey[] = ["FACEBOOK", "INSTAGRAM", "TIKTOK"];
-           Promise.all(platforms.map((p) => apiClient.get(`/tracked-channels?platform=${p}`)))
-             .then(res => {
-                const merged: TrackedChannel[] = res.flatMap((r: any) => r?.data || []);
-                if (merged.length > 0) setChannels(merged);
-             }).catch(() => {});
-        }, 5000); // 5s silent refresh
+            setStorageTick((x) => x + 1);
+            Promise.all(analyzingPlatforms.map((p) => apiClient.get(`/tracked-channels?platform=${p}`)))
+                .then((res) => {
+                    const updated: TrackedChannel[] = res.flatMap((r: any) => r?.data || []);
+                    if (updated.length > 0) {
+                        const byId = new Map(updated.map((ch) => [ch.id, ch]));
+                        setChannels((prev) => prev.map((ch) => byId.get(ch.id) ?? ch));
+                    }
+                })
+                .catch(() => {});
+        }, 5000);
         return () => clearInterval(timer);
     }, [channels, storageTick]);
 

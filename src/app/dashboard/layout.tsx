@@ -19,7 +19,10 @@ export default function DashboardLayout({
     logout: s.logout,
     token: s.token,
   }));
-  const [isHydrated, setIsHydrated] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    try { return !!useAuthStore.getState().user; } catch { return false; }
+  });
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [allowedMenuIds, setAllowedMenuIds] = useState<string[]>([]);
 

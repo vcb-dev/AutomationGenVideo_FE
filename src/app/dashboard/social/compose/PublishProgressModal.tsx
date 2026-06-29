@@ -3,6 +3,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, X, Users, ExternalLink } from 'lucide-react';
 import { SocialPlatform, PLATFORM_META } from '@/lib/api/social';
+import { useSocialLang } from '@/contexts/SocialLanguageContext';
 
 interface Channel {
   id: string;
@@ -45,6 +46,7 @@ function fmtTime(s: number) {
 }
 
 export default function PublishProgressModal({ publishProgress, postingPcts, elapsedSeconds, onClose }: Props) {
+  const { t } = useSocialLang();
   const { channels, phase } = publishProgress;
   const doneCount    = channels.filter(c => c.status === 'success' || c.status === 'fail').length;
   const totalCount   = channels.length;
@@ -99,12 +101,12 @@ export default function PublishProgressModal({ publishProgress, postingPcts, ela
               <div className="flex justify-between items-center">
                 <div>
                   <h3 className="text-xl font-black text-slate-900">
-                    {phase === 'done' ? 'Kết quả hoàn tất' : 'Đang xử lý đăng bài'}
+                    {phase === 'done' ? t.publishProgress.resultTitle : t.publishProgress.processingTitle}
                   </h3>
                   <p className="text-sm text-slate-500 mt-1">
                     {phase === 'done'
-                      ? `${channels.filter(c => c.status === 'success').length} thành công, ${channels.filter(c => c.status === 'fail').length} lỗi`
-                      : 'Vui lòng không đóng trình duyệt lúc này'}
+                      ? t.publishProgress.resultSummary(channels.filter(c => c.status === 'success').length, channels.filter(c => c.status === 'fail').length)
+                      : t.publishProgress.doNotCloseBrowser}
                   </p>
                 </div>
                 {phase === 'done' && (
@@ -118,13 +120,13 @@ export default function PublishProgressModal({ publishProgress, postingPcts, ela
               {phase !== 'done' && totalCount > 0 && (
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between text-[12px] font-bold text-slate-500">
-                    <span>{doneCount}/{totalCount} kênh</span>
+                    <span>{t.publishProgress.channelsCount(doneCount, totalCount)}</span>
                     <div className="flex items-center gap-3">
                       {elapsedSeconds > 0 && (
-                        <span className="text-slate-400">⏱ {fmtTime(elapsedSeconds)}</span>
+                        <span className="text-slate-400">{t.publishProgress.elapsedTime(fmtTime(elapsedSeconds))}</span>
                       )}
                       {etaSec !== null && (
-                        <span className="text-slate-400">ETA ~{fmtTime(etaSec)}</span>
+                        <span className="text-slate-400">{t.publishProgress.etaTime(fmtTime(etaSec))}</span>
                       )}
                       <motion.span key={overallPct} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="text-blue-600">
                         {overallPct}%
@@ -152,13 +154,13 @@ export default function PublishProgressModal({ publishProgress, postingPcts, ela
                   <Users className="w-4 h-4 text-amber-500 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-bold text-amber-800">
-                      Hàng chờ hệ thống: {globalQueueTotal} bài đang chờ xử lý
-                      {minQueuePos != null && ` — bài của bạn ở vị trí #${minQueuePos}`}
+                      {t.publishProgress.globalQueueStatus(globalQueueTotal)}
+                      {minQueuePos != null && t.publishProgress.yourPostPosition(minQueuePos)}
                     </p>
                     <p className="text-[10px] text-amber-600 mt-0.5">
                       {minQueuePos != null && minQueuePos > 1
-                        ? `Còn ~${minQueuePos - 1} bài trước bạn • ước tính ${fmtTime((minQueuePos - 1) * 25)}`
-                        : 'Bài của bạn sắp đến lượt xử lý'}
+                        ? t.publishProgress.postsAheadEstimate(minQueuePos - 1, fmtTime((minQueuePos - 1) * 25))
+                        : t.publishProgress.yourTurnSoon}
                     </p>
                   </div>
                   {minQueuePos != null && globalQueueTotal > 0 && (
@@ -201,14 +203,14 @@ export default function PublishProgressModal({ publishProgress, postingPcts, ela
                             : ch.status === 'posting' ? 'text-blue-600'
                             : 'text-slate-400'
                           }`}>
-                            {ch.status === 'posting'  ? `Đang xử lý... ${pct}%`
-                              : ch.status === 'success' ? 'Thành công ✓'
-                              : ch.status === 'fail'    ? 'Thất bại'
+                            {ch.status === 'posting'  ? t.publishProgress.processingPct(pct)
+                              : ch.status === 'success' ? t.publishProgress.successLabel
+                              : ch.status === 'fail'    ? t.publishProgress.failLabel
                               : ch.queuePosition != null
                                 ? ch.queueTotal != null
-                                  ? `#${ch.queuePosition}/${ch.queueTotal} — còn ${Math.max(0, ch.queuePosition - 1)} bài trước`
-                                  : `Hàng chờ #${ch.queuePosition}`
-                                : 'Đang chờ xử lý...'}
+                                  ? t.publishProgress.queuePositionWithAhead(ch.queuePosition, ch.queueTotal, Math.max(0, ch.queuePosition - 1))
+                                  : t.publishProgress.queuePositionOnly(ch.queuePosition)
+                                : t.publishProgress.waitingLabel}
                           </p>
                           {ch.error && <p className="text-[9px] text-red-400 mt-0.5 italic">{ch.error}</p>}
                         </div>
@@ -258,7 +260,7 @@ export default function PublishProgressModal({ publishProgress, postingPcts, ela
                   onClick={onClose}
                   className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest shadow-lg hover:bg-black transition-all"
                 >
-                  Xác nhận
+                  {t.publishProgress.confirmButton}
                 </button>
               )}
             </div>

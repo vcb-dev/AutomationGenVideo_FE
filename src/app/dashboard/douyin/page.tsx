@@ -9,6 +9,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import SearchAutocomplete from '@/components/SearchAutocomplete';
 import apiClient from '@/lib/api-client';
+import toast from 'react-hot-toast';
 
 interface DouyinVideo {
   video_id: string;
@@ -92,7 +93,7 @@ export default function DouyinScraperPage() {
       });
       setTrackedChannels(prev => new Set(prev).add(username));
     } catch (err: any) {
-      alert(err.response?.data?.message || err.message || 'Có lỗi xảy ra khi theo dõi kênh');
+      toast.error(err.response?.data?.message || err.message || 'Có lỗi xảy ra khi theo dõi kênh');
     } finally {
       setFollowingChannels(prev => { const next = new Set(prev); next.delete(username); return next; });
     }

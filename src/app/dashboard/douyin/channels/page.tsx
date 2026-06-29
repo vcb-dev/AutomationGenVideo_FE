@@ -144,12 +144,12 @@ export default function DouyinChannelsPage() {
             console.log('Update Profile API Response:', data);
 
             if (!response.ok) {
-                alert(data.message || data.error || 'Lỗi kết nối đến server. Vui lòng thử lại.');
+                toast.error(data.message || data.error || 'Lỗi kết nối đến server. Vui lòng thử lại.');
                 return;
             }
 
             if (!data.success || !data.profile) {
-                alert('Không thể lấy thông tin kênh này. Kênh có thể bị private hoặc không tồn tại.');
+                toast.error('Không thể lấy thông tin kênh này. Kênh có thể bị private hoặc không tồn tại.');
                 setLoading(false);
                 return;
             }
@@ -177,16 +177,16 @@ export default function DouyinChannelsPage() {
                 }
             } catch (saveError: any) {
                 if (saveError.response?.status === 401) {
-                    alert('Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.');
+                    toast.error('Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.');
                 } else {
                     const errorMessage = saveError.response?.data?.message || 'Có lỗi xảy ra khi lưu kênh';
-                    alert(errorMessage);
+                    toast.error(errorMessage);
                 }
                 return;
             }
         } catch (error) {
             console.error('Error fetching channel profile:', error);
-            alert(`Lỗi: ${error instanceof Error ? error.message : 'Vui lòng thử lại sau.'}`);
+            toast.error(`Lỗi: ${error instanceof Error ? error.message : 'Vui lòng thử lại sau.'}`);
         } finally {
             setLoading(false);
         }
