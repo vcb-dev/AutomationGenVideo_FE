@@ -22,12 +22,16 @@ export default function EditorNewWinSection({
   isCollapsed, onToggle, onUpdateRow, onDeleteRow, onAddRow
 }: EditorNewWinSectionProps) {
 
-  // State quản lý giá trị controlled của các ô nhập
+  // State quản lý giá trị controlled của các ô nhập (sử dụng '' thay vì 0 khi dòng mới tạo hoặc chưa nhập)
   const [inputs, setInputs] = useState(() =>
     editorPerformance.map(perf => {
       const win = Math.round(perf.winVideos * ratio * winFilterRatio * multiplier);
       const total = Math.max(win, Math.round(perf.totalVideos * ratio * totalFilterRatio * multiplier));
-      return { total, win };
+      const isNewRow = perf.totalVideos === 0 && perf.winVideos === 0;
+      return {
+        total: isNewRow ? '' : total,
+        win: isNewRow ? '' : win
+      };
     })
   );
 
@@ -36,20 +40,29 @@ export default function EditorNewWinSection({
     setInputs(editorPerformance.map(perf => {
       const win = Math.round(perf.winVideos * ratio * winFilterRatio * multiplier);
       const total = Math.max(win, Math.round(perf.totalVideos * ratio * totalFilterRatio * multiplier));
-      return { total, win };
+      const isNewRow = perf.totalVideos === 0 && perf.winVideos === 0;
+      return {
+        total: isNewRow ? '' : total,
+        win: isNewRow ? '' : win
+      };
     }));
   }, [editorPerformance, ratio, winFilterRatio, totalFilterRatio, multiplier]);
 
-  // Tính toán trực tiếp giá trị Fail và Tỷ lệ Win khi render
+  // Tính toán trực tiếp giá trị Fail và Tỷ lệ Win khi render (chỉ tính khi cả 2 đã được nhập)
   const computed = inputs.map(item => {
-    const fail = Math.max(0, item.total - item.win);
-    const winRate = formatWinRate(item.win, item.total);
+    if (item.total === '' || item.win === '') {
+      return { fail: '', winRate: '' };
+    }
+    const totalNum = Number(item.total);
+    const winNum = Number(item.win);
+    const fail = Math.max(0, totalNum - winNum);
+    const winRate = formatWinRate(winNum, totalNum);
     return { fail, winRate };
   });
 
   // Tính toán tổng số liệu cá nhân trong team
-  const totalSum = inputs.reduce((sum, item) => sum + item.total, 0);
-  const winSum = inputs.reduce((sum, item) => sum + item.win, 0);
+  const totalSum = inputs.reduce((sum, item) => sum + (Number(item.total) || 0), 0);
+  const winSum = inputs.reduce((sum, item) => sum + (Number(item.win) || 0), 0);
   const failSum = Math.max(0, totalSum - winSum);
   const percentSum = totalSum > 0 ? (winSum / totalSum) * 100 : 0;
   const percentFormatted = `${percentSum.toFixed(1).replace('.', ',')}%`;
@@ -162,16 +175,21 @@ export default function EditorNewWinSection({
                           <input
                             type="number"
                             min="0"
-                            value={item.total || ''}
+                            value={item.total}
                             placeholder="0"
                             onChange={(e) => {
-                              const val = parseInt(e.target.value) || 0;
-                              setInputs(prev => prev.map((inp, i) => i === index ? { ...inp, total: val } : inp));
+                              const val = e.target.value;
+                              setInputs(prev => prev.map((inp, i) => i === index ? { ...inp, total: val === '' ? '' : (parseInt(val) || 0) } : inp));
                             }}
                             onBlur={(e) => {
-                              const val = parseInt(e.target.value) || 0;
+                              const val = e.target.value;
+                              if (val === '') {
+                                onUpdateRow(index, 'totalVideos', '0');
+                                return;
+                              }
+                              const numVal = parseInt(val) || 0;
                               const factor = ratio * totalFilterRatio * multiplier;
-                              const rawVal = factor > 0 ? Math.round(val / factor) : val;
+                              const rawVal = factor > 0 ? Math.round(numVal / factor) : numVal;
                               onUpdateRow(index, 'totalVideos', rawVal.toString());
                             }}
                             className="w-20 text-center bg-transparent text-slate-300 font-semibold outline-none focus:bg-white/[0.04] rounded px-2 py-1 border border-transparent focus:border-blue-500/30 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
@@ -183,16 +201,21 @@ export default function EditorNewWinSection({
                           <input
                             type="number"
                             min="0"
-                            value={item.win || ''}
+                            value={item.win}
                             placeholder="0"
                             onChange={(e) => {
-                              const val = parseInt(e.target.value) || 0;
-                              setInputs(prev => prev.map((inp, i) => i === index ? { ...inp, win: val } : inp));
+                              const val = e.target.value;
+                              setInputs(prev => prev.map((inp, i) => i === index ? { ...inp, win: val === '' ? '' : (parseInt(val) || 0) } : inp));
                             }}
                             onBlur={(e) => {
-                              const val = parseInt(e.target.value) || 0;
+                              const val = e.target.value;
+                              if (val === '') {
+                                onUpdateRow(index, 'winVideos', '0');
+                                return;
+                              }
+                              const numVal = parseInt(val) || 0;
                               const factor = ratio * winFilterRatio * multiplier;
-                              const rawVal = factor > 0 ? Math.round(val / factor) : val;
+                              const rawVal = factor > 0 ? Math.round(numVal / factor) : numVal;
                               onUpdateRow(index, 'winVideos', rawVal.toString());
                             }}
                             className="w-20 text-center bg-transparent text-emerald-400 font-semibold outline-none focus:bg-white/[0.04] rounded px-2 py-1 border border-transparent focus:border-emerald-500/30 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
