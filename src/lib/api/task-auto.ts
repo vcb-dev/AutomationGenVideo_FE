@@ -105,8 +105,8 @@ export const setMemberEditorRole = (teamId: string, userId: string, isEditor: bo
 
 // ── Team Products (standalone) ────────────────────────────────────────────────
 
-export const getTeamProducts = (teamId: string, brandType?: string) =>
-  apiClient.get<TeamProduct[]>(`/task-auto/teams/${teamId}/products${brandType ? `?brand_type=${brandType}` : ''}`).then(r => r.data)
+export const getTeamProducts = (teamId: string, brandType?: string, month?: string) =>
+  apiClient.get<TeamProduct[]>(`/task-auto/teams/${teamId}/products${qs({ brand_type: brandType, month })}`).then(r => r.data)
 
 /** Copy từ kho tổng: truyền { source_product_id }. Tạo mới: truyền full product data */
 export const addTeamProduct = (teamId: string, data: { source_product_id?: string; name?: string; sku?: string; brand_type?: string; [key: string]: any }) =>
@@ -123,8 +123,8 @@ export const pushTeamProductToGlobal = (teamId: string, teamProductId: string) =
 
 // ── Team Contents (standalone) ────────────────────────────────────────────────
 
-export const getTeamContents = (teamId: string, brandType?: string) =>
-  apiClient.get<TeamContent[]>(`/task-auto/teams/${teamId}/contents${brandType ? `?brand_type=${brandType}` : ''}`).then(r => r.data)
+export const getTeamContents = (teamId: string, brandType?: string, month?: string) =>
+  apiClient.get<TeamContent[]>(`/task-auto/teams/${teamId}/contents${qs({ brand_type: brandType, month })}`).then(r => r.data)
 
 /** Copy từ kho tổng: truyền { source_content_id }. Tạo mới: truyền full content data */
 export const addTeamContent = (teamId: string, data: { source_content_id?: string; brand_type?: string; [key: string]: any }) =>
@@ -473,23 +473,23 @@ export const getGlobalWarehouse = (month: string) =>
   apiClient.get<WarehouseData>(`/task-auto/warehouse/global${qs({ month })}`).then(r => r.data)
 
 export const addGlobalWarehouse = (type: WarehouseCatalogType, month: string, ids: string[]) =>
-  apiClient.post(`/task-auto/warehouse/global/${type}/add`, { month, ids }).then(r => r.data)
+  apiClient.post(`/task-auto/warehouse/global/${type}`, { month, ids }).then(r => r.data)
 
 export const removeGlobalWarehouse = (type: WarehouseCatalogType, month: string, ids: string[]) =>
-  apiClient.post(`/task-auto/warehouse/global/${type}/remove`, { month, ids }).then(r => r.data)
+  apiClient.delete(`/task-auto/warehouse/global/${type}`, { data: { month, ids } }).then(r => r.data)
 
 export const autoCarryGlobal = (month: string) =>
-  apiClient.post('/task-auto/warehouse/global/auto-carry', { month }).then(r => r.data)
+  apiClient.post('/task-auto/warehouse/auto-carry', { month }).then(r => r.data)
 
 // Team
 export const getTeamWarehouse = (teamId: string, month: string) =>
   apiClient.get<TeamWarehouseData>(`/task-auto/warehouse/teams/${teamId}${qs({ month })}`).then(r => r.data)
 
 export const addTeamWarehouse = (teamId: string, type: WarehouseCatalogType, month: string, ids: string[]) =>
-  apiClient.post(`/task-auto/warehouse/teams/${teamId}/${type}/add`, { month, ids }).then(r => r.data)
+  apiClient.post(`/task-auto/warehouse/teams/${teamId}/${type}`, { month, ids }).then(r => r.data)
 
 export const removeTeamWarehouse = (teamId: string, type: WarehouseCatalogType, month: string, ids: string[]) =>
-  apiClient.post(`/task-auto/warehouse/teams/${teamId}/${type}/remove`, { month, ids }).then(r => r.data)
+  apiClient.delete(`/task-auto/warehouse/teams/${teamId}/${type}`, { data: { month, ids } }).then(r => r.data)
 
 export const pushTeamToMonth = (teamId: string, fromMonth: string, toMonth: string, ids?: string[]) =>
   apiClient.post(`/task-auto/warehouse/teams/${teamId}/push`, { from_month: fromMonth, to_month: toMonth, ids }).then(r => r.data)
@@ -499,10 +499,25 @@ export const getEditorWarehouse = (editorId: string, month: string) =>
   apiClient.get<EditorWarehouseData>(`/task-auto/warehouse/editors/${editorId}${qs({ month })}`).then(r => r.data)
 
 export const addEditorWarehouse = (editorId: string, type: WarehouseCatalogType, month: string, ids: string[]) =>
-  apiClient.post(`/task-auto/warehouse/editors/${editorId}/${type}/add`, { month, ids }).then(r => r.data)
+  apiClient.post(`/task-auto/warehouse/editors/${editorId}/${type}`, { month, ids }).then(r => r.data)
 
 export const removeEditorWarehouse = (editorId: string, type: WarehouseCatalogType, month: string, ids: string[]) =>
-  apiClient.post(`/task-auto/warehouse/editors/${editorId}/${type}/remove`, { month, ids }).then(r => r.data)
+  apiClient.delete(`/task-auto/warehouse/editors/${editorId}/${type}`, { data: { month, ids } }).then(r => r.data)
 
 export const pushEditorToMonth = (editorId: string, fromMonth: string, toMonth: string, ids?: string[]) =>
   apiClient.post(`/task-auto/warehouse/editors/${editorId}/push`, { from_month: fromMonth, to_month: toMonth, ids }).then(r => r.data)
+
+// ── Scale Data Team Stats ──────────────────────────────────────────────────────
+
+export interface MemberSourceStat {
+  user_id:        string
+  full_name:      string
+  email:          string
+  image_url:      string | null
+  global_sources: number
+  team_sources:   number
+  total:          number
+}
+
+export const getTeamMemberSourceStats = (teamId: string, month?: string) =>
+  apiClient.get<MemberSourceStat[]>(`/task-auto/teams/${teamId}/member-source-stats${qs({ month })}`).then(r => r.data)

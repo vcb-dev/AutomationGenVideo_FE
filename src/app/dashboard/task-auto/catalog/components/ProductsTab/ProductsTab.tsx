@@ -31,6 +31,7 @@ export function ProductsTab({ brandType }: { brandType: BrandType }) {
   const [search, setSearch] = useState('')
   const [productLineFilter, setProductLineFilter] = useState('')
   const [activeFilter, setActiveFilter] = useState<'all' | 'true' | 'false'>('all')
+  const [month, setMonth] = useState('')
   const [page, setPage] = useState(1)
   const [modal, setModal] = useState<null | 'create' | 'edit'>(null)
   const [editing, setEditing] = useState<Product | null>(null)
@@ -47,12 +48,13 @@ export function ProductsTab({ brandType }: { brandType: BrandType }) {
   const { data: productLines } = useQuery({ queryKey: ['task-auto', 'product-lines', brandType], queryFn: () => getProductLines(brandType) })
   const { data: materials } = useQuery({ queryKey: ['task-auto', 'materials', brandType], queryFn: () => getMaterials(brandType) })
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'products', brandType, search, productLineFilter, activeFilter, page],
+    queryKey: ['task-auto', 'products', brandType, search, productLineFilter, activeFilter, month, page],
     queryFn: () => getProducts({
       brand_type: brandType,
       search: search || undefined,
       product_line_id: productLineFilter || undefined,
       is_active: activeFilter === 'all' ? undefined : activeFilter === 'true',
+      month: month || undefined,
       page, limit: 20,
     }),
   })
@@ -198,6 +200,12 @@ export function ProductsTab({ brandType }: { brandType: BrandType }) {
             ]}
             className="min-w-[175px]"
           />
+          <input
+            type="month"
+            value={month}
+            onChange={e => { setMonth(e.target.value); setPage(1) }}
+            className="px-3 py-3.5 border border-gray-200 rounded-xl text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          />
           {canDelete && (
             <button
               onClick={openCreate}
@@ -231,15 +239,16 @@ export function ProductsTab({ brandType }: { brandType: BrandType }) {
                 <th className="text-right px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Giá bán</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Trạng thái</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Người thêm</th>
+                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Ngày thêm</th>
                 <th className="w-16" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {isLoading && <LoadingRows cols={9} />}
+              {isLoading && <LoadingRows cols={10} />}
 
               {!isLoading && (!data?.data || data.data.length === 0) && (
                 <tr>
-                  <td colSpan={9}>
+                  <td colSpan={10}>
                     <EmptyState icon={Package} title="Không có sản phẩm nào" />
                   </td>
                 </tr>
@@ -305,6 +314,11 @@ export function ProductsTab({ brandType }: { brandType: BrandType }) {
                     <td className="px-5 py-4 whitespace-nowrap">
                       <span className="text-sm text-slate-500">
                         {p.added_by?.full_name ?? <span className="text-slate-300">—</span>}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      <span className="text-sm text-slate-500">
+                        {p.created_at ? new Date(p.created_at).toLocaleDateString('vi-VN') : <span className="text-slate-300">—</span>}
                       </span>
                     </td>
                     <td className="px-4 py-4 text-right">

@@ -29,6 +29,7 @@ const SOURCE_TYPE_COLORS: Record<SourceType, string> = {
 
 interface TeamSourcesTabProps {
   isAdminOrManager: boolean
+  isScaleData?: boolean
   userId?: string
   brandType: 'DO_DA' | 'TRANG_SUC'
   selectedTeamId: string
@@ -37,9 +38,10 @@ interface TeamSourcesTabProps {
 
 type AddMode = 'manual' | 'global'
 
-export function TeamSourcesTab({ isAdminOrManager, userId, brandType, selectedTeamId, setSelectedTeamId }: TeamSourcesTabProps) {
+export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, brandType, selectedTeamId, setSelectedTeamId }: TeamSourcesTabProps) {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
+  const [month, setMonth] = useState('')
 
   const [modal, setModal]           = useState<null | 'add' | 'view' | 'edit'>(null)
   const [addMode, setAddMode]       = useState<AddMode>('manual')
@@ -52,7 +54,7 @@ export function TeamSourcesTab({ isAdminOrManager, userId, brandType, selectedTe
   // Sync formBrandType when team changes (brandType derived from team)
   useEffect(() => { setFormBrandType(brandType) }, [brandType])
   const [form, setForm] = useState<Partial<TeamSource>>({
-    type: 'OUTRO', name: '', link: '', code: '', team_product_id: '', is_active: true,
+    type: 'OUTRO', name: '', link: '', nas_link: '', code: '', team_product_id: '', is_active: true,
   })
 
   const [globalSearch, setGlobalSearch]           = useState('')
@@ -63,19 +65,21 @@ export function TeamSourcesTab({ isAdminOrManager, userId, brandType, selectedTe
     queryFn: getTeams,
   })
 
-  const teamOptions = isAdminOrManager
+  const canSelectAnyTeam = isAdminOrManager || isScaleData
+  const teamOptions = canSelectAnyTeam
     ? [{ value: '', label: '— Chọn team —' }, ...(teams ?? []).map(t => ({ value: t.id, label: t.name }))]
     : (teams ?? []).map(t => ({ value: t.id, label: t.name }))
 
   const selectedTeam = teams?.find(t => t.id === selectedTeamId)
   const isLeaderOfSelected = selectedTeam?.leader_id === userId
   const isMemberOfSelected = selectedTeam?.members?.some((m: any) => m.user_id === userId) ?? false
-  const canManageSelected  = isAdminOrManager || isLeaderOfSelected || isMemberOfSelected
-  const canPushToGlobal    = isAdminOrManager || isLeaderOfSelected
+  // Scale Data members có quyền quản lý source trong bất kỳ team nào
+  const canManageSelected  = isAdminOrManager || isScaleData || isLeaderOfSelected || isMemberOfSelected
+  const canPushToGlobal    = isAdminOrManager || isScaleData || isLeaderOfSelected
 
   const { data: sources = [], isLoading } = useQuery({
-    queryKey: ['task-auto', 'team-sources', selectedTeamId, brandType],
-    queryFn: () => getTeamSources(selectedTeamId, { brand_type: brandType }),
+    queryKey: ['task-auto', 'team-sources', selectedTeamId, brandType, month],
+    queryFn: () => getTeamSources(selectedTeamId, { brand_type: brandType, month }),
     enabled: !!selectedTeamId,
   })
 
@@ -98,7 +102,7 @@ export function TeamSourcesTab({ isAdminOrManager, userId, brandType, selectedTe
   const resetAddModal = () => {
     setModal(null)
     setAddMode('manual')
-    setForm({ type: 'OUTRO', name: '', link: '', code: '', team_product_id: '', is_active: true })
+    setForm({ type: 'OUTRO', name: '', link: '', nas_link: '', code: '', team_product_id: '', is_active: true })
     setGlobalSearch('')
     setSelectedGlobalIds(new Set())
     setEditing(null)
@@ -163,7 +167,7 @@ export function TeamSourcesTab({ isAdminOrManager, userId, brandType, selectedTe
   }
 
   const openAdd = () => {
-    setForm({ type: 'OUTRO', name: '', link: '', code: '', team_product_id: '', is_active: true })
+    setForm({ type: 'OUTRO', name: '', link: '', nas_link: '', code: '', team_product_id: '', is_active: true })
     setEditing(null)
     setAddMode('manual')
     setGlobalSearch('')
@@ -185,6 +189,7 @@ export function TeamSourcesTab({ isAdminOrManager, userId, brandType, selectedTe
       type:       form.type!,
       name:       form.name,
       link:       form.link,
+      nas_link:        form.nas_link || undefined,
       code:            form.code || undefined,
       team_product_id: form.team_product_id || undefined,
       is_active:       form.is_active ?? true,
@@ -221,12 +226,13 @@ export function TeamSourcesTab({ isAdminOrManager, userId, brandType, selectedTe
       {/* Header */}
       <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
         <div className="flex flex-wrap gap-3 items-center">
-          {isAdminOrManager ? (
+          {canSelectAnyTeam ? (
             <CustomSelect
               value={selectedTeamId}
               onChange={v => { setSelectedTeamId(v); setSearch('') }}
               options={teamOptions}
               className="min-w-[200px]"
+              searchable
             />
           ) : (
             <div className="text-base font-semibold text-slate-700 px-1">
@@ -244,6 +250,13 @@ export function TeamSourcesTab({ isAdminOrManager, userId, brandType, selectedTe
               disabled={!selectedTeamId}
             />
           </div>
+
+          <input
+            type="month"
+            value={month}
+            onChange={e => setMonth(e.target.value)}
+            className="px-3 py-3 border border-gray-200 rounded-xl text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          />
 
           {canManageSelected && selectedTeamId && (
             <button
@@ -277,6 +290,8 @@ export function TeamSourcesTab({ isAdminOrManager, userId, brandType, selectedTe
                     <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 whitespace-nowrap">Code</th>
                     <th className="text-left px-5 py-4 text-sm font-bold text-slate-600">Link</th>
                     <th className="text-left px-5 py-4 text-sm font-bold text-slate-600">Sản phẩm</th>
+                    <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 whitespace-nowrap">Người thêm</th>
+                    <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 whitespace-nowrap">Ngày thêm</th>
                     <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 whitespace-nowrap">Trạng thái</th>
                     <th className="w-28" />
                   </tr>
@@ -312,6 +327,23 @@ export function TeamSourcesTab({ isAdminOrManager, userId, brandType, selectedTe
                       <td className="px-5 py-4">
                         <span className="text-sm text-slate-700 truncate block max-w-[160px]">
                           {(s.team_product?.name ?? s.product?.name) ?? <span className="text-slate-300">—</span>}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        {s.added_by ? (
+                          <span className="inline-flex items-center gap-1.5 text-sm text-slate-600">
+                            <span className="w-5 h-5 rounded-full bg-violet-100 text-violet-600 flex items-center justify-center text-[10px] font-bold shrink-0">
+                              {s.added_by.full_name.charAt(0).toUpperCase()}
+                            </span>
+                            <span className="truncate max-w-[110px]" title={s.added_by.full_name}>{s.added_by.full_name}</span>
+                          </span>
+                        ) : (
+                          <span className="text-slate-300 text-sm">—</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        <span className="text-sm text-slate-500">
+                          {(s as any).added_at ? new Date((s as any).added_at).toLocaleDateString('vi-VN') : <span className="text-slate-300">—</span>}
                         </span>
                       </td>
                       <td className="px-5 py-4 whitespace-nowrap">
@@ -453,6 +485,8 @@ export function TeamSourcesTab({ isAdminOrManager, userId, brandType, selectedTe
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
               <DarkInput label="Link *" placeholder="https://drive.google.com/..." value={form.link ?? ''}
                 onChange={e => setForm(f => ({ ...f, link: e.target.value }))} />
+              <DarkInput label="Link ổ NAS" placeholder="\\nas\... hoặc smb://... (tuỳ chọn)" value={form.nas_link ?? ''}
+                onChange={e => setForm(f => ({ ...f, nas_link: e.target.value }))} />
               <ProductSearchSelect label="Sản phẩm liên kết" value={form.team_product_id ?? ''}
                 onChange={id => setForm(f => ({ ...f, team_product_id: id }))}
                 products={productsForSelect ?? []}

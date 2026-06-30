@@ -41,7 +41,7 @@ function prevMonth(m: string): string {
 // ── Pick modal (chọn từ kho có sẵn) ──────────────────────────────────────────
 
 function PickItemsModal({
-  open, onClose, brandType, month, warehouseIds, type, onAdded, onRequestCreate,
+  open, onClose, brandType, month, warehouseIds, type, onAdded, onRequestCreate, canCreate,
 }: {
   open: boolean
   onClose: () => void
@@ -51,6 +51,7 @@ function PickItemsModal({
   type: SubTab
   onAdded: () => void
   onRequestCreate: () => void
+  canCreate?: boolean
 }) {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
@@ -136,13 +137,15 @@ function PickItemsModal({
           ))}
         </div>
         <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
-          <button
-            onClick={() => { onClose(); onRequestCreate() }}
-            className="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Tạo mới
-          </button>
+          {canCreate && (
+            <button
+              onClick={() => { onClose(); onRequestCreate() }}
+              className="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Tạo mới
+            </button>
+          )}
           <div className="flex gap-2">
             <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-600 hover:bg-gray-100 transition-colors">Huỷ</button>
             <button
@@ -223,7 +226,11 @@ function SourceCreateModal({
 
 // ── Main WarehouseTab ─────────────────────────────────────────────────────────
 
-export function WarehouseTab({ brandType }: { brandType: BrandType }) {
+export function WarehouseTab({ brandType, isAdminOrManager = false, isScaleData = false }: {
+  brandType: BrandType
+  isAdminOrManager?: boolean
+  isScaleData?: boolean
+}) {
   const qc = useQueryClient()
   const [month, setMonth] = useState(currentMonth())
   const [subTab, setSubTab] = useState<SubTab>('products')
@@ -232,6 +239,11 @@ export function WarehouseTab({ brandType }: { brandType: BrandType }) {
   const [confirmCarry, setConfirmCarry] = useState(false)
 
   const prev = prevMonth(month)
+
+  // Products & contents: chỉ Admin/Manager. Sources: Admin/Manager + Scale Data
+  const canWriteCurrent = subTab === 'sources'
+    ? (isAdminOrManager || isScaleData)
+    : isAdminOrManager
 
   const { data: warehouse, isLoading } = useQuery({
     queryKey: ['task-auto', 'warehouse', 'global', month],
@@ -307,20 +319,24 @@ export function WarehouseTab({ brandType }: { brandType: BrandType }) {
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setConfirmCarry(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 text-sm text-slate-600 hover:bg-gray-50 transition-colors"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Copy từ {prev}
-          </button>
-          <button
-            onClick={() => setShowPickModal(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Thêm vào kho
-          </button>
+          {isAdminOrManager && (
+            <button
+              onClick={() => setConfirmCarry(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 text-sm text-slate-600 hover:bg-gray-50 transition-colors"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Copy từ {prev}
+            </button>
+          )}
+          {canWriteCurrent && (
+            <button
+              onClick={() => setShowPickModal(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Thêm vào kho
+            </button>
+          )}
         </div>
       </div>
 
@@ -376,14 +392,16 @@ export function WarehouseTab({ brandType }: { brandType: BrandType }) {
                   <td className="px-5 py-3.5 font-medium text-slate-800">{labelOf(item)}</td>
                   <td className="px-5 py-3.5 text-slate-500">{subOf(item, subTab)}</td>
                   <td className="px-5 py-3.5 text-right">
-                    <button
-                      onClick={() => removeMut.mutate(item.id)}
-                      disabled={removeMut.isPending}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                      title="Xoá khỏi kho tháng"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {canWriteCurrent && (
+                      <button
+                        onClick={() => removeMut.mutate(item.id)}
+                        disabled={removeMut.isPending}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        title="Xoá khỏi kho tháng"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -400,6 +418,7 @@ export function WarehouseTab({ brandType }: { brandType: BrandType }) {
         month={month}
         warehouseIds={warehouseIds}
         type={subTab}
+        canCreate={isAdminOrManager}
         onAdded={() => qc.invalidateQueries({ queryKey: ['task-auto', 'warehouse', 'global', month] })}
         onRequestCreate={() => setCreateWhat(subTab === 'products' ? 'product' : subTab === 'contents' ? 'content' : 'source')}
       />

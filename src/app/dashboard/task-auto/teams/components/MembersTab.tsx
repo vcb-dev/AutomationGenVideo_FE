@@ -7,7 +7,6 @@ import { Crown, Users, PenLine, Pencil, Check, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
 import { EmptyState } from '@/components/task-auto/EmptyState'
-import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { formatDateTime } from '@/components/task-auto/helpers'
 import { getTeams, getApprovals, setMemberEditorRole, updateTeam } from '@/lib/api/task-auto'
 import type { BrandType, TeamMarket, TeamMember } from '@/types/task-auto'
@@ -66,6 +65,14 @@ export function MembersTab({ canManage, isAdminOrManager, userId, selectedTeamId
   const isLeaderOfSelected = selectedTeam?.leader_id === userId
   const canEditBrand = isAdminOrManager || isLeaderOfSelected
 
+  const myTeams = (teams ?? []).filter(t =>
+    t.leader_id === userId || t.members?.some((m: any) => m.user_id === userId)
+  )
+  const showTeamPicker = isAdminOrManager || myTeams.length > 1
+  const teamPickerOptions = isAdminOrManager
+    ? [{ value: '', label: 'Tất cả đội nhóm' }, ...(teams ?? []).map(t => ({ value: t.id, label: t.name }))]
+    : myTeams.map(t => ({ value: t.id, label: t.name }))
+
   const editorMut = useMutation({
     mutationFn: ({ memberId, isEditor }: { memberId: string; isEditor: boolean }) =>
       setMemberEditorRole(selectedTeamId, memberId, isEditor),
@@ -106,21 +113,6 @@ export function MembersTab({ canManage, isAdminOrManager, userId, selectedTeamId
 
   return (
     <div className="space-y-5">
-      {/* Team selector — chỉ hiện với admin/manager */}
-      {isAdminOrManager && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
-          <CustomSelect
-            value={selectedTeamId}
-            onChange={v => { setSelectedTeamId(v); setEditingTeam(false); setPendingBrand(null); setPendingMarket(null) }}
-            options={[
-              { value: '', label: 'Tất cả đội nhóm' },
-              ...(teams ?? []).map(t => ({ value: t.id, label: t.name })),
-            ]}
-            className="min-w-[220px]"
-            searchable
-          />
-        </div>
-      )}
 
       {/* Content */}
       {!selectedTeamId ? (
@@ -132,7 +124,19 @@ export function MembersTab({ canManage, isAdminOrManager, userId, selectedTeamId
           {/* Team header */}
           <div className="px-5 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between gap-4 flex-wrap">
             <div>
-              <h3 className="font-bold text-slate-900">{selectedTeam?.name}</h3>
+              {showTeamPicker ? (
+                <select
+                  value={selectedTeamId}
+                  onChange={e => { setSelectedTeamId(e.target.value); setEditingTeam(false); setPendingBrand(null); setPendingMarket(null) }}
+                  className="font-bold text-slate-900 bg-transparent border-none outline-none cursor-pointer text-sm"
+                >
+                  {teamPickerOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              ) : (
+                <h3 className="font-bold text-slate-900">{selectedTeam?.name}</h3>
+              )}
               <p className="text-xs text-slate-400 mt-0.5">{members.length} thành viên</p>
             </div>
 

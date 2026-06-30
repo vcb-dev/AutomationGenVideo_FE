@@ -36,10 +36,12 @@ export function SourcesSection({
   const productSources = task.product_sources ?? []
 
   const hasTaskSources =
-    !!task.source_outro ||
-    !!task.source_extra ||
-    !!task.source_workshop ||
-    !!task.source_huyk
+    !!task.source_outro         || !!task.source_extra         ||
+    !!task.source_workshop      || !!task.source_huyk          ||
+    !!task.editor_source_outro  || !!task.editor_source_extra  ||
+    !!task.editor_source_workshop || !!task.editor_source_huyk ||
+    !!task.team_source_outro    || !!task.team_source_extra    ||
+    !!task.team_source_workshop || !!task.team_source_huyk
 
   const hasProductSources = productSources.length > 0
 
@@ -156,30 +158,27 @@ export function SourcesSection({
               </div>
 
               <div className="space-y-1">
-                {task.source_outro && (
+                {(task.source_outro ?? task.editor_source_outro ?? task.team_source_outro) && (
                   <SourceRow
-                    source={task.source_outro}
+                    source={(task.source_outro ?? task.editor_source_outro ?? task.team_source_outro)!}
                     label="Outro"
                   />
                 )}
-
-                {task.source_extra && (
+                {(task.source_extra ?? task.editor_source_extra ?? task.team_source_extra) && (
                   <SourceRow
-                    source={task.source_extra}
+                    source={(task.source_extra ?? task.editor_source_extra ?? task.team_source_extra)!}
                     label="Sưu tầm"
                   />
                 )}
-
-                {task.source_workshop && (
+                {(task.source_workshop ?? task.editor_source_workshop ?? task.team_source_workshop) && (
                   <SourceRow
-                    source={task.source_workshop}
+                    source={(task.source_workshop ?? task.editor_source_workshop ?? task.team_source_workshop)!}
                     label="Chế tác"
                   />
                 )}
-
-                {task.source_huyk && (
+                {(task.source_huyk ?? task.editor_source_huyk ?? task.team_source_huyk) && (
                   <SourceRow
-                    source={task.source_huyk}
+                    source={(task.source_huyk ?? task.editor_source_huyk ?? task.team_source_huyk)!}
                     label="Huy-K"
                   />
                 )}

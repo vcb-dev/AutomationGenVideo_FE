@@ -21,6 +21,7 @@ import { ContentSection } from './detail/ContentSection'
 import { SourcesSection } from './detail/SourcesSection'
 import { ProductSection } from './detail/ProductSection'
 import { VideoPreviewOverlay } from './detail/VideoPreviewOverlay'
+import { VideoScriptSection } from './detail/VideoScriptSection'
 import type { Source, TeamSource } from '@/types/task-auto'
 
 type CatalogScope = 'personal' | 'global' | 'team'
@@ -618,6 +619,21 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                         }}
                       />
                     </div>
+
+                    <VideoScriptSection
+                      fileUrl={fileUrl}
+                      scriptText={scriptText}
+                      contentTitle={contentTitle}
+                      contentLine={contentLine}
+                      contentMarket={contentMarket}
+                      productName={productName}
+                      productSku={productSku}
+                      productPrice={resolvedProduct?.price}
+                      productMaterial={resolvedProduct?.material?.name ?? null}
+                      productPriceSegment={resolvedProduct?.price_segment ?? null}
+                      productLine={resolvedProduct?.product_line?.name ?? null}
+                      productMarket={resolvedProduct?.market ?? null}
+                    />
 
                     <TaskMetaStrip
                       task={task}

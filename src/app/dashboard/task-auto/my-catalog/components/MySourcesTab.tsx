@@ -314,6 +314,7 @@ function SourceFormModal({
     type: editing?.type ?? 'PRODUCT_STOCK',
     name: editing?.name ?? '',
     link: editing?.link ?? '',
+    nas_link: editing?.nas_link ?? '',
     code: editing?.code ?? '',
     editor_product_id: editing?.editor_product_id ?? '',
     is_active: editing?.is_active ?? true,
@@ -325,7 +326,7 @@ function SourceFormModal({
   })
 
   const createMut = useMutation({
-    mutationFn: () => createEditorSource(userId, { type: form.type!, name: form.name!, link: form.link!, code: form.code || null, editor_product_id: form.editor_product_id || null, is_active: form.is_active, brand_type: brandType } as any),
+    mutationFn: () => createEditorSource(userId, { type: form.type!, name: form.name!, link: form.link!, nas_link: form.nas_link || null, code: form.code || null, editor_product_id: form.editor_product_id || null, is_active: form.is_active, brand_type: brandType } as any),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['task-auto', 'my-sources'] })
       toast.success('Đã thêm source')
@@ -335,7 +336,7 @@ function SourceFormModal({
   })
 
   const updateMut = useMutation({
-    mutationFn: () => updateEditorSource(userId, editing!.id, { name: form.name, link: form.link, code: form.code || null, editor_product_id: form.editor_product_id || null, is_active: form.is_active } as any),
+    mutationFn: () => updateEditorSource(userId, editing!.id, { name: form.name, link: form.link, nas_link: form.nas_link || null, code: form.code || null, editor_product_id: form.editor_product_id || null, is_active: form.is_active } as any),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['task-auto', 'my-sources'] })
       toast.success('Đã cập nhật source')
@@ -398,6 +399,12 @@ function SourceFormModal({
             value={form.link ?? ''}
             onChange={e => setForm(f => ({ ...f, link: e.target.value }))}
           />
+          <DarkInput
+            label="Link ổ NAS"
+            placeholder="\\nas\... hoặc smb://... (tuỳ chọn)"
+            value={form.nas_link ?? ''}
+            onChange={e => setForm(f => ({ ...f, nas_link: e.target.value }))}
+          />
         </div>
 
         {/* Liên kết sản phẩm */}
@@ -439,6 +446,7 @@ export function MySourcesTab({ userId, brandType }: Props) {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<SourceType | ''>('')
+  const [month, setMonth] = useState('')
   const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
   const [showImport, setShowImport] = useState(false)
@@ -448,11 +456,12 @@ export function MySourcesTab({ userId, brandType }: Props) {
   const [viewSource, setViewSource] = useState<Source | null>(null)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'my-sources', userId, brandType, search, typeFilter, page],
+    queryKey: ['task-auto', 'my-sources', userId, brandType, search, typeFilter, month, page],
     queryFn: () => getEditorSources(userId, {
       brand_type: brandType,
       search: search || undefined,
       type: typeFilter || undefined,
+      month: month || undefined,
       page, limit: 20,
     }),
   })
@@ -486,6 +495,12 @@ export function MySourcesTab({ userId, brandType }: Props) {
             options={[{ value: '', label: 'Tất cả loại' }, ...SOURCE_TYPES.map(t => ({ value: t, label: SOURCE_TYPE_LABELS[t] }))]}
             className="min-w-[180px]"
           />
+          <input
+            type="month"
+            value={month}
+            onChange={e => { setMonth(e.target.value); setPage(1) }}
+            className="px-3 py-3.5 border border-gray-200 rounded-xl text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          />
           <button
             onClick={() => setShowImport(true)}
             className="bg-white border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 rounded-xl px-4 py-3.5 text-base font-semibold flex items-center gap-2 transition-colors shrink-0"
@@ -517,14 +532,16 @@ export function MySourcesTab({ userId, brandType }: Props) {
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Loại</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Code</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Sản phẩm</th>
+                {/* <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Người thêm</th> */}
+                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Ngày thêm</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Trạng thái</th>
                 <th className="w-28" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {isLoading && <LoadingRows cols={6} />}
+              {isLoading && <LoadingRows cols={8} />}
               {!isLoading && !data?.data?.length && (
-                <tr><td colSpan={6}><EmptyState icon={Radio} title="Chưa có source cá nhân nào" /></td></tr>
+                <tr><td colSpan={8}><EmptyState icon={Radio} title="Chưa có source cá nhân nào" /></td></tr>
               )}
               {data?.data.map(s => (
                 <tr key={s.id} onClick={() => setViewSource(s)} className="hover:bg-indigo-50/20 transition-colors group cursor-pointer">
@@ -550,6 +567,23 @@ export function MySourcesTab({ userId, brandType }: Props) {
                   <td className="px-5 py-4">
                     <span className="text-sm text-slate-600 truncate block max-w-[160px]">
                       {(s.editor_product?.name ?? s.product?.name) ?? <span className="text-slate-300">—</span>}
+                    </span>
+                  </td>
+                  {/* <td className="px-5 py-4 whitespace-nowrap">
+                    {s.added_by ? (
+                      <span className="inline-flex items-center gap-1.5 text-sm text-slate-600">
+                        <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-[10px] font-bold shrink-0">
+                          {s.added_by.full_name.charAt(0).toUpperCase()}
+                        </span>
+                        <span className="truncate max-w-[110px]" title={s.added_by.full_name}>{s.added_by.full_name}</span>
+                      </span>
+                    ) : (
+                      <span className="text-slate-300 text-sm">—</span>
+                    )}
+                  </td> */}
+                  <td className="px-5 py-4 whitespace-nowrap">
+                    <span className="text-sm text-slate-500">
+                      {(s as any).added_at ? new Date((s as any).added_at).toLocaleDateString('vi-VN') : <span className="text-slate-300">—</span>}
                     </span>
                   </td>
                   <td className="px-5 py-4 whitespace-nowrap">

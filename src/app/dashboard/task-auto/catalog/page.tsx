@@ -38,8 +38,11 @@ export default function CatalogPage() {
   const { data: teams } = useQuery({
     queryKey: ['task-auto', 'teams'],
     queryFn: getTeams,
-    enabled: !isAdminOrManager,
   })
+
+  const isScaleData = !isAdminOrManager && !!(teams?.find(
+    t => t.name === 'Scale Data' && t.members?.some((m: any) => m.user_id === user?.id)
+  ))
 
   // Auto-derive brand from user's team for non-admin/manager
   useEffect(() => {
@@ -116,8 +119,8 @@ export default function CatalogPage() {
       {/* Tab content — key={brand} reset state khi đổi nhóm */}
       {activeTab === 'products'  && <ProductsTab  key={brand} brandType={brand} />}
       {activeTab === 'contents'  && <ContentsTab  key={brand} brandType={brand} />}
-      {activeTab === 'sources'   && <SourcesTab   key={brand} brandType={brand} />}
-      {activeTab === 'warehouse' && <WarehouseTab key={brand} brandType={brand} />}
+      {activeTab === 'sources'   && <SourcesTab   key={brand} brandType={brand} isScaleData={isScaleData || isAdminOrManager} />}
+      {activeTab === 'warehouse' && <WarehouseTab key={brand} brandType={brand} isAdminOrManager={isAdminOrManager} isScaleData={isScaleData} />}
     </div>
   )
 }

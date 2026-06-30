@@ -307,6 +307,7 @@ interface Props { userId: string; brandType: 'DO_DA' | 'TRANG_SUC' }
 export function MyProductsTab({ userId, brandType }: Props) {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
+  const [month, setMonth] = useState('')
   const [page, setPage] = useState(1)
   const [modal, setModal] = useState<null | 'create' | 'edit'>(null)
   const [showImport, setShowImport] = useState(false)
@@ -332,8 +333,8 @@ export function MyProductsTab({ userId, brandType }: Props) {
   const editingSources = editingSourcesData?.data ?? []
 
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'my-products', userId, brandType, search, page],
-    queryFn: () => getEditorProducts(userId, { brand_type: brandType, search: search || undefined, page, limit: 20 }),
+    queryKey: ['task-auto', 'my-products', userId, brandType, search, month, page],
+    queryFn: () => getEditorProducts(userId, { brand_type: brandType, search: search || undefined, month: month || undefined, page, limit: 20 }),
   })
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['task-auto', 'my-products'] })
@@ -438,6 +439,12 @@ export function MyProductsTab({ userId, brandType }: Props) {
               className="w-full pl-12 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-base text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
             />
           </div>
+          <input
+            type="month"
+            value={month}
+            onChange={e => { setMonth(e.target.value); setPage(1) }}
+            className="px-3 py-3.5 border border-gray-200 rounded-xl text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          />
           <button
             onClick={() => setShowImport(true)}
             className="bg-white border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 rounded-xl px-4 py-3.5 text-base font-semibold flex items-center gap-2 transition-colors shrink-0"
@@ -470,13 +477,15 @@ export function MyProductsTab({ userId, brandType }: Props) {
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Dòng SP</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Thị trường</th>
                 <th className="text-right px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Giá bán</th>
+                {/* <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Người thêm</th> */}
+                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Ngày thêm</th>
                 <th className="w-28" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {isLoading && <LoadingRows cols={6} />}
+              {isLoading && <LoadingRows cols={8} />}
               {!isLoading && !data?.data?.length && (
-                <tr><td colSpan={6}><EmptyState icon={Package} title="Chưa có sản phẩm cá nhân nào" /></td></tr>
+                <tr><td colSpan={8}><EmptyState icon={Package} title="Chưa có sản phẩm cá nhân nào" /></td></tr>
               )}
               {data?.data.map(p => {
                 const thumb = p.image_urls?.[0] ?? p.image_url
@@ -512,6 +521,16 @@ export function MyProductsTab({ userId, brandType }: Props) {
                       {formatPrice(p.price)
                         ? <span className="text-base font-bold text-slate-800">{formatPrice(p.price)}</span>
                         : <span className="text-slate-300 text-sm">—</span>}
+                    </td>
+                    {/* <td className="px-5 py-4 whitespace-nowrap">
+                      <span className="text-sm text-slate-500">
+                        {p.added_by?.full_name ?? <span className="text-slate-300">—</span>}
+                      </span>
+                    </td> */}
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      <span className="text-sm text-slate-500">
+                        {(p as any).added_at ? new Date((p as any).added_at).toLocaleDateString('vi-VN') : <span className="text-slate-300">—</span>}
+                      </span>
                     </td>
                     <td className="px-4 py-4 text-right" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">

@@ -32,6 +32,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
   const [showCreate, setShowCreate] = useState(false)
   const [editingContent, setEditingContent] = useState<TeamContent | null>(null)
   const [search, setSearch] = useState('')
+  const [month, setMonth] = useState('')
 
   const { data: teams } = useQuery({
     queryKey: ['task-auto', 'teams'],
@@ -45,9 +46,17 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
   const canManageSelected = isAdminOrManager || isLeaderOfSelected || isMemberOfSelected
   const canPushToGlobal = isAdminOrManager || isLeaderOfSelected
 
+  const myTeams = (teams ?? []).filter(t =>
+    t.leader_id === userId || t.members?.some((m: any) => m.user_id === userId)
+  )
+  const showTeamPicker = isAdminOrManager || myTeams.length > 1
+  const teamPickerOptions = isAdminOrManager
+    ? [{ value: '', label: 'Tất cả đội nhóm' }, ...(teams ?? []).map(t => ({ value: t.id, label: t.name }))]
+    : myTeams.map(t => ({ value: t.id, label: t.name }))
+
   const { data: teamContents, isLoading } = useQuery({
-    queryKey: ['task-auto', 'team-contents', selectedTeamId, brandType],
-    queryFn: () => getTeamContents(selectedTeamId, brandType),
+    queryKey: ['task-auto', 'team-contents', selectedTeamId, brandType, month],
+    queryFn: () => getTeamContents(selectedTeamId, brandType, month),
     enabled: !!selectedTeamId,
   })
 
@@ -92,14 +101,11 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
       {/* Toolbar */}
       <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
         <div className="flex items-center gap-3 flex-wrap">
-          {isAdminOrManager ? (
+          {showTeamPicker ? (
             <CustomSelect
               value={selectedTeamId}
               onChange={setSelectedTeamId}
-              options={[
-                { value: '', label: 'Tất cả đội nhóm' },
-                ...(teams ?? []).map(t => ({ value: t.id, label: t.name })),
-              ]}
+              options={teamPickerOptions}
               className="min-w-[220px]"
               searchable
             />
@@ -126,6 +132,13 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
               </button>
             )}
           </div>
+
+          <input
+            type="month"
+            value={month}
+            onChange={e => setMonth(e.target.value)}
+            className="px-3 py-3.5 border border-gray-200 rounded-xl text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          />
 
           {selectedTeamId && teamContents && (
             <span className="text-sm text-slate-400 font-medium whitespace-nowrap">
@@ -167,13 +180,14 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
                   <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[13%]">Trạng thái</th>
                   <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[9%]">File</th>
                   <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[13%]">Người thêm</th>
+                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Ngày thêm</th>
                   <th className="w-28" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {isLoading && Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i}>
-                    {Array.from({ length: 7 }).map((_, j) => (
+                    {Array.from({ length: 8 }).map((_, j) => (
                       <td key={j} className="px-5 py-4">
                         <div className="h-4 bg-gray-100 rounded animate-pulse" />
                       </td>
@@ -183,7 +197,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
 
                 {!isLoading && filtered.length === 0 && (
                   <tr>
-                    <td colSpan={7}>
+                    <td colSpan={8}>
                       {teamContents?.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-14 gap-3">
                           <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center">
@@ -281,6 +295,13 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
                       <td className="px-4 py-4 whitespace-nowrap">
                         <span className="text-sm text-slate-500">
                           {tc.added_by?.full_name ?? <span className="text-slate-300">—</span>}
+                        </span>
+                      </td>
+
+                      {/* Ngày thêm */}
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <span className="text-sm text-slate-500">
+                          {(tc as any).added_at ? new Date((tc as any).added_at).toLocaleDateString('vi-VN') : <span className="text-slate-300">—</span>}
                         </span>
                       </td>
 

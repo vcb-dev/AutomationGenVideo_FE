@@ -28,6 +28,7 @@ export interface SourceViewItem {
   type: SourceType
   name: string
   link: string
+  nas_link?: string | null
   code?: string | null
   is_active?: boolean
   brand_type?: string | null
@@ -134,6 +135,21 @@ export function SourceViewModal({
             </a>
             <ExternalLink className="w-4 h-4 text-slate-300 shrink-0" />
           </div>
+
+          {/* NAS Link */}
+          {item.nas_link && (
+            <div className="flex items-center gap-3 bg-amber-50 rounded-2xl px-5 py-4 border border-amber-100">
+              <Link2 className="w-5 h-5 text-amber-400 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-amber-500 mb-0.5">Link ổ NAS</p>
+                <a href={item.nas_link} target="_blank" rel="noreferrer"
+                  className="text-base text-amber-700 hover:text-amber-500 truncate block transition-colors">
+                  {item.nas_link}
+                </a>
+              </div>
+              <ExternalLink className="w-4 h-4 text-amber-300 shrink-0" />
+            </div>
+          )}
 
           {/* Linked product */}
           {linkedProduct && (

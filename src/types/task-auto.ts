@@ -278,6 +278,7 @@ export interface Source {
   type: SourceType
   name: string
   link: string
+  nas_link?: string | null
   code: string | null
   product_id: string | null
   editor_product_id?: string | null
@@ -301,6 +302,7 @@ export interface TeamSource {
   type: SourceType
   name: string
   link: string
+  nas_link?: string | null
   code: string | null
   product_id: string | null
   team_product_id: string | null
@@ -329,10 +331,18 @@ export interface Task {
   editor_product_id: string | null
   team_product_id: string | null
   content_line_id: string | null
-  source_outro_id:    string | null
-  source_extra_id:    string | null
-  source_workshop_id: string | null
-  source_huyk_id:     string | null
+  source_outro_id:             string | null
+  source_extra_id:             string | null
+  source_workshop_id:          string | null
+  source_huyk_id:              string | null
+  editor_source_outro_id:      string | null
+  editor_source_extra_id:      string | null
+  editor_source_workshop_id:   string | null
+  editor_source_huyk_id:       string | null
+  team_source_outro_id:        string | null
+  team_source_extra_id:        string | null
+  team_source_workshop_id:     string | null
+  team_source_huyk_id:         string | null
   status: TaskStatus
   assignee_id: string | null
   assigned_at: string | null
@@ -358,10 +368,18 @@ export interface Task {
   editor_product?: Pick<Product, 'id' | 'sku' | 'name' | 'image_url' | 'image_urls' | 'price' | 'market' | 'price_segment' | 'priority_score'> & { material?: { id: string; name: string } | null; product_line?: { id: string; name: string } | null } | null
   team_product?: Pick<TeamProduct, 'id' | 'sku' | 'name' | 'image_url' | 'image_urls' | 'price' | 'market' | 'price_segment' | 'priority_score'> & { material?: { id: string; name: string } | null; product_line?: { id: string; name: string } | null } | null
   content_line?: ContentLine | null
-  source_outro?:    Pick<Source, 'id' | 'name' | 'link' | 'type'> | null
-  source_extra?:    Pick<Source, 'id' | 'name' | 'link' | 'type'> | null
-  source_workshop?: Pick<Source, 'id' | 'name' | 'link' | 'type'> | null
-  source_huyk?:     Pick<Source, 'id' | 'name' | 'link' | 'type'> | null
+  source_outro?:           Pick<Source, 'id' | 'name' | 'link' | 'type' | 'nas_link'> | null
+  source_extra?:           Pick<Source, 'id' | 'name' | 'link' | 'type' | 'nas_link'> | null
+  source_workshop?:        Pick<Source, 'id' | 'name' | 'link' | 'type' | 'nas_link'> | null
+  source_huyk?:            Pick<Source, 'id' | 'name' | 'link' | 'type' | 'nas_link'> | null
+  editor_source_outro?:    Pick<Source, 'id' | 'name' | 'link' | 'type' | 'nas_link'> | null
+  editor_source_extra?:    Pick<Source, 'id' | 'name' | 'link' | 'type' | 'nas_link'> | null
+  editor_source_workshop?: Pick<Source, 'id' | 'name' | 'link' | 'type' | 'nas_link'> | null
+  editor_source_huyk?:     Pick<Source, 'id' | 'name' | 'link' | 'type' | 'nas_link'> | null
+  team_source_outro?:      Pick<Source, 'id' | 'name' | 'link' | 'type' | 'nas_link'> | null
+  team_source_extra?:      Pick<Source, 'id' | 'name' | 'link' | 'type' | 'nas_link'> | null
+  team_source_workshop?:   Pick<Source, 'id' | 'name' | 'link' | 'type' | 'nas_link'> | null
+  team_source_huyk?:       Pick<Source, 'id' | 'name' | 'link' | 'type' | 'nas_link'> | null
   assignee?: UserBasic | null
   reviewed_by?: UserBasic | null
   assignments?: TaskAssignment[]
@@ -469,6 +487,7 @@ export interface ProductsQuery {
   page?: number
   limit?: number
   search?: string
+  month?: string
 }
 
 export interface ContentsQuery {
@@ -481,6 +500,7 @@ export interface ContentsQuery {
   page?: number
   limit?: number
   search?: string
+  month?: string
 }
 
 export interface SourcesQuery {
@@ -493,6 +513,7 @@ export interface SourcesQuery {
   page?: number
   limit?: number
   search?: string
+  month?: string
 }
 
 export interface TeamSourcesQuery {
@@ -502,6 +523,7 @@ export interface TeamSourcesQuery {
   team_product_id?: string
   is_active?: boolean
   search?: string
+  month?: string
 }
 
 // ── Dashboard Stats ─────────────────────────────

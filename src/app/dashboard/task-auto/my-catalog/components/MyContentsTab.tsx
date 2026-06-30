@@ -450,6 +450,7 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM' }: Pro
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<ContentUsageStatus | ''>('')
+  const [month, setMonth] = useState('')
   const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
   const [showImport, setShowImport] = useState(false)
@@ -459,12 +460,13 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM' }: Pro
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'my-contents', userId, brandType, teamMarket, search, statusFilter, page],
+    queryKey: ['task-auto', 'my-contents', userId, brandType, teamMarket, search, statusFilter, month, page],
     queryFn: () => getEditorContents(userId, {
       brand_type: brandType,
       market: teamMarket,
       search: search || undefined,
       status: statusFilter || undefined,
+      month: month || undefined,
       page, limit: 20,
     }),
   })
@@ -504,6 +506,12 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM' }: Pro
             ]}
             className="min-w-[175px]"
           />
+          <input
+            type="month"
+            value={month}
+            onChange={e => { setMonth(e.target.value); setPage(1) }}
+            className="px-3 py-3.5 border border-gray-200 rounded-xl text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          />
           <button
             onClick={() => setShowImport(true)}
             className="bg-white border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 rounded-xl px-4 py-3.5 text-base font-semibold flex items-center gap-2 transition-colors shrink-0"
@@ -535,13 +543,15 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM' }: Pro
                 <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Tuyến ND</th>
                 <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Thị trường</th>
                 <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Trạng thái</th>
+                {/* <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Người thêm</th> */}
+                <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Ngày thêm</th>
                 <th className="w-28" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {isLoading && <LoadingRows cols={5} />}
+              {isLoading && <LoadingRows cols={7} />}
               {!isLoading && !data?.data?.length && (
-                <tr><td colSpan={5}><EmptyState icon={FileText} title="Chưa có content cá nhân nào" /></td></tr>
+                <tr><td colSpan={7}><EmptyState icon={FileText} title="Chưa có content cá nhân nào" /></td></tr>
               )}
               {data?.data.map(c => (
                 <tr key={c.id} className="hover:bg-indigo-50/20 transition-colors group cursor-pointer" onClick={() => setDetailItem(c)}>
@@ -562,6 +572,16 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM' }: Pro
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap">
                     <ContentStatusBadge status={c.status} />
+                  </td>
+                  {/* <td className="px-4 py-4 whitespace-nowrap">
+                    <span className="text-sm text-slate-500">
+                      {c.added_by?.full_name ?? <span className="text-slate-300">—</span>}
+                    </span>
+                  </td> */}
+                  <td className="px-4 py-4 whitespace-nowrap">
+                    <span className="text-sm text-slate-500">
+                      {(c as any).added_at ? new Date((c as any).added_at).toLocaleDateString('vi-VN') : <span className="text-slate-300">—</span>}
+                    </span>
                   </td>
                   <td className="px-4 py-4 text-right" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1">

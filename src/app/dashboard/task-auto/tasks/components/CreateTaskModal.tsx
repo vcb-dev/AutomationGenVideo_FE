@@ -97,7 +97,11 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
     assignee_id: '', deadline: '',
     source_outro_id: '', source_collected_id: '', source_workshop_id: '', source_huyk_id: '',
   })
-  const [brandType, setBrandType] = useState<BrandType>('DO_DA')
+
+  // brandType luôn được derive từ team đang chọn
+  const selectedTeamForBrand = teams.find(t => t.id === form.team_id)
+  const brandType: BrandType = selectedTeamForBrand?.brand_type ?? lockedTeam?.brand_type ?? 'DO_DA'
+
   const [contentScope, setContentScope] = useState<Scope>('personal')
   const [productScope, setProductScope] = useState<Scope>('personal')
   const [contentSearch, setContentSearch] = useState('')
@@ -107,14 +111,23 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
   const [contentActualId, setContentActualId] = useState('')
   const [productActualId, setProductActualId] = useState('')
   const [sourceScope, setSourceScope] = useState<'personal' | 'team' | 'global' | 'all'>('all')
+  const [prevBrandType, setPrevBrandType] = useState<BrandType>(brandType)
 
   useEffect(() => {
     if (lockedTeam && !form.team_id) setForm(f => ({ ...f, team_id: lockedTeam.id }))
   }, [lockedTeam?.id])
 
+  // Reset content/product/sources khi brandType thay đổi (do đổi team)
   useEffect(() => {
-    setForm(f => ({ ...f, content_id: '', product_id: '' }))
-    setProductActualId('')
+    if (brandType !== prevBrandType) {
+      setPrevBrandType(brandType)
+      setForm(f => ({
+        ...f,
+        content_id: '', product_id: '',
+        source_outro_id: '', source_collected_id: '', source_workshop_id: '', source_huyk_id: '',
+      }))
+      setProductActualId('')
+    }
   }, [brandType])
 
   useEffect(() => { setForm(f => ({ ...f, content_id: '' })); setContentActualId('') }, [contentScope])
@@ -153,12 +166,12 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
   })
 
   const { data: productSourcesData } = useQuery({
-    queryKey: ['task-auto', 'product-sources', form.product_id, productActualId, productScope, myTeam?.id, userId],
+    queryKey: ['task-auto', 'product-sources', form.product_id, productActualId, productScope, form.team_id, userId],
     queryFn: async () => {
       if (productScope === 'personal' && userId)
         return getEditorSources(userId, { editor_product_id: productActualId || form.product_id, is_active: true, limit: 50 } as any)
-      if (productScope === 'team' && myTeam?.id) {
-        const data = await getTeamSources(myTeam.id, { team_product_id: productActualId || form.product_id, is_active: true })
+      if (productScope === 'team' && form.team_id) {
+        const data = await getTeamSources(form.team_id, { team_product_id: productActualId || form.product_id, is_active: true })
         return { data: data as unknown as Source[], total: data.length }
       }
       return getSources({ product_id: form.product_id, is_active: true, limit: 50 })
@@ -166,18 +179,18 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
     enabled: !!form.product_id,
   })
   const { data: personalSourcesData } = useQuery({
-    queryKey: ['task-auto', 'sources-personal', userId],
-    queryFn: () => getEditorSources(userId!, { is_active: true, limit: 200 }),
+    queryKey: ['task-auto', 'sources-personal', userId, brandType],
+    queryFn: () => getEditorSources(userId!, { brand_type: brandType, is_active: true, limit: 200 }),
     enabled: !!userId,
   })
   const { data: teamSourcesRaw } = useQuery({
-    queryKey: ['task-auto', 'team-sources-select', myTeam?.id],
-    queryFn: () => getTeamSources(myTeam!.id, { is_active: true }),
-    enabled: !!myTeam?.id,
+    queryKey: ['task-auto', 'team-sources-select', form.team_id, brandType],
+    queryFn: () => getTeamSources(form.team_id, { brand_type: brandType, is_active: true }),
+    enabled: !!form.team_id,
   })
   const { data: globalSourcesData } = useQuery({
-    queryKey: ['task-auto', 'sources-global'],
-    queryFn: () => getSources({ is_active: true, limit: 200 }),
+    queryKey: ['task-auto', 'sources-global', brandType],
+    queryFn: () => getSources({ brand_type: brandType, is_active: true, limit: 200 }),
   })
 
   const teamContents: Content[] = (teamContentsRaw ?? [])
@@ -210,14 +223,17 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
     productScope === 'global'   ? loadingGlobalProducts :
     loadingTeamProducts
 
-  const personalSrcs: Source[] = personalSourcesData?.data ?? []
+  // Mỗi source được tag với prefix để phân biệt kho khi submit
+  // value: 'editor:${id}' | 'team:${id}' | 'global:${id}'
+  const personalSrcs: Source[] = (personalSourcesData?.data ?? [])
+    .map((es: any) => ({ ...es, id: `editor:${es.id}` } as unknown as Source))
   const teamSrcs: Source[] = (teamSourcesRaw ?? [])
-    .filter((ts: TeamSource) => !!ts.source_source_id)
     .map((ts: TeamSource) => ({
-      ...ts, id: ts.source_source_id!, user_id: null,
+      ...ts, id: `team:${ts.id}`, user_id: null,
       lark_record_id: null, created_at: ts.added_at,
     } as unknown as Source))
-  const globalSrcs: Source[]   = globalSourcesData?.data ?? []
+  const globalSrcs: Source[] = (globalSourcesData?.data ?? [])
+    .map((s: Source) => ({ ...s, id: `global:${s.id}` }))
 
   const seenSourceIds = new Set<string>()
   const allSources: Source[] = []
@@ -241,16 +257,26 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
   const selectedTeam    = teams.find(t => t.id === form.team_id)
   const teamMembers     = selectedTeam?.members ?? []
 
+  function resolveSourceField(prefixedId: string, fieldBase: 'outro' | 'extra' | 'workshop' | 'huyk'): Record<string, string | undefined> {
+    if (!prefixedId) return {}
+    const [prefix, rawId] = prefixedId.split(':', 2)
+    if (!rawId) return {}
+    if (prefix === 'global')  return { [`source_${fieldBase}_id`]: rawId }
+    if (prefix === 'editor')  return { [`editor_source_${fieldBase}_id`]: rawId }
+    if (prefix === 'team')    return { [`team_source_${fieldBase}_id`]: rawId }
+    return {}
+  }
+
   const mutation = useMutation({
     mutationFn: () => {
       const payload: Partial<Task> = {
-        team_id:            form.team_id            || undefined,
-        assignee_id:        form.assignee_id        || undefined,
-        deadline:           form.deadline           || undefined,
-        source_outro_id:    form.source_outro_id    || undefined,
-        source_extra_id:    form.source_collected_id || undefined,
-        source_workshop_id: form.source_workshop_id || undefined,
-        source_huyk_id:     form.source_huyk_id     || undefined,
+        team_id:     form.team_id     || undefined,
+        assignee_id: form.assignee_id || undefined,
+        deadline:    form.deadline    || undefined,
+        ...resolveSourceField(form.source_outro_id,     'outro'),
+        ...resolveSourceField(form.source_collected_id, 'extra'),
+        ...resolveSourceField(form.source_workshop_id,  'workshop'),
+        ...resolveSourceField(form.source_huyk_id,      'huyk'),
       }
       if (form.content_id) {
         if (contentScope === 'personal') {
@@ -309,30 +335,23 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
     >
       <div className="space-y-6">
 
-        {/* ── Nhóm sản phẩm ── */}
-        <div className="flex items-center gap-4 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl">
-          <span className="text-xs font-bold text-slate-500 uppercase tracking-widest shrink-0">Nhóm sản phẩm</span>
-          <div className="flex gap-1.5">
-            {([
-              { key: 'DO_DA' as BrandType,     label: 'Đồ da' },
-              { key: 'TRANG_SUC' as BrandType, label: 'Trang sức' },
-            ]).map(({ key, label }) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setBrandType(key)}
-                className={cn(
-                  'px-4 py-1.5 rounded-lg text-sm font-semibold transition-all border',
-                  brandType === key
-                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                    : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
-                )}
-              >
-                {label}
-              </button>
-            ))}
+        {/* ── Nhóm sản phẩm ── chỉ hiển thị với admin/manager, tự động theo team */}
+        {!isMember && !isLeader && (
+          <div className="flex items-center gap-4 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-widest shrink-0">Nhóm sản phẩm</span>
+            <span className={cn(
+              'px-3 py-1 rounded-lg text-sm font-semibold border',
+              brandType === 'DO_DA'
+                ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                : 'bg-rose-50 text-rose-700 border-rose-200'
+            )}>
+              {brandType === 'DO_DA' ? 'Đồ da' : 'Trang sức'}
+            </span>
+            {!form.team_id && (
+              <span className="text-xs text-slate-400 italic">Chọn team để xác định nhóm sản phẩm</span>
+            )}
           </div>
-        </div>
+        )}
 
         {/* ── Nội dung ── */}
         <div className="space-y-3">
@@ -458,7 +477,7 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
             <div className="flex gap-0.5 p-0.5 bg-gray-100 rounded-lg">
               {([
                 { key: 'personal', label: 'Cá nhân',  disabled: false },
-                { key: 'team',     label: 'Kho team',  disabled: !myTeam },
+                { key: 'team',     label: 'Kho team',  disabled: !form.team_id },
                 { key: 'global',   label: 'Kho chung', disabled: false },
                 { key: 'all',      label: 'Tất cả',    disabled: false },
               ] as const).map(({ key, label, disabled }) => (

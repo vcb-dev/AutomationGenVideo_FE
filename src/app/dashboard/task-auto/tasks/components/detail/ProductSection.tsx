@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import toast from 'react-hot-toast'
 import { Package, Star, ZoomIn, Download, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn, driveImageUrl } from '@/lib/utils'
 import { ServerSearchSelect } from '@/components/task-auto/DarkInput'
@@ -36,8 +37,11 @@ interface Props {
 }
 
 async function downloadImage(url: string, name: string) {
+  const toastId = toast.loading('Đang tải ảnh...')
   try {
-    const res = await fetch(url, { mode: 'cors' })
+    const proxyUrl = `/api/capture-image?url=${encodeURIComponent(url)}`
+    const res = await fetch(proxyUrl)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const blob = await res.blob()
     const objectUrl = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -47,14 +51,19 @@ async function downloadImage(url: string, name: string) {
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(objectUrl)
+    toast.success('Đã tải ảnh thành công', { id: toastId })
   } catch {
-    window.open(url, '_blank')
+    toast.error('Không thể tải ảnh', { id: toastId })
   }
 }
 
 export function ProductSection({ editMode, edit, view }: Props) {
   const [imgIdx, setImgIdx] = useState(0)
   const [previewOpen, setPreviewOpen] = useState(false)
+  const [driveErr, setDriveErr] = useState<Record<number, boolean>>({})
+
+  const imgSrc = (url: string, idx: number, size?: number) =>
+    driveErr[idx] ? url : (driveImageUrl(url, size) ?? url)
 
   const allImages: string[] = []
   if (view.primaryImage) allImages.push(view.primaryImage)
@@ -93,17 +102,18 @@ export function ProductSection({ editMode, edit, view }: Props) {
             </>
           )}
           <img
-            src={driveImageUrl(currentImg, 1200) ?? currentImg}
+            src={imgSrc(currentImg, safeIdx, 1200)}
             alt={view.productName ?? ''}
             className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg"
             onClick={e => e.stopPropagation()}
+            onError={() => setDriveErr(p => ({ ...p, [safeIdx]: true }))}
           />
           <div className="absolute bottom-4 flex items-center gap-3" onClick={e => e.stopPropagation()}>
             {allImages.length > 1 && (
               <span className="text-white/60 text-sm">{safeIdx + 1} / {allImages.length}</span>
             )}
             <button type="button"
-              onClick={() => downloadImage(driveImageUrl(currentImg, 1200) ?? currentImg, `${view.productSku ?? 'image'}-${safeIdx + 1}.jpg`)}
+              onClick={() => downloadImage(imgSrc(currentImg, safeIdx, 1200), `${view.productSku ?? 'image'}-${safeIdx + 1}.jpg`)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-white/10 hover:bg-white/20 text-white transition-colors">
               <Download className="w-4 h-4" /> Tải ảnh
             </button>
@@ -114,7 +124,8 @@ export function ProductSection({ editMode, edit, view }: Props) {
                 <button key={i} type="button" onClick={() => setImgIdx(i)}
                   className={cn('w-12 h-12 rounded-lg overflow-hidden border-2 transition-all shrink-0',
                     i === safeIdx ? 'border-white' : 'border-transparent opacity-50 hover:opacity-80')}>
-                  <img src={driveImageUrl(url) ?? url} alt="" className="w-full h-full object-cover" />
+                  <img src={imgSrc(url, i)} alt="" className="w-full h-full object-cover"
+                    onError={() => setDriveErr(p => ({ ...p, [i]: true }))} />
                 </button>
               ))}
             </div>
@@ -156,9 +167,10 @@ export function ProductSection({ editMode, edit, view }: Props) {
               <div className="relative group">
                 <button type="button" onClick={() => setPreviewOpen(true)} className="block w-full cursor-zoom-in">
                   <img
-                    src={driveImageUrl(currentImg) ?? currentImg}
+                    src={imgSrc(currentImg, safeIdx)}
                     alt={view.productName ?? ''}
                     className="w-full h-52 object-cover transition-opacity group-hover:opacity-95"
+                    onError={() => setDriveErr(p => ({ ...p, [safeIdx]: true }))}
                   />
                   {allImages.length > 1 && (
                     <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/50 to-transparent pointer-events-none" />
@@ -180,14 +192,15 @@ export function ProductSection({ editMode, edit, view }: Props) {
                             ? 'border-white opacity-100 shadow-md'
                             : 'border-white/40 opacity-60 hover:opacity-90 hover:border-white/70'
                         )}>
-                        <img src={driveImageUrl(url) ?? url} alt="" className="w-full h-full object-cover" />
+                        <img src={imgSrc(url, i)} alt="" className="w-full h-full object-cover"
+                          onError={() => setDriveErr(p => ({ ...p, [i]: true }))} />
                       </button>
                     ))}
                   </div>
                 )}
 
                 <button type="button"
-                  onClick={() => downloadImage(driveImageUrl(currentImg, 1200) ?? currentImg, `${view.productSku ?? 'image'}-${safeIdx + 1}.jpg`)}
+                  onClick={() => downloadImage(imgSrc(currentImg, safeIdx, 1200), `${view.productSku ?? 'image'}-${safeIdx + 1}.jpg`)}
                   className="absolute bottom-2.5 right-2.5 p-1.5 rounded-lg bg-black/40 hover:bg-black/60 text-white transition-colors opacity-0 group-hover:opacity-100 backdrop-blur-sm">
                   <Download className="w-3.5 h-3.5" />
                 </button>

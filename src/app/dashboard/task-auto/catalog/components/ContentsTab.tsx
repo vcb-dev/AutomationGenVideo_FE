@@ -132,6 +132,7 @@ export function ContentsTab({ brandType }: { brandType: BrandType }) {
   const [statusFilter, setStatusFilter] = useState<ContentUsageStatus | ''>('')
   const [contentLineFilter, setContentLineFilter] = useState('')
   const [marketFilter, setMarketFilter] = useState('')
+  const [month, setMonth] = useState('')
   const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Content | null>(null)
@@ -140,13 +141,14 @@ export function ContentsTab({ brandType }: { brandType: BrandType }) {
 
   const { data: contentLines } = useQuery({ queryKey: ['task-auto', 'content-lines'], queryFn: getContentLines })
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'contents', brandType, search, statusFilter, contentLineFilter, marketFilter, page],
+    queryKey: ['task-auto', 'contents', brandType, search, statusFilter, contentLineFilter, marketFilter, month, page],
     queryFn: () => getContents({
       brand_type: brandType,
       search: search || undefined,
       status: statusFilter || undefined,
       content_line_id: contentLineFilter || undefined,
       market: marketFilter || undefined,
+      month: month || undefined,
       page, limit: 20,
     }),
   })
@@ -218,6 +220,12 @@ export function ContentsTab({ brandType }: { brandType: BrandType }) {
               ]}
               className="min-w-[160px]"
             />
+            <input
+              type="month"
+              value={month}
+              onChange={e => { setMonth(e.target.value); setPage(1) }}
+              className="px-3 py-3.5 border border-gray-200 rounded-xl text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            />
             {canDelete && (
               <button
                 onClick={openCreate}
@@ -247,15 +255,16 @@ export function ContentsTab({ brandType }: { brandType: BrandType }) {
                   <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[13%]">Trạng thái</th>
                   <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[7%]">Lượt xem</th>
                   <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[11%]">Người thêm</th>
+                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Ngày thêm</th>
                   <th className="w-16" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {isLoading && <LoadingRows cols={7} />}
+                {isLoading && <LoadingRows cols={8} />}
 
                 {!isLoading && (!data?.data || data.data.length === 0) && (
                   <tr>
-                    <td colSpan={7}>
+                    <td colSpan={8}>
                       <EmptyState icon={FileText} title="Không có content nào" />
                     </td>
                   </tr>
@@ -301,6 +310,13 @@ export function ContentsTab({ brandType }: { brandType: BrandType }) {
                     <td className="px-4 py-4 whitespace-nowrap">
                       <span className="text-sm text-slate-500">
                         {c.added_by?.full_name ?? <span className="text-slate-300">—</span>}
+                      </span>
+                    </td>
+
+                    {/* Ngày thêm */}
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <span className="text-sm text-slate-500">
+                        {c.created_at ? new Date(c.created_at).toLocaleDateString('vi-VN') : <span className="text-slate-300">—</span>}
                       </span>
                     </td>
 

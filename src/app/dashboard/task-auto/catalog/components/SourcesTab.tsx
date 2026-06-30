@@ -67,34 +67,37 @@ function LoadingRows({ cols }: { cols: number }) {
 
 type BrandType = 'DO_DA' | 'TRANG_SUC'
 
-export function SourcesTab({ brandType }: { brandType: BrandType }) {
+export function SourcesTab({ brandType, isScaleData = false }: { brandType: BrandType; isScaleData?: boolean }) {
   const qc = useQueryClient()
   const { user } = useAuthStore()
   const isAdminOrManager = user?.roles?.some((r: string) => ['ADMIN', 'MANAGER'].includes(r)) ?? false
-  const canDelete = isAdminOrManager
+  const canManage = isAdminOrManager || isScaleData
+  const canDelete = canManage
 
   const [search, setSearch]           = useState('')
   const [typeFilter, setTypeFilter]   = useState<SourceType | ''>('')
   const [ownerFilter, setOwnerFilter] = useState<string>('')
   const [activeFilter, setActiveFilter] = useState<'all' | 'true' | 'false'>('all')
+  const [month, setMonth] = useState('')
   const [page, setPage] = useState(1)
   const [modal, setModal]         = useState<null | 'create' | 'edit'>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [editing, setEditing]     = useState<Source | null>(null)
   const [viewingSource, setViewingSource] = useState<Source | null>(null)
   const [form, setForm] = useState<Partial<Source>>({
-    type: 'PRODUCT_STOCK', name: '', link: '', code: '',
+    type: 'PRODUCT_STOCK', name: '', link: '', nas_link: '', code: '',
     product_id: '', user_id: null, is_active: true,
   })
 
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'sources', brandType, search, typeFilter, ownerFilter, activeFilter, page],
+    queryKey: ['task-auto', 'sources', brandType, search, typeFilter, ownerFilter, activeFilter, month, page],
     queryFn: () => getSources({
       brand_type: brandType,
       search:    search     || undefined,
       type:      typeFilter || undefined,
       owner:     (ownerFilter as any) || undefined,
       is_active: activeFilter === 'all' ? undefined : activeFilter === 'true',
+      month:     month || undefined,
       page,
       limit: 20,
     }),
@@ -138,7 +141,7 @@ export function SourcesTab({ brandType }: { brandType: BrandType }) {
   })
 
   const openCreate = () => {
-    setForm({ type: 'PRODUCT_STOCK', name: '', link: '', code: '', product_id: '', user_id: null, is_active: true })
+    setForm({ type: 'PRODUCT_STOCK', name: '', link: '', nas_link: '', code: '', product_id: '', user_id: null, is_active: true })
     setEditing(null)
     setModal('create')
   }
@@ -149,6 +152,7 @@ export function SourcesTab({ brandType }: { brandType: BrandType }) {
     const body = {
       name:       form.name,
       link:       form.link,
+      nas_link:   form.nas_link || null,
       code:       form.code || null,
       product_id: form.product_id || null,
       is_active:  form.is_active,
@@ -199,7 +203,13 @@ export function SourcesTab({ brandType }: { brandType: BrandType }) {
             ]}
             className="min-w-[175px]"
           />
-          {isAdminOrManager && (
+          <input
+            type="month"
+            value={month}
+            onChange={e => { setMonth(e.target.value); setPage(1) }}
+            className="px-3 py-3.5 border border-gray-200 rounded-xl text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          />
+          {canManage && (
             <button
               onClick={openCreate}
               className="ml-auto bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-5 py-3.5 text-base font-semibold flex items-center gap-2 transition-colors shrink-0"
@@ -229,14 +239,16 @@ export function SourcesTab({ brandType }: { brandType: BrandType }) {
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Code</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Link</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Sản phẩm</th>
+                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Người thêm</th>
+                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Ngày thêm</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Trạng thái</th>
                 <th className="w-16" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {isLoading && <LoadingRows cols={8} />}
+              {isLoading && <LoadingRows cols={10} />}
               {!isLoading && (!data?.data || data.data.length === 0) && (
-                <tr><td colSpan={8}><EmptyState icon={Radio} title="Không có Source nào" /></td></tr>
+                <tr><td colSpan={10}><EmptyState icon={Radio} title="Không có Source nào" /></td></tr>
               )}
               {data?.data.map(s => (
                 <tr key={s.id} onClick={() => setViewingSource(s)} className="hover:bg-indigo-50/20 transition-colors group cursor-pointer">
@@ -270,6 +282,21 @@ export function SourcesTab({ brandType }: { brandType: BrandType }) {
                     </span>
                   </td>
                   <td className="px-5 py-4 whitespace-nowrap">
+                    {s.added_by ? (
+                      <span className="inline-flex items-center gap-1.5 text-sm text-slate-600">
+                        <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="truncate max-w-[120px]" title={s.added_by.full_name}>{s.added_by.full_name}</span>
+                      </span>
+                    ) : (
+                      <span className="text-slate-300 text-sm">—</span>
+                    )}
+                  </td>
+                  <td className="px-5 py-4 whitespace-nowrap">
+                    <span className="text-sm text-slate-500">
+                      {s.created_at ? new Date(s.created_at).toLocaleDateString('vi-VN') : <span className="text-slate-300">—</span>}
+                    </span>
+                  </td>
+                  <td className="px-5 py-4 whitespace-nowrap">
                     <span className={cn(
                       'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold',
                       s.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-slate-400'
@@ -280,7 +307,7 @@ export function SourcesTab({ brandType }: { brandType: BrandType }) {
                   </td>
                   <td className="px-4 py-4 text-right" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1">
-                      {isAdminOrManager && (
+                      {canManage && (
                         <>
                           <button onClick={() => openEdit(s)}
                             className="p-2 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors" title="Chỉnh sửa">
@@ -337,7 +364,7 @@ export function SourcesTab({ brandType }: { brandType: BrandType }) {
           open
           item={viewingSource}
           catalogType={viewingSource.user_id ? 'editor' : 'global'}
-          canEdit={isAdminOrManager}
+          canEdit={canManage}
           canDelete={canDelete}
           onClose={() => setViewingSource(null)}
           onEdit={() => { setViewingSource(null); openEdit(viewingSource) }}
@@ -424,6 +451,12 @@ export function SourcesTab({ brandType }: { brandType: BrandType }) {
               placeholder="https://drive.google.com/..."
               value={form.link ?? ''}
               onChange={e => setForm(f => ({ ...f, link: e.target.value }))}
+            />
+            <DarkInput
+              label="Link ổ NAS"
+              placeholder="\\nas\... hoặc smb://... (tuỳ chọn)"
+              value={form.nas_link ?? ''}
+              onChange={e => setForm(f => ({ ...f, nas_link: e.target.value }))}
             />
             <ProductSearchSelect
               label="Sản phẩm liên kết"
