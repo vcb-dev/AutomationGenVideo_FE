@@ -193,4 +193,19 @@
     animation: play-pulse-ripple 2s infinite;
     pointer-events: none;
   }
+
+  /* ─── Fix Chrome autofill background override ─── */
+  /* Chrome injects a white/yellow bg on autofilled inputs — override with dark bg */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active {
+    /* Use box-shadow trick: browser can't override box-shadow color */
+    -webkit-box-shadow: 0 0 0 1000px rgb(3 7 18 / 0.9) inset !important;
+    box-shadow: 0 0 0 1000px rgb(3 7 18 / 0.9) inset !important;
+    -webkit-text-fill-color: #fff !important;
+    caret-color: #fff;
+    border-color: rgb(30 41 59) !important;
+    transition: background-color 5000s ease-in-out 0s;
+  }
 }
