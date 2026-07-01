@@ -22,6 +22,10 @@ import {
     Bookmark,
     Languages,
     BookOpen,
+    Zap,
+    Package,
+    Radio,
+    FolderOpen,
 } from "lucide-react";
 import { NavMenu } from "./types";
 
@@ -43,6 +47,7 @@ export function useNavMenus(
                     "/dashboard/hieu-suat",
                     "/dashboard/admin",
                     "/dashboard/leader",
+                    "/dashboard/channels",
                 ],
                 sections: [
                     {
@@ -125,7 +130,6 @@ export function useNavMenus(
                                                 description: "Thống kê lượt xem, click, nguồn traffic theo ngày",
                                                 cta: "Xem báo cáo",
                                                 accentColor: "blue" as const,
-                                                group: "Báo cáo hằng ngày",
                                             },
                                             {
                                                 label: "Công việc hôm nay",
@@ -134,7 +138,6 @@ export function useNavMenus(
                                                 description: "Danh sách task & tiến độ trong ngày của member",
                                                 cta: "Xem công việc",
                                                 accentColor: "blue" as const,
-                                                group: "Báo cáo hằng ngày",
                                             },
                                             {
                                                 label: "Báo cáo tháng",
@@ -143,7 +146,6 @@ export function useNavMenus(
                                                 description: "Tổng hợp hiệu suất, traffic và doanh thu theo tháng",
                                                 cta: "Xem báo cáo tháng",
                                                 accentColor: "indigo" as const,
-                                                group: "Báo cáo tháng",
                                             },
                                         ],
                                     },
@@ -164,6 +166,28 @@ export function useNavMenus(
                                     ? "Duyệt và ghi nhận vấn đề nổi bật & thành tích ngày"
                                     : "Ghi nhận vấn đề nổi bật & thành tích ngày",
                             },
+                        ],
+                    },
+                    {
+                        section: "KÊNH",
+                        color: "slate" as const,
+                        items: [
+                            {
+                                label: "Kênh của tôi",
+                                href: "/dashboard/channels/my",
+                                icon: Radio,
+                                description: "Danh sách kênh MXH của bạn",
+                            },
+                            ...(isManagement
+                                ? [
+                                    {
+                                        label: "Quản lý kênh nhóm",
+                                        href: "/dashboard/channels",
+                                        icon: BookOpen,
+                                        description: "Danh sách kênh MXH của toàn team",
+                                    },
+                                ]
+                                : []),
                         ],
                     },
                     ...(isManagement
@@ -287,12 +311,7 @@ export function useNavMenus(
                                 icon: BarChart3,
                                 description: "Phân tích sâu dữ liệu kênh",
                             },
-                            // {
-                            //     label: "Channels Team",       // ← thêm
-                            //     href: "/dashboard/channels",
-                            //     icon: BookOpen,
-                            //     description: "Danh sách kênh MXH của team",
-                            // },
+
                         ],
                     },
                     ...(isManagement
@@ -327,6 +346,73 @@ export function useNavMenus(
                                 icon: Languages,
                                 description: "Dịch content có sẵn và recheck bằng bảng 3 cột",
                             },
+                        ],
+                    },
+                ],
+            },
+            {
+                id: "task-auto",
+                label: "Nhiệm vụ",
+                activePathPrefixes: ["/dashboard/task-auto"],
+                sections: [
+                    {
+                        section: "NHIỆM VỤ",
+                        color: "indigo",
+                        items: [
+                            {
+                                label: "Tổng quan",
+                                href: "/dashboard/task-auto",
+                                icon: LayoutDashboard,
+                                description: "Dashboard tổng quan hệ thống nhiệm vụ",
+                            },
+                            {
+                                label: "Danh sách nhiệm vụ",
+                                href: "/dashboard/task-auto/tasks",
+                                icon: ClipboardList,
+                                description: "Xem và quản lý toàn bộ nhiệm vụ",
+                            },
+                        ],
+                    },
+                    {
+                        section: "ĐỘI NHÓM & DANH MỤC",
+                        color: "blue",
+                        items: [
+                            {
+                                label: "Đội nhóm",
+                                href: "/dashboard/task-auto/teams",
+                                icon: Users,
+                                description: "Quản lý team, kho sản phẩm & source của team",
+                            },
+                            {
+                                label: "Danh mục tổng",
+                                href: "/dashboard/task-auto/catalog",
+                                icon: FolderOpen,
+                                description: "Kho sản phẩm, content, source toàn hệ thống",
+                            },
+                        ],
+                    },
+                    {
+                        section: "CÁ NHÂN",
+                        color: "violet",
+                        items: [
+                            {
+                                label: "Kho cá nhân",
+                                href: "/dashboard/task-auto/my-catalog",
+                                icon: User,
+                                description: "Sản phẩm, content, source của bạn",
+                            },
+                            {
+                                label: "KPI",
+                                href: "/dashboard/task-auto/kpi",
+                                icon: BarChart3,
+                                description: "Theo dõi chỉ số KPI cá nhân",
+                            },
+                            ...(isManagerOrAdmin ? [{
+                                label: "Cài đặt",
+                                href: "/dashboard/task-auto/settings",
+                                icon: Zap,
+                                description: "Cấu hình tự động hóa & phân công nhiệm vụ",
+                            }] : []),
                         ],
                     },
                 ],
