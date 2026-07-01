@@ -79,28 +79,61 @@ function ScopeSwitch({ value, onChange, hasTeam }: {
     </div>
   )
 }
+// ── Fallback helpers cho FK references ──
+// Hỗ trợ cả 3 tầng: editor item (source_editor_*), team item (source_editor_*), global item (source_team_* → source_editor_*)
+function getProductName(p: any): string {
+  return p.name
+    || p.source_editor_product?.name      // TeamProduct FK → EditorProduct
+    || p.source_team_product?.name        // Product FK → TeamProduct
+    || p.source_team_product?.source_editor_product?.name  // Product → TeamProduct → EditorProduct
+    || 'Unknown'
+}
 
+function getProductSku(p: any): string | undefined {
+  return p.sku
+    || p.source_editor_product?.sku
+    || p.source_team_product?.sku
+    || p.source_team_product?.source_editor_product?.sku
+    || undefined
+}
+
+function getContentTitle(c: any): string {
+  return c.title
+    || c.source_editor_content?.title     // TeamContent FK → EditorContent
+    || c.source_team_content?.title       // Content FK → TeamContent
+    || c.source_team_content?.source_editor_content?.title  // Content → TeamContent → EditorContent
+    || 'Unknown'
+}
+
+function getContentLine(c: any): string | undefined {
+  if (!c) return undefined
+  return c.content_line?.name
+    || c.source_editor_content?.content_line?.name
+    || c.source_team_content?.content_line?.name
+    || c.source_team_content?.source_editor_content?.content_line?.name
+    || undefined
+}
 export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isMember, onClose, onSuccess }: Props) {
   const qc = useQueryClient()
 
-  const leaderTeam = isLeader && !isAdminOrManager
-    ? teams.find(t => t.leader_id === userId)
-    : undefined
-  const memberTeam = isMember && userId
-    ? teams.find(t => t.members?.some(m => m.user_id === userId))
-    : undefined
-  const lockedTeam = leaderTeam ?? memberTeam
-  const myTeam = lockedTeam ?? teams.find(t => t.leader_id === userId || t.members?.some(m => m.user_id === userId))
+  // Tất cả team mà user thuộc (leader hoặc member), dùng cho non-admin
+  const myTeams = !isAdminOrManager && userId
+    ? teams.filter(t => t.leader_id === userId || t.members?.some(m => m.user_id === userId))
+    : []
+  // Nếu chỉ thuộc 1 team → khóa cứng; nếu thuộc nhiều team → cho chọn
+  const lockedTeam = myTeams.length === 1 ? myTeams[0] : undefined
 
   const [form, setForm] = useState<CreateForm>({
-    content_id: '', product_id: '', team_id: lockedTeam?.id ?? '',
+    content_id: '', product_id: '', team_id: lockedTeam?.id ?? myTeams[0]?.id ?? '',
     assignee_id: '', deadline: '',
     source_outro_id: '', source_collected_id: '', source_workshop_id: '', source_huyk_id: '',
   })
 
-  // brandType luôn được derive từ team đang chọn
-  const selectedTeamForBrand = teams.find(t => t.id === form.team_id)
-  const brandType: BrandType = selectedTeamForBrand?.brand_type ?? lockedTeam?.brand_type ?? 'DO_DA'
+  // brandType derive từ team đang chọn (hoặc team duy nhất của user)
+  const selectedTeam = teams.find(t => t.id === form.team_id)
+  const brandType: BrandType = selectedTeam?.brand_type ?? lockedTeam?.brand_type ?? 'DO_DA'
+  // team dùng để load kho team (kho team của team đang chọn, không phải myTeams[0])
+  const activeTeamForWarehouse = selectedTeam ?? lockedTeam
 
   const [contentScope, setContentScope] = useState<Scope>('personal')
   const [productScope, setProductScope] = useState<Scope>('personal')
@@ -144,9 +177,9 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
     enabled: contentScope === 'global',
   })
   const { data: teamContentsRaw, isLoading: loadingTeamContents } = useQuery({
-    queryKey: ['task-auto', 'create-contents-team', myTeam?.id, brandType],
-    queryFn: () => getTeamContents(myTeam!.id, brandType),
-    enabled: !!myTeam?.id && contentScope === 'team',
+    queryKey: ['task-auto', 'create-contents-team', activeTeamForWarehouse?.id, brandType],
+    queryFn: () => getTeamContents(activeTeamForWarehouse!.id, brandType),
+    enabled: !!activeTeamForWarehouse?.id && contentScope === 'team',
   })
 
   const { data: personalProductsData, isLoading: loadingPersonalProducts } = useQuery({
@@ -160,9 +193,9 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
     enabled: productScope === 'global',
   })
   const { data: teamProductsRaw, isLoading: loadingTeamProducts } = useQuery({
-    queryKey: ['task-auto', 'create-products-team', myTeam?.id, brandType],
-    queryFn: () => getTeamProducts(myTeam!.id, brandType),
-    enabled: !!myTeam?.id && productScope === 'team',
+    queryKey: ['task-auto', 'create-products-team', activeTeamForWarehouse?.id, brandType],
+    queryFn: () => getTeamProducts(activeTeamForWarehouse!.id, brandType),
+    enabled: !!activeTeamForWarehouse?.id && productScope === 'team',
   })
 
   const { data: productSourcesData } = useQuery({
@@ -195,7 +228,7 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
 
   const teamContents: Content[] = (teamContentsRaw ?? [])
     .map(tc => tc as unknown as Content)
-    .filter(c => !contentSearch || c.title?.toLowerCase().includes(contentSearch.toLowerCase()))
+    .filter(c => !contentSearch || getContentTitle(c).toLowerCase().includes(contentSearch.toLowerCase()))
 
   const contents: Content[] =
     contentScope === 'personal' ? (personalContentsData?.data ?? []) :
@@ -210,9 +243,8 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
   const teamProducts: Product[] = (teamProductsRaw ?? [])
     .map(tp => tp as unknown as Product)
     .filter(p => !productSearch ||
-      p.name?.toLowerCase().includes(productSearch.toLowerCase()) ||
-      p.sku?.toLowerCase().includes(productSearch.toLowerCase()))
-
+      getProductName(p).toLowerCase().includes(productSearch.toLowerCase()) ||  // ✅
+      getProductSku(p)?.toLowerCase().includes(productSearch.toLowerCase())) 
   const products: Product[] =
     productScope === 'personal' ? (personalProductsData?.data ?? []) :
     productScope === 'global'   ? (globalProductsData?.data ?? []) :
@@ -254,7 +286,6 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
   const huykSrcs       = scopedSources.filter(s => s.type === 'HUYK')
 
   const selectedContent = contents.find(c => c.id === form.content_id)
-  const selectedTeam    = teams.find(t => t.id === form.team_id)
   const teamMembers     = selectedTeam?.members ?? []
 
   function resolveSourceField(prefixedId: string, fieldBase: 'outro' | 'extra' | 'workshop' | 'huyk'): Record<string, string | undefined> {
@@ -313,6 +344,8 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
 
   const scopeLabel: Record<Scope, string> = { personal: 'cá nhân', global: 'kho tổng', team: 'kho team' }
 
+  
+
   return (
     <>
     <DarkModal
@@ -365,8 +398,8 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
             }}
             items={contents.map(c => ({
               value: c.id,
-              label: c.title || c.id,
-              sublabel: c.content_line?.name ?? undefined,
+              label: getContentTitle(c),
+              sublabel: getContentLine(c),
             }))}
             searchValue={contentSearch}
             onSearchChange={setContentSearch}
@@ -376,13 +409,13 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
             searchPlaceholder="Tìm theo tiêu đề..."
             createLabel="Tạo content mới..."
             onCreateClick={() => setShowContentModal(true)}
-            filterSlot={<ScopeSwitch value={contentScope} onChange={setContentScope} hasTeam={!!myTeam} />}
+            filterSlot={<ScopeSwitch value={contentScope} onChange={setContentScope} hasTeam={!!activeTeamForWarehouse} />}
           />
-          {selectedContent?.content_line && (
+          {getContentLine(selectedContent) && (
             <div className="flex items-center gap-2 pl-1">
               <span className="text-xs text-slate-400">Tuyến:</span>
               <span className="inline-flex items-center px-2.5 py-0.5 bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-full">
-                {selectedContent.content_line.name}
+                {getContentLine(selectedContent)}
               </span>
             </div>
           )}
@@ -399,10 +432,10 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
                 setProductActualId(scopedProduct?.id ?? v)
                 setForm(f => ({ ...f, product_id: v, source_collected_id: '', source_workshop_id: '', source_huyk_id: '' }))
               }}
-            items={products.map(p => ({
+              items={products.map(p => ({
                 value: p.source_product_id ?? p.id,
-                label: p.name,
-                sublabel: p.sku,
+                label: getProductName(p),  // ✅ Dùng helper
+                sublabel: getProductSku(p),  // ✅ Cũng fix SKU
               }))}
             searchValue={productSearch}
             onSearchChange={setProductSearch}
@@ -412,7 +445,7 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
             searchPlaceholder="Tìm theo tên hoặc SKU..."
             createLabel="Tạo sản phẩm mới..."
             onCreateClick={() => setShowProductModal(true)}
-            filterSlot={<ScopeSwitch value={productScope} onChange={setProductScope} hasTeam={!!myTeam} />}
+            filterSlot={<ScopeSwitch value={productScope} onChange={setProductScope} hasTeam={!!activeTeamForWarehouse} />}
           />
           {form.product_id && productSources.length > 0 && (
             <div className="flex flex-wrap gap-2 pl-1">
@@ -439,6 +472,17 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
                   <span className="ml-auto text-xs font-normal text-indigo-400">Team của bạn</span>
                 </div>
               </div>
+            ) : myTeams.length > 1 ? (
+              <CustomSelect
+                label="Đội nhóm *"
+                value={form.team_id}
+                onChange={v => setForm(f => ({ ...f, team_id: v, assignee_id: '', content_id: '', product_id: '', source_outro_id: '', source_collected_id: '', source_workshop_id: '', source_huyk_id: '' }))}
+                options={[
+                  { value: '', label: '-- Chọn team --' },
+                  ...myTeams.map(t => ({ value: t.id, label: t.name })),
+                ]}
+                searchable
+              />
             ) : (
               <CustomSelect
                 label="Đội nhóm *"

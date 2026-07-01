@@ -58,15 +58,20 @@ export function TeamKpiTab({ month, canEdit, userId, isAdminOrManager, selectedT
     queryFn: getTeams,
   })
 
-  const myTeam = !isAdminOrManager && userId
-    ? teams?.find(t => t.leader_id === userId || t.members?.some(m => m.user_id === userId))
-    : undefined
+  // Tất cả team user thuộc (leader hoặc member)
+  const myTeams = !isAdminOrManager && userId
+    ? (teams?.filter(t => t.leader_id === userId || t.members?.some(m => m.user_id === userId)) ?? [])
+    : []
 
+  // Khởi tạo selectedTeamId về team đầu tiên khi data load xong
   useEffect(() => {
-    if (myTeam?.id && !isAdminOrManager) onTeamChange(myTeam.id)
-  }, [myTeam?.id, isAdminOrManager])
+    if (myTeams.length > 0 && !isAdminOrManager && !selectedTeamId) {
+      onTeamChange(myTeams[0].id)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myTeams.length, isAdminOrManager])
 
-  const effectiveTeamId = isAdminOrManager ? selectedTeamId : (myTeam?.id ?? '')
+  const effectiveTeamId = isAdminOrManager ? selectedTeamId : (selectedTeamId || myTeams[0]?.id || '')
   const visibleKpis = effectiveTeamId
     ? (teamKpis ?? []).filter(k => k.team_id === effectiveTeamId)
     : []
@@ -141,10 +146,21 @@ export function TeamKpiTab({ month, canEdit, userId, isAdminOrManager, selectedT
             />
           </div>
         )}
-        {!isAdminOrManager && myTeam && (
+        {!isAdminOrManager && myTeams.length === 1 && (
           <p className="text-sm text-slate-500">
-            KPI team <span className="font-semibold text-slate-700">{myTeam.name}</span>
+            KPI team <span className="font-semibold text-slate-700">{myTeams[0].name}</span>
           </p>
+        )}
+        {!isAdminOrManager && myTeams.length > 1 && (
+          <div className="flex items-center gap-2">
+            <Users className="w-5 h-5 text-slate-400 shrink-0" />
+            <CustomSelect
+              value={selectedTeamId}
+              onChange={onTeamChange}
+              options={myTeams.map(t => ({ value: t.id, label: t.name }))}
+              className="min-w-[220px]"
+            />
+          </div>
         )}
         {canEdit && effectiveTeamId && (
           <button

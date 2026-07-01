@@ -270,20 +270,25 @@ export function ContentsTab({ brandType }: { brandType: BrandType }) {
                   </tr>
                 )}
 
-                {data?.data.map(c => (
-                  <tr key={c.id} className="hover:bg-indigo-50/20 transition-colors group cursor-pointer" onClick={() => setDetailItem(c)}>
+                {data?.data.map(c => {
+                  const tc = c.source_team_content
+                  const tc_ec = tc?.source_editor_content
+                  const rTitle = c.title || tc?.title || tc_ec?.title || null
+                  const rContentLine = c.content_line ?? tc?.content_line ?? tc_ec?.content_line ?? null
+                  const rMarket = c.market || tc?.market || tc_ec?.market || null
+                  return (<tr key={c.id} className="hover:bg-indigo-50/20 transition-colors group cursor-pointer" onClick={() => setDetailItem(c)}>
 
                     {/* Tiêu đề */}
                     <td className="px-5 py-4 max-w-0">
-                      <span className="text-base font-semibold text-slate-800 truncate block hover:text-indigo-600 transition-colors" title={c.title ?? ''}>
-                        {c.title || <span className="text-slate-400 italic font-normal text-sm">Chưa đặt tên</span>}
+                      <span className="text-base font-semibold text-slate-800 truncate block hover:text-indigo-600 transition-colors" title={rTitle ?? ''}>
+                        {rTitle || <span className="text-slate-400 italic font-normal text-sm">Chưa đặt tên</span>}
                       </span>
                     </td>
 
                     {/* Tuyến ND */}
                     <td className="px-4 py-4 whitespace-nowrap">
-                      {c.content_line?.name
-                        ? <span className="text-sm font-medium text-slate-700">{c.content_line.name}</span>
+                      {rContentLine?.name
+                        ? <span className="text-sm font-medium text-slate-700">{rContentLine.name}</span>
                         : <span className="text-slate-300 text-sm">—</span>
                       }
                     </td>
@@ -291,8 +296,8 @@ export function ContentsTab({ brandType }: { brandType: BrandType }) {
                     {/* Thị trường */}
                     <td className="px-4 py-4 whitespace-nowrap">
                       <div className="flex flex-wrap gap-1.5">
-                        {parseMarkets(c.market).map(m => <MarketBadge key={m} market={m} />)}
-                        {!c.market && <span className="text-slate-300 text-sm">—</span>}
+                        {parseMarkets(rMarket).map(m => <MarketBadge key={m} market={m} />)}
+                        {!rMarket && <span className="text-slate-300 text-sm">—</span>}
                       </div>
                     </td>
 
@@ -353,8 +358,8 @@ export function ContentsTab({ brandType }: { brandType: BrandType }) {
                         )}
                       </div>
                     </td>
-                  </tr>
-                ))}
+                  </tr>)
+                })}
               </tbody>
             </table>
           </div>

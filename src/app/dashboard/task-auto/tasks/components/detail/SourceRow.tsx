@@ -2,7 +2,7 @@
 import React from 'react'
 import { ExternalLink, HardDrive } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { Source, SourceType } from '@/types/task-auto'
+import type { SourceType } from '@/types/task-auto'
 import { SOURCE_TYPE_LABELS } from '@/types/task-auto'
 
 export const SOURCE_STYLES: Record<SourceType, { dot: string; text: string; hover: string; badge: string }> = {
@@ -14,7 +14,7 @@ export const SOURCE_STYLES: Record<SourceType, { dot: string; text: string; hove
 }
 
 interface Props {
-  source: Pick<Source, 'id' | 'name' | 'link' | 'type'> & { nas_link?: string | null }
+  source: { id: string; name: string; link: string | null; type: SourceType; nas_link?: string | null }
   showType?: boolean
   label?: string
 }
@@ -44,7 +44,7 @@ export function SourceRow({ source, showType, label }: Props) {
     <div className="flex flex-col">
       {hasLink ? (
         <a
-          href={source.link}
+          href={source.link ?? undefined}
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}

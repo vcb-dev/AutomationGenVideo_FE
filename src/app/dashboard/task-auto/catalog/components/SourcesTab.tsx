@@ -250,31 +250,40 @@ export function SourcesTab({ brandType, isScaleData = false }: { brandType: Bran
               {!isLoading && (!data?.data || data.data.length === 0) && (
                 <tr><td colSpan={10}><EmptyState icon={Radio} title="Không có Source nào" /></td></tr>
               )}
-              {data?.data.map(s => (
+              {data?.data.map(s => {
+                const ts = s.source_team_source
+                const ts_es = ts?.source_editor_source
+                const rName = s.name || ts?.name || ts_es?.name || null
+                const rType = (s.type ?? ts?.type ?? ts_es?.type ?? 'PRODUCT_STOCK') as import('@/types/task-auto').SourceType
+                const rLink = s.link || ts?.link || ts_es?.link || null
+                const rCode = s.code || ts?.code || ts_es?.code || null
+                return (
                 <tr key={s.id} onClick={() => setViewingSource(s)} className="hover:bg-indigo-50/20 transition-colors group cursor-pointer">
                   <td className="px-5 py-4">
-                    <p className="text-base font-semibold text-slate-800 truncate max-w-[240px]" title={s.name}>{s.name}</p>
+                    <p className="text-base font-semibold text-slate-800 truncate max-w-[240px]" title={rName ?? ''}>{rName ?? <span className="text-slate-300">—</span>}</p>
                   </td>
                   <td className="px-5 py-4 whitespace-nowrap">
-                    <span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap', SOURCE_TYPE_COLORS[s.type])}>
-                      {SOURCE_TYPE_LABELS[s.type]}
+                    <span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap', SOURCE_TYPE_COLORS[rType])}>
+                      {SOURCE_TYPE_LABELS[rType]}
                     </span>
                   </td>
                   <td className="px-5 py-4 whitespace-nowrap">
                     <OwnerBadge source={s} />
                   </td>
                   <td className="px-5 py-4 whitespace-nowrap">
-                    {s.code
-                      ? <span className="inline-block bg-slate-100 text-slate-600 font-mono text-xs font-semibold px-2.5 py-1 rounded-lg">{s.code}</span>
+                    {rCode
+                      ? <span className="inline-block bg-slate-100 text-slate-600 font-mono text-xs font-semibold px-2.5 py-1 rounded-lg">{rCode}</span>
                       : <span className="text-slate-300 text-sm">—</span>
                     }
                   </td>
                   <td className="px-5 py-4 max-w-[220px]">
-                    <a href={s.link} target="_blank" rel="noreferrer" title={s.link}
-                      className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-400 text-sm transition-colors">
-                      <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-                      <span className="truncate">{s.link}</span>
-                    </a>
+                    {rLink ? (
+                      <a href={rLink} target="_blank" rel="noreferrer" title={rLink}
+                        className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-400 text-sm transition-colors">
+                        <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">{rLink}</span>
+                      </a>
+                    ) : <span className="text-slate-300 text-sm">—</span>}
                   </td>
                   <td className="px-5 py-4">
                     <span className="text-sm font-medium text-slate-700 truncate block max-w-[180px]" title={s.product?.name ?? ''}>
@@ -321,8 +330,8 @@ export function SourcesTab({ brandType, isScaleData = false }: { brandType: Bran
                       )}
                     </div>
                   </td>
-                </tr>
-              ))}
+                </tr>)
+              })}
             </tbody>
           </table>
         </div>

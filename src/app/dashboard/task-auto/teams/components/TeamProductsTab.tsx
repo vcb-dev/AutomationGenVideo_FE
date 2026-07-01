@@ -102,15 +102,14 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Đẩy ra kho tổng thất bại'),
   })
 
-  const existingSkus = (teamProducts ?? []).map(tp => tp.sku)
+  const existingSkus = (teamProducts ?? []).map(tp => tp.sku ?? tp.source_editor_product?.sku ?? '').filter(Boolean)
 
   const filtered = (teamProducts ?? []).filter(tp => {
     if (!search) return true
     const q = search.toLowerCase()
-    return (
-      tp.name?.toLowerCase().includes(q) ||
-      tp.sku?.toLowerCase().includes(q)
-    )
+    const effectiveName = tp.name ?? tp.source_editor_product?.name ?? ''
+    const effectiveSku = tp.sku ?? tp.source_editor_product?.sku ?? ''
+    return effectiveName.toLowerCase().includes(q) || effectiveSku.toLowerCase().includes(q)
   })
 
   return (
@@ -239,9 +238,15 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
 
                 {/* Rows */}
                 {!isLoading && filtered.map((tp: TeamProduct) => {
-                  const rawThumb = tp.image_urls?.[0] ?? tp.image_url ?? null
+                  const ep = tp.source_editor_product
+                  const tpName = tp.name ?? ep?.name ?? '—'
+                  const tpSku = tp.sku ?? ep?.sku ?? null
+                  const tpPriceSegment = tp.price_segment ?? ep?.price_segment ?? null
+                  const tpMarket = tp.market ?? ep?.market ?? null
+                  const imageUrls = tp.image_urls?.length ? tp.image_urls : (ep?.image_urls ?? [])
+                  const rawThumb = imageUrls[0] ?? tp.image_url ?? ep?.image_url ?? null
                   const thumb = rawThumb ? (driveImageUrl(rawThumb) ?? rawThumb) : null
-                  const markets = parseMarkets(tp.market)
+                  const markets = parseMarkets(tpMarket)
                   const isTeamCreated = tp.source_product_id === null
                   return (
                     <tr
@@ -251,9 +256,13 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
                     >
                       {/* SKU */}
                       <td className="px-5 py-4 whitespace-nowrap">
-                        <span className="inline-block bg-slate-100 text-slate-600 font-mono text-xs font-semibold px-2.5 py-1 rounded-lg">
-                          {tp.sku}
-                        </span>
+                        {tpSku ? (
+                          <span className="inline-block bg-slate-100 text-slate-600 font-mono text-xs font-semibold px-2.5 py-1 rounded-lg">
+                            {tpSku}
+                          </span>
+                        ) : (
+                          <span className="text-slate-300 text-sm">—</span>
+                        )}
                       </td>
 
                       {/* Sản phẩm */}
@@ -262,7 +271,7 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
                           {thumb ? (
                             <img
                               src={thumb}
-                              alt={tp.name}
+                              alt={tpName}
                               className="w-12 h-12 rounded-xl object-cover border border-gray-200 shrink-0 shadow-sm"
                             />
                           ) : (
@@ -271,11 +280,11 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
                             </div>
                           )}
                           <div className="min-w-0">
-                            <p className="text-base font-semibold text-slate-800 truncate max-w-[260px]" title={tp.name}>
-                              {tp.name}
+                            <p className="text-base font-semibold text-slate-800 truncate max-w-[260px]" title={tpName}>
+                              {tpName}
                             </p>
-                            {tp.price_segment && (
-                              <p className="text-xs text-slate-400 mt-0.5">{tp.price_segment}</p>
+                            {tpPriceSegment && (
+                              <p className="text-xs text-slate-400 mt-0.5">{tpPriceSegment}</p>
                             )}
                           </div>
                         </div>
@@ -308,8 +317,8 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
 
                       {/* Giá bán */}
                       <td className="px-5 py-4 whitespace-nowrap text-right">
-                        {formatPrice(tp.price)
-                          ? <span className="text-base font-bold text-slate-800">{formatPrice(tp.price)}</span>
+                        {formatPrice(tp.price ?? ep?.price)
+                          ? <span className="text-base font-bold text-slate-800">{formatPrice(tp.price ?? ep?.price)}</span>
                           : <span className="text-slate-300 text-sm">—</span>
                         }
                       </td>
@@ -365,7 +374,7 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
                               <button
                                 onClick={() => {
                                   setDeletingProductId(tp.id)
-                                  setDeletingProductName(tp.name)
+                                  setDeletingProductName(tpName)
                                 }}
                                 className="p-2 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
                                 title="Xóa khỏi kho team"
@@ -399,7 +408,7 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
       <ConfirmDialog
         open={!!pushingProduct}
         title="Đẩy sản phẩm ra kho tổng"
-        message={`Đẩy "${pushingProduct?.name ?? 'sản phẩm này'}" và các source liên kết ra kho tổng? Sản phẩm sẽ xuất hiện cho toàn bộ hệ thống.`}
+        message={`Đẩy "${pushingProduct?.name ?? pushingProduct?.source_editor_product?.name ?? 'sản phẩm này'}" và các source liên kết ra kho tổng? Sản phẩm sẽ xuất hiện cho toàn bộ hệ thống.`}
         confirmLabel="Đẩy ra kho tổng"
         isLoading={pushMut.isPending}
         onConfirm={() => pushingProduct && pushMut.mutate(pushingProduct.id)}
@@ -417,7 +426,7 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
           canPushToGlobal={canEditSelected}
           onClose={() => setViewProduct(null)}
           onEdit={() => { setEditingProduct(viewProduct); setViewProduct(null) }}
-          onDelete={() => { setDeletingProductId(viewProduct.id); setDeletingProductName(viewProduct.name); setViewProduct(null) }}
+          onDelete={() => { setDeletingProductId(viewProduct.id); setDeletingProductName(viewProduct.name ?? viewProduct.source_editor_product?.name ?? ''); setViewProduct(null) }}
           onPushToGlobal={() => { setPushingProduct(viewProduct); setViewProduct(null) }}
         />
       )}

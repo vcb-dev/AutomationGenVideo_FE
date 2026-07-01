@@ -20,22 +20,30 @@ interface Props {
   onPageChange: (page: number) => void
 }
 
-// Lấy tiêu đề content theo thứ tự ưu tiên: personal → team → global
+// Lấy tiêu đề content: personal → team (own→FK) → global (own→team FK→editor FK)
 function resolveContentTitle(task: Task): string | null {
+  const g_tc = task.content?.source_team_content
   return (
     task.editor_content?.title ??
     task.team_content?.title ??
+    task.team_content?.source_editor_content?.title ??
     task.content?.title ??
+    g_tc?.title ??
+    g_tc?.source_editor_content?.title ??
     null
   )
 }
 
-// Lấy tên sản phẩm theo thứ tự ưu tiên: personal → team → global
+// Lấy tên sản phẩm: personal → team (own→FK) → global (own→team FK→editor FK)
 function resolveProductName(task: Task): string | null {
+  const g_tp = task.product?.source_team_product
   return (
     task.editor_product?.name ??
     task.team_product?.name ??
+    task.team_product?.source_editor_product?.name ??
     task.product?.name ??
+    g_tp?.name ??
+    g_tp?.source_editor_product?.name ??
     null
   )
 }

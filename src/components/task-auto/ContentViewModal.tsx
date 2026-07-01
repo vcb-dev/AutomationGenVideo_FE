@@ -53,6 +53,26 @@ export interface ContentViewItem {
   added_by?: { full_name: string } | null
   added_at?: string
   created_at?: string
+  source_editor_content_id?: string | null
+  source_editor_content?: {
+    title?: string | null; body?: string | null; script?: string | null
+    voice_url?: string | null; file_content_url?: string | null
+    market?: string | null; status?: string | null
+    content_line?: { name: string } | null
+  } | null
+  source_team_content_id?: string | null
+  source_team_content?: {
+    title?: string | null; body?: string | null; script?: string | null
+    voice_url?: string | null; file_content_url?: string | null
+    market?: string | null; status?: string | null
+    content_line?: { name: string } | null
+    source_editor_content?: {
+      title?: string | null; body?: string | null; script?: string | null
+      voice_url?: string | null; file_content_url?: string | null
+      market?: string | null; status?: string | null
+      content_line?: { name: string } | null
+    } | null
+  } | null
 }
 
 interface Props {
@@ -78,9 +98,22 @@ export function ContentViewModal({
   useScrollLock()
   const [fileOpen, setFileOpen] = useState(false)
 
-  const markets = (item.market ?? '').split(',').map(m => m.trim()).filter(Boolean)
-  const voicePreviewSrc = drivePreviewUrl(item.voice_url)
-  const fileSrc = drivePreviewUrl(item.file_content_url)
+  // Resolve FK-reference fields: own → source_editor_content (team FK) → source_team_content → source_team_content.source_editor_content (global FK)
+  const ec = item.source_editor_content
+  const tc = item.source_team_content
+  const tc_ec = tc?.source_editor_content
+  const itemTitle = item.title ?? ec?.title ?? tc?.title ?? tc_ec?.title ?? null
+  const itemMarket = item.market ?? ec?.market ?? tc?.market ?? tc_ec?.market ?? null
+  const itemStatus = item.status ?? ec?.status ?? tc?.status ?? tc_ec?.status ?? null
+  const itemBody = item.body ?? ec?.body ?? tc?.body ?? tc_ec?.body ?? null
+  const itemScript = item.script ?? ec?.script ?? tc?.script ?? tc_ec?.script ?? null
+  const itemVoiceUrl = item.voice_url ?? ec?.voice_url ?? tc?.voice_url ?? tc_ec?.voice_url ?? null
+  const itemFileContentUrl = item.file_content_url ?? ec?.file_content_url ?? tc?.file_content_url ?? tc_ec?.file_content_url ?? null
+  const itemContentLine = item.content_line ?? ec?.content_line ?? tc?.content_line ?? tc_ec?.content_line ?? null
+
+  const markets = (itemMarket ?? '').split(',').map(m => m.trim()).filter(Boolean)
+  const voicePreviewSrc = drivePreviewUrl(itemVoiceUrl)
+  const fileSrc = drivePreviewUrl(itemFileContentUrl)
   const dateStr = item.added_at ?? item.created_at
 
   if (!open) return null
@@ -114,11 +147,16 @@ export function ContentViewModal({
                 {/* Title + status */}
                 <div className="flex items-center gap-2.5 flex-wrap mb-2">
                   <h2 className="font-bold text-slate-900 text-xl leading-snug">
-                    {item.title || <span className="text-slate-400 italic font-normal text-lg">Chưa đặt tên</span>}
+                    {itemTitle || <span className="text-slate-400 italic font-normal text-lg">Chưa đặt tên</span>}
                   </h2>
-                  {item.status && (
-                    <span className={cn('px-2.5 py-1 rounded-full text-xs font-semibold shrink-0', STATUS_COLORS[item.status] ?? 'bg-slate-100 text-slate-500')}>
-                      {STATUS_LABELS[item.status] ?? item.status}
+                  {itemStatus && (
+                    <span className={cn('px-2.5 py-1 rounded-full text-xs font-semibold shrink-0', STATUS_COLORS[itemStatus] ?? 'bg-slate-100 text-slate-500')}>
+                      {STATUS_LABELS[itemStatus] ?? itemStatus}
+                    </span>
+                  )}
+                  {item.source_editor_content_id && (
+                    <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-violet-50 text-violet-600">
+                      Từ kho cá nhân
                     </span>
                   )}
                 </div>
@@ -148,9 +186,9 @@ export function ContentViewModal({
                       {MARKET_LABEL[m] ?? m}
                     </span>
                   ))}
-                  {item.content_line && (
+                  {itemContentLine && (
                     <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-violet-100 text-violet-700">
-                      {item.content_line.name}
+                      {itemContentLine.name}
                     </span>
                   )}
                   <span className={cn('px-2 py-0.5 rounded-md text-xs font-semibold', CATALOG_COLORS[catalogType])}>
@@ -167,40 +205,40 @@ export function ContentViewModal({
 
           {/* Body */}
           <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6">
-            {item.body && (
+            {itemBody && (
               <div>
                 <div className="flex items-center gap-2 mb-3">
                   <AlignLeft className="w-4 h-4 text-slate-400" />
                   <p className="text-base font-semibold text-slate-700">Nội dung</p>
                 </div>
                 <div className="bg-gray-50 rounded-2xl px-5 py-4 text-base text-slate-700 whitespace-pre-wrap max-h-60 overflow-y-auto leading-relaxed border border-gray-100">
-                  {item.body}
+                  {itemBody}
                 </div>
               </div>
             )}
 
-            {item.script && (
+            {itemScript && (
               <div>
                 <div className="flex items-center gap-2 mb-3">
                   <Clapperboard className="w-4 h-4 text-slate-400" />
                   <p className="text-base font-semibold text-slate-700">Script</p>
                 </div>
                 <div className="bg-gray-50 rounded-2xl px-5 py-4 text-base text-slate-700 whitespace-pre-wrap max-h-60 overflow-y-auto leading-relaxed border border-gray-100">
-                  {item.script}
+                  {itemScript}
                 </div>
               </div>
             )}
 
-            {(item.voice_url || item.file_content_url) && (
+            {(itemVoiceUrl || itemFileContentUrl) && (
               <div>
                 <p className="text-base font-semibold text-slate-700 mb-3">Tệp đính kèm</p>
                 <div className="space-y-3">
-                  {item.voice_url && (
+                  {itemVoiceUrl && (
                     <div className="rounded-2xl border border-violet-100 bg-violet-50 overflow-hidden">
                       <div className="flex items-center gap-2.5 px-5 py-3 border-b border-violet-100">
                         <Mic className="w-4 h-4 text-violet-500 shrink-0" />
                         <span className="text-sm font-semibold text-violet-700">Voice</span>
-                        <a href={item.voice_url} target="_blank" rel="noopener noreferrer"
+                        <a href={itemVoiceUrl} target="_blank" rel="noopener noreferrer"
                           className="ml-auto flex items-center gap-1.5 text-sm text-violet-500 hover:text-violet-700">
                           <ExternalLink className="w-3.5 h-3.5" /> Mở link
                         </a>
@@ -212,7 +250,7 @@ export function ContentViewModal({
                       )}
                     </div>
                   )}
-                  {item.file_content_url && (
+                  {itemFileContentUrl && (
                     <div className="flex items-center gap-3">
                       {fileSrc && (
                         <button onClick={() => setFileOpen(true)}
@@ -220,7 +258,7 @@ export function ContentViewModal({
                           <FileText className="w-4 h-4" /> Xem file
                         </button>
                       )}
-                      <a href={item.file_content_url} target="_blank" rel="noopener noreferrer"
+                      <a href={itemFileContentUrl} target="_blank" rel="noopener noreferrer"
                         className="flex items-center gap-2 px-5 py-3 rounded-2xl text-sm font-semibold text-slate-600 bg-gray-50 hover:bg-gray-100 border border-gray-200 transition-colors">
                         <ExternalLink className="w-4 h-4" /> Mở link gốc
                       </a>

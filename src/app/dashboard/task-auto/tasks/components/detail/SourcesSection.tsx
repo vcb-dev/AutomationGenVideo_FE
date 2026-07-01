@@ -4,7 +4,26 @@ import { Link2, Package } from 'lucide-react'
 import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { Section } from './Section'
 import { SourceRow } from './SourceRow'
-import type { Source, Task } from '@/types/task-auto'
+import type { Source, SourceType, Task } from '@/types/task-auto'
+
+type AnyTaskSource =
+  | NonNullable<Task['source_outro']>
+  | NonNullable<Task['team_source_outro']>
+
+function resolveSource(s: AnyTaskSource | null | undefined): { id: string; name: string; link: string | null; type: SourceType; nas_link?: string | null } | null {
+  if (!s) return null
+  // team FK: source_editor_source; global FK: source_team_source → source_editor_source
+  const es = 'source_editor_source' in s ? s.source_editor_source : undefined
+  const ts = 'source_team_source' in s ? s.source_team_source : undefined
+  const ts_es = ts && 'source_editor_source' in ts ? ts.source_editor_source : undefined
+  return {
+    id:       s.id,
+    name:     (s.name ?? es?.name ?? ts?.name ?? ts_es?.name ?? '—') as string,
+    link:     s.link ?? es?.link ?? ts?.link ?? ts_es?.link ?? null,
+    type:     (s.type ?? es?.type ?? ts?.type ?? ts_es?.type ?? 'PRODUCT_STOCK') as SourceType,
+    nas_link: s.nas_link ?? es?.nas_link ?? ts?.nas_link ?? ts_es?.nas_link ?? null,
+  }
+}
 
 interface EditSourcesProps {
   form: {
@@ -158,27 +177,27 @@ export function SourcesSection({
               </div>
 
               <div className="space-y-1">
-                {(task.source_outro ?? task.editor_source_outro ?? task.team_source_outro) && (
+                {resolveSource(task.source_outro ?? task.editor_source_outro ?? task.team_source_outro) && (
                   <SourceRow
-                    source={(task.source_outro ?? task.editor_source_outro ?? task.team_source_outro)!}
+                    source={resolveSource(task.source_outro ?? task.editor_source_outro ?? task.team_source_outro)!}
                     label="Outro"
                   />
                 )}
-                {(task.source_extra ?? task.editor_source_extra ?? task.team_source_extra) && (
+                {resolveSource(task.source_extra ?? task.editor_source_extra ?? task.team_source_extra) && (
                   <SourceRow
-                    source={(task.source_extra ?? task.editor_source_extra ?? task.team_source_extra)!}
+                    source={resolveSource(task.source_extra ?? task.editor_source_extra ?? task.team_source_extra)!}
                     label="Sưu tầm"
                   />
                 )}
-                {(task.source_workshop ?? task.editor_source_workshop ?? task.team_source_workshop) && (
+                {resolveSource(task.source_workshop ?? task.editor_source_workshop ?? task.team_source_workshop) && (
                   <SourceRow
-                    source={(task.source_workshop ?? task.editor_source_workshop ?? task.team_source_workshop)!}
+                    source={resolveSource(task.source_workshop ?? task.editor_source_workshop ?? task.team_source_workshop)!}
                     label="Chế tác"
                   />
                 )}
-                {(task.source_huyk ?? task.editor_source_huyk ?? task.team_source_huyk) && (
+                {resolveSource(task.source_huyk ?? task.editor_source_huyk ?? task.team_source_huyk) && (
                   <SourceRow
-                    source={(task.source_huyk ?? task.editor_source_huyk ?? task.team_source_huyk)!}
+                    source={resolveSource(task.source_huyk ?? task.editor_source_huyk ?? task.team_source_huyk)!}
                     label="Huy-K"
                   />
                 )}

@@ -15,8 +15,8 @@ import { SOURCE_TYPE_LABELS } from '@/types/task-auto'
 
 export interface ProductViewItem {
   id: string
-  sku: string
-  name: string
+  sku: string | null
+  name: string | null
   brand_type?: string | null
   market?: string | null
   image_urls?: string[] | null
@@ -32,6 +32,25 @@ export interface ProductViewItem {
   created_at?: string
   team_id?: string
   source_product_id?: string | null
+  source_editor_product_id?: string | null
+  source_editor_product?: {
+    sku: string | null; name: string | null; image_url?: string | null; image_urls?: string[]
+    price?: string | number | null; price_segment?: string | null
+    market?: string | null; priority_score?: number
+    material?: { id: string; name: string } | null; product_line?: { id: string; name: string } | null
+    material_id?: string | null; product_line_id?: string | null
+  } | null
+  source_team_product_id?: string | null
+  source_team_product?: {
+    sku: string | null; name: string | null; image_url?: string | null; image_urls?: string[]
+    price?: string | number | null; price_segment?: string | null; market?: string | null; priority_score?: number
+    material?: { id: string; name: string } | null; product_line?: { id: string; name: string } | null
+    source_editor_product?: {
+      sku: string | null; name: string | null; image_url?: string | null; image_urls?: string[]
+      price?: string | number | null; price_segment?: string | null; market?: string | null; priority_score?: number
+      material?: { id: string; name: string } | null; product_line?: { id: string; name: string } | null
+    } | null
+  } | null
 }
 
 interface Props {
@@ -69,10 +88,28 @@ export function ProductViewModal({
   const [driveErr, setDriveErr] = useState<Record<number, boolean>>({})
   const [lightbox, setLightbox] = useState(false)
 
-  const images = item.image_urls?.length ? item.image_urls : item.image_url ? [item.image_url] : []
-  const markets = (item.market ?? '').split(',').map(m => m.trim()).filter(Boolean)
-  const price = formatPrice(item.price)
-  const prioScore = item.priority_score ?? 0
+  // Resolve FK-reference fields: own → source_editor_product (team FK) → source_team_product → source_team_product.source_editor_product (global FK)
+  const ep = item.source_editor_product
+  const tp = item.source_team_product
+  const tp_ep = tp?.source_editor_product
+  const itemName = item.name ?? ep?.name ?? tp?.name ?? tp_ep?.name ?? '—'
+  const itemSku = item.sku ?? ep?.sku ?? tp?.sku ?? tp_ep?.sku ?? null
+  const itemMarket = item.market ?? ep?.market ?? tp?.market ?? tp_ep?.market ?? null
+  const itemPrice = item.price ?? ep?.price ?? tp?.price ?? tp_ep?.price ?? null
+  const itemPriceSegment = item.price_segment ?? ep?.price_segment ?? tp?.price_segment ?? tp_ep?.price_segment ?? null
+  const itemPrioScore = item.priority_score ?? ep?.priority_score ?? tp?.priority_score ?? tp_ep?.priority_score ?? 0
+  const imageUrls = item.image_urls?.length ? item.image_urls
+    : ep?.image_urls?.length ? ep.image_urls
+    : tp?.image_urls?.length ? tp.image_urls
+    : tp_ep?.image_urls?.length ? tp_ep.image_urls : []
+  const imageUrl = item.image_url ?? ep?.image_url ?? tp?.image_url ?? tp_ep?.image_url ?? null
+  const itemMaterial = item.material ?? ep?.material ?? tp?.material ?? tp_ep?.material ?? null
+  const itemProductLine = item.product_line ?? ep?.product_line ?? tp?.product_line ?? tp_ep?.product_line ?? null
+
+  const images = imageUrls.length ? imageUrls : imageUrl ? [imageUrl] : []
+  const markets = (itemMarket ?? '').split(',').map(m => m.trim()).filter(Boolean)
+  const price = formatPrice(itemPrice)
+  const prioScore = itemPrioScore
   const dateStr = item.added_at ?? item.created_at
   const imgSrc = (url: string, idx: number, size?: number) =>
     driveErr[idx] ? url : (driveImageUrl(url, size) ?? url)
@@ -136,13 +173,13 @@ export function ProductViewModal({
               </button>
             </>
           )}
-          <img src={imgSrc(images[imgIdx], imgIdx)} alt={item.name}
+          <img src={imgSrc(images[imgIdx], imgIdx)} alt={itemName}
             className="max-w-[90vw] max-h-[85vh] object-contain rounded-2xl"
             onClick={e => e.stopPropagation()}
             onError={() => setDriveErr(p => ({ ...p, [imgIdx]: true }))} />
           <div className="absolute bottom-6 flex items-center gap-3">
             {images.length > 1 && <span className="text-white/50 text-sm">{imgIdx + 1} / {images.length}</span>}
-            <button onClick={e => { e.stopPropagation(); downloadImage(imgSrc(images[imgIdx], imgIdx), `${item.sku}-${imgIdx + 1}.jpg`) }}
+            <button onClick={e => { e.stopPropagation(); downloadImage(imgSrc(images[imgIdx], imgIdx), `${itemSku ?? 'product'}-${imgIdx + 1}.jpg`) }}
               className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-white/10 hover:bg-white/20 text-white">
               <Download className="w-4 h-4" /> Tải ảnh
             </button>
@@ -158,13 +195,18 @@ export function ProductViewModal({
           {/* Header */}
           <div className="px-8 pt-7 pb-5 shrink-0">
             <div className="flex items-start justify-between gap-4">
-              <h2 className="text-2xl font-bold text-slate-900 leading-snug flex-1">{item.name}</h2>
+              <h2 className="text-2xl font-bold text-slate-900 leading-snug flex-1">{itemName}</h2>
               <button onClick={onClose} className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0 mt-0.5">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="flex items-center gap-2 flex-wrap mt-3">
-              <span className="font-mono text-xs bg-slate-100 text-slate-500 px-2.5 py-1 rounded-lg font-semibold tracking-wide">{item.sku}</span>
+              {itemSku && <span className="font-mono text-xs bg-slate-100 text-slate-500 px-2.5 py-1 rounded-lg font-semibold tracking-wide">{itemSku}</span>}
+              {item.source_editor_product_id && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-violet-50 text-violet-600">
+                  Từ kho cá nhân
+                </span>
+              )}
               {markets.map(m => (
                 <span key={m} className={cn('px-2.5 py-1 rounded-full text-xs font-semibold',
                   m === 'VIETNAM' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600')}>
@@ -194,7 +236,7 @@ export function ProductViewModal({
                     onClick={() => images.length > 0 && setLightbox(true)}>
                     {images.length > 0 ? (
                       <>
-                        <img src={imgSrc(images[imgIdx], imgIdx, 600)} alt={item.name}
+                        <img src={imgSrc(images[imgIdx], imgIdx, 600)} alt={itemName}
                           className="w-full h-full object-contain group-hover:opacity-90 transition-opacity"
                           onError={() => setDriveErr(p => ({ ...p, [imgIdx]: true }))} />
                         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/10 rounded-2xl">
@@ -218,7 +260,7 @@ export function ProductViewModal({
                     </div>
                   )}
                   {images.length > 0 && (
-                    <button onClick={() => downloadImage(imgSrc(images[imgIdx], imgIdx), `${item.sku}-${imgIdx + 1}.jpg`)}
+                    <button onClick={() => downloadImage(imgSrc(images[imgIdx], imgIdx), `${itemSku ?? 'product'}-${imgIdx + 1}.jpg`)}
                       className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-slate-500 bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors">
                       <Download className="w-4 h-4" /> Tải ảnh
                     </button>
@@ -234,7 +276,7 @@ export function ProductViewModal({
                       : <p className="text-base text-slate-300 italic">Chưa có giá</p>}
                   </div>
 
-                  {(item.product_line || item.material || item.price_segment || item.brand_type || prioScore > 0) && (
+                  {(itemProductLine || itemMaterial || itemPriceSegment || item.brand_type || prioScore > 0) && (
                     <div>
                       <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Thông tin</p>
                       <div className="space-y-0">
@@ -244,22 +286,22 @@ export function ProductViewModal({
                             <span className="text-base font-semibold text-slate-800">{item.brand_type === 'DO_DA' ? 'Đồ da' : 'Trang sức'}</span>
                           </div>
                         )}
-                        {item.product_line && (
+                        {itemProductLine && (
                           <div className="flex items-center justify-between py-3 border-b border-slate-50">
                             <span className="text-base text-slate-500">Dòng sản phẩm</span>
-                            <span className="text-base font-semibold text-slate-800">{item.product_line.name}</span>
+                            <span className="text-base font-semibold text-slate-800">{itemProductLine.name}</span>
                           </div>
                         )}
-                        {item.material && (
+                        {itemMaterial && (
                           <div className="flex items-center justify-between py-3 border-b border-slate-50">
                             <span className="text-base text-slate-500">Chất liệu</span>
-                            <span className="text-base font-semibold text-slate-800">{item.material.name}</span>
+                            <span className="text-base font-semibold text-slate-800">{itemMaterial.name}</span>
                           </div>
                         )}
-                        {item.price_segment && (
+                        {itemPriceSegment && (
                           <div className="flex items-center justify-between py-3 border-b border-slate-50">
                             <span className="text-base text-slate-500">Phân khúc giá</span>
-                            <span className="text-base font-semibold text-slate-800">{item.price_segment}</span>
+                            <span className="text-base font-semibold text-slate-800">{itemPriceSegment}</span>
                           </div>
                         )}
                         {prioScore > 0 && (

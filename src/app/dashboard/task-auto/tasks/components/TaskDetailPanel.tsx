@@ -232,8 +232,16 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
     // team
     const q = productSearch.toLowerCase()
     return (editTeamProductsData ?? [])
-      .filter(p => !q || p.name.toLowerCase().includes(q) || (p.sku ?? '').toLowerCase().includes(q))
-      .map(p => ({ value: `team:${p.id}`, label: p.name, sublabel: p.sku ?? undefined }))
+      .filter(p => {
+        const n = p.name ?? p.source_editor_product?.name ?? ''
+        const s = p.sku ?? p.source_editor_product?.sku ?? ''
+        return !q || n.toLowerCase().includes(q) || s.toLowerCase().includes(q)
+      })
+      .map(p => ({
+        value: `team:${p.id}`,
+        label: p.name ?? p.source_editor_product?.name ?? '—',
+        sublabel: (p.sku ?? p.source_editor_product?.sku) ?? undefined,
+      }))
   }, [editProductsData, editEditorProductsData, editTeamProductsData, productSearch, productScope])
 
   const allContentItems = useMemo(() => {
@@ -250,8 +258,12 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
     // team
     const q = contentSearch.toLowerCase()
     return (editTeamContentsData ?? [])
-      .filter(c => !q || (c.title ?? '').toLowerCase().includes(q))
-      .map(c => ({ value: `team:${c.id}`, label: c.title || c.id, sublabel: c.content_line?.name ?? undefined }))
+      .filter(c => !q || (c.title ?? c.source_editor_content?.title ?? '').toLowerCase().includes(q))
+      .map(c => ({
+        value: `team:${c.id}`,
+        label: c.title ?? c.source_editor_content?.title ?? c.id,
+        sublabel: c.content_line?.name ?? c.source_editor_content?.content_line?.name ?? undefined,
+      }))
   }, [editContentsData, editEditorContentsData, editTeamContentsData, contentSearch, contentScope])
 
   const loadingAllProducts =
@@ -363,57 +375,112 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
     onError: () => toast.error('Huỷ task thất bại'),
   })
 
-  // ✅ Content fallback - đầy đủ từ fullContent đến các relations
-  const contentTitle  = fullContent?.title 
-    ?? task?.editor_content?.title 
-    ?? task?.team_content?.title 
-    ?? task?.content?.title
+  // ✅ Content fallback chain: fullContent → editor → team (own→FK) → global (own→team FK→editor FK)
+  const tc_ec  = task?.team_content?.source_editor_content
+  const g_tc   = task?.content?.source_team_content
+  const g_tc_ec = g_tc?.source_editor_content
 
-  const contentMarket = fullContent?.market 
+  const contentTitle  = fullContent?.title
+    ?? task?.editor_content?.title
+    ?? task?.team_content?.title ?? tc_ec?.title
+    ?? task?.content?.title ?? g_tc?.title ?? g_tc_ec?.title
+
+  const contentMarket = fullContent?.market
     ?? task?.editor_content?.market
-    ?? task?.team_content?.market
-    ?? task?.content?.market
+    ?? task?.team_content?.market ?? tc_ec?.market
+    ?? task?.content?.market ?? g_tc?.market ?? g_tc_ec?.market
 
-  const contentLine   = fullContent?.content_line?.name 
+  const contentLine   = fullContent?.content_line?.name
     ?? task?.editor_content?.content_line?.name
-    ?? task?.team_content?.content_line?.name
-    ?? task?.content?.content_line?.name 
+    ?? task?.team_content?.content_line?.name ?? tc_ec?.content_line?.name
+    ?? task?.content?.content_line?.name ?? g_tc?.content_line?.name ?? g_tc_ec?.content_line?.name
     ?? task?.content_line?.name
 
-  const fileUrl       = fullContent?.file_content_url 
+  const fileUrl       = fullContent?.file_content_url
     ?? task?.editor_content?.file_content_url
-    ?? task?.team_content?.file_content_url
-    ?? task?.content?.file_content_url
+    ?? task?.team_content?.file_content_url ?? tc_ec?.file_content_url
+    ?? task?.content?.file_content_url ?? g_tc?.file_content_url ?? g_tc_ec?.file_content_url
 
-  const scriptText    = fullContent?.body 
-    || fullContent?.script 
+  const scriptText    = fullContent?.body
+    || fullContent?.script
     || task?.editor_content?.body
     || task?.editor_content?.script
-    || task?.team_content?.body
-    || task?.team_content?.script
+    || task?.team_content?.body || tc_ec?.body
+    || task?.team_content?.script || tc_ec?.script
     || task?.content?.script
+    || g_tc?.body || g_tc_ec?.body || g_tc?.script || g_tc_ec?.script
 
   const voiceUrl = fullContent?.voice_url
     ?? task?.editor_content?.voice_url
-    ?? task?.team_content?.voice_url
-    
+    ?? task?.team_content?.voice_url ?? tc_ec?.voice_url
+    ?? g_tc?.voice_url ?? g_tc_ec?.voice_url
 
-  // ✅ Product fallback - đầy đủ từ fullProduct đến các relations
+  // ✅ Product fallback chain: fullProduct → editor → team (own→FK) → global (own→team FK→editor FK)
+  const tp    = task?.team_product
+  const tp_ep = tp?.source_editor_product
+  const teamProductResolved = tp ? {
+    ...tp,
+    sku:           tp.sku           ?? tp_ep?.sku           ?? null,
+    name:          tp.name          ?? tp_ep?.name          ?? null,
+    image_url:     tp.image_url     ?? tp_ep?.image_url     ?? null,
+    image_urls:    tp.image_urls?.length ? tp.image_urls : (tp_ep?.image_urls ?? []),
+    price:         tp.price         ?? tp_ep?.price         ?? null,
+    market:        tp.market        ?? tp_ep?.market        ?? null,
+    price_segment: tp.price_segment ?? tp_ep?.price_segment ?? null,
+    priority_score: tp.priority_score ?? tp_ep?.priority_score ?? 0,
+    material:      tp.material      ?? tp_ep?.material      ?? null,
+    product_line:  tp.product_line  ?? tp_ep?.product_line  ?? null,
+  } : undefined
+
+  const g_tp    = task?.product?.source_team_product
+  const g_tp_ep = g_tp?.source_editor_product
+  const globalProductResolved = task?.product ? {
+    ...task.product,
+    name:          task.product.name || g_tp?.name || g_tp_ep?.name || null,
+    sku:           task.product.sku  || g_tp?.sku  || g_tp_ep?.sku  || null,
+    image_url:     task.product.image_url ?? g_tp?.image_url ?? g_tp_ep?.image_url ?? null,
+    image_urls:    task.product.image_urls?.length ? task.product.image_urls : (g_tp?.image_urls?.length ? g_tp.image_urls : (g_tp_ep?.image_urls ?? [])),
+    price:         task.product.price ?? g_tp?.price ?? g_tp_ep?.price ?? null,
+    market:        task.product.market || g_tp?.market || g_tp_ep?.market || null,
+    price_segment: task.product.price_segment || g_tp?.price_segment || g_tp_ep?.price_segment || null,
+    priority_score: task.product.priority_score ?? g_tp?.priority_score ?? g_tp_ep?.priority_score ?? 0,
+    material:      task.product.material ?? g_tp?.material ?? g_tp_ep?.material ?? null,
+    product_line:  task.product.product_line ?? g_tp?.product_line ?? g_tp_ep?.product_line ?? null,
+  } : undefined
+
   const resolvedProduct = fullProduct
     ?? (task?.editor_product ? task.editor_product as unknown as typeof fullProduct : undefined)
-    ?? (task?.team_product   ? task.team_product   as unknown as typeof fullProduct : undefined)
-    ?? (task?.product        ? task.product        as unknown as typeof fullProduct : undefined)
+    ?? (teamProductResolved  ? teamProductResolved  as unknown as typeof fullProduct : undefined)
+    ?? (globalProductResolved ? globalProductResolved as unknown as typeof fullProduct : undefined)
 
-  const productName   = resolvedProduct?.name
+  // resolvedProduct có thể vẫn là FK reference (own fields rỗng) → resolve thêm qua source_team_product
+  const rp_tp    = resolvedProduct?.source_team_product
+  const rp_tp_ep = rp_tp?.source_editor_product
 
-  const productSku    = resolvedProduct?.sku
+  const rp_imageUrls = resolvedProduct?.image_urls?.length ? resolvedProduct.image_urls
+    : rp_tp?.image_urls?.length ? rp_tp.image_urls
+    : rp_tp_ep?.image_urls?.length ? rp_tp_ep.image_urls : []
+  const rp_imageUrl  = resolvedProduct?.image_url ?? rp_tp?.image_url ?? rp_tp_ep?.image_url ?? null
 
-  const primaryImage  = resolvedProduct?.image_url
-    ?? resolvedProduct?.image_urls?.[0]
+  // mergedProduct: object đã resolve hoàn toàn — dùng cho ProductSection
+  const mergedProduct = resolvedProduct ? {
+    ...resolvedProduct,
+    name:           resolvedProduct.name           || rp_tp?.name           || rp_tp_ep?.name           || null,
+    sku:            resolvedProduct.sku            || rp_tp?.sku            || rp_tp_ep?.sku            || null,
+    image_url:      rp_imageUrl,
+    image_urls:     rp_imageUrls,
+    price:          resolvedProduct.price          ?? rp_tp?.price          ?? rp_tp_ep?.price          ?? null,
+    market:         resolvedProduct.market         || rp_tp?.market         || rp_tp_ep?.market         || null,
+    price_segment:  resolvedProduct.price_segment  || rp_tp?.price_segment  || rp_tp_ep?.price_segment  || null,
+    priority_score: resolvedProduct.priority_score ?? rp_tp?.priority_score ?? rp_tp_ep?.priority_score ?? 0,
+    material:       resolvedProduct.material       ?? rp_tp?.material       ?? rp_tp_ep?.material       ?? null,
+    product_line:   resolvedProduct.product_line   ?? rp_tp?.product_line   ?? rp_tp_ep?.product_line   ?? null,
+  } as typeof resolvedProduct : undefined
 
-  const extraImages   = (resolvedProduct?.image_urls ?? [])
-    .filter(u => u !== primaryImage)
-    .slice(0, 3)
+  const productName  = mergedProduct?.name  ?? null
+  const productSku   = mergedProduct?.sku   ?? null
+  const primaryImage = rp_imageUrl ?? rp_imageUrls[0] ?? null
+  const extraImages  = rp_imageUrls.filter(u => u !== primaryImage).slice(0, 3)
 
   const isDriveUrl   = task?.result_url?.includes('drive.google.com')
   const isLegacyPath = task?.result_url?.startsWith('/task-auto/tasks/')
@@ -611,7 +678,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                             task?.editor_product_id ||
                             task?.team_product_id
                           ),
-                          fullProduct: resolvedProduct,
+                          fullProduct: mergedProduct,
                           productName,
                           productSku,
                           primaryImage,
@@ -628,11 +695,11 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                       contentMarket={contentMarket}
                       productName={productName}
                       productSku={productSku}
-                      productPrice={resolvedProduct?.price}
-                      productMaterial={resolvedProduct?.material?.name ?? null}
-                      productPriceSegment={resolvedProduct?.price_segment ?? null}
-                      productLine={resolvedProduct?.product_line?.name ?? null}
-                      productMarket={resolvedProduct?.market ?? null}
+                      productPrice={mergedProduct?.price ?? null}
+                      productMaterial={mergedProduct?.material?.name ?? null}
+                      productPriceSegment={mergedProduct?.price_segment ?? null}
+                      productLine={mergedProduct?.product_line?.name ?? null}
+                      productMarket={mergedProduct?.market ?? null}
                     />
 
                     <TaskMetaStrip

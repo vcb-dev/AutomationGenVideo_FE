@@ -6,7 +6,6 @@ import type {
   EditorApproval,
   TeamKpi,
   EditorKpi,
-  EditorWeekendKpi,
   ContentLine,
   ProductLine,
   Material,
@@ -194,7 +193,8 @@ export type TaskAutoDashboard = {
     kpi_extra?: number; content_new?: number; content_collected?: number; content_win_cover?: number
     // Product
     product_planned?: number; product_win_collect?: number
-    video_traffic?: number; video_gmv?: number; video_profit?: number
+    content_allocations?: { id: string; name: string; weight: number }[]
+    product_allocations?: { id: string; name: string; weight: number }[]
   } | null
 }
 
@@ -239,15 +239,6 @@ export const createEditorKpi = (body: Partial<EditorKpi>) =>
 /** Upsert — same endpoint as create */
 export const updateEditorKpi = (_id: string, body: Partial<EditorKpi>) =>
   apiClient.post<EditorKpi>('/task-auto/kpi/editors', body).then(r => r.data)
-
-export const getEditorWeekendKpis = (month?: string) =>
-  apiClient.get<EditorWeekendKpi[]>(`/task-auto/kpi/weekend-editors${qs({ month })}`).then(r => r.data)
-
-export const upsertEditorWeekendKpi = (body: { user_id: string; date: string; kpi: number }) =>
-  apiClient.post<EditorWeekendKpi>('/task-auto/kpi/weekend-editors', body).then(r => r.data)
-
-export const deleteEditorWeekendKpi = (id: string) =>
-  apiClient.delete(`/task-auto/kpi/weekend-editors/${id}`).then(r => r.data)
 
 export const deleteEditorKpi = (id: string) =>
   apiClient.delete(`/task-auto/kpi/editors/${id}`).then(r => r.data)

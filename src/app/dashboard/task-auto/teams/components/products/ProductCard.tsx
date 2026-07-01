@@ -17,7 +17,16 @@ export function ProductCard({ teamProduct, canRemove, onRemove, onEdit }: Props)
   const [showDetail, setShowDetail] = useState(false)
   const [imgError, setImgError] = useState(false)
   const p = teamProduct
-  const rawThumb = p?.image_urls?.[0] ?? p?.image_url ?? null
+  const ep = p.source_editor_product
+  // Resolve effective values: own data first, fallback to editor product FK
+  const name = p.name ?? ep?.name ?? null
+  const sku = p.sku ?? ep?.sku ?? null
+  const imageUrls = p.image_urls?.length ? p.image_urls : (ep?.image_urls ?? [])
+  const imageUrl = p.image_url ?? ep?.image_url ?? null
+  const price = p.price ?? ep?.price ?? null
+  const market = p.market ?? ep?.market ?? null
+  const priorityScore = p.priority_score ?? ep?.priority_score ?? 0
+  const rawThumb = imageUrls[0] ?? imageUrl ?? null
   const thumb = rawThumb && !imgError ? (driveImageUrl(rawThumb) ?? rawThumb) : null
 
   return (
@@ -31,7 +40,7 @@ export function ProductCard({ teamProduct, canRemove, onRemove, onEdit }: Props)
           {thumb ? (
             <img
               src={thumb}
-              alt={p?.name}
+              alt={name ?? ''}
               onError={() => setImgError(true)}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             />
@@ -42,12 +51,12 @@ export function ProductCard({ teamProduct, canRemove, onRemove, onEdit }: Props)
           )}
 
           {/* Market badge */}
-          {p?.market && (
+          {market && (
             <span className={cn(
               'absolute top-2 left-2 px-1.5 py-0.5 rounded text-[10px] font-bold shadow-sm',
-              p.market === 'VIETNAM' ? 'bg-red-500 text-white' : 'bg-blue-500 text-white'
+              market === 'VIETNAM' ? 'bg-red-500 text-white' : 'bg-blue-500 text-white'
             )}>
-              {p.market === 'VIETNAM' ? 'VN' : 'GL'}
+              {market === 'VIETNAM' ? 'VN' : 'GL'}
             </span>
           )}
 
@@ -84,21 +93,21 @@ export function ProductCard({ teamProduct, canRemove, onRemove, onEdit }: Props)
         {/* Info */}
         <div className="px-3 py-2.5">
           <p className="font-semibold text-slate-800 text-sm leading-snug line-clamp-2 min-h-[2.5rem]">
-            {p?.name ?? '—'}
+            {name ?? '—'}
           </p>
-          <p className="text-[11px] text-slate-400 font-mono mt-0.5">{p?.sku}</p>
+          <p className="text-[11px] text-slate-400 font-mono mt-0.5">{sku}</p>
           <div className="flex items-center justify-between mt-2">
-            {p?.price ? (
+            {price ? (
               <p className="text-sm font-black text-indigo-600">
-                {Number(p.price).toLocaleString('vi-VN')}₫
+                {Number(price).toLocaleString('vi-VN')}₫
               </p>
             ) : (
               <span className="text-xs text-slate-300">—</span>
             )}
-            {(p?.priority_score ?? 0) > 0 && (
+            {priorityScore > 0 && (
               <div className="flex items-center gap-0.5">
                 <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                <span className="text-xs font-bold text-amber-500">{p?.priority_score}</span>
+                <span className="text-xs font-bold text-amber-500">{priorityScore}</span>
               </div>
             )}
           </div>

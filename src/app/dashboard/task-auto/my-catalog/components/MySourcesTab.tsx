@@ -276,9 +276,11 @@ function ImportModal({
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-slate-800 truncate">{s.name}</p>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold', SOURCE_TYPE_COLORS[s.type])}>
-                      {SOURCE_TYPE_LABELS[s.type]}
-                    </span>
+                    {s.type && (
+                      <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold', SOURCE_TYPE_COLORS[s.type])}>
+                        {SOURCE_TYPE_LABELS[s.type]}
+                      </span>
+                    )}
                     {s.code && <span className="font-mono text-xs text-slate-400">{s.code}</span>}
                     {(s.editor_product?.name ?? s.product?.name) && <span className="text-xs text-slate-400 truncate">· {s.editor_product?.name ?? s.product?.name}</span>}
                   </div>

@@ -35,10 +35,22 @@ export function ProductDetailModal({ teamProduct, canRemove, onRemove, onEdit, o
   const [lightbox, setLightbox] = useState(false)
 
   const tp = teamProduct
-  const images = tp.image_urls?.length ? tp.image_urls : tp.image_url ? [tp.image_url] : []
-  const markets = (tp.market ?? '').split(',').map(m => m.trim()).filter(Boolean)
-  const price = formatPrice(tp.price)
-  const prioScore = tp.priority_score ?? 0
+  const ep = tp.source_editor_product
+  // Resolve effective values: own data first, fallback to editor product FK
+  const name = tp.name ?? ep?.name ?? '—'
+  const sku = tp.sku ?? ep?.sku ?? null
+  const imageUrls = tp.image_urls?.length ? tp.image_urls : (ep?.image_urls?.length ? ep.image_urls : [])
+  const imageUrl = tp.image_url ?? ep?.image_url ?? null
+  const rawImages = imageUrls.length ? imageUrls : imageUrl ? [imageUrl] : []
+  const priceRaw = tp.price ?? ep?.price ?? null
+  const marketRaw = tp.market ?? ep?.market ?? null
+  const priceSegment = tp.price_segment ?? ep?.price_segment ?? null
+  const prioScore = tp.priority_score ?? ep?.priority_score ?? 0
+  const isActive = tp.is_active
+
+  const images = rawImages
+  const markets = (marketRaw ?? '').split(',').map(m => m.trim()).filter(Boolean)
+  const price = formatPrice(priceRaw)
 
   const imgSrc = (url: string, idx: number, size?: number) =>
     driveErr[idx] ? url : (driveImageUrl(url, size) ?? url)
@@ -97,7 +109,7 @@ export function ProductDetailModal({ teamProduct, canRemove, onRemove, onEdit, o
           )}
           <img
             src={imgSrc(images[imgIdx], imgIdx)}
-            alt={tp.name}
+            alt={name}
             className="max-w-[90vw] max-h-[85vh] object-contain rounded-xl"
             onClick={e => e.stopPropagation()}
             onError={() => setDriveErr(prev => ({ ...prev, [imgIdx]: true }))}
@@ -109,7 +121,7 @@ export function ProductDetailModal({ teamProduct, canRemove, onRemove, onEdit, o
             <button
               onClick={e => {
                 e.stopPropagation()
-                downloadImage(imgSrc(images[imgIdx], imgIdx), `${tp.sku}-${imgIdx + 1}.jpg`)
+                downloadImage(imgSrc(images[imgIdx], imgIdx), `${sku ?? 'product'}-${imgIdx + 1}.jpg`)
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-white/10 hover:bg-white/20 text-white transition-colors"
             >
@@ -128,9 +140,11 @@ export function ProductDetailModal({ teamProduct, canRemove, onRemove, onEdit, o
           {/* ── Header ─────────────────────────────── */}
           <div className="flex items-center justify-between px-6 pt-5 pb-4 shrink-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-mono text-xs bg-slate-100 text-slate-500 px-2.5 py-1 rounded-lg font-semibold tracking-wide">
-                {tp.sku}
-              </span>
+              {sku && (
+                <span className="font-mono text-xs bg-slate-100 text-slate-500 px-2.5 py-1 rounded-lg font-semibold tracking-wide">
+                  {sku}
+                </span>
+              )}
               {markets.map(m => (
                 <span key={m} className={cn(
                   'px-2.5 py-1 rounded-full text-xs font-semibold',
@@ -141,14 +155,19 @@ export function ProductDetailModal({ teamProduct, canRemove, onRemove, onEdit, o
               ))}
               <span className={cn(
                 'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold',
-                tp.is_active ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-slate-400'
+                isActive ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-slate-400'
               )}>
-                <span className={cn('w-1.5 h-1.5 rounded-full', tp.is_active ? 'bg-emerald-500' : 'bg-slate-300')} />
-                {tp.is_active ? 'Hoạt động' : 'Ẩn'}
+                <span className={cn('w-1.5 h-1.5 rounded-full', isActive ? 'bg-emerald-500' : 'bg-slate-300')} />
+                {isActive ? 'Hoạt động' : 'Ẩn'}
               </span>
               {tp.source_product_id && (
                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-600">
                   Từ kho tổng
+                </span>
+              )}
+              {tp.source_editor_product_id && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-violet-50 text-violet-600">
+                  Từ kho cá nhân
                 </span>
               )}
             </div>
@@ -162,7 +181,7 @@ export function ProductDetailModal({ teamProduct, canRemove, onRemove, onEdit, o
 
           {/* Product name */}
           <div className="px-6 pb-4 shrink-0">
-            <h2 className="text-xl font-bold text-slate-900 leading-snug">{tp.name}</h2>
+            <h2 className="text-xl font-bold text-slate-900 leading-snug">{name}</h2>
           </div>
 
           <div className="w-full h-px bg-slate-100 shrink-0" />
@@ -187,7 +206,7 @@ export function ProductDetailModal({ teamProduct, canRemove, onRemove, onEdit, o
                       <>
                         <img
                           src={imgSrc(images[imgIdx], imgIdx, 600)}
-                          alt={tp.name}
+                          alt={name}
                           className="w-full h-full object-contain group-hover:opacity-90 transition-opacity"
                           onError={() => setDriveErr(prev => ({ ...prev, [imgIdx]: true }))}
                         />
@@ -228,7 +247,7 @@ export function ProductDetailModal({ teamProduct, canRemove, onRemove, onEdit, o
                     <button
                       onClick={() => downloadImage(
                         imgSrc(images[imgIdx], imgIdx),
-                        `${tp.sku}-${imgIdx + 1}.jpg`
+                        `${sku ?? 'product'}-${imgIdx + 1}.jpg`
                       )}
                       className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold text-slate-500 bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors"
                     >
@@ -251,7 +270,7 @@ export function ProductDetailModal({ teamProduct, canRemove, onRemove, onEdit, o
                   </div>
 
                   {/* Attributes */}
-                  {(tp.product_line || tp.material || tp.price_segment || prioScore > 0) && (
+                  {(tp.product_line || tp.material || priceSegment || prioScore > 0) && (
                     <div>
                       <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2.5">Thông tin</p>
                       <div className="space-y-0">
@@ -267,10 +286,10 @@ export function ProductDetailModal({ teamProduct, canRemove, onRemove, onEdit, o
                             <span className="text-sm font-semibold text-slate-800">{tp.material.name}</span>
                           </div>
                         )}
-                        {tp.price_segment && (
+                        {priceSegment && (
                           <div className="flex items-center justify-between py-2.5 border-b border-slate-50">
                             <span className="text-sm text-slate-500">Phân khúc giá</span>
-                            <span className="text-sm font-semibold text-slate-800">{tp.price_segment}</span>
+                            <span className="text-sm font-semibold text-slate-800">{priceSegment}</span>
                           </div>
                         )}
                         {prioScore > 0 && (
@@ -322,17 +341,22 @@ export function ProductDetailModal({ teamProduct, canRemove, onRemove, onEdit, o
                   </div>
                 ) : (
                   <div className="space-y-1.5">
-                    {[...sources, ...teamSources].map(s => (
-                      <a key={s.id} href={s.link} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/30 transition-all group">
-                        <span className={cn('px-2.5 py-1 rounded-full text-xs font-bold shrink-0', SOURCE_TYPE_COLORS[s.type] ?? 'bg-slate-100 text-slate-500')}>
-                          {SOURCE_TYPE_LABELS[s.type]}
-                        </span>
-                        <span className="text-sm font-medium text-slate-700 truncate flex-1">{s.name}</span>
-                        {s.code && <span className="font-mono text-xs text-slate-400 shrink-0 bg-slate-100 px-2 py-0.5 rounded-lg">{s.code}</span>}
-                        <ExternalLink className="w-4 h-4 text-slate-300 group-hover:text-indigo-500 shrink-0 transition-colors" />
-                      </a>
-                    ))}
+                    {[...sources, ...teamSources].map(s => {
+                      const sLink = s.link ?? null
+                      const sType = s.type ?? null
+                      const sName = s.name ?? ('source_editor_source' in s ? (s as any).source_editor_source?.name : null) ?? '—'
+                      return (
+                        <a key={s.id} href={sLink ?? '#'} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/30 transition-all group">
+                          <span className={cn('px-2.5 py-1 rounded-full text-xs font-bold shrink-0', sType ? (SOURCE_TYPE_COLORS[sType] ?? 'bg-slate-100 text-slate-500') : 'bg-slate-100 text-slate-500')}>
+                            {sType ? SOURCE_TYPE_LABELS[sType] : '—'}
+                          </span>
+                          <span className="text-sm font-medium text-slate-700 truncate flex-1">{sName}</span>
+                          {s.code && <span className="font-mono text-xs text-slate-400 shrink-0 bg-slate-100 px-2 py-0.5 rounded-lg">{s.code}</span>}
+                          <ExternalLink className="w-4 h-4 text-slate-300 group-hover:text-indigo-500 shrink-0 transition-colors" />
+                        </a>
+                      )
+                    })}
                   </div>
                 )}
               </div>

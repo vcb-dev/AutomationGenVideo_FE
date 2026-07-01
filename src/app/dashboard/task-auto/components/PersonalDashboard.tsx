@@ -14,6 +14,15 @@ import type { Task, TaskStatus } from '@/types/task-auto'
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
+const PRODUCT_ALLOC_COLORS = [
+  { color: 'text-blue-600',  bg: 'bg-blue-50' },
+  { color: 'text-teal-600',  bg: 'bg-teal-50' },
+  { color: 'text-green-600', bg: 'bg-green-50' },
+  { color: 'text-amber-600', bg: 'bg-amber-50' },
+  { color: 'text-violet-600', bg: 'bg-violet-50' },
+  { color: 'text-rose-600',  bg: 'bg-rose-50' },
+]
+
 function formatMonth(yyyymm: string) {
   const [y, m] = yyyymm.split('-')
   return `Tháng ${m}/${y}`
@@ -572,19 +581,18 @@ export function PersonalDashboard({ d }: { d: any }) {
                 )}
               </div>
 
-              {/* Traffic / GMV / Profit */}
-              {(kpi.video_traffic || kpi.video_gmv || kpi.video_profit) ? (
+              {/* Phân bổ dòng sản phẩm */}
+              {kpi.product_allocations?.length > 0 ? (
                 <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { label: 'Traffic',  value: kpi.video_traffic,  color: 'text-blue-600',   bg: 'bg-blue-50' },
-                    { label: 'GMV',      value: kpi.video_gmv,      color: 'text-teal-600',   bg: 'bg-teal-50' },
-                    { label: 'Profit',   value: kpi.video_profit,   color: 'text-green-600',  bg: 'bg-green-50' },
-                  ].map(({ label, value, color, bg }) => (
-                    <div key={label} className={cn('rounded-xl px-3 py-3 text-center', bg)}>
-                      <p className="text-xs text-slate-500 font-semibold mb-1">{label}</p>
-                      <p className={cn('text-2xl font-black', color)}>{value ?? 0}</p>
-                    </div>
-                  ))}
+                  {kpi.product_allocations.map((a: { id: string; name: string; weight: number }, i: number) => {
+                    const { color, bg } = PRODUCT_ALLOC_COLORS[i % PRODUCT_ALLOC_COLORS.length]
+                    return (
+                      <div key={a.id} className={cn('rounded-xl px-3 py-3 text-center', bg)}>
+                        <p className="text-xs text-slate-500 font-semibold mb-1 truncate">{a.name}</p>
+                        <p className={cn('text-2xl font-black', color)}>{a.weight}</p>
+                      </div>
+                    )
+                  })}
                 </div>
               ) : null}
             </div>

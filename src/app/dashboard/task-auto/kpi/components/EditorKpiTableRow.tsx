@@ -23,6 +23,13 @@ export function EditorKpiTableRow({ kpi, canEdit, onEdit, onDelete, onViewDetail
         <p className="font-semibold text-slate-900 text-sm">{kpi.user?.full_name ?? '-'}</p>
         <p className="text-xs text-slate-400">{kpi.user?.email ?? ''}</p>
       </td>
+      <td className="px-5 py-4 whitespace-nowrap">
+        {kpi.team ? (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700">
+            {kpi.team.name}
+          </span>
+        ) : <span className="text-slate-300 text-xs">—</span>}
+      </td>
       <td className="px-5 py-4 text-sm text-slate-500 whitespace-nowrap">{monthLabel}</td>
       <td className="px-5 py-4 text-right whitespace-nowrap">
         <span className="font-bold text-indigo-600 text-base">{kpi.total_target}</span>
@@ -79,7 +86,7 @@ export function EditorKpiLoadingRows() {
     <>
       {Array.from({ length: 4 }).map((_, i) => (
         <tr key={i}>
-          {Array.from({ length: 8 }).map((_, j) => (
+          {Array.from({ length: 9 }).map((_, j) => (
             <td key={j} className="px-5 py-4">
               <div className="h-4 bg-gray-100 rounded animate-pulse" />
             </td>

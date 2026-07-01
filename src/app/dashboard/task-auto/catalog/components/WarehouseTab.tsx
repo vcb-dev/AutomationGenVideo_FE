@@ -106,7 +106,18 @@ function PickItemsModal({
     setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
 
   if (!open) return null
-  const labelOf = (item: any) => item.name ?? item.title ?? item.sku ?? item.id
+  const labelOf = (item: any) => {
+    const tp = item.source_team_product; const tp_ep = tp?.source_editor_product
+    const tc = item.source_team_content; const tc_ec = tc?.source_editor_content
+    const ts = item.source_team_source; const ts_es = ts?.source_editor_source
+    return (
+      item.name || item.title || item.sku ||
+      tp?.name || tp_ep?.name ||
+      tc?.title || tc_ec?.title ||
+      ts?.name || ts_es?.name ||
+      item.id
+    )
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -301,11 +312,30 @@ export function WarehouseTab({ brandType, isAdminOrManager = false, isScaleData 
     setCreateWhat(null)
   }
 
-  const labelOf = (item: any): string => item.name ?? item.title ?? item.sku ?? '—'
+  const labelOf = (item: any): string => {
+    const tp = item.source_team_product; const tp_ep = tp?.source_editor_product
+    const tc = item.source_team_content; const tc_ec = tc?.source_editor_content
+    const ts = item.source_team_source; const ts_es = ts?.source_editor_source
+    return (
+      item.name || item.title || item.sku ||
+      tp?.name || tp_ep?.name ||
+      tc?.title || tc_ec?.title ||
+      ts?.name || ts_es?.name ||
+      '—'
+    )
+  }
   const subOf = (item: any, tab: SubTab): string => {
-    if (tab === 'products') return item.sku ?? ''
-    if (tab === 'contents') return item.content_line?.name ?? item.market ?? ''
-    return item.type ?? ''
+    if (tab === 'products') {
+      return item.sku || item.source_team_product?.sku || item.source_team_product?.source_editor_product?.sku || ''
+    }
+    if (tab === 'contents') {
+      return (
+        item.content_line?.name ?? item.source_team_content?.content_line?.name ??
+        item.source_team_content?.source_editor_content?.content_line?.name ??
+        item.market ?? item.source_team_content?.market ?? ''
+      )
+    }
+    return item.type ?? item.source_team_source?.type ?? item.source_team_source?.source_editor_source?.type ?? ''
   }
 
   return (

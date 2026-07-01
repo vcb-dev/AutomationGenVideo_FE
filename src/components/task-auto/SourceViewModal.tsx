@@ -25,9 +25,9 @@ const CATALOG_COLORS: Record<string, string> = {
 
 export interface SourceViewItem {
   id: string
-  type: SourceType
-  name: string
-  link: string
+  type: SourceType | null
+  name: string | null
+  link: string | null
   nas_link?: string | null
   code?: string | null
   is_active?: boolean
@@ -35,10 +35,25 @@ export interface SourceViewItem {
   added_by?: { full_name: string } | null
   added_at?: string
   created_at?: string
-  product?: { id: string; name: string } | null
-  team_product?: { id: string; sku: string; name: string } | null
+  product?: { id: string; name: string | null } | null
+  team_product?: { id: string; sku: string | null; name: string | null } | null
   editor_product?: { id: string; name: string } | null
   source_source_id?: string | null
+  source_editor_source_id?: string | null
+  source_editor_source?: {
+    type: SourceType; name: string; link: string
+    nas_link?: string | null; code?: string | null
+    brand_type?: string | null; is_active?: boolean
+  } | null
+  source_team_source_id?: string | null
+  source_team_source?: {
+    type?: SourceType | null; name?: string | null; link?: string | null
+    nas_link?: string | null; code?: string | null; is_active?: boolean
+    source_editor_source?: {
+      type: SourceType; name: string; link: string
+      nas_link?: string | null; code?: string | null; is_active?: boolean
+    } | null
+  } | null
 }
 
 interface Props {
@@ -62,6 +77,17 @@ export function SourceViewModal({
   useScrollLock()
 
   const dateStr = item.added_at ?? item.created_at
+  // Resolve FK-reference fields: own → source_editor_source (team FK) → source_team_source → source_team_source.source_editor_source (global FK)
+  const es = item.source_editor_source
+  const ts = item.source_team_source
+  const ts_es = ts?.source_editor_source
+  const itemType = item.type ?? es?.type ?? ts?.type ?? ts_es?.type ?? null
+  const itemName = item.name ?? es?.name ?? ts?.name ?? ts_es?.name ?? '—'
+  const itemLink = item.link ?? es?.link ?? ts?.link ?? ts_es?.link ?? null
+  const itemNasLink = item.nas_link ?? es?.nas_link ?? ts?.nas_link ?? ts_es?.nas_link ?? null
+  const itemCode = item.code ?? es?.code ?? null
+  const itemIsActive = item.is_active ?? es?.is_active ?? true
+
   const linkedProduct = item.team_product ?? item.editor_product ?? item.product
 
   if (!open) return null
@@ -77,25 +103,32 @@ export function SourceViewModal({
           <div className="flex items-start gap-4">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2.5 flex-wrap mb-2">
-                <span className={cn('px-3 py-1.5 rounded-full text-sm font-bold shrink-0', SOURCE_TYPE_COLORS[item.type] ?? 'bg-slate-100 text-slate-500')}>
-                  {SOURCE_TYPE_LABELS[item.type]}
-                </span>
+                {itemType && (
+                  <span className={cn('px-3 py-1.5 rounded-full text-sm font-bold shrink-0', SOURCE_TYPE_COLORS[itemType] ?? 'bg-slate-100 text-slate-500')}>
+                    {SOURCE_TYPE_LABELS[itemType]}
+                  </span>
+                )}
                 <span className={cn('inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold',
-                  item.is_active ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-slate-400')}>
-                  <span className={cn('w-2 h-2 rounded-full', item.is_active ? 'bg-emerald-500' : 'bg-slate-300')} />
-                  {item.is_active ? 'Hoạt động' : 'Ẩn'}
+                  itemIsActive ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-slate-400')}>
+                  <span className={cn('w-2 h-2 rounded-full', itemIsActive ? 'bg-emerald-500' : 'bg-slate-300')} />
+                  {itemIsActive ? 'Hoạt động' : 'Ẩn'}
                 </span>
+                {item.source_editor_source_id && (
+                  <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-violet-50 text-violet-600">
+                    Từ kho cá nhân
+                  </span>
+                )}
                 <span className={cn('px-2.5 py-1 rounded-md text-xs font-semibold', CATALOG_COLORS[catalogType])}>
                   {CATALOG_LABELS[catalogType]}
                 </span>
               </div>
 
-              <h2 className="font-bold text-slate-900 text-xl leading-snug">{item.name}</h2>
+              <h2 className="font-bold text-slate-900 text-xl leading-snug">{itemName}</h2>
 
               {/* Meta row */}
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-2 text-sm text-slate-500">
-                {item.code && (
-                  <span className="font-mono bg-slate-100 text-slate-600 px-2.5 py-1 rounded-lg text-sm">{item.code}</span>
+                {itemCode && (
+                  <span className="font-mono bg-slate-100 text-slate-600 px-2.5 py-1 rounded-lg text-sm">{itemCode}</span>
                 )}
                 {item.brand_type && (
                   <span>{item.brand_type === 'DO_DA' ? 'Đồ da' : 'Trang sức'}</span>
@@ -127,24 +160,31 @@ export function SourceViewModal({
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-8 py-6 space-y-4">
           {/* Link */}
-          <div className="flex items-center gap-3 bg-gray-50 rounded-2xl px-5 py-4 border border-gray-100">
-            <Link2 className="w-5 h-5 text-slate-400 shrink-0" />
-            <a href={item.link} target="_blank" rel="noreferrer"
-              className="flex-1 text-base text-indigo-600 hover:text-indigo-400 truncate transition-colors">
-              {item.link}
-            </a>
-            <ExternalLink className="w-4 h-4 text-slate-300 shrink-0" />
-          </div>
+          {itemLink ? (
+            <div className="flex items-center gap-3 bg-gray-50 rounded-2xl px-5 py-4 border border-gray-100">
+              <Link2 className="w-5 h-5 text-slate-400 shrink-0" />
+              <a href={itemLink} target="_blank" rel="noreferrer"
+                className="flex-1 text-base text-indigo-600 hover:text-indigo-400 truncate transition-colors">
+                {itemLink}
+              </a>
+              <ExternalLink className="w-4 h-4 text-slate-300 shrink-0" />
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 bg-gray-50 rounded-2xl px-5 py-4 border border-gray-100">
+              <Link2 className="w-5 h-5 text-slate-300 shrink-0" />
+              <span className="text-base text-slate-300 italic">Chưa có link</span>
+            </div>
+          )}
 
           {/* NAS Link */}
-          {item.nas_link && (
+          {itemNasLink && (
             <div className="flex items-center gap-3 bg-amber-50 rounded-2xl px-5 py-4 border border-amber-100">
               <Link2 className="w-5 h-5 text-amber-400 shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-amber-500 mb-0.5">Link ổ NAS</p>
-                <a href={item.nas_link} target="_blank" rel="noreferrer"
+                <a href={itemNasLink} target="_blank" rel="noreferrer"
                   className="text-base text-amber-700 hover:text-amber-500 truncate block transition-colors">
-                  {item.nas_link}
+                  {itemNasLink}
                 </a>
               </div>
               <ExternalLink className="w-4 h-4 text-amber-300 shrink-0" />
@@ -164,7 +204,7 @@ export function SourceViewModal({
                     {item.team_product.sku}
                   </span>
                 )}
-                <span className="text-base font-semibold text-slate-800">{linkedProduct.name}</span>
+                <span className="text-base font-semibold text-slate-800">{linkedProduct.name ?? '—'}</span>
                 {item.team_product && <span className="ml-auto text-sm text-blue-400 shrink-0">Kho team</span>}
                 {item.editor_product && !item.team_product && <span className="ml-auto text-sm text-indigo-400 shrink-0">Kho cá nhân</span>}
                 {item.product && !item.team_product && !item.editor_product && <span className="ml-auto text-sm text-violet-400 shrink-0">Kho tổng</span>}

@@ -283,7 +283,7 @@ function ImportModal({
                 </div>
                 <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 overflow-hidden">
                   {thumb
-                    ? <img src={driveImageUrl(thumb) ?? thumb} alt={p.name} className="w-full h-full object-cover" />
+                    ? <img src={driveImageUrl(thumb) ?? thumb} alt={p.name ?? ''} className="w-full h-full object-cover" />
                     : <Package className="w-4 h-4 text-slate-400" />
                   }
                 </div>

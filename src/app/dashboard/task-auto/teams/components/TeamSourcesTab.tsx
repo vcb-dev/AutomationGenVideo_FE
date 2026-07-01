@@ -84,7 +84,11 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
   })
 
   const filtered = search
-    ? sources.filter(s => s.name.toLowerCase().includes(search.toLowerCase()) || s.link.includes(search))
+    ? sources.filter(s => {
+        const name = s.name ?? s.source_editor_source?.name ?? ''
+        const link = s.link ?? s.source_editor_source?.link ?? ''
+        return name.toLowerCase().includes(search.toLowerCase()) || link.includes(search)
+      })
     : sources
 
   const { data: productsForSelect } = useQuery({
@@ -297,36 +301,53 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {filtered.map(s => (
+                  {filtered.map(s => {
+                    const es = s.source_editor_source
+                    const sName = s.name ?? es?.name ?? '—'
+                    const sLink = s.link ?? es?.link ?? null
+                    const sType = s.type ?? es?.type ?? null
+                    const sCode = s.code ?? es?.code ?? null
+                    return (
                     <tr key={s.id} onClick={() => openView(s)}
                       className="hover:bg-indigo-50/30 transition-colors group cursor-pointer">
                       <td className="px-5 py-4">
-                        <p className="text-base font-semibold text-slate-800 truncate max-w-[240px]" title={s.name}>{s.name}</p>
+                        <p className="text-base font-semibold text-slate-800 truncate max-w-[240px]" title={sName}>{sName}</p>
                         {s.source_source_id && (
                           <span className="text-xs text-slate-400 mt-0.5">· copy từ kho tổng</span>
                         )}
+                        {s.source_editor_source_id && (
+                          <span className="text-xs text-violet-400 mt-0.5 block">· từ kho cá nhân</span>
+                        )}
                       </td>
                       <td className="px-5 py-4 whitespace-nowrap">
-                        <span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold', SOURCE_TYPE_COLORS[s.type])}>
-                          {SOURCE_TYPE_LABELS[s.type]}
-                        </span>
+                        {sType ? (
+                          <span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold', SOURCE_TYPE_COLORS[sType])}>
+                            {SOURCE_TYPE_LABELS[sType]}
+                          </span>
+                        ) : (
+                          <span className="text-slate-300 text-sm">—</span>
+                        )}
                       </td>
                       <td className="px-5 py-4 whitespace-nowrap">
-                        {s.code
-                          ? <span className="bg-slate-100 text-slate-600 font-mono text-xs font-semibold px-2.5 py-1 rounded-lg">{s.code}</span>
+                        {sCode
+                          ? <span className="bg-slate-100 text-slate-600 font-mono text-xs font-semibold px-2.5 py-1 rounded-lg">{sCode}</span>
                           : <span className="text-slate-300 text-sm">—</span>}
                       </td>
                       <td className="px-5 py-4 max-w-[200px]">
-                        <a href={s.link} target="_blank" rel="noreferrer" title={s.link}
-                          onClick={e => e.stopPropagation()}
-                          className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-400 text-sm transition-colors">
-                          <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-                          <span className="truncate">{s.link}</span>
-                        </a>
+                        {sLink ? (
+                          <a href={sLink} target="_blank" rel="noreferrer" title={sLink}
+                            onClick={e => e.stopPropagation()}
+                            className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-400 text-sm transition-colors">
+                            <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate">{sLink}</span>
+                          </a>
+                        ) : (
+                          <span className="text-slate-300 text-sm">—</span>
+                        )}
                       </td>
                       <td className="px-5 py-4">
                         <span className="text-sm text-slate-700 truncate block max-w-[160px]">
-                          {(s.team_product?.name ?? s.product?.name) ?? <span className="text-slate-300">—</span>}
+                          {(s.team_product?.name ?? s.product?.name ?? es?.editor_product_id) ?? <span className="text-slate-300">—</span>}
                         </span>
                       </td>
                       <td className="px-5 py-4 whitespace-nowrap">
@@ -374,7 +395,8 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
                         )}
                       </td>
                     </tr>
-                  ))}
+                  )})}
+
                 </tbody>
               </table>
             </div>
@@ -489,7 +511,7 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
                 onChange={e => setForm(f => ({ ...f, nas_link: e.target.value }))} />
               <ProductSearchSelect label="Sản phẩm liên kết" value={form.team_product_id ?? ''}
                 onChange={id => setForm(f => ({ ...f, team_product_id: id }))}
-                products={productsForSelect ?? []}
+                products={(productsForSelect ?? []).map(p => ({ ...p, sku: p.sku ?? p.source_editor_product?.sku ?? '', name: p.name ?? p.source_editor_product?.name ?? '' }))}
                 placeholder="-- Không liên kết sản phẩm --" clearLabel="-- Không liên kết --" />
             </div>
             <div className="flex items-center gap-4 bg-gray-50 rounded-xl px-5 py-4 border border-gray-200">
@@ -615,7 +637,7 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
           ) : (
             <ProductSearchSelect label="Sản phẩm liên kết" value={form.team_product_id ?? ''}
               onChange={id => setForm(f => ({ ...f, team_product_id: id }))}
-              products={productsForSelect ?? []}
+              products={(productsForSelect ?? []).map(p => ({ ...p, sku: p.sku ?? p.source_editor_product?.sku ?? '', name: p.name ?? p.source_editor_product?.name ?? '' }))}
               placeholder="-- Không liên kết sản phẩm --" clearLabel="-- Không liên kết --" />
           )}
           <div className="flex items-center gap-4 bg-gray-50 rounded-xl px-5 py-4 border border-gray-200">

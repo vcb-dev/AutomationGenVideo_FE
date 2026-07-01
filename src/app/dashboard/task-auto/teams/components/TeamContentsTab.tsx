@@ -42,8 +42,8 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
   const selectedTeam = teams?.find(t => t.id === selectedTeamId)
   const teamMarket: string = selectedTeam?.market ?? 'VIETNAM'
   const isLeaderOfSelected = selectedTeam?.leader_id === userId
-  const isMemberOfSelected = selectedTeam?.members?.some(m => m.user_id === userId) ?? false
-  const canManageSelected = isAdminOrManager || isLeaderOfSelected || isMemberOfSelected
+  //const isMemberOfSelected = selectedTeam?.members?.some(m => m.user_id === userId) ?? false
+  const canManageSelected = isAdminOrManager || isLeaderOfSelected 
   const canPushToGlobal = isAdminOrManager || isLeaderOfSelected
 
   const myTeams = (teams ?? []).filter(t =>
@@ -87,11 +87,13 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
   const [pushingContent, setPushingContent] = useState<TeamContent | null>(null)
 
   const filtered = (teamContents ?? []).filter(tc => {
-    if (tc.market && tc.market !== teamMarket) return false
+    const effectiveMarket = tc.market ?? tc.source_editor_content?.market ?? null
+    if (effectiveMarket && effectiveMarket !== teamMarket) return false
     if (!search) return true
     const q = search.toLowerCase()
+    const effectiveTitle = tc.title ?? tc.source_editor_content?.title ?? ''
     return (
-      tc.title?.toLowerCase().includes(q) ||
+      effectiveTitle.toLowerCase().includes(q) ||
       tc?.content_line?.name?.toLowerCase().includes(q)
     )
   })
@@ -230,8 +232,13 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
                 )}
 
                 {!isLoading && filtered.map((tc: TeamContent) => {
-                  const c = tc
-                  const markets = parseMarkets(tc?.market)
+                  const ec = tc.source_editor_content
+                  const title = tc.title ?? ec?.title ?? null
+                  const market = tc.market ?? ec?.market ?? null
+                  const status = tc.status ?? ec?.status ?? null
+                  const voiceUrl = tc.voice_url ?? ec?.voice_url ?? null
+                  const fileContentUrl = tc.file_content_url ?? ec?.file_content_url ?? null
+                  const markets = parseMarkets(market)
                   return (
                     <tr
                       key={tc.id}
@@ -240,15 +247,18 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
                     >
                       {/* Tiêu đề */}
                       <td className="px-5 py-4 max-w-0">
-                        <span className="text-base font-semibold text-slate-800 truncate block" title={c?.title ?? ''}>
-                          {c?.title || <span className="text-slate-400 italic font-normal text-sm">Chưa đặt tên</span>}
+                        <span className="text-base font-semibold text-slate-800 truncate block" title={title ?? ''}>
+                          {title || <span className="text-slate-400 italic font-normal text-sm">Chưa đặt tên</span>}
                         </span>
+                        {tc.source_editor_content_id && (
+                          <span className="text-[10px] text-violet-400 mt-0.5 block">· từ kho cá nhân</span>
+                        )}
                       </td>
 
                       {/* Tuyến ND */}
                       <td className="px-4 py-4 whitespace-nowrap">
-                        {c?.content_line?.name
-                          ? <span className="text-sm font-medium text-slate-700">{c.content_line.name}</span>
+                        {(tc?.content_line?.name ?? ec?.content_line?.name)
+                          ? <span className="text-sm font-medium text-slate-700">{tc.content_line?.name ?? ec?.content_line?.name}</span>
                           : <span className="text-slate-300 text-sm">—</span>
                         }
                       </td>
@@ -269,23 +279,23 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
 
                       {/* Trạng thái */}
                       <td className="px-4 py-4 whitespace-nowrap">
-                        <ContentStatusBadge status={c?.status as any} />
+                        <ContentStatusBadge status={status as any} />
                       </td>
 
                       {/* Voice / File */}
                       <td className="px-4 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
-                          {c?.voice_url && (
+                          {voiceUrl && (
                             <span className="inline-flex items-center gap-1 text-xs text-purple-500 font-medium">
                               <Mic className="w-3.5 h-3.5" /> Voice
                             </span>
                           )}
-                          {c?.file_content_url && (
+                          {fileContentUrl && (
                             <span className="inline-flex items-center gap-1 text-xs text-blue-500 font-medium">
                               <FileText className="w-3.5 h-3.5" /> File
                             </span>
                           )}
-                          {!c?.voice_url && !c?.file_content_url && (
+                          {!voiceUrl && !fileContentUrl && (
                             <span className="text-slate-300 text-sm">—</span>
                           )}
                         </div>
@@ -308,9 +318,9 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
                       {/* Hành động */}
                       <td className="px-4 py-4 text-right" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
-                          {canManageSelected && c && (
+                          {canManageSelected && tc && (
                             <button
-                              onClick={() => setEditingContent(c as TeamContent)}
+                              onClick={() => setEditingContent(tc as TeamContent)}
                               title="Chỉnh sửa"
                               className="p-2 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors"
                             >
@@ -364,7 +374,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
       <ConfirmDialog
         open={!!removingContent}
         title="Xóa content khỏi kho team"
-        message={`Xóa "${removingContent?.title || 'content này'}" khỏi kho team? Hành động này không thể hoàn tác.`}
+        message={`Xóa "${removingContent?.title ?? removingContent?.source_editor_content?.title ?? 'content này'}" khỏi kho team? Hành động này không thể hoàn tác.`}
         confirmLabel="Xóa content"
         danger
         isLoading={removeMut.isPending}
@@ -375,7 +385,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
       <ConfirmDialog
         open={!!pushingContent}
         title="Đẩy content ra kho tổng"
-        message={`Đẩy "${pushingContent?.title || 'content này'}" ra kho tổng? Content sẽ xuất hiện cho toàn bộ hệ thống.`}
+        message={`Đẩy "${pushingContent?.title ?? pushingContent?.source_editor_content?.title ?? 'content này'}" ra kho tổng? Content sẽ xuất hiện cho toàn bộ hệ thống.`}
         confirmLabel="Đẩy ra kho tổng"
         isLoading={pushMut.isPending}
         onConfirm={() => pushingContent && pushMut.mutate(pushingContent.id)}

@@ -82,6 +82,7 @@ export default function KpiPage() {
           isLeader={isLeader && !isAdminOrManager}
           userId={user?.id}
           selectedTeamId={selectedTeamId}
+          onTeamChange={setSelectedTeamId}
         />
       )}
     </div>

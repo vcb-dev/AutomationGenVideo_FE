@@ -255,12 +255,23 @@ export function ProductsTab({ brandType }: { brandType: BrandType }) {
               )}
 
               {data?.data.map(p => {
-                const thumb = p.image_urls?.[0] ?? p.image_url
+                const tp = p.source_team_product
+                const tp_ep = tp?.source_editor_product
+                const rSku = p.sku || tp?.sku || tp_ep?.sku || ''
+                const rName = p.name || tp?.name || tp_ep?.name || ''
+                const rPrice = p.price || tp?.price || tp_ep?.price || null
+                const rPriceSeg = p.price_segment || tp?.price_segment || tp_ep?.price_segment || null
+                const rMarket = p.market || tp?.market || tp_ep?.market || null
+                const rProductLine = p.product_line ?? tp?.product_line ?? tp_ep?.product_line ?? null
+                const rMaterial = p.material ?? tp?.material ?? tp_ep?.material ?? null
+                const rImages = p.image_urls?.length ? p.image_urls : tp?.image_urls?.length ? tp.image_urls : tp_ep?.image_urls?.length ? tp_ep.image_urls : []
+                const rImageUrl = p.image_url ?? tp?.image_url ?? tp_ep?.image_url ?? null
+                const thumb = rImages[0] ?? rImageUrl
                 return (
                   <tr key={p.id} onClick={() => setViewProduct(p)} className="hover:bg-indigo-50/30 transition-colors group cursor-pointer">
                     <td className="px-5 py-4 whitespace-nowrap">
                       <span className="inline-block bg-slate-100 text-slate-600 font-mono text-xs font-semibold px-2.5 py-1 rounded-lg">
-                        {p.sku}
+                        {rSku || <span className="text-slate-300">—</span>}
                       </span>
                     </td>
                     <td className="px-5 py-4">
@@ -273,32 +284,32 @@ export function ProductsTab({ brandType }: { brandType: BrandType }) {
                           </div>
                         )}
                         <div className="min-w-0">
-                          <p className="text-base font-semibold text-slate-800 truncate max-w-[260px]" title={p.name}>{p.name}</p>
-                          {p.price_segment && <p className="text-xs text-slate-400 mt-0.5">{p.price_segment}</p>}
+                          <p className="text-base font-semibold text-slate-800 truncate max-w-[260px]" title={rName}>{rName || <span className="text-slate-300 italic font-normal text-sm">Chưa đặt tên</span>}</p>
+                          {rPriceSeg && <p className="text-xs text-slate-400 mt-0.5">{rPriceSeg}</p>}
                         </div>
                       </div>
                     </td>
                     <td className="px-5 py-4 whitespace-nowrap">
-                      {p.product_line?.name
-                        ? <span className="text-sm font-medium text-slate-700">{p.product_line.name}</span>
+                      {rProductLine?.name
+                        ? <span className="text-sm font-medium text-slate-700">{rProductLine.name}</span>
                         : <span className="text-slate-300 text-sm">—</span>
                       }
                     </td>
                     <td className="px-5 py-4 whitespace-nowrap">
-                      {p.material?.name
-                        ? <span className="text-sm text-slate-600">{p.material.name}</span>
+                      {rMaterial?.name
+                        ? <span className="text-sm text-slate-600">{rMaterial.name}</span>
                         : <span className="text-slate-300 text-sm">—</span>
                       }
                     </td>
                     <td className="px-5 py-4 whitespace-nowrap">
                       <div className="flex gap-1.5">
-                        {parseMarkets(p.market).map(m => <MarketBadge key={m} market={m} />)}
-                        {!p.market && <span className="text-slate-300 text-sm">—</span>}
+                        {parseMarkets(rMarket).map(m => <MarketBadge key={m} market={m} />)}
+                        {!rMarket && <span className="text-slate-300 text-sm">—</span>}
                       </div>
                     </td>
                     <td className="px-5 py-4 whitespace-nowrap text-right">
-                      {formatPrice(p.price)
-                        ? <span className="text-base font-bold text-slate-800">{formatPrice(p.price)}</span>
+                      {formatPrice(rPrice)
+                        ? <span className="text-base font-bold text-slate-800">{formatPrice(rPrice)}</span>
                         : <span className="text-slate-300 text-sm">—</span>
                       }
                     </td>

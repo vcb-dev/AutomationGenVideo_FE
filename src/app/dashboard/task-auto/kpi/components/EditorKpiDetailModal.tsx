@@ -4,18 +4,14 @@ import { FileText, Package, Video } from 'lucide-react'
 import { DarkModal } from '@/components/task-auto'
 import { cn } from '@/lib/utils'
 import { EditorKpi } from '@/types/task-auto'
+import { AllocCardSection } from './KpiAllocationCard'
 
-export type KpiFormState = Omit<EditorKpi, 'id' | 'set_by_id' | 'created_at' | 'updated_at' | 'user' | 'set_by'>
+export type KpiFormState = Omit<EditorKpi, 'id' | 'set_by_id' | 'created_at' | 'updated_at' | 'user' | 'set_by' | 'team' | 'allocations'>
 
 export const VIDEO_ROWS: { key: keyof KpiFormState; label: string; bold?: boolean }[] = [
   { key: 'total_target',  label: 'Tổng video sản xuất', bold: true },
   { key: 'video_win',     label: 'Video win (≥10k views)' },
   { key: 'video_fail',    label: 'Video fail' },
-  { key: 'ratio_a1',      label: 'A1 — Kéo traffic' },
-  { key: 'ratio_a2',      label: 'A2 — Tạo chuyên gia' },
-  { key: 'ratio_a3',      label: 'A3 — Tạo trust' },
-  { key: 'ratio_a4',      label: 'A4 — Chuyển đổi' },
-  { key: 'ratio_a5',      label: 'A5 — Nhân bản & scale' },
 ]
 
 export const CONTENT_ROWS: { key: keyof KpiFormState; label: string; bold?: boolean }[] = [
@@ -27,9 +23,6 @@ export const CONTENT_ROWS: { key: keyof KpiFormState; label: string; bold?: bool
 export const PRODUCT_ROWS: { key: keyof KpiFormState; label: string }[] = [
   { key: 'product_planned',     label: 'SP đẩy video theo kế hoạch' },
   { key: 'product_win_collect', label: 'SP sưu tầm và test video win' },
-  { key: 'video_traffic',       label: 'Video SP dòng Traffic' },
-  { key: 'video_gmv',           label: 'Video SP dòng GMV' },
-  { key: 'video_profit',        label: 'Video SP dòng Profit' },
 ]
 
 interface Props {
@@ -106,6 +99,29 @@ export function EditorKpiDetailModal({ kpi, onClose }: Props) {
               ))}
             </div>
           </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <AllocCardSection
+            items={(kpi.allocations ?? []).filter(a => a.type === 'CONTENT_LINE')}
+            label="Tuyến nội dung"
+            icon={<FileText className="w-3.5 h-3.5" />}
+            barColor="bg-indigo-500"
+            bgColor="bg-indigo-50/50"
+            borderColor="border-indigo-100"
+            labelColor="text-indigo-600"
+            totalColor="text-indigo-700"
+          />
+          <AllocCardSection
+            items={(kpi.allocations ?? []).filter(a => a.type === 'PRODUCT_LINE')}
+            label="Dòng sản phẩm"
+            icon={<Package className="w-3.5 h-3.5" />}
+            barColor="bg-teal-500"
+            bgColor="bg-teal-50/50"
+            borderColor="border-teal-100"
+            labelColor="text-teal-600"
+            totalColor="text-teal-700"
+          />
         </div>
       </div>
     </DarkModal>
