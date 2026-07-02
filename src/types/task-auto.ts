@@ -199,9 +199,30 @@ export interface EditorKpiAllocation {
   type: KpiAllocationType
   content_line_id: string | null
   product_line_id: string | null
-  percent: number
+  quantity: number
   content_line?: ContentLine | null
   product_line?: ProductLine | null
+}
+
+// ── Team Push Request (duyệt đẩy kho cá nhân → kho team) ──
+
+export interface TeamPushRequest {
+  id: string
+  team_id: string
+  type: 'PRODUCT' | 'CONTENT'
+  editor_product_id: string | null
+  editor_content_id: string | null
+  requested_by_id: string
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  reviewed_by_id: string | null
+  reviewed_at: string | null
+  note: string | null
+  created_at: string
+  team?: { id: string; name: string; leader_id: string | null }
+  requested_by?: UserBasic
+  reviewed_by?: UserBasic | null
+  editor_product?: (Product & { product_line?: ProductLine | null }) | null
+  editor_content?: (Content & { content_line?: ContentLine | null }) | null
 }
 
 // ── Catalog ─────────────────────────────────────
@@ -332,6 +353,11 @@ export interface Source {
     id: string; type: SourceType | null; name: string | null; link: string | null; nas_link?: string | null; code?: string | null; is_active?: boolean
     source_editor_source?: { id: string; type: SourceType; name: string; link: string; nas_link?: string | null; code?: string | null; is_active?: boolean } | null
   } | null
+  /** Team đã đặt hàng source này (nếu có) */
+  ordered_team_id?: string | null
+  ordered_team?: Pick<Team, 'id' | 'name'> | null
+  /** Chỉ dùng khi gửi payload tạo/sửa; gửi null để gỡ khỏi kho team */
+  team_id?: string | null
 }
 
 export interface TeamSource {
@@ -379,6 +405,9 @@ export interface Task {
   editor_product_id: string | null
   team_product_id: string | null
   content_line_id: string | null
+  product_line_id?: string | null
+  /** true = task đẩy SP theo kế hoạch (sản phẩm từ kho team) */
+  is_product_push?: boolean
   source_outro_id:             string | null
   source_extra_id:             string | null
   source_workshop_id:          string | null

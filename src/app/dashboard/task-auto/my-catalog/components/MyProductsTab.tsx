@@ -9,14 +9,14 @@ import {
 } from 'lucide-react'
 import { cn, driveImageUrl } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
-import { DarkInput, CreatableSelect } from '@/components/task-auto/DarkInput'
+import { DarkInput, CreatableSelect, CustomSelect } from '@/components/task-auto/DarkInput'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
 import {
   getProducts, getTeamProducts, getSources, getTeamSources,
   getEditorProducts, createEditorProduct, updateEditorProduct, createEditorSource, getEditorSources, deleteEditorProduct, pushEditorProductToTeam,
   getProductLines, createProductLine, getMaterials, createMaterial,
-  getTeams,
+  getTeams, getMyPushRequests,
 } from '@/lib/api/task-auto'
 import {
   MarketPicker, PriceInput, MultiImagePicker, SourceForm, MarketBadge, LoadingRows,
@@ -32,10 +32,19 @@ import { ProductViewModal } from '@/components/task-auto/ProductViewModal'
 function PushModal({ product, userId, onClose }: { product: Product; userId: string; onClose: () => void }) {
   const qc = useQueryClient()
   const { data: teams } = useQuery({ queryKey: ['task-auto', 'teams'], queryFn: getTeams })
-  const myTeam = teams?.find(t => t.leader_id === userId || t.members?.some(m => m.user_id === userId))
+  const myTeams = teams?.filter(t => t.leader_id === userId || t.members?.some(m => m.user_id === userId)) ?? []
+  const [teamId, setTeamId] = useState('')
+  const effectiveTeamId = teamId || myTeams[0]?.id || ''
+  const selectedTeam = myTeams.find(t => t.id === effectiveTeamId)
+  const isLeaderOfTeam = selectedTeam?.leader_id === userId
   const push = useMutation({
-    mutationFn: () => pushEditorProductToTeam(userId, product.id, myTeam!.id),
-    onSuccess: () => { toast.success('Đã đẩy sang kho team'); qc.invalidateQueries({ queryKey: ['task-auto', 'my-products'] }); onClose() },
+    mutationFn: () => pushEditorProductToTeam(userId, product.id, effectiveTeamId),
+    onSuccess: (res: any) => {
+      toast.success(res?.pending ? 'Đã gửi yêu cầu — chờ leader duyệt' : 'Đã đẩy sang kho team')
+      qc.invalidateQueries({ queryKey: ['task-auto', 'my-products'] })
+      qc.invalidateQueries({ queryKey: ['task-auto', 'my-push-requests'] })
+      onClose()
+    },
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Không thể đẩy sang team'),
   })
   return (
@@ -43,10 +52,10 @@ function PushModal({ product, userId, onClose }: { product: Product; userId: str
       footer={
         <>
           <button onClick={onClose} className="bg-gray-100 hover:bg-gray-200 text-slate-800 rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors">Hủy</button>
-          <button disabled={!myTeam || push.isPending} onClick={() => push.mutate()}
+          <button disabled={!effectiveTeamId || push.isPending} onClick={() => push.mutate()}
             className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-5 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors disabled:opacity-60">
             {push.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-            Đẩy sang team
+            {isLeaderOfTeam ? 'Đẩy sang team' : 'Gửi yêu cầu'}
           </button>
         </>
       }
@@ -55,14 +64,26 @@ function PushModal({ product, userId, onClose }: { product: Product; userId: str
         <p className="text-sm text-slate-500">
           Sản phẩm <strong className="text-slate-800">{product.name}</strong> sẽ được thêm vào kho sản phẩm của team.
         </p>
-        {myTeam ? (
+        {myTeams.length > 1 ? (
+          <CustomSelect
+            label="Chọn team"
+            value={effectiveTeamId}
+            onChange={setTeamId}
+            options={myTeams.map(t => ({ value: t.id, label: t.name }))}
+          />
+        ) : myTeams.length === 1 ? (
           <div className="flex items-center gap-2 px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700">
-            <span className="font-semibold">{myTeam.name}</span>
+            <span className="font-semibold">{myTeams[0].name}</span>
           </div>
         ) : (
           <div className="px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
             Bạn chưa thuộc team nào
           </div>
+        )}
+        {!isLeaderOfTeam && effectiveTeamId && (
+          <p className="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+            Yêu cầu sẽ được gửi tới leader của team để duyệt trước khi sản phẩm vào kho team.
+          </p>
         )}
       </div>
     </DarkModal>
@@ -337,6 +358,12 @@ export function MyProductsTab({ userId, brandType }: Props) {
     queryFn: () => getEditorProducts(userId, { brand_type: brandType, search: search || undefined, month: month || undefined, page, limit: 20 }),
   })
 
+  const { data: myPushRequests } = useQuery({
+    queryKey: ['task-auto', 'my-push-requests', userId],
+    queryFn: () => getMyPushRequests(userId, 'PENDING'),
+  })
+  const pendingProductIds = new Set((myPushRequests ?? []).map(r => r.editor_product_id).filter(Boolean))
+
   const refresh = () => qc.invalidateQueries({ queryKey: ['task-auto', 'my-products'] })
 
   const createMut = useMutation({
@@ -534,13 +561,19 @@ export function MyProductsTab({ userId, brandType }: Props) {
                     </td>
                     <td className="px-4 py-4 text-right" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => setPushItem(p)}
-                          title="Đẩy sang kho team"
-                          className="p-2 rounded-xl text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
-                        >
-                          <SendHorizontal className="w-4 h-4" />
-                        </button>
+                        {pendingProductIds.has(p.id) ? (
+                          <span className="text-[10px] font-bold uppercase px-2 py-1 rounded-full bg-amber-100 text-amber-700 whitespace-nowrap" title="Đang chờ leader duyệt vào kho team">
+                            Chờ duyệt
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => setPushItem(p)}
+                            title="Đẩy sang kho team"
+                            className="p-2 rounded-xl text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                          >
+                            <SendHorizontal className="w-4 h-4" />
+                          </button>
+                        )}
                         <button
                           onClick={() => openEdit(p)}
                           className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-100 transition-colors"

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Package, User, BookOpen, Radio, Archive, BarChart2 } from 'lucide-react'
+import { Package, User, BookOpen, Radio, Archive, BarChart2, Inbox } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth-store'
@@ -11,11 +11,12 @@ import { TeamContentsTab } from './components/TeamContentsTab'
 import { TeamSourcesTab } from './components/TeamSourcesTab'
 import { TeamWarehouseTab } from './components/TeamWarehouseTab'
 import { TeamStatsTab } from './components/TeamStatsTab'
+import { TeamPushRequestsTab } from './components/TeamPushRequestsTab'
 import { UserRole } from '@/types/auth'
 import { getTeams } from '@/lib/api/task-auto'
 import type { BrandType } from '@/types/task-auto'
 
-type TabId = 'members' | 'products' | 'contents' | 'sources' | 'warehouse' | 'stats'
+type TabId = 'members' | 'products' | 'contents' | 'sources' | 'warehouse' | 'stats' | 'push-requests'
 
 const BASE_TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'members',   label: 'Nhóm của tôi', icon: User },
@@ -26,6 +27,7 @@ const BASE_TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
 ]
 
 const STATS_TAB = { id: 'stats' as TabId, label: 'Thống kê', icon: BarChart2 }
+const PUSH_REQUESTS_TAB = { id: 'push-requests' as TabId, label: 'Chờ duyệt', icon: Inbox }
 
 export default function TeamsPage() {
   const { user } = useAuthStore()
@@ -67,7 +69,13 @@ export default function TeamsPage() {
 
   // Tab "Thống kê" hiển thị với mọi Scale Data member — luôn dùng Scale Data team ID
   const showStatsTab = isScaleDataMember && !!scaleDataTeamId
-  const visibleTabs = showStatsTab ? [...BASE_TABS, STATS_TAB] : BASE_TABS
+  // Tab "Chờ duyệt" cho leader/admin/manager — duyệt yêu cầu đẩy kho cá nhân → kho team
+  const showPushRequestsTab = canManage
+  const visibleTabs = [
+    ...BASE_TABS,
+    ...(showPushRequestsTab ? [PUSH_REQUESTS_TAB] : []),
+    ...(showStatsTab ? [STATS_TAB] : []),
+  ]
 
   // Nếu đang ở stats tab nhưng mất quyền (teams chưa load xong), reset về members
   useEffect(() => {
@@ -151,6 +159,15 @@ export default function TeamsPage() {
           isAdminOrManager={isAdminOrManager}
           userId={user?.id}
           brandType={brand}
+          selectedTeamId={selectedTeamId}
+          setSelectedTeamId={setSelectedTeamId}
+        />
+      )}
+
+      {activeTab === 'push-requests' && showPushRequestsTab && (
+        <TeamPushRequestsTab
+          isAdminOrManager={isAdminOrManager}
+          userId={user?.id}
           selectedTeamId={selectedTeamId}
           setSelectedTeamId={setSelectedTeamId}
         />

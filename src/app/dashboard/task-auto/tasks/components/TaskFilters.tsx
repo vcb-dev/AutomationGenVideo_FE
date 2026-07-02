@@ -13,10 +13,10 @@ const STATUS_OPTIONS: { value: TaskStatus | ''; label: string }[] = [
   { value: 'APPROVED', label: 'Đã duyệt' },
 ]
 
-const TASK_TYPE_OPTIONS = [
-  { value: '', label: 'Tất cả loại' },
-  { value: 'auto', label: 'Auto' },
-]
+// const TASK_TYPE_OPTIONS = [
+//   { value: '', label: 'Tất cả loại' },
+//   { value: 'auto', label: 'Auto' },
+// ]
 
 function todayString() {
   const d = new Date()
@@ -35,6 +35,7 @@ interface Props {
   canCreate: boolean
   isMember?: boolean
   hideTeamFilter?: boolean
+  hideStatusFilter?: boolean
   onStatusChange: (v: TaskStatus | '') => void
   onTeamChange: (v: string) => void
   onSearchChange: (v: string) => void
@@ -53,6 +54,7 @@ export function TaskFilters({
   canCreate,
   isMember = false,
   hideTeamFilter = false,
+  hideStatusFilter = false,
   onStatusChange,
   onTeamChange,
   onSearchChange,
@@ -77,22 +79,24 @@ export function TaskFilters({
       </div>
 
       {/* Status */}
-      <CustomSelect
-        value={statusFilter}
-        onChange={v => onStatusChange(v as TaskStatus | '')}
-        options={STATUS_OPTIONS}
-        className="min-w-[165px]"
-        compact
-      />
+      {!hideStatusFilter && (
+        <CustomSelect
+          value={statusFilter}
+          onChange={v => onStatusChange(v as TaskStatus | '')}
+          options={STATUS_OPTIONS}
+          className="min-w-[165px]"
+          compact
+        />
+      )}
 
       {/* Task type */}
-      <CustomSelect
+      {/* <CustomSelect
         value={taskTypeFilter}
         onChange={v => onTaskTypeChange(v as TaskTypeFilter)}
         options={TASK_TYPE_OPTIONS}
         className="min-w-[135px]"
         compact
-      />
+      /> */}
 
       {/* Team — hidden for MEMBER and LEADER */}
       {!isMember && !hideTeamFilter && (

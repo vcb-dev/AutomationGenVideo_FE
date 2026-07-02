@@ -2,13 +2,14 @@
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Users, User } from 'lucide-react'
+import { Users, User, LayoutGrid, Table2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth-store'
 
 import { TaskStatsBar } from './components/TaskStatsBar'
 import { TaskFilters } from './components/TaskFilters'
 import { TasksTable } from './components/TasksTable'
+import { SubmittedVideosGrid } from './components/SubmittedVideosGrid'
 import { TaskDetailPanel } from './components/TaskDetailPanel'
 import { CreateTaskModal } from './components/TaskModals'
 import { getApprovals, getTasks, getTeams } from '@/lib/api/task-auto'
@@ -16,6 +17,7 @@ import { TaskStatus } from '@/types/task-auto'
 import { UserRole } from '@/types/auth'
 
 type ViewMode = 'team' | 'mine'
+type PageTab = 'table' | 'submitted'
 
 function todayString() {
   const d = new Date()
@@ -34,6 +36,8 @@ export default function TasksPage() {
 
   // Mọi role đều có thể tạo task (task thủ công hoặc tự nhận)
   const canCreate = true
+  // Ai được duyệt/từ chối task — đồng bộ với TaskDetailPanel.tsx:326
+  const canApproveReject = isAdmin || isManager || isLeader
 
   const { data: isApprovedEditor = false } = useQuery({
     queryKey: ['task-auto', 'my-editor-approval', user?.id],
@@ -46,6 +50,7 @@ export default function TasksPage() {
 
   const isLeaderEditor = isLeader && isApprovedEditor
   const [viewMode, setViewMode] = useState<ViewMode>('team')
+  const [activeTab, setActiveTab] = useState<PageTab>('table')
 
   const [status, setStatus]           = useState<TaskStatus | ''>('')
   const [teamId, setTeamId]           = useState('')
@@ -53,6 +58,7 @@ export default function TasksPage() {
   const [deadlineDate, setDeadlineDate] = useState(todayString())
   const [taskType, setTaskType]       = useState<'auto' | 'manual' | ''>('')
   const [page, setPage]               = useState(1)
+  const [submittedPage, setSubmittedPage] = useState(1)
 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [showCreate, setShowCreate]   = useState(false)
@@ -102,9 +108,9 @@ export default function TasksPage() {
   }
 
   function handleStatusChange(v: TaskStatus | '')                    { setStatus(v);       setPage(1) }
-  function handleTeamChange(v: string)                               { setTeamId(v);       setPage(1) }
-  function handleSearchChange(v: string)                             { setSearch(v);       setPage(1) }
-  function handleDeadlineDateChange(v: string)                       { setDeadlineDate(v); setPage(1) }
+  function handleTeamChange(v: string)                               { setTeamId(v);       setPage(1); setSubmittedPage(1) }
+  function handleSearchChange(v: string)                             { setSearch(v);       setPage(1); setSubmittedPage(1) }
+  function handleDeadlineDateChange(v: string)                       { setDeadlineDate(v); setPage(1); setSubmittedPage(1) }
   function handleTaskTypeChange(v: 'auto' | 'manual' | '')           { setTaskType(v);    setPage(1) }
 
   const pageTitle = isMember || (isLeaderEditor && viewMode === 'mine')
@@ -113,25 +119,48 @@ export default function TasksPage() {
 
   return (
     <div className="space-y-5">
-      {/* Header + Filter bar gộp chung một dải */}
-      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm px-7 py-4 flex items-center gap-5 flex-wrap">
-        {/* Title */}
-        <div className="flex-shrink-0 min-w-[160px]">
-          <h1 className="text-2xl font-black text-slate-900 leading-tight">{pageTitle}</h1>
-          <p className="text-sm text-slate-400 mt-0.5">
-            {leaderTeam && !isMineView
-              ? `${leaderTeam.name} · ${total > 0 ? `${total} task` : 'Danh sách task'}`
-              : total > 0 ? `${total} task` : 'Danh sách task'
-            }
-          </p>
-        </div>
+      {/* Header + Filter bar */}
+      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm px-7 py-5 space-y-4">
+        {/* Hàng 1: Tiêu đề + tab switcher + view toggle */}
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex-shrink-0 min-w-[160px]">
+            <h1 className="text-2xl font-black text-slate-900 leading-tight">{pageTitle}</h1>
+            <p className="text-sm text-slate-400 mt-0.5">
+              {leaderTeam && !isMineView
+                ? `${leaderTeam.name} · ${total > 0 ? `${total} task` : 'Danh sách task'}`
+                : total > 0 ? `${total} task` : 'Danh sách task'
+              }
+            </p>
+          </div>
 
-        {/* Divider dọc */}
-        <div className="w-px h-10 bg-gray-200 flex-shrink-0 hidden sm:block" />
+          <div className="w-px h-10 bg-gray-200 flex-shrink-0 hidden sm:block" />
 
-        {/* View mode toggle (LeaderEditor) */}
-        {isLeaderEditor && (
-          <>
+          {/* Tab switcher: bảng task / video đã nộp */}
+          <div className="flex rounded-xl overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0">
+            <button
+              onClick={() => setActiveTab('table')}
+              className={cn(
+                'flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors',
+                activeTab === 'table' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-gray-100'
+              )}
+            >
+              <Table2 className="w-4 h-4" />
+              Danh sách task
+            </button>
+            <button
+              onClick={() => setActiveTab('submitted')}
+              className={cn(
+                'flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors border-l border-gray-200',
+                activeTab === 'submitted' ? 'bg-indigo-600 text-white border-indigo-600' : 'text-slate-600 hover:bg-gray-100'
+              )}
+            >
+              <LayoutGrid className="w-4 h-4" />
+              Video đã nộp
+            </button>
+          </div>
+
+          {/* View mode toggle (LeaderEditor) */}
+          {isLeaderEditor && (
             <div className="flex rounded-xl overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0">
               <button
                 onClick={() => switchView('team')}
@@ -154,11 +183,12 @@ export default function TasksPage() {
                 Của tôi
               </button>
             </div>
-            <div className="w-px h-10 bg-gray-200 flex-shrink-0 hidden sm:block" />
-          </>
-        )}
+          )}
+        </div>
 
-        {/* Filters */}
+        <div className="h-px bg-gray-100" />
+
+        {/* Hàng 2: bộ lọc + nút Tạo task */}
         <TaskFilters
           statusFilter={status}
           teamFilter={teamId}
@@ -169,6 +199,7 @@ export default function TasksPage() {
           canCreate={canCreate}
           isMember={isMineView}
           hideTeamFilter={isLeader}
+          hideStatusFilter={activeTab === 'submitted'}
           onStatusChange={handleStatusChange}
           onTeamChange={handleTeamChange}
           onSearchChange={handleSearchChange}
@@ -180,15 +211,29 @@ export default function TasksPage() {
 
       {/* <TaskStatsBar tasks={tasks} /> */}
 
-      <TasksTable
-        tasks={tasks}
-        total={total}
-        page={page}
-        totalPages={totalPages}
-        isLoading={isLoading}
-        onViewTask={setSelectedTaskId}
-        onPageChange={setPage}
-      />
+      {activeTab === 'table' ? (
+        <TasksTable
+          tasks={tasks}
+          total={total}
+          page={page}
+          totalPages={totalPages}
+          isLoading={isLoading}
+          onViewTask={setSelectedTaskId}
+          onPageChange={setPage}
+        />
+      ) : (
+        <SubmittedVideosGrid
+          teamId={effectiveTeamId}
+          teams={teams}
+          search={search || undefined}
+          deadlineDate={deadlineDate || undefined}
+          assigneeId={isMineView ? user?.id : undefined}
+          page={submittedPage}
+          onPageChange={setSubmittedPage}
+          onViewTask={setSelectedTaskId}
+          canApproveReject={canApproveReject}
+        />
+      )}
 
       {selectedTaskId && (
         <TaskDetailPanel

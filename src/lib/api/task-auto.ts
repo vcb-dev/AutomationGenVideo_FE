@@ -23,6 +23,7 @@ import type {
   UserBasic,
   TeamProduct,
   TeamContent,
+  TeamPushRequest,
 } from '@/types/task-auto'
 
 function qs(params: Record<string, string | number | boolean | undefined | null>): string {
@@ -412,6 +413,17 @@ export const pushEditorSourceToTeam = (userId: string, id: string, teamId: strin
 
 export const pushEditorSourceToGlobal = (userId: string, id: string) =>
   apiClient.patch(`/task-auto/editors/${userId}/sources/${id}/push-to-global`).then(r => r.data)
+
+// ── Team Push Requests (duyệt đẩy kho cá nhân → kho team) ────────────────────
+
+export const getMyPushRequests = (userId: string, status?: string) =>
+  apiClient.get<TeamPushRequest[]>(`/task-auto/editors/${userId}/push-requests${qs({ status })}`).then(r => r.data)
+
+export const getTeamPushRequests = (teamId: string, status?: string) =>
+  apiClient.get<TeamPushRequest[]>(`/task-auto/teams/${teamId}/push-requests${qs({ status })}`).then(r => r.data)
+
+export const reviewPushRequest = (id: string, action: 'APPROVED' | 'REJECTED', note?: string) =>
+  apiClient.patch<TeamPushRequest>(`/task-auto/push-requests/${id}/review`, { action, note }).then(r => r.data)
 
 // ── Personal Catalog — Push to Team (legacy aliases) ─────────────────────────
 

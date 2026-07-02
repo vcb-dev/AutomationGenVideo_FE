@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 import { AlertCircle, CheckCircle2 } from 'lucide-react'
 
 export interface AllocCardItem {
-  percent: number
+  value: number
   content_line?: { name: string } | null
   product_line?: { name: string } | null
 }
@@ -12,6 +12,7 @@ export interface AllocCardItem {
 export function AllocCardSection({
   items, label, icon,
   barColor, bgColor, borderColor, labelColor, totalColor,
+  mode = 'percent', target = 0,
 }: {
   items: AllocCardItem[]
   label: string
@@ -21,9 +22,14 @@ export function AllocCardSection({
   borderColor: string
   labelColor: string
   totalColor: string
+  /** 'percent' (mặc định, TeamKpi) hoặc 'count' (số video cụ thể, EditorKpi) */
+  mode?: 'percent' | 'count'
+  /** Mục tiêu cần khớp khi mode='count' */
+  target?: number
 }) {
-  const total   = items.reduce((s, a) => s + a.percent, 0)
-  const isValid = total === 100
+  const total   = items.reduce((s, a) => s + a.value, 0)
+  const isValid = mode === 'percent' ? total === 100 : total === target
+  const chip    = mode === 'percent' ? `${total}%` : `${total}/${target}`
 
   return (
     <div className={cn('rounded-xl border p-4 space-y-3', bgColor, borderColor)}>
@@ -41,7 +47,7 @@ export function AllocCardSection({
             'text-xs font-black px-2 py-0.5 rounded-full',
             isValid ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
           )}>
-            {total}%
+            {chip}
           </span>
         </div>
       </div>
@@ -52,16 +58,17 @@ export function AllocCardSection({
         <div className="space-y-2.5">
           {items.map((a, i) => {
             const name = a.content_line?.name ?? a.product_line?.name ?? '—'
+            const barWidth = mode === 'percent' ? a.value : (target > 0 ? (a.value / target) * 100 : 0)
             return (
               <div key={i} className="space-y-1">
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-sm font-medium text-slate-700 truncate">{name}</span>
-                  <span className={cn('text-sm font-black shrink-0', totalColor)}>{a.percent}%</span>
+                  <span className={cn('text-sm font-black shrink-0', totalColor)}>{mode === 'percent' ? `${a.value}%` : a.value}</span>
                 </div>
                 <div className="h-2 bg-white/70 rounded-full overflow-hidden border border-black/5">
                   <div
                     className={cn('h-full rounded-full transition-all duration-500', barColor)}
-                    style={{ width: `${a.percent}%` }}
+                    style={{ width: `${barWidth}%` }}
                   />
                 </div>
               </div>

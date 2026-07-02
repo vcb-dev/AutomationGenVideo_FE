@@ -63,7 +63,7 @@ export function TeamKpiCard({ kpi, canEdit, onEdit }: Props) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {content.length > 0 && (
               <AllocCardSection
-                items={content}
+                items={content.map(a => ({ value: a.percent, content_line: a.content_line }))}
                 label="Tuyến nội dung"
                 icon={<FileText className="w-3.5 h-3.5" />}
                 barColor="bg-indigo-500"
@@ -75,7 +75,7 @@ export function TeamKpiCard({ kpi, canEdit, onEdit }: Props) {
             )}
             {product.length > 0 && (
               <AllocCardSection
-                items={product}
+                items={product.map(a => ({ value: a.percent, product_line: a.product_line }))}
                 label="Dòng sản phẩm"
                 icon={<Package className="w-3.5 h-3.5" />}
                 barColor="bg-teal-500"

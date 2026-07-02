@@ -13,7 +13,7 @@ import { DarkInput, ProductSearchSelect, CustomSelect } from '@/components/task-
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import {
   getSources, createSource, updateSource, deleteSource,
-  getProducts,
+  getProducts, getTeams,
 } from '@/lib/api/task-auto'
 import { useAuthStore } from '@/store/auth-store'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
@@ -86,7 +86,7 @@ export function SourcesTab({ brandType, isScaleData = false }: { brandType: Bran
   const [viewingSource, setViewingSource] = useState<Source | null>(null)
   const [form, setForm] = useState<Partial<Source>>({
     type: 'PRODUCT_STOCK', name: '', link: '', nas_link: '', code: '',
-    product_id: '', user_id: null, is_active: true,
+    product_id: '', user_id: null, is_active: true, team_id: null,
   })
 
   const { data, isLoading } = useQuery({
@@ -106,6 +106,12 @@ export function SourcesTab({ brandType, isScaleData = false }: { brandType: Bran
   const { data: productsForSelect } = useQuery({
     queryKey: ['task-auto', 'products-select'],
     queryFn: () => getProducts({ limit: 200 }),
+    enabled: modal !== null,
+  })
+
+  const { data: teamsForSelect } = useQuery({
+    queryKey: ['task-auto', 'teams-select'],
+    queryFn: () => getTeams(),
     enabled: modal !== null,
   })
 
@@ -141,11 +147,11 @@ export function SourcesTab({ brandType, isScaleData = false }: { brandType: Bran
   })
 
   const openCreate = () => {
-    setForm({ type: 'PRODUCT_STOCK', name: '', link: '', nas_link: '', code: '', product_id: '', user_id: null, is_active: true })
+    setForm({ type: 'PRODUCT_STOCK', name: '', link: '', nas_link: '', code: '', product_id: '', user_id: null, is_active: true, team_id: null })
     setEditing(null)
     setModal('create')
   }
-  const openEdit = (s: Source) => { setForm({ ...s }); setEditing(s); setModal('edit') }
+  const openEdit = (s: Source) => { setForm({ ...s, team_id: s.ordered_team_id ?? null }); setEditing(s); setModal('edit') }
 
   const handleSubmit = () => {
     if (!form.name || !form.link) return toast.error('Tên và link là bắt buộc')
@@ -156,6 +162,7 @@ export function SourcesTab({ brandType, isScaleData = false }: { brandType: Bran
       code:       form.code || null,
       product_id: form.product_id || null,
       is_active:  form.is_active,
+      team_id:    form.team_id || null,
     }
     if (modal === 'create') createMut.mutate({ type: form.type!, brand_type: brandType, ...body })
     else if (editing)       updateMut.mutate({ id: editing.id, body })
@@ -193,7 +200,7 @@ export function SourcesTab({ brandType, isScaleData = false }: { brandType: Bran
             options={OWNER_OPTIONS}
             className="min-w-[150px]"
           />
-          <CustomSelect
+          {/* <CustomSelect
             value={activeFilter}
             onChange={v => { setActiveFilter(v as 'all' | 'true' | 'false'); setPage(1) }}
             options={[
@@ -202,7 +209,7 @@ export function SourcesTab({ brandType, isScaleData = false }: { brandType: Bran
               { value: 'false', label: 'Không hoạt động' },
             ]}
             className="min-w-[175px]"
-          />
+          /> */}
           <input
             type="month"
             value={month}
@@ -235,7 +242,8 @@ export function SourcesTab({ brandType, isScaleData = false }: { brandType: Bran
               <tr className="bg-slate-50 border-b-2 border-gray-200">
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Tên source</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Loại</th>
-                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Kho</th>
+                {/* <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Kho</th> */}
+                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Team order</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Code</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Link</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Sản phẩm</th>
@@ -246,9 +254,9 @@ export function SourcesTab({ brandType, isScaleData = false }: { brandType: Bran
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {isLoading && <LoadingRows cols={10} />}
+              {isLoading && <LoadingRows cols={11} />}
               {!isLoading && (!data?.data || data.data.length === 0) && (
-                <tr><td colSpan={10}><EmptyState icon={Radio} title="Không có Source nào" /></td></tr>
+                <tr><td colSpan={11}><EmptyState icon={Radio} title="Không có Source nào" /></td></tr>
               )}
               {data?.data.map(s => {
                 const ts = s.source_team_source
@@ -267,8 +275,14 @@ export function SourcesTab({ brandType, isScaleData = false }: { brandType: Bran
                       {SOURCE_TYPE_LABELS[rType]}
                     </span>
                   </td>
-                  <td className="px-5 py-4 whitespace-nowrap">
+                  {/* <td className="px-5 py-4 whitespace-nowrap">
                     <OwnerBadge source={s} />
+                  </td> */}
+                  <td className="px-5 py-4 whitespace-nowrap">
+                    {s.ordered_team
+                      ? <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-sky-100 text-sky-700 text-xs font-semibold whitespace-nowrap">{s.ordered_team.name}</span>
+                      : <span className="text-slate-300 text-sm">—</span>
+                    }
                   </td>
                   <td className="px-5 py-4 whitespace-nowrap">
                     {rCode
@@ -474,6 +488,15 @@ export function SourcesTab({ brandType, isScaleData = false }: { brandType: Bran
               products={productsForSelect?.data ?? []}
               placeholder="-- Không liên kết sản phẩm --"
               clearLabel="-- Không liên kết --"
+            />
+            <CustomSelect
+              label="Đội đặt hàng (team order)"
+              value={form.team_id ?? ''}
+              onChange={v => setForm(f => ({ ...f, team_id: v || null }))}
+              options={[
+                { value: '', label: '-- Không chọn team --' },
+                ...(teamsForSelect ?? []).map(t => ({ value: t.id, label: t.name })),
+              ]}
             />
           </div>
 
