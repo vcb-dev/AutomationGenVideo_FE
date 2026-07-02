@@ -190,7 +190,7 @@ export function ProductsTab({ brandType }: { brandType: BrandType }) {
             className="min-w-[180px]"
             searchable
           />
-          <CustomSelect
+          {/* <CustomSelect
             value={activeFilter}
             onChange={v => { setActiveFilter(v as 'all' | 'true' | 'false'); setPage(1) }}
             options={[
@@ -199,7 +199,7 @@ export function ProductsTab({ brandType }: { brandType: BrandType }) {
               { value: 'false', label: 'Không hoạt động' },
             ]}
             className="min-w-[175px]"
-          />
+          /> */}
           <input
             type="month"
             value={month}

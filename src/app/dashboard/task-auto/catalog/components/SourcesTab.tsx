@@ -200,7 +200,7 @@ export function SourcesTab({ brandType, isScaleData = false }: { brandType: Bran
             options={OWNER_OPTIONS}
             className="min-w-[150px]"
           />
-          <CustomSelect
+          {/* <CustomSelect
             value={activeFilter}
             onChange={v => { setActiveFilter(v as 'all' | 'true' | 'false'); setPage(1) }}
             options={[
@@ -209,7 +209,7 @@ export function SourcesTab({ brandType, isScaleData = false }: { brandType: Bran
               { value: 'false', label: 'Không hoạt động' },
             ]}
             className="min-w-[175px]"
-          />
+          /> */}
           <input
             type="month"
             value={month}
@@ -242,7 +242,7 @@ export function SourcesTab({ brandType, isScaleData = false }: { brandType: Bran
               <tr className="bg-slate-50 border-b-2 border-gray-200">
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Tên source</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Loại</th>
-                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Kho</th>
+                {/* <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Kho</th> */}
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Team order</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Code</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Link</th>
@@ -275,9 +275,9 @@ export function SourcesTab({ brandType, isScaleData = false }: { brandType: Bran
                       {SOURCE_TYPE_LABELS[rType]}
                     </span>
                   </td>
-                  <td className="px-5 py-4 whitespace-nowrap">
+                  {/* <td className="px-5 py-4 whitespace-nowrap">
                     <OwnerBadge source={s} />
-                  </td>
+                  </td> */}
                   <td className="px-5 py-4 whitespace-nowrap">
                     {s.ordered_team
                       ? <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-sky-100 text-sky-700 text-xs font-semibold whitespace-nowrap">{s.ordered_team.name}</span>

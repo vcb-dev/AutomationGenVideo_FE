@@ -86,7 +86,7 @@ export default function CatalogPage() {
 
         {/* Brand: switcher cho admin/manager, badge cho user thường */}
         <div className="flex gap-3 pb-1">
-          {isAdminOrManager ? (
+          {isAdminOrManager || isScaleData ? (
             BRANDS.map(b => (
               <button
                 key={b.key}
