@@ -54,8 +54,8 @@ export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandTy
   const [sourceDraft, setSourceDraft] = useState<SourceDraft>(defaultSource)
 
   const { data: productLines } = useQuery({
-    queryKey: ['task-auto', 'product-lines', brandType],
-    queryFn: () => getProductLines(brandType),
+    queryKey: ['task-auto', 'product-lines'],
+    queryFn: () => getProductLines(),
     enabled: open,
   })
   const { data: materials } = useQuery({
@@ -227,8 +227,8 @@ export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandTy
               options={productLines?.map(l => ({ value: l.id, label: l.name })) ?? []}
               createLabel="Thêm dòng sản phẩm"
               onCreate={async (name) => {
-                const created = await createProductLine(name, brandType)
-                qc.setQueryData<typeof productLines>(['task-auto', 'product-lines', brandType], old => [...(old ?? []), created])
+                const created = await createProductLine(name)
+                qc.setQueryData<typeof productLines>(['task-auto', 'product-lines'], old => [...(old ?? []), created])
                 return { id: created.id, label: created.name }
               }}
             />
