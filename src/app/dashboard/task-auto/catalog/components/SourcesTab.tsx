@@ -67,7 +67,7 @@ function LoadingRows({ cols }: { cols: number }) {
 
 type BrandType = 'DO_DA' | 'TRANG_SUC'
 
-export function SourcesTab({ brandType, isScaleData = false }: { brandType: BrandType; isScaleData?: boolean }) {
+export function SourcesTab({ brandType, isScaleData = false, month, onMonthChange }: { brandType: BrandType; isScaleData?: boolean; month: string; onMonthChange: (month: string) => void }) {
   const qc = useQueryClient()
   const { user } = useAuthStore()
   const isAdminOrManager = user?.roles?.some((r: string) => ['ADMIN', 'MANAGER'].includes(r)) ?? false
@@ -78,7 +78,6 @@ export function SourcesTab({ brandType, isScaleData = false }: { brandType: Bran
   const [typeFilter, setTypeFilter]   = useState<SourceType | ''>('')
   const [ownerFilter, setOwnerFilter] = useState<string>('')
   const [activeFilter, setActiveFilter] = useState<'all' | 'true' | 'false'>('all')
-  const [month, setMonth] = useState('')
   const [page, setPage] = useState(1)
   const [modal, setModal]         = useState<null | 'create' | 'edit'>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -99,7 +98,7 @@ export function SourcesTab({ brandType, isScaleData = false }: { brandType: Bran
       is_active: activeFilter === 'all' ? undefined : activeFilter === 'true',
       month:     month || undefined,
       page,
-      limit: 20,
+      limit: 10,
     }),
   })
 
@@ -213,7 +212,7 @@ export function SourcesTab({ brandType, isScaleData = false }: { brandType: Bran
           <input
             type="month"
             value={month}
-            onChange={e => { setMonth(e.target.value); setPage(1) }}
+            onChange={e => { onMonthChange(e.target.value); setPage(1) }}
             className="px-3 py-3.5 border border-gray-200 rounded-xl text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
           />
           {canManage && (

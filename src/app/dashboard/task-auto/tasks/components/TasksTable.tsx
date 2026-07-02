@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Eye, Zap, Target, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react'
+import { Eye, Zap, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { TaskStatusBadge } from '@/components/task-auto/StatusBadge'
@@ -195,7 +195,7 @@ export function TasksTable({
               </th>
               <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Trạng thái</th>
               <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Deadline</th>
-              {/* <th className="text-center px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-32">Loại</th> */}
+              <th className="text-center px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-32">Loại</th>
               <th className="w-10" />
             </tr>
           </thead>
@@ -260,20 +260,15 @@ export function TasksTable({
                         </span>
                       ) : <span className="text-slate-300 text-sm">—</span>}
                     </td>
-                    {/* <td className="px-5 py-4 text-center whitespace-nowrap" onClick={e => e.stopPropagation()}>
-                      <div className="flex items-center justify-center gap-1 flex-wrap">
-                        {task.is_auto && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
-                            <Zap className="w-3 h-3" /> Auto
-                          </span>
-                        )}
-                        {task.is_planned && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
-                            <Target className="w-3 h-3" /> SP KH
-                          </span>
-                        )}
-                      </div>
-                    </td> */}
+                    <td className="px-5 py-4 text-center whitespace-nowrap">
+                      <span className={cn(
+                        'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap',
+                        task.task_type === 'AUTO' ? 'bg-amber-100 text-amber-700' : 'bg-violet-100 text-violet-700',
+                      )}>
+                        <Zap className="w-3 h-3" />
+                        {task.task_type === 'AUTO' ? 'Auto' : 'Sáng tạo'}
+                      </span>
+                    </td>
                     <td className="pr-4 py-4 text-right w-10">
                       <Eye className="w-4 h-4 text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                     </td>

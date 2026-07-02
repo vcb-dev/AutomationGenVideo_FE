@@ -12,6 +12,7 @@ export type TaskStatus =
   | 'REJECTED'
   | 'CANCELLED'
 
+export type TaskTypeValue = 'AUTO' | 'EXTRA'
 export type ContentUsageStatus = 'AVAILABLE' | 'IN_TASK' | 'USED' | 'ARCHIVED'
 export type ContentMarket = 'VIETNAM' | 'INDONESIA' | 'JAPAN' | 'THAILAND'
 export type TeamMarket = 'VIETNAM' | 'INDONESIA' | 'JAPAN' | 'THAILAND'
@@ -406,7 +407,7 @@ export interface Task {
   team_product_id: string | null
   content_line_id: string | null
   product_line_id?: string | null
-  /** true = task đẩy SP theo kế hoạch (sản phẩm từ kho team) */
+  /** true = task đẩy SP theo kế hoạch (SP kho team) — luôn đi kèm task_type AUTO */
   is_product_push?: boolean
   source_outro_id:             string | null
   source_extra_id:             string | null
@@ -424,9 +425,8 @@ export interface Task {
   assignee_id: string | null
   assigned_at: string | null
   deadline: string | null
-  is_auto: boolean
-  is_extra: boolean
-  is_planned: boolean
+  /** AUTO = task đẩy SP theo kế hoạch (không cho sửa) · EXTRA = task sáng tạo, gồm cả lane sáng tạo của auto-assign lẫn tạo tay (cho sửa) */
+  task_type: TaskTypeValue
   run_id: string | null
   result_url: string | null
   submitted_at: string | null

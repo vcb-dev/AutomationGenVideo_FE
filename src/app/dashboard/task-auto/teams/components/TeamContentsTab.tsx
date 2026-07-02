@@ -24,15 +24,16 @@ interface TeamContentsTabProps {
   brandType: 'DO_DA' | 'TRANG_SUC'
   selectedTeamId: string
   setSelectedTeamId: (id: string) => void
+  month: string
+  setMonth: (month: string) => void
 }
 
-export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedTeamId, setSelectedTeamId }: TeamContentsTabProps) {
+export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedTeamId, setSelectedTeamId, month, setMonth }: TeamContentsTabProps) {
   const qc = useQueryClient()
   const [showAdd, setShowAdd] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const [editingContent, setEditingContent] = useState<TeamContent | null>(null)
   const [search, setSearch] = useState('')
-  const [month, setMonth] = useState('')
 
   const { data: teams } = useQuery({
     queryKey: ['task-auto', 'teams'],

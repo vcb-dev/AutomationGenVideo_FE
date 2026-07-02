@@ -179,7 +179,7 @@ export function SubmittedVideosGrid({ teamId, teams, search, deadlineDate, assig
                 </div>
                 <p className="text-xs text-slate-400 mt-1.5">Nộp lúc {formatDateTime(task.submitted_at)}</p>
 
-                {canApproveReject && !task.is_extra && (
+                {canApproveReject && (
                   <div className="grid grid-cols-2 gap-2 mt-3" onClick={e => e.stopPropagation()}>
                     <button
                       onClick={() => approveMut.mutate(task.id)}

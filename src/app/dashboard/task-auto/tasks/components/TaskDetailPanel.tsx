@@ -4,13 +4,14 @@ import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import toast from 'react-hot-toast'
-import { Loader2, Zap, XCircle, CheckCircle2, Play, ExternalLink } from 'lucide-react'
+import { Loader2, XCircle, CheckCircle2, Play, ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   getTask, approveTask, cancelTask, getSources, getTeamSources,
   getProduct, getContent, startTask,
   updateTask, getProducts, getContents, getTeam, getApprovals,
   getEditorProducts, getEditorContents, getTeamProducts, getTeamContents,
+  getEditorSources,
 } from '@/lib/api/task-auto'
 import { SubmitModal, RejectModal } from './TaskModals'
 import { StatusTimeline } from './detail/StatusTimeline'
@@ -25,19 +26,23 @@ import { VideoScriptSection } from './detail/VideoScriptSection'
 import type { Source, TeamSource } from '@/types/task-auto'
 
 type CatalogScope = 'personal' | 'global' | 'team'
+type SourceScope = CatalogScope | 'all'
 
-function ScopeSwitch({ value, onChange, hasTeam }: {
-  value: CatalogScope
-  onChange: (s: CatalogScope) => void
+function ScopeSwitch({ value, onChange, hasTeam, includeAll = false }: {
+  value: CatalogScope | SourceScope
+  onChange: (s: any) => void
   hasTeam: boolean
+  includeAll?: boolean
 }) {
+  const options = [
+    ...(includeAll ? [{ key: 'all' as const, label: 'Tất cả', disabled: false }] : []),
+    { key: 'personal' as const, label: 'Cá nhân',  disabled: false },
+    { key: 'global'   as const, label: 'Kho tổng', disabled: false },
+    { key: 'team'     as const, label: 'Kho team', disabled: !hasTeam },
+  ]
   return (
     <div className="flex gap-0.5 p-0.5 bg-gray-100 rounded-lg ml-auto shrink-0">
-      {([
-        { key: 'personal' as CatalogScope, label: 'Cá nhân',  disabled: false },
-        { key: 'global'   as CatalogScope, label: 'Kho tổng', disabled: false },
-        { key: 'team'     as CatalogScope, label: 'Kho team', disabled: !hasTeam },
-      ]).map(({ key, label, disabled }) => (
+      {options.map(({ key, label, disabled }) => (
         <button
           key={key}
           type="button"
@@ -85,6 +90,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
   const [contentSearch, setContentSearch] = useState('')
   const [productScope, setProductScope] = useState<'personal' | 'global' | 'team'>('global')
   const [contentScope, setContentScope] = useState<'personal' | 'global' | 'team'>('global')
+  const [sourceScope, setSourceScope] = useState<SourceScope>('all')
 
   const { data: task, isLoading } = useQuery({
     queryKey: ['task-auto', 'task', taskId],
@@ -180,11 +186,15 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
     enabled: editMode && !!task?.team_id,
   })
 
-  const { data: editPersonalSrcs } = useQuery({
+  const { data: editPersonalSrcsRaw } = useQuery({
     queryKey: ['task-auto', 'detail-src-personal', currentUserId],
-    queryFn: () => getSources({ owner: 'editor', user_id: currentUserId, is_active: true, limit: 200 }),
+    queryFn: () => getEditorSources(currentUserId!, { is_active: true, limit: 200 }),
     enabled: editMode && !!currentUserId,
   })
+  // EditorSource là bảng riêng — form sửa lưu bằng source_*_id (kho tổng) nên chỉ dùng bản có FK về kho tổng
+  const editPersonalSrcs = { data: (editPersonalSrcsRaw?.data ?? [])
+    .filter((es: any) => !!es.source_source_id)
+    .map((es: any) => ({ ...es, id: es.source_source_id } as Source)) }
   const { data: editTeamSrcsRaw } = useQuery({
     queryKey: ['task-auto', 'detail-src-team', task?.team_id],
     queryFn: () => getTeamSources(task!.team_id!, { is_active: true }),
@@ -198,7 +208,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
     } as unknown as Source)) }
   const { data: editGlobalSrcs } = useQuery({
     queryKey: ['task-auto', 'detail-src-global'],
-    queryFn: () => getSources({ owner: 'global', is_active: true, limit: 200 }),
+    queryFn: () => getSources({ is_active: true, limit: 200 }),
     enabled: editMode,
   })
 
@@ -284,10 +294,17 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
     return result
   }, [editPersonalSrcs, editTeamSrcs, editGlobalSrcs])
 
-  const outroSources  = editAllSources.filter(s => s.type === 'OUTRO')
-  const collectedSrcs = editAllSources.filter(s => s.type === 'COLLECTED')
-  const workshopSrcs  = editAllSources.filter(s => s.type === 'WORKSHOP')
-  const huykSrcs      = editAllSources.filter(s => s.type === 'HUYK')
+  const sourceScopedList: Source[] = useMemo(() => {
+    if (sourceScope === 'personal') return editPersonalSrcs?.data ?? []
+    if (sourceScope === 'team') return editTeamSrcs?.data ?? []
+    if (sourceScope === 'global') return editGlobalSrcs?.data ?? []
+    return editAllSources
+  }, [sourceScope, editPersonalSrcs, editTeamSrcs, editGlobalSrcs, editAllSources])
+
+  const outroSources  = sourceScopedList.filter(s => s.type === 'OUTRO')
+  const collectedSrcs = sourceScopedList.filter(s => s.type === 'COLLECTED')
+  const workshopSrcs  = sourceScopedList.filter(s => s.type === 'WORKSHOP')
+  const huykSrcs      = sourceScopedList.filter(s => s.type === 'HUYK')
 
   const updateMut = useMutation({
     mutationFn: () => {
@@ -563,113 +580,65 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                   </div>
                 )}
 
-                {/* Task sáng tạo */}
-                {task.is_extra && (
-                  <div className="bg-violet-50 border border-violet-200 rounded-2xl p-6 flex flex-col items-center gap-3 text-center">
-                    <div className="w-14 h-14 rounded-full bg-violet-100 flex items-center justify-center">
-                      <Zap className="w-7 h-7 text-violet-500" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-violet-800 text-base">Task sáng tạo</p>
-                      <p className="text-sm text-violet-600 mt-1">
-                        Task này không có nội dung cụ thể. Hãy bắt đầu làm và nộp link kết quả khi hoàn thành.
-                      </p>
-                    </div>
-                    {task.result_url && !task.result_url.startsWith('/task-auto/tasks/') && (
-                      <a href={task.result_url} target="_blank" rel="noopener noreferrer"
-                        className="text-sm text-violet-700 hover:underline flex items-center gap-1.5 font-medium">
-                        Xem kết quả đã nộp <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
-                    )}
-                  </div>
-                )}
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4">
 
-                {/* Task thường: 2 cột + meta */}
-                {!task.is_extra && (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4">
-
-                      {/* LEFT: Content + Sources */}
-                      <div className="flex flex-col gap-4">
-                        <ContentSection
-                          editMode={editMode}
-                          edit={{
-                            contentId: editForm.content_id,
-                            onChange: v => setEditForm(f => ({ ...f, content_id: v })),
-                            items: allContentItems,
-                            searchValue: contentSearch,
-                            onSearchChange: setContentSearch,
-                            loading: loadingAllContents,
-                            currentContentId: currentContentPrefixedId || undefined,
-                            currentContentTitle: contentTitle,
-                            filterSlot: (
-                              <ScopeSwitch
-                                value={contentScope}
-                                onChange={s => { setContentScope(s); setEditForm(f => ({ ...f, content_id: '' })) }}
-                                hasTeam={!!task?.team_id}
-                              />
-                            ),
-                          }}
-                          view={{
-                            contentTitle,
-                            contentMarket,
-                            contentLine,
-                            scriptText,
-                            fileUrl,
-                            voiceUrl,
-                          }}
-                        />
-
-                        <SourcesSection
-                          editMode={editMode}
-                          task={task}
-                          //productSources={productSources}
-                          edit={{
-                            form: {
-                              source_outro_id:     editForm.source_outro_id,
-                              source_collected_id: editForm.source_collected_id,
-                              source_workshop_id:  editForm.source_workshop_id,
-                              source_huyk_id:      editForm.source_huyk_id,
-                            },
-                            onChange: patch => setEditForm(f => ({ ...f, ...patch })),
-                            outroSources,
-                            collectedSrcs,
-                            workshopSrcs,
-                            huykSrcs,
-                            productSources,
-                            hasProduct: !!(
-                              task?.product ||
-                              task?.editor_product ||
-                              task?.team_product ||
-                              task?.product_id ||
-                              task?.editor_product_id ||
-                              task?.team_product_id
-                            )
-                          }}
-                        />
-                      </div>
-
-                      {/* RIGHT: Product */}
-                      <ProductSection
+                    {/* LEFT: Content + Sources */}
+                    <div className="flex flex-col gap-4">
+                      <ContentSection
                         editMode={editMode}
                         edit={{
-                          productId: editForm.product_id,
-                          onChange: v => setEditForm(f => ({ ...f, product_id: v })),
-                          items: allProductItems,
-                          searchValue: productSearch,
-                          onSearchChange: setProductSearch,
-                          loading: loadingAllProducts,
-                          currentProductId: currentProductPrefixedId || undefined,
-                          currentProductName: productName,
+                          contentId: editForm.content_id,
+                          onChange: v => setEditForm(f => ({ ...f, content_id: v })),
+                          items: allContentItems,
+                          searchValue: contentSearch,
+                          onSearchChange: setContentSearch,
+                          loading: loadingAllContents,
+                          currentContentId: currentContentPrefixedId || undefined,
+                          currentContentTitle: contentTitle,
                           filterSlot: (
                             <ScopeSwitch
-                              value={productScope}
-                              onChange={s => { setProductScope(s); setEditForm(f => ({ ...f, product_id: '' })) }}
+                              value={contentScope}
+                              onChange={s => { setContentScope(s); setEditForm(f => ({ ...f, content_id: '' })) }}
                               hasTeam={!!task?.team_id}
                             />
                           ),
                         }}
                         view={{
+                          contentTitle,
+                          contentMarket,
+                          contentLine,
+                          scriptText,
+                          fileUrl,
+                          voiceUrl,
+                        }}
+                      />
+
+                      <SourcesSection
+                        editMode={editMode}
+                        task={task}
+                        //productSources={productSources}
+                        edit={{
+                          form: {
+                            source_outro_id:     editForm.source_outro_id,
+                            source_collected_id: editForm.source_collected_id,
+                            source_workshop_id:  editForm.source_workshop_id,
+                            source_huyk_id:      editForm.source_huyk_id,
+                          },
+                          onChange: patch => setEditForm(f => ({ ...f, ...patch })),
+                          outroSources,
+                          collectedSrcs,
+                          workshopSrcs,
+                          huykSrcs,
+                          productSources,
+                          scopeSwitch: (
+                            <ScopeSwitch
+                              value={sourceScope}
+                              onChange={setSourceScope}
+                              hasTeam={!!task?.team_id}
+                              includeAll
+                            />
+                          ),
                           hasProduct: !!(
                             task?.product ||
                             task?.editor_product ||
@@ -677,41 +646,73 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                             task?.product_id ||
                             task?.editor_product_id ||
                             task?.team_product_id
-                          ),
-                          fullProduct: mergedProduct,
-                          productName,
-                          productSku,
-                          primaryImage,
-                          extraImages,
+                          )
                         }}
                       />
                     </div>
 
-                    <VideoScriptSection
-                      fileUrl={fileUrl}
-                      scriptText={scriptText}
-                      contentTitle={contentTitle}
-                      contentLine={contentLine}
-                      contentMarket={contentMarket}
-                      productName={productName}
-                      productSku={productSku}
-                      productPrice={mergedProduct?.price ?? null}
-                      productMaterial={mergedProduct?.material?.name ?? null}
-                      productPriceSegment={mergedProduct?.price_segment ?? null}
-                      productLine={mergedProduct?.product_line?.name ?? null}
-                      productMarket={mergedProduct?.market ?? null}
-                    />
-
-                    <TaskMetaStrip
-                      task={task}
-                      assigneeEdit={editMode && canAssign && task.status === 'PENDING' ? {
-                        value: editForm.assignee_id,
-                        onChange: v => setEditForm(f => ({ ...f, assignee_id: v })),
-                        options: editorUsers ?? [],
-                      } : undefined}
+                    {/* RIGHT: Product */}
+                    <ProductSection
+                      editMode={editMode}
+                      edit={{
+                        productId: editForm.product_id,
+                        onChange: v => setEditForm(f => ({ ...f, product_id: v })),
+                        items: allProductItems,
+                        searchValue: productSearch,
+                        onSearchChange: setProductSearch,
+                        loading: loadingAllProducts,
+                        currentProductId: currentProductPrefixedId || undefined,
+                        currentProductName: productName,
+                        filterSlot: (
+                          <ScopeSwitch
+                            value={productScope}
+                            onChange={s => { setProductScope(s); setEditForm(f => ({ ...f, product_id: '' })) }}
+                            hasTeam={!!task?.team_id}
+                          />
+                        ),
+                      }}
+                      view={{
+                        hasProduct: !!(
+                          task?.product ||
+                          task?.editor_product ||
+                          task?.team_product ||
+                          task?.product_id ||
+                          task?.editor_product_id ||
+                          task?.team_product_id
+                        ),
+                        fullProduct: mergedProduct,
+                        productName,
+                        productSku,
+                        primaryImage,
+                        extraImages,
+                      }}
                     />
                   </div>
-                )}
+
+                  <VideoScriptSection
+                    fileUrl={fileUrl}
+                    scriptText={scriptText}
+                    contentTitle={contentTitle}
+                    contentLine={contentLine}
+                    contentMarket={contentMarket}
+                    productName={productName}
+                    productSku={productSku}
+                    productPrice={mergedProduct?.price ?? null}
+                    productMaterial={mergedProduct?.material?.name ?? null}
+                    productPriceSegment={mergedProduct?.price_segment ?? null}
+                    productLine={mergedProduct?.product_line?.name ?? null}
+                    productMarket={mergedProduct?.market ?? null}
+                  />
+
+                  <TaskMetaStrip
+                    task={task}
+                    assigneeEdit={editMode && canAssign && task.status === 'PENDING' ? {
+                      value: editForm.assignee_id,
+                      onChange: v => setEditForm(f => ({ ...f, assignee_id: v })),
+                      options: editorUsers ?? [],
+                    } : undefined}
+                  />
+                </div>
               </div>
             )}
           </div>

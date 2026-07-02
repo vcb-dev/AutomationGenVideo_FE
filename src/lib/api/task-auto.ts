@@ -472,8 +472,8 @@ export interface EditorWarehouseData extends WarehouseData {
 }
 
 // Global
-export const getGlobalWarehouse = (month: string) =>
-  apiClient.get<WarehouseData>(`/task-auto/warehouse/global${qs({ month })}`).then(r => r.data)
+export const getGlobalWarehouse = (month: string, brandType?: string) =>
+  apiClient.get<WarehouseData>(`/task-auto/warehouse/global${qs({ month, brand_type: brandType })}`).then(r => r.data)
 
 export const addGlobalWarehouse = (type: WarehouseCatalogType, month: string, ids: string[]) =>
   apiClient.post(`/task-auto/warehouse/global/${type}`, { month, ids }).then(r => r.data)

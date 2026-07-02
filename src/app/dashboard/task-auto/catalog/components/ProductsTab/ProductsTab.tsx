@@ -24,14 +24,13 @@ import { Product } from '@/types/task-auto'
 
 type BrandType = 'DO_DA' | 'TRANG_SUC'
 
-export function ProductsTab({ brandType }: { brandType: BrandType }) {
+export function ProductsTab({ brandType, month, onMonthChange }: { brandType: BrandType; month: string; onMonthChange: (month: string) => void }) {
   const qc = useQueryClient()
   const { user } = useAuthStore()
   const canDelete = user?.roles?.some((r: string) => ['ADMIN', 'MANAGER'].includes(r)) ?? false
   const [search, setSearch] = useState('')
   const [productLineFilter, setProductLineFilter] = useState('')
   const [activeFilter, setActiveFilter] = useState<'all' | 'true' | 'false'>('all')
-  const [month, setMonth] = useState('')
   const [page, setPage] = useState(1)
   const [modal, setModal] = useState<null | 'create' | 'edit'>(null)
   const [editing, setEditing] = useState<Product | null>(null)
@@ -55,7 +54,7 @@ export function ProductsTab({ brandType }: { brandType: BrandType }) {
       product_line_id: productLineFilter || undefined,
       is_active: activeFilter === 'all' ? undefined : activeFilter === 'true',
       month: month || undefined,
-      page, limit: 20,
+      page, limit: 10,
     }),
   })
 
@@ -203,7 +202,7 @@ export function ProductsTab({ brandType }: { brandType: BrandType }) {
           <input
             type="month"
             value={month}
-            onChange={e => { setMonth(e.target.value); setPage(1) }}
+            onChange={e => { onMonthChange(e.target.value); setPage(1) }}
             className="px-3 py-3.5 border border-gray-200 rounded-xl text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
           />
           {canDelete && (

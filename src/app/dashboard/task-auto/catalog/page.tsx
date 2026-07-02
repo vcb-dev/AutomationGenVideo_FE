@@ -34,6 +34,7 @@ export default function CatalogPage() {
 
   const [brand, setBrand]         = useState<BrandType>('TRANG_SUC')
   const [activeTab, setActiveTab] = useState<CatalogTab>('products')
+  const [month, setMonth]         = useState('')
 
   const { data: teams } = useQuery({
     queryKey: ['task-auto', 'teams'],
@@ -117,9 +118,9 @@ export default function CatalogPage() {
       </div>
 
       {/* Tab content — key={brand} reset state khi đổi nhóm */}
-      {activeTab === 'products'  && <ProductsTab  key={brand} brandType={brand} />}
-      {activeTab === 'contents'  && <ContentsTab  key={brand} brandType={brand} />}
-      {activeTab === 'sources'   && <SourcesTab   key={brand} brandType={brand} isScaleData={isScaleData || isAdminOrManager} />}
+      {activeTab === 'products'  && <ProductsTab  key={brand} brandType={brand} month={month} onMonthChange={setMonth} />}
+      {activeTab === 'contents'  && <ContentsTab  key={brand} brandType={brand} month={month} onMonthChange={setMonth} />}
+      {activeTab === 'sources'   && <SourcesTab   key={brand} brandType={brand} isScaleData={isScaleData || isAdminOrManager} month={month} onMonthChange={setMonth} />}
       {activeTab === 'warehouse' && <WarehouseTab key={brand} brandType={brand} isAdminOrManager={isAdminOrManager} isScaleData={isScaleData} />}
     </div>
   )
