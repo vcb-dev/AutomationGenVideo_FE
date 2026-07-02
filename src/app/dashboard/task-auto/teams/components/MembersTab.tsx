@@ -62,9 +62,11 @@ export function MembersTab({ canManage, isAdminOrManager, userId, selectedTeamId
   const selectedTeam = teams?.find(t => t.id === selectedTeamId)
   const members: TeamMember[] = selectedTeam?.members || []
   const brand: BrandType = selectedTeam?.brand_type ?? 'TRANG_SUC'
+  // Scale Data quản lý nguồn/sản phẩm xuyên suốt mọi loại & thị trường — không gán cố định 1 loại/1 thị trường
+  const isScaleDataTeam = selectedTeam?.name === 'Scale Data'
 
   const isLeaderOfSelected = selectedTeam?.leader_id === userId
-  const canEditBrand = isAdminOrManager || isLeaderOfSelected
+  const canEditBrand = (isAdminOrManager || isLeaderOfSelected) && !isScaleDataTeam
 
   const myTeams = (teams ?? []).filter(t =>
     t.leader_id === userId || t.members?.some((m: any) => m.user_id === userId)
@@ -143,7 +145,11 @@ export function MembersTab({ canManage, isAdminOrManager, userId, selectedTeamId
           {/* Brand + Market editor */}
           {selectedTeam && (
             <div className="flex items-center gap-2 flex-wrap ml-auto">
-              {editingTeam ? (
+              {isScaleDataTeam ? (
+                <span className="px-3 py-1 rounded-full text-xs font-semibold border-2 bg-slate-100 border-slate-200 text-slate-500">
+                  Mọi loại · Mọi thị trường
+                </span>
+              ) : editingTeam ? (
                 <>
                   {/* Brand buttons */}
                   <span className="text-xs text-slate-400 font-medium">Loại:</span>
