@@ -26,6 +26,11 @@ import {
     Package,
     Radio,
     FolderOpen,
+    Mic,
+    ExternalLink,
+    Wrench,
+    AudioLines,
+    Wand2,
 } from "lucide-react";
 import { NavMenu } from "./types";
 
@@ -413,6 +418,34 @@ export function useNavMenus(
                                 icon: Zap,
                                 description: "Cấu hình tự động hóa & phân công nhiệm vụ",
                             }] : []),
+                        ],
+                    },
+                ],
+            },
+            {
+                id: "tien-ich",
+                label: "Tiện ích",
+                activePathPrefixes: [
+                    "/dashboard/ai/clone-voice",
+                    "/dashboard/ai/overview",
+                ] as string[],
+                sections: [
+                    {
+                        section: "GIỌNG NÓI AI",
+                        color: "violet" as const,
+                        items: [
+                            {
+                                label: "Tổng quan",
+                                href: "/dashboard/ai/overview",
+                                icon: LayoutDashboard,
+                                description: "Xem báo cáo chi tiêu, token tiêu thụ & số lượng voice",
+                            },
+                            {
+                                label: "Clone Voice",
+                                href: "/dashboard/ai/clone-voice",
+                                icon: AudioLines,
+                                description: "Clone & tạo giọng nói AI từ văn bản, dịch kịch bản",
+                            },
                         ],
                     },
                 ],
