@@ -1,7 +1,8 @@
 'use client';
 
-import { Users, Heart, VideoCamera, ArrowsClockwise, BookmarkSimple, Timer, CircleNotch, SealCheck } from '@phosphor-icons/react';
+import { Users, Heart, VideoCamera, ArrowsClockwise, BookmarkSimple, Timer, CircleNotch, SealCheck, Buildings, UserCircle } from '@phosphor-icons/react';
 import { InstagramProfile } from '@/services/scraperService';
+import { ChannelInfo } from '@/services/channelsService';
 
 function proxyImg(url: string): string {
   if (!url) return '';
@@ -19,13 +20,14 @@ function formatNum(n: number): string {
 
 interface Props {
   profile: InstagramProfile;
+  channelInfo?: ChannelInfo;
   onScrape: () => void;
   onToggleBookmark: () => void;
   onToggleTracked: () => void;
   onViewDetail: () => void;
 }
 
-export default function InstagramProfileCard({ profile: p, onScrape, onToggleBookmark, onToggleTracked, onViewDetail }: Props) {
+export default function InstagramProfileCard({ profile: p, channelInfo, onScrape, onToggleBookmark, onToggleTracked, onViewDetail }: Props) {
   const isProcessing = p.scraping_status === 'processing';
 
   return (
@@ -91,6 +93,30 @@ export default function InstagramProfileCard({ profile: p, onScrape, onToggleBoo
           </div>
         )}
       </div>
+
+      {/* Team / Owner */}
+      {channelInfo !== undefined && (
+        <div className="grid grid-cols-2 gap-x-3 px-3.5 py-2 border-t border-border/50 bg-slate-50/30 dark:bg-slate-800/20">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1 text-slate-400 mb-0.5">
+              <Buildings size={10} />
+              <span className="text-[10px] uppercase tracking-wide">Team</span>
+            </div>
+            <p className={`text-xs truncate ${channelInfo.team_name ? 'font-medium text-foreground' : 'italic text-slate-400'}`}>
+              {channelInfo.team_name ?? 'Chưa có dữ liệu'}
+            </p>
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1 text-slate-400 mb-0.5">
+              <UserCircle size={10} />
+              <span className="text-[10px] uppercase tracking-wide">Chủ kênh</span>
+            </div>
+            <p className={`text-xs truncate ${channelInfo.owner_name ? 'font-medium text-foreground' : 'italic text-slate-400'}`}>
+              {channelInfo.owner_name ?? 'Chưa có dữ liệu'}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Action bar */}
       <div className="flex items-center border-t border-border bg-slate-50/50 dark:bg-slate-800/30" onClick={e => e.stopPropagation()}>

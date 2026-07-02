@@ -72,7 +72,7 @@ export interface TikTokVideo {
   preview_image: string;
   video_duration: number;
   region: string;
-  play_count: number;
+  play_count?: number;
   digg_count: number;
   comment_count: number;
   share_count: number;
@@ -100,6 +100,132 @@ export interface PaginatedTikTokVideos {
   videos: TikTokVideo[];
 }
 
+export interface XiaohongshuVideo {
+  id: number;
+  note_id: string;
+  url: string;
+  title: string;
+  description: string;
+  thumbnail_url: string;
+  author_id: string;
+  author_name: string;
+  author_avatar: string;
+  duration_seconds: number;
+  liked_count: number;
+  collected_count: number;
+  comments_count: number;
+  shared_count: number;
+  keywords: string[];
+  date_posted: string;
+}
+
+export interface PaginatedXiaohongshuVideos {
+  status: string;
+  count: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  videos: XiaohongshuVideo[];
+}
+
+export interface XiaohongshuProfile {
+  id: number;
+  user_id: string;
+  nickname: string;
+  avatar_url: string;
+  is_verified: boolean;
+  is_tracked: boolean;
+  is_bookmarked: boolean;
+  is_owned: boolean;
+  is_initial_scraped: boolean;
+  last_scraped_at: string | null;
+  scraping_status: 'idle' | 'processing' | 'completed' | 'failed';
+  scrape_error: string | null;
+  created_at: string;
+  videos_count?: number;
+}
+
+export interface PaginatedXhsProfiles {
+  status: string;
+  count: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  profiles: XiaohongshuProfile[];
+}
+
+export interface DouyinVideo {
+  post_id: string;
+  shortcode: string;
+  url: string;
+  description: string;
+  hashtags: string[];
+  preview_image: string;
+  video_duration: number;
+  region: string;
+  digg_count: number;
+  comment_count: number;
+  share_count: number;
+  collect_count: number;
+  music_title: string;
+  search_keyword: string;
+  date_posted: string;
+  author: {
+    id: string;
+    username: string;
+    display_name: string;
+    avatar_url: string;
+    followers: number;
+    is_verified: boolean;
+  };
+}
+
+export interface DouyinProfile {
+  id: number;
+  sec_user_id: string;
+  uid: string;
+  username: string;
+  nickname: string;
+  avatar_url: string;
+  biography: string;
+  is_verified: boolean;
+  followers_count: number;
+  following_count: number;
+  likes_count: number;
+  videos_count: number;
+  is_bookmarked: boolean;
+  is_tracked: boolean;
+  is_owned: boolean;
+  is_initial_scraped: boolean;
+  last_scraped_at: string | null;
+  scraping_status: 'idle' | 'processing' | 'completed' | 'failed';
+  scrape_error: string | null;
+  created_at: string;
+  videos_in_db: number;
+  total_diggs?: number;
+  total_comments?: number;
+  total_shares?: number;
+  total_collects?: number;
+}
+
+export interface PaginatedDouyinProfiles {
+  status: string;
+  count: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  profiles: DouyinProfile[];
+}
+
+export interface PaginatedDouyinVideos {
+  status: string;
+  count: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  videos: DouyinVideo[];
+}
+
 export interface TikTokProfile {
   id: number;
   profile_id: string;
@@ -115,6 +241,7 @@ export interface TikTokProfile {
   videos_count: number;
   is_tracked: boolean;
   is_bookmarked: boolean;
+  is_owned: boolean;
   is_initial_scraped: boolean;
   scraping_status: 'idle' | 'processing' | 'completed' | 'failed';
   scrape_error: string | null;
@@ -183,6 +310,7 @@ export interface InstagramProfile {
   posts_count: number;
   is_tracked: boolean;
   is_bookmarked: boolean;
+  is_owned: boolean;
   is_initial_scraped: boolean;
   scraping_status: 'idle' | 'processing' | 'completed' | 'failed';
   scrape_error: string | null;
@@ -203,6 +331,7 @@ export interface InstagramReel {
   description: string;
   hashtags: string[];
   thumbnail_url: string;
+  thumbnail_drive_url: string | null;
   duration_seconds: number | null;
   is_paid_partnership: boolean;
   views_count: number;
@@ -297,6 +426,16 @@ export const scraperService = {
     return res.json();
   },
 
+  getOwnedChannelVideos: async (token: string, params: {
+    page?: number; page_size?: number; q?: string; sort?: string; platform?: string;
+  }): Promise<PaginatedExternalVideos> => {
+    const res = await fetch(`${API_URL}/scraper/owned/videos/${buildParams(params)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Không thể tải videos');
+    return res.json();
+  },
+
   suggestKeywords: async (token: string, q: string): Promise<KeywordSuggestion[]> => {
     const res = await fetch(`${API_URL}/scraper/keywords/suggest/${buildParams({ q })}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -380,7 +519,7 @@ export const scraperService = {
   },
 
   // Trigger TikTok keyword search (async)
-  tiktokSearch: async (token: string, keyword: string, numOfPosts: number = 30, country: string = 'VN'): Promise<{ message: string }> => {
+  tiktokSearch: async (token: string, keyword: string, numOfPosts: number = 30, country: string = 'VN'): Promise<{ message: string; created?: number; updated?: number }> => {
     const res = await fetch(`${API_URL}/scraper/tiktok/search/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -405,11 +544,11 @@ export const scraperService = {
 
   // ─── TIKTOK PROFILE ────────────────────────────────────
 
-  tiktokProfileScrape: async (token: string, url: string, country: string = 'VN'): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; profile_id: number }> => {
+  tiktokProfileScrape: async (token: string, username: string, isOwned?: boolean): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; profile_id: number }> => {
     const res = await fetch(`${API_URL}/scraper/tiktok/profiles/scrape/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, country }),
+      body: JSON.stringify({ username, ...(isOwned !== undefined ? { is_owned: isOwned } : {}) }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
@@ -419,7 +558,7 @@ export const scraperService = {
   },
 
   getTiktokProfiles: async (token: string, params?: {
-    page?: number; page_size?: number; search?: string;
+    page?: number; page_size?: number; search?: string; sort_by?: 'followers' | 'recent'; is_owned?: boolean;
   }): Promise<PaginatedTikTokProfiles> => {
     const res = await fetch(`${API_URL}/scraper/tiktok/profiles/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -459,11 +598,11 @@ export const scraperService = {
 
   // ─── INSTAGRAM PROFILE ─────────────────────────────────
 
-  instagramProfileScrape: async (token: string, url: string): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; profile_id: number }> => {
+  instagramProfileScrape: async (token: string, username: string, isOwned?: boolean): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; profile_id: number }> => {
     const res = await fetch(`${API_URL}/scraper/instagram/profiles/scrape/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }),
+      body: JSON.stringify({ username, ...(isOwned !== undefined ? { is_owned: isOwned } : {}) }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
@@ -473,7 +612,7 @@ export const scraperService = {
   },
 
   getInstagramProfiles: async (token: string, params?: {
-    page?: number; page_size?: number; search?: string;
+    page?: number; page_size?: number; search?: string; is_owned?: boolean;
   }): Promise<PaginatedInstagramProfiles> => {
     const res = await fetch(`${API_URL}/scraper/instagram/profiles/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -537,6 +676,172 @@ export const scraperService = {
       const body = await res.json().catch(() => null);
       throw new Error(body?.error || 'Không thể cào fanpage');
     }
+    return res.json();
+  },
+
+  // ─── DOUYIN ────────────────────────────────────────────
+
+  douyinSearch: async (token: string, keyword: string, numOfPosts = 30): Promise<{ message: string; created?: number; updated?: number }> => {
+    const res = await fetch(`${API_URL}/scraper/douyin/search/`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keyword, num_of_posts: numOfPosts }),
+    });
+    if (!res.ok) throw new Error('Không thể tìm kiếm Douyin');
+    return res.json();
+  },
+
+  getDouyinVideos: async (token: string, params: {
+    q?: string; page?: number; page_size?: number;
+    min_digg?: number; date_from?: string; date_to?: string; sort?: string;
+    search_keyword?: string;
+  }): Promise<PaginatedDouyinVideos> => {
+    const res = await fetch(`${API_URL}/scraper/douyin/videos/${buildParams(params)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Không thể tải Douyin videos');
+    return res.json();
+  },
+
+  douyinKeywordSuggest: async (token: string, q: string): Promise<{ keyword: string; count: number }[]> => {
+    const res = await fetch(`${API_URL}/scraper/douyin/keywords/suggest/${buildParams({ q })}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    return (await res.json()).suggestions || [];
+  },
+
+  douyinProfileScrape: async (token: string, secUserId: string, numOfPosts = 30, isOwned?: boolean): Promise<{ status: string; message: string; profile_id: number; already_exists?: boolean; newly_scraped?: boolean }> => {
+    const res = await fetch(`${API_URL}/scraper/douyin/profile/scrape/`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sec_user_id: secUserId, num_of_posts: numOfPosts, ...(isOwned !== undefined ? { is_owned: isOwned } : {}) }),
+    });
+    if (!res.ok) throw new Error('Không thể cào profile Douyin');
+    return res.json();
+  },
+
+  getDouyinProfiles: async (token: string, params?: {
+    page?: number; page_size?: number; search?: string; sort_by?: 'followers' | 'recent'; is_owned?: boolean;
+  }): Promise<PaginatedDouyinProfiles> => {
+    const res = await fetch(`${API_URL}/scraper/douyin/profiles/${buildParams(params || {})}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Không thể tải danh sách profiles');
+    return res.json();
+  },
+
+  getDouyinProfileDetail: async (token: string, id: number): Promise<DouyinProfile> => {
+    const res = await fetch(`${API_URL}/scraper/douyin/profiles/${id}/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Không thể tải profile');
+    return res.json();
+  },
+
+  getDouyinProfileVideos: async (token: string, id: number, params?: {
+    page?: number; page_size?: number; sort?: string; q?: string; min_digg?: number;
+  }): Promise<{ count: number; page: number; page_size: number; total_pages: number; videos: any[] }> => {
+    const res = await fetch(`${API_URL}/scraper/douyin/profiles/${id}/videos/${buildParams(params || {})}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Không thể tải videos');
+    return res.json();
+  },
+
+  toggleDouyinProfile: async (token: string, id: number, field: 'is_bookmarked' | 'is_tracked'): Promise<any> => {
+    const res = await fetch(`${API_URL}/scraper/douyin/profiles/${id}/toggle/`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ field }),
+    });
+    if (!res.ok) throw new Error('Toggle thất bại');
+    return res.json();
+  },
+
+  // ─── XIAOHONGSHU ───────────────────────────────────────
+
+  xiaohongshuSearch: async (token: string, keyword: string, numOfPosts = 20): Promise<{ status: string; message: string; created?: number; updated?: number }> => {
+    const res = await fetch(`${API_URL}/scraper/xiaohongshu/search/`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keyword, num_of_posts: numOfPosts }),
+    });
+    if (!res.ok) throw new Error('Tìm kiếm Xiaohongshu thất bại');
+    return res.json();
+  },
+
+  getXiaohongshuVideos: async (token: string, params: {
+    q?: string; page?: number; page_size?: number;
+    min_likes?: number; date_from?: string; date_to?: string;
+    sort?: string; keyword?: string;
+  }): Promise<PaginatedXiaohongshuVideos> => {
+    const res = await fetch(`${API_URL}/scraper/xiaohongshu/videos/${buildParams(params)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Không thể tải Xiaohongshu videos');
+    return res.json();
+  },
+
+  xiaohongshuKeywordSuggest: async (token: string, q: string): Promise<{ keyword: string; count: number }[]> => {
+    const res = await fetch(`${API_URL}/scraper/xiaohongshu/keywords/suggest/${buildParams({ q })}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  // ─── XIAOHONGSHU PROFILES ──────────────────────────────
+
+  xhsProfileScrape: async (token: string, userId: string, numOfPosts = 100, isOwned?: boolean): Promise<{ status: string; message: string; profile: XiaohongshuProfile; created: boolean }> => {
+    const res = await fetch(`${API_URL}/scraper/xiaohongshu/profiles/scrape/`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, num_of_posts: numOfPosts, ...(isOwned !== undefined ? { is_owned: isOwned } : {}) }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Thêm profile thất bại');
+    }
+    return res.json();
+  },
+
+  getXhsProfiles: async (token: string, params: {
+    q?: string; page?: number; page_size?: number;
+    bookmarked?: boolean; tracked?: boolean; is_owned?: boolean;
+  } = {}): Promise<PaginatedXhsProfiles> => {
+    const res = await fetch(`${API_URL}/scraper/xiaohongshu/profiles/${buildParams(params)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Không thể tải XHS profiles');
+    return res.json();
+  },
+
+  getXhsProfileDetail: async (token: string, profileId: number): Promise<XiaohongshuProfile> => {
+    const res = await fetch(`${API_URL}/scraper/xiaohongshu/profiles/${profileId}/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Profile không tồn tại');
+    return res.json();
+  },
+
+  getXhsProfileVideos: async (token: string, profileId: number, params: {
+    page?: number; page_size?: number; sort?: string; q?: string; min_likes?: number;
+  } = {}): Promise<PaginatedXiaohongshuVideos & { profile: XiaohongshuProfile }> => {
+    const res = await fetch(`${API_URL}/scraper/xiaohongshu/profiles/${profileId}/videos/${buildParams(params)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Không thể tải videos của profile');
+    return res.json();
+  },
+
+  xhsProfileToggle: async (token: string, profileId: number, patch: { is_tracked?: boolean; is_bookmarked?: boolean }): Promise<XiaohongshuProfile> => {
+    const res = await fetch(`${API_URL}/scraper/xiaohongshu/profiles/${profileId}/`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    });
+    if (!res.ok) throw new Error('Cập nhật thất bại');
     return res.json();
   },
 };

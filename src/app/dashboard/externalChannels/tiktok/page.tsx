@@ -11,6 +11,7 @@ import TikTokVideoCard from '../components/TikTokVideoCard';
 import TikTokProfileCard from '../components/TikTokProfileCard';
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService } from '@/services/scraperService';
+import { useScrapingStore } from '@/store/scraping-store';
 
 type Tab = 'videos' | 'profiles';
 
@@ -20,12 +21,13 @@ export default function TiktokExternalPage() {
   const { token } = useAuthStore();
   const queryClient = useQueryClient();
   const router = useRouter();
+  const { addNotification, updateNotification } = useScrapingStore();
 
   // Tab state
   const [activeTab, setActiveTab] = useState<Tab>('videos');
 
   // ─── Profile tab state ────────────────────────────────
-  const [profileUrl, setProfileUrl] = useState('');
+  const [profileUsername, setProfileUsername] = useState('');
   const [profileSearch, setProfileSearch] = useState('');
   const [debouncedProfileSearch, setDebouncedProfileSearch] = useState('');
   const [profilePage, setProfilePage] = useState(1);
@@ -40,7 +42,6 @@ export default function TiktokExternalPage() {
   // Search state
   const [keyword, setKeyword] = useState('');
   const [numPosts, setNumPosts] = useState('30');
-  const [isSearching, setIsSearching] = useState(false);
 
   // Autocomplete
   const [suggestions, setSuggestions] = useState<{ keyword: string; count: number }[]>([]);
@@ -106,18 +107,44 @@ export default function TiktokExternalPage() {
   const hasFilters = !!debouncedFilter || !!filterKeyword || !!minPlays || !!dateFrom || !!dateTo || sortBy !== 'date';
   const clearFilters = () => { setFilterSearch(''); setFilterKeyword(''); setMinPlays(''); setDateFrom(''); setDateTo(''); setSortBy('date'); };
 
-  // ─── Search mutation (trigger BrightData) ─────────────
+  const notifIdRef = useRef<string | null>(null);
+
+  // ─── Search mutation ───────────────────────────────────
   const searchMutation = useMutation({
     mutationFn: () => {
       if (!token || !keyword.trim()) throw new Error('Keyword required');
       const num = Math.min(200, Math.max(1, parseInt(numPosts) || 30));
       return scraperService.tiktokSearch(token, keyword.trim(), num);
     },
+    onMutate: () => {
+      const nId = addNotification({
+        platform: 'tiktok',
+        label: keyword.trim(),
+        status: 'scraping',
+        startedAt: new Date(),
+      });
+      notifIdRef.current = nId;
+    },
     onSuccess: (data) => {
       toast.success(data.message);
-      setIsSearching(true);
+      setSortBy('date');
+      queryClient.invalidateQueries({ queryKey: ['tiktok-videos'] });
+      if (notifIdRef.current) {
+        updateNotification(notifIdRef.current, {
+          status: 'done',
+          completedAt: new Date(),
+          newCount: data.created ?? 0,
+        });
+        notifIdRef.current = null;
+      }
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => {
+      toast.error(e.message);
+      if (notifIdRef.current) {
+        updateNotification(notifIdRef.current, { status: 'error' });
+        notifIdRef.current = null;
+      }
+    },
   });
 
   // Load all keywords for filter dropdown
@@ -148,28 +175,11 @@ export default function TiktokExternalPage() {
     getNextPageParam: (last) => last.page < last.total_pages ? last.page + 1 : undefined,
     initialPageParam: 1,
     enabled: !!token,
-    // Poll mỗi 8s khi đang search để hiển thị videos mới ngay khi có
-    refetchInterval: isSearching ? 8000 : false,
   });
 
   const allVideos = videosQuery.data?.pages.flatMap(p => p.videos) || [];
   const totalVideos = videosQuery.data?.pages[0]?.count || 0;
 
-  // Tắt polling khi data mới xuất hiện hoặc sau 5 phút
-  const prevTotal = useRef(totalVideos);
-  useEffect(() => {
-    if (!isSearching) return;
-    if (prevTotal.current !== totalVideos && totalVideos > 0) {
-      setIsSearching(false);
-    }
-    prevTotal.current = totalVideos;
-  }, [isSearching, totalVideos]);
-
-  useEffect(() => {
-    if (!isSearching) return;
-    const timer = setTimeout(() => setIsSearching(false), 300_000);
-    return () => clearTimeout(timer);
-  }, [isSearching]);
 
   const observerRef = useRef<IntersectionObserver>();
   const loadMoreRef = useCallback((node: HTMLDivElement | null) => {
@@ -183,9 +193,10 @@ export default function TiktokExternalPage() {
 
   // ─── Profiles Query (paginated) ──────────────────────
   const profilesQuery = useQuery({
-    queryKey: ['tiktok-profiles', profilePage, debouncedProfileSearch],
+    queryKey: ['tiktok-profiles', profilePage, debouncedProfileSearch, profileSortBy],
     queryFn: () => token ? scraperService.getTiktokProfiles(token, {
       page: profilePage, page_size: PAGE_SIZE_PROFILES, search: debouncedProfileSearch || undefined,
+      sort_by: profileSortBy,
     }) : Promise.reject('No token'),
     enabled: !!token && activeTab === 'profiles',
     refetchInterval: 15000,
@@ -196,25 +207,35 @@ export default function TiktokExternalPage() {
   const profileTotal = profilesQuery.data?.count || 0;
 
   // ─── Profile mutations ───────────────────────────────
-  const handleScrapeSuccess = (data: { message: string; is_scraping?: boolean; already_exists?: boolean; profile_id: number }) => {
+  const handleScrapeSuccess = (data: { message: string; is_scraping?: boolean; already_exists?: boolean; newly_scraped?: boolean; profile_id: number }, label?: string) => {
     if (data.already_exists) {
       toast(data.message, { icon: '📋' });
       router.push(`/dashboard/externalChannels/tiktok/${data.profile_id}`);
     } else if (data.is_scraping) {
       toast(data.message, { icon: '⏳' });
+      addNotification({
+        platform: 'tiktok',
+        label: label || profileUsername.trim(),
+        status: 'scraping',
+        startedAt: new Date(),
+      });
+    } else if (data.newly_scraped) {
+      toast.success(data.message);
+      router.push(`/dashboard/externalChannels/tiktok/${data.profile_id}`);
     } else {
       toast.success(data.message);
     }
-    setProfileUrl('');
+    setProfileUsername('');
     queryClient.invalidateQueries({ queryKey: ['tiktok-profiles'] });
   };
 
   const profileScrapeMutation = useMutation({
-    mutationFn: (url: string) => {
+    mutationFn: (username: string) => {
       if (!token) throw new Error('No token');
-      return scraperService.tiktokProfileScrape(token, url);
+      const clean = username.replace(/.*tiktok\.com\/@?/, '').replace(/^@/, '').split(/[/?]/)[0].trim();
+      return scraperService.tiktokProfileScrape(token, clean);
     },
-    onSuccess: handleScrapeSuccess,
+    onSuccess: (data) => handleScrapeSuccess(data, profileUsername.trim()),
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -227,11 +248,12 @@ export default function TiktokExternalPage() {
   });
 
   const profileRescrape = useMutation({
-    mutationFn: (p: { id: number; url: string }) => {
+    mutationFn: (p: { id: number; url: string; label?: string }) => {
       if (!token) throw new Error('No token');
-      return scraperService.tiktokProfileScrape(token, p.url);
+      const username = p.url.replace(/.*tiktok\.com\/@?/, '').split(/[/?]/)[0].trim();
+      return scraperService.tiktokProfileScrape(token, username);
     },
-    onSuccess: handleScrapeSuccess,
+    onSuccess: (data, vars) => handleScrapeSuccess(data, vars.label),
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -316,15 +338,6 @@ export default function TiktokExternalPage() {
               </button>
             </div>
 
-            {/* Searching indicator */}
-            {isSearching && (
-              <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
-                <CircleNotch size={14} weight="bold" className="animate-spin text-blue-500" />
-                <span className="text-xs text-blue-700 dark:text-blue-400">
-                  Đang cào video từ TikTok... Kết quả sẽ xuất hiện tự động.
-                </span>
-              </div>
-            )}
           </div>
 
           {/* Filter bar */}
@@ -426,23 +439,23 @@ export default function TiktokExternalPage() {
       {/* ─── Profiles Tab ─────────────────────────────────── */}
       {activeTab === 'profiles' && (
         <>
-          {/* Input profile URL */}
+          {/* Input profile username */}
           <div className="bg-card border border-border rounded-xl p-4 space-y-3">
             <div className="flex items-center gap-3">
               <div className="relative flex-1 max-w-xl">
-                <Globe size={16} weight="duotone" className="absolute left-3 top-1/2 -translate-y-1/2 text-pink-500" />
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium select-none">@</span>
                 <input
                   type="text"
-                  value={profileUrl}
-                  onChange={e => setProfileUrl(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && profileUrl.trim()) profileScrapeMutation.mutate(profileUrl.trim()); }}
-                  placeholder="Nhập TikTok profile URL (vd: https://www.tiktok.com/@username)"
-                  className="w-full pl-10 pr-3 py-2.5 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  value={profileUsername}
+                  onChange={e => setProfileUsername(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && profileUsername.trim()) profileScrapeMutation.mutate(profileUsername.trim()); }}
+                  placeholder="username (vd: mixigaming)"
+                  className="w-full pl-8 pr-3 py-2.5 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 />
               </div>
               <button
-                onClick={() => profileScrapeMutation.mutate(profileUrl.trim())}
-                disabled={profileScrapeMutation.isPending || !profileUrl.trim()}
+                onClick={() => profileScrapeMutation.mutate(profileUsername.trim())}
+                disabled={profileScrapeMutation.isPending || !profileUsername.trim()}
                 className="flex items-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground text-sm font-bold rounded-md hover:opacity-90 disabled:opacity-50 whitespace-nowrap shadow-sm hover:shadow-md transition-all"
               >
                 {profileScrapeMutation.isPending ? (
@@ -491,7 +504,7 @@ export default function TiktokExternalPage() {
             <div className="flex flex-col items-center py-16 gap-4 bg-card border border-border rounded-xl">
               <UserCircle size={40} className="text-slate-300" />
               <p className="text-sm text-foreground font-medium">Chưa có profile nào</p>
-              <p className="text-xs text-slate-400 text-center max-w-sm">Nhập TikTok profile URL ở trên để bắt đầu cào.</p>
+              <p className="text-xs text-slate-400 text-center max-w-sm">Nhập TikTok username ở trên để bắt đầu cào.</p>
             </div>
           )}
 
@@ -502,7 +515,7 @@ export default function TiktokExternalPage() {
                 <TikTokProfileCard
                   key={p.id}
                   profile={p}
-                  onScrape={() => profileRescrape.mutate({ id: p.id, url: p.url })}
+                  onScrape={() => profileRescrape.mutate({ id: p.id, url: p.url, label: p.nickname || p.username })}
                   onToggleBookmark={() => profileToggleMutation.mutate({ id: p.id, field: 'is_bookmarked' })}
                   onToggleTracked={() => profileToggleMutation.mutate({ id: p.id, field: 'is_tracked' })}
                   onViewDetail={() => router.push(`/dashboard/externalChannels/tiktok/${p.id}`)}

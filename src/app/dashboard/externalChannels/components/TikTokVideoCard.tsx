@@ -1,6 +1,6 @@
 'use client';
 
-import { Eye, Heart, ChatCircle, ShareNetwork, BookmarkSimple, SealCheck } from '@phosphor-icons/react';
+import { Eye, Heart, ChatCircle, ShareNetwork, BookmarkSimple, SealCheck, FilmReel } from '@phosphor-icons/react';
 import { TikTokVideo } from '@/services/scraperService';
 
 function formatNum(n: number): string {
@@ -54,17 +54,19 @@ export default function TikTokVideoCard({ video }: { video: TikTokVideo }) {
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-slate-800 text-slate-500">
-            <Eye size={32} />
+            <FilmReel size={32} />
           </div>
         )}
 
-        {/* Metrics overlay — 2 rows: plays/likes + shares/saves */}
+        {/* Metrics overlay */}
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-2.5 pb-2.5 pt-8">
           <div className="flex items-center gap-2.5 text-white text-xs">
-            <span className="flex items-center gap-1">
-              <Eye size={12} weight="fill" />
-              {formatNum(video.play_count)}
-            </span>
+            {(video.play_count ?? 0) > 0 && (
+              <span className="flex items-center gap-1">
+                <Eye size={12} weight="fill" />
+                {formatNum(video.play_count!)}
+              </span>
+            )}
             <span className="flex items-center gap-1">
               <Heart size={12} weight="fill" />
               {formatNum(video.digg_count)}

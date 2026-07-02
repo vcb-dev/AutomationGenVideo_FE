@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CircleNotch, InstagramLogo, MagnifyingGlassPlus, UserCircle } from '@phosphor-icons/react';
+import { CircleNotch, MagnifyingGlassPlus, UserCircle } from '@phosphor-icons/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
@@ -19,7 +19,7 @@ export default function InstagramExternalPage() {
   const router = useRouter();
 
   // State
-  const [profileUrl, setProfileUrl] = useState('');
+  const [profileUsername, setProfileUsername] = useState('');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -55,14 +55,14 @@ export default function InstagramExternalPage() {
     } else {
       toast.success(data.message);
     }
-    setProfileUrl('');
+    setProfileUsername('');
     queryClient.invalidateQueries({ queryKey: ['instagram-profiles'] });
   };
 
   const scrapeMutation = useMutation({
-    mutationFn: (url: string) => {
+    mutationFn: (username: string) => {
       if (!token) throw new Error('No token');
-      return scraperService.instagramProfileScrape(token, url);
+      return scraperService.instagramProfileScrape(token, username);
     },
     onSuccess: handleScrapeSuccess,
     onError: (e: Error) => toast.error(e.message),
@@ -77,9 +77,9 @@ export default function InstagramExternalPage() {
   });
 
   const rescrapeMutation = useMutation({
-    mutationFn: (p: { id: number; url: string }) => {
+    mutationFn: (p: { id: number; username: string }) => {
       if (!token) throw new Error('No token');
-      return scraperService.instagramProfileScrape(token, p.url);
+      return scraperService.instagramProfileScrape(token, p.username);
     },
     onSuccess: handleScrapeSuccess,
     onError: (e: Error) => toast.error(e.message),
@@ -87,23 +87,23 @@ export default function InstagramExternalPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Input profile URL */}
+      {/* Input username */}
       <div className="bg-card border border-border rounded-xl p-4 space-y-3">
         <div className="flex items-center gap-3">
           <div className="relative flex-1 max-w-xl">
-            <InstagramLogo size={16} weight="duotone" className="absolute left-3 top-1/2 -translate-y-1/2 text-pink-500" />
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-pink-500 text-sm font-semibold select-none">@</span>
             <input
               type="text"
-              value={profileUrl}
-              onChange={e => setProfileUrl(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && profileUrl.trim()) scrapeMutation.mutate(profileUrl.trim()); }}
-              placeholder="Nhập Instagram profile URL (vd: https://www.instagram.com/username)"
-              className="w-full pl-10 pr-3 py-2.5 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              value={profileUsername}
+              onChange={e => setProfileUsername(e.target.value.replace('@', ''))}
+              onKeyDown={e => { if (e.key === 'Enter' && profileUsername.trim()) scrapeMutation.mutate(profileUsername.trim()); }}
+              placeholder="Nhập Instagram username (vd: lanh_1403_)"
+              className="w-full pl-8 pr-3 py-2.5 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
             />
           </div>
           <button
-            onClick={() => scrapeMutation.mutate(profileUrl.trim())}
-            disabled={scrapeMutation.isPending || !profileUrl.trim()}
+            onClick={() => scrapeMutation.mutate(profileUsername.trim())}
+            disabled={scrapeMutation.isPending || !profileUsername.trim()}
             className="flex items-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground text-sm font-bold rounded-md hover:opacity-90 disabled:opacity-50 whitespace-nowrap shadow-sm hover:shadow-md transition-all"
           >
             {scrapeMutation.isPending ? (
@@ -152,7 +152,7 @@ export default function InstagramExternalPage() {
         <div className="flex flex-col items-center py-16 gap-4 bg-card border border-border rounded-xl">
           <UserCircle size={40} className="text-slate-300" />
           <p className="text-sm text-foreground font-medium">Chưa có profile nào</p>
-          <p className="text-xs text-slate-400 text-center max-w-sm">Nhập Instagram profile URL ở trên để bắt đầu cào.</p>
+          <p className="text-xs text-slate-400 text-center max-w-sm">Nhập Instagram username ở trên để bắt đầu cào.</p>
         </div>
       )}
 
@@ -163,7 +163,7 @@ export default function InstagramExternalPage() {
             <InstagramProfileCard
               key={p.id}
               profile={p}
-              onScrape={() => rescrapeMutation.mutate({ id: p.id, url: p.url })}
+              onScrape={() => rescrapeMutation.mutate({ id: p.id, username: p.username })}
               onToggleBookmark={() => toggleMutation.mutate({ id: p.id, field: 'is_bookmarked' })}
               onToggleTracked={() => toggleMutation.mutate({ id: p.id, field: 'is_tracked' })}
               onViewDetail={() => router.push(`/dashboard/externalChannels/instagram/${p.id}`)}

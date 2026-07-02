@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from 'next/navigation';
 import { FacebookLogo, TiktokLogo, InstagramLogo, SquaresFour } from '@phosphor-icons/react';
+import NotificationBell from './components/NotificationBell';
 
 const platforms = [
   { id: 'all', label: 'Tất cả', icon: SquaresFour, color: 'text-slate-700 dark:text-slate-300' },
@@ -36,6 +37,8 @@ export default function ExternalChannelsLayout({ children }: { children: React.R
           <p className="text-sm text-slate-500 mt-0.5">Tìm kiếm, cào và theo dõi nội dung từ các nền tảng mạng xã hội.</p>
         </div>
 
+        {/* Right side: bell + platform tabs */}
+        <div className="flex items-center gap-3">
         {/* Platform tabs */}
         <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg w-fit">
           {platforms.map(p => {
@@ -55,6 +58,8 @@ export default function ExternalChannelsLayout({ children }: { children: React.R
               </button>
             );
           })}
+        </div>
+        <NotificationBell />
         </div>
 
       </div>

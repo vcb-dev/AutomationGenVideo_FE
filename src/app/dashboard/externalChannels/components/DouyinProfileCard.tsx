@@ -1,8 +1,7 @@
 'use client';
 
-import { Users, Heart, VideoCamera, ArrowsClockwise, BookmarkSimple, Timer, CircleNotch, SealCheck, Buildings, UserCircle } from '@phosphor-icons/react';
-import { TikTokProfile } from '@/services/scraperService';
-import { ChannelInfo } from '@/services/channelsService';
+import { Users, Heart, VideoCamera, ArrowsClockwise, BookmarkSimple, Timer, CircleNotch, SealCheck } from '@phosphor-icons/react';
+import { DouyinProfile } from '@/services/scraperService';
 
 function formatNum(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -11,15 +10,14 @@ function formatNum(n: number): string {
 }
 
 interface Props {
-  profile: TikTokProfile;
-  channelInfo?: ChannelInfo;
+  profile: DouyinProfile;
   onScrape: () => void;
   onToggleBookmark: () => void;
   onToggleTracked: () => void;
   onViewDetail: () => void;
 }
 
-export default function TikTokProfileCard({ profile: p, channelInfo, onScrape, onToggleBookmark, onToggleTracked, onViewDetail }: Props) {
+export default function DouyinProfileCard({ profile: p, onScrape, onToggleBookmark, onToggleTracked, onViewDetail }: Props) {
   const isProcessing = p.scraping_status === 'processing';
 
   return (
@@ -53,7 +51,7 @@ export default function TikTokProfileCard({ profile: p, channelInfo, onScrape, o
           {p.avatar_url ? (
             <img src={p.avatar_url} alt={p.nickname} className="w-full h-full object-cover" />
           ) : (
-            <div className="w-full h-full flex items-center justify-center bg-pink-50 dark:bg-pink-900/30 text-pink-400">
+            <div className="w-full h-full flex items-center justify-center bg-rose-50 dark:bg-rose-900/30 text-rose-400">
               <Users size={22} />
             </div>
           )}
@@ -74,7 +72,7 @@ export default function TikTokProfileCard({ profile: p, channelInfo, onScrape, o
       {/* Stats */}
       <div className="flex items-center gap-4 px-3.5 py-2">
         <div className="flex items-center gap-1.5">
-          <Users size={13} className="text-blue-500" />
+          <Users size={13} className="text-rose-500" />
           <span className="text-sm font-bold text-foreground">{formatNum(p.followers_count)}</span>
         </div>
         {p.likes_count > 0 && (
@@ -90,30 +88,6 @@ export default function TikTokProfileCard({ profile: p, channelInfo, onScrape, o
           </div>
         )}
       </div>
-
-      {/* Team / Owner */}
-      {channelInfo !== undefined && (
-        <div className="grid grid-cols-2 gap-x-3 px-3.5 py-2 border-t border-border/50 bg-slate-50/30 dark:bg-slate-800/20">
-          <div className="min-w-0">
-            <div className="flex items-center gap-1 text-slate-400 mb-0.5">
-              <Buildings size={10} />
-              <span className="text-[10px] uppercase tracking-wide">Team</span>
-            </div>
-            <p className={`text-xs truncate ${channelInfo.team_name ? 'font-medium text-foreground' : 'italic text-slate-400'}`}>
-              {channelInfo.team_name ?? 'Chưa có dữ liệu'}
-            </p>
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1 text-slate-400 mb-0.5">
-              <UserCircle size={10} />
-              <span className="text-[10px] uppercase tracking-wide">Chủ kênh</span>
-            </div>
-            <p className={`text-xs truncate ${channelInfo.owner_name ? 'font-medium text-foreground' : 'italic text-slate-400'}`}>
-              {channelInfo.owner_name ?? 'Chưa có dữ liệu'}
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* Action bar */}
       <div className="flex items-center border-t border-border bg-slate-50/50 dark:bg-slate-800/30" onClick={e => e.stopPropagation()}>

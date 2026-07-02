@@ -114,7 +114,7 @@ function InstagramReelCard({ reel }: { reel: InstagramReel }) {
   );
 }
 
-export default function InstagramProfileDetailPage() {
+export default function OwnedInstagramProfileDetailPage() {
   const { token } = useAuthStore();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -184,7 +184,7 @@ export default function InstagramProfileDetailPage() {
   const scrapeMutation = useMutation({
     mutationFn: () => {
       if (!token || !p) throw new Error('No token');
-      return scraperService.instagramProfileScrape(token, p.username);
+      return scraperService.instagramProfileScrape(token, p.username, true);
     },
     onSuccess: (data) => {
       if (data.is_scraping) {
@@ -228,11 +228,9 @@ export default function InstagramProfileDetailPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Profile Header */}
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <div className="px-6 pb-6 pt-6">
           <div className="flex items-start gap-6">
-            {/* Avatar */}
             <div className="w-28 h-28 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden flex-shrink-0 ring-4 ring-slate-200 dark:ring-slate-600">
               {p.avatar_url ? (
                 <img src={proxyImg(p.avatar_url)} alt={p.username} className="w-full h-full object-cover" />
@@ -243,14 +241,12 @@ export default function InstagramProfileDetailPage() {
               )}
             </div>
 
-            {/* Info */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <h1 className="text-xl font-bold text-foreground">@{p.username}</h1>
                 {p.is_verified && <SealCheck size={20} weight="fill" className="text-blue-500" />}
               </div>
 
-              {/* Stats */}
               <div className="flex items-center gap-5 mt-4">
                 <div className="flex items-center gap-1.5">
                   <span className="text-lg font-bold text-foreground">{formatNum(p.posts_count)}</span>
@@ -266,7 +262,6 @@ export default function InstagramProfileDetailPage() {
                 </div>
               </div>
 
-              {/* Aggregated stats */}
               <div className="flex items-center gap-4 mt-4 text-xs text-slate-500">
                 <span className="flex items-center gap-1">
                   <VideoCamera size={14} className="text-purple-500" />
@@ -294,14 +289,13 @@ export default function InstagramProfileDetailPage() {
             </div>
 
             <button
-              onClick={() => router.push('/dashboard/externalChannels/instagram')}
+              onClick={() => router.push('/dashboard/channels/instagram')}
               className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium border border-border rounded-md hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex-shrink-0"
             >
               <ArrowLeft size={14} /> Quay lại
             </button>
           </div>
 
-          {/* Action buttons */}
           <div className="flex items-center gap-2 mt-5">
             <button
               onClick={() => scrapeMutation.mutate()}
@@ -339,7 +333,6 @@ export default function InstagramProfileDetailPage() {
         </div>
       </div>
 
-      {/* Reels Grid */}
       <div>
         <h2 className="text-sm font-semibold text-foreground mb-3">
           Reels {totalReels > 0 && <span className="font-normal text-slate-500">({totalReels})</span>}
