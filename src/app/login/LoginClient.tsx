@@ -1,12 +1,11 @@
 'use client';
 
 import Image from "next/image";
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import Link from 'next/link';
 import { useAuthStore } from '@/store/auth-store';
 import { getDashboardPathForRoles } from '@/lib/post-login-redirect';
 import { motion } from 'framer-motion';
@@ -21,8 +20,18 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 export default function LoginClient() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login, error, clearError } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
+
+  // Google OAuth redirect trở lại đây kèm ?error=... khi tài khoản chưa tồn tại
+  // hoặc đã bị vô hiệu hóa (xem googleAuthRedirect ở backend).
+  useEffect(() => {
+    const urlError = searchParams.get('error');
+    if (urlError) {
+      useAuthStore.setState({ error: urlError });
+    }
+  }, [searchParams]);
 
   const {
     register,
@@ -174,10 +183,7 @@ export default function LoginClient() {
 
           <div className="mt-8 text-center">
             <p className="text-slate-500 text-sm">
-              Chưa có tài khoản?{' '}
-              <Link href="/register" className="text-blue-400 hover:text-blue-300 font-semibold transition-colors" onClick={() => clearError()}>
-                Đăng ký ngay
-              </Link>
+              Chưa có tài khoản? Liên hệ Leader/Admin để được cấp quyền truy cập.
             </p>
           </div>
         </motion.div>

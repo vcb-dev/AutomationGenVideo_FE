@@ -161,23 +161,12 @@ export default function LandingPage() {
                                     href="/login"
                                     prefetch={true}
                                     onClick={() => setNavigatingTo("/login")}
-                                    className={`text-sm font-semibold text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-2 ${navigatingTo ? "opacity-50 pointer-events-none" : ""}`}
-                                >
-                                    {navigatingTo === "/login" && (
-                                        <div className="w-3 h-3 border-2 border-blue-600/30 border-t-blue-600 rounded-full animate-spin" />
-                                    )}
-                                    Đăng nhập
-                                </Link>
-                                <Link
-                                    href="/register"
-                                    prefetch={true}
-                                    onClick={() => setNavigatingTo("/register")}
                                     className={`px-6 py-2.5 bg-slate-900 text-white text-sm font-semibold rounded-full hover:bg-slate-800 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex items-center gap-2 ${navigatingTo ? "opacity-80 pointer-events-none" : ""}`}
                                 >
-                                    {navigatingTo === "/register" && (
+                                    {navigatingTo === "/login" && (
                                         <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                                     )}
-                                    Đăng ký
+                                    Đăng nhập
                                 </Link>
                             </>
                         )}
