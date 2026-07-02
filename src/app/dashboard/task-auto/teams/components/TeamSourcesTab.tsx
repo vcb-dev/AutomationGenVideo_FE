@@ -34,14 +34,15 @@ interface TeamSourcesTabProps {
   brandType: 'DO_DA' | 'TRANG_SUC'
   selectedTeamId: string
   setSelectedTeamId: (id: string) => void
+  month: string
+  setMonth: (month: string) => void
 }
 
 type AddMode = 'manual' | 'global'
 
-export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, brandType, selectedTeamId, setSelectedTeamId }: TeamSourcesTabProps) {
+export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, brandType, selectedTeamId, setSelectedTeamId, month, setMonth }: TeamSourcesTabProps) {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
-  const [month, setMonth] = useState('')
 
   const [modal, setModal]           = useState<null | 'add' | 'view' | 'edit'>(null)
   const [addMode, setAddMode]       = useState<AddMode>('manual')

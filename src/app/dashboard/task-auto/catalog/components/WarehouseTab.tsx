@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {
   Package, FileText, Radio, Trash2, Plus, Loader2,
-  Search, RefreshCw,
+  Search, RefreshCw, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MonthPicker } from '@/components/task-auto/MonthPicker'
@@ -245,6 +245,7 @@ export function WarehouseTab({ brandType, isAdminOrManager = false, isScaleData 
   const qc = useQueryClient()
   const [month, setMonth] = useState(currentMonth())
   const [subTab, setSubTab] = useState<SubTab>('products')
+  const [page, setPage] = useState(1)
   const [showPickModal, setShowPickModal] = useState(false)
   const [createWhat, setCreateWhat] = useState<'product' | 'content' | 'source' | null>(null)
   const [confirmCarry, setConfirmCarry] = useState(false)
@@ -257,8 +258,8 @@ export function WarehouseTab({ brandType, isAdminOrManager = false, isScaleData 
     : isAdminOrManager
 
   const { data: warehouse, isLoading } = useQuery({
-    queryKey: ['task-auto', 'warehouse', 'global', month],
-    queryFn: () => getGlobalWarehouse(month),
+    queryKey: ['task-auto', 'warehouse', 'global', month, brandType],
+    queryFn: () => getGlobalWarehouse(month, brandType),
     enabled: !!month,
   })
 
@@ -270,6 +271,14 @@ export function WarehouseTab({ brandType, isAdminOrManager = false, isScaleData 
   }, [warehouse, subTab])
 
   const warehouseIds = useMemo(() => new Set(warehouseItems.map(i => i.id)), [warehouseItems])
+
+  const PAGE_SIZE = 10
+  const totalPages = Math.max(1, Math.ceil(warehouseItems.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+  const pagedItems = useMemo(
+    () => warehouseItems.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [warehouseItems, safePage],
+  )
 
   const removeMut = useMutation({
     mutationFn: (id: string) => removeGlobalWarehouse(subTab as WarehouseCatalogType, month, [id]),
@@ -343,7 +352,7 @@ export function WarehouseTab({ brandType, isAdminOrManager = false, isScaleData 
       {/* Toolbar */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          <MonthPicker value={month} onChange={setMonth} />
+          <MonthPicker value={month} onChange={m => { setMonth(m); setPage(1) }} />
           <span className="text-sm text-slate-500">
             {isLoading ? '...' : `${warehouseItems.length} mục trong kho`}
           </span>
@@ -375,7 +384,7 @@ export function WarehouseTab({ brandType, isAdminOrManager = false, isScaleData 
         {SUB_TABS.map(t => (
           <button
             key={t.key}
-            onClick={() => setSubTab(t.key)}
+            onClick={() => { setSubTab(t.key); setPage(1) }}
             className={cn(
               'flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors',
               subTab === t.key ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-slate-500 hover:text-slate-800 hover:bg-gray-100',
@@ -417,7 +426,7 @@ export function WarehouseTab({ brandType, isAdminOrManager = false, isScaleData 
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {warehouseItems.map(item => (
+              {pagedItems.map(item => (
                 <tr key={item.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-5 py-3.5 font-medium text-slate-800">{labelOf(item)}</td>
                   <td className="px-5 py-3.5 text-slate-500">{subOf(item, subTab)}</td>
@@ -437,6 +446,42 @@ export function WarehouseTab({ brandType, isAdminOrManager = false, isScaleData 
               ))}
             </tbody>
           </table>
+        )}
+
+        {/* Pagination */}
+        {!isLoading && totalPages > 1 && (
+          <div className="flex items-center justify-between px-5 py-4 border-t border-gray-100 bg-gray-50/50">
+            <span className="text-sm text-slate-500">
+              Trang <span className="font-semibold text-slate-700">{safePage}</span> / {totalPages}
+            </span>
+            <div className="flex items-center gap-1">
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage <= 1}
+                className="p-2 rounded-lg hover:bg-gray-200 text-slate-500 disabled:opacity-30 transition-colors">
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                const pg = totalPages <= 7
+                  ? i + 1
+                  : safePage <= 4
+                    ? i + 1
+                    : safePage >= totalPages - 3
+                      ? totalPages - 6 + i
+                      : safePage - 3 + i
+                return (
+                  <button key={pg} onClick={() => setPage(pg)}
+                    className={cn('w-9 h-9 rounded-lg text-sm font-semibold transition-colors',
+                      pg === safePage ? 'bg-indigo-600 text-white' : 'hover:bg-gray-200 text-slate-600'
+                    )}>
+                    {pg}
+                  </button>
+                )
+              })}
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages}
+                className="p-2 rounded-lg hover:bg-gray-200 text-slate-500 disabled:opacity-30 transition-colors">
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
         )}
       </div>
 

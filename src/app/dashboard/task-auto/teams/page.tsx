@@ -43,6 +43,8 @@ export default function TeamsPage() {
   const [selectedTeamId, setSelectedTeamId] = useState('')
   // Tab source của Scale Data members dùng state riêng để chọn team độc lập với các tab khác
   const [sourceTeamId, setSourceTeamId]     = useState('')
+  // State lọc theo tháng dùng chung giữa các tab products/contents/sources
+  const [month, setMonth]                   = useState('')
 
   const { data: teams } = useQuery({
     queryKey: ['task-auto', 'teams'],
@@ -127,6 +129,8 @@ export default function TeamsPage() {
           brandType={brand}
           selectedTeamId={selectedTeamId}
           setSelectedTeamId={setSelectedTeamId}
+          month={month}
+          setMonth={setMonth}
         />
       )}
 
@@ -138,6 +142,8 @@ export default function TeamsPage() {
           brandType={brand}
           selectedTeamId={selectedTeamId}
           setSelectedTeamId={setSelectedTeamId}
+          month={month}
+          setMonth={setMonth}
         />
       )}
 
@@ -151,6 +157,8 @@ export default function TeamsPage() {
             : brand}
           selectedTeamId={isScaleDataMember && !isAdminOrManager ? sourceTeamId : selectedTeamId}
           setSelectedTeamId={isScaleDataMember && !isAdminOrManager ? setSourceTeamId : setSelectedTeamId}
+          month={month}
+          setMonth={setMonth}
         />
       )}
 

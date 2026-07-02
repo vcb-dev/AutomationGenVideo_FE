@@ -124,7 +124,7 @@ function MiniList({
 
 type BrandType = 'DO_DA' | 'TRANG_SUC'
 
-export function ContentsTab({ brandType }: { brandType: BrandType }) {
+export function ContentsTab({ brandType, month, onMonthChange }: { brandType: BrandType; month: string; onMonthChange: (month: string) => void }) {
   const qc = useQueryClient()
   const { user } = useAuthStore()
   const canDelete = user?.roles?.some((r: string) => ['ADMIN', 'MANAGER'].includes(r)) ?? false
@@ -132,7 +132,6 @@ export function ContentsTab({ brandType }: { brandType: BrandType }) {
   const [statusFilter, setStatusFilter] = useState<ContentUsageStatus | ''>('')
   const [contentLineFilter, setContentLineFilter] = useState('')
   const [marketFilter, setMarketFilter] = useState('')
-  const [month, setMonth] = useState('')
   const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Content | null>(null)
@@ -149,7 +148,7 @@ export function ContentsTab({ brandType }: { brandType: BrandType }) {
       content_line_id: contentLineFilter || undefined,
       market: marketFilter || undefined,
       month: month || undefined,
-      page, limit: 20,
+      page, limit: 10,
     }),
   })
 
@@ -223,7 +222,7 @@ export function ContentsTab({ brandType }: { brandType: BrandType }) {
             <input
               type="month"
               value={month}
-              onChange={e => { setMonth(e.target.value); setPage(1) }}
+              onChange={e => { onMonthChange(e.target.value); setPage(1) }}
               className="px-3 py-3.5 border border-gray-200 rounded-xl text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             />
             {canDelete && (

@@ -73,7 +73,7 @@ export function TaskPanelFooter({
                 <Upload className="w-4 h-4" /> Nộp task
               </button>
             )}
-            {task.status === 'SUBMITTED' && canApproveReject && !task.is_extra && (
+            {task.status === 'SUBMITTED' && canApproveReject && (
               <>
                 <button onClick={onApprove} disabled={isPendingApprove}
                   className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors">

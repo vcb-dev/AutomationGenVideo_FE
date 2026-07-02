@@ -21,6 +21,8 @@ interface TeamProductsTabProps {
   brandType: 'DO_DA' | 'TRANG_SUC'
   selectedTeamId: string
   setSelectedTeamId: (id: string) => void
+  month: string
+  setMonth: (month: string) => void
 }
 
 function parseMarkets(market?: string | null): string[] {
@@ -33,13 +35,12 @@ function formatPrice(price?: string | number | null): string {
   return Number(price).toLocaleString('vi-VN') + '₫'
 }
 
-export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedTeamId, setSelectedTeamId }: TeamProductsTabProps) {
+export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedTeamId, setSelectedTeamId, month, setMonth }: TeamProductsTabProps) {
   const qc = useQueryClient()
   const [showAdd, setShowAdd] = useState(false)
   const [editingProduct, setEditingProduct] = useState<TeamProduct | null>(null)
   const [viewProduct, setViewProduct] = useState<TeamProduct | null>(null)
   const [search, setSearch] = useState('')
-  const [month, setMonth] = useState('')
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null)
   const [deletingProductName, setDeletingProductName] = useState('')
   const [pushingProduct, setPushingProduct] = useState<TeamProduct | null>(null)

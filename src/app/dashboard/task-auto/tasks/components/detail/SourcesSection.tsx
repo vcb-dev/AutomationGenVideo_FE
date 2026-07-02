@@ -39,6 +39,7 @@ interface EditSourcesProps {
   huykSrcs: Source[]
   productSources: Source[]
   hasProduct: boolean
+  scopeSwitch?: React.ReactNode
 }
 
 interface Props {
@@ -72,7 +73,15 @@ export function SourcesSection({
       iconColor="text-teal-600"
       className="flex-1"
     >
-      {editMode ? (<div className="p-4 space-y-4"> <div className="grid grid-cols-2 gap-3">
+      {editMode ? (<div className="p-4 space-y-4">
+        {edit.scopeSwitch && (
+          <div className="flex items-center gap-3">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest shrink-0">Nguồn source</p>
+            <div className="flex-1 h-px bg-gray-100" />
+            {edit.scopeSwitch}
+          </div>
+        )}
+        <div className="grid grid-cols-2 gap-3">
         <CustomSelect
           label="Outro"
           value={edit.form.source_outro_id}
