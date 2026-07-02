@@ -137,7 +137,7 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
       type: a.type,
       content_line_id: a.content_line_id ?? '',
       product_line_id: a.product_line_id ?? '',
-      percent: a.percent,
+      value: a.quantity,
     })))
     setModal('edit')
   }
@@ -149,15 +149,23 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
     if (!form.user_id)  return toast.error('Chọn editor')
     if (!form.team_id)  return toast.error('Chọn nhóm để đặt KPI')
     if (!form.month)    return toast.error('Chọn tháng')
+    const contentAllocs = allocations.filter(a => a.type === 'CONTENT_LINE')
+    const productAllocs = allocations.filter(a => a.type === 'PRODUCT_LINE')
+    const contentTotal  = contentAllocs.reduce((s, a) => s + (Number(a.value) || 0), 0)
+    const productTotal  = productAllocs.reduce((s, a) => s + (Number(a.value) || 0), 0)
+    if (contentAllocs.length > 0 && contentTotal !== form.total_target)
+      return toast.error(`Tuyến nội dung tổng phải bằng tổng video sản xuất (${form.total_target}), hiện ${contentTotal}`)
+    if (productAllocs.length > 0 && productTotal !== form.product_planned)
+      return toast.error(`Dòng sản phẩm tổng phải bằng SP đẩy video theo kế hoạch (${form.product_planned}), hiện ${productTotal}`)
     upsertMut.mutate({
       ...form,
       allocations: allocations
-        .filter(a => Number(a.percent) > 0)
+        .filter(a => Number(a.value) > 0)
         .map(a => ({
           type: a.type,
           content_line_id: a.type === 'CONTENT_LINE' ? (a.content_line_id || null) : null,
           product_line_id: a.type === 'PRODUCT_LINE' ? (a.product_line_id || null) : null,
-          percent: Number(a.percent),
+          quantity: Number(a.value),
         })),
     })
   }
@@ -435,9 +443,15 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
 
           <div className="space-y-3">
             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
-              Phân bổ trọng số theo tuyến nội dung / dòng sản phẩm
+              Phân bổ số lượng video theo tuyến nội dung / dòng sản phẩm
             </p>
-            <TeamKpiAllocationForm allocations={allocations} onChange={setAllocations} />
+            <TeamKpiAllocationForm
+              allocations={allocations}
+              onChange={setAllocations}
+              mode="count"
+              contentTarget={form.total_target}
+              productTarget={form.product_planned}
+            />
           </div>
         </div>
       </DarkModal>

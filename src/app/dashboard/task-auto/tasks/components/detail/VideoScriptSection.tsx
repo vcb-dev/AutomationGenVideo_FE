@@ -1,21 +1,20 @@
 'use client'
 
 import { useState } from 'react'
-import { Sparkles, Loader2, Copy, Check, ChevronDown, ChevronUp, Film, Megaphone, Hash } from 'lucide-react'
+import { Sparkles, Loader2, Copy, Check, ChevronDown, ChevronUp, Hash, Languages } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Section } from './Section'
 
-interface Scene {
-  timestamp: string
-  visual: string
-  voiceover: string
+interface Translation {
+  language: string
+  content: string
+  hashtags: string[]
 }
 
 interface VideoScript {
-  hook: string
-  scenes: Scene[]
-  cta: string
+  content: string
   hashtags: string[]
+  translation?: Translation | null
 }
 
 export interface VideoScriptSectionProps {
@@ -75,19 +74,21 @@ export function VideoScriptSection(props: VideoScriptSectionProps) {
 
   function copyAll() {
     if (!script) return
-    const text = [
-      `🎬 HOOK: ${script.hook}`,
-      '',
-      '📽️ KỊCH BẢN:',
-      ...script.scenes.map(
-        (s, i) => `Cảnh ${i + 1} (${s.timestamp})\n  📷 ${s.visual}\n  🎙️ ${s.voiceover}`,
-      ),
-      '',
-      `📣 CTA: ${script.cta}`,
+    const parts = [
+      script.content,
       '',
       `#️⃣ ${script.hashtags.join(' ')}`,
-    ].join('\n')
-    navigator.clipboard.writeText(text)
+    ]
+    if (script.translation) {
+      parts.push(
+        '',
+        `— Bản dịch (${script.translation.language}) —`,
+        script.translation.content,
+        '',
+        `#️⃣ ${script.translation.hashtags.join(' ')}`,
+      )
+    }
+    navigator.clipboard.writeText(parts.join('\n'))
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -99,7 +100,7 @@ export function VideoScriptSection(props: VideoScriptSectionProps) {
   return (
     <Section
       icon={<Sparkles className="w-4 h-4" />}
-      title="Kịch bản video AI"
+      title="Content AI"
       bgColor="bg-violet-50"
       iconColor="text-violet-600"
     >
@@ -108,14 +109,14 @@ export function VideoScriptSection(props: VideoScriptSectionProps) {
         <div className="flex items-center gap-2">
           {!canGenerate && (
             <p className="text-xs text-gray-400 italic flex-1">
-              Cần có đủ thông tin nội dung và sản phẩm để sinh kịch bản.
+              Cần có đủ thông tin nội dung và sản phẩm để sinh content.
             </p>
           )}
           {canGenerate && !script && !loading && (
             <p className="text-xs text-gray-400 flex-1">
               {props.fileUrl
-                ? 'AI sẽ đọc file đính kèm và thông tin sản phẩm để sinh kịch bản.'
-                : 'AI sẽ dùng script và thông tin sản phẩm để sinh kịch bản.'}
+                ? 'AI sẽ đọc file đính kèm (content đã win) và áp dụng cho sản phẩm này.'
+                : 'AI sẽ dùng script gốc (đã win) và áp dụng cho sản phẩm này.'}
             </p>
           )}
           {script && (
@@ -125,7 +126,7 @@ export function VideoScriptSection(props: VideoScriptSectionProps) {
               className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 flex-1"
             >
               {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-              {open ? 'Thu gọn' : 'Xem kịch bản'}
+              {open ? 'Thu gọn' : 'Xem content'}
             </button>
           )}
 
@@ -158,7 +159,7 @@ export function VideoScriptSection(props: VideoScriptSectionProps) {
             >
               {loading
                 ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Đang sinh...</>
-                : <><Sparkles className="w-3.5 h-3.5" /> {script ? 'Sinh lại' : 'Sinh kịch bản'}</>
+                : <><Sparkles className="w-3.5 h-3.5" /> {script ? 'Sinh lại' : 'Sinh content'}</>
               }
             </button>
           </div>
@@ -185,59 +186,12 @@ export function VideoScriptSection(props: VideoScriptSectionProps) {
         {script && open && !loading && (
           <div className="space-y-3">
 
-            {/* Hook */}
+            {/* Content */}
             <div className="bg-violet-50 border border-violet-200 rounded-xl px-4 py-4">
-              <p className="text-xs font-bold text-violet-400 uppercase tracking-widest mb-2 flex items-center gap-1">
-                <Film className="w-3.5 h-3.5" /> Hook mở đầu
+              <p className="text-xs font-bold text-violet-400 uppercase tracking-widest mb-2">
+                Content
               </p>
-              <p className="text-base font-semibold text-violet-900 leading-relaxed">"{script.hook}"</p>
-            </div>
-
-            {/* Scenes */}
-            <div>
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">
-                Kịch bản chi tiết
-              </p>
-              <div className="space-y-3">
-                {script.scenes.map((scene, i) => (
-                  <div key={i} className="flex gap-3">
-                    {/* Timeline dot */}
-                    <div className="flex flex-col items-center shrink-0">
-                      <div className="w-7 h-7 rounded-full bg-gray-100 border-2 border-gray-200 flex items-center justify-center">
-                        <span className="text-xs font-black text-gray-500">{i + 1}</span>
-                      </div>
-                      {i < script.scenes.length - 1 && (
-                        <div className="w-px flex-1 bg-gray-100 mt-1 mb-0.5" />
-                      )}
-                    </div>
-
-                    <div className="flex-1 pb-2">
-                      <span className="text-xs font-bold text-gray-400 bg-gray-100 px-2.5 py-0.5 rounded-full">
-                        {scene.timestamp}
-                      </span>
-                      <div className="mt-2 bg-gray-50 rounded-xl px-4 py-3 space-y-2.5">
-                        <div>
-                          <p className="text-xs text-gray-400 font-semibold mb-1">📷 Cảnh quay</p>
-                          <p className="text-sm text-gray-700 leading-relaxed">{scene.visual}</p>
-                        </div>
-                        <div className="border-t border-gray-200 pt-2.5">
-                          <p className="text-xs text-gray-400 font-semibold mb-1">🎙️ Voiceover / Text</p>
-                          <p className="text-sm font-semibold text-gray-900 leading-relaxed">{scene.voiceover}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* CTA */}
-            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3.5 flex gap-3 items-start">
-              <Megaphone className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-              <div>
-                <p className="text-xs font-bold text-amber-500 uppercase tracking-widest mb-1.5">Call-to-action</p>
-                <p className="text-base font-semibold text-amber-900 leading-relaxed">{script.cta}</p>
-              </div>
+              <p className="text-sm text-violet-900 leading-relaxed whitespace-pre-line">{script.content}</p>
             </div>
 
             {/* Hashtags */}
@@ -253,6 +207,23 @@ export function VideoScriptSection(props: VideoScriptSectionProps) {
                 ))}
               </div>
             </div>
+
+            {/* Translation */}
+            {script.translation && (
+              <div className="bg-sky-50 border border-sky-200 rounded-xl px-4 py-4 space-y-3">
+                <p className="text-xs font-bold text-sky-500 uppercase tracking-widest flex items-center gap-1">
+                  <Languages className="w-3.5 h-3.5" /> Bản dịch — {script.translation.language}
+                </p>
+                <p className="text-sm text-sky-900 leading-relaxed whitespace-pre-line">{script.translation.content}</p>
+                <div className="flex flex-wrap gap-2">
+                  {script.translation.hashtags.map((tag, i) => (
+                    <span key={i} className="text-sm font-medium text-sky-700 bg-white border border-sky-200 px-3 py-1 rounded-full">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -94,7 +94,7 @@ export function TeamKpiTab({ month, canEdit, userId, isAdminOrManager, selectedT
       type: a.type,
       content_line_id: a.content_line_id ?? '',
       product_line_id: a.product_line_id ?? '',
-      percent: a.percent,
+      value: a.percent,
     })))
     setEditing(kpi)
     setModal('edit')
@@ -105,20 +105,20 @@ export function TeamKpiTab({ month, canEdit, userId, isAdminOrManager, selectedT
     if (!form.month)   return toast.error('Chọn tháng')
     const contentAllocs = allocations.filter(a => a.type === 'CONTENT_LINE')
     const productAllocs = allocations.filter(a => a.type === 'PRODUCT_LINE')
-    const contentTotal  = contentAllocs.reduce((s, a) => s + (Number(a.percent) || 0), 0)
-    const productTotal  = productAllocs.reduce((s, a) => s + (Number(a.percent) || 0), 0)
+    const contentTotal  = contentAllocs.reduce((s, a) => s + (Number(a.value) || 0), 0)
+    const productTotal  = productAllocs.reduce((s, a) => s + (Number(a.value) || 0), 0)
     if (contentAllocs.length > 0 && contentTotal !== 100) return toast.error(`Tuyến nội dung tổng phải bằng 100% (hiện ${contentTotal}%)`)
     if (productAllocs.length > 0 && productTotal !== 100) return toast.error(`Dòng sản phẩm tổng phải bằng 100% (hiện ${productTotal}%)`)
     const body = {
       ...form,
       note: form.note || null,
       allocations: allocations
-        .filter(a => Number(a.percent) > 0)
+        .filter(a => Number(a.value) > 0)
         .map(a => ({
           type: a.type,
           content_line_id: a.type === 'CONTENT_LINE' ? (a.content_line_id || null) : null,
           product_line_id: a.type === 'PRODUCT_LINE' ? (a.product_line_id || null) : null,
-          percent: Number(a.percent),
+          percent: Number(a.value),
         })),
     }
     if (modal === 'create') createMut.mutate(body as Partial<TeamKpi>)

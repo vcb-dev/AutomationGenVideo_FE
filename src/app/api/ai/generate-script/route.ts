@@ -171,9 +171,14 @@ function buildPrompt(p: ScriptParams): string {
   const lines: string[] = []
   const lineType = detectContentLineType(p.contentLine)
   const guide = lineType ? CONTENT_LINE_GUIDE[lineType] : null
+  const hasFileText = !!p.fileText
+  const hasScript   = !!p.scriptText
+  const hasSource   = hasFileText || hasScript
+  const targetMarket = p.contentMarket || p.productMarket || null
 
-  lines.push('Bạn là chuyên gia viết kịch bản video ngắn TikTok/Reels cho thị trường Việt Nam.')
-  lines.push('Bạn am hiểu tâm lý người tiêu dùng Việt, xu hướng nội dung viral, và cách kết hợp storytelling với mục tiêu thương mại.')
+  lines.push('Bạn là chuyên gia adapt content mạng xã hội (TikTok/Reels) cho thị trường Việt Nam.')
+  lines.push('QUAN TRỌNG: Nhiệm vụ của bạn KHÔNG PHẢI là viết kịch bản quay video (không chia cảnh, không mô tả góc máy/hành động quay). Content bên dưới ĐÃ ĐƯỢC TEST THỰC TẾ VÀ CHỨNG MINH HIỆU QUẢ (content đã "win") cho một sản phẩm khác.')
+  lines.push('Việc của bạn là ÁP DỤNG LẠI đúng phần lời/nội dung (copy) của content đã win đó cho sản phẩm mới được cung cấp — bám sát tối đa câu chữ, cấu trúc, nhịp điệu, giọng văn, hook, CTA của content gốc. CHỈ chỉnh sửa những chi tiết liên quan trực tiếp đến sản phẩm (tên, đặc điểm, chất liệu, giá, ưu đãi, USP...) để khớp với sản phẩm mới. Không sáng tạo thêm ý tưởng, không đổi cấu trúc, không đổi tông giọng nếu không bắt buộc. Output là MỘT ĐOẠN CONTENT LIỀN MẠCH (văn bản lời thoại/caption), không phải danh sách cảnh quay.')
   lines.push('')
 
   // ── Thông tin nội dung ──
@@ -182,40 +187,33 @@ function buildPrompt(p: ScriptParams): string {
   if (p.contentLine)   lines.push(`Tuyến nội dung: ${p.contentLine}`)
   if (p.contentMarket) lines.push(`Thị trường mục tiêu: ${p.contentMarket}`)
 
-  // ── Định hướng tuyến nội dung ──
+  // ── Bối cảnh tuyến nội dung (chỉ để hiểu tone gốc, không dùng để sáng tác mới) ──
   if (guide) {
     lines.push('')
-    lines.push(`═══ ĐỊNH HƯỚNG TUYẾN NỘI DUNG ${lineType} ═══`)
-    lines.push(`Mục tiêu: ${guide.goal}`)
-    lines.push('')
-    lines.push('Chiến lược nội dung:')
-    lines.push(guide.strategy)
-    lines.push('')
-    lines.push(`Phong cách Hook: ${guide.hookStyle}`)
-    lines.push(`Phong cách CTA: ${guide.ctaStyle}`)
+    lines.push(`═══ BỐI CẢNH TUYẾN NỘI DUNG ${lineType} (tham khảo để hiểu tone, KHÔNG dùng để viết lại từ đầu) ═══`)
+    lines.push(`Mục tiêu của content gốc: ${guide.goal}`)
+    lines.push(`Phong cách Hook đặc trưng: ${guide.hookStyle}`)
+    lines.push(`Phong cách CTA đặc trưng: ${guide.ctaStyle}`)
   }
 
-  // ── Nguồn nội dung ──
-  const hasFileText = !!p.fileText
-  const hasScript   = !!p.scriptText
-
+  // ── Content gốc đã test win ──
   lines.push('')
-  lines.push('═══ NGUỒN NỘI DUNG ═══')
+  lines.push('═══ CONTENT GỐC ĐÃ TEST WIN (BẮT BUỘC BÁM SÁT — đây là nền tảng, không phải gợi ý) ═══')
   if (hasFileText) {
-    if (hasScript) lines.push(`Script tóm tắt (tham khảo): ${p.scriptText}`)
+    if (hasScript) lines.push(`Script tóm tắt (tham khảo thêm): ${p.scriptText}`)
     lines.push('')
-    lines.push('TÀI LIỆU ĐÍNH KÈM (nguồn chính — ưu tiên tuyệt đối khi viết kịch bản):')
+    lines.push('TÀI LIỆU ĐÍNH KÈM (content gốc — giữ nguyên cấu trúc, chỉ thay chi tiết sản phẩm):')
     lines.push(p.fileText!)
   } else if (hasScript) {
-    lines.push('Script / Ý tưởng gốc (nguồn chính):')
+    lines.push('Script gốc đã win (giữ nguyên cấu trúc, chỉ thay chi tiết sản phẩm):')
     lines.push(p.scriptText!)
   } else {
-    lines.push('(Không có script/file đính kèm — hãy sáng tạo hoàn toàn dựa trên tiêu đề, tuyến nội dung và thông tin sản phẩm bên dưới.)')
+    lines.push('(Không có content gốc được cung cấp — trường hợp này hãy sáng tác dựa trên tiêu đề, tuyến nội dung và thông tin sản phẩm bên dưới, vì không có gì để bám theo.)')
   }
 
   // ── Thông tin sản phẩm ──
   lines.push('')
-  lines.push('═══ THÔNG TIN SẢN PHẨM ═══')
+  lines.push('═══ SẢN PHẨM MỚI CẦN ÁP DỤNG CONTENT VÀO ═══')
   if (p.productName)         lines.push(`Tên sản phẩm: ${p.productName}`)
   if (p.productSku)          lines.push(`SKU: ${p.productSku}`)
   if (p.productPrice)        lines.push(`Giá bán: ${p.productPrice}`)
@@ -224,42 +222,60 @@ function buildPrompt(p: ScriptParams): string {
   if (p.productLine)         lines.push(`Dòng sản phẩm: ${p.productLine}`)
   if (p.productMarket)       lines.push(`Thị trường sản phẩm: ${p.productMarket}`)
 
-  // ── Yêu cầu output ──
-  const durationNote = lineType === 'A5' ? '45–75 giây' : '30–60 giây'
+  // ── Thị trường mục tiêu & bản dịch ──
+  if (targetMarket) {
+    lines.push('')
+    lines.push('═══ THỊ TRƯỜNG MỤC TIÊU & NGÔN NGỮ ═══')
+    lines.push(`Thị trường: ${targetMarket}`)
+    lines.push('Hãy điều chỉnh content (ví dụ: đơn vị tiền tệ, cách xưng hô, ví dụ văn hóa, mức độ trang trọng...) cho phù hợp với người tiêu dùng ở thị trường này, dựa trên nền content gốc đã test win — vẫn giữ nguyên cấu trúc và tinh thần bản gốc, chỉ bản địa hóa chi tiết cần thiết.')
+    lines.push('Sau đó BẮT BUỘC dịch toàn bộ content (và hashtags) sang ngôn ngữ chính thức/phổ biến được dùng trên mạng xã hội tại thị trường đó (nếu thị trường là Việt Nam thì không cần bản dịch riêng).')
+  }
 
+  // ── Yêu cầu output ──
   lines.push('')
   lines.push('═══ NHIỆM VỤ ═══')
-  lines.push(`Viết kịch bản video TikTok/Reels ${durationNote} bằng tiếng Việt tự nhiên, sinh động.`)
-  if (guide) {
-    lines.push(`Toàn bộ nội dung phải phục vụ đúng mục tiêu: ${guide.goal}`)
+  if (hasSource) {
+    lines.push('Viết lại content gốc đã test win ở trên bằng tiếng Việt tự nhiên, ÁP DỤNG cho sản phẩm mới nêu trên. Đây KHÔNG phải kịch bản quay video — chỉ là phần lời/content hoàn chỉnh.')
+    lines.push('')
+    lines.push('YÊU CẦU BẮT BUỘC:')
+    lines.push('1. BÁM SÁT content gốc: giữ nguyên cấu trúc câu chữ, thứ tự ý, độ dài, nhịp điệu, phong cách hook và CTA như bản gốc.')
+    lines.push('2. CHỈ thay thế phần liên quan đến sản phẩm: tên sản phẩm, đặc điểm/chất liệu, giá/ưu đãi, USP — sao cho khớp chính xác và tự nhiên với sản phẩm mới.')
+    lines.push('3. Nếu content gốc nhắc tên sản phẩm cũ, giá cũ, chất liệu cũ, đặc điểm cũ... phải thay hoàn toàn bằng thông tin sản phẩm mới, không được lẫn thông tin sản phẩm cũ.')
+    lines.push('4. Không thêm/bớt ý tưởng sáng tạo ngoài phạm vi cần thiết để khớp sản phẩm — không đổi giọng văn, không đổi thông điệp cốt lõi của content gốc.')
+    lines.push('5. Nếu content gốc thiếu thông tin mà sản phẩm mới cần nhấn mạnh (giá, chất liệu...), có thể bổ sung ngắn gọn nhưng không phá vỡ mạch của content gốc.')
+    lines.push('6. KHÔNG chia thành cảnh/scene, KHÔNG mô tả góc máy/hành động quay/text overlay — chỉ trả về đúng phần lời văn liền mạch, giữ các dấu xuống dòng như content gốc (nếu có) để phân đoạn ý.')
+    lines.push('7. Hashtags: thay hashtag đặc thù của sản phẩm/nội dung cũ bằng hashtag phù hợp sản phẩm mới; giữ hashtag ngành hàng/tuyến nội dung nếu vẫn còn đúng.')
+  } else {
+    lines.push('Viết content TikTok/Reels bằng tiếng Việt tự nhiên, sinh động. Đây KHÔNG phải kịch bản quay video — chỉ là phần lời/content hoàn chỉnh, KHÔNG chia cảnh, KHÔNG mô tả góc máy.')
+    if (guide) {
+      lines.push(`Toàn bộ nội dung phải phục vụ đúng mục tiêu: ${guide.goal}`)
+    }
+    lines.push('')
+    lines.push('YÊU CẦU BẮT BUỘC:')
+    lines.push('1. Hook (câu mở đầu): phải khiến người xem DỪNG SCROLL ngay lập tức — dùng yếu tố bất ngờ, câu hỏi, hoặc tuyên bố mạnh mẽ.')
+    lines.push('2. Nội dung viết tự nhiên như người thật nói/viết, không nhồi nhét thông tin.')
+    if (lineType === 'A4') {
+      lines.push('3. Nêu rõ giá / ưu đãi. Tạo cảm giác khan hiếm hoặc khẩn cấp.')
+    } else if (lineType === 'A3') {
+      lines.push('3. Có social proof cụ thể (số liệu, testimonial, chứng nhận).')
+    } else if (lineType === 'A5') {
+      lines.push('3. Cấu trúc rõ ràng: intro → từng tip/bước → kết luận. Đánh số tips nếu có nhiều tips.')
+    }
+    lines.push(`4. CTA cuối: ${guide?.ctaStyle ?? 'rõ ràng, tạo cảm giác cấp bách hoặc giá trị'}`)
+    lines.push('5. Hashtags: 5–8 hashtag, mix giữa broad (ngành hàng) và specific (sản phẩm, tuyến nội dung).')
   }
-  lines.push('')
-  lines.push('YÊU CẦU BẮT BUỘC:')
-  lines.push('1. Hook (3–5 giây đầu): phải khiến người xem DỪNG SCROLL ngay lập tức — dùng yếu tố bất ngờ, câu hỏi, hoặc tuyên bố mạnh mẽ.')
-  lines.push('2. Mỗi cảnh: mô tả góc máy/hành động CỤ THỂ (không mơ hồ) và lời thoại/text overlay tự nhiên như người thật nói.')
-  lines.push('3. Nhịp điệu: video ngắn, mỗi cảnh 3–8 giây, không nhồi nhét thông tin.')
-  if (lineType === 'A4') {
-    lines.push('4. Ít nhất 1 cảnh nêu giá / ưu đãi rõ ràng. Tạo cảm giác khan hiếm hoặc khẩn cấp.')
-  } else if (lineType === 'A3') {
-    lines.push('4. Ít nhất 1 cảnh có social proof cụ thể (số liệu, testimonial, chứng nhận).')
-  } else if (lineType === 'A5') {
-    lines.push('4. Cấu trúc rõ ràng: intro → từng tip/bước → kết luận. Đánh số tips nếu có nhiều tips.')
-  }
-  lines.push(`5. CTA cuối: ${guide?.ctaStyle ?? 'rõ ràng, tạo cảm giác cấp bách hoặc giá trị'}`)
-  lines.push('6. Hashtags: 5–8 hashtag, mix giữa broad (ngành hàng) và specific (sản phẩm, tuyến nội dung).')
   lines.push('')
   lines.push('CHỈ trả về JSON hợp lệ (không markdown, không giải thích), đúng format sau:')
   lines.push(`{
-  "hook": "câu hook mở đầu — ấn tượng, dưới 15 chữ",
-  "scenes": [
-    {
-      "timestamp": "0-5s",
-      "visual": "mô tả cảnh quay / góc máy / hành động / text hiển thị trên màn hình",
-      "voiceover": "lời thoại hoặc caption — viết đúng giọng văn nói tự nhiên người Việt"
-    }
-  ],
-  "cta": "call-to-action kết thúc video — cụ thể, hành động rõ ràng",
-  "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"]
+  "content": "toàn bộ nội dung/lời văn hoàn chỉnh bằng tiếng Việt, viết liền mạch (có thể xuống dòng để phân đoạn ý), KHÔNG chia cảnh, KHÔNG mô tả góc máy/hành động quay",
+  "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"],
+  "translation": ${targetMarket
+    ? `{
+    "language": "tên ngôn ngữ/thị trường đã dịch sang, ví dụ 'Tiếng Anh (Mỹ)', 'Tiếng Thái', 'Bahasa Indonesia'",
+    "content": "bản dịch đầy đủ của content sang ngôn ngữ đó, đã bản địa hóa phù hợp văn hóa/thị trường",
+    "hashtags": ["#tag1", "#tag2", "..."]
+  }`
+    : 'null'}
 }`)
 
   return lines.join('\n')

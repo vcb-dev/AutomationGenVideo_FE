@@ -35,6 +35,7 @@ interface Props {
   canCreate: boolean
   isMember?: boolean
   hideTeamFilter?: boolean
+  hideStatusFilter?: boolean
   onStatusChange: (v: TaskStatus | '') => void
   onTeamChange: (v: string) => void
   onSearchChange: (v: string) => void
@@ -53,6 +54,7 @@ export function TaskFilters({
   canCreate,
   isMember = false,
   hideTeamFilter = false,
+  hideStatusFilter = false,
   onStatusChange,
   onTeamChange,
   onSearchChange,
@@ -77,13 +79,15 @@ export function TaskFilters({
       </div>
 
       {/* Status */}
-      <CustomSelect
-        value={statusFilter}
-        onChange={v => onStatusChange(v as TaskStatus | '')}
-        options={STATUS_OPTIONS}
-        className="min-w-[165px]"
-        compact
-      />
+      {!hideStatusFilter && (
+        <CustomSelect
+          value={statusFilter}
+          onChange={v => onStatusChange(v as TaskStatus | '')}
+          options={STATUS_OPTIONS}
+          className="min-w-[165px]"
+          compact
+        />
+      )}
 
       {/* Task type */}
       <CustomSelect

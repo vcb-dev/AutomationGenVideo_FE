@@ -21,7 +21,7 @@ interface Props {
 }
 
 // Lấy tiêu đề content: personal → team (own→FK) → global (own→team FK→editor FK)
-function resolveContentTitle(task: Task): string | null {
+export function resolveContentTitle(task: Task): string | null {
   const g_tc = task.content?.source_team_content
   return (
     task.editor_content?.title ??
@@ -35,7 +35,7 @@ function resolveContentTitle(task: Task): string | null {
 }
 
 // Lấy tên sản phẩm: personal → team (own→FK) → global (own→team FK→editor FK)
-function resolveProductName(task: Task): string | null {
+export function resolveProductName(task: Task): string | null {
   const g_tp = task.product?.source_team_product
   return (
     task.editor_product?.name ??
@@ -44,6 +44,20 @@ function resolveProductName(task: Task): string | null {
     task.product?.name ??
     g_tp?.name ??
     g_tp?.source_editor_product?.name ??
+    null
+  )
+}
+
+// Lấy ảnh sản phẩm liên kết: personal → team (own→FK) → global (own→team FK→editor FK)
+export function resolveProductImage(task: Task): string | null {
+  const g_tp = task.product?.source_team_product
+  return (
+    task.editor_product?.image_url ??
+    task.team_product?.image_url ??
+    task.team_product?.source_editor_product?.image_url ??
+    task.product?.image_url ??
+    g_tp?.image_url ??
+    g_tp?.source_editor_product?.image_url ??
     null
   )
 }
