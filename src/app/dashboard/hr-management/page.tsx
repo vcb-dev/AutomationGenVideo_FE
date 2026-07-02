@@ -57,6 +57,7 @@ export default function HRManagementPage() {
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [unassignedCount, setUnassignedCount] = useState(0);
   const [leaders, setLeaders] = useState<TeamMember[]>([]);
+  const [teamNames, setTeamNames] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -114,7 +115,18 @@ export default function HRManagementPage() {
     } catch { setLeaders([]); }
   }, [token, apiBase]);
 
-  useEffect(() => { fetchMembers(); fetchUnassignedCount(); fetchLeaders(); }, [fetchMembers, fetchUnassignedCount, fetchLeaders]);
+  // Danh sách team lấy từ bảng Team thật (không suy từ leaders) — team chưa/không còn leader
+  // vẫn phải chọn được trong multi-select khi gán member.
+  const fetchTeams = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${apiBase}/task-auto/teams`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = res.ok ? await res.json() : [];
+      setTeamNames(Array.isArray(data) ? data.map((t: any) => String(t.name)) : []);
+    } catch { setTeamNames([]); }
+  }, [token, apiBase]);
+
+  useEffect(() => { fetchMembers(); fetchUnassignedCount(); fetchLeaders(); fetchTeams(); }, [fetchMembers, fetchUnassignedCount, fetchLeaders, fetchTeams]);
 
   // ── Derived data ──────────────────────────────────────────────────────────
   const managers = members.filter(m => m.roles.some(r => r === UserRole.MANAGER || r === UserRole.ADMIN));
@@ -171,7 +183,6 @@ export default function HRManagementPage() {
       // null (not undefined) so clearing the field in the form actually clears it server-side too.
       team: formData.team || null,
       manager_id: formData.manager_id || null,
-      team_leader_id: formData.team_leader_id || null,
     };
     // LEADER can't change roles — backend rejects the request outright if the field is even present.
     if (!editing || callerRole === 'MANAGER') payload.roles = formData.roles;
@@ -431,6 +442,7 @@ export default function HRManagementPage() {
         open={modalOpen} onClose={() => setModalOpen(false)}
         onSave={handleSave} editing={editing}
         callerRole={callerRole} managers={managers} leaders={leaders}
+        teams={teamNames}
         selfTeam={user?.team}
       />
     </div>

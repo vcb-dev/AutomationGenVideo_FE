@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import CreatableSelect from 'react-select/creatable';
+import type { StylesConfig, MultiValue } from 'react-select';
 import { UserRole } from '@/types/auth';
 import { UserCog, Crown, X, Loader2, UserMinus } from 'lucide-react';
 
@@ -11,6 +13,7 @@ export interface TeamMember {
   email: string;
   full_name: string;
   roles: UserRole[];
+  /** Có thể nhiều team, phân cách dấu phẩy (vd "Team A,Team B") — 1 người có thể ở nhiều team. */
   team: string | null;
   manager_id: string | null;
   team_leader_id: string | null;
@@ -27,14 +30,45 @@ export interface FormData {
   email: string;
   password: string;
   roles: UserRole[];
+  /** Nhiều team, phân cách dấu phẩy — backend tự suy ra team_leader_id từ Team/TeamMember. */
   team: string;
   manager_id: string;
-  team_leader_id: string;
 }
 
 export const EMPTY_FORM: FormData = {
   full_name: '', email: '', password: '',
-  roles: [UserRole.MEMBER], team: '', manager_id: '', team_leader_id: '',
+  roles: [UserRole.MEMBER], team: '', manager_id: '',
+};
+
+// ─── Team multi-select ────────────────────────────────────────────────────────
+
+interface TeamOption { value: string; label: string; }
+
+const parseTeamNames = (s: string): string[] => s.split(',').map(t => t.trim()).filter(Boolean);
+const joinTeamNames = (names: string[]): string => names.join(',');
+
+const teamSelectStyles: StylesConfig<TeamOption, true> = {
+  control: (base, state) => ({
+    ...base,
+    borderRadius: '0.75rem',
+    borderColor: state.isFocused ? '#3b82f6' : '#e5e7eb',
+    boxShadow: state.isFocused ? '0 0 0 2px rgba(59,130,246,0.3)' : 'none',
+    minHeight: '38px',
+    fontSize: '0.875rem',
+    '&:hover': { borderColor: '#d1d5db' },
+  }),
+  menu: (base) => ({ ...base, zIndex: 50, borderRadius: '0.75rem', overflow: 'hidden' }),
+  menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+  multiValue: (base) => ({ ...base, borderRadius: '0.5rem', backgroundColor: '#eff6ff' }),
+  multiValueLabel: (base) => ({ ...base, color: '#1e40af', fontSize: '0.8rem' }),
+  option: (base, state) => ({
+    ...base,
+    backgroundColor: state.isSelected ? '#dbeafe' : state.isFocused ? '#f3f4f6' : 'white',
+    color: '#111827',
+    fontSize: '0.875rem',
+    cursor: 'pointer',
+  }),
+  placeholder: (base) => ({ ...base, color: '#9ca3af', fontSize: '0.875rem' }),
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -110,24 +144,30 @@ interface ModalProps {
   callerRole: 'MANAGER' | 'LEADER';
   managers: TeamMember[];
   leaders: TeamMember[];
+  /** Tên các Team từ bảng Team thật (GET /task-auto/teams) — nguồn chính cho options; team chưa có leader vẫn hiện. */
+  teams?: string[];
   /** The logged-in LEADER's own team — when set, the team field locks to it instead of free text. */
   selfTeam?: string | null;
 }
 
-export function HRModal({ open, onClose, onSave, editing, callerRole, managers, leaders, selfTeam }: ModalProps) {
+export function HRModal({ open, onClose, onSave, editing, callerRole, managers, leaders, teams, selfTeam }: ModalProps) {
   const [form, setForm] = useState<FormData>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Một leader có thể quản lý nhiều team (l.team = "Team A,Team B") — tách ra để mỗi tên team
+  // là 1 key riêng, leader đó xuất hiện dưới tất cả các team mình quản lý.
   const teamLeaderMap = leaders.reduce<Record<string, TeamMember[]>>((acc, l) => {
-    const t = l.team ?? '';
-    if (!acc[t]) acc[t] = [];
-    acc[t].push(l);
+    for (const t of parseTeamNames(l.team ?? '')) {
+      if (!acc[t]) acc[t] = [];
+      acc[t].push(l);
+    }
     return acc;
   }, {});
 
-  const existingTeams = Object.keys(teamLeaderMap).filter(Boolean).sort();
-  const filteredLeaders = form.team && teamLeaderMap[form.team] ? teamLeaderMap[form.team] : leaders;
+  // Hợp nhất: bảng Team thật (nguồn chính — gồm cả team chưa có leader) + team suy từ leaders
+  // (phòng khi API teams chưa tải xong hoặc dữ liệu lệch).
+  const existingTeams = [...new Set([...(teams ?? []), ...Object.keys(teamLeaderMap)])].sort();
 
   useEffect(() => {
     if (!open) return;
@@ -135,7 +175,7 @@ export function HRModal({ open, onClose, onSave, editing, callerRole, managers, 
       setForm({
         full_name: editing.full_name, email: editing.email, password: '',
         roles: editing.roles, team: editing.team ?? (callerRole === 'LEADER' ? (selfTeam ?? '') : ''),
-        manager_id: editing.manager_id ?? '', team_leader_id: editing.team_leader_id ?? '',
+        manager_id: editing.manager_id ?? '',
       });
     } else {
       setForm({ ...EMPTY_FORM, team: callerRole === 'LEADER' ? (selfTeam ?? '') : '' });
@@ -208,36 +248,53 @@ export function HRModal({ open, onClose, onSave, editing, callerRole, managers, 
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Vai trò <span className="text-red-500">*</span></label>
               <select value={form.roles[0] ?? UserRole.MEMBER} disabled={callerRole === 'LEADER'}
-                onChange={e => setForm(f => ({ ...f, roles: [e.target.value as UserRole], manager_id: '', team_leader_id: '' }))}
+                onChange={e => {
+                  const r = e.target.value as UserRole;
+                  setForm(f => ({
+                    ...f,
+                    roles: [r],
+                    manager_id: '',
+                    // Rời role LEADER thì loại các team gõ tay chưa tồn tại (chỉ LEADER được tạo
+                    // team mới) — nếu giữ lại, backend sẽ từ chối khi lưu.
+                    team: r === UserRole.LEADER
+                      ? f.team
+                      : joinTeamNames(parseTeamNames(f.team).filter(t => existingTeams.includes(t))),
+                  }));
+                }}
                 className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50">
                 {allowedRoles.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
               </select>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Đội nhóm</label>
-              {(callerRole === 'LEADER' || (callerRole === 'MANAGER' && form.roles[0] === UserRole.MEMBER)) && existingTeams.length > 0 ? (
-                <select value={form.team}
-                  onChange={e => {
-                    const t = e.target.value;
-                    const tl = teamLeaderMap[t] ?? [];
-                    setForm(f => ({ ...f, team: t, team_leader_id: tl.length === 1 ? tl[0].id : '' }));
-                  }}
-                  disabled={callerRole === 'LEADER'}
-                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50">
-                  <option value="">— Chọn team —</option>
-                  {existingTeams.map(t => {
-                    const tl = teamLeaderMap[t] ?? [];
-                    return <option key={t} value={t}>{t}{tl.length ? ` (Leader: ${tl.map(l => l.full_name).join(', ')})` : ''}</option>;
-                  })}
-                </select>
-              ) : (
-                <input type="text" value={form.team}
-                  onChange={e => setForm(f => ({ ...f, team: e.target.value, team_leader_id: '' }))}
-                  disabled={callerRole === 'LEADER'}
-                  placeholder="VD: Global Thái Lan..."
-                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50" />
-              )}
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Đội nhóm
+                <span className="ml-1 text-gray-400 font-normal">(có thể chọn nhiều)</span>
+              </label>
+              <CreatableSelect<TeamOption, true>
+                isMulti
+                isDisabled={callerRole === 'LEADER'}
+                value={parseTeamNames(form.team).map(t => ({ value: t, label: t }))}
+                options={existingTeams.map(t => ({ value: t, label: t }))}
+                onChange={(selected: MultiValue<TeamOption>) =>
+                  setForm(f => ({ ...f, team: joinTeamNames((selected ?? []).map(o => o.value)) }))
+                }
+                formatOptionLabel={(opt: TeamOption, meta: { context: 'menu' | 'value' }) => {
+                  if (meta.context === 'value') return opt.label;
+                  const tl = teamLeaderMap[opt.value] ?? [];
+                  return tl.length ? `${opt.value} (Leader: ${tl.map(l => l.full_name).join(', ')})` : opt.value;
+                }}
+                isValidNewOption={(input: string) =>
+                  // Chỉ LEADER được tạo team mới; cấm dấu phẩy vì đó là ký tự phân cách multi-team.
+                  form.roles[0] === UserRole.LEADER && input.trim() !== '' && !input.includes(',')
+                }
+                formatCreateLabel={(input: string) => `Tạo team mới "${input}"`}
+                placeholder={form.roles[0] === UserRole.LEADER ? 'Chọn hoặc gõ để tạo team mới...' : 'Chọn team...'}
+                noOptionsMessage={() => 'Chưa có team nào'}
+                styles={teamSelectStyles}
+                menuPortalTarget={typeof window !== 'undefined' ? document.body : null}
+                classNamePrefix="team-select"
+              />
               {/* Leader can release their own member back to the shared "unassigned" pool (for
                   another leader to claim), but can't redirect them straight to a specific team —
                   that still requires a manager, hence the field above stays locked. */}
@@ -245,7 +302,7 @@ export function HRModal({ open, onClose, onSave, editing, callerRole, managers, 
                 <div className="mt-2">
                   {form.team ? (
                     <button type="button"
-                      onClick={() => setForm(f => ({ ...f, team: '', team_leader_id: '' }))}
+                      onClick={() => setForm(f => ({ ...f, team: '' }))}
                       className="px-4 py-2 rounded-xl text-sm font-medium border border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 transition flex items-center gap-2">
                       <UserMinus className="w-4 h-4" />
                       Thả về pool chung
@@ -257,7 +314,7 @@ export function HRModal({ open, onClose, onSave, editing, callerRole, managers, 
                         Sẽ thả về pool chung sau khi lưu
                       </span>
                       <button type="button"
-                        onClick={() => setForm(f => ({ ...f, team: editing.team ?? '', team_leader_id: editing.team_leader_id ?? '' }))}
+                        onClick={() => setForm(f => ({ ...f, team: editing.team ?? '' }))}
                         className="px-3 py-1 rounded-lg text-xs font-medium text-amber-700 hover:bg-amber-100 transition">
                         Hủy
                       </button>
@@ -275,22 +332,6 @@ export function HRModal({ open, onClose, onSave, editing, callerRole, managers, 
                 className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">— Không chọn —</option>
                 {managers.map(m => <option key={m.id} value={m.id}>{m.full_name} ({m.email})</option>)}
-              </select>
-            </div>
-          )}
-
-          {callerRole === 'MANAGER' && form.roles[0] === UserRole.MEMBER && filteredLeaders.length > 0 && (
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Team Leader
-                {form.team && teamLeaderMap[form.team] && (
-                  <span className="ml-1 text-blue-500 font-normal">({teamLeaderMap[form.team].length} leader)</span>
-                )}
-              </label>
-              <select value={form.team_leader_id} onChange={e => setForm(f => ({ ...f, team_leader_id: e.target.value }))}
-                className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="">— Không chọn —</option>
-                {filteredLeaders.map(l => <option key={l.id} value={l.id}>{l.full_name} ({l.email})</option>)}
               </select>
             </div>
           )}

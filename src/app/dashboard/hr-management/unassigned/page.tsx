@@ -18,6 +18,7 @@ export default function UnassignedTeamPage() {
   const [unassigned, setUnassigned] = useState<TeamMember[]>([]);
   const [managers, setManagers] = useState<TeamMember[]>([]);
   const [leaders, setLeaders] = useState<TeamMember[]>([]);
+  const [teamNames, setTeamNames] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,11 +44,14 @@ export default function UnassignedTeamPage() {
     setLoading(true); setError(null);
     try {
       // MANAGER needs the full team/leader picker; LEADER's team field is locked, no need.
-      // Fire both requests concurrently instead of waiting on unassigned before starting team-members.
-      const [unassignedRes, teamRes] = await Promise.all([
+      // Fire requests concurrently instead of waiting on unassigned before starting team-members.
+      const [unassignedRes, teamRes, teamsRes] = await Promise.all([
         fetch(`${apiBase}/users/unassigned`, { headers: { Authorization: `Bearer ${token}` } }),
         callerRole === 'MANAGER'
           ? fetch(`${apiBase}/users/team-members`, { headers: { Authorization: `Bearer ${token}` } })
+          : Promise.resolve(null),
+        callerRole === 'MANAGER'
+          ? fetch(`${apiBase}/task-auto/teams`, { headers: { Authorization: `Bearer ${token}` } })
           : Promise.resolve(null),
       ]);
       if (!unassignedRes.ok) throw new Error('Không thể tải danh sách nhân sự');
@@ -59,6 +63,11 @@ export default function UnassignedTeamPage() {
         const all: TeamMember[] = Array.isArray(teamData) ? teamData : [];
         setManagers(all.filter(m => m.roles.some(r => r === UserRole.MANAGER || r === UserRole.ADMIN)));
         setLeaders(all.filter(m => m.roles.includes(UserRole.LEADER)));
+      }
+      if (teamsRes) {
+        // Danh sách team từ bảng Team thật — team chưa có leader vẫn chọn được khi gán member.
+        const teamsData = teamsRes.ok ? await teamsRes.json() : [];
+        setTeamNames(Array.isArray(teamsData) ? teamsData.map((t: any) => String(t.name)) : []);
       }
     } catch (err: any) { setError(err.message); }
     finally { setLoading(false); }
@@ -72,7 +81,6 @@ export default function UnassignedTeamPage() {
       // null (not undefined) so clearing the field in the form actually clears it server-side too.
       team: formData.team || null,
       manager_id: formData.manager_id || null,
-      team_leader_id: formData.team_leader_id || null,
     };
     // LEADER can't change roles — backend rejects the request outright if the field is even present.
     if (callerRole === 'MANAGER') payload.roles = formData.roles;
@@ -197,6 +205,7 @@ export default function UnassignedTeamPage() {
         open={modalOpen} onClose={() => setModalOpen(false)}
         onSave={handleSave} editing={editing}
         callerRole={callerRole} managers={managers} leaders={leaders}
+        teams={teamNames}
         selfTeam={user?.team}
       />
     </div>

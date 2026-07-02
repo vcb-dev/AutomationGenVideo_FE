@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import apiClient from '../lib/api-client';
-import type { User, LoginRequest, RegisterRequest, AuthResponse } from '../types/auth';
+import type { User, LoginRequest, AuthResponse } from '../types/auth';
 
 const isTokenExpired = (token: string): boolean => {
   try {
@@ -48,7 +48,6 @@ interface AuthState {
 
   // Actions
   login: (credentials: LoginRequest) => Promise<void>;
-  register: (data: RegisterRequest) => Promise<void>;
   logout: () => void;
   loadUser: () => Promise<void>;
   clearError: () => void;
@@ -102,34 +101,6 @@ export const useAuthStore = create<AuthState>()(
             set({ error: errorMessage as string, isLoading: false });
             throw error;
           }
-        }
-      },
-
-      register: async (data: RegisterRequest) => {
-        try {
-          set({ isLoading: true, error: null });
-
-          const response = await apiClient.post<AuthResponse>('/auth/register', data);
-          const { access_token, user } = response.data;
-
-          // Save to localStorage
-          localStorage.setItem('auth_token', access_token);
-          localStorage.setItem('auth_user', JSON.stringify(user));
-
-          set({
-            user,
-            token: access_token,
-            isAuthenticated: true,
-            isLoading: false,
-          });
-        } catch (error: unknown) {
-          const axiosError = error as { response?: { data?: { message?: string | string[] } } };
-          let errorMessage = axiosError.response?.data?.message || 'Registration failed';
-          if (Array.isArray(errorMessage)) {
-            errorMessage = errorMessage.join(', ');
-          }
-          set({ error: errorMessage as string, isLoading: false });
-          throw error;
         }
       },
 
