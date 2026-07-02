@@ -7,6 +7,7 @@ import { Crown, Users, PenLine, Pencil, Check, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
 import { EmptyState } from '@/components/task-auto/EmptyState'
+import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { formatDateTime } from '@/components/task-auto/helpers'
 import { getTeams, getApprovals, setMemberEditorRole, updateTeam } from '@/lib/api/task-auto'
 import type { BrandType, TeamMarket, TeamMember } from '@/types/task-auto'
@@ -113,35 +114,35 @@ export function MembersTab({ canManage, isAdminOrManager, userId, selectedTeamId
 
   return (
     <div className="space-y-5">
+      {/* Toolbar */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
+        <div className="flex items-center gap-3 flex-wrap">
+          {showTeamPicker ? (
+            <CustomSelect
+              value={selectedTeamId}
+              onChange={v => { setSelectedTeamId(v); setEditingTeam(false); setPendingBrand(null); setPendingMarket(null) }}
+              options={teamPickerOptions}
+              className="min-w-[220px]"
+              searchable
+            />
+          ) : (
+            selectedTeam && (
+              <div className="flex items-center gap-2 px-4 py-3.5 bg-indigo-50 border border-indigo-200 rounded-xl text-base font-semibold text-indigo-700">
+                <Users className="w-4 h-4" />
+                {selectedTeam.name}
+              </div>
+            )
+          )}
 
-      {/* Content */}
-      {!selectedTeamId ? (
-        <EmptyState icon={Users} title="Chọn đội nhóm để xem thành viên" />
-      ) : members.length === 0 ? (
-        <EmptyState icon={Users} title="Team chưa có thành viên" />
-      ) : (
-        <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
-          {/* Team header */}
-          <div className="px-5 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between gap-4 flex-wrap">
-            <div>
-              {showTeamPicker ? (
-                <select
-                  value={selectedTeamId}
-                  onChange={e => { setSelectedTeamId(e.target.value); setEditingTeam(false); setPendingBrand(null); setPendingMarket(null) }}
-                  className="font-bold text-slate-900 bg-transparent border-none outline-none cursor-pointer text-sm"
-                >
-                  {teamPickerOptions.map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              ) : (
-                <h3 className="font-bold text-slate-900">{selectedTeam?.name}</h3>
-              )}
-              <p className="text-xs text-slate-400 mt-0.5">{members.length} thành viên</p>
-            </div>
+          {selectedTeam && (
+            <span className="text-sm text-slate-400 font-medium whitespace-nowrap">
+              {members.length} thành viên
+            </span>
+          )}
 
-            {/* Brand + Market editor */}
-            <div className="flex items-center gap-2 flex-wrap">
+          {/* Brand + Market editor */}
+          {selectedTeam && (
+            <div className="flex items-center gap-2 flex-wrap ml-auto">
               {editingTeam ? (
                 <>
                   {/* Brand buttons */}
@@ -219,17 +220,25 @@ export function MembersTab({ canManage, isAdminOrManager, userId, selectedTeamId
                 </>
               )}
             </div>
+          )}
 
-            {selectedTeam?.leader && (
-              <div className="flex items-center gap-2 text-sm ml-auto">
-                <Crown className="w-4 h-4 text-amber-600" />
-                <span className="text-slate-700 font-medium">{selectedTeam.leader.full_name}</span>
-                <span className="bg-amber-50 text-amber-600 text-xs px-2 py-0.5 rounded-full">Leader</span>
-              </div>
-            )}
-          </div>
+          {selectedTeam?.leader && (
+            <div className="flex items-center gap-2 text-sm">
+              <Crown className="w-4 h-4 text-amber-600" />
+              <span className="text-slate-700 font-medium">{selectedTeam.leader.full_name}</span>
+              <span className="bg-amber-50 text-amber-600 text-xs px-2 py-0.5 rounded-full">Leader</span>
+            </div>
+          )}
+        </div>
+      </div>
 
-          {/* Member list */}
+      {/* Content */}
+      {!selectedTeamId ? (
+        <EmptyState icon={Users} title="Chọn đội nhóm để xem thành viên" />
+      ) : members.length === 0 ? (
+        <EmptyState icon={Users} title="Team chưa có thành viên" />
+      ) : (
+        <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
           <div className="divide-y divide-gray-100">
             {members.map(member => {
               const isLeader = member.user_id === selectedTeam?.leader_id
