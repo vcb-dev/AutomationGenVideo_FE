@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Search, Plus, X, Loader2, Link as LinkIcon,
+  Search, Plus, X, Loader2, Link as LinkIcon, Hash,
   Facebook, Instagram, Music2, Youtube, Globe,
   Pencil, Trash2, ExternalLink, Building2,
   ChevronDown, Tag, SlidersHorizontal,
@@ -27,6 +27,7 @@ interface Channel {
 
 interface ChannelFormData {
   name: string; platform: string;
+  channel_id: string;
   link_channel: string; status: string;
   owner_id: string;
 }
@@ -35,6 +36,7 @@ interface TeamMember { id: string; full_name: string; email: string }
 
 const EMPTY_FORM: ChannelFormData = {
   name: '', platform: 'facebook',
+  channel_id: '',
   link_channel: '', status: 'đang hoạt động',
   owner_id: '',
 };
@@ -155,6 +157,7 @@ export default function InternalChannelsPage() {
   const openEdit   = (ch: Channel) => {
     setEditTarget(ch);
     setForm({ name: ch.name, platform: ch.platform ?? 'facebook',
+      channel_id: ch.channel_id ?? '',
       link_channel: ch.link_channel ?? '', status: ch.status ?? 'đang hoạt động',
       owner_id: ch.owner?.id ?? '' });
     setShowModal(true);
@@ -579,6 +582,17 @@ export default function InternalChannelsPage() {
                     </div>
                   </div>
                 )}
+
+                <div>
+                  <label className={labelCls}>ID kênh</label>
+                  <div className="relative">
+                    <Hash className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                    <input value={form.channel_id}
+                      onChange={e => setForm(f => ({ ...f, channel_id: e.target.value }))}
+                      placeholder="ID kênh trên platform, ví dụ: UCxxxxxxxx"
+                      className={`${inputCls} pl-11`} />
+                  </div>
+                </div>
 
                 <div>
                   <label className={labelCls}>Link kênh</label>

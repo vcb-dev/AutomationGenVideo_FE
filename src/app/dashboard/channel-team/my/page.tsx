@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Search, Plus, X, Loader2, Link as LinkIcon,
+  Search, Plus, X, Loader2, Link as LinkIcon, Hash,
   Facebook, Instagram, Music2, Youtube, Globe,
   ExternalLink, Radio,
   ChevronDown, SlidersHorizontal,
@@ -27,12 +27,13 @@ interface Channel {
 interface ChannelFormData {
   name: string;
   platform: string;
+  channel_id: string;
   link_channel: string;
   status: string;
 }
 
 const EMPTY_FORM: ChannelFormData = {
-  name: '', platform: 'facebook', link_channel: '', status: 'đang hoạt động',
+  name: '', platform: 'facebook', channel_id: '', link_channel: '', status: 'đang hoạt động',
 };
 
 const PLATFORMS = [
@@ -457,6 +458,17 @@ export default function MyChannelsPage() {
                       </select>
                       <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
                     </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className={labelCls}>ID kênh</label>
+                  <div className="relative">
+                    <Hash className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                    <input value={form.channel_id}
+                      onChange={e => setForm(f => ({ ...f, channel_id: e.target.value }))}
+                      placeholder="ID kênh trên platform, ví dụ: UCxxxxxxxx"
+                      className={`${inputCls} pl-11`} />
                   </div>
                 </div>
 
