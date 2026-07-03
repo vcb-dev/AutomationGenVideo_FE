@@ -344,7 +344,7 @@ export function MyProductsTab({ userId, brandType }: Props) {
   const [markets, setMarkets] = useState<string[]>(['VIETNAM'])
   const [sourceDraft, setSourceDraft] = useState<SourceDraft>(defaultSource)
 
-  const { data: productLines } = useQuery({ queryKey: ['task-auto', 'product-lines', brandType], queryFn: () => getProductLines(brandType) })
+  const { data: productLines } = useQuery({ queryKey: ['task-auto', 'product-lines'], queryFn: () => getProductLines() })
   const { data: materials } = useQuery({ queryKey: ['task-auto', 'materials', brandType], queryFn: () => getMaterials(brandType) })
   const { data: editingSourcesData } = useQuery({
     queryKey: ['task-auto', 'editor-sources-by-product', editing?.id],
@@ -660,8 +660,8 @@ export function MyProductsTab({ userId, brandType }: Props) {
                 options={productLines?.map(l => ({ value: l.id, label: l.name })) ?? []}
                 createLabel="Thêm dòng sản phẩm"
                 onCreate={async (name) => {
-                  const created = await createProductLine(name, brandType)
-                  qc.setQueryData<typeof productLines>(['task-auto', 'product-lines', brandType], old => [...(old ?? []), created])
+                  const created = await createProductLine(name)
+                  qc.setQueryData<typeof productLines>(['task-auto', 'product-lines'], old => [...(old ?? []), created])
                   return { id: created.id, label: created.name }
                 }}
               />

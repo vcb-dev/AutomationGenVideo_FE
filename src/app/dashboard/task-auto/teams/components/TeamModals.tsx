@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQueryClient, useMutation } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { Loader2 } from 'lucide-react'
@@ -36,14 +36,21 @@ export function TeamFormModal({ open, team, users, onClose, onSuccess }: TeamFor
       qc.invalidateQueries({ queryKey: ['task-auto', 'teams'] })
       onSuccess()
     },
-    onError: () => toast.error('Thao tác thất bại'),
+    onError: (e: any) => {
+      // Hiện lý do thật từ backend (trùng tên, tên chứa dấu phẩy...) thay vì lỗi chung chung
+      const msg = e?.response?.data?.message
+      toast.error(Array.isArray(msg) ? msg[0] : msg || 'Thao tác thất bại')
+    },
   })
 
-  // Reset form when modal opens with new data
-  const handleOpen = () => {
-    setName(team?.name || '')
-    setLeaderId(team?.leader_id || '')
-  }
+  // Reset form mỗi lần modal mở lại — nếu không, đóng bằng Huỷ rồi mở lại (kể cả sang team
+  // khác) sẽ còn giữ tên/leader đã gõ dở từ lần trước vì component không unmount.
+  useEffect(() => {
+    if (open) {
+      setName(team?.name || '')
+      setLeaderId(team?.leader_id || '')
+    }
+  }, [open, team])
 
   return (
     <DarkModal

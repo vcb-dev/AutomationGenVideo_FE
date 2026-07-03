@@ -44,7 +44,7 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
   const [markets, setMarkets] = useState<string[]>(['VIETNAM'])
   const [sourceDraft, setSourceDraft] = useState<SourceDraft>(defaultSource)
 
-  const { data: productLines } = useQuery({ queryKey: ['task-auto', 'product-lines', brandType], queryFn: () => getProductLines(brandType) })
+  const { data: productLines } = useQuery({ queryKey: ['task-auto', 'product-lines'], queryFn: () => getProductLines() })
   const { data: materials } = useQuery({ queryKey: ['task-auto', 'materials', brandType], queryFn: () => getMaterials(brandType) })
   const { data, isLoading } = useQuery({
     queryKey: ['task-auto', 'products', brandType, search, productLineFilter, activeFilter, month, page],
@@ -93,13 +93,13 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
   })
 
   const createLineMut = useMutation({
-    mutationFn: ({ name }: { name: string }) => createProductLine(name, brandType),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['task-auto', 'product-lines', brandType] }),
+    mutationFn: ({ name }: { name: string }) => createProductLine(name),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['task-auto', 'product-lines'] }),
     onError: () => toast.error('Không thể thêm dòng sản phẩm'),
   })
   const deleteLineMut = useMutation({
     mutationFn: deleteProductLine,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['task-auto', 'product-lines', brandType] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['task-auto', 'product-lines'] }),
     onError: () => toast.error('Không thể xóa dòng sản phẩm'),
   })
   const createMatMut = useMutation({
@@ -498,9 +498,9 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
                 options={productLines?.map(l => ({ value: l.id, label: l.name })) ?? []}
                 createLabel="Thêm dòng sản phẩm"
                 onCreate={async (name) => {
-                  const created = await createProductLine(name, brandType)
+                  const created = await createProductLine(name)
                   qc.setQueryData<typeof productLines>(
-                    ['task-auto', 'product-lines', brandType],
+                    ['task-auto', 'product-lines'],
                     old => [...(old ?? []), created]
                   )
                   return { id: created.id, label: created.name }

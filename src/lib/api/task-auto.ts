@@ -246,11 +246,11 @@ export const deleteEditorKpi = (id: string) =>
 
 // ── Catalog — Lookup Tables ────────────────────────────────────────────────────
 
-export const getProductLines = (brandType?: string) =>
-  apiClient.get<ProductLine[]>(`/task-auto/product-lines${brandType ? `?brand_type=${brandType}` : ''}`).then(r => r.data)
+export const getProductLines = () =>
+  apiClient.get<ProductLine[]>('/task-auto/product-lines').then(r => r.data)
 
-export const createProductLine = (name: string, brandType: string) =>
-  apiClient.post<ProductLine>('/task-auto/product-lines', { name, brand_type: brandType }).then(r => r.data)
+export const createProductLine = (name: string) =>
+  apiClient.post<ProductLine>('/task-auto/product-lines', { name }).then(r => r.data)
 
 export const updateProductLine = (id: string, body: { video_category?: string | null }) =>
   apiClient.patch<ProductLine>(`/task-auto/product-lines/${id}`, body).then(r => r.data)

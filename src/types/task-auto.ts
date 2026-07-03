@@ -29,6 +29,7 @@ export interface UserBasic {
   email: string
   image_url?: string | null
   roles?: string[]
+  is_active?: boolean
 }
 
 // ── Teams ───────────────────────────────────────
