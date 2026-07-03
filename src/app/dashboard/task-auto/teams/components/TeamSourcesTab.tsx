@@ -44,7 +44,8 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
 
-  const [modal, setModal]           = useState<null | 'add' | 'view' | 'edit'>(null)
+  const [modal, setModal]           = useState<null | 'add' | 'edit'>(null)
+  const [viewingSource, setViewingSource] = useState<TeamSource | null>(null)
   const [addMode, setAddMode]       = useState<AddMode>('manual')
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [pushingId, setPushingId]   = useState<string | null>(null)
@@ -131,10 +132,10 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
     onSuccess: async (_, { id }) => {
       const updated = await qc.fetchQuery({ queryKey: refetchKey, queryFn: () => getTeamSources(selectedTeamId, { brand_type: brandType }) }).catch(() => null)
       const fresh = (updated as TeamSource[] | null)?.find(s => s.id === id)
-      if (fresh) setEditing(fresh)
       await qc.refetchQueries({ queryKey: refetchKey })
       toast.success('Đã cập nhật source')
-      setModal('view')
+      setModal(null)
+      if (fresh) setViewingSource(fresh)
     },
     onError: () => toast.error('Không thể cập nhật source'),
   })
@@ -167,8 +168,7 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
   })
 
   const openView = (s: TeamSource) => {
-    setEditing(s)
-    setModal('view')
+    setViewingSource(s)
   }
 
   const openAdd = () => {
@@ -429,18 +429,18 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
       />
 
       {/* ─── Modal Chi tiết Source ─── */}
-      {editing && modal === 'view' && (
+      {viewingSource && (
         <SourceViewModal
           open
-          item={editing as any}
+          item={viewingSource as any}
           catalogType="team"
           canEdit={canManageSelected}
           canDelete={canManageSelected}
           canPushToGlobal={canPushToGlobal}
-          onClose={() => setModal(null)}
-          onEdit={() => openEdit(editing)}
-          onDelete={() => setDeletingId(editing.id)}
-          onPushToGlobal={() => { setModal(null); setPushingId(editing.id) }}
+          onClose={() => setViewingSource(null)}
+          onEdit={() => { setViewingSource(null); openEdit(viewingSource) }}
+          onDelete={() => { setViewingSource(null); setDeletingId(viewingSource.id) }}
+          onPushToGlobal={() => { setViewingSource(null); setPushingId(viewingSource.id) }}
         />
       )}
 
