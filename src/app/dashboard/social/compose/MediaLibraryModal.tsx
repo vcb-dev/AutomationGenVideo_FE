@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { socialApi, MediaLibraryItem } from '@/lib/api/social';
 import { useTaskStore } from '@/store/taskStore';
 import toast from 'react-hot-toast';
+import { useSocialLang } from '@/contexts/SocialLanguageContext';
 
 interface Props {
   open: boolean;
@@ -24,6 +25,7 @@ function formatBytes(bytes: number) {
 }
 
 export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect = 10, mode = 'media' }: Props) {
+  const { t } = useSocialLang();
   const [items, setItems]       = useState<MediaLibraryItem[]>([]);
   const [total, setTotal]       = useState(0);
   const [pages, setPages]       = useState(1);
@@ -49,7 +51,7 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
       setPages(res.pages);
       setPage(p);
     } catch {
-      toast.error('Không tải được thư viện media');
+      toast.error(t.mediaLibrary.loadFailed);
     } finally {
       if (!background) setLoading(false);
     }
@@ -74,7 +76,7 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
         next.delete(item.url);
       } else {
         if (next.size >= maxSelect) {
-          toast.error(`Chỉ có thể chọn tối đa ${maxSelect} file`);
+          toast.error(t.mediaLibrary.maxSelectReached(maxSelect));
           return prev;
         }
         next.add(item.url);
@@ -109,7 +111,7 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
         });
 
         toast.loading(
-          `[${i + 1}/${files.length}] ${isVideo ? 'Dang tai len Google Drive' : 'Dang luu'} ${file.name}...`,
+          t.mediaLibrary.uploadingFile(i + 1, files.length, isVideo, file.name),
           { id: 'lib-upload' },
         );
 
@@ -134,25 +136,25 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
           
         } catch (err: any) {
           failCount++;
-          const errorMsg = err?.response?.data?.message || err.message || 'Lỗi không xác định';
+          const errorMsg = err?.response?.data?.message || err.message || t.mediaLibrary.unknownError;
           updateTask(taskId, { status: 'error', message: errorMsg });
-          toast.error(`❌ Lỗi tải lên ${file.name}: ${errorMsg}`, { duration: 5000 });
+          toast.error(t.mediaLibrary.uploadFileFailed(file.name, errorMsg), { duration: 5000 });
           // Không throw err để vòng lặp chạy tiếp các file sau
         }
       }
       
       if (successCount > 0 && failCount === 0) {
-        toast.success(`✅ Đã lưu ${successCount} file vào thư viện`, { id: 'lib-upload', duration: 3000 });
+        toast.success(t.mediaLibrary.uploadAllSuccess(successCount), { id: 'lib-upload', duration: 3000 });
       } else if (successCount > 0 && failCount > 0) {
-        toast.success(`⚠️ Đã tải lên ${successCount} file. Có ${failCount} file bị lỗi (xem thông báo).`, { id: 'lib-upload', duration: 4000 });
+        toast.success(t.mediaLibrary.uploadPartialSuccess(successCount, failCount), { id: 'lib-upload', duration: 4000 });
       } else if (successCount === 0 && failCount > 0) {
-        toast.error(`❌ Tải lên thất bại cả ${failCount} file.`, { id: 'lib-upload', duration: 4000 });
+        toast.error(t.mediaLibrary.uploadAllFailed(failCount), { id: 'lib-upload', duration: 4000 });
       } else {
         toast.dismiss('lib-upload');
       }
-      
+
     } catch (err: any) {
-      toast.error('Có lỗi xảy ra trong quá trình xử lý', { id: 'lib-upload' });
+      toast.error(t.mediaLibrary.processingError, { id: 'lib-upload' });
     } finally {
       setUploading(false);
       setUploadPct(0);
@@ -161,7 +163,7 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
   };
 
   const handleConfirm = () => {
-    if (selected.size === 0) { toast.error('Chưa chọn file nào'); return; }
+    if (selected.size === 0) { toast.error(t.mediaLibrary.noFileSelected); return; }
     const urls = Array.from(selected);
     const thumbMap: Record<string, string> = {};
     const idMap: Record<string, string> = {};
@@ -186,10 +188,10 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
 
   const handleDelete = async (item: MediaLibraryItem, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm(`Xoá "${item.originalname}" khỏi thư viện?`)) return;
+    if (!confirm(t.mediaLibrary.confirmDelete(item.originalname))) return;
     try {
       await socialApi.library.remove(item.id);
-      toast.success('Đã xoá');
+      toast.success(t.mediaLibrary.deleted);
       // Bỏ item khỏi selected nếu đang được chọn
       setSelected(prev => { const next = new Set(prev); next.delete(item.url); return next; });
       // Nếu xoá hết item của trang cuối → lùi về trang trước
@@ -197,7 +199,7 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
       load(Math.min(page, newPages));
       setStats(await socialApi.library.stats());
     } catch {
-      toast.error('Xoá thất bại');
+      toast.error(t.mediaLibrary.deleteFailed);
     }
   };
 
@@ -221,10 +223,10 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 flex-shrink-0">
             <div>
-              <h2 className="text-lg font-black text-slate-900">📁 Thư viện Media</h2>
+              <h2 className="text-lg font-black text-slate-900">📁 {t.mediaLibrary.title}</h2>
               {stats && (
                 <p className="text-xs text-slate-400 mt-0.5">
-                  {stats.count} file · {stats.totalMB} MB đã lưu
+                  {t.mediaLibrary.statsLine(stats.count, stats.totalMB)}
                 </p>
               )}
             </div>
@@ -239,7 +241,7 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
               <input
                 type="text"
-                placeholder="Tìm kiếm tên file..."
+                placeholder={t.mediaLibrary.searchPlaceholder}
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
@@ -252,11 +254,11 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
                   onClick={() => setFilter(f)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${filter === f ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
-                  {f === 'all' ? 'Tất cả' : f === 'image' ? '🖼 Ảnh' : '🎬 Video'}
+                  {f === 'all' ? t.mediaLibrary.filterAll : f === 'image' ? `🖼 ${t.mediaLibrary.filterImage}` : `🎬 ${t.mediaLibrary.filterVideo}`}
                 </button>
               ))}
             </div>
-            <span className="text-xs text-slate-400">{total} file</span>
+            <span className="text-xs text-slate-400">{t.mediaLibrary.fileCount(total)}</span>
 
             {/* Upload vào thư viện */}
             <input
@@ -275,12 +277,12 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
               {uploading ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  {uploadPct > 0 ? `${uploadPct}% - dang tai len Drive...` : 'Dang xu ly...'}
+                  {uploadPct > 0 ? t.mediaLibrary.uploadingToDrivePct(uploadPct) : t.mediaLibrary.processingShort}
                 </>
               ) : (
                 <>
                   <Plus className="w-3.5 h-3.5" />
-                  Upload vao Drive
+                  {t.mediaLibrary.uploadToDrive}
                 </>
               )}
             </button>
@@ -297,16 +299,16 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
                 <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mb-3">
                   <ImageIcon className="w-8 h-8 text-slate-300" />
                 </div>
-                <p className="text-sm font-bold text-slate-500">Chưa có media nào</p>
+                <p className="text-sm font-bold text-slate-500">{t.mediaLibrary.emptyTitle}</p>
                 <p className="text-xs text-slate-400 mt-1 mb-3">
-                  {search || filter !== 'all' ? 'Không tìm thấy file phù hợp' : 'Upload ảnh hoặc video để thêm vào thư viện'}
+                  {search || filter !== 'all' ? t.mediaLibrary.emptyNoMatch : t.mediaLibrary.emptyHint}
                 </p>
                 {!search && filter === 'all' && (
                   <button
                     onClick={() => fileInputRef.current?.click()}
                     className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-colors"
                   >
-                    <Upload className="w-4 h-4" /> Upload file ngay
+                    <Upload className="w-4 h-4" /> {t.mediaLibrary.uploadNow}
                   </button>
                 )}
               </div>
@@ -330,7 +332,7 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
                           {/* Film icon luôn hiện làm nền — thumbnail sẽ phủ lên nếu load thành công */}
                           <div className={`absolute inset-0 flex flex-col items-center justify-center text-slate-500 ${item.storage !== 'google_drive' ? 'group-hover:opacity-0 transition-opacity' : ''}`}>
                             <Film className="w-8 h-8 mb-1" />
-                            <span className="text-[10px] uppercase font-medium">Video</span>
+                            <span className="text-[10px] uppercase font-medium">{t.mediaLibrary.videoLabel}</span>
                           </div>
                           {item.thumbnail_url && (
                             <img
@@ -392,13 +394,13 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
                               const data = await socialApi.library.postHistory(item.id);
                               setHistoryData(data);
                             } catch {
-                              toast.error('Không tải được lịch sử');
+                              toast.error(t.mediaLibrary.historyLoadFailed);
                             } finally {
                               setHistoryLoading(false);
                             }
                           }}
                           className="w-6 h-6 bg-blue-500 text-white rounded-lg flex items-center justify-center shadow-md"
-                          title="Xem lịch sử bài đăng"
+                          title={t.mediaLibrary.viewPostHistory}
                         >
                           <History className="w-3 h-3" />
                         </button>
@@ -406,7 +408,7 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
                         <button
                           onClick={(e) => handleDelete(item, e)}
                           className="w-6 h-6 bg-red-500 text-white rounded-lg flex items-center justify-center shadow-md"
-                          title="Xóa khỏi thư viện"
+                          title={t.mediaLibrary.removeFromLibrary}
                         >
                           <Trash2 className="w-3 h-3" />
                         </button>
@@ -442,16 +444,16 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
                       <ArrowLeft className="w-3.5 h-3.5" />
                     </button>
                     <span className="text-xs font-bold text-slate-700 truncate">
-                      Lịch sử: {historyItem.originalname}
+                      {t.mediaLibrary.historyOf(historyItem.originalname)}
                     </span>
                   </div>
 
                   {historyLoading ? (
                     <div className="flex items-center gap-2 py-3 text-xs text-slate-400">
-                      <Loader2 className="w-4 h-4 animate-spin" /> Đang tải…
+                      <Loader2 className="w-4 h-4 animate-spin" /> {t.mediaLibrary.loadingEllipsis}
                     </div>
                   ) : !historyData || historyData.posts.length === 0 ? (
-                    <p className="text-xs text-slate-400 py-2">Chưa có bài đăng nào dùng file này</p>
+                    <p className="text-xs text-slate-400 py-2">{t.mediaLibrary.noPostsUsingFile}</p>
                   ) : (
                     <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                       {historyData.posts.map((post: any) => {
@@ -471,7 +473,7 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
                                 <span className="font-bold text-slate-700">{post.account?.name || meta.label}</span>
                                 <span className={`flex items-center gap-0.5 font-semibold ${isOk ? 'text-emerald-600' : isFail ? 'text-red-500' : 'text-amber-600'}`}>
                                   {isOk ? <CheckCircle className="w-3 h-3" /> : isFail ? <XCircle className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
-                                  {isOk ? 'Thành công' : isFail ? 'Thất bại' : 'Đang chờ'}
+                                  {isOk ? t.mediaLibrary.postStatusSuccess : isFail ? t.mediaLibrary.postStatusFailed : t.mediaLibrary.postStatusPending}
                                 </span>
                               </div>
                               <p className="text-slate-500 line-clamp-1">{post.message}</p>
@@ -495,7 +497,7 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
               <button onClick={() => load(page - 1)} disabled={page === 1} className="p-1.5 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50 transition-colors">
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <span className="text-xs text-slate-500 font-medium">Trang {page}/{pages}</span>
+              <span className="text-xs text-slate-500 font-medium">{t.mediaLibrary.pageOf(page, pages)}</span>
               <button onClick={() => load(page + 1)} disabled={page === pages} className="p-1.5 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50 transition-colors">
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -506,9 +508,9 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
           <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 bg-slate-50 flex-shrink-0">
             <p className="text-sm text-slate-500">
               {selected.size > 0 ? (
-                <span className="font-bold text-blue-600">✓ Đã chọn {selected.size} file</span>
+                <span className="font-bold text-blue-600">✓ {t.mediaLibrary.selectedCount(selected.size)}</span>
               ) : (
-                'Click vào file để chọn'
+                t.mediaLibrary.clickToSelect
               )}
             </p>
             <div className="flex gap-2">
@@ -517,14 +519,14 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
                 disabled={selected.size === 0}
                 className="px-4 py-2 text-sm font-semibold text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors disabled:opacity-40"
               >
-                Bỏ chọn
+                {t.mediaLibrary.deselect}
               </button>
               <button
                 onClick={handleConfirm}
                 disabled={selected.size === 0}
                 className="px-5 py-2 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-40 shadow-sm"
               >
-                Chèn {selected.size > 0 ? `(${selected.size})` : ''} vào bài
+                {t.mediaLibrary.insertIntoPost(selected.size)}
               </button>
             </div>
           </div>

@@ -1,0 +1,164 @@
+'use client'
+
+import { CalendarDays, Plus, Search, X } from 'lucide-react'
+import { CustomSelect } from '@/components/task-auto/DarkInput'
+import { cn } from '@/lib/utils'
+import { TaskStatus, Team } from '@/types/task-auto'
+
+const STATUS_OPTIONS: { value: TaskStatus | ''; label: string }[] = [
+  { value: '', label: 'Tất cả trạng thái' },
+  { value: 'ASSIGNED', label: 'Đã giao' },
+  { value: 'IN_PROGRESS', label: 'Đang làm' },
+  { value: 'SUBMITTED', label: 'Đã nộp' },
+  { value: 'APPROVED', label: 'Đã duyệt' },
+]
+
+// const TASK_TYPE_OPTIONS = [
+//   { value: '', label: 'Tất cả loại' },
+//   { value: 'auto', label: 'Auto' },
+// ]
+
+function todayString() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+type TaskTypeFilter = 'auto' | 'manual' | ''
+
+interface Props {
+  statusFilter: TaskStatus | ''
+  teamFilter: string
+  searchFilter: string
+  deadlineDateFilter: string
+  taskTypeFilter: TaskTypeFilter
+  teams: Team[]
+  canCreate: boolean
+  isMember?: boolean
+  hideTeamFilter?: boolean
+  hideStatusFilter?: boolean
+  onStatusChange: (v: TaskStatus | '') => void
+  onTeamChange: (v: string) => void
+  onSearchChange: (v: string) => void
+  onDeadlineDateChange: (v: string) => void
+  onTaskTypeChange: (v: TaskTypeFilter) => void
+  onCreateClick: () => void
+}
+
+export function TaskFilters({
+  statusFilter,
+  teamFilter,
+  searchFilter,
+  deadlineDateFilter,
+  taskTypeFilter,
+  teams,
+  canCreate,
+  isMember = false,
+  hideTeamFilter = false,
+  hideStatusFilter = false,
+  onStatusChange,
+  onTeamChange,
+  onSearchChange,
+  onDeadlineDateChange,
+  onTaskTypeChange,
+  onCreateClick,
+}: Props) {
+  const isToday = deadlineDateFilter === todayString()
+
+  return (
+    <div className="flex flex-wrap gap-2.5 items-center flex-1">
+      {/* Search */}
+      <div className="relative flex-1 min-w-[200px]">
+        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+        <input
+          type="text"
+          className="w-full pl-10 pr-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-colors"
+          placeholder="Tìm kiếm theo tiêu đề..."
+          value={searchFilter}
+          onChange={e => onSearchChange(e.target.value)}
+        />
+      </div>
+
+      {/* Status */}
+      {!hideStatusFilter && (
+        <CustomSelect
+          value={statusFilter}
+          onChange={v => onStatusChange(v as TaskStatus | '')}
+          options={STATUS_OPTIONS}
+          className="min-w-[165px]"
+          compact
+        />
+      )}
+
+      {/* Task type */}
+      {/* <CustomSelect
+        value={taskTypeFilter}
+        onChange={v => onTaskTypeChange(v as TaskTypeFilter)}
+        options={TASK_TYPE_OPTIONS}
+        className="min-w-[135px]"
+        compact
+      /> */}
+
+      {/* Team — hidden for MEMBER and LEADER */}
+      {!isMember && !hideTeamFilter && (
+        <CustomSelect
+          value={teamFilter}
+          onChange={onTeamChange}
+          options={[
+            { value: '', label: 'Tất cả team' },
+            ...teams.map(t => ({ value: t.id, label: t.name })),
+          ]}
+          className="min-w-[155px]"
+          searchable
+          compact
+        />
+      )}
+
+      {/* Deadline date picker */}
+      <div className="relative">
+        <CalendarDays className={cn(
+          'absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none',
+          isToday ? 'text-amber-500' : deadlineDateFilter ? 'text-indigo-500' : 'text-slate-400'
+        )} />
+        <input
+          type="date"
+          value={deadlineDateFilter}
+          onChange={e => onDeadlineDateChange(e.target.value)}
+          className={cn(
+            'pl-9 py-3 bg-gray-50 border rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-colors',
+            deadlineDateFilter ? 'pr-7 min-w-[160px]' : 'pr-3 min-w-[160px]',
+            isToday
+              ? 'border-amber-300 ring-1 ring-amber-100'
+              : deadlineDateFilter
+                ? 'border-indigo-400 ring-1 ring-indigo-100'
+                : 'border-gray-200'
+          )}
+          title="Lọc theo ngày hết hạn"
+        />
+        {deadlineDateFilter && (
+          <button
+            onClick={() => onDeadlineDateChange('')}
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        )}
+        {isToday && (
+          <span className="absolute -top-2 left-2.5 px-1.5 py-0.5 text-[9px] font-bold bg-amber-500 text-white rounded-full leading-none">
+            Hôm nay
+          </span>
+        )}
+      </div>
+
+      {/* Create button */}
+      {canCreate && (
+        <button
+          onClick={onCreateClick}
+          className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-5 py-3 text-sm font-semibold flex items-center gap-2 transition-colors flex-shrink-0 ml-auto shadow-sm"
+        >
+          <Plus className="w-4 h-4" />
+          Tạo task
+        </button>
+      )}
+    </div>
+  )
+}

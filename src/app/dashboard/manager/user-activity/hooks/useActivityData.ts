@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useCallback, useEffect, useState, useMemo } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
+import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 
 interface PersonalHistory {
     history: any[];
@@ -35,6 +35,7 @@ interface UseActivityDataReturn {
     reportOutstandings: any[];
     kpiMeta: KpiMeta | null;
     loading: boolean;
+    isFetching: boolean;
     userRole: string | null;
     userTeam: string | null;
     personalHistory: PersonalHistory;
@@ -195,17 +196,42 @@ export function useActivityData({
         return `${e.getFullYear()}-${String(e.getMonth() + 1).padStart(2, "0")}-${String(e.getDate()).padStart(2, "0")}`;
     }, [dateRange?.end]);
 
+    // Debounce filter params 400ms — tránh gọi API ngay mỗi lần user click filter
+    const filterDebounce = useRef<ReturnType<typeof setTimeout>>();
+    const [debouncedFilter, setDebouncedFilter] = useState({
+        startDate: startDateStr,
+        endDate: endDateStr,
+        team: activeTeam,
+        timeType,
+    });
+    useEffect(() => {
+        clearTimeout(filterDebounce.current);
+        filterDebounce.current = setTimeout(() => {
+            setDebouncedFilter({ startDate: startDateStr, endDate: endDateStr, team: activeTeam, timeType });
+        }, 400);
+        return () => clearTimeout(filterDebounce.current);
+    }, [startDateStr, endDateStr, activeTeam, timeType]);
+
+    // Debounce search name 400ms — tránh gọi API mỗi ký tự khi tìm kiếm
+    const searchDebounce = useRef<ReturnType<typeof setTimeout>>();
+    const [debouncedSearchName, setDebouncedSearchName] = useState(searchName);
+    useEffect(() => {
+        clearTimeout(searchDebounce.current);
+        searchDebounce.current = setTimeout(() => setDebouncedSearchName(searchName), 400);
+        return () => clearTimeout(searchDebounce.current);
+    }, [searchName]);
+
     // 1. Primary Query: Fetch Combined User Activities and KPIs
     const activityQuery = useQuery({
-        queryKey: ["userActivity", user?.email, startDateStr, endDateStr, activeTeam, timeType],
+        queryKey: ["userActivity", user?.email, debouncedFilter.startDate, debouncedFilter.endDate, debouncedFilter.team, debouncedFilter.timeType],
         queryFn: async ({ signal }) => {
             if (!user?.email) return null;
             const params = new URLSearchParams();
-            if (startDateStr) params.append("startDate", startDateStr);
-            if (endDateStr) params.append("endDate", endDateStr);
-            if (activeTeam !== "All") params.append("team", activeTeam);
+            if (debouncedFilter.startDate) params.append("startDate", debouncedFilter.startDate);
+            if (debouncedFilter.endDate) params.append("endDate", debouncedFilter.endDate);
+            if (debouncedFilter.team !== "All") params.append("team", debouncedFilter.team);
             params.append("requesterEmail", user.email);
-            if (timeType) params.append("timeType", timeType);
+            if (debouncedFilter.timeType) params.append("timeType", debouncedFilter.timeType);
 
             const url = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api"}/lark/user-activity?${params.toString()}`;
             const response = await fetch(url, { cache: "no-store", signal });
@@ -235,8 +261,9 @@ export function useActivityData({
             return data;
         },
         enabled: !!user?.email,
-        staleTime: 60 * 1000, // 1 minute stale time
-        refetchInterval: 90 * 1000, // Refetch in background every 90 seconds
+        staleTime: 5 * 60 * 1000,       // 5 phút — dữ liệu giữ trong cache, không refetch khi navigate
+        refetchInterval: 3 * 60 * 1000, // Background refresh mỗi 3 phút
+        placeholderData: keepPreviousData, // Giữ data cũ trên màn hình trong khi filter mới load
     });
 
     const userRole = useMemo(() => {
@@ -245,13 +272,13 @@ export function useActivityData({
 
     // 2. Secondary Query: Fetch Personal History (only when tab is "personal")
     const historyQuery = useQuery({
-        queryKey: ["personalHistory", user?.email, searchName, userRole],
+        queryKey: ["personalHistory", user?.email, debouncedSearchName, userRole],
         queryFn: async ({ signal }) => {
             if (!user?.email) return null;
             const params = new URLSearchParams();
             params.append("email", user.email);
-            if (searchName && (userRole === "admin" || userRole === "manager" || userRole === "leader")) {
-                params.append("name", searchName);
+            if (debouncedSearchName && (userRole === "admin" || userRole === "manager" || userRole === "leader")) {
+                params.append("name", debouncedSearchName);
             }
             const url = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api"}/lark/personal-history?${params.toString()}`;
             const response = await fetch(url, { cache: "no-store", signal });
@@ -259,7 +286,8 @@ export function useActivityData({
             return await response.json();
         },
         enabled: !!user?.email && activeTab === "personal",
-        staleTime: 60 * 1000,
+        staleTime: 5 * 60 * 1000,
+        placeholderData: keepPreviousData,
     });
 
     // Synchronize reportOutstandings with query data
@@ -341,6 +369,7 @@ export function useActivityData({
         reportOutstandings,
         kpiMeta,
         loading: activityQuery.isLoading,
+        isFetching: activityQuery.isFetching,
         userRole,
         userTeam,
         personalHistory,

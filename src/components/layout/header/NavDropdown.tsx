@@ -151,6 +151,15 @@ export default function NavDropdown({
                                                                 >
                                                                     {innerContent}
                                                                 </div>
+                                                            ) : item.external ? (
+                                                                <a
+                                                                    href={item.href}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className={`group/item flex items-center gap-3 px-2.5 py-2.5 rounded-lg transition-colors duration-100 ${rowClass}`}
+                                                                >
+                                                                    {innerContent}
+                                                                </a>
                                                             ) : (
                                                                 <Link
                                                                     href={item.href}

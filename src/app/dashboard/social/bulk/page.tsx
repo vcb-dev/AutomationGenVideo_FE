@@ -10,6 +10,7 @@ import { socialApi, SocialPlatform, PLATFORM_META } from '@/lib/api/social';
 import { useSocialAccounts } from '@/hooks/useSocialAccounts';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
+import { useSocialLang } from '@/contexts/SocialLanguageContext';
 
 interface CsvRow {
   platform: string;
@@ -55,30 +56,31 @@ function parseCsv(text: string): CsvRow[] {
   });
 }
 
-function validateRow(row: CsvRow, accounts: any[]): CsvRow {
-  if (!row.platform) return { ...row, _status: 'error', _error: 'Thiếu platform' };
-  if (!row.content && !row.media_url) return { ...row, _status: 'error', _error: 'Thiếu content hoặc media_url' };
+function validateRow(row: CsvRow, accounts: any[], t: any): CsvRow {
+  if (!row.platform) return { ...row, _status: 'error', _error: t.bulk.missingPlatform };
+  if (!row.content && !row.media_url) return { ...row, _status: 'error', _error: t.bulk.missingContentOrMedia };
 
   const platform = row.platform.toUpperCase() as SocialPlatform;
-  if (!PLATFORM_META[platform]) return { ...row, _status: 'error', _error: `Platform không hợp lệ: ${row.platform}` };
+  if (!PLATFORM_META[platform]) return { ...row, _status: 'error', _error: t.bulk.invalidPlatform(row.platform) };
 
   const account = accounts.find(a =>
     a.platform === platform &&
     (a.name.toLowerCase().includes(row.account_name?.toLowerCase()) ||
      row.account_name?.toLowerCase().includes(a.name.toLowerCase()))
   );
-  if (!account) return { ...row, _status: 'error', _error: `Không tìm thấy account "${row.account_name}" cho ${platform}` };
+  if (!account) return { ...row, _status: 'error', _error: t.bulk.accountNotFound(row.account_name, platform) };
 
   if (row.scheduled_at) {
     const d = new Date(row.scheduled_at);
-    if (isNaN(d.getTime())) return { ...row, _status: 'error', _error: 'scheduled_at không hợp lệ (dùng ISO: YYYY-MM-DDTHH:mm)' };
-    if (d <= new Date()) return { ...row, _status: 'error', _error: 'scheduled_at phải là thời điểm trong tương lai' };
+    if (isNaN(d.getTime())) return { ...row, _status: 'error', _error: t.bulk.invalidScheduledAt };
+    if (d <= new Date()) return { ...row, _status: 'error', _error: t.bulk.scheduledAtMustBeFuture };
   }
 
   return { ...row, _accountId: account.id, _status: 'valid' };
 }
 
 export default function BulkSchedulePage() {
+  const { t } = useSocialLang();
   const { data: accounts = [] } = useSocialAccounts();
   const [rows, setRows]             = useState<CsvRow[]>([]);
   const [publishing, setPublishing] = useState(false);
@@ -86,21 +88,21 @@ export default function BulkSchedulePage() {
 
   const handleFile = useCallback((file: File) => {
     if (!file.name.endsWith('.csv') && file.type !== 'text/csv') {
-      return toast.error('Chỉ chấp nhận file .csv');
+      return toast.error(t.bulk.csvOnly);
     }
     const reader = new FileReader();
     reader.onload = (e) => {
       const text = e.target?.result as string;
       const parsed = parseCsv(text);
-      if (!parsed.length) return toast.error('File CSV trống hoặc không đúng định dạng');
-      const validated = parsed.map(r => validateRow(r, accounts));
+      if (!parsed.length) return toast.error(t.bulk.csvEmptyOrInvalid);
+      const validated = parsed.map(r => validateRow(r, accounts, t));
       setRows(validated);
       const errors = validated.filter(r => r._status === 'error').length;
-      if (errors) toast.error(`${errors} hàng có lỗi — kiểm tra lại`);
-      else toast.success(`Đọc được ${validated.length} hàng hợp lệ`);
+      if (errors) toast.error(t.bulk.rowsHaveErrors(errors));
+      else toast.success(t.bulk.rowsValid(validated.length));
     };
     reader.readAsText(file, 'UTF-8');
-  }, [accounts]);
+  }, [accounts, t]);
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -113,7 +115,7 @@ export default function BulkSchedulePage() {
   const pendingRows = rows.filter(r => r._status === 'valid');
 
   const handlePublish = async () => {
-    if (!pendingRows.length) return toast.error('Không có hàng hợp lệ để đăng');
+    if (!pendingRows.length) return toast.error(t.bulk.noValidRows);
     setPublishing(true);
     let doneCount = 0;
     let failedCount = 0;
@@ -151,7 +153,7 @@ export default function BulkSchedulePage() {
     }
 
     setPublishing(false);
-    toast.success(`Hoàn tất: ${doneCount} thành công, ${failedCount} thất bại`);
+    toast.success(t.bulk.publishComplete(doneCount, failedCount));
   };
 
   const downloadSample = () => {
@@ -180,13 +182,13 @@ export default function BulkSchedulePage() {
               <ChevronLeft className="w-5 h-5" />
             </Link>
             <div>
-              <h1 className="text-xl font-black text-slate-900">📋 Đăng bài hàng loạt từ CSV</h1>
-              <p className="text-sm text-slate-500 mt-0.5">Upload file CSV để lên lịch đăng nhiều bài cùng lúc</p>
+              <h1 className="text-xl font-black text-slate-900">📋 {t.bulk.pageTitle}</h1>
+              <p className="text-sm text-slate-500 mt-0.5">{t.bulk.pageSubtitle}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={downloadSample} className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-colors">
-              <Download className="w-4 h-4" /> Tải mẫu CSV
+              <Download className="w-4 h-4" /> {t.bulk.downloadSample}
             </button>
             {pendingRows.length > 0 && (
               <button
@@ -195,7 +197,7 @@ export default function BulkSchedulePage() {
                 className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-colors disabled:opacity-60 shadow-sm"
               >
                 {publishing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                {publishing ? 'Đang xử lý...' : `Đăng ${pendingRows.length} bài`}
+                {publishing ? t.bulk.processing : t.bulk.publishCount(pendingRows.length)}
               </button>
             )}
           </div>
@@ -205,15 +207,15 @@ export default function BulkSchedulePage() {
       <div className="max-w-5xl mx-auto px-6 pt-6 space-y-5">
         {/* Instructions */}
         <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
-          <p className="text-sm font-bold text-blue-800 mb-2">📌 Hướng dẫn</p>
+          <p className="text-sm font-bold text-blue-800 mb-2">📌 {t.bulk.instructions}</p>
           <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-blue-700">
             {[
               ['platform', 'FACEBOOK, INSTAGRAM, TIKTOK, YOUTUBE, THREADS, ZALO'],
-              ['account_name', 'Tên account đã kết nối (tìm gần đúng)'],
-              ['content', 'Nội dung bài đăng (đặt trong dấu " nếu có dấu phẩy)'],
-              ['hashtags', '#Tag1 #Tag2 (tùy chọn)'],
-              ['media_url', 'Link ảnh/video public (tùy chọn)'],
-              ['scheduled_at', 'YYYY-MM-DDTHH:mm — bỏ trống = đăng ngay vào hàng chờ'],
+              ['account_name', t.bulk.colAccountName],
+              ['content', t.bulk.colContent],
+              ['hashtags', t.bulk.colHashtags],
+              ['media_url', t.bulk.colMediaUrl],
+              ['scheduled_at', t.bulk.colScheduledAt],
             ].map(([col, desc]) => (
               <div key={col} className="flex gap-1.5">
                 <code className="bg-blue-100 px-1.5 py-0.5 rounded text-[10px] font-bold text-blue-900 flex-shrink-0">{col}</code>
@@ -242,9 +244,9 @@ export default function BulkSchedulePage() {
               <Upload className={`w-8 h-8 transition-colors ${dragOver ? 'text-blue-500' : 'text-slate-400'}`} />
             </div>
             <p className="text-base font-bold text-slate-700 mb-1">
-              {dragOver ? 'Thả file vào đây' : 'Kéo thả hoặc click để chọn file CSV'}
+              {dragOver ? t.bulk.dropFileHere : t.bulk.dragOrClickToSelect}
             </p>
-            <p className="text-sm text-slate-400">Chỉ chấp nhận .csv, mã hoá UTF-8</p>
+            <p className="text-sm text-slate-400">{t.bulk.csvOnlyUtf8}</p>
           </motion.div>
         )}
 
@@ -254,18 +256,18 @@ export default function BulkSchedulePage() {
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
               <div className="flex items-center gap-3">
                 <FileText className="w-5 h-5 text-slate-400" />
-                <span className="font-bold text-slate-800">{rows.length} hàng đã đọc</span>
+                <span className="font-bold text-slate-800">{t.bulk.rowsRead(rows.length)}</span>
                 <div className="flex gap-2 text-xs font-bold">
-                  <span className="text-emerald-600">{rows.filter(r => r._status === 'done').length} xong</span>
-                  <span className="text-blue-600">{rows.filter(r => r._status === 'valid').length} sẵn sàng</span>
-                  <span className="text-amber-600">{rows.filter(r => r._status === 'error').length} lỗi</span>
+                  <span className="text-emerald-600">{t.bulk.rowsDoneCount(rows.filter(r => r._status === 'done').length)}</span>
+                  <span className="text-blue-600">{t.bulk.rowsReadyCount(rows.filter(r => r._status === 'valid').length)}</span>
+                  <span className="text-amber-600">{t.bulk.rowsErrorCount(rows.filter(r => r._status === 'error').length)}</span>
                 </div>
               </div>
               <button
                 onClick={() => setRows([])}
                 className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-red-500 transition-colors"
               >
-                <X className="w-3.5 h-3.5" /> Xoá tất cả
+                <X className="w-3.5 h-3.5" /> {t.bulk.clearAll}
               </button>
             </div>
 
@@ -273,7 +275,7 @@ export default function BulkSchedulePage() {
               <table className="w-full text-xs">
                 <thead className="bg-slate-50 border-b border-slate-100">
                   <tr>
-                    {['#', 'Trạng thái', 'Platform', 'Tài khoản', 'Nội dung', 'Lịch đăng'].map(h => (
+                    {['#', t.bulk.thStatus, 'Platform', t.bulk.thAccount, t.bulk.thContent, t.bulk.thSchedule].map(h => (
                       <th key={h} className="px-4 py-3 text-left font-bold text-slate-500 uppercase tracking-wider">{h}</th>
                     ))}
                   </tr>
@@ -305,7 +307,7 @@ export default function BulkSchedulePage() {
                         </td>
                         <td className="px-4 py-3 font-semibold text-slate-700 max-w-[120px] truncate">{row.account_name || '—'}</td>
                         <td className="px-4 py-3 text-slate-600 max-w-[240px]">
-                          <p className="truncate">{row.content || <span className="italic text-slate-300">Không có nội dung</span>}</p>
+                          <p className="truncate">{row.content || <span className="italic text-slate-300">{t.bulk.noContent}</span>}</p>
                           {row.hashtags && <p className="text-[10px] text-blue-500 truncate mt-0.5">{row.hashtags}</p>}
                         </td>
                         <td className="px-4 py-3 text-slate-500 whitespace-nowrap">
@@ -315,7 +317,7 @@ export default function BulkSchedulePage() {
                               {new Date(row.scheduled_at).toLocaleString('vi', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                             </div>
                           ) : (
-                            <span className="text-blue-500 font-semibold">Đăng ngay</span>
+                            <span className="text-blue-500 font-semibold">{t.bulk.postNow}</span>
                           )}
                         </td>
                       </tr>
