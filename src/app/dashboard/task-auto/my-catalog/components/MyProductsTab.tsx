@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {
@@ -21,6 +21,7 @@ import {
 import {
   MarketPicker, PriceInput, MultiImagePicker, SourceForm, MarketBadge, LoadingRows,
 } from '../../catalog/components/ProductsTab/ProductFormFields'
+import type { MultiImagePickerHandle } from '../../catalog/components/ProductsTab/ProductFormFields'
 import { parseMarkets, formatPrice, defaultSource } from '../../catalog/components/ProductsTab/product-utils'
 import type { SourceDraft } from '../../catalog/components/ProductsTab/product-utils'
 import { Product, TeamProduct, SOURCE_TYPE_LABELS } from '@/types/task-auto'
@@ -343,6 +344,7 @@ export function MyProductsTab({ userId, brandType }: Props) {
   })
   const [markets, setMarkets] = useState<string[]>(['VIETNAM'])
   const [sourceDraft, setSourceDraft] = useState<SourceDraft>(defaultSource)
+  const imagePickerRef = useRef<MultiImagePickerHandle>(null)
 
   const { data: productLines } = useQuery({ queryKey: ['task-auto', 'product-lines'], queryFn: () => getProductLines() })
   const { data: materials } = useQuery({ queryKey: ['task-auto', 'materials', brandType], queryFn: () => getMaterials(brandType) })
@@ -366,9 +368,22 @@ export function MyProductsTab({ userId, brandType }: Props) {
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['task-auto', 'my-products'] })
 
+  const buildBody = async () => {
+    const image_urls = await imagePickerRef.current!.resolvePending(form.image_urls)
+    return {
+      name: form.name, brand_type: brandType, image_urls,
+      price: form.price || undefined, market: markets.join(','),
+      price_segment: form.price_segment || undefined,
+      priority_score: form.priority_score,
+      material_id: form.material_id || null,
+      product_line_id: form.product_line_id || null,
+      is_active: form.is_active,
+    }
+  }
+
   const createMut = useMutation({
-    mutationFn: async (body: Partial<Product>) => {
-      const product = await createEditorProduct(userId, body)
+    mutationFn: async () => {
+      const product = await createEditorProduct(userId, { sku: form.sku, ...await buildBody() })
       if (sourceDraft.enabled && sourceDraft.name && sourceDraft.link) {
         await createEditorSource(userId, {
           type: sourceDraft.type, name: sourceDraft.name, link: sourceDraft.link,
@@ -382,8 +397,9 @@ export function MyProductsTab({ userId, brandType }: Props) {
   })
 
   const updateMut = useMutation({
-    mutationFn: async ({ id, body }: { id: string; body: Partial<Product> }) => {
-      await updateEditorProduct(userId, id, body)
+    mutationFn: async () => {
+      const id = editing!.id
+      await updateEditorProduct(userId, id, await buildBody())
       if (sourceDraft.enabled && sourceDraft.name && sourceDraft.link) {
         await createEditorSource(userId, {
           type: sourceDraft.type, name: sourceDraft.name, link: sourceDraft.link,
@@ -437,17 +453,8 @@ export function MyProductsTab({ userId, brandType }: Props) {
   const handleSubmit = () => {
     if (!form.sku?.trim() || !form.name?.trim()) return toast.error('SKU và tên là bắt buộc')
     if (markets.length === 0) return toast.error('Chọn ít nhất một thị trường')
-    const body = {
-      name: form.name, brand_type: brandType, image_urls: form.image_urls,
-      price: form.price || undefined, market: markets.join(','),
-      price_segment: form.price_segment || undefined,
-      priority_score: form.priority_score,
-      material_id: form.material_id || null,
-      product_line_id: form.product_line_id || null,
-      is_active: form.is_active,
-    }
-    if (modal === 'create') createMut.mutate({ sku: form.sku, ...body })
-    else if (editing) updateMut.mutate({ id: editing.id, body })
+    if (modal === 'create') createMut.mutate()
+    else if (editing) updateMut.mutate()
   }
 
   const saving = createMut.isPending || updateMut.isPending
@@ -702,7 +709,7 @@ export function MyProductsTab({ userId, brandType }: Props) {
             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
               Hình ảnh sản phẩm
             </p>
-            <MultiImagePicker values={form.image_urls ?? []} onChange={urls => setForm(f => ({ ...f, image_urls: urls }))} />
+            <MultiImagePicker ref={imagePickerRef} values={form.image_urls ?? []} onChange={urls => setForm(f => ({ ...f, image_urls: urls }))} />
           </div>
 
           {/* Trạng thái */}
