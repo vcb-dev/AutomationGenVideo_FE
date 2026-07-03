@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Search, Plus, X, Loader2, Link as LinkIcon, Hash,
+  Search, Plus, X, Loader2, Link as LinkIcon,
   Facebook, Instagram, Music2, Youtube, Globe,
   Pencil, Trash2, ExternalLink, Building2,
   ChevronDown, Tag, SlidersHorizontal,
@@ -27,18 +27,12 @@ interface Channel {
 
 interface ChannelFormData {
   name: string; platform: string;
-  channel_id: string;
   link_channel: string; status: string;
-  owner_id: string;
 }
-
-interface TeamMember { id: string; full_name: string; email: string }
 
 const EMPTY_FORM: ChannelFormData = {
   name: '', platform: 'facebook',
-  channel_id: '',
   link_channel: '', status: 'đang hoạt động',
-  owner_id: '',
 };
 
 const PLATFORMS = [
@@ -89,7 +83,6 @@ export default function InternalChannelsPage() {
   const [saving,        setSaving]        = useState(false);
   const [deleteTarget,  setDeleteTarget]  = useState<Channel | null>(null);
   const [deleting,      setDeleting]      = useState(false);
-  const [teamMembers,   setTeamMembers]   = useState<TeamMember[]>([]);
 
   const statusDropRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -119,23 +112,6 @@ export default function InternalChannelsPage() {
 
   useEffect(() => { fetchChannels(); }, [fetchChannels]);
 
-  useEffect(() => {
-    if (!isLeader) return;
-    (async () => {
-      try {
-        const res = await fetch(`${apiUrl}/users/team-members`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) return;
-        setTeamMembers(await res.json());
-      } catch { /* danh sách owner không tải được, giữ nguyên rỗng */ }
-    })();
-  }, [apiUrl, token, isLeader]);
-
-  const ownerOptions: TeamMember[] = user
-    ? [{ id: user.id, full_name: `${user.full_name} (Bạn)`, email: user.email }, ...teamMembers]
-    : teamMembers;
-
   // ─── FILTER LOGIC ───
   const filtered = channels.filter(c => {
     const okPlat   = platFilter === 'all'   || c.platform?.toLowerCase() === platFilter;
@@ -157,9 +133,7 @@ export default function InternalChannelsPage() {
   const openEdit   = (ch: Channel) => {
     setEditTarget(ch);
     setForm({ name: ch.name, platform: ch.platform ?? 'facebook',
-      channel_id: ch.channel_id ?? '',
-      link_channel: ch.link_channel ?? '', status: ch.status ?? 'đang hoạt động',
-      owner_id: ch.owner?.id ?? '' });
+      link_channel: ch.link_channel ?? '', status: ch.status ?? 'đang hoạt động' });
     setShowModal(true);
   };
   const closeModal = () => { if (saving) return; setShowModal(false); setEditTarget(null); };
@@ -172,8 +146,7 @@ export default function InternalChannelsPage() {
     setSaving(true);
     try {
       const isEdit = !!editTarget;
-      const { owner_id, ...rest } = form;
-      const body = isEdit ? { ...rest, owner_id: owner_id || null } : rest;
+      const body = form;
       const res = await fetch(
         isEdit ? `${apiUrl}/channels/${editTarget!.id}` : `${apiUrl}/channels`,
         { method: isEdit ? 'PATCH' : 'POST',
@@ -560,37 +533,6 @@ export default function InternalChannelsPage() {
                       </select>
                       <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
                     </div>
-                  </div>
-                </div>
-
-                {editTarget && (
-                  <div>
-                    <label className={labelCls}>Owner</label>
-                    <div className="relative">
-                      <select value={form.owner_id}
-                        onChange={e => setForm(f => ({ ...f, owner_id: e.target.value }))}
-                        className={`${inputCls} appearance-none pr-10 cursor-pointer`}>
-                        <option value="">— Chưa gán —</option>
-                        {editTarget?.owner && !ownerOptions.some(m => m.id === editTarget.owner!.id) && (
-                          <option value={editTarget.owner.id}>{editTarget.owner.full_name}</option>
-                        )}
-                        {ownerOptions.map(m => (
-                          <option key={m.id} value={m.id}>{m.full_name}</option>
-                        ))}
-                      </select>
-                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  <label className={labelCls}>ID kênh</label>
-                  <div className="relative">
-                    <Hash className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
-                    <input value={form.channel_id}
-                      onChange={e => setForm(f => ({ ...f, channel_id: e.target.value }))}
-                      placeholder="ID kênh trên platform, ví dụ: UCxxxxxxxx"
-                      className={`${inputCls} pl-11`} />
                   </div>
                 </div>
 
