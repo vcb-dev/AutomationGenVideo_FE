@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Package, User, BookOpen, Radio, Archive, BarChart2, Inbox } from 'lucide-react'
+import { Package, User, BookOpen, Radio, Archive, BarChart2, Inbox, Plus } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth-store'
@@ -12,8 +12,9 @@ import { TeamSourcesTab } from './components/TeamSourcesTab'
 import { TeamWarehouseTab } from './components/TeamWarehouseTab'
 import { TeamStatsTab } from './components/TeamStatsTab'
 import { TeamPushRequestsTab } from './components/TeamPushRequestsTab'
+import { TeamFormModal } from './components/TeamModals'
 import { UserRole } from '@/types/auth'
-import { getTeams } from '@/lib/api/task-auto'
+import { getTeams, getUsers } from '@/lib/api/task-auto'
 import type { BrandType } from '@/types/task-auto'
 
 type TabId = 'members' | 'products' | 'contents' | 'sources' | 'warehouse' | 'stats' | 'push-requests'
@@ -45,10 +46,17 @@ export default function TeamsPage() {
   const [sourceTeamId, setSourceTeamId]     = useState('')
   // State lọc theo tháng dùng chung giữa các tab products/contents/sources
   const [month, setMonth]                   = useState('')
+  const [createTeamOpen, setCreateTeamOpen] = useState(false)
 
   const { data: teams } = useQuery({
     queryKey: ['task-auto', 'teams'],
     queryFn: getTeams,
+  })
+
+  const { data: leaderOptions } = useQuery({
+    queryKey: ['task-auto', 'users', 'LEADER'],
+    queryFn: () => getUsers('LEADER'),
+    enabled: isAdminOrManager,
   })
 
   // Auto-select own team for non-admin/manager
@@ -87,9 +95,20 @@ export default function TeamsPage() {
   return (
     <div className="space-y-8">
       {/* Page header */}
-      <div>
-        <h1 className="text-3xl font-black text-slate-900">Đội nhóm</h1>
-        <p className="text-slate-500 text-base mt-1">Quản lý đội nhóm và thành viên</p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-3xl font-black text-slate-900">Đội nhóm</h1>
+          <p className="text-slate-500 text-base mt-1">Quản lý đội nhóm và thành viên</p>
+        </div>
+        {isAdminOrManager && (
+          <button
+            onClick={() => setCreateTeamOpen(true)}
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Tạo đội mới
+          </button>
+        )}
       </div>
 
       {/* Tab bar */}
@@ -183,6 +202,15 @@ export default function TeamsPage() {
 
       {activeTab === 'stats' && showStatsTab && (
         <TeamStatsTab teamId={scaleDataTeamId} />
+      )}
+
+      {isAdminOrManager && (
+        <TeamFormModal
+          open={createTeamOpen}
+          users={(leaderOptions ?? []).filter(u => u.is_active !== false)}
+          onClose={() => setCreateTeamOpen(false)}
+          onSuccess={() => setCreateTeamOpen(false)}
+        />
       )}
     </div>
   )
