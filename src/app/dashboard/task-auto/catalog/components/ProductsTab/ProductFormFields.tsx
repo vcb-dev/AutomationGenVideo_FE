@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, forwardRef, useImperativeHandle, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { Plus, Loader2, Upload, X, Link as LinkIcon, Trash2 } from 'lucide-react'
 import { cn, driveImageUrl } from '@/lib/utils'
@@ -233,140 +233,167 @@ export function PriceInput({ value, onChange, label }: { value: string; onChange
 }
 
 // ── MultiImagePicker ──────────────────────────────────
+//
+// Ảnh chọn từ máy chỉ được xem trước cục bộ (blob URL) tại đây — việc tải lên
+// Drive thực sự bị hoãn lại tới khi form cha gọi `resolvePending()` (thường là
+// lúc bấm "Thêm mới"/"Lưu thay đổi"), để tránh rác ảnh trên Drive khi người
+// dùng chọn ảnh rồi huỷ form.
 
-export function MultiImagePicker({ values, onChange }: { values: string[]; onChange: (urls: string[]) => void }) {
-  const fileRef = useRef<HTMLInputElement>(null)
-  const [uploading, setUploading] = useState(false)
-  const [showUrl, setShowUrl] = useState(false)
-  const [urlInput, setUrlInput] = useState('')
+export interface MultiImagePickerHandle {
+  resolvePending: (urls: string[]) => Promise<string[]>
+}
 
-  const remove = (i: number) => onChange(values.filter((_, idx) => idx !== i))
+export const MultiImagePicker = forwardRef<MultiImagePickerHandle, { values: string[]; onChange: (urls: string[]) => void }>(
+  function MultiImagePicker({ values, onChange }, ref) {
+    const fileRef = useRef<HTMLInputElement>(null)
+    const [showUrl, setShowUrl] = useState(false)
+    const [urlInput, setUrlInput] = useState('')
 
-  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (!file.type.startsWith('image/')) return toast.error('Chỉ chấp nhận file ảnh')
-    if (file.size > 5 * 1024 * 1024) return toast.error('Ảnh tối đa 5MB')
-    setUploading(true)
-    try {
-      const { url } = await uploadProductImage(file)
-      onChange([...values, url])
-    } catch {
-      toast.error('Không thể tải ảnh lên')
-    } finally {
-      setUploading(false)
-      if (fileRef.current) fileRef.current.value = ''
+    // blob URL -> File chưa tải lên
+    const pendingFiles = useRef<Map<string, File>>(new Map())
+    // blob URL -> URL Drive thật sau khi đã tải lên (cache để tránh tải lại khi resolvePending gọi nhiều lần)
+    const resolvedUrls = useRef<Map<string, string>>(new Map())
+
+    useEffect(() => () => {
+      pendingFiles.current.forEach((_, blobUrl) => URL.revokeObjectURL(blobUrl))
+    }, [])
+
+    const remove = (i: number) => {
+      const url = values[i]
+      if (url && pendingFiles.current.has(url)) {
+        URL.revokeObjectURL(url)
+        pendingFiles.current.delete(url)
+        resolvedUrls.current.delete(url)
+      }
+      onChange(values.filter((_, idx) => idx !== i))
     }
-  }
 
-  const addUrl = () => {
-    const trimmed = urlInput.trim()
-    if (!trimmed) return
-    onChange([...values, trimmed])
-    setUrlInput('')
-    setShowUrl(false)
-  }
+    const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      if (fileRef.current) fileRef.current.value = ''
+      if (!file) return
+      if (!file.type.startsWith('image/')) return toast.error('Chỉ chấp nhận file ảnh')
+      if (file.size > 5 * 1024 * 1024) return toast.error('Ảnh tối đa 5MB')
+      const blobUrl = URL.createObjectURL(file)
+      pendingFiles.current.set(blobUrl, file)
+      onChange([...values, blobUrl])
+    }
 
-  return (
-    <div className="space-y-3">
-      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+    const addUrl = () => {
+      const trimmed = urlInput.trim()
+      if (!trimmed) return
+      onChange([...values, trimmed])
+      setUrlInput('')
+      setShowUrl(false)
+    }
 
-      <label className="block text-base font-semibold text-slate-700">
-        Ảnh sản phẩm
-        {values.length > 0 && (
-          <span className="ml-1.5 text-sm font-normal text-slate-400">({values.length} ảnh)</span>
-        )}
-      </label>
+    useImperativeHandle(ref, () => ({
+      resolvePending: async (urls: string[]) => Promise.all(urls.map(async (url) => {
+        const cached = resolvedUrls.current.get(url)
+        if (cached) return cached
+        const file = pendingFiles.current.get(url)
+        if (!file) return url
+        const { url: uploaded } = await uploadProductImage(file)
+        resolvedUrls.current.set(url, uploaded)
+        return uploaded
+      })),
+    }), [])
 
-      {values.length === 0 && (
-        <button
-          type="button"
-          onClick={() => !uploading && fileRef.current?.click()}
-          disabled={uploading}
-          className="w-full flex flex-col items-center justify-center gap-3 border-2 border-dashed border-gray-200 hover:border-indigo-400 hover:bg-indigo-50/30 rounded-2xl py-10 transition-colors disabled:opacity-60 group"
-        >
-          {uploading ? (
-            <>
-              <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
-              <span className="text-sm font-medium text-indigo-600">Đang tải ảnh lên...</span>
-            </>
-          ) : (
-            <>
-              <div className="w-12 h-12 rounded-2xl bg-gray-100 group-hover:bg-indigo-100 flex items-center justify-center transition-colors">
-                <Upload className="w-6 h-6 text-slate-400 group-hover:text-indigo-500 transition-colors" />
-              </div>
-              <div className="text-center">
-                <p className="text-sm font-semibold text-slate-600 group-hover:text-indigo-600 transition-colors">Nhấn để tải ảnh lên</p>
-                <p className="text-xs text-slate-400 mt-0.5">JPG, PNG, WebP — tối đa 5MB</p>
-              </div>
-            </>
+    return (
+      <div className="space-y-3">
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+
+        <label className="block text-base font-semibold text-slate-700">
+          Ảnh sản phẩm
+          {values.length > 0 && (
+            <span className="ml-1.5 text-sm font-normal text-slate-400">({values.length} ảnh)</span>
           )}
-        </button>
-      )}
+        </label>
 
-      {values.length > 0 && (
-        <div className="flex flex-wrap gap-3">
-          {values.map((url, i) => (
-            <div key={i} className="relative w-28 h-28 rounded-xl overflow-hidden border border-gray-200 group shrink-0 shadow-sm">
-              <img src={driveImageUrl(url) ?? url} alt={`Ảnh ${i + 1}`} className="w-full h-full object-cover" />
-              <button
-                type="button"
-                onClick={() => remove(i)}
-                className="absolute top-1.5 right-1.5 p-1 bg-red-500 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow"
-              >
-                <X className="w-3 h-3" />
-              </button>
-              {i === 0 && (
-                <div className="absolute bottom-0 left-0 right-0 bg-indigo-600/85 text-white text-[10px] text-center py-1 font-semibold tracking-wide">
-                  Ảnh chính
-                </div>
-              )}
-            </div>
-          ))}
+        {values.length === 0 && (
           <button
             type="button"
-            onClick={() => !uploading && fileRef.current?.click()}
-            disabled={uploading}
-            className="w-28 h-28 rounded-xl border-2 border-dashed border-gray-200 hover:border-indigo-400 hover:bg-indigo-50 flex flex-col items-center justify-center gap-1.5 transition-colors text-slate-400 hover:text-indigo-500 shrink-0 disabled:opacity-60"
+            onClick={() => fileRef.current?.click()}
+            className="w-full flex flex-col items-center justify-center gap-3 border-2 border-dashed border-gray-200 hover:border-indigo-400 hover:bg-indigo-50/30 rounded-2xl py-10 transition-colors group"
           >
-            {uploading
-              ? <Loader2 className="w-5 h-5 animate-spin text-indigo-500" />
-              : <><Plus className="w-6 h-6" /><span className="text-xs font-medium">Thêm ảnh</span></>
-            }
+            <div className="w-12 h-12 rounded-2xl bg-gray-100 group-hover:bg-indigo-100 flex items-center justify-center transition-colors">
+              <Upload className="w-6 h-6 text-slate-400 group-hover:text-indigo-500 transition-colors" />
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-semibold text-slate-600 group-hover:text-indigo-600 transition-colors">Nhấn để chọn ảnh</p>
+              <p className="text-xs text-slate-400 mt-0.5">JPG, PNG, WebP — tối đa 5MB. Ảnh sẽ được tải lên khi lưu.</p>
+            </div>
           </button>
-        </div>
-      )}
+        )}
 
-      {showUrl ? (
-        <div className="flex gap-2">
-          <input
-            type="url"
-            value={urlInput}
-            onChange={e => setUrlInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && addUrl()}
-            placeholder="https://..."
-            autoFocus
-            className="flex-1 bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
-          />
-          <button type="button" onClick={addUrl}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors">
-            Thêm
+        {values.length > 0 && (
+          <div className="flex flex-wrap gap-3">
+            {values.map((url, i) => {
+              const isPending = pendingFiles.current.has(url)
+              return (
+                <div key={i} className="relative w-28 h-28 rounded-xl overflow-hidden border border-gray-200 group shrink-0 shadow-sm">
+                  <img src={isPending ? url : (driveImageUrl(url) ?? url)} alt={`Ảnh ${i + 1}`} className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => remove(i)}
+                    className="absolute top-1.5 right-1.5 p-1 bg-red-500 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                  {isPending && (
+                    <div className="absolute top-1.5 left-1.5 bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow" title="Ảnh sẽ được tải lên khi lưu">
+                      Chưa lưu
+                    </div>
+                  )}
+                  {i === 0 && (
+                    <div className="absolute bottom-0 left-0 right-0 bg-indigo-600/85 text-white text-[10px] text-center py-1 font-semibold tracking-wide">
+                      Ảnh chính
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="w-28 h-28 rounded-xl border-2 border-dashed border-gray-200 hover:border-indigo-400 hover:bg-indigo-50 flex flex-col items-center justify-center gap-1.5 transition-colors text-slate-400 hover:text-indigo-500 shrink-0"
+            >
+              <Plus className="w-6 h-6" /><span className="text-xs font-medium">Thêm ảnh</span>
+            </button>
+          </div>
+        )}
+
+        {showUrl ? (
+          <div className="flex gap-2">
+            <input
+              type="url"
+              value={urlInput}
+              onChange={e => setUrlInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && addUrl()}
+              placeholder="https://..."
+              autoFocus
+              className="flex-1 bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+            />
+            <button type="button" onClick={addUrl}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors">
+              Thêm
+            </button>
+            <button type="button" onClick={() => { setShowUrl(false); setUrlInput('') }}
+              className="px-3 py-2.5 text-sm text-slate-400 hover:text-slate-600 transition-colors">
+              Hủy
+            </button>
+          </div>
+        ) : (
+          <button type="button" onClick={() => setShowUrl(true)}
+            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-indigo-600 transition-colors">
+            <LinkIcon className="w-3.5 h-3.5" />
+            Thêm bằng URL
           </button>
-          <button type="button" onClick={() => { setShowUrl(false); setUrlInput('') }}
-            className="px-3 py-2.5 text-sm text-slate-400 hover:text-slate-600 transition-colors">
-            Hủy
-          </button>
-        </div>
-      ) : (
-        <button type="button" onClick={() => setShowUrl(true)}
-          className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-indigo-600 transition-colors">
-          <LinkIcon className="w-3.5 h-3.5" />
-          Thêm bằng URL
-        </button>
-      )}
-    </div>
-  )
-}
+        )}
+      </div>
+    )
+  }
+)
 
 // ── SourceForm ────────────────────────────────────────
 

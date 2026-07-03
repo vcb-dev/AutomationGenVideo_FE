@@ -2,19 +2,20 @@
 
 import { useQuery } from '@tanstack/react-query'
 import {
-  ListTodo, Clock, CheckCircle2, AlertTriangle, TrendingUp,
-  Target, ArrowRight, Video, FileText, Package, CalendarClock,
-  Flame, Send, XCircle, Zap, BarChart3, Award,
+  CheckCircle2, Target, ArrowRight, Video, FileText, Package,
+  CalendarClock, Flame, Send, XCircle, Zap, BarChart3, Award,
 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { getTasks } from '@/lib/api/task-auto'
 import { useAuthStore } from '@/store/auth-store'
 import type { Task, TaskStatus } from '@/types/task-auto'
+import { StatCard } from './StatCard'
+import { StatusBar } from './StatusBar'
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-const PRODUCT_ALLOC_COLORS = [
+const ALLOC_COLORS = [
   { color: 'text-blue-600',  bg: 'bg-blue-50' },
   { color: 'text-teal-600',  bg: 'bg-teal-50' },
   { color: 'text-green-600', bg: 'bg-green-50' },
@@ -50,6 +51,38 @@ function getDeadlineLabel(deadline: string | null) {
   return { text: d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }), danger: false }
 }
 
+function getGreeting() {
+  const h = new Date().getHours()
+  if (h < 11) return 'Chào buổi sáng'
+  if (h < 13) return 'Chào buổi trưa'
+  if (h < 18) return 'Chào buổi chiều'
+  return 'Chào buổi tối'
+}
+
+const TONE_TEXT: Record<string, string> = {
+  danger:  'text-red-600',
+  warning: 'text-amber-600',
+  info:    'text-indigo-600',
+  success: 'text-emerald-600',
+  neutral: 'text-slate-400',
+}
+
+function getInsight({ overdue, todayDeadline, rejected, hasKpi, remaining }: {
+  overdue: number; todayDeadline: number; rejected: number; hasKpi: boolean; remaining: number
+}) {
+  if (overdue > 0)
+    return { tone: 'danger', text: `Bạn có ${overdue} nhiệm vụ quá hạn — xử lý ngay để tránh ảnh hưởng KPI.` }
+  if (rejected > 0)
+    return { tone: 'danger', text: `${rejected} nhiệm vụ bị từ chối đang chờ chỉnh sửa và nộp lại.` }
+  if (todayDeadline > 0)
+    return { tone: 'warning', text: `Có ${todayDeadline} nhiệm vụ đến hạn hôm nay — hãy hoàn thành đúng giờ.` }
+  if (hasKpi && remaining > 0)
+    return { tone: 'info', text: `Cần hoàn thành thêm ${remaining} nhiệm vụ để đạt KPI tháng này.` }
+  if (hasKpi)
+    return { tone: 'success', text: 'Bạn đã đạt KPI tháng này — xuất sắc!' }
+  return { tone: 'neutral', text: 'Chưa có KPI tháng này. Liên hệ Leader để được thiết lập.' }
+}
+
 // ─── STATUS config ──────────────────────────────────────────────────────────
 
 const STATUS_CFG: Record<TaskStatus, { label: string; dot: string; badge: string }> = {
@@ -60,30 +93,6 @@ const STATUS_CFG: Record<TaskStatus, { label: string; dot: string; badge: string
   APPROVED:    { label: 'Đã duyệt',  dot: 'bg-emerald-500', badge: 'bg-emerald-50 text-emerald-700' },
   REJECTED:    { label: 'Từ chối',   dot: 'bg-red-400',     badge: 'bg-red-50 text-red-600' },
   CANCELLED:   { label: 'Đã hủy',    dot: 'bg-slate-200',   badge: 'bg-slate-50 text-slate-400' },
-}
-
-// ─── Stat Card ──────────────────────────────────────────────────────────────
-
-function StatCard({
-  label, value, icon: Icon, iconBg, accent, valueCls,
-}: {
-  label: string; value: number; icon: any
-  iconBg: string; accent: string; valueCls?: string
-}) {
-  return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden hover:shadow-md transition-all duration-200">
-      <div className={cn('h-1 w-full', accent)} />
-      <div className="px-4 py-4 flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider leading-none mb-2">{label}</p>
-          <p className={cn('text-3xl font-black leading-none', valueCls ?? 'text-slate-800')}>{value ?? 0}</p>
-        </div>
-        <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center shrink-0', iconBg)}>
-          <Icon className="w-5 h-5" />
-        </div>
-      </div>
-    </div>
-  )
 }
 
 // ─── Task Row ───────────────────────────────────────────────────────────────
@@ -170,6 +179,28 @@ function KpiGroup({
   )
 }
 
+// ─── Allocation strip (product / content line) ──────────────────────────────
+
+function AllocationStrip({ title, items }: { title: string; items: { id: string; name: string; weight: number }[] }) {
+  if (!items?.length) return null
+  return (
+    <div>
+      <p className="text-xs font-semibold text-slate-400 mb-2">{title}</p>
+      <div className="grid grid-cols-3 gap-2">
+        {items.map((a, i) => {
+          const { color, bg } = ALLOC_COLORS[i % ALLOC_COLORS.length]
+          return (
+            <div key={a.id} className={cn('rounded-xl px-3 py-3 text-center', bg)}>
+              <p className="text-xs text-slate-500 font-semibold mb-1 truncate">{a.name}</p>
+              <p className={cn('text-2xl font-black', color)}>{a.weight}</p>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // ─── Month Pacing Hint ──────────────────────────────────────────────────────
 
 function MonthPacingHint({ completed, target }: { completed: number; target: number }) {
@@ -207,7 +238,7 @@ function MonthPacingHint({ completed, target }: { completed: number; target: num
   )
 }
 
-// ─── Performance Summary ─────────────────────────────────────────────────────
+// ─── Lifetime Performance ────────────────────────────────────────────────────
 
 function PerformanceSummary({ tasks }: { tasks: Record<string, number> }) {
   const total    = (tasks.total ?? 0) - (tasks.cancelled ?? 0)
@@ -227,29 +258,25 @@ function PerformanceSummary({ tasks }: { tasks: Record<string, number> }) {
           <p className="text-xs text-slate-400 mt-0.5">Tổng toàn thời gian</p>
         </div>
       </div>
-      <div className="grid grid-cols-3 divide-x divide-slate-100">
-        <div className="px-4 py-4 text-center">
-          <p className="text-xs font-semibold text-slate-400 mb-1">Tỷ lệ duyệt</p>
-          <p className={cn('text-2xl font-black', approvalRate >= 80 ? 'text-emerald-600' : approvalRate >= 50 ? 'text-amber-500' : 'text-red-500')}>
-            {approvalRate}%
-          </p>
-          <p className="text-xs text-slate-400 mt-0.5">{approved}/{total} task</p>
+      <div className="grid grid-cols-1 lg:grid-cols-5 lg:divide-x divide-slate-100">
+        <div className="lg:col-span-2 grid grid-cols-2 divide-x divide-slate-100 border-b lg:border-b-0 border-slate-100">
+          <div className="px-4 py-5 text-center">
+            <p className="text-xs font-semibold text-slate-400 mb-1">Tỷ lệ duyệt</p>
+            <p className={cn('text-3xl font-black', approvalRate >= 80 ? 'text-emerald-600' : approvalRate >= 50 ? 'text-amber-500' : 'text-red-500')}>
+              {approvalRate}%
+            </p>
+            <p className="text-xs text-slate-400 mt-1">{approved}/{total} task</p>
+          </div>
+          <div className="px-4 py-5 text-center">
+            <p className="text-xs font-semibold text-slate-400 mb-1">Tỷ lệ từ chối</p>
+            <p className={cn('text-3xl font-black', rejectionRate > 20 ? 'text-red-500' : rejectionRate > 10 ? 'text-amber-500' : 'text-slate-600')}>
+              {rejectionRate}%
+            </p>
+            <p className="text-xs text-slate-400 mt-1">{rejected} bị từ chối</p>
+          </div>
         </div>
-        <div className="px-4 py-4 text-center">
-          <p className="text-xs font-semibold text-slate-400 mb-1">Đang xử lý</p>
-          <p className="text-2xl font-black text-amber-500">
-            {(tasks.in_progress ?? 0) + (tasks.assigned ?? 0)}
-          </p>
-          <p className="text-xs text-slate-400 mt-0.5">
-            {tasks.in_progress ?? 0} đang làm · {tasks.assigned ?? 0} đã giao
-          </p>
-        </div>
-        <div className="px-4 py-4 text-center">
-          <p className="text-xs font-semibold text-slate-400 mb-1">Tỷ lệ từ chối</p>
-          <p className={cn('text-2xl font-black', rejectionRate > 20 ? 'text-red-500' : rejectionRate > 10 ? 'text-amber-500' : 'text-slate-600')}>
-            {rejectionRate}%
-          </p>
-          <p className="text-xs text-slate-400 mt-0.5">{rejected} bị từ chối</p>
+        <div className="lg:col-span-3 px-5 py-4">
+          <StatusBar tasks={tasks} />
         </div>
       </div>
     </div>
@@ -432,6 +459,8 @@ export function PersonalDashboard({ d }: { d: any }) {
   const { user } = useAuthStore()
   const tasks = d.tasks ?? {}
   const kpi   = d.kpi
+  const overdue = d.overdue ?? 0
+  const todayDeadline = d.today_deadline ?? 0
 
   const kpiPct  = kpi?.total_target > 0
     ? Math.min(100, Math.round((kpi.completed / kpi.total_target) * 100))
@@ -444,11 +473,59 @@ export function PersonalDashboard({ d }: { d: any }) {
     ? Math.round(((kpi?.video_win ?? 0) / videoTotal) * 100)
     : null
 
+  const firstName = user?.full_name?.trim().split(/\s+/).pop() ?? 'bạn'
+  const insight = getInsight({ overdue, todayDeadline, rejected: tasks.rejected ?? 0, hasKpi: !!kpi, remaining })
+  const inProgressTotal = (tasks.in_progress ?? 0) + (tasks.assigned ?? 0)
+
   return (
     <div className="space-y-5">
 
-      {/* ── Performance summary ── */}
-      <PerformanceSummary tasks={tasks} />
+      {/* ── Greeting & insight ── */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-black text-slate-900">{getGreeting()}, {firstName}</h1>
+          <p className={cn('text-sm font-semibold mt-1', TONE_TEXT[insight.tone])}>{insight.text}</p>
+        </div>
+        {kpi && (
+          <div className="flex items-center gap-2 shrink-0 bg-white border border-slate-100 rounded-xl px-4 py-2.5 shadow-sm">
+            <Target className="w-4 h-4 text-indigo-500" />
+            <span className="text-sm text-slate-500">KPI tháng {formatMonth(kpi.month)}:</span>
+            <span className={cn('text-sm font-black', kpiPctCls)}>{kpiPct}%</span>
+          </div>
+        )}
+      </div>
+
+      {/* ── Quick stats — cần làm ngay ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          label="Quá hạn" value={overdue} icon={Flame}
+          iconBg={overdue > 0 ? 'bg-red-50 text-red-600' : 'bg-slate-50 text-slate-300'}
+          accent={overdue > 0 ? 'bg-red-500' : 'bg-slate-100'}
+          valueCls={overdue > 0 ? 'text-red-600' : 'text-slate-300'}
+          sub={overdue > 0 ? 'Cần xử lý ngay' : 'Không có task trễ hạn'}
+        />
+        <StatCard
+          label="Đến hạn hôm nay" value={todayDeadline} icon={CalendarClock}
+          iconBg={todayDeadline > 0 ? 'bg-amber-50 text-amber-600' : 'bg-slate-50 text-slate-300'}
+          accent={todayDeadline > 0 ? 'bg-amber-400' : 'bg-slate-100'}
+          valueCls={todayDeadline > 0 ? 'text-amber-600' : 'text-slate-300'}
+          sub="Hoàn thành trước hôm nay"
+        />
+        <StatCard
+          label="Đang xử lý" value={inProgressTotal} icon={Zap}
+          iconBg="bg-blue-50 text-blue-600"
+          accent="bg-blue-500"
+          valueCls={inProgressTotal > 0 ? 'text-blue-600' : 'text-slate-300'}
+          sub={`${tasks.in_progress ?? 0} đang làm · ${tasks.assigned ?? 0} đã giao`}
+        />
+        <StatCard
+          label="Chờ duyệt" value={tasks.submitted ?? 0} icon={Send}
+          iconBg="bg-violet-50 text-violet-600"
+          accent="bg-violet-500"
+          valueCls={(tasks.submitted ?? 0) > 0 ? 'text-violet-600' : 'text-slate-300'}
+          sub="Đang chờ Leader duyệt"
+        />
+      </div>
 
       {/* ── Rejected tasks alert ── */}
       {(tasks.rejected ?? 0) > 0 && user?.id && (
@@ -541,7 +618,7 @@ export function PersonalDashboard({ d }: { d: any }) {
                       <span className="text-sm text-slate-600">Thất bại</span>
                       <span className="text-lg font-black tabular-nums text-red-500">{kpi.video_fail ?? 0}</span>
                     </div>
-                    {/* {videoWinRate !== null && (
+                    {videoWinRate !== null && (
                       <div className="mt-1 h-1.5 bg-orange-100 rounded-full overflow-hidden">
                         <div
                           className={cn('h-full rounded-full transition-all duration-700',
@@ -549,7 +626,7 @@ export function PersonalDashboard({ d }: { d: any }) {
                           style={{ width: `${videoWinRate}%` }}
                         />
                       </div>
-                    )} */}
+                    )}
                   </div>
                 </div>
 
@@ -581,20 +658,9 @@ export function PersonalDashboard({ d }: { d: any }) {
                 )}
               </div>
 
-              {/* Phân bổ dòng sản phẩm */}
-              {kpi.product_allocations?.length > 0 ? (
-                <div className="grid grid-cols-3 gap-2">
-                  {kpi.product_allocations.map((a: { id: string; name: string; weight: number }, i: number) => {
-                    const { color, bg } = PRODUCT_ALLOC_COLORS[i % PRODUCT_ALLOC_COLORS.length]
-                    return (
-                      <div key={a.id} className={cn('rounded-xl px-3 py-3 text-center', bg)}>
-                        <p className="text-xs text-slate-500 font-semibold mb-1 truncate">{a.name}</p>
-                        <p className={cn('text-2xl font-black', color)}>{a.weight}</p>
-                      </div>
-                    )
-                  })}
-                </div>
-              ) : null}
+              {/* Phân bổ tuyến nội dung / dòng sản phẩm */}
+              <AllocationStrip title="Phân bổ tuyến nội dung" items={kpi.content_allocations ?? []} />
+              <AllocationStrip title="Phân bổ dòng sản phẩm" items={kpi.product_allocations ?? []} />
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-16 gap-3 px-6 text-center">
@@ -611,6 +677,9 @@ export function PersonalDashboard({ d }: { d: any }) {
           )}
         </div>
       </div>
+
+      {/* ── Lifetime performance ── */}
+      <PerformanceSummary tasks={tasks} />
 
     </div>
   )

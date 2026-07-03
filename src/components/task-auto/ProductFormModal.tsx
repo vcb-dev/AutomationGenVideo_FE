@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { Loader2, ExternalLink } from 'lucide-react'
@@ -12,6 +12,7 @@ import type { SourceDraft } from '@/app/dashboard/task-auto/catalog/components/P
 import {
   MarketPicker, PriceInput, MultiImagePicker, SourceForm,
 } from '@/app/dashboard/task-auto/catalog/components/ProductsTab/ProductFormFields'
+import type { MultiImagePickerHandle } from '@/app/dashboard/task-auto/catalog/components/ProductsTab/ProductFormFields'
 import {
   createProduct, updateProduct, createProductLine, createMaterial, createSource,
   createEditorProduct, createEditorSource, getEditorSources,
@@ -41,6 +42,7 @@ export function ProductFormModal({ open, editing, userId, title, defaultBrandTyp
   })
   const [markets, setMarkets] = useState<string[]>(['VIETNAM'])
   const [sourceDraft, setSourceDraft] = useState<SourceDraft>(defaultSource)
+  const imagePickerRef = useRef<MultiImagePickerHandle>(null)
 
   const { data: productLines } = useQuery({
     queryKey: ['task-auto', 'product-lines'],
@@ -82,10 +84,11 @@ export function ProductFormModal({ open, editing, userId, title, defaultBrandTyp
 
   const mut = useMutation({
     mutationFn: async () => {
+      const image_urls = await imagePickerRef.current!.resolvePending(form.image_urls ?? [])
       const basePayload = {
         name: form.name,
         brand_type: brandType,
-        image_urls: form.image_urls,
+        image_urls,
         price: form.price || undefined,
         market: markets.join(','),
         price_segment: form.price_segment || undefined,
@@ -211,7 +214,7 @@ export function ProductFormModal({ open, editing, userId, title, defaultBrandTyp
           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
             Hình ảnh sản phẩm
           </p>
-          <MultiImagePicker values={form.image_urls ?? []} onChange={urls => setForm(f => ({ ...f, image_urls: urls }))} />
+          <MultiImagePicker ref={imagePickerRef} values={form.image_urls ?? []} onChange={urls => setForm(f => ({ ...f, image_urls: urls }))} />
         </div>
 
         <div className="space-y-3">

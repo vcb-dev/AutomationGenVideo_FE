@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { Search, Plus, Edit2, Trash2, Loader2, Package, ChevronLeft, ChevronRight, ImageIcon } from 'lucide-react'
@@ -19,6 +19,7 @@ import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
 import { parseMarkets, formatPrice, defaultSource } from './product-utils'
 import type { SourceDraft } from './product-utils'
 import { MarketBadge, LoadingRows, MiniList, MarketPicker, PriceInput, MultiImagePicker, SourceForm } from './ProductFormFields'
+import type { MultiImagePickerHandle } from './ProductFormFields'
 import { ProductViewModal } from '@/components/task-auto/ProductViewModal'
 import { Product } from '@/types/task-auto'
 
@@ -43,6 +44,7 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
   })
   const [markets, setMarkets] = useState<string[]>(['VIETNAM'])
   const [sourceDraft, setSourceDraft] = useState<SourceDraft>(defaultSource)
+  const imagePickerRef = useRef<MultiImagePickerHandle>(null)
 
   const { data: productLines } = useQuery({ queryKey: ['task-auto', 'product-lines'], queryFn: () => getProductLines() })
   const { data: materials } = useQuery({ queryKey: ['task-auto', 'materials', brandType], queryFn: () => getMaterials(brandType) })
@@ -60,9 +62,25 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
 
   const refresh = () => qc.refetchQueries({ queryKey: ['task-auto', 'products'] })
 
+  const buildBody = async () => {
+    const image_urls = await imagePickerRef.current!.resolvePending(form.image_urls)
+    return {
+      name: form.name,
+      brand_type: brandType,
+      image_urls,
+      price: form.price || undefined,
+      market: markets.join(','),
+      price_segment: form.price_segment || undefined,
+      priority_score: form.priority_score,
+      material_id: form.material_id || null,
+      product_line_id: form.product_line_id || null,
+      is_active: form.is_active,
+    }
+  }
+
   const createMut = useMutation({
-    mutationFn: async (body: Partial<Product>) => {
-      const product = await createProduct(body)
+    mutationFn: async () => {
+      const product = await createProduct({ sku: form.sku, ...await buildBody() })
       if (sourceDraft.enabled && sourceDraft.name && sourceDraft.link) {
         await createSource({
           type: sourceDraft.type, name: sourceDraft.name, link: sourceDraft.link,
@@ -77,8 +95,9 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
   })
 
   const updateMut = useMutation({
-    mutationFn: async ({ id, body }: { id: string; body: Partial<Product> }) => {
-      const product = await updateProduct(id, body)
+    mutationFn: async () => {
+      const id = editing!.id
+      const product = await updateProduct(id, await buildBody())
       if (sourceDraft.enabled && sourceDraft.name && sourceDraft.link) {
         await createSource({
           type: sourceDraft.type, name: sourceDraft.name, link: sourceDraft.link,
@@ -135,20 +154,8 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
     if (!form.sku || !form.name) return toast.error('SKU và tên là bắt buộc')
     if (markets.length === 0) return toast.error('Chọn ít nhất một thị trường')
     if (sourceDraft.enabled && (!sourceDraft.name || !sourceDraft.link)) return toast.error('Source cần có tên và link')
-    const baseBody = {
-      name: form.name,
-      brand_type: brandType,
-      image_urls: form.image_urls,
-      price: form.price || undefined,
-      market: markets.join(','),
-      price_segment: form.price_segment || undefined,
-      priority_score: form.priority_score,
-      material_id: form.material_id || null,
-      product_line_id: form.product_line_id || null,
-      is_active: form.is_active,
-    }
-    if (modal === 'create') createMut.mutate({ sku: form.sku, ...baseBody })
-    else if (editing) updateMut.mutate({ id: editing.id, body: baseBody })
+    if (modal === 'create') createMut.mutate()
+    else if (editing) updateMut.mutate()
   }
 
   const deleteMut = useMutation({
@@ -551,6 +558,7 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
               Hình ảnh sản phẩm
             </p>
             <MultiImagePicker
+              ref={imagePickerRef}
               values={form.image_urls ?? []}
               onChange={urls => setForm(f => ({ ...f, image_urls: urls }))}
             />
