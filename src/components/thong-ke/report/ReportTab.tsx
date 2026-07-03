@@ -10,6 +10,26 @@ import CaseStudyTable from './CaseStudyTable';
 import EditorWinStatsSection from './EditorWinStatsSection';
 import EditorNewWinSection from './EditorNewWinSection';
 
+
+const parseViewsToRawNum = (viewsStr: string, multiplier: number): number => {
+  if (!viewsStr || viewsStr === '-') return 0;
+  const clean = viewsStr.replace(/\s*views/gi, '').replace(/\./g, '').replace(/,/g, '').trim();
+  const matchM = clean.match(/^([\d.]+)\s*M/i);
+  let val: number;
+  if (matchM) {
+    val = Math.round(parseFloat(matchM[1]) * 1000000);
+  } else {
+    const matchK = clean.match(/^([\d.]+)\s*K/i);
+    if (matchK) {
+      val = Math.round(parseFloat(matchK[1]) * 1000);
+    } else {
+      const parsed = parseInt(clean.replace(/[^\d.]/g, ''), 10);
+      val = isNaN(parsed) ? 0 : parsed;
+    }
+  }
+  return Math.round(val / multiplier);
+};
+
 interface ReportTabProps {
   teamsData: Record<string, TeamData>;
   activeTab: string;
@@ -115,12 +135,17 @@ export default function ReportTab({
 
   const handleUpdateRow = (sheetName: string, tableIndex: number, field: string, value: string) => {
     const list = getList(sheetName);
+    let valToSave = value;
+    if (field === 'views') {
+      const multiplier = getSheetMultiplier(sheetName);
+      valToSave = parseViewsToRawNum(value, multiplier).toString();
+    }
     if (tableIndex < list.length) {
-      onUpdateRow(sheetName, tableIndex, field, value);
+      onUpdateRow(sheetName, tableIndex, field, valToSave);
     } else {
       // New row beyond existing list
       const rawIndex = list.length + (tableIndex - list.length);
-      onUpdateRow(sheetName, rawIndex, field, value, getDefaultPostDate());
+      onUpdateRow(sheetName, rawIndex, field, valToSave, getDefaultPostDate());
     }
   };
 

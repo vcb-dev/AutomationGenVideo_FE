@@ -40,6 +40,9 @@ function StatisticsDashboard() {
   const [filterMode, setFilterMode] = useState<'all' | 'week' | 'month'>('week');
   const [selectedWeek, setSelectedWeek] = useState<'all' | '1' | '2' | '3' | '4'>('1');
 
+  const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
+  const [activeMonthData, setActiveMonthData] = useState<TeamData | null>(null);
+
   // States for interactive Slide presentation screen
   const [presentationMenu, setPresentationMenu] = useState<'win' | 'fail' | 'case' | 'clone' | 'action' | 'editorPerf' | 'newWin'>('win');
   const [activeSlideIndex, setActiveSlideIndex] = useState<number>(0);
@@ -49,7 +52,7 @@ function StatisticsDashboard() {
   // States for advanced Statistics dashboard
   const [platformFilter, setPlatformFilter] = useState<'All' | 'TikTok' | 'Instagram Reels' | 'YouTube Shorts'>('All');
   const [editorSearchQuery, setEditorSearchQuery] = useState<string>('');
-  const [editorSortBy, setEditorSortBy] = useState<'winRate' | 'totalVideos' | 'avgViews'>('winRate');
+  const [editorSortBy, setEditorSortBy] = useState<'winRate' | 'totalVideos' | 'avgViews' | 'avgQualityScore'>('winRate');
   const [selectedEditorDetail, setSelectedEditorDetail] = useState<any | null>(null);
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [exportProgress, setExportProgress] = useState<number>(0);
@@ -57,6 +60,7 @@ function StatisticsDashboard() {
 
   // Toast notification state
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
+  const [isLightMode, setIsLightMode] = useState<boolean>(false);
   const showToast = (message: string, type: 'error' | 'success' = 'error') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 5000);
@@ -102,14 +106,47 @@ function StatisticsDashboard() {
     }
   }, [periodsList, filterMode, selectedWeek]);
 
-  // 3. Fetch data for current team + period
+  // 2.5 Resolve the parent MONTH period corresponding to currentPeriod for Statistics tab
+  const activeMonthPeriod = useMemo(() => {
+    if (!currentPeriod || !periodsList || periodsList.length === 0) return null;
+    if (currentPeriod.type === 'MONTH') return currentPeriod;
+    
+    // Find MONTH period that overlaps with currentPeriod start date
+    const curStart = new Date(currentPeriod.start_date);
+    const monthPeriod = periodsList.find(p => {
+      if (p.type !== 'MONTH') return false;
+      const pStart = new Date(p.start_date);
+      const pEnd = new Date(p.end_date);
+      return curStart >= pStart && curStart <= pEnd;
+    });
+    
+    return monthPeriod || periodsList.find(p => p.type === 'MONTH') || null;
+  }, [currentPeriod, periodsList]);
+
+  // 3. Fetch data for current team + period (and also month data in background if needed)
   const fetchReportData = async () => {
     if (!activeTab || !currentPeriod?.id) return;
     try {
       setLoading(true);
-      // Added _t timestamp to prevent aggressive browser caching
+      setActiveTeamData(null);
+      
+      // 1. Fetch current active period data (week or month)
       const res = await apiClient.get(`/content-report/data?team=${activeTab}&periodId=${currentPeriod.id}&_t=${Date.now()}`);
       setActiveTeamData(res.data);
+
+      // 2. Fetch parent month period data in background if activePeriod is a week
+      if (activeMonthPeriod?.id && activeMonthPeriod.id !== currentPeriod.id) {
+        apiClient.get(`/content-report/data?team=${activeTab}&periodId=${activeMonthPeriod.id}&_t=${Date.now()}`)
+          .then(monthRes => {
+            setActiveMonthData(monthRes.data);
+          })
+          .catch(err => {
+            console.error('Error background fetching month report data:', err);
+          });
+      } else {
+        // If currentPeriod is already MONTH, activeMonthData is the same
+        setActiveMonthData(res.data);
+      }
     } catch (err) {
       console.error('Error fetching report data:', err);
     } finally {
@@ -119,7 +156,7 @@ function StatisticsDashboard() {
 
   useEffect(() => {
     fetchReportData();
-  }, [activeTab, currentPeriod]);
+  }, [activeTab, currentPeriod, refreshTrigger]);
 
   // Sync sub tab with query param
   useEffect(() => {
@@ -226,6 +263,33 @@ function StatisticsDashboard() {
     return result;
   }, [teamsList, activeTab, activeTeamData]);
 
+  // Construct a dummy Record<string, TeamData> populated with full month data for Statistics tab
+  const monthlyTeamsData = useMemo(() => {
+    const result: Record<string, TeamData> = {};
+    teamsList.forEach(tName => {
+      if (tName === activeTab && activeMonthData) {
+        result[tName] = activeMonthData;
+      } else {
+        result[tName] = {
+          teamName: tName,
+          win5Stats: { total: 0, win: 0, fail: 0, percent: '0%' },
+          newVideoStats: { total: 0, win: 0, fail: 0, percent: '0%' },
+          videos: [],
+          failVideos: [],
+          caseStudies: [],
+          editorPerformance: [],
+          cloneVideos: [],
+          actions: []
+        };
+      }
+    });
+    return result;
+  }, [teamsList, activeTab, activeMonthData]);
+
+  const refreshAllData = () => {
+    setRefreshTrigger(prev => prev + 1);
+  };
+
   // Actions for ReportTab
   const updateRowValue = async (sheetName: string, rowIndex: number, field: string, value: string, defaultPostDate?: string) => {
     const endpoint = getSheetEndpoint(sheetName);
@@ -294,7 +358,9 @@ function StatisticsDashboard() {
       // Create new row with Optimistic Update
       const tempDbId = `temp-${Date.now()}`;
       let tempItem: any = { dbId: tempDbId };
-      const defaultDateStr = defaultPostDate || new Date().toISOString().split('T')[0];
+      const defaultDateStr = currentPeriod?.start_date
+        ? new Date(currentPeriod.start_date).toISOString().split('T')[0]
+        : new Date().toISOString().split('T')[0];
 
       if (sheetName === '5 Content win của team') {
         tempItem = {
@@ -485,7 +551,9 @@ function StatisticsDashboard() {
 
     const tempDbId = `temp-${Date.now()}`;
     let tempItem: any = { dbId: tempDbId };
-    const defaultDateStr = defaultPostDate || new Date().toISOString().split('T')[0];
+    const defaultDateStr = currentPeriod?.start_date
+      ? new Date(currentPeriod.start_date).toISOString().split('T')[0]
+      : new Date().toISOString().split('T')[0];
 
     const payload: any = {
       team_id: activeTeamData.teamId,
@@ -883,26 +951,35 @@ function StatisticsDashboard() {
   }
 
   return (
-    <div className={`-m-6 p-8 bg-[#0b0f19] text-white flex flex-col gap-6 font-sans ${activeSubTab === 'trinh-bay' ? 'lg:h-[calc(100vh-64px)] lg:overflow-hidden pb-8' : 'min-h-[calc(100vh-64px)] pb-20'}`}>
+    <div className={`-m-6 p-8 bg-[#0b0f19] text-white flex flex-col gap-6 font-sans ${isLightMode ? 'light-mode-override bg-[#f8fafc]' : ''} ${activeSubTab === 'trinh-bay' ? 'lg:h-[calc(100vh-64px)] lg:overflow-hidden pb-8' : 'min-h-[calc(100vh-64px)] pb-20'}`}>
 
       {/* Sub-navigation Tabs */}
-      <div className="flex border-b border-white/[0.08] gap-8">
-        {[
-          { key: 'bao-cao', label: 'Báo cáo' },
-          { key: 'trinh-bay', label: 'Trình bày' },
-          { key: 'thong-ke', label: 'Thống kê' }
-        ].map((item) => (
-          <button
-            key={item.key}
-            onClick={() => handleSubTabChange(item.key as any)}
-            className={`pb-3 text-sm font-bold border-b-2 transition-all duration-150 ${activeSubTab === item.key
-              ? 'border-blue-500 text-blue-400 font-black'
-              : 'border-transparent text-slate-500 hover:text-slate-200'
-              }`}
-          >
-            {item.label}
-          </button>
-        ))}
+      <div className="flex justify-between items-center border-b border-white/[0.08] pr-2">
+        <div className="flex gap-8">
+          {[
+            { key: 'bao-cao', label: 'Báo cáo' },
+            { key: 'trinh-bay', label: 'Trình bày' },
+            { key: 'thong-ke', label: 'Thống kê' }
+          ].map((item) => (
+            <button
+              key={item.key}
+              onClick={() => handleSubTabChange(item.key as any)}
+              className={`pb-3 text-sm font-bold border-b-2 transition-all duration-150 ${activeSubTab === item.key
+                ? 'border-blue-500 text-blue-400 font-black'
+                : 'border-transparent text-slate-500 hover:text-slate-200'
+                }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => setIsLightMode(!isLightMode)}
+          className="pb-3 text-xs font-bold text-slate-400 hover:text-white transition-all flex items-center gap-1.5 focus:outline-none select-none"
+          title="Chuyển chế độ Sáng/Tối"
+        >
+          {isLightMode ? '🌙 Chế độ Tối' : '☀️ Chế độ Sáng'}
+        </button>
       </div>
 
       {activeSubTab === 'bao-cao' && (
@@ -936,12 +1013,14 @@ function StatisticsDashboard() {
           updateSlideField={updateSlideField}
           addSlide={addSlide}
           deleteSlide={deleteSlide}
+          showToast={showToast}
+          onRefreshData={refreshAllData}
         />
       )}
 
       {activeSubTab === 'thong-ke' && (
         <StatisticsTab
-          teamsData={teamsData}
+          teamsData={monthlyTeamsData}
           activeTab={activeTab}
           onTabChange={setActiveTab}
           platformFilter={platformFilter}
@@ -956,6 +1035,8 @@ function StatisticsDashboard() {
           exportProgress={exportProgress}
           exportType={exportType}
           handleStartExport={handleStartExport}
+          filterMode={filterMode}
+          currentPeriod={currentPeriod}
         />
       )}
 
@@ -969,20 +1050,273 @@ function StatisticsDashboard() {
 
       {/* Toast notification */}
       {toast && (
-        <div className={`fixed bottom-6 right-6 z-[9999] px-5 py-3 rounded-xl shadow-2xl text-sm font-semibold flex items-center gap-3 animate-[slideUp_0.3s_ease-out] ${
-          toast.type === 'error'
-            ? 'bg-red-500/90 text-white border border-red-400/30'
-            : 'bg-emerald-500/90 text-white border border-emerald-400/30'
-        }`}>
+        <div className={`fixed bottom-6 right-6 z-[9999] px-5 py-3 rounded-xl shadow-2xl text-sm font-semibold flex items-center gap-3 animate-[slideUp_0.3s_ease-out] ${toast.type === 'error'
+          ? 'bg-red-500/90 text-white border border-red-400/30'
+          : 'bg-emerald-500/90 text-white border border-emerald-400/30'
+          }`}>
           <span>{toast.type === 'error' ? '❌' : '✅'}</span>
           <span className="max-w-[400px] truncate">{toast.message}</span>
           <button onClick={() => setToast(null)} className="ml-2 text-white/70 hover:text-white text-lg leading-none">&times;</button>
         </div>
       )}
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         @keyframes slideUp {
           from { transform: translateY(20px); opacity: 0; }
           to { transform: translateY(0); opacity: 1; }
+        }
+        .light-mode-override {
+          background-color: #f8fafc !important;
+          color: #1e293b !important;
+        }
+        .light-mode-override [class*="bg-[#0b0f19]"] {
+          background-color: #f8fafc !important;
+        }
+        .light-mode-override [class*="bg-[#131d31]"],
+        .light-mode-override [class*="bg-[#0e1626]/50"] {
+          background-color: #ffffff !important;
+          box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.03), 0 2px 8px -1px rgba(0, 0, 0, 0.02) !important;
+          border-color: rgba(0, 0, 0, 0.06) !important;
+        }
+        .light-mode-override [class*="bg-[#0c1322]"] {
+          background-color: #f1f5f9 !important;
+          border-color: rgba(0, 0, 0, 0.05) !important;
+        }
+        .light-mode-override [class*="bg-[#090e18]"] {
+          background-color: #f8fafc !important;
+          border-color: rgba(0, 0, 0, 0.05) !important;
+        }
+        .light-mode-override [class*="bg-[#090F1C]"] {
+          background-color: #ffffff !important;
+        }
+        .light-mode-override [class*="bg-white/[0.02]"] {
+          background-color: #f8fafc !important;
+        }
+        .light-mode-override [class*="bg-white/[0.03]"] {
+          background-color: #f1f5f9 !important;
+        }
+        .light-mode-override [class*="bg-white/[0.04]"] {
+          background-color: #e2e8f0 !important;
+        }
+        .light-mode-override [class*="bg-slate-900"] {
+          background-color: #ffffff !important;
+          border-color: rgba(0, 0, 0, 0.06) !important;
+        }
+        .light-mode-override [class*="bg-emerald-500/[0.025]"] {
+          background-color: #f0fdf4 !important;
+          border-color: #bbf7d0 !important;
+        }
+        .light-mode-override [class*="bg-sky-500/[0.025]"] {
+          background-color: #f0f9ff !important;
+          border-color: #bae6fd !important;
+        }
+        .light-mode-override [class*="bg-rose-500/[0.025]"] {
+          background-color: #fef2f2 !important;
+          border-color: #fecaca !important;
+        }
+        .light-mode-override [class*="bg-amber-500/[0.025]"] {
+          background-color: #fffbeb !important;
+          border-color: #fef3c7 !important;
+        }
+        .light-mode-override [class*="bg-indigo-500/[0.025]"] {
+          background-color: #f5f3ff !important;
+          border-color: #ddd6fe !important;
+        }
+        .light-mode-override [class*="bg-[#bfdbfe]"] {
+          background-color: #2563eb !important;
+          color: #ffffff !important;
+        }
+        .light-mode-override [class*="text-[#1e3a8a]"] {
+          color: #1e3a8a !important;
+        }
+        .light-mode-override [class*="text-white"] {
+          color: #1e293b !important;
+        }
+        .light-mode-override [class*="text-slate-100"] {
+          color: #1e293b !important;
+        }
+        .light-mode-override [class*="text-slate-200"] {
+          color: #334155 !important;
+        }
+        .light-mode-override [class*="text-slate-300"] {
+          color: #475569 !important;
+        }
+        .light-mode-override [class*="text-slate-400"] {
+          color: #64748b !important;
+        }
+        .light-mode-override [class*="text-slate-500"] {
+          color: #94a3b8 !important;
+        }
+        .light-mode-override [class*="text-blue-400"] {
+          color: #2563eb !important;
+        }
+        .light-mode-override [class*="text-blue-300"] {
+          color: #1d4ed8 !important;
+        }
+        .light-mode-override [class*="text-emerald-400"] {
+          color: #16a34a !important;
+        }
+        .light-mode-override [class*="text-purple-400"] {
+          color: #7c3aed !important;
+        }
+        .light-mode-override [class*="text-amber-400"] {
+          color: #d97706 !important;
+        }
+        .light-mode-override [class*="text-rose-400"] {
+          color: #dc2626 !important;
+        }
+        .light-mode-override [class*="border-white/[0.08]"] {
+          border-color: rgba(0, 0, 0, 0.08) !important;
+        }
+        .light-mode-override [class*="border-white/[0.06]"] {
+          border-color: rgba(0, 0, 0, 0.06) !important;
+        }
+        .light-mode-override [class*="border-white/[0.05]"] {
+          border-color: rgba(0, 0, 0, 0.05) !important;
+        }
+        .light-mode-override [class*="border-white/10"] {
+          border-color: rgba(0, 0, 0, 0.08) !important;
+        }
+        .light-mode-override [class*="border-white/5"] {
+          border-color: rgba(0, 0, 0, 0.06) !important;
+        }
+        .light-mode-override [class*="border-purple-500/20"] {
+          border-color: #d8b4fe !important;
+        }
+        .light-mode-override [class*="border-blue-500/20"] {
+          border-color: #93c5fd !important;
+        }
+        .light-mode-override [class*="border-emerald-500/20"] {
+          border-color: #86efac !important;
+        }
+        .light-mode-override [class*="border-l-emerald-500"] {
+          border-left-color: #10b981 !important;
+        }
+        .light-mode-override [class*="border-l-sky-500"] {
+          border-left-color: #0284c7 !important;
+        }
+        .light-mode-override [class*="border-l-rose-500"] {
+          border-left-color: #ef4444 !important;
+        }
+        .light-mode-override [class*="border-l-amber-500"] {
+          border-left-color: #f59e0b !important;
+        }
+        .light-mode-override [class*="border-l-indigo-500"] {
+          border-left-color: #6366f1 !important;
+        }
+        .light-mode-override [class*="bg-emerald-500/10"] {
+          background-color: #dcfce7 !important;
+          border-color: #bbf7d0 !important;
+          color: #15803d !important;
+        }
+        .light-mode-override [class*="bg-red-500/10"],
+        .light-mode-override [class*="bg-rose-500/10"] {
+          background-color: #fee2e2 !important;
+          border-color: #fecaca !important;
+          color: #b91c1c !important;
+        }
+        .light-mode-override [class*="bg-blue-500/10"] {
+          background-color: #dbeafe !important;
+          border-color: #bfdbfe !important;
+          color: #1e40af !important;
+        }
+        .light-mode-override [class*="bg-purple-500/10"] {
+          background-color: #f3e8ff !important;
+          border-color: #e9d5ff !important;
+          color: #6b21a8 !important;
+        }
+        .light-mode-override [class*="hover:bg-white/[0.03]"]:hover {
+          background-color: #f1f5f9 !important;
+        }
+        .light-mode-override [class*="hover:bg-white/[0.02]"]:hover {
+          background-color: #f8fafc !important;
+        }
+        .light-mode-override [class*="focus-within:bg-white/[0.04]"]:focus-within {
+          background-color: #f8fafc !important;
+        }
+        .light-mode-override [class*="focus:bg-white/[0.04]"]:focus {
+          background-color: #f8fafc !important;
+        }
+        .light-mode-override [class*="hover:text-blue-300"]:hover {
+          color: #1d4ed8 !important;
+        }
+        .light-mode-override [class*="hover:text-slate-100"]:hover {
+          color: #1e293b !important;
+        }
+        .light-mode-override [class*="hover:text-slate-200"]:hover {
+          color: #334155 !important;
+        }
+        .light-mode-override [class*="bg-[#060814]/95"] {
+          background-color: rgba(255, 255, 255, 0.95) !important;
+        }
+        .light-mode-override [class*="bg-black"] {
+          background-color: #ffffff !important;
+        }
+        .light-mode-override ::-webkit-scrollbar-thumb {
+          background: rgba(0, 0, 0, 0.12) !important;
+        }
+        .light-mode-override ::-webkit-scrollbar-thumb:hover {
+          background: rgba(0, 0, 0, 0.24) !important;
+        }
+        .light-mode-override ::-webkit-scrollbar-track {
+          background: rgba(0, 0, 0, 0.02) !important;
+        }
+
+        /* Solid pastel colors for podium pillars in Light Mode */
+        .light-mode-override [class*="from-slate-500/10"] {
+          background: linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%) !important;
+          border-color: #cbd5e1 !important;
+        }
+        .light-mode-override [class*="from-amber-600/10"] {
+          background: linear-gradient(180deg, #fef3c7 0%, #fde68a 100%) !important;
+          border-color: #fcd34d !important;
+        }
+        .light-mode-override [class*="from-orange-700/10"] {
+          background: linear-gradient(180deg, #ffedd5 0%, #fed7aa 100%) !important;
+          border-color: #fdba74 !important;
+        }
+        .light-mode-override [class*="text-amber-300"] {
+          color: #78350f !important;
+        }
+        .light-mode-override [class*="text-orange-400"] {
+          color: #7c2d12 !important;
+        }
+        .light-mode-override [class*="text-amber-200"] {
+          color: #78350f !important;
+        }
+        .light-mode-override [class*="bg-[#0c1322]/20"] {
+          background-color: #f8fafc !important;
+          border: 1px solid rgba(0, 0, 0, 0.05) !important;
+        }
+        .light-mode-override [class*="bg-[#0b101d]/60"] {
+          background-color: #e2e8f0 !important;
+        }
+        .light-mode-override [class*="bg-slate-950/60"] {
+          background-color: #ffffff !important;
+          border-color: rgba(0, 0, 0, 0.08) !important;
+          color: #1e293b !important;
+        }
+        .light-mode-override [class*="bg-[#0e1626]/95"] {
+          background-color: #ffffff !important;
+          border-color: rgba(0, 0, 0, 0.08) !important;
+          box-shadow: 0 10px 30px -5px rgba(0,0,0,0.08) !important;
+        }
+        .light-mode-override table thead tr {
+          border-bottom-color: rgba(0, 0, 0, 0.08) !important;
+        }
+        .light-mode-override table tbody tr {
+          border-bottom-color: rgba(0, 0, 0, 0.04) !important;
+        }
+        .light-mode-override table thead th {
+          color: #475569 !important;
+        }
+        .light-mode-override input {
+          background-color: #ffffff !important;
+          border-color: rgba(0, 0, 0, 0.08) !important;
+          color: #1e293b !important;
+        }
+        .light-mode-override input::placeholder {
+          color: #94a3b8 !important;
         }
       `}} />
     </div>

@@ -5,7 +5,7 @@ import {
   Play, Presentation, User, FileText, Calendar, Heart, CheckSquare,
   Maximize2, ChevronLeft, ChevronRight, X, Sparkles, BookOpen,
   Wrench, Target, TrendingUp, CheckCircle, Award, Video,
-  Eye, ClipboardList, Instagram, Youtube
+  Eye, ClipboardList, Instagram, Youtube, MessageSquare
 } from 'lucide-react';
 import { TeamData } from '../types';
 import { formatPresentationViews } from '../utils';
@@ -29,6 +29,8 @@ interface PresentationTabProps {
   updateSlideField: (category: 'win' | 'fail' | 'case' | 'clone' | 'action' | 'editorPerf' | 'newWin', index: number, field: string, value: string) => void;
   addSlide: (category: 'win' | 'fail' | 'case' | 'clone' | 'action' | 'editorPerf' | 'newWin') => void;
   deleteSlide: (category: 'win' | 'fail' | 'case' | 'clone' | 'action' | 'editorPerf' | 'newWin', index: number) => void;
+  showToast?: (message: string, type?: 'success' | 'error') => void;
+  onRefreshData?: () => void;
 }
 
 export default function PresentationTab({
@@ -37,7 +39,8 @@ export default function PresentationTab({
   activeSlideIndex, setActiveSlideIndex,
   isFullscreenSlide, setIsFullscreenSlide,
   isPlayingVideo, setIsPlayingVideo,
-  updateSlideField, addSlide, deleteSlide
+  updateSlideField, addSlide, deleteSlide,
+  showToast, onRefreshData
 }: PresentationTabProps) {
   const baseData = teamsData[activeTab];
 
@@ -91,6 +94,23 @@ export default function PresentationTab({
       setScoreComment('');
     }
   }, [selectedSlide, user]);
+
+  // Auto-resize script textarea height to fit content
+  useEffect(() => {
+    const textarea = document.getElementById('script-textarea') as HTMLTextAreaElement;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    }
+  }, [selectedSlide?.content, selectedSlide, presentationMenu]);
+
+  const handleScoreChange = (val: number) => {
+    setScoreHook(val);
+    setScoreContent(val);
+    setScoreEditing(val);
+    setScoreCta(val);
+    setScoreThumbnail(val);
+  };
 
   const getGpaAndBadge = () => {
     const total = (scoreHook + scoreContent + scoreEditing + scoreCta + scoreThumbnail) / 5;
@@ -146,7 +166,7 @@ export default function PresentationTab({
         comment: scoreComment,
       };
 
-      const response = await apiClient.post(`/content-report/content-videos/${selectedSlide.id}/score`, payload);
+      const response = await apiClient.post(`/content-report/content-videos/${selectedSlide.dbId}/score`, payload);
       const updatedScore = response.data;
 
       const currentScores = (selectedSlide as any).scores || [];
@@ -167,11 +187,20 @@ export default function PresentationTab({
         updatedScores.push(newScoreObj);
       }
       (selectedSlide as any).scores = updatedScores;
+      onRefreshData?.();
 
-      alert('Đã lưu điểm và nhận xét thành công!');
+      if (showToast) {
+        showToast('Đã lưu điểm và nhận xét thành công!', 'success');
+      } else {
+        alert('Đã lưu điểm và nhận xét thành công!');
+      }
     } catch (err: any) {
       console.error(err);
-      alert('Lỗi khi lưu điểm: ' + (err.response?.data?.message || err.message));
+      if (showToast) {
+        showToast('Lỗi khi lưu điểm: ' + (err.response?.data?.message || err.message), 'error');
+      } else {
+        alert('Lỗi khi lưu điểm: ' + (err.response?.data?.message || err.message));
+      }
     } finally {
       setIsSavingScore(false);
     }
@@ -202,41 +231,58 @@ export default function PresentationTab({
     const percentage = ((value - 1) / 9) * 100;
 
     return (
-      <div className="flex flex-col gap-2 relative mt-4 group">
+      <div className="flex flex-col gap-2 relative mt-4 group w-full">
         <div className="flex justify-between items-center text-xs font-semibold text-gray-400">
           <span>{label}</span>
           <span className="text-gray-200">{value.toFixed(1)}</span>
         </div>
-        <div className="relative w-full h-2 rounded-full bg-white/10 backdrop-blur-md border border-white/5 flex items-center cursor-pointer select-none">
-          <div
-            className={`absolute left-0 top-0 h-full rounded-full bg-gradient-to-r ${activeBarColor}`}
-            style={{ width: `${percentage}%` }}
-          />
-          <input
-            type="range"
-            min="1"
-            max="10"
-            step="0.1"
-            value={value}
-            onChange={(e) => onChange(parseFloat(e.target.value))}
-            className="absolute left-0 top-0 w-full h-full opacity-0 cursor-pointer z-20"
-          />
-          <div
-            className="absolute w-4 h-4 rounded-full bg-white border-2 shadow-lg transition-transform pointer-events-none z-10"
-            style={{
-              left: `calc(${percentage}% - 8px)`,
-              borderColor: handleColor,
-            }}
-          />
-          <div
-            className={`absolute bottom-6 transform -translate-x-1/2 px-2 py-0.5 rounded text-[10px] font-bold text-white shadow-md pointer-events-none transition-all duration-75 opacity-0 group-hover:opacity-100 group-active:opacity-100 z-30 ${tooltipColor}`}
-            style={{ left: `${percentage}%` }}
-          >
-            {value.toFixed(1)}
-            <div className={`absolute left-1/2 bottom-[-3px] transform -translate-x-1/2 w-1.5 h-1.5 rotate-45 ${tooltipColor}`} />
+        <div className="px-2.5 w-full relative">
+          <div className="relative w-full h-2.5 rounded-full bg-white/10 backdrop-blur-md border border-white/5 flex items-center cursor-pointer select-none">
+            <div
+              className={`absolute left-0 top-0 h-full rounded-full bg-gradient-to-r ${activeBarColor}`}
+              style={{ width: `${percentage}%` }}
+            />
+            {/* Dotted tick marks */}
+            <div className="absolute inset-0 flex justify-between items-center px-1 pointer-events-none z-10">
+              {[...Array(10)].map((_, i) => {
+                const dotPercentage = (i / 9) * 100;
+                const isActive = value >= (i + 1);
+                return (
+                  <div
+                    key={i}
+                    className={`w-1 h-1 rounded-full transition-colors duration-150 ${isActive ? 'bg-white/80' : 'bg-white/20'
+                      }`}
+                    style={{ left: `calc(${dotPercentage}% - 2px)`, position: 'absolute' }}
+                  />
+                );
+              })}
+            </div>
+            <input
+              type="range"
+              min="1"
+              max="10"
+              step="0.1"
+              value={value}
+              onChange={(e) => onChange(parseFloat(e.target.value))}
+              className="absolute left-0 top-0 w-full h-full opacity-0 cursor-pointer z-30"
+            />
+            <div
+              className="absolute w-4 h-4 rounded-full bg-white border-2 shadow-lg transition-transform pointer-events-none z-20"
+              style={{
+                left: `calc(${percentage}% - 8px)`,
+                borderColor: handleColor,
+              }}
+            />
+            <div
+              className={`absolute bottom-6 transform -translate-x-1/2 px-2 py-0.5 rounded text-[10px] font-bold text-white shadow-md pointer-events-none transition-all duration-75 opacity-0 group-hover:opacity-100 group-active:opacity-100 z-40 ${tooltipColor}`}
+              style={{ left: `${percentage}%` }}
+            >
+              {value.toFixed(1)}
+              <div className={`absolute left-1/2 bottom-[-3px] transform -translate-x-1/2 w-1.5 h-1.5 rotate-45 ${tooltipColor}`} />
+            </div>
           </div>
         </div>
-        <div className="flex justify-between text-[9px] text-gray-500 font-semibold px-0.5 mt-0.5">
+        <div className="flex justify-between text-[9px] text-gray-500 font-semibold px-3 mt-0.5">
           <span>1.0 (Tệ)</span>
           <span>10.0 (Xuất sắc)</span>
         </div>
@@ -436,7 +482,7 @@ export default function PresentationTab({
       {/* 3-Column Interactive Presentation Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch lg:flex-1 lg:min-h-0">
         {/* Column 1: Left Slides List Sidebar */}
-        <div className="lg:col-span-3 bg-[#131d31]/80 border border-white/[0.06] rounded-2xl p-4 flex flex-col justify-between shadow-xl lg:h-[calc(100vh-310px)] lg:min-h-[450px] h-[680px]">
+        <div className="lg:col-span-3 bg-[#131d31]/80 border border-white/[0.06] rounded-2xl p-4 flex flex-col justify-between shadow-xl lg:h-[calc(100vh-420px)] lg:min-h-[350px] h-[680px]">
           <div className="flex flex-col gap-4 flex-1 min-h-0">
             <div className="flex items-center justify-between border-b border-white/[0.06] pb-3 shrink-0">
               <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
@@ -529,7 +575,7 @@ export default function PresentationTab({
         </div>
 
         {/* Column 2: Center Main Slide Stage */}
-        <div className="lg:col-span-6 flex flex-col gap-4 lg:h-[calc(100vh-310px)] lg:min-h-[450px] h-[680px]">
+        <div className="lg:col-span-5 flex flex-col gap-4 lg:h-[calc(100vh-420px)] lg:min-h-[350px] h-[680px]">
           <div className="bg-[#131d31] border border-white/[0.06] rounded-2xl p-4 flex items-center justify-between shadow-lg shrink-0">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
@@ -557,7 +603,7 @@ export default function PresentationTab({
           </div>
 
           {selectedSlide ? (
-            <div className="flex-1 bg-[#131d31]/50 border border-white/[0.06] rounded-2xl p-6 flex flex-col gap-6 shadow-xl relative overflow-hidden overflow-y-auto custom-scrollbar">
+            <div className="flex-1 bg-[#131d31]/50 border border-white/[0.06] rounded-2xl p-4 flex flex-col gap-4 shadow-xl relative overflow-hidden overflow-y-auto custom-scrollbar">
               <div className="absolute inset-0 bg-radial-gradient from-blue-900/[0.03] to-transparent pointer-events-none" />
 
               {(presentationMenu === 'editorPerf' || presentationMenu === 'newWin') ? (
@@ -762,13 +808,11 @@ export default function PresentationTab({
 
               ) : (
 
-                <div className="flex flex-col md:flex-row gap-6 items-stretch">
-
+                <div className="flex flex-col md:flex-row gap-4 items-start">
                   {/* Left: Video Mockup Player */}
-
                   <div
                     onClick={handlePlayerClick}
-                    className="w-full md:w-[210px] bg-[#090e18] border border-white/[0.08] rounded-xl flex flex-col justify-between overflow-hidden relative group shrink-0 min-h-[240px] md:h-[280px] cursor-pointer hover:border-white/[0.15] transition-all duration-300 select-none"
+                    className="w-full md:w-[160px] bg-[#090e18] border border-white/[0.08] rounded-xl flex flex-col justify-between overflow-hidden relative group shrink-0 min-h-[180px] md:h-[220px] cursor-pointer hover:border-white/[0.15] transition-all duration-300 select-none"
                   >
                     <img
                       src={getSlideUnsplashImage(selectedSlide)}
@@ -777,219 +821,114 @@ export default function PresentationTab({
                     />
                   </div>
 
-
-
                   {/* Right: Info Fields & Editing */}
-
-                  <div className="flex-1 flex flex-col gap-4">
-
+                  <div className="flex-1 flex flex-col gap-3">
                     <div className="flex flex-col">
-
-                      <label className="text-[11px] font-black uppercase text-slate-400 tracking-wider mb-1.5 flex items-center gap-1">
-
+                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1 flex items-center gap-1">
                         <FileText className="w-3.5 h-3.5 text-blue-400" />
-
                         {presentationMenu === 'action' ? 'Nội dung công việc' : (presentationMenu === 'case' ? 'Tiêu đề Case Study' : 'Nội dung video / Kịch bản')}
-
                       </label>
 
                       {presentationMenu === 'action' || presentationMenu === 'case' ? (
-
                         <input
-
                           type="text"
-
                           value={presentationMenu === 'action' ? (selectedSlide.title || '') : (selectedSlide.title || '')}
-
                           onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, 'title', e.target.value)}
-
-                          className="bg-[#0c1322] border border-white/[0.06] focus:border-blue-500 outline-none rounded-xl p-3 text-sm text-white placeholder-slate-500 font-medium transition-all"
-
+                          className="bg-[#0c1322] border border-white/[0.06] focus:border-blue-500 outline-none rounded-xl p-2.5 text-xs text-white placeholder-slate-500 font-medium transition-all"
                           placeholder={presentationMenu === 'action' ? 'Nhập tiêu đề hành động...' : 'Nhập tiêu đề case study...'}
-
                         />
-
                       ) : (
-
                         <textarea
-
+                          id="script-textarea"
                           rows={2}
-
                           value={selectedSlide.content || ''}
-
-                          onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, 'content', e.target.value)}
-
-                          className="bg-[#0c1322] border border-white/[0.06] focus:border-blue-500 outline-none rounded-xl p-3 text-sm text-white placeholder-slate-500 font-medium leading-relaxed resize-none transition-all"
-
+                          onChange={(e) => {
+                            updateSlideField(presentationMenu, validSlideIndex, 'content', e.target.value);
+                            e.target.style.height = 'auto';
+                            e.target.style.height = `${e.target.scrollHeight}px`;
+                          }}
+                          className="bg-[#0c1322] border border-white/[0.06] focus:border-blue-500 outline-none rounded-xl p-2.5 text-xs text-white placeholder-slate-500 font-medium leading-relaxed resize-none transition-all"
                           placeholder="Nhập nội dung/kịch bản video..."
-
+                          style={{ overflowY: 'hidden' }}
                         />
-
                       )}
-
                     </div>
 
-
-                    <div className="grid grid-cols-2 gap-4">
-
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {/* Editor / Assignee */}
                       <div className="flex flex-col">
-                        <label className="text-[11px] font-black uppercase text-slate-400 tracking-wider mb-1 flex items-center gap-1">
-
-                          <User className="w-3.5 h-3 text-blue-400" />
-
-                          {presentationMenu === 'action' ? 'Người thực hiện' : 'Editor'}
-
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1 flex items-center gap-1">
+                          <User className="w-3 h-3 text-blue-400" />
+                          {presentationMenu === 'action' ? 'Người làm' : 'Editor'}
                         </label>
-
                         <input
-
                           type="text"
-
                           value={presentationMenu === 'action' ? (selectedSlide.assignee || '') : (selectedSlide.editor || '')}
-
                           onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, presentationMenu === 'action' ? 'assignee' : 'editor', e.target.value)}
-
                           readOnly={presentationMenu !== 'action'}
-
-                          className={`bg-[#0c1322] border border-white/[0.06] outline-none rounded-lg px-2.5 py-2 text-sm text-white transition-all font-semibold ${presentationMenu !== 'action' ? 'opacity-80 cursor-default text-slate-300' : 'focus:border-blue-500'
-
-                            }`}
-
+                          className={`bg-[#0c1322] border border-white/[0.06] outline-none rounded-lg px-2 py-1.5 text-xs text-white transition-all font-semibold ${presentationMenu !== 'action' ? 'opacity-80 cursor-default text-slate-300' : 'focus:border-blue-500'}`}
                         />
-
                       </div>
+
+                      {/* Views / Deadline */}
                       <div className="flex flex-col">
-                        <label className="text-[11px] font-black uppercase text-slate-400 tracking-wider mb-1 flex items-center gap-1">
-
-                          <Calendar className="w-3.5 h-3 text-blue-400" />
-
-                          {presentationMenu === 'action' ? 'Thời hạn' : 'Lượt xem (Views)'}
-
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1 flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-blue-400" />
+                          {presentationMenu === 'action' ? 'Hạn' : 'Lượt xem'}
                         </label>
-
                         <input
-
                           type="text"
-
                           value={presentationMenu === 'action' ? (selectedSlide.deadline || '') : formatPresentationViews((selectedSlide.views || '').replace(/\s*views/i, '').trim())}
-
                           onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, presentationMenu === 'action' ? 'deadline' : 'views', e.target.value)}
-
                           readOnly={presentationMenu !== 'action'}
-
-                          className={`bg-[#0c1322] border border-white/[0.06] outline-none rounded-lg px-2.5 py-2 text-sm text-white transition-all font-semibold ${presentationMenu !== 'action' ? 'opacity-80 cursor-default text-slate-300' : 'focus:border-blue-500'
-
-                            }`}
-
+                          className={`bg-[#0c1322] border border-white/[0.06] outline-none rounded-lg px-2 py-1.5 text-xs text-white transition-all font-semibold ${presentationMenu !== 'action' ? 'opacity-80 cursor-default text-slate-300' : 'focus:border-blue-500'}`}
                         />
+                      </div>
 
+                      {/* Platform / Channel / priority */}
+                      <div className="flex flex-col">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1">
+                          {presentationMenu === 'action' ? 'Độ ưu tiên' : (presentationMenu === 'case' ? 'Kênh' : (presentationMenu === 'clone' ? 'Kênh clone' : 'Nền tảng'))}
+                        </label>
+                        {presentationMenu === 'action' ? (
+                          <select
+                            value={selectedSlide.priority || 'Trung bình'}
+                            onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, 'priority', e.target.value)}
+                            className="bg-[#0c1322] border border-white/[0.06] focus:border-blue-500 outline-none rounded-lg px-2 py-1.5 text-xs text-white font-semibold transition-all"
+                          >
+                            <option value="Cao">Cao</option>
+                            <option value="Trung bình">Trung bình</option>
+                            <option value="Thấp">Thấp</option>
+                          </select>
+                        ) : presentationMenu === 'case' ? (
+                          <input type="text" value={selectedSlide.channel || ''} readOnly className="bg-[#0c1322] border border-white/[0.06] outline-none rounded-lg px-2 py-1.5 text-xs text-slate-300 transition-all font-semibold opacity-80 cursor-default" />
+                        ) : presentationMenu === 'clone' ? (
+                          <input type="text" value={selectedSlide.targetChannel || ''} readOnly className="bg-[#0c1322] border border-white/[0.06] outline-none rounded-lg px-2 py-1.5 text-xs text-slate-300 transition-all font-semibold opacity-80 cursor-default" />
+                        ) : (
+                          <input type="text" value={selectedSlide.platform || 'TikTok'} readOnly className="bg-[#0c1322] border border-white/[0.06] outline-none rounded-lg px-2 py-1.5 text-xs text-slate-300 transition-all font-semibold opacity-80 cursor-default" />
+                        )}
+                      </div>
+
+                      {/* Date / Status */}
+                      <div className="flex flex-col">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1">
+                          {presentationMenu === 'action' ? 'Trạng thái' : 'Ngày đăng'}
+                        </label>
+                        {presentationMenu === 'action' ? (
+                          <select
+                            value={selectedSlide.status || 'Chưa bắt đầu'}
+                            onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, 'status', e.target.value)}
+                            className="bg-[#0c1322] border border-white/[0.06] focus:border-blue-500 outline-none rounded-lg px-2 py-1.5 text-xs text-white font-semibold transition-all"
+                          >
+                            <option value="Chưa bắt đầu">Chưa bắt đầu</option>
+                            <option value="Đang tiến hành">Đang tiến hành</option>
+                            <option value="Hoàn thành">Hoàn thành</option>
+                          </select>
+                        ) : (
+                          <input type="text" value={selectedSlide.postDate || ''} readOnly className="bg-[#0c1322] border border-white/[0.06] outline-none rounded-lg px-2 py-1.5 text-xs text-slate-300 transition-all font-semibold opacity-80 cursor-default" />
+                        )}
                       </div>
                     </div>
-
-
-
-                    <div className="grid grid-cols-2 gap-4">
-
-                      {presentationMenu === 'action' ? (
-
-                        <div className="flex flex-col">
-
-                          <label className="text-[11px] font-black uppercase text-slate-400 tracking-wider mb-1">Độ ưu tiên</label>
-
-                          <select
-
-                            value={selectedSlide.priority || 'Trung bình'}
-
-                            onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, 'priority', e.target.value)}
-
-                            className="bg-[#0c1322] border border-white/[0.06] focus:border-blue-500 outline-none rounded-lg px-2 py-2 text-sm text-white font-semibold transition-all"
-
-                          >
-
-                            <option value="Cao">Cao</option>
-
-                            <option value="Trung bình">Trung bình</option>
-
-                            <option value="Thấp">Thấp</option>
-
-                          </select>
-
-                        </div>
-
-                      ) : presentationMenu === 'case' ? (
-
-                        <div className="flex flex-col">
-
-                          <label className="text-[11px] font-black uppercase text-slate-400 tracking-wider mb-1">Kênh Case study</label>
-
-                          <input type="text" value={selectedSlide.channel || ''} readOnly className="bg-[#0c1322] border border-white/[0.06] outline-none rounded-lg px-2.5 py-2 text-sm text-slate-300 transition-all font-semibold opacity-80 cursor-default" />
-
-                        </div>
-
-                      ) : presentationMenu === 'clone' ? (
-
-                        <div className="flex flex-col">
-
-                          <label className="text-[11px] font-black uppercase text-slate-400 tracking-wider mb-1">Kênh đối thủ cần Clone</label>
-
-                          <input type="text" value={selectedSlide.targetChannel || ''} readOnly className="bg-[#0c1322] border border-white/[0.06] outline-none rounded-lg px-2.5 py-2 text-sm text-slate-300 transition-all font-semibold opacity-80 cursor-default" />
-
-                        </div>
-
-                      ) : (
-
-                        <div className="flex flex-col">
-
-                          <label className="text-[11px] font-black uppercase text-slate-400 tracking-wider mb-1">Nền tảng</label>
-
-                          <input type="text" value={selectedSlide.platform || 'TikTok'} readOnly className="bg-[#0c1322] border border-white/[0.06] outline-none rounded-lg px-2.5 py-2 text-sm text-slate-300 transition-all font-semibold opacity-80 cursor-default" />
-
-                        </div>
-
-                      )}
-
-
-
-                      {presentationMenu === 'action' ? (
-
-                        <div className="flex flex-col">
-
-                          <label className="text-[11px] font-black uppercase text-slate-400 tracking-wider mb-1">Trạng thái</label>
-
-                          <select
-
-                            value={selectedSlide.status || 'Chưa bắt đầu'}
-
-                            onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, 'status', e.target.value)}
-
-                            className="bg-[#0c1322] border border-white/[0.06] focus:border-blue-500 outline-none rounded-lg px-2 py-2 text-sm text-white font-semibold transition-all"
-
-                          >
-
-                            <option value="Chưa bắt đầu">Chưa bắt đầu</option>
-
-                            <option value="Đang tiến hành">Đang tiến hành</option>
-
-                            <option value="Hoàn thành">Hoàn thành</option>
-
-                          </select>
-
-                        </div>
-
-                      ) : (
-
-                        <div className="flex flex-col">
-
-                          <label className="text-[11px] font-black uppercase text-slate-400 tracking-wider mb-1">Ngày đăng</label>
-
-                          <input type="text" value={selectedSlide.postDate || ''} readOnly className="bg-[#0c1322] border border-white/[0.06] outline-none rounded-lg px-2.5 py-2 text-sm text-slate-300 transition-all font-semibold opacity-80 cursor-default" />
-
-                        </div>
-
-                      )}
-
-                    </div>
-
                   </div>
                 </div>
               )}
@@ -998,18 +937,18 @@ export default function PresentationTab({
               {/* Vote & Approve buttons */}
               {presentationMenu !== 'action' && presentationMenu !== 'editorPerf' && presentationMenu !== 'newWin' && (
 
-                <div className="flex gap-4 border-t border-white/[0.06] pt-4 items-center">
+                <div className="flex gap-3 border-t border-white/[0.06] pt-3 items-center">
                   <button
                     onClick={() => {
                       const isVoted = selectedSlide.isVoted === 'true';
                       updateSlideField(presentationMenu, validSlideIndex, 'isVoted', (!isVoted).toString());
                     }}
-                    className={`flex-1 flex items-center justify-center gap-2.5 py-3 rounded-xl border text-xs font-black transition-all duration-200 ${selectedSlide.isVoted === 'true'
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border text-xs font-black transition-all duration-200 ${selectedSlide.isVoted === 'true'
                       ? 'bg-rose-600/90 hover:bg-rose-500 text-white border-rose-500 shadow-md shadow-rose-950/20 scale-[1.01]'
                       : 'bg-white/[0.02] text-slate-400 border-white/[0.04] hover:bg-white/[0.05] hover:text-slate-200'
                       }`}
                   >
-                    <Heart className={`w-4 h-4 transition-transform ${selectedSlide.isVoted === 'true' ? 'fill-current scale-110 text-white' : 'text-slate-500'}`} />
+                    <Heart className={`w-3.5 h-3.5 transition-transform ${selectedSlide.isVoted === 'true' ? 'fill-current scale-110 text-white' : 'text-slate-500'}`} />
                     <span>{selectedSlide.isVoted === 'true' ? 'Đã Vote' : 'Vote'}</span>
                   </button>
                   <button
@@ -1017,27 +956,27 @@ export default function PresentationTab({
                       const isApproved = selectedSlide.isApproved === 'true';
                       updateSlideField(presentationMenu, validSlideIndex, 'isApproved', (!isApproved).toString());
                     }}
-                    className={`flex-1 flex items-center justify-center gap-2.5 py-3 rounded-xl border text-xs font-black transition-all duration-200 ${selectedSlide.isApproved === 'true'
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border text-xs font-black transition-all duration-200 ${selectedSlide.isApproved === 'true'
                       ? 'bg-emerald-600/90 hover:bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-950/20 scale-[1.01]'
                       : 'bg-white/[0.02] text-slate-400 border-white/[0.04] hover:bg-white/[0.05] hover:text-slate-200'
                       }`}
                   >
-                    <CheckSquare className={`w-4 h-4 transition-transform ${selectedSlide.isApproved === 'true' ? 'scale-110 text-white' : 'text-slate-500'}`} />
+                    <CheckSquare className={`w-3.5 h-3.5 transition-transform ${selectedSlide.isApproved === 'true' ? 'scale-110 text-white' : 'text-slate-500'}`} />
                     <span>{selectedSlide.isApproved === 'true' ? 'Đã Duyệt' : 'Duyệt'}</span>
                   </button>
                 </div>
               )}
 
               {/* Notes Field */}
-              <div className="border-t border-white/[0.06] pt-4 flex flex-col">
-                <label className="text-[11px] font-black uppercase text-slate-400 tracking-wider mb-1.5 flex items-center gap-1.5">
+              <div className="border-t border-white/[0.06] pt-3 flex flex-col">
+                <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1 flex items-center gap-1">
                   <FileText className="w-3.5 h-3.5 text-blue-400" /> Ghi chú định hướng nội bộ
                 </label>
                 <textarea
                   rows={2}
                   value={selectedSlide.notes || ''}
                   onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, 'notes', e.target.value)}
-                  className="bg-[#0c1322] border border-white/[0.06] focus:border-blue-500 outline-none rounded-xl p-3 text-sm text-white placeholder-slate-500 font-medium leading-relaxed resize-none transition-all"
+                  className="bg-[#0c1322] border border-white/[0.06] focus:border-blue-500 outline-none rounded-xl p-2.5 text-xs text-white placeholder-slate-500 font-medium leading-relaxed resize-none transition-all"
                   placeholder="Nhập ghi chú định hướng chiến dịch..."
                 />
               </div>
@@ -1054,7 +993,7 @@ export default function PresentationTab({
         </div>
 
         {/* Column 3: Right Analysis Cards Panel */}
-        <div className="lg:col-span-3 flex flex-col gap-3 lg:h-[calc(100vh-310px)] lg:min-h-[450px] h-[680px]">
+        <div className="lg:col-span-4 flex flex-col gap-3 lg:h-[calc(100vh-420px)] lg:min-h-[350px] h-[680px]">
           {/* Panel header */}
           <div className="bg-[#0c1322] border border-purple-500/20 rounded-2xl px-4 py-3 flex items-center justify-between shadow-[0_0_18px_rgba(168,85,247,0.07)] shrink-0 relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-r from-purple-500/[0.04] to-transparent pointer-events-none" />
@@ -1103,23 +1042,15 @@ export default function PresentationTab({
 
                   {/* Tab 1: Chấm điểm */}
                   {scoreActiveTab === 'score' && (
-                    <div className="flex flex-col gap-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
-                      {renderScoreSlider('Điểm Hook', scoreHook, setScoreHook)}
-                      {renderScoreSlider('Điểm Content', scoreContent, setScoreContent)}
-                      {renderScoreSlider('Điểm Editing', scoreEditing, setScoreEditing)}
-                      {renderScoreSlider('Điểm CTA', scoreCta, setScoreCta)}
-                      {renderScoreSlider('Điểm Thumbnail', scoreThumbnail, setScoreThumbnail)}
+                    <div className="flex flex-col gap-3 overflow-x-hidden">
+                      {renderScoreSlider('Đánh giá video', scoreHook, handleScoreChange)}
 
                       {/* GPA Display & Color classification */}
                       {(() => {
-                        const { gpa, text, colorClass } = getGpaAndBadge();
+                        const { text, colorClass } = getGpaAndBadge();
                         return (
-                          <div className={`flex flex-col gap-1.5 p-3 rounded-xl border mt-2 transition-all ${colorClass}`}>
-                            <div className="flex justify-between items-center">
-                              <span className="text-[10px] font-black uppercase tracking-wider">ĐIỂM TRUNG BÌNH (GPA)</span>
-                              <span className="text-lg font-black">{gpa.toFixed(1)}</span>
-                            </div>
-                            <span className="text-[10px] font-bold">{text}</span>
+                          <div className={`flex flex-col gap-1.5 p-2 rounded-xl border mt-1 transition-all text-center ${colorClass}`}>
+                            <span className="text-[10px] font-extrabold tracking-wider uppercase">{text}</span>
                           </div>
                         );
                       })()}
@@ -1158,43 +1089,26 @@ export default function PresentationTab({
                         ((selectedSlide as any).scores || []).map((s: any, idx: number) => {
                           const badge = getScoreBadge(s.score_total);
                           return (
-                            <div key={idx} className="bg-white/[0.02] border border-white/[0.05] p-3 rounded-xl flex flex-col gap-1.5 hover:bg-white/[0.04] transition-all">
+                            <div key={idx} className="bg-white/[0.02] border border-white/[0.05] p-3 rounded-xl flex flex-col gap-2 hover:bg-white/[0.04] transition-all">
                               <div className="flex justify-between items-center">
-                                <span className="text-xs font-black text-white">{s.scored_by?.full_name || 'Thành viên'}</span>
-                                <span className="text-xs font-black text-purple-400">{s.score_total?.toFixed(1)}</span>
-                              </div>
-
-                              {/* Color coded classification label */}
-                              <span className={`text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded border inline-block w-fit ${badge.colorClass}`}>
-                                {badge.text}
-                              </span>
-
-                              {/* Detailed scores mini grid */}
-                              <div className="grid grid-cols-5 gap-1 text-[8px] font-bold text-slate-400 border-t border-white/[0.04] pt-1.5 mt-0.5">
-                                <div className="flex flex-col">
-                                  <span>Hook</span>
-                                  <span className="text-white mt-0.5">{s.score_hook}</span>
+                                <div className="flex flex-col gap-1">
+                                  <span className="text-xs font-black text-white">{s.scored_by?.full_name || 'Thành viên'}</span>
+                                  <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded border inline-block w-fit ${badge.colorClass}`}>
+                                    {badge.text}
+                                  </span>
                                 </div>
-                                <div className="flex flex-col">
-                                  <span>Cont</span>
-                                  <span className="text-white mt-0.5">{s.score_content}</span>
-                                </div>
-                                <div className="flex flex-col">
-                                  <span>Edit</span>
-                                  <span className="text-white mt-0.5">{s.score_editing}</span>
-                                </div>
-                                <div className="flex flex-col">
-                                  <span>CTA</span>
-                                  <span className="text-white mt-0.5">{s.score_cta}</span>
-                                </div>
-                                <div className="flex flex-col">
-                                  <span>Thumb</span>
-                                  <span className="text-white mt-0.5">{s.score_thumbnail}</span>
+                                <div className="text-right">
+                                  <span className="text-[8px] font-extrabold text-purple-400 block uppercase tracking-widest mb-0.5">Đánh giá</span>
+                                  <div className="flex items-baseline justify-end gap-0.5">
+                                    <span className="text-base font-black text-white">{s.score_total?.toFixed(1)}</span>
+                                    <span className="text-[10px] font-bold text-slate-500">/10</span>
+                                  </div>
                                 </div>
                               </div>
 
                               {s.comment && (
-                                <div className="text-[10px] text-slate-300 bg-white/[0.01] border border-white/[0.03] p-2 rounded-lg mt-1 italic">
+                                <div className="text-[10px] text-slate-300 bg-white/[0.01] border border-white/[0.03] p-2.5 rounded-lg italic leading-relaxed">
+                                  <span className="font-bold not-italic text-slate-500 block text-[8px] uppercase tracking-wider mb-1">Ý kiến góp ý</span>
                                   &ldquo;{s.comment}&rdquo;
                                 </div>
                               )}
@@ -1726,141 +1640,7 @@ export default function PresentationTab({
                     </div>
                   </div>
 
-                  {/* Chấm điểm & Review chéo Widget */}
-                  {(presentationMenu === 'win' || presentationMenu === 'fail') && selectedSlide && (
-                    <div className="bg-[#090F1C]/60 border border-white/[0.08] backdrop-blur-md rounded-2xl p-4 shadow-xl flex flex-col gap-3 mt-3 overflow-hidden">
-                      {/* Widget Header & Tabs */}
-                      <div className="flex items-center justify-between border-b border-white/[0.06] pb-2">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-purple-400 flex items-center gap-1">
-                          <Award className="w-3.5 h-3.5" /> ĐÁNH GIÁ VIDEO
-                        </span>
 
-                        <div className="flex bg-white/[0.04] p-0.5 rounded-lg border border-white/[0.05]">
-                          <button
-                            onClick={() => setScoreActiveTab('score')}
-                            className={`px-2 py-1 rounded-md text-[9px] font-bold transition-all ${scoreActiveTab === 'score' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
-                          >
-                            Chấm điểm
-                          </button>
-                          <button
-                            onClick={() => setScoreActiveTab('history')}
-                            className={`px-2 py-1 rounded-md text-[9px] font-bold transition-all relative ${scoreActiveTab === 'history' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
-                          >
-                            Xem chéo
-                            {((selectedSlide as any).scores || []).length > 0 && (
-                              <span className="absolute -top-1 -right-1 bg-purple-500 text-white text-[7px] w-3 h-3 rounded-full flex items-center justify-center font-black">
-                                {((selectedSlide as any).scores || []).length}
-                              </span>
-                            )}
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Tab 1: Chấm điểm */}
-                      {scoreActiveTab === 'score' && (
-                        <div className="flex flex-col gap-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
-                          {renderScoreSlider('Điểm Hook', scoreHook, setScoreHook)}
-                          {renderScoreSlider('Điểm Content', scoreContent, setScoreContent)}
-                          {renderScoreSlider('Điểm Editing', scoreEditing, setScoreEditing)}
-                          {renderScoreSlider('Điểm CTA', scoreCta, setScoreCta)}
-                          {renderScoreSlider('Điểm Thumbnail', scoreThumbnail, setScoreThumbnail)}
-
-                          {/* GPA Display & Color classification */}
-                          {(() => {
-                            const { gpa, text, colorClass } = getGpaAndBadge();
-                            return (
-                              <div className={`flex flex-col gap-1.5 p-3 rounded-xl border mt-2 transition-all ${colorClass}`}>
-                                <div className="flex justify-between items-center">
-                                  <span className="text-[10px] font-black uppercase tracking-wider">ĐIỂM TRUNG BÌNH (GPA)</span>
-                                  <span className="text-lg font-black">{gpa.toFixed(1)}</span>
-                                </div>
-                                <span className="text-[10px] font-bold">{text}</span>
-                              </div>
-                            );
-                          })()}
-
-                          {/* Nhận xét comment area */}
-                          <div className="flex flex-col gap-1.5 mt-2">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase">Nhận xét / Góp ý</label>
-                            <textarea
-                              rows={2}
-                              value={scoreComment}
-                              onChange={(e) => setScoreComment(e.target.value)}
-                              placeholder="Nhập nhận xét của bạn về video..."
-                              className="w-full bg-white/[0.04] border border-white/[0.08] focus:border-purple-500/50 rounded-xl p-2 text-xs text-white placeholder-slate-500 outline-none transition-all resize-none"
-                            />
-                          </div>
-
-                          {/* Save button */}
-                          <button
-                            onClick={handleSaveScore}
-                            disabled={isSavingScore}
-                            className="w-full mt-1 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-[10px] font-black tracking-wider uppercase transition-all shadow shadow-purple-500/20"
-                          >
-                            {isSavingScore ? 'Đang lưu...' : 'Lưu điểm & đánh giá'}
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Tab 2: Xem chéo */}
-                      {scoreActiveTab === 'history' && (
-                        <div className="flex flex-col gap-2.5 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
-                          {((selectedSlide as any).scores || []).length === 0 ? (
-                            <div className="text-center py-6 text-xs text-slate-500 font-semibold">
-                              Chưa có ai đánh giá video này.
-                            </div>
-                          ) : (
-                            ((selectedSlide as any).scores || []).map((s: any, idx: number) => {
-                              const badge = getScoreBadge(s.score_total);
-                              return (
-                                <div key={idx} className="bg-white/[0.02] border border-white/[0.05] p-3 rounded-xl flex flex-col gap-1.5 hover:bg-white/[0.04] transition-all">
-                                  <div className="flex justify-between items-center">
-                                    <span className="text-xs font-black text-white">{s.scored_by?.full_name || 'Thành viên'}</span>
-                                    <span className="text-xs font-black text-purple-400">{s.score_total?.toFixed(1)}</span>
-                                  </div>
-
-                                  {/* Color coded classification label */}
-                                  <span className={`text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded border inline-block w-fit ${badge.colorClass}`}>
-                                    {badge.text}
-                                  </span>
-
-                                  {/* Detailed scores mini grid */}
-                                  <div className="grid grid-cols-5 gap-1 text-[8px] font-bold text-slate-400 border-t border-white/[0.04] pt-1.5 mt-0.5">
-                                    <div className="flex flex-col">
-                                      <span>Hook</span>
-                                      <span className="text-white mt-0.5">{s.score_hook}</span>
-                                    </div>
-                                    <div className="flex flex-col">
-                                      <span>Cont</span>
-                                      <span className="text-white mt-0.5">{s.score_content}</span>
-                                    </div>
-                                    <div className="flex flex-col">
-                                      <span>Edit</span>
-                                      <span className="text-white mt-0.5">{s.score_editing}</span>
-                                    </div>
-                                    <div className="flex flex-col">
-                                      <span>CTA</span>
-                                      <span className="text-white mt-0.5">{s.score_cta}</span>
-                                    </div>
-                                    <div className="flex flex-col">
-                                      <span>Thumb</span>
-                                      <span className="text-white mt-0.5">{s.score_thumbnail}</span>
-                                    </div>
-                                  </div>
-
-                                  {s.comment && (
-                                    <div className="text-[10px] text-slate-300 italic font-medium bg-black/25 p-2 rounded-lg mt-1 whitespace-pre-wrap">
-                                      &ldquo;{s.comment}&rdquo;
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
 
                 </div>
 
@@ -1931,19 +1711,35 @@ export default function PresentationTab({
 
               {/* Hàng 3: Ghi chú định hướng nội bộ (100% width) */}
               {presentationMenu !== 'action' && presentationMenu !== 'editorPerf' && presentationMenu !== 'newWin' && (
-                <div className="bg-[#090F1C]/40 border border-purple-500/20 p-5 rounded-2xl flex flex-col justify-between gap-2 shadow-lg relative overflow-hidden min-h-[80px]" style={{ flex: '0.8 0.8 0%' }}>
-                  {/* Floating watermark */}
-                  <span className="absolute right-6 bottom-2 text-purple-500/[0.04] pointer-events-none">
-                    <ClipboardList className="w-24 h-24" />
-                  </span>
+                <div className="grid grid-cols-2 gap-6 min-h-[80px]" style={{ flex: '0.8 0.8 0%' }}>
+                  {/* Left Column: GHI CHÚ ĐỊNH HƯỚNG NỘI BỘ */}
+                  <div className="bg-[#090F1C]/40 border border-purple-500/20 p-5 rounded-2xl flex flex-col justify-between gap-2 shadow-lg relative overflow-hidden h-full">
+                    <span className="absolute right-6 bottom-2 text-purple-500/[0.04] pointer-events-none">
+                      <ClipboardList className="w-24 h-24" />
+                    </span>
+                    <span className="text-xs font-black uppercase tracking-wider text-purple-400 flex items-center gap-1.5 z-10">
+                      <ClipboardList className="w-4 h-4 text-purple-400" /> GHI CHÚ ĐỊNH HƯỚNG NỘI BỘ
+                    </span>
+                    <p className="text-[13px] font-semibold leading-relaxed text-slate-300 z-10 relative mt-1 whitespace-pre-wrap flex-1 overflow-y-auto custom-scrollbar max-h-[50px]">
+                      {selectedSlide.notes || 'Đã phân phối trên đa nền tảng, thu hút tệp đối tượng học sinh sinh viên tốt.'}
+                    </p>
+                  </div>
 
-                  <span className="text-xs font-black uppercase tracking-wider text-purple-400 flex items-center gap-1.5 z-10">
-                    <ClipboardList className="w-4 h-4 text-purple-400" /> GHI CHÚ ĐỊNH HƯỚNG NỘI BỘ
-                  </span>
-
-                  <p className="text-[13px] font-semibold leading-relaxed text-slate-300 z-10 relative mt-1 whitespace-pre-wrap flex-1 overflow-y-auto custom-scrollbar max-h-[50px]">
-                    {selectedSlide.notes || 'Đã phân phối trên đa nền tảng, thu hút tệp đối tượng học sinh sinh viên tốt.'}
-                  </p>
+                   {/* Right Column: Ý KIẾN (Editable) */}
+                  <div className="bg-purple-950/10 border border-purple-500/30 p-5 rounded-2xl flex flex-col justify-between gap-2 shadow-lg relative overflow-hidden h-full">
+                    <span className="absolute right-6 bottom-2 text-purple-500/[0.04] pointer-events-none">
+                      <MessageSquare className="w-24 h-24" />
+                    </span>
+                    <span className="text-xs font-black uppercase tracking-wider text-purple-300 flex items-center gap-1.5 z-10">
+                      <MessageSquare className="w-4 h-4 text-purple-300" /> Ý KIẾN
+                    </span>
+                    <textarea
+                      value={selectedSlide.leaderComment || ''}
+                      onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, 'leaderComment', e.target.value)}
+                      placeholder="Nhập ý kiến tại đây..."
+                      className="bg-white/[0.02] border border-white/[0.08] focus:border-purple-500/50 rounded-xl p-2 mt-1 text-xs text-white placeholder-slate-500 outline-none transition-all resize-none relative z-10 flex-1 h-[45px] overflow-y-auto custom-scrollbar leading-relaxed"
+                    />
+                  </div>
                 </div>
               )}
 

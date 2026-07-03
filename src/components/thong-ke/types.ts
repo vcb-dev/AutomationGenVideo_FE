@@ -19,6 +19,7 @@ export interface ContentWinItem {
   videoUrl?: string;
   isVoted?: string;
   isApproved?: string;
+  scores?: any[];
 }
 
 export interface FailVideoItem {
@@ -42,6 +43,7 @@ export interface FailVideoItem {
   videoUrl?: string;
   isVoted?: string;
   isApproved?: string;
+  scores?: any[];
 }
 
 export interface CaseStudyItem {

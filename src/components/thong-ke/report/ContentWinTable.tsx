@@ -5,6 +5,7 @@ import { formatDotViews } from '../utils';
 import { CustomSelect, CustomDatePicker } from './CustomControls';
 import { apiClient } from '../../../lib/api-client';
 import EditableCell from './EditableCell';
+import LinkInput from './LinkInput';
 
 interface ContentWinTableProps {
   videos: ContentWinItem[];
@@ -21,8 +22,31 @@ export default function ContentWinTable({
   videos, activeTab, isCollapsed, onToggle, onUpdateRow, onDeleteRow, onAddRow, editors = []
 }: ContentWinTableProps) {
   const [uploadingIndex, setUploadingIndex] = React.useState<number | null>(null);
+  const [activeOpenType, setActiveOpenType] = React.useState<'date' | 'select' | null>(null);
+  const [activeOpenRowIndex, setActiveOpenRowIndex] = React.useState<number | null>(null);
 
   const rows = [...videos];
+
+  const getBottomPaddingClass = () => {
+    if (!activeOpenType || activeOpenRowIndex === null) return '';
+    const rowsBelow = rows.length - 1 - activeOpenRowIndex;
+    
+    if (activeOpenType === 'date') {
+      if (rowsBelow === 0) return '!pb-[240px]';
+      if (rowsBelow === 1) return '!pb-[180px]';
+      if (rowsBelow === 2) return '!pb-[120px]';
+      if (rowsBelow === 3) return '!pb-[60px]';
+      return '';
+    }
+    
+    if (activeOpenType === 'select') {
+      if (rowsBelow === 0) return '!pb-[120px]';
+      if (rowsBelow === 1) return '!pb-[60px]';
+      return '';
+    }
+    
+    return '';
+  };
 
   const handleViewsKeyDown = (e: React.KeyboardEvent<HTMLTableCellElement>) => {
     if (e.key === 'Enter') {
@@ -82,13 +106,13 @@ export default function ContentWinTable({
         className="bg-[#063529] px-4 py-3 flex items-center justify-between border-b border-[#10b981]/20 cursor-pointer select-none hover:bg-[#0a4d3b] transition-colors"
       >
         <span className="text-[#10b981] font-black tracking-wider text-sm uppercase flex items-center gap-2">
-          <CheckCircle className="w-4 h-4 text-[#10b981]" /> 5 Content win của team
+          <CheckCircle className="w-4 h-4 text-[#10b981]" /> Content win của team
         </span>
         <ChevronDown className={`w-4 h-4 text-[#10b981] transition-transform duration-200 ${isCollapsed ? '-rotate-90' : ''}`} />
       </div>
 
       {!isCollapsed && (
-        <div className="bg-[#0c1322] p-6 overflow-x-auto">
+        <div className={`bg-[#0c1322] p-6 overflow-x-auto overflow-y-hidden transition-all duration-200 ${getBottomPaddingClass()}`}>
           <table className="w-full table-fixed text-left border-collapse min-w-[1200px]">
             <thead>
               <tr className="border-b border-white/[0.08] text-slate-400 text-[10px] uppercase tracking-wider font-bold bg-white/[0.02]">
@@ -121,23 +145,24 @@ export default function ContentWinTable({
                           onChange={(val) => onUpdateRow(idx, 'editor', val)}
                           options={Array.from(new Set([...editors, video.editor].filter(Boolean)))
                             .filter((name) => name !== 'Test User' && name !== 'Unknown')}
+                          alignUp={false}
+                          onToggleOpen={(isOpen) => {
+                            setActiveOpenType(isOpen ? 'select' : null);
+                            setActiveOpenRowIndex(isOpen ? idx : null);
+                          }}
                         />
                       )}
                     </td>
-                    <td
-                      contentEditable={!isMock}
-                      suppressContentEditableWarning
-                      onBlur={(e) => onUpdateRow(idx, 'videoUrl', e.currentTarget.textContent || '')}
-                      className={`py-3.5 px-4 text-xs truncate max-w-[130px] outline-none focus:bg-white/[0.04] cursor-text ${isMock
-                          ? 'text-slate-500'
-                          : !video.videoUrl
-                            ? 'text-blue-400/50 italic'
-                            : 'text-blue-400 hover:text-blue-300 underline font-medium'
-                        }`}
-                      title={isMock ? '' : (video.videoUrl || 'Dán link video...')}
-                    >
-                      {isMock ? '-' : (video.videoUrl || 'Dán link video...')}
-                    </td>
+                    <td className="py-2 px-3 max-w-[130px] focus-within:bg-white/[0.04] truncate">
+                       {isMock ? (
+                         <span className="text-slate-500 text-xs">-</span>
+                       ) : (
+                         <LinkInput
+                           value={video.videoUrl || ''}
+                           onChange={(val) => onUpdateRow(idx, 'videoUrl', val)}
+                         />
+                       )}
+                     </td>
                     <td className="py-3.5 px-4 text-xs">
                       <div className="flex items-start shrink-0">
                         <label className="cursor-pointer group relative block">
@@ -194,15 +219,23 @@ export default function ContentWinTable({
                         value={isMock ? 'TikTok' : (video.platform || 'TikTok')}
                         onChange={(val) => onUpdateRow(idx, 'platform', val)}
                         options={['TikTok', 'Instagram Reels', 'YouTube Shorts']}
-                        alignUp={idx >= 3}
+                        alignUp={false}
+                        onToggleOpen={(isOpen) => {
+                          setActiveOpenType(isOpen ? 'select' : null);
+                          setActiveOpenRowIndex(isOpen ? idx : null);
+                        }}
                       />
                     </td>
                     <td className="py-3.5 px-4 text-xs text-center">
                       <CustomDatePicker
                         value={isMock ? '' : (video.postDate || '')}
                         onChange={(val) => onUpdateRow(idx, 'postDate', val)}
-                        alignUp={idx >= 3}
+                        alignUp={false}
                         themeColor="emerald"
+                        onToggleOpen={(isOpen) => {
+                          setActiveOpenType(isOpen ? 'date' : null);
+                          setActiveOpenRowIndex(isOpen ? idx : null);
+                        }}
                       />
                     </td>
                     <td className="py-3 px-4">

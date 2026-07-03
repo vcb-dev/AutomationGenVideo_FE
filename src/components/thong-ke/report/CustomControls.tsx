@@ -6,9 +6,10 @@ interface CustomSelectProps {
   onChange: (val: string) => void;
   options: string[];
   alignUp?: boolean;
+  onToggleOpen?: (isOpen: boolean) => void;
 }
 
-export function CustomSelect({ value, onChange, options, alignUp = false }: CustomSelectProps) {
+export function CustomSelect({ value, onChange, options, alignUp = false, onToggleOpen }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -16,11 +17,12 @@ export function CustomSelect({ value, onChange, options, alignUp = false }: Cust
     function handleClickOutside(event: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setIsOpen(false);
+        onToggleOpen?.(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [onToggleOpen]);
 
   const getPlatformStyle = (platform: string) => {
     switch (platform) {
@@ -39,7 +41,11 @@ export function CustomSelect({ value, onChange, options, alignUp = false }: Cust
     <div className="relative w-full" ref={containerRef}>
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          const next = !isOpen;
+          setIsOpen(next);
+          onToggleOpen?.(next);
+        }}
         className="flex items-center justify-between w-full bg-[#131d31]/30 hover:bg-[#131d31]/60 border border-white/5 hover:border-white/10 focus:border-blue-500/40 outline-none rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition-all duration-150 text-left"
       >
         <span className={getPlatformStyle(value)}>{value}</span>
@@ -60,6 +66,7 @@ export function CustomSelect({ value, onChange, options, alignUp = false }: Cust
                 onClick={() => {
                   onChange(opt);
                   setIsOpen(false);
+                  onToggleOpen?.(false);
                 }}
                 className={`flex items-center justify-between w-full px-2.5 py-1.5 text-[11px] font-semibold text-left transition-colors duration-100 ${isSelected
                     ? 'bg-blue-600/20 text-white'
@@ -82,9 +89,10 @@ interface CustomDatePickerProps {
   onChange: (val: string) => void;
   alignUp?: boolean;
   themeColor?: 'emerald' | 'red' | 'purple';
+  onToggleOpen?: (isOpen: boolean) => void;
 }
 
-export function CustomDatePicker({ value, onChange, alignUp = false, themeColor = 'emerald' }: CustomDatePickerProps) {
+export function CustomDatePicker({ value, onChange, alignUp = false, themeColor = 'emerald', onToggleOpen }: CustomDatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -113,11 +121,12 @@ export function CustomDatePicker({ value, onChange, alignUp = false, themeColor 
     function handleClickOutside(event: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setIsOpen(false);
+        onToggleOpen?.(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [onToggleOpen]);
 
   const year = navDate.getFullYear();
   const month = navDate.getMonth();
@@ -137,12 +146,14 @@ export function CustomDatePicker({ value, onChange, alignUp = false, themeColor 
     const formattedDay = String(d).padStart(2, '0');
     onChange(`${y}-${formattedMonth}-${formattedDay}`);
     setIsOpen(false);
+    onToggleOpen?.(false);
   };
 
   const handleClear = (e: React.MouseEvent) => {
     e.stopPropagation();
     onChange('');
     setIsOpen(false);
+    onToggleOpen?.(false);
   };
 
   const handleToday = (e: React.MouseEvent) => {
@@ -152,6 +163,7 @@ export function CustomDatePicker({ value, onChange, alignUp = false, themeColor 
     const formattedDay = String(today.getDate()).padStart(2, '0');
     onChange(`${today.getFullYear()}-${formattedMonth}-${formattedDay}`);
     setIsOpen(false);
+    onToggleOpen?.(false);
   };
 
   const firstDayOfMonth = new Date(year, month, 1);
@@ -226,7 +238,11 @@ export function CustomDatePicker({ value, onChange, alignUp = false, themeColor 
     <div className="relative w-full max-w-[125px] mx-auto" ref={containerRef}>
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          const next = !isOpen;
+          setIsOpen(next);
+          onToggleOpen?.(next);
+        }}
         className="w-full bg-[#131d31]/30 hover:bg-[#131d31]/60 border border-white/5 hover:border-white/10 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-slate-300 flex items-center justify-center gap-1.5 transition-all duration-150 select-none"
       >
         <CalendarIcon className={`w-3 h-3 ${themeClasses.text}`} />

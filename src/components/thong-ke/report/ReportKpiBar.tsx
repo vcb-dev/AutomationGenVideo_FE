@@ -4,7 +4,6 @@ import {
   Eye, XCircle, Zap, BarChart2
 } from 'lucide-react';
 import { TeamData } from '../types';
-import { isDateInFilter } from '../utils';
 
 interface ReportKpiBarProps {
   teamsData: Record<string, TeamData>;
@@ -47,8 +46,8 @@ export default function ReportKpiBar({ teamsData, activeTab, filterMode, selecte
   const baseData = teamsData[activeTab];
 
   const stats = useMemo(() => {
-    const wins = baseData.videos.filter(v => isDateInFilter(v.postDate, filterMode, selectedWeek));
-    const fails = baseData.failVideos.filter(v => isDateInFilter(v.postDate, filterMode, selectedWeek));
+    const wins = baseData.videos;
+    const fails = baseData.failVideos;
     const total = wins.length + fails.length;
     const winRate = total > 0 ? (wins.length / total) * 100 : 0;
     const failRate = total > 0 ? (fails.length / total) * 100 : 0;
