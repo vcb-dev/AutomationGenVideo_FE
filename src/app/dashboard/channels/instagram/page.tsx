@@ -122,9 +122,21 @@ export default function InstagramChannelsPage() {
   const profileKey = profiles.map(p => p.id).join(',');
   useEffect(() => {
     if (!profiles.length) return;
-    const identifiers = profiles.map(p => p.url).filter(Boolean);
+    const identifiers = profiles.flatMap(p => [
+      p.url,
+      `https://www.instagram.com/${p.username}/`,
+      `https://www.instagram.com/${p.username}`,
+      `https://instagram.com/${p.username}`,
+      p.username,
+    ].filter(Boolean));
     channelsService.scraperLookup(identifiers).then(setChannelInfoMap);
   }, [profileKey]);
+
+  const getIgChannelInfo = (p: { url: string; username: string }): ChannelInfo => {
+    const keys = [p.url, `https://www.instagram.com/${p.username}/`, `https://www.instagram.com/${p.username}`, `https://instagram.com/${p.username}`, p.username];
+    for (const k of keys) if (channelInfoMap[k]) return channelInfoMap[k];
+    return { team_name: null, owner_name: null };
+  };
 
   const handleScrapeSuccess = (data: { message: string; is_scraping?: boolean; already_exists?: boolean; profile_id: number }) => {
     if (data.already_exists) {
@@ -281,7 +293,7 @@ export default function InstagramChannelsPage() {
             <InstagramProfileCard
               key={p.id}
               profile={p}
-              channelInfo={channelInfoMap[p.url] ?? { team_name: null, owner_name: null }}
+              channelInfo={getIgChannelInfo(p)}
               onScrape={() => rescrape.mutate({ id: p.id, username: p.username })}
               onToggleBookmark={() => toggleMutation.mutate({ id: p.id, field: 'is_bookmarked' })}
               onToggleTracked={() => toggleMutation.mutate({ id: p.id, field: 'is_tracked' })}

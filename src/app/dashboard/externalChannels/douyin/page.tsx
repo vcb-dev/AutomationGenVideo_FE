@@ -19,7 +19,8 @@ import { useScrapingStore } from '@/store/scraping-store';
 type Tab = 'videos' | 'profiles';
 
 export default function DouyinExternalPage() {
-  const { token } = useAuthStore();
+  const { token, user } = useAuthStore();
+  const isAdmin = user?.roles?.includes('ADMIN') ?? false;
   const { addNotification, updateNotification } = useScrapingStore();
   const router = useRouter();
 
@@ -460,30 +461,32 @@ export default function DouyinExternalPage() {
       {/* ─── Profiles Tab ────────────────────────────────── */}
       {activeTab === 'profiles' && (
         <>
-          {/* Input sec_user_id */}
-          <div className="bg-card border border-border rounded-xl p-4">
-            <div className="flex items-center gap-3">
-              <div className="relative flex-1 max-w-xl">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-mono select-none">ID</span>
-                <input
-                  type="text"
-                  value={profileSecId}
-                  onChange={e => setProfileSecId(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && profileSecId.trim()) profileScrapeMutation.mutate(profileSecId.trim()); }}
-                  placeholder="sec_user_id (MS4wLjAB...)"
-                  className="w-full pl-10 pr-3 py-2.5 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                />
+          {/* Input sec_user_id — admin only */}
+          {isAdmin && (
+            <div className="bg-card border border-border rounded-xl p-4">
+              <div className="flex items-center gap-3">
+                <div className="relative flex-1 max-w-xl">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-mono select-none">ID</span>
+                  <input
+                    type="text"
+                    value={profileSecId}
+                    onChange={e => setProfileSecId(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && profileSecId.trim()) profileScrapeMutation.mutate(profileSecId.trim()); }}
+                    placeholder="sec_user_id (MS4wLjAB...)"
+                    className="w-full pl-10 pr-3 py-2.5 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  />
+                </div>
+                <button
+                  onClick={() => profileScrapeMutation.mutate(profileSecId.trim())}
+                  disabled={profileScrapeMutation.isPending || !profileSecId.trim()}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground text-sm font-bold rounded-md hover:opacity-90 disabled:opacity-50 whitespace-nowrap shadow-sm transition-all"
+                >
+                  {profileScrapeMutation.isPending ? <CircleNotch size={16} weight="bold" className="animate-spin" /> : <MagnifyingGlassPlus size={16} weight="bold" />}
+                  {profileScrapeMutation.isPending ? 'Đang gửi...' : 'Cào Profile'}
+                </button>
               </div>
-              <button
-                onClick={() => profileScrapeMutation.mutate(profileSecId.trim())}
-                disabled={profileScrapeMutation.isPending || !profileSecId.trim()}
-                className="flex items-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground text-sm font-bold rounded-md hover:opacity-90 disabled:opacity-50 whitespace-nowrap shadow-sm transition-all"
-              >
-                {profileScrapeMutation.isPending ? <CircleNotch size={16} weight="bold" className="animate-spin" /> : <MagnifyingGlassPlus size={16} weight="bold" />}
-                {profileScrapeMutation.isPending ? 'Đang gửi...' : 'Cào Profile'}
-              </button>
             </div>
-          </div>
+          )}
 
           {/* Filter bar */}
           <div className="flex flex-wrap items-center gap-3 border border-border rounded-xl p-4">
@@ -534,7 +537,7 @@ export default function DouyinExternalPage() {
                 <DouyinProfileCard
                   key={p.id}
                   profile={p}
-                  onScrape={() => profileRescrape.mutate({ secUserId: p.sec_user_id, label: p.nickname || p.username })}
+                  onScrape={isAdmin ? () => profileRescrape.mutate({ secUserId: p.sec_user_id, label: p.nickname || p.username }) : undefined}
                   onToggleBookmark={() => profileToggleMutation.mutate({ id: p.id, field: 'is_bookmarked' })}
                   onToggleTracked={() => profileToggleMutation.mutate({ id: p.id, field: 'is_tracked' })}
                   onViewDetail={() => router.push(`/dashboard/externalChannels/douyin/${p.id}`)}

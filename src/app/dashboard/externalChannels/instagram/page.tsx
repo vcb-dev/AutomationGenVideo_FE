@@ -14,7 +14,8 @@ import { scraperService } from '@/services/scraperService';
 const PAGE_SIZE = 12;
 
 export default function InstagramExternalPage() {
-  const { token } = useAuthStore();
+  const { token, user } = useAuthStore();
+  const isAdmin = user?.roles?.includes('ADMIN') ?? false;
   const queryClient = useQueryClient();
   const router = useRouter();
 
@@ -87,34 +88,36 @@ export default function InstagramExternalPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Input username */}
-      <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-        <div className="flex items-center gap-3">
-          <div className="relative flex-1 max-w-xl">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-pink-500 text-sm font-semibold select-none">@</span>
-            <input
-              type="text"
-              value={profileUsername}
-              onChange={e => setProfileUsername(e.target.value.replace('@', ''))}
-              onKeyDown={e => { if (e.key === 'Enter' && profileUsername.trim()) scrapeMutation.mutate(profileUsername.trim()); }}
-              placeholder="Nhập Instagram username (vd: lanh_1403_)"
-              className="w-full pl-8 pr-3 py-2.5 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            />
+      {/* Input username — admin only */}
+      {isAdmin && (
+        <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="relative flex-1 max-w-xl">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-pink-500 text-sm font-semibold select-none">@</span>
+              <input
+                type="text"
+                value={profileUsername}
+                onChange={e => setProfileUsername(e.target.value.replace('@', ''))}
+                onKeyDown={e => { if (e.key === 'Enter' && profileUsername.trim()) scrapeMutation.mutate(profileUsername.trim()); }}
+                placeholder="Nhập Instagram username (vd: lanh_1403_)"
+                className="w-full pl-8 pr-3 py-2.5 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              />
+            </div>
+            <button
+              onClick={() => scrapeMutation.mutate(profileUsername.trim())}
+              disabled={scrapeMutation.isPending || !profileUsername.trim()}
+              className="flex items-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground text-sm font-bold rounded-md hover:opacity-90 disabled:opacity-50 whitespace-nowrap shadow-sm hover:shadow-md transition-all"
+            >
+              {scrapeMutation.isPending ? (
+                <CircleNotch size={16} weight="bold" className="animate-spin" />
+              ) : (
+                <MagnifyingGlassPlus size={16} weight="bold" />
+              )}
+              {scrapeMutation.isPending ? 'Đang gửi...' : 'Cào Profile'}
+            </button>
           </div>
-          <button
-            onClick={() => scrapeMutation.mutate(profileUsername.trim())}
-            disabled={scrapeMutation.isPending || !profileUsername.trim()}
-            className="flex items-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground text-sm font-bold rounded-md hover:opacity-90 disabled:opacity-50 whitespace-nowrap shadow-sm hover:shadow-md transition-all"
-          >
-            {scrapeMutation.isPending ? (
-              <CircleNotch size={16} weight="bold" className="animate-spin" />
-            ) : (
-              <MagnifyingGlassPlus size={16} weight="bold" />
-            )}
-            {scrapeMutation.isPending ? 'Đang gửi...' : 'Cào Profile'}
-          </button>
         </div>
-      </div>
+      )}
 
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-3 border border-border rounded-xl p-4">
@@ -163,7 +166,7 @@ export default function InstagramExternalPage() {
             <InstagramProfileCard
               key={p.id}
               profile={p}
-              onScrape={() => rescrapeMutation.mutate({ id: p.id, username: p.username })}
+              onScrape={isAdmin ? () => rescrapeMutation.mutate({ id: p.id, username: p.username }) : undefined}
               onToggleBookmark={() => toggleMutation.mutate({ id: p.id, field: 'is_bookmarked' })}
               onToggleTracked={() => toggleMutation.mutate({ id: p.id, field: 'is_tracked' })}
               onViewDetail={() => router.push(`/dashboard/externalChannels/instagram/${p.id}`)}

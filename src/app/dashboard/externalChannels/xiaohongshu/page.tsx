@@ -4,8 +4,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CircleNotch, FilmReel, MagnifyingGlassPlus, Heart,
-  Bookmarks, ChatCircle, User, Plus,
-  ArrowClockwise, CheckCircle, Warning,
+  Bookmarks, ChatCircle, User, Plus, Warning,
+  ArrowsClockwise, BookmarkSimple, Timer, SealCheck, VideoCamera,
 } from '@phosphor-icons/react';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
@@ -85,70 +85,131 @@ function XhsVideoCard({ video }: { video: XiaohongshuVideo }) {
 }
 
 // ─── PROFILE CARD ───────────────────────────────────────────
-function XhsProfileCard({ profile, onScrape }: { profile: XiaohongshuProfile; onScrape: (p: XiaohongshuProfile) => void }) {
-  const router = useRouter();
-  const isProcessing = profile.scraping_status === 'processing';
+function XhsProfileCard({
+  profile: p,
+  onScrape,
+  onToggleBookmark,
+  onToggleTracked,
+  onViewDetail,
+}: {
+  profile: XiaohongshuProfile;
+  onScrape?: () => void;
+  onToggleBookmark: () => void;
+  onToggleTracked: () => void;
+  onViewDetail: () => void;
+}) {
+  const isProcessing = p.scraping_status === 'processing';
 
   return (
     <div
-      className="bg-card border border-border rounded-xl p-4 flex flex-col gap-3 hover:shadow-md transition-all cursor-pointer"
-      onClick={() => router.push(`/dashboard/externalChannels/xiaohongshu/${profile.id}`)}
+      onClick={onViewDetail}
+      className={`bg-card border rounded-xl overflow-hidden transition-all duration-200 hover:shadow-lg hover:scale-[1.01] cursor-pointer ${
+        p.is_bookmarked
+          ? 'border-amber-200 dark:border-amber-700 ring-1 ring-amber-100 dark:ring-amber-900'
+          : 'border-border'
+      }`}
     >
-      <div className="flex items-center gap-3">
-        {profile.avatar_url ? (
-          <img src={profile.avatar_url} alt="" className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
-        ) : (
-          <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0">
-            <User size={20} className="text-slate-400" />
-          </div>
-        )}
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-foreground truncate">{profile.nickname || profile.user_id}</p>
-          <p className="text-xs text-slate-400 font-mono truncate">{profile.user_id}</p>
-          {profile.is_verified && (
-            <span className="inline-flex items-center gap-0.5 text-xs text-blue-500 font-medium">
-              <CheckCircle size={10} weight="fill" /> Verified
+      {/* Badges */}
+      {(p.is_tracked || isProcessing) && (
+        <div className="flex items-center gap-1.5 px-3.5 pt-2.5 pb-0">
+          {p.is_tracked && (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded text-xs font-medium">
+              <Timer size={10} weight="fill" /> Theo dõi
+            </span>
+          )}
+          {isProcessing && (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded text-xs font-medium">
+              <CircleNotch size={10} weight="bold" className="animate-spin" /> Đang cào
             </span>
           )}
         </div>
-        <button
-          onClick={e => { e.stopPropagation(); onScrape(profile); }}
-          disabled={isProcessing}
-          className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors"
-          title="Cào lại"
-        >
-          <ArrowClockwise size={16} className={isProcessing ? 'animate-spin text-primary' : 'text-slate-400'} />
-        </button>
-      </div>
-
-      <div className="flex items-center gap-3 text-xs text-slate-500">
-        <span className="flex items-center gap-1">
-          <FilmReel size={12} />
-          {profile.videos_count ?? 0} videos
-        </span>
-        {profile.last_scraped_at && (
-          <span className="ml-auto">{relativeTime(profile.last_scraped_at)}</span>
-        )}
-      </div>
-
-      {profile.scrape_error && (
-        <div className="flex items-center gap-1 text-xs text-red-500">
-          <Warning size={12} />
-          <span className="truncate">{profile.scrape_error}</span>
-        </div>
       )}
 
-      <div className="flex gap-2">
-        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-          isProcessing ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
-          profile.is_initial_scraped ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-          'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
-        }`}>
-          {isProcessing ? 'Đang cào...' : profile.is_initial_scraped ? 'Đã cào' : 'Chưa cào'}
-        </span>
-        {profile.is_bookmarked && (
-          <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">Đã lưu</span>
+      {/* Avatar + Info */}
+      <div className="flex items-center gap-3 p-3.5 pb-2">
+        <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden flex-shrink-0 ring-2 ring-slate-200 dark:ring-slate-600">
+          {p.avatar_url ? (
+            <img src={p.avatar_url} alt={p.nickname} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-red-50 dark:bg-red-900/30 text-red-400">
+              <User size={22} />
+            </div>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1">
+            <p className="text-sm font-semibold text-foreground truncate">
+              {p.nickname || p.user_id}
+            </p>
+            {p.is_verified && <SealCheck size={14} weight="fill" className="text-blue-500 flex-shrink-0" />}
+          </div>
+          <p className="text-xs text-slate-400 dark:text-slate-500 truncate font-mono">{p.user_id}</p>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="flex items-center gap-4 px-3.5 py-2">
+        {(p.videos_count ?? 0) > 0 ? (
+          <div className="flex items-center gap-1.5">
+            <VideoCamera size={13} className="text-red-500" />
+            <span className="text-sm font-bold text-foreground">{p.videos_count}</span>
+            <span className="text-xs text-slate-400">videos</span>
+          </div>
+        ) : (
+          <span className="text-xs text-slate-400 italic">
+            {p.is_initial_scraped ? 'Không có video' : 'Chưa cào lần đầu'}
+          </span>
         )}
+        {p.scrape_error && (
+          <div className="flex items-center gap-1 text-xs text-red-500 ml-auto">
+            <Warning size={11} />
+            <span className="truncate max-w-[100px]">{p.scrape_error}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Action bar */}
+      <div className="flex items-center border-t border-border bg-slate-50/50 dark:bg-slate-800/30" onClick={e => e.stopPropagation()}>
+        {onScrape && (
+          <button
+            onClick={onScrape}
+            disabled={isProcessing}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold transition-colors border-r border-border disabled:opacity-40 ${
+              isProcessing
+                ? 'text-amber-600 bg-amber-50/50 dark:bg-amber-900/10'
+                : p.is_initial_scraped
+                  ? 'text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                  : 'text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'
+            }`}
+          >
+            {isProcessing
+              ? <CircleNotch size={13} weight="bold" className="animate-spin" />
+              : <ArrowsClockwise size={13} weight="bold" />}
+            {isProcessing ? 'Đang cào...' : p.is_initial_scraped ? 'Cập nhật' : 'Cào lượt đầu'}
+          </button>
+        )}
+        <button
+          onClick={onToggleBookmark}
+          className={`flex items-center justify-center gap-1 py-2.5 text-xs transition-colors border-r border-border ${onScrape ? 'px-3' : 'flex-1'} ${
+            p.is_bookmarked
+              ? 'text-amber-500 bg-amber-50/50 dark:bg-amber-900/10'
+              : 'text-slate-400 hover:text-amber-500 hover:bg-amber-50/50'
+          }`}
+          title={p.is_bookmarked ? 'Bỏ lưu' : 'Lưu'}
+        >
+          <BookmarkSimple size={14} weight={p.is_bookmarked ? 'fill' : 'regular'} />
+        </button>
+        <button
+          onClick={onToggleTracked}
+          className={`flex items-center justify-center gap-1 py-2.5 text-xs transition-colors ${onScrape ? 'px-3' : 'flex-1'} ${
+            p.is_tracked
+              ? 'text-emerald-500 bg-emerald-50/50 dark:bg-emerald-900/10'
+              : 'text-slate-400 hover:text-emerald-500 hover:bg-emerald-50/50'
+          }`}
+          title={p.is_tracked ? 'Tắt theo dõi' : 'Bật theo dõi'}
+        >
+          <Timer size={14} weight={p.is_tracked ? 'fill' : 'regular'} />
+        </button>
       </div>
     </div>
   );
@@ -390,9 +451,11 @@ function VideoSearchTab() {
 
 // ─── PROFILES TAB ────────────────────────────────────────────
 function ProfilesTab() {
-  const { token } = useAuthStore();
+  const { token, user } = useAuthStore();
+  const isAdmin = user?.roles?.includes('ADMIN') ?? false;
   const queryClient = useQueryClient();
   const { addNotification, updateNotification } = useScrapingStore();
+  const router = useRouter();
   const [userId, setUserId] = useState('');
   const [numPosts, setNumPosts] = useState('600');
   const [q, setQ] = useState('');
@@ -453,47 +516,50 @@ function ProfilesTab() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const handleRescrape = (profile: XiaohongshuProfile) => {
-    if (profile.scraping_status === 'processing') return;
-    scrapeMutation.mutate(profile.user_id);
-  };
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, field, currentValue }: { id: number; field: 'is_bookmarked' | 'is_tracked'; currentValue: boolean }) =>
+      scraperService.xhsProfileToggle(token!, id, { [field]: !currentValue }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['xhs-profiles'] }),
+  });
 
   const profiles = profilesQuery.data?.profiles || [];
   const total = profilesQuery.data?.count || 0;
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Add profile */}
-      <div className="bg-card border border-border rounded-xl p-4">
-        <p className="text-xs text-slate-500 mb-3">Thêm Xiaohongshu user bằng User ID (chuỗi hex, vd: 61b46d790000000010008153)</p>
-        <div className="flex items-center gap-3 flex-wrap">
-          <input
-            type="text"
-            value={userId}
-            onChange={e => setUserId(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && userId.trim()) scrapeMutation.mutate(userId.trim()); }}
-            placeholder="User ID (vd: 61b46d790000000010008153)"
-            className="flex-1 min-w-[280px] px-3 py-2.5 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary font-mono"
-          />
-          <input
-            type="number" value={numPosts}
-            onChange={e => setNumPosts(e.target.value)}
-            min={1} max={600}
-            className="w-24 px-3 py-2.5 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            placeholder="Số video"
-          />
-          <button
-            onClick={() => { if (userId.trim()) scrapeMutation.mutate(userId.trim()); }}
-            disabled={scrapeMutation.isPending || !userId.trim()}
-            className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground text-sm font-bold rounded-md hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
-          >
-            {scrapeMutation.isPending
-              ? <CircleNotch size={16} weight="bold" className="animate-spin" />
-              : <Plus size={16} weight="bold" />}
-            {scrapeMutation.isPending ? 'Đang thêm...' : 'Thêm & Cào'}
-          </button>
+      {/* Add profile — admin only */}
+      {isAdmin && (
+        <div className="bg-card border border-border rounded-xl p-4">
+          <p className="text-xs text-slate-500 mb-3">Thêm Xiaohongshu user bằng User ID (chuỗi hex, vd: 61b46d790000000010008153)</p>
+          <div className="flex items-center gap-3 flex-wrap">
+            <input
+              type="text"
+              value={userId}
+              onChange={e => setUserId(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && userId.trim()) scrapeMutation.mutate(userId.trim()); }}
+              placeholder="User ID (vd: 61b46d790000000010008153)"
+              className="flex-1 min-w-[280px] px-3 py-2.5 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary font-mono"
+            />
+            <input
+              type="number" value={numPosts}
+              onChange={e => setNumPosts(e.target.value)}
+              min={1} max={600}
+              className="w-24 px-3 py-2.5 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              placeholder="Số video"
+            />
+            <button
+              onClick={() => { if (userId.trim()) scrapeMutation.mutate(userId.trim()); }}
+              disabled={scrapeMutation.isPending || !userId.trim()}
+              className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground text-sm font-bold rounded-md hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
+            >
+              {scrapeMutation.isPending
+                ? <CircleNotch size={16} weight="bold" className="animate-spin" />
+                : <Plus size={16} weight="bold" />}
+              {scrapeMutation.isPending ? 'Đang thêm...' : 'Thêm & Cào'}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Filter */}
       <div className="flex items-center gap-3">
@@ -521,7 +587,14 @@ function ProfilesTab() {
       {profiles.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {profiles.map(p => (
-            <XhsProfileCard key={p.id} profile={p} onScrape={handleRescrape} />
+            <XhsProfileCard
+              key={p.id}
+              profile={p}
+              onScrape={isAdmin ? () => scrapeMutation.mutate(p.user_id) : undefined}
+              onToggleBookmark={() => toggleMutation.mutate({ id: p.id, field: 'is_bookmarked', currentValue: p.is_bookmarked })}
+              onToggleTracked={() => toggleMutation.mutate({ id: p.id, field: 'is_tracked', currentValue: p.is_tracked })}
+              onViewDetail={() => router.push(`/dashboard/externalChannels/xiaohongshu/${p.id}`)}
+            />
           ))}
         </div>
       )}

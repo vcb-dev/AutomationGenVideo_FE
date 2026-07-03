@@ -174,7 +174,7 @@ export function useNavMenus(
                         items: [
                             {
                                 label: "Kênh của tôi",
-                                href: "/dashboard/channels/my",
+                                href: "/dashboard/channelsTeams/my",
                                 icon: Radio,
                                 description: "Danh sách kênh MXH của bạn",
                             },
@@ -182,7 +182,7 @@ export function useNavMenus(
                                 ? [
                                     {
                                         label: "Quản lý kênh nhóm",
-                                        href: "/dashboard/channels",
+                                        href: "/dashboard/channelsTeams",
                                         icon: BookOpen,
                                         description: "Danh sách kênh MXH của toàn team",
                                     },

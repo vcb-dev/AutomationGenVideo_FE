@@ -18,7 +18,8 @@ type Tab = 'videos' | 'profiles';
 const PAGE_SIZE_PROFILES = 12;
 
 export default function TiktokExternalPage() {
-  const { token } = useAuthStore();
+  const { token, user } = useAuthStore();
+  const isAdmin = user?.roles?.includes('ADMIN') ?? false;
   const queryClient = useQueryClient();
   const router = useRouter();
   const { addNotification, updateNotification } = useScrapingStore();
@@ -439,34 +440,36 @@ export default function TiktokExternalPage() {
       {/* ─── Profiles Tab ─────────────────────────────────── */}
       {activeTab === 'profiles' && (
         <>
-          {/* Input profile username */}
-          <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="relative flex-1 max-w-xl">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium select-none">@</span>
-                <input
-                  type="text"
-                  value={profileUsername}
-                  onChange={e => setProfileUsername(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && profileUsername.trim()) profileScrapeMutation.mutate(profileUsername.trim()); }}
-                  placeholder="username (vd: mixigaming)"
-                  className="w-full pl-8 pr-3 py-2.5 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                />
+          {/* Input profile username — admin only */}
+          {isAdmin && (
+            <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="relative flex-1 max-w-xl">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium select-none">@</span>
+                  <input
+                    type="text"
+                    value={profileUsername}
+                    onChange={e => setProfileUsername(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && profileUsername.trim()) profileScrapeMutation.mutate(profileUsername.trim()); }}
+                    placeholder="username (vd: mixigaming)"
+                    className="w-full pl-8 pr-3 py-2.5 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  />
+                </div>
+                <button
+                  onClick={() => profileScrapeMutation.mutate(profileUsername.trim())}
+                  disabled={profileScrapeMutation.isPending || !profileUsername.trim()}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground text-sm font-bold rounded-md hover:opacity-90 disabled:opacity-50 whitespace-nowrap shadow-sm hover:shadow-md transition-all"
+                >
+                  {profileScrapeMutation.isPending ? (
+                    <CircleNotch size={16} weight="bold" className="animate-spin" />
+                  ) : (
+                    <MagnifyingGlassPlus size={16} weight="bold" />
+                  )}
+                  {profileScrapeMutation.isPending ? 'Đang gửi...' : 'Cào Profile'}
+                </button>
               </div>
-              <button
-                onClick={() => profileScrapeMutation.mutate(profileUsername.trim())}
-                disabled={profileScrapeMutation.isPending || !profileUsername.trim()}
-                className="flex items-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground text-sm font-bold rounded-md hover:opacity-90 disabled:opacity-50 whitespace-nowrap shadow-sm hover:shadow-md transition-all"
-              >
-                {profileScrapeMutation.isPending ? (
-                  <CircleNotch size={16} weight="bold" className="animate-spin" />
-                ) : (
-                  <MagnifyingGlassPlus size={16} weight="bold" />
-                )}
-                {profileScrapeMutation.isPending ? 'Đang gửi...' : 'Cào Profile'}
-              </button>
             </div>
-          </div>
+          )}
 
           {/* Filter bar */}
           <div className="flex flex-wrap items-center gap-3 border border-border rounded-xl p-4">
@@ -515,7 +518,7 @@ export default function TiktokExternalPage() {
                 <TikTokProfileCard
                   key={p.id}
                   profile={p}
-                  onScrape={() => profileRescrape.mutate({ id: p.id, url: p.url, label: p.nickname || p.username })}
+                  onScrape={isAdmin ? () => profileRescrape.mutate({ id: p.id, url: p.url, label: p.nickname || p.username }) : undefined}
                   onToggleBookmark={() => profileToggleMutation.mutate({ id: p.id, field: 'is_bookmarked' })}
                   onToggleTracked={() => profileToggleMutation.mutate({ id: p.id, field: 'is_tracked' })}
                   onViewDetail={() => router.push(`/dashboard/externalChannels/tiktok/${p.id}`)}

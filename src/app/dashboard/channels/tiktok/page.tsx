@@ -113,9 +113,20 @@ export default function TikTokChannelsPage() {
   const profileKey = profiles.map(p => p.id).join(',');
   useEffect(() => {
     if (!profiles.length) return;
-    const identifiers = profiles.flatMap(p => [p.url, p.profile_id].filter(Boolean));
+    const identifiers = profiles.flatMap(p => [
+      p.profile_id,
+      p.url,
+      `https://www.tiktok.com/@${p.username}`,
+      `https://tiktok.com/@${p.username}`,
+    ].filter(Boolean));
     channelsService.scraperLookup(identifiers).then(setChannelInfoMap);
   }, [profileKey]);
+
+  const getTikTokChannelInfo = (p: { profile_id: string; url: string; username: string }): ChannelInfo => {
+    const keys = [p.profile_id, p.url, `https://www.tiktok.com/@${p.username}`, `https://tiktok.com/@${p.username}`];
+    for (const k of keys) if (channelInfoMap[k]) return channelInfoMap[k];
+    return { team_name: null, owner_name: null };
+  };
 
   const handleScrapeSuccess = (data: { message: string; is_scraping?: boolean; already_exists?: boolean; newly_scraped?: boolean; profile_id: number }, label?: string) => {
     if (data.already_exists) {
@@ -278,7 +289,7 @@ export default function TikTokChannelsPage() {
             <TikTokProfileCard
               key={p.id}
               profile={p}
-              channelInfo={channelInfoMap[p.profile_id] ?? channelInfoMap[p.url] ?? { team_name: null, owner_name: null }}
+              channelInfo={getTikTokChannelInfo(p)}
               onScrape={() => rescrape.mutate({ id: p.id, url: p.url, label: p.nickname || p.username })}
               onToggleBookmark={() => toggleMutation.mutate({ id: p.id, field: 'is_bookmarked' })}
               onToggleTracked={() => toggleMutation.mutate({ id: p.id, field: 'is_tracked' })}

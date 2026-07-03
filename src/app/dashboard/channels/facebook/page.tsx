@@ -309,9 +309,31 @@ export default function FacebookChannelsPage() {
   const pagesKey = pages.map(p => p.page_id).join(',');
   useEffect(() => {
     if (!pages.length) return;
-    const identifiers = pages.flatMap(p => [p.page_id, p.username].filter(Boolean) as string[]);
+    const identifiers = pages.flatMap(p => [
+      p.page_id,
+      p.username,
+      `https://www.facebook.com/${p.page_id}`,
+      `https://facebook.com/${p.page_id}`,
+      p.username ? `https://www.facebook.com/${p.username}` : null,
+      p.username ? `https://facebook.com/${p.username}` : null,
+      p.username ? `https://fb.com/${p.username}` : null,
+    ].filter(Boolean) as string[]);
     channelsService.scraperLookup(identifiers).then(setChannelInfoMap);
   }, [pagesKey]);
+
+  const getFbChannelInfo = (p: FacebookPage): ChannelInfo => {
+    const keys = [
+      p.page_id,
+      p.username,
+      `https://www.facebook.com/${p.page_id}`,
+      `https://facebook.com/${p.page_id}`,
+      p.username ? `https://www.facebook.com/${p.username}` : null,
+      p.username ? `https://facebook.com/${p.username}` : null,
+      p.username ? `https://fb.com/${p.username}` : null,
+    ].filter(Boolean) as string[];
+    for (const k of keys) if (channelInfoMap[k]) return channelInfoMap[k];
+    return { team_name: null, owner_name: null };
+  };
 
   // ── Videos state ─────────────────────────────────────────
   const [videoSearch, setVideoSearch] = useState('');
@@ -438,7 +460,7 @@ export default function FacebookChannelsPage() {
                   <FacebookPageCard
                     key={p.page_id}
                     page={p}
-                    channelInfo={channelInfoMap[p.page_id] ?? (p.username ? channelInfoMap[p.username] : undefined) ?? { team_name: null, owner_name: null }}
+                    channelInfo={getFbChannelInfo(p)}
                     onViewVideos={() => router.push(`/dashboard/channels/facebook/${p.page_id}/videos`)}
                     onScrape={() => handleScrape(p)}
                     onBackfill={() => handleBackfill(p)}

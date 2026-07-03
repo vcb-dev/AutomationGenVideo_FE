@@ -13,7 +13,7 @@ function formatNum(n: number): string {
 interface Props {
   profile: TikTokProfile;
   channelInfo?: ChannelInfo;
-  onScrape: () => void;
+  onScrape?: () => void;
   onToggleBookmark: () => void;
   onToggleTracked: () => void;
   onViewDetail: () => void;
@@ -117,27 +117,29 @@ export default function TikTokProfileCard({ profile: p, channelInfo, onScrape, o
 
       {/* Action bar */}
       <div className="flex items-center border-t border-border bg-slate-50/50 dark:bg-slate-800/30" onClick={e => e.stopPropagation()}>
-        <button
-          onClick={onScrape}
-          disabled={isProcessing}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold transition-colors border-r border-border disabled:opacity-40 ${
-            isProcessing
-              ? 'text-amber-600 bg-amber-50/50 dark:bg-amber-900/10'
-              : p.is_initial_scraped
-                ? 'text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20'
-                : 'text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'
-          }`}
-        >
-          {isProcessing ? (
-            <CircleNotch size={13} weight="bold" className="animate-spin" />
-          ) : (
-            <ArrowsClockwise size={13} weight="bold" />
-          )}
-          {isProcessing ? 'Đang cào...' : p.is_initial_scraped ? 'Cập nhật' : 'Cào lượt đầu'}
-        </button>
+        {onScrape && (
+          <button
+            onClick={onScrape}
+            disabled={isProcessing}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold transition-colors border-r border-border disabled:opacity-40 ${
+              isProcessing
+                ? 'text-amber-600 bg-amber-50/50 dark:bg-amber-900/10'
+                : p.is_initial_scraped
+                  ? 'text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                  : 'text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'
+            }`}
+          >
+            {isProcessing ? (
+              <CircleNotch size={13} weight="bold" className="animate-spin" />
+            ) : (
+              <ArrowsClockwise size={13} weight="bold" />
+            )}
+            {isProcessing ? 'Đang cào...' : p.is_initial_scraped ? 'Cập nhật' : 'Cào lượt đầu'}
+          </button>
+        )}
         <button
           onClick={onToggleBookmark}
-          className={`flex items-center gap-1 px-3 py-2.5 text-xs transition-colors border-r border-border ${
+          className={`flex items-center justify-center gap-1 py-2.5 text-xs transition-colors border-r border-border ${onScrape ? 'px-3' : 'flex-1'} ${
             p.is_bookmarked
               ? 'text-amber-500 bg-amber-50/50 dark:bg-amber-900/10'
               : 'text-slate-400 hover:text-amber-500 hover:bg-amber-50/50'
@@ -148,7 +150,7 @@ export default function TikTokProfileCard({ profile: p, channelInfo, onScrape, o
         </button>
         <button
           onClick={onToggleTracked}
-          className={`flex items-center gap-1 px-3 py-2.5 text-xs transition-colors ${
+          className={`flex items-center justify-center gap-1 py-2.5 text-xs transition-colors ${onScrape ? 'px-3' : 'flex-1'} ${
             p.is_tracked
               ? 'text-emerald-500 bg-emerald-50/50 dark:bg-emerald-900/10'
               : 'text-slate-400 hover:text-emerald-500 hover:bg-emerald-50/50'
