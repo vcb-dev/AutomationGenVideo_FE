@@ -223,12 +223,22 @@ function buildPrompt(p: ScriptParams): string {
   if (p.productMarket)       lines.push(`Thị trường sản phẩm: ${p.productMarket}`)
 
   // ── Thị trường mục tiêu & bản dịch ──
+  // Market Việt Nam thì content đã là tiếng Việt sẵn → không cần (và không được) sinh thêm bản dịch tiếng Việt
+  // market có thể là multi-select dạng "VIETNAM,INDONESIA" → chỉ coi là "market VN" khi TẤT CẢ đều là Việt Nam
+  const isVietnamMarket = !!targetMarket
+    && targetMarket.split(',').map(m => m.trim().toUpperCase()).filter(Boolean)
+      .every(m => m === 'VIETNAM' || m === 'VN')
+  const needsTranslation = !!targetMarket && !isVietnamMarket
   if (targetMarket) {
     lines.push('')
     lines.push('═══ THỊ TRƯỜNG MỤC TIÊU & NGÔN NGỮ ═══')
     lines.push(`Thị trường: ${targetMarket}`)
     lines.push('Hãy điều chỉnh content (ví dụ: đơn vị tiền tệ, cách xưng hô, ví dụ văn hóa, mức độ trang trọng...) cho phù hợp với người tiêu dùng ở thị trường này, dựa trên nền content gốc đã test win — vẫn giữ nguyên cấu trúc và tinh thần bản gốc, chỉ bản địa hóa chi tiết cần thiết.')
-    lines.push('Sau đó BẮT BUỘC dịch toàn bộ content (và hashtags) sang ngôn ngữ chính thức/phổ biến được dùng trên mạng xã hội tại thị trường đó (nếu thị trường là Việt Nam thì không cần bản dịch riêng).')
+    if (needsTranslation) {
+      lines.push('Sau đó BẮT BUỘC dịch toàn bộ content (và hashtags) sang ngôn ngữ chính thức/phổ biến được dùng trên mạng xã hội tại thị trường đó.')
+    } else {
+      lines.push('Thị trường mục tiêu là Việt Nam nên content ở trên ĐÃ LÀ tiếng Việt — KHÔNG được sinh thêm bản dịch nào, trường "translation" trong JSON output phải để là null.')
+    }
   }
 
   // ── Yêu cầu output ──
@@ -269,7 +279,7 @@ function buildPrompt(p: ScriptParams): string {
   lines.push(`{
   "content": "toàn bộ nội dung/lời văn hoàn chỉnh bằng tiếng Việt, viết liền mạch (có thể xuống dòng để phân đoạn ý), KHÔNG chia cảnh, KHÔNG mô tả góc máy/hành động quay",
   "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"],
-  "translation": ${targetMarket
+  "translation": ${needsTranslation
     ? `{
     "language": "tên ngôn ngữ/thị trường đã dịch sang, ví dụ 'Tiếng Anh (Mỹ)', 'Tiếng Thái', 'Bahasa Indonesia'",
     "content": "bản dịch đầy đủ của content sang ngôn ngữ đó, đã bản địa hóa phù hợp văn hóa/thị trường",
