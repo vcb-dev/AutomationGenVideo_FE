@@ -1,20 +1,13 @@
 'use client';
 
 import Image from "next/image";
-import { useState, useEffect, useRef } from 'react';
-import { Search, Plus, TrendingUp, Eye, Heart, Users, ArrowRight, X, Loader, Loader2, Video, RotateCcw, DownloadCloud } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, Plus, TrendingUp, Eye, Heart, Users, ArrowRight, X, Loader, Loader2, Video, RotateCcw } from 'lucide-react';
 import { ChannelCardSkeletonGrid } from '@/components/channels/ChannelCardSkeleton';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import apiClient from '@/lib/api-client';
 import toast from 'react-hot-toast';
-import { syncFromLarkAssignmentIfStale } from '@/lib/sync-lark-tracked-channels';
-import {
-  subscribeGlobalHrSync,
-  runGlobalHrSync,
-  isGlobalHrSyncBusy,
-  waitUntilGlobalHrIdle,
-} from '@/lib/global-hr-sync';
 import { enrichTrackedChannelApify, enrichStaleChannelsIfNeeded } from '@/lib/enrich-tracked-channel-apify';
 import ChannelsPlatformSwitcher from '@/components/channels/ChannelsPlatformSwitcher';
 
@@ -46,13 +39,7 @@ export default function TrackedChannelsPage() {
   const [refreshingIds, setRefreshingIds] = useState<Set<string>>(new Set());
   const [searchChannelQuery, setSearchChannelQuery] = useState('');
   const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
-  const [hrSyncing, setHrSyncing] = useState(false);
   const [listLoading, setListLoading] = useState(true);
-  const [longSyncHint, setLongSyncHint] = useState(false);
-  const [globalHrBusy, setGlobalHrBusy] = useState(false);
-  // Track only channels that were NEWLY imported in this session — only these show Apify loading spinner
-  const [newlyImportedUsernames, setNewlyImportedUsernames] = useState<Set<string>>(new Set());
-  const bgRefreshRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadPlatformChannels = async (): Promise<ChannelProfile[]> => {
     try {
       const response = await apiClient.get(`/tracked-channels?platform=${platform.toUpperCase()}`);
@@ -63,85 +50,22 @@ export default function TrackedChannelsPage() {
   };
 
   useEffect(() => {
-    return subscribeGlobalHrSync((busy) => {
-      setGlobalHrBusy(busy);
-      if (!busy) {
-        loadPlatformChannels().then(setChannels);
-      }
-    });
-  }, [platform]);
-
-  useEffect(() => {
     let cancelled = false;
     (async () => {
       setListLoading(true);
       try {
-        if (isGlobalHrSyncBusy()) {
-          setLongSyncHint(true);
-          await waitUntilGlobalHrIdle();
-          if (cancelled) return;
-          setChannels(await loadPlatformChannels());
-          setLongSyncHint(false);
-          return;
-        }
-
-        // BƯỚC 1: Hiện data cũ ngay lập tức
         const existingList = await loadPlatformChannels();
         if (cancelled) return;
         setChannels(existingList);
         setListLoading(false); // Xong — bỏ spinner toàn trang
 
-        // BƯỚC 2: Sync Lark nền (chỉ khi cooldown cho phép)
-        const r = await syncFromLarkAssignmentIfStale();
-        if (cancelled) return;
-
-        if (r && r.imported > 0) {
-          const updatedList = await loadPlatformChannels();
-          if (cancelled) return;
-
-          const existingUsernames = new Set(existingList.map((c) => c.username));
-          const newUsernames = new Set(
-            updatedList
-              .filter((c) => !existingUsernames.has(c.username))
-              .map((c) => c.username)
-          );
-
-          setChannels(updatedList);
-          if (newUsernames.size > 0) {
-            setNewlyImportedUsernames(newUsernames);
-            toast.success(`Đã thêm ${r.imported} kênh từ HR (Lark) — đang lấy số liệu...`, { duration: 5000 });
-
-            let tries = 0;
-            const pollNewChannels = async () => {
-              if (cancelled || tries >= 20) {
-                setNewlyImportedUsernames(new Set());
-                return;
-              }
-              tries++;
-              await new Promise((res) => setTimeout(res, 15000));
-              if (cancelled) return;
-              const latest = await loadPlatformChannels();
-              if (!cancelled) setChannels(latest);
-              const stillPending = latest.filter(
-                (c) => newUsernames.has(c.username) && !c.total_followers && !c.total_likes && !c.total_videos
-              );
-              if (!cancelled && stillPending.length > 0) {
-                bgRefreshRef.current = setTimeout(pollNewChannels, 0);
-              } else {
-                setNewlyImportedUsernames(new Set());
-              }
-            };
-            pollNewChannels();
-          }
-        } else {
-          // Auto-enrich các kênh cũ chưa có data (cooldown 30 phút)
-          const staleResult = await enrichStaleChannelsIfNeeded();
-          if (!cancelled && staleResult && staleResult.enriched > 0) {
-            const fresh = await loadPlatformChannels();
-            if (!cancelled) {
-              setChannels(fresh);
-              toast.success(`Đã cập nhật số liệu ${staleResult.enriched} kênh`, { duration: 3000 });
-            }
+        // Auto-enrich các kênh cũ chưa có data (cooldown 30 phút)
+        const staleResult = await enrichStaleChannelsIfNeeded();
+        if (!cancelled && staleResult && staleResult.enriched > 0) {
+          const fresh = await loadPlatformChannels();
+          if (!cancelled) {
+            setChannels(fresh);
+            toast.success(`Đã cập nhật số liệu ${staleResult.enriched} kênh`, { duration: 3000 });
           }
         }
       } catch {
@@ -152,7 +76,6 @@ export default function TrackedChannelsPage() {
     })();
     return () => {
       cancelled = true;
-      if (bgRefreshRef.current) clearTimeout(bgRefreshRef.current);
     };
   }, [platform]);
 
@@ -404,35 +327,6 @@ export default function TrackedChannelsPage() {
 
             <div className="flex flex-wrap items-center gap-2">
               <button
-                type="button"
-                disabled={hrSyncing || listLoading || globalHrBusy}
-                onClick={async () => {
-                  setHrSyncing(true);
-                  setLongSyncHint(true);
-                  try {
-                    const prio = platform.toUpperCase();
-                    const r = await runGlobalHrSync(prio, loadPlatformChannels);
-                    setChannels(await loadPlatformChannels());
-                    if (r.imported > 0) {
-                      toast.success(
-                        `Đồng bộ ${r.imported} kênh (ưu tiên ${platformName}) — Apify đã cập nhật`,
-                        { duration: 5000 },
-                      );
-                    } else toast.success('Đã kiểm tra — không có kênh mới từ HR');
-                  } catch (e: any) {
-                    toast.error(e?.message || 'Đồng bộ HR thất bại');
-                  } finally {
-                    setLongSyncHint(false);
-                    setHrSyncing(false);
-                  }
-                }}
-                className="flex items-center gap-2 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold transition-all shadow-md disabled:opacity-60"
-                title="Kênh được phân công trên Lark"
-              >
-                {hrSyncing ? <Loader className="w-5 h-5 animate-spin" /> : <DownloadCloud className="w-5 h-5" />}
-                Đồng bộ HR
-              </button>
-              <button
                 onClick={() => setShowAddModal(true)}
                 className="flex items-center gap-2 px-5 py-3 bg-black hover:bg-slate-800 text-white rounded-lg font-semibold transition-all shadow-lg"
               >
@@ -535,7 +429,7 @@ export default function TrackedChannelsPage() {
 
                 {/* Stats Wrapper — hiển thị spinner khi mới import, đang refresh, hoặc chưa có số liệu */}
                 <div className="relative mt-auto flex-1 flex flex-col justify-end min-h-[100px] mb-5">
-                  {(newlyImportedUsernames.has(channel.username) || refreshingIds.has(channel.username) || (!channel.total_followers && !channel.total_likes && !channel.total_videos)) && (
+                  {(refreshingIds.has(channel.username) || (!channel.total_followers && !channel.total_likes && !channel.total_videos)) && (
                     <div className="absolute inset-[-8px] bg-white/60 backdrop-blur-[2px] z-10 rounded-2xl flex flex-col items-center justify-center border border-slate-100/50">
                       <Loader2 className="w-6 h-6 text-indigo-500 animate-spin mb-1.5" />
                       <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest bg-white/90 px-3 py-1 rounded-full shadow-sm border border-indigo-200">Đang lấy số liệu...</span>

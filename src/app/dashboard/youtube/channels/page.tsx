@@ -1,20 +1,13 @@
 'use client';
 
 import Image from 'next/image';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Plus, TrendingUp, Eye, Heart, Users, ArrowRight, X, Loader2, Video, RotateCcw } from 'lucide-react';
 import { ChannelCardSkeletonGrid } from '@/components/channels/ChannelCardSkeleton';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import apiClient from '@/lib/api-client';
 import toast from 'react-hot-toast';
-import { syncFromLarkAssignmentIfStale } from '@/lib/sync-lark-tracked-channels';
-import {
-    subscribeGlobalHrSync,
-    runGlobalHrSync,
-    isGlobalHrSyncBusy,
-    waitUntilGlobalHrIdle,
-} from '@/lib/global-hr-sync';
 import { enrichTrackedChannelApify, enrichStaleChannelsIfNeeded } from '@/lib/enrich-tracked-channel-apify';
 import ChannelsPlatformSwitcher from '@/components/channels/ChannelsPlatformSwitcher';
 
@@ -46,12 +39,7 @@ export default function YoutubeChannelsPage() {
     const [loading, setLoading] = useState(false);
     const [refreshingIds, setRefreshingIds] = useState<Set<string>>(new Set());
     const [searchChannelQuery, setSearchChannelQuery] = useState('');
-    const [hrSyncing, setHrSyncing] = useState(false);
     const [listLoading, setListLoading] = useState(true);
-    const [longSyncHint, setLongSyncHint] = useState(false);
-    const [globalHrBusy, setGlobalHrBusy] = useState(false);
-    const [newlyImportedUsernames, setNewlyImportedUsernames] = useState<Set<string>>(new Set());
-    const bgRefreshRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const loadYoutubeChannels = async (): Promise<ChannelProfile[]> => {
         try {
             const response = await apiClient.get(`/tracked-channels?platform=YOUTUBE`);
@@ -62,65 +50,19 @@ export default function YoutubeChannelsPage() {
     };
 
     useEffect(() => {
-        return subscribeGlobalHrSync((busy) => {
-            setGlobalHrBusy(busy);
-            if (!busy) {
-                loadYoutubeChannels().then(setChannels);
-            }
-        });
-    }, []);
-
-    useEffect(() => {
         let cancelled = false;
         (async () => {
             setListLoading(true);
             try {
-                if (isGlobalHrSyncBusy()) {
-                    setLongSyncHint(true);
-                    await waitUntilGlobalHrIdle();
-                    if (cancelled) return;
-                    setChannels(await loadYoutubeChannels());
-                    setLongSyncHint(false);
-                    return;
-                }
-                const r = await syncFromLarkAssignmentIfStale();
-                if (cancelled) return;
                 const list = await loadYoutubeChannels();
                 if (cancelled) return;
                 setChannels(list);
-                if (!cancelled && r && r.imported > 0) {
-                    toast.success(`Đã thêm ${r.imported} kênh từ HR (Lark)`, { duration: 4000 });
-
-                    const existingUsernames = new Set(list.map((c) => c.username));
-                    const newUsernames = new Set(
-                        list.filter((c) => !existingUsernames.has(c.username)).map((c) => c.username)
-                    );
-                    if (newUsernames.size > 0) {
-                        setNewlyImportedUsernames(newUsernames);
-                        let tries = 0;
-                        const pollNew = async () => {
-                            if (cancelled || tries >= 20) { setNewlyImportedUsernames(new Set()); return; }
-                            tries++;
-                            await new Promise((res) => setTimeout(res, 15000));
-                            if (cancelled) return;
-                            const updated = await loadYoutubeChannels();
-                            if (!cancelled) setChannels(updated);
-                            const stillPending = updated.filter(
-                                (c) => newUsernames.has(c.username) && !c.total_followers && !c.total_likes
-                            );
-                            if (!cancelled && stillPending.length > 0) bgRefreshRef.current = setTimeout(pollNew, 0);
-                            else setNewlyImportedUsernames(new Set());
-                        };
-                        pollNew();
-                    }
-                } else {
-                    const staleResult = await enrichStaleChannelsIfNeeded();
-                    if (!cancelled && staleResult && staleResult.enriched > 0) {
-                        const fresh = await loadYoutubeChannels();
-                        if (!cancelled) {
-                            setChannels(fresh);
-                            toast.success(`Đã cập nhật số liệu ${staleResult.enriched} kênh`, { duration: 3000 });
-                        }
+                const staleResult = await enrichStaleChannelsIfNeeded();
+                if (!cancelled && staleResult && staleResult.enriched > 0) {
+                    const fresh = await loadYoutubeChannels();
+                    if (!cancelled) {
+                        setChannels(fresh);
+                        toast.success(`Đã cập nhật số liệu ${staleResult.enriched} kênh`, { duration: 3000 });
                     }
                 }
             } catch {
@@ -131,7 +73,6 @@ export default function YoutubeChannelsPage() {
         })();
         return () => {
             cancelled = true;
-            if (bgRefreshRef.current) clearTimeout(bgRefreshRef.current);
         };
     }, []);
 
@@ -251,21 +192,6 @@ export default function YoutubeChannelsPage() {
         }
     };
 
-    const handleSyncHR = async () => {
-        if (hrSyncing) return;
-        setHrSyncing(true);
-        try {
-            await runGlobalHrSync('YOUTUBE', loadYoutubeChannels as any);
-            const list = await loadYoutubeChannels();
-            setChannels(list);
-            toast.success('Đã đồng bộ dữ liệu HR');
-        } catch {
-            toast.error('Đồng bộ HR thất bại');
-        } finally {
-            setHrSyncing(false);
-        }
-    };
-
     const formatNumber = (num: number) => {
         if (num >= 1_000_000) return (num / 1_000_000).toFixed(2) + 'M';
         if (num >= 1_000) return (num / 1_000).toFixed(1) + 'K';
@@ -282,9 +208,6 @@ export default function YoutubeChannelsPage() {
             c.username.toLowerCase().includes(searchChannelQuery.toLowerCase()) ||
             (c.display_name && c.display_name.toLowerCase().includes(searchChannelQuery.toLowerCase()))
     );
-
-    const isAwaitingStats = (c: ChannelProfile) =>
-        newlyImportedUsernames.has(c.username) && !c.total_followers && !c.total_likes;
 
     return (
         <div className="min-h-screen bg-slate-50 pb-20">
@@ -306,18 +229,6 @@ export default function YoutubeChannelsPage() {
                             </div>
                         </div>
                         <div className="flex items-center gap-3">
-                            <button
-                                onClick={handleSyncHR}
-                                disabled={hrSyncing || globalHrBusy}
-                                className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition disabled:opacity-50"
-                            >
-                                {hrSyncing || globalHrBusy ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                    <RotateCcw className="w-4 h-4" />
-                                )}
-                                Đồng bộ HR
-                            </button>
                             <button
                                 onClick={() => setShowAddModal(true)}
                                 className="flex items-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-black transition shadow-sm"
@@ -345,12 +256,6 @@ export default function YoutubeChannelsPage() {
                         />
                     </div>
 
-                    {longSyncHint && (
-                        <p className="mt-3 text-xs text-amber-600 flex items-center gap-1">
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            Đang đồng bộ HR, vui lòng chờ...
-                        </p>
-                    )}
                 </div>
             </div>
 
@@ -389,22 +294,16 @@ export default function YoutubeChannelsPage() {
                                         {/* Avatar + Name */}
                                         <div className="flex items-center gap-3 mb-4">
                                             <div className="relative w-12 h-12 rounded-xl overflow-hidden bg-slate-100 flex-shrink-0">
-                                                {isAwaitingStats(channel) ? (
-                                                    <div className="w-full h-full flex items-center justify-center">
-                                                        <Loader2 className="w-5 h-5 animate-spin text-red-400" />
-                                                    </div>
-                                                ) : (
-                                                    <Image
-                                                        src={getAvatarUrl(channel)}
-                                                        alt={channel.display_name || channel.username}
-                                                        fill
-                                                        className="object-cover"
-                                                        unoptimized
-                                                        onError={(e) => {
-                                                            (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(channel.display_name || channel.username)}&background=FF0000&color=fff`;
-                                                        }}
-                                                    />
-                                                )}
+                                                <Image
+                                                    src={getAvatarUrl(channel)}
+                                                    alt={channel.display_name || channel.username}
+                                                    fill
+                                                    className="object-cover"
+                                                    unoptimized
+                                                    onError={(e) => {
+                                                        (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(channel.display_name || channel.username)}&background=FF0000&color=fff`;
+                                                    }}
+                                                />
                                             </div>
                                             <div className="min-w-0">
                                                 <p className="font-bold text-slate-900 truncate text-sm">
@@ -416,7 +315,7 @@ export default function YoutubeChannelsPage() {
 
                                         {/* Stats */}
                                         <div className="relative mb-4">
-                                            {(isAwaitingStats(channel) || refreshingIds.has(channel.username) || (!channel.total_followers && !channel.total_likes && !channel.total_videos)) && (
+                                            {(refreshingIds.has(channel.username) || (!channel.total_followers && !channel.total_likes && !channel.total_videos)) && (
                                                 <div className="absolute inset-0 bg-white/70 backdrop-blur-[2px] z-10 rounded-xl flex flex-col items-center justify-center">
                                                     <Loader2 className="w-5 h-5 text-red-500 animate-spin mb-1" />
                                                     <span className="text-[10px] font-bold text-red-700 uppercase tracking-widest bg-white/90 px-2 py-0.5 rounded-full border border-red-100">Đang lấy số liệu...</span>
