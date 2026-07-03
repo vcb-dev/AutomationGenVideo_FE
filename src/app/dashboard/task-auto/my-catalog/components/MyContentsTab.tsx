@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {
@@ -16,6 +16,7 @@ import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
 import {
   parseMarkets, MarketPicker, VoicePicker,
 } from '@/components/task-auto/ContentFormModal'
+import type { VoicePickerHandle } from '@/components/task-auto/ContentFormModal'
 import { DarkInput, DarkTextarea } from '@/components/task-auto/DarkInput'
 import {
   getContents, getTeamContents,
@@ -349,16 +350,17 @@ function PersonalContentModal({
     content_line_id: editing?.content_line_id ?? '',
   })
   const [market, setMarket] = useState<string>(editing?.market ?? defaultMarket)
+  const voicePickerRef = useRef<VoicePickerHandle>(null)
 
   const { data: contentLines } = useQuery({ queryKey: ['task-auto', 'content-lines'], queryFn: getContentLines })
 
   const createMut = useMutation({
-    mutationFn: () => createEditorContent(userId, {
+    mutationFn: async () => createEditorContent(userId, {
       title: form.title,
       body: form.body,
       script: form.script,
       file_content_url: form.file_content_url,
-      voice_url: form.voice_url,
+      voice_url: await voicePickerRef.current!.resolvePending(form.voice_url ?? ''),
       content_line_id: form.content_line_id || null,
       brand_type: brandType,
       market: market as any,
@@ -372,12 +374,12 @@ function PersonalContentModal({
   })
 
   const updateMut = useMutation({
-    mutationFn: () => updateEditorContent(userId, editing!.id, {
+    mutationFn: async () => updateEditorContent(userId, editing!.id, {
       title: form.title,
       body: form.body,
       script: form.script,
       file_content_url: form.file_content_url,
-      voice_url: form.voice_url,
+      voice_url: await voicePickerRef.current!.resolvePending(form.voice_url ?? ''),
       content_line_id: form.content_line_id || null,
       market: market as any,
     } as any),
@@ -456,7 +458,7 @@ function PersonalContentModal({
           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
             File đính kèm
           </p>
-          <VoicePicker value={form.voice_url ?? ''} onChange={url => setForm(f => ({ ...f, voice_url: url }))} />
+          <VoicePicker ref={voicePickerRef} value={form.voice_url ?? ''} onChange={url => setForm(f => ({ ...f, voice_url: url }))} />
         </div>
       </div>
     </DarkModal>

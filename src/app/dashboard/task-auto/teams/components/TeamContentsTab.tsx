@@ -397,6 +397,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
         open={showCreate || !!editingContent}
         editing={editingContent as unknown as Content}
         userId={userId}
+        teamId={selectedTeamId}
         brandType={brandType}
         initialMarket={teamMarket}
         onClose={() => { setShowCreate(false); setEditingContent(null) }}
