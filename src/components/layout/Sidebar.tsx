@@ -124,7 +124,7 @@ function SidebarContent({
     const path = pathname?.toLowerCase() || '';
     if (path === '/dashboard/manager') {
       return 'dashboard-general';
-    } else if (path.startsWith('/dashboard/manager/user-activity') || path.startsWith('/dashboard/editor-management') || path.startsWith('/dashboard/hieu-suat')) {
+    } else if (path.startsWith('/dashboard/manager/user-activity') || path.startsWith('/dashboard/hieu-suat')) {
       return 'user-management';
     } else if (
       pathname.startsWith('/dashboard/facebook') ||

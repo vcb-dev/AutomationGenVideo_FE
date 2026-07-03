@@ -47,7 +47,6 @@ export function useNavMenus(
                 label: "VCB Portal",
                 activePathPrefixes: [
                     "/dashboard/manager",
-                    "/dashboard/editor-management",
                     "/dashboard/hr-management",
                     "/dashboard/hieu-suat",
                     "/dashboard/admin",
@@ -201,12 +200,6 @@ export function useNavMenus(
                                 section: "QUẢN LÝ",
                                 color: "slate" as const,
                                 items: [
-                                    {
-                                        label: "Quản lý Editors",
-                                        href: "/dashboard/editor-management",
-                                        icon: Users,
-                                        description: "Quản lý danh sách Editor trong hệ thống",
-                                    },
                                     {
                                         label: "Quản lý nhân sự",
                                         href: "/dashboard/hr-management",
