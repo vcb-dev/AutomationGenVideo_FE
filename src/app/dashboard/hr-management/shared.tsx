@@ -16,7 +16,6 @@ export interface TeamMember {
   /** Có thể nhiều team, phân cách dấu phẩy (vd "Team A,Team B") — 1 người có thể ở nhiều team. */
   team: string | null;
   manager_id: string | null;
-  team_leader_id: string | null;
   is_active: boolean;
   image_url: string | null;
   employee_id: string | null;

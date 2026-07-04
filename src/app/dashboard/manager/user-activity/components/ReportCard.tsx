@@ -10,9 +10,7 @@ interface TrafficToday {
     tiktok: number;
     yt: number;
     thread: number;
-    lemon8: number;
     zalo: number;
-    twitter: number;
     total: number;
     details?: {
         id: string;

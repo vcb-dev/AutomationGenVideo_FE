@@ -69,7 +69,7 @@ function AllocationSection({
       )}
 
       <div className="border border-gray-200 rounded-xl overflow-hidden">
-        <div className="grid grid-cols-[28px_1fr_80px] bg-gray-50 border-b border-gray-100 px-2 py-2">
+        <div className="grid grid-cols-[28px_1fr_120px] bg-gray-50 border-b border-gray-100 px-2 py-2">
           <span className="text-[10px] font-bold text-slate-400 uppercase text-center">#</span>
           <span className="text-[10px] font-bold text-slate-400 uppercase px-2">Tên</span>
           <span className="text-[10px] font-bold text-slate-400 uppercase text-right pr-2">{unit === 'percent' ? '%' : 'SL'}</span>
@@ -82,17 +82,17 @@ function AllocationSection({
         ) : (
           <div className="divide-y divide-gray-100">
             {lines.map((l, i) => (
-              <div key={l.id} className="grid grid-cols-[28px_1fr_80px] items-center px-2 py-1.5 hover:bg-gray-50 transition-colors">
+              <div key={l.id} className="grid grid-cols-[28px_1fr_120px] items-center px-2 py-1.5 hover:bg-gray-50 transition-colors">
                 <span className="text-xs text-slate-400 text-center font-mono select-none">{i + 1}</span>
                 <span className="px-2 text-sm text-slate-700 truncate">{l.name}</span>
-                <div className="flex items-center gap-0.5 pr-1">
+                <div className="flex items-center gap-1 pr-1">
                   <input
                     type="number"
                     value={draftsByLineId[l.id] || ''}
                     onChange={e => onUpdate(l.id, Number(e.target.value))}
                     placeholder="0"
                     min={0} max={unit === 'percent' ? 100 : undefined}
-                    className="w-full text-right text-sm font-semibold text-slate-800 bg-transparent focus:outline-none focus:ring-1 focus:ring-indigo-400 rounded-lg px-2 py-1.5 border border-transparent hover:border-gray-200 focus:border-indigo-400 focus:bg-white transition-colors"
+                    className="w-0 flex-1 min-w-[48px] text-right text-sm font-semibold text-slate-800 bg-transparent focus:outline-none focus:ring-1 focus:ring-indigo-400 rounded-lg px-2 py-1.5 border border-transparent hover:border-gray-200 focus:border-indigo-400 focus:bg-white transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                   <span className="text-xs text-slate-400 shrink-0">{suffix}</span>
                 </div>
