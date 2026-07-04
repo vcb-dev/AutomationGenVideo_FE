@@ -80,7 +80,13 @@ export default function FacebookExternalPage() {
       page: fpPage, page_size: PAGE_SIZE_FANPAGES, search: debouncedFpSearch || undefined,
     }) : Promise.reject('No token'),
     enabled: !!token,
-    refetchInterval: 15000,
+    // Poll nhanh hơn khi có page đang cào, chuyển về 15s khi tất cả idle
+    refetchInterval: (query) => {
+      const hasProcessing = query.state.data?.fanpages?.some(
+        (fp) => fp.scraping_status === 'processing'
+      );
+      return hasProcessing ? 3000 : 15000;
+    },
   });
 
   // ─── Reels Infinite Scroll ────────────────────────────
@@ -150,6 +156,16 @@ export default function FacebookExternalPage() {
   const fpTotalPages = fpData?.total_pages || 1;
   const fpTotal = fpData?.count || 0;
 
+  // Khi page scraping xong (processing → idle/completed), refetch reels để hiện data mới
+  const processingCount = fanpages.filter(fp => fp.scraping_status === 'processing').length;
+  const prevProcessingRef = useRef(0);
+  useEffect(() => {
+    if (prevProcessingRef.current > 0 && processingCount === 0) {
+      queryClient.invalidateQueries({ queryKey: ['scraper-reels'] });
+    }
+    prevProcessingRef.current = processingCount;
+  }, [processingCount]);
+
   const allReels = reelsQuery.data?.pages.flatMap(p => p.reels) || [];
   const totalReels = reelsQuery.data?.pages[0]?.count || 0;
 
@@ -185,9 +201,9 @@ export default function FacebookExternalPage() {
       </div>
 
       {/* Discovery Bar */}
-      <div className="bg-card border border-border rounded-xl p-4">
+      {/* <div className="bg-card border border-border rounded-xl p-4">
         <DiscoveryBar onDiscoveryTriggered={handleDiscoveryTriggered} />
-      </div>
+      </div> */}
 
       {/* ─── Fanpages Section (collapsible) ─────────────── */}
       <div className="bg-card border border-border rounded-xl overflow-hidden">

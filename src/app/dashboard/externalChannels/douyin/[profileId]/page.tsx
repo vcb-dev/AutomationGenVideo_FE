@@ -15,6 +15,7 @@ import { scraperService } from '@/services/scraperService';
 import { useScrapingStore } from '@/store/scraping-store';
 
 function formatNum(n: number): string {
+  if (!n) return '0';
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
   if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
   return n.toString();
@@ -237,16 +238,8 @@ export default function DouyinProfileDetailPage() {
               {/* Stats row */}
               <div className="flex items-center gap-5 mt-4">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-lg font-bold text-foreground">{formatNum(p.following_count)}</span>
-                  <span className="text-sm text-slate-500">Đang follow</span>
-                </div>
-                <div className="flex items-center gap-1.5">
                   <span className="text-lg font-bold text-foreground">{formatNum(p.followers_count)}</span>
                   <span className="text-sm text-slate-500">Follower</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-lg font-bold text-foreground">{formatNum(p.likes_count)}</span>
-                  <span className="text-sm text-slate-500">Thích</span>
                 </div>
               </div>
 

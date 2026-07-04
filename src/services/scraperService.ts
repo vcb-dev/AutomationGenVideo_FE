@@ -18,7 +18,6 @@ export interface ScrapedFanpage {
   handle: string;
   page_url: string;
   avatar_url: string;
-  header_image_url: string;
   is_verified: boolean | null;
   followers_count: number;
   likes_count: number;
@@ -156,7 +155,6 @@ export interface PaginatedXhsProfiles {
 
 export interface DouyinVideo {
   post_id: string;
-  shortcode: string;
   url: string;
   description: string;
   hashtags: string[];
@@ -190,9 +188,6 @@ export interface DouyinProfile {
   biography: string;
   is_verified: boolean;
   followers_count: number;
-  following_count: number;
-  likes_count: number;
-  videos_count: number;
   is_bookmarked: boolean;
   is_tracked: boolean;
   is_owned: boolean;
