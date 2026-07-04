@@ -1,9 +1,10 @@
 'use client';
 
-import { Users, Heart, VideoCamera, ArrowsClockwise, BookmarkSimple, Timer, CircleNotch, SealCheck } from '@phosphor-icons/react';
+import { Users, VideoCamera, ArrowsClockwise, BookmarkSimple, Timer, CircleNotch, SealCheck } from '@phosphor-icons/react';
 import { DouyinProfile } from '@/services/scraperService';
 
 function formatNum(n: number): string {
+  if (!n) return '0';
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
   if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
   return n.toString();
@@ -75,12 +76,6 @@ export default function DouyinProfileCard({ profile: p, onScrape, onToggleBookma
           <Users size={13} className="text-rose-500" />
           <span className="text-sm font-bold text-foreground">{formatNum(p.followers_count)}</span>
         </div>
-        {p.likes_count > 0 && (
-          <div className="flex items-center gap-1.5">
-            <Heart size={13} className="text-pink-500" />
-            <span className="text-xs text-slate-500">{formatNum(p.likes_count)}</span>
-          </div>
-        )}
         {p.videos_in_db > 0 && (
           <div className="flex items-center gap-1.5">
             <VideoCamera size={13} className="text-purple-500" />

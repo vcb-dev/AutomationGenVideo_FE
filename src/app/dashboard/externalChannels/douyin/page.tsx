@@ -248,7 +248,7 @@ export default function DouyinExternalPage() {
   // Map DouyinVideo → TikTokVideoCard compatible shape
   const mapVideo = (v: DouyinVideo) => ({
     post_id: v.post_id,
-    shortcode: v.shortcode,
+    shortcode: v.post_id,
     url: v.url,
     description: v.description,
     hashtags: v.hashtags,

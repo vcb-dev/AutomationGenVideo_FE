@@ -140,15 +140,9 @@ export default function FanpageDetailPage() {
     <div className="flex flex-col gap-5">
       {/* ─── Profile Header ──────────────────────────────── */}
       <div className="bg-card border border-border rounded-xl overflow-hidden">
-        {fp.header_image_url && (
-          <div className="h-32 bg-slate-100 overflow-hidden">
-            <img src={fp.header_image_url} alt="" className="w-full h-full object-cover" />
-          </div>
-        )}
-
         <div className="px-5 pb-5 pt-4">
           <div className="flex items-start gap-4">
-            <div className={`w-20 h-20 rounded-full border-4 border-card bg-slate-100 overflow-hidden flex-shrink-0 ${fp.header_image_url ? '-mt-12 relative z-10' : ''}`}>
+            <div className="w-20 h-20 rounded-full border-4 border-card bg-slate-100 overflow-hidden flex-shrink-0">
               {fp.profile_id ? (
                 <img
                   src={`https://graph.facebook.com/${fp.profile_id}/picture?type=large`}
