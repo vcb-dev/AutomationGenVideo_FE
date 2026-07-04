@@ -138,14 +138,51 @@ function ImportModal({
     ? (globalData?.data ?? [])
     : (teamData ?? [])
 
+  // Sản phẩm được đẩy lên kho tổng/kho team từ kho khác có sku/name/ảnh rỗng ở bản ghi gốc —
+  // dữ liệu thật nằm ở source_team_product (kho tổng) hoặc source_editor_product (kho team).
+  const resolveImportItem = (p: Product | TeamProduct) => {
+    if (scope === 'global') {
+      const g = p as Product
+      const tp = g.source_team_product
+      const tp_ep = tp?.source_editor_product
+      return {
+        sku: g.sku || tp?.sku || tp_ep?.sku || '',
+        name: g.name || tp?.name || tp_ep?.name || '',
+        imageUrl: g.image_url ?? tp?.image_url ?? tp_ep?.image_url ?? null,
+        imageUrls: g.image_urls?.length ? g.image_urls : tp?.image_urls?.length ? tp.image_urls : (tp_ep?.image_urls ?? []),
+        price: g.price ?? tp?.price ?? tp_ep?.price ?? null,
+        market: g.market ?? tp?.market ?? tp_ep?.market ?? null,
+        priceSegment: g.price_segment ?? tp?.price_segment ?? tp_ep?.price_segment ?? null,
+        priorityScore: g.priority_score ?? 0,
+        materialId: g.material_id ?? tp?.material?.id ?? tp_ep?.material?.id ?? null,
+        productLineId: g.product_line_id ?? tp?.product_line?.id ?? tp_ep?.product_line?.id ?? null,
+      }
+    }
+    const t = p as TeamProduct
+    const ep = t.source_editor_product
+    return {
+      sku: t.sku || ep?.sku || '',
+      name: t.name || ep?.name || '',
+      imageUrl: t.image_url ?? ep?.image_url ?? null,
+      imageUrls: t.image_urls?.length ? t.image_urls : (ep?.image_urls ?? []),
+      price: t.price ?? ep?.price ?? null,
+      market: t.market ?? ep?.market ?? null,
+      priceSegment: t.price_segment ?? ep?.price_segment ?? null,
+      priorityScore: t.priority_score ?? 0,
+      materialId: t.material_id ?? ep?.material_id ?? null,
+      productLineId: t.product_line_id ?? ep?.product_line_id ?? null,
+    }
+  }
+
   const available = rawItems.filter(p => {
-    const skuLower = p.sku?.trim().toLowerCase() ?? ''
+    const skuLower = resolveImportItem(p).sku.trim().toLowerCase()
     // Global products get '-p' appended when copied; team products already have the final sku
     const checkSku = scope === 'global' ? skuLower + '-p' : skuLower
     if (mySkuSet.has(checkSku)) return false
     if (scope === 'team' && search) {
       const q = search.toLowerCase()
-      return skuLower.includes(q) || p.name?.toLowerCase().includes(q)
+      const r = resolveImportItem(p)
+      return r.sku.toLowerCase().includes(q) || r.name.toLowerCase().includes(q)
     }
     return true
   })
@@ -165,19 +202,20 @@ function ImportModal({
           const sourceId = isTeamProduct
             ? (p as TeamProduct).source_product_id ?? undefined
             : p.id
+          const r = resolveImportItem(p)
 
           const editorProduct = await createEditorProduct(userId, {
             ...(sourceId ? { source_product_id: sourceId } : {}),
-            sku: scope === 'team' ? p.sku : `${p.sku}-P`,
-            name: p.name,
+            sku: scope === 'team' ? r.sku : `${r.sku}-P`,
+            name: r.name,
             brand_type: brandType,
-            image_urls: (p as any).image_urls ?? [],
-            price: p.price ?? undefined,
-            market: p.market,
-            price_segment: p.price_segment ?? undefined,
-            priority_score: p.priority_score ?? 0,
-            material_id: p.material_id ?? null,
-            product_line_id: p.product_line_id ?? null,
+            image_urls: r.imageUrls,
+            price: r.price ?? undefined,
+            market: r.market ?? undefined,
+            price_segment: r.priceSegment ?? undefined,
+            priority_score: r.priorityScore,
+            material_id: r.materialId,
+            product_line_id: r.productLineId,
             is_active: true,
           } as any)
 
@@ -288,7 +326,8 @@ function ImportModal({
             </p>
           )}
           {available.map(p => {
-            const thumb = p.image_urls?.[0] ?? p.image_url
+            const r = resolveImportItem(p)
+            const thumb = r.imageUrls[0] ?? r.imageUrl
             const selected = selectedIds.has(p.id)
             return (
               <button
@@ -305,13 +344,13 @@ function ImportModal({
                 </div>
                 <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 overflow-hidden">
                   {thumb
-                    ? <img src={driveImageUrl(thumb) ?? thumb} alt={p.name ?? ''} className="w-full h-full object-cover" />
+                    ? <img src={driveImageUrl(thumb) ?? thumb} alt={r.name} className="w-full h-full object-cover" />
                     : <Package className="w-4 h-4 text-slate-400" />
                   }
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-slate-800 text-sm truncate">{p.name}</p>
-                  <p className="text-xs text-slate-400 truncate">SKU: {p.sku}</p>
+                  <p className="font-semibold text-slate-800 text-sm truncate">{r.name || <span className="text-slate-400 italic font-normal">Chưa đặt tên</span>}</p>
+                  <p className="text-xs text-slate-400 truncate">SKU: {r.sku || '—'}</p>
                 </div>
               </button>
             )

@@ -8,7 +8,7 @@ import { cn, driveImageUrl } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { TeamProductFormModal } from './TeamProductFormModal'
 
-import type { BrandType } from '@/types/task-auto'
+import type { BrandType, Product } from '@/types/task-auto'
 import { addTeamProduct, getProducts } from '@/lib/api/task-auto'
 
 interface Props {
@@ -35,8 +35,20 @@ export function AddProductModal({ open, teamId, existingSkus, onClose, onSuccess
     enabled: open && mode === 'pick',
   })
 
+  // Sản phẩm được đẩy lên kho tổng từ kho team/cá nhân có sku/name/ảnh rỗng ở bản ghi gốc —
+  // dữ liệu thật nằm ở source_team_product (và xuyên tiếp source_editor_product).
+  const resolveProduct = (p: Product) => {
+    const tp = p.source_team_product
+    const tp_ep = tp?.source_editor_product
+    return {
+      sku: p.sku || tp?.sku || tp_ep?.sku || '',
+      name: p.name || tp?.name || tp_ep?.name || '',
+      imageUrl: p.image_url ?? tp?.image_url ?? tp_ep?.image_url ?? null,
+    }
+  }
+
   // Lọc ra những sản phẩm chưa có trong kho team (dựa theo SKU)
-  const available = (productsData?.data ?? []).filter(p => !existingSkus.includes(p.sku))
+  const available = (productsData?.data ?? []).filter(p => !existingSkus.includes(resolveProduct(p).sku))
 
   const toggleId = (id: string) =>
     setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
@@ -169,6 +181,7 @@ export function AddProductModal({ open, teamId, existingSkus, onClose, onSuccess
               ) : (
                 available.map(p => {
                   const selected = selectedIds.has(p.id)
+                  const r = resolveProduct(p)
                   return (
                     <button
                       key={p.id}
@@ -185,14 +198,14 @@ export function AddProductModal({ open, teamId, existingSkus, onClose, onSuccess
                         {selected && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
                       </div>
                       <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 overflow-hidden">
-                        {p.image_url
-                          ? <img src={driveImageUrl(p.image_url) ?? p.image_url} alt={p.name} className="w-full h-full object-cover" />
+                        {r.imageUrl
+                          ? <img src={driveImageUrl(r.imageUrl) ?? r.imageUrl} alt={r.name} className="w-full h-full object-cover" />
                           : <Package className="w-4 h-4 text-slate-400" />
                         }
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-slate-800 text-sm truncate">{p.name}</p>
-                        <p className="text-xs text-slate-400 truncate">SKU: {p.sku}</p>
+                        <p className="font-semibold text-slate-800 text-sm truncate">{r.name || <span className="text-slate-400 italic font-normal">Chưa đặt tên</span>}</p>
+                        <p className="text-xs text-slate-400 truncate">SKU: {r.sku || '—'}</p>
                       </div>
                     </button>
                   )
