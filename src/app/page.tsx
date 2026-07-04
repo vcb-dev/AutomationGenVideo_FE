@@ -19,28 +19,19 @@ import {
 } from "lucide-react";
 import { SiGooglecloud, SiAmazonwebservices } from "react-icons/si";
 import { useAuthStore } from "@/store/auth-store";
+import { useTheme } from "@/contexts/ThemeContext";
+import { useLang } from "@/contexts/SocialLanguageContext";
 import { motion } from "framer-motion";
 
 export default function LandingPage() {
     const { isAuthenticated } = useAuthStore();
+    const { lang, setLang, t } = useLang();
+    const tl = t.landing;
+    const { theme, toggleTheme } = useTheme();
+    const isDarkMode = theme === "dark";
     const [scrolled, setScrolled] = useState(false);
 
     const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
-    const [isDarkMode, setIsDarkMode] = useState(false);
-
-    useEffect(() => {
-        // Check local storage or system preference on mount
-        const savedTheme = localStorage.getItem("theme");
-        const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-
-        if (savedTheme === "dark" || (!savedTheme && systemPrefersDark)) {
-            setIsDarkMode(true);
-            document.documentElement.classList.add("dark");
-        } else {
-            setIsDarkMode(false);
-            document.documentElement.classList.remove("dark");
-        }
-    }, []);
 
     // Re-validate auth state on landing page mount.
     // This ensures that after backend restart (dev),
@@ -54,18 +45,6 @@ export default function LandingPage() {
             useAuthStore.getState().loadUser();
         }
     }, []);
-
-    const toggleTheme = () => {
-        const newMode = !isDarkMode;
-        setIsDarkMode(newMode);
-        if (newMode) {
-            document.documentElement.classList.add("dark");
-            localStorage.setItem("theme", "dark");
-        } else {
-            document.documentElement.classList.remove("dark");
-            localStorage.setItem("theme", "light");
-        }
-    };
 
     useEffect(() => {
         const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -93,18 +72,34 @@ export default function LandingPage() {
                     {/* Nav Links (Simplified) */}
                     <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600 dark:text-slate-400">
                         <Link href="#" className="hover:text-blue-600 transition-colors">
-                            Trang chủ
+                            {tl.navHome}
                         </Link>
                         <Link href="#" className="hover:text-blue-600 transition-colors">
-                            Tính năng
+                            {tl.navFeatures}
                         </Link>
                         <Link href="#" className="hover:text-blue-600 transition-colors">
-                            Bảng giá
+                            {tl.navPricing}
                         </Link>
                     </nav>
 
                     {/* Auth Buttons */}
                     <div className="flex items-center gap-4">
+                        {/* Language toggle */}
+                        <div className="flex rounded-full overflow-hidden text-xs font-bold border border-slate-200 dark:border-slate-700">
+                            <button
+                                onClick={() => setLang("vi")}
+                                className={`px-2.5 py-1.5 transition-colors ${lang === "vi" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"}`}
+                            >
+                                VI
+                            </button>
+                            <button
+                                onClick={() => setLang("en")}
+                                className={`px-2.5 py-1.5 transition-colors border-l border-slate-200 dark:border-slate-700 ${lang === "en" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"}`}
+                            >
+                                EN
+                            </button>
+                        </div>
+
                         <button
                             onClick={toggleTheme}
                             className={`relative w-14 h-7 rounded-full p-1 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500/50 ${
@@ -147,11 +142,11 @@ export default function LandingPage() {
                                 {navigatingTo === "/dashboard" ? (
                                     <>
                                         <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                        Đang tải...
+                                        {tl.loading}
                                     </>
                                 ) : (
                                     <>
-                                        Vào Dashboard <ArrowRight className="w-4 h-4" />
+                                        {tl.goToDashboard} <ArrowRight className="w-4 h-4" />
                                     </>
                                 )}
                             </Link>
@@ -166,7 +161,7 @@ export default function LandingPage() {
                                     {navigatingTo === "/login" && (
                                         <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                                     )}
-                                    Đăng nhập
+                                    {tl.login}
                                 </Link>
                             </>
                         )}
@@ -193,7 +188,7 @@ export default function LandingPage() {
                             >
                                 <Layers className="w-4 h-4 text-blue-600" />
                                 <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                                    Video Intelligence Platform
+                                    {tl.badge}
                                 </span>
                             </motion.div>
 
@@ -203,9 +198,9 @@ export default function LandingPage() {
                                 transition={{ duration: 0.5, delay: 0.1 }}
                                 className="text-5xl lg:text-6xl font-extrabold text-slate-900 dark:text-white leading-[1.15] mb-6 tracking-tight"
                             >
-                                Tự động hóa <br />
+                                {tl.heroTitle1} <br />
                                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">
-                                    Sáng tạo Video & AI
+                                    {tl.heroTitle2}
                                 </span>
                             </motion.h1>
 
@@ -215,8 +210,7 @@ export default function LandingPage() {
                                 transition={{ duration: 0.5, delay: 0.2 }}
                                 className="text-lg text-slate-600 dark:text-slate-400 mb-8 leading-relaxed max-w-lg"
                             >
-                                Giải pháp toàn diện giúp bạn khám phá xu hướng TikTok/Reels, tự động tải xuống hàng loạt
-                                và phân tích chiến lược của đối thủ cạnh tranh với sức mạnh của AI.
+                                {tl.heroDesc}
                             </motion.p>
 
                             {/* Removed Buttons as requested */}
@@ -228,11 +222,11 @@ export default function LandingPage() {
                                 className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-500 mt-8"
                             >
                                 <div className="flex items-center gap-1">
-                                    <CheckCircle className="w-4 h-4 text-blue-500" /> Phân tích Video Real-time
+                                    <CheckCircle className="w-4 h-4 text-blue-500" /> {tl.checkRealtime}
                                 </div>
                                 <span className="w-1 h-1 bg-slate-300 rounded-full" />
                                 <div className="flex items-center gap-1">
-                                    <CheckCircle className="w-4 h-4 text-blue-500" /> Không giới hạn kênh
+                                    <CheckCircle className="w-4 h-4 text-blue-500" /> {tl.checkUnlimited}
                                 </div>
                             </motion.div>
                         </div>
@@ -406,7 +400,7 @@ export default function LandingPage() {
             <section className="py-12 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
                 <div className="container mx-auto px-6 max-w-7xl">
                     <p className="text-center text-xs font-bold text-slate-400 uppercase tracking-widest mb-10">
-                        ĐƯỢC HỖ TRỢ BỞI CÁC NỀN TẢNG HÀNG ĐẦU
+                        {tl.partnersTitle}
                     </p>
                     <div className="flex flex-wrap items-center justify-center gap-12 lg:gap-24 opacity-60 grayscale hover:grayscale-0 transition-all duration-500">
                         {/* Google Cloud Logo */}
@@ -441,11 +435,10 @@ export default function LandingPage() {
                 <div className="container mx-auto px-6 max-w-7xl">
                     <div className="text-center max-w-3xl mx-auto mb-16">
                         <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-4">
-                            Công nghệ lõi của chúng tôi
+                            {tl.coreTechTitle}
                         </h2>
                         <p className="text-slate-600 dark:text-slate-400">
-                            Hệ thống phân tích video thông minh được xây dựng trên nền tảng Big Data và AI tiên tiến
-                            nhất.
+                            {tl.coreTechDesc}
                         </p>
                     </div>
 
@@ -453,18 +446,18 @@ export default function LandingPage() {
                         {[
                             {
                                 icon: Search,
-                                title: "Scraping Thông minh",
-                                desc: "Tự động thu thập dữ liệu video, bình luận và xu hướng từ TikTok/Instagram theo thời gian thực.",
+                                title: tl.feature1Title,
+                                desc: tl.feature1Desc,
                             },
                             {
                                 icon: TrendingUp,
-                                title: "Dự báo Xu hướng",
-                                desc: "Sử dụng AI để phân tích và dự đoán các trào lưu nội dung viral tiếp theo.",
+                                title: tl.feature2Title,
+                                desc: tl.feature2Desc,
                             },
                             {
                                 icon: Layers,
-                                title: "Quản lý Đa kênh",
-                                desc: "Tập trung quản lý hàng trăm kênh video trên một bảng điều khiển duy nhất.",
+                                title: tl.feature3Title,
+                                desc: tl.feature3Desc,
                             },
                         ].map((item, i) => (
                             <div

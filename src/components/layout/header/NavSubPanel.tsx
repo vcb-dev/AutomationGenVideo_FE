@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { NavItem } from "./types";
+import { useLang } from "@/contexts/SocialLanguageContext";
 
 interface NavSubPanelProps {
     item: NavItem;
@@ -8,6 +9,7 @@ interface NavSubPanelProps {
 }
 
 export default function NavSubPanel({ item, onMouseEnter }: NavSubPanelProps) {
+    const { t } = useLang();
     if (!item.subPanel) return null;
 
     // Group cards by group field (optional), fallback: all in one group
@@ -32,10 +34,10 @@ export default function NavSubPanel({ item, onMouseEnter }: NavSubPanelProps) {
             {/* Header */}
             <div className="px-5 pt-4 pb-3 border-b border-white/[0.05]">
                 <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-violet-400">
-                    Báo cáo
+                    {t.nav.reportPanelTitle}
                 </p>
                 <p className="text-xs text-slate-500 mt-0.5">
-                    Báo cáo hiệu suất cho Leader & Member
+                    {t.nav.reportPanelDesc}
                 </p>
             </div>
 
