@@ -14,7 +14,7 @@ import { ContentStatusBadge } from '@/components/task-auto/StatusBadge'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
 import {
-  parseMarkets, MarketPicker, VoicePicker,
+  parseMarkets, MarketPicker, VoicePicker, ContentFilePicker,
 } from '@/components/task-auto/ContentFormModal'
 import type { VoicePickerHandle } from '@/components/task-auto/ContentFormModal'
 import { DarkInput, DarkTextarea } from '@/components/task-auto/DarkInput'
@@ -447,11 +447,9 @@ function PersonalContentModal({
             value={form.body ?? ''}
             onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
           />
-          <DarkInput
-            label="URL file content"
-            placeholder="https://drive.google.com/..."
+          <ContentFilePicker
             value={form.file_content_url ?? ''}
-            onChange={e => setForm(f => ({ ...f, file_content_url: e.target.value }))}
+            onChange={url => setForm(f => ({ ...f, file_content_url: url }))}
           />
         </div>
         <div className="space-y-4">
