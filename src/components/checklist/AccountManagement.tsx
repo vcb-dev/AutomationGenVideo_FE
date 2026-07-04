@@ -7,7 +7,6 @@ import {
     Search,
     Edit2,
     Trash2,
-    Shield,
     UserCheck,
     UserX,
     Loader2,
@@ -22,7 +21,6 @@ import {
     BookOpen,
     Settings,
     CheckSquare,
-    Square,
     Eye,
     FileText
 } from 'lucide-react';
@@ -45,7 +43,6 @@ interface User {
     full_name: string;
     roles: UserRole[];
     is_active: boolean;
-    custom_permissions: string[];
     team: string | null;
     created_at: string;
     updated_at: string;
@@ -83,13 +80,11 @@ export default function AccountManagement() {
         full_name: string;
         roles: UserRole[];
         is_active: boolean;
-        custom_permissions: string[];
         team: string;
     }>({
         full_name: '',
         roles: [],
         is_active: true,
-        custom_permissions: [],
         team: ''
     });
     const [isSaving, setIsSaving] = useState(false);
@@ -127,7 +122,6 @@ export default function AccountManagement() {
             full_name: user.full_name,
             roles: [...user.roles],
             is_active: user.is_active,
-            custom_permissions: user.custom_permissions || [],
             team: user.team || ''
         });
         setIsEditModalOpen(true);
@@ -140,18 +134,6 @@ export default function AccountManagement() {
             } else {
                 return { ...prev, roles: [...prev.roles, role] };
             }
-        });
-    };
-
-    const handlePermissionToggle = (menuId: string) => {
-        setEditForm(prev => {
-            const isEnabled = prev.custom_permissions.includes(menuId);
-            return {
-                ...prev,
-                custom_permissions: isEnabled
-                    ? prev.custom_permissions.filter(id => id !== menuId)
-                    : [...prev.custom_permissions, menuId]
-            };
         });
     };
 
@@ -280,11 +262,6 @@ export default function AccountManagement() {
                                                 {role}
                                             </Badge>
                                         ))}
-                                        {user.custom_permissions?.length > 0 && (
-                                            <Badge variant="default" className="bg-indigo-500/10 text-indigo-400 border-indigo-500/20">
-                                                +{user.custom_permissions.length} đặc quyền
-                                            </Badge>
-                                        )}
                                     </div>
                                 </td>
                                 <td className="px-6 py-4">
@@ -344,7 +321,7 @@ export default function AccountManagement() {
                         </DialogTitle>
                     </DialogHeader>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-6">
+                    <div className="grid grid-cols-1 gap-8 py-6">
                         {/* Cột 1: Thông tin cơ bản */}
                         <div className="space-y-6">
                             <div className="space-y-2">
@@ -401,39 +378,6 @@ export default function AccountManagement() {
                             </div>
                         </div>
 
-                        {/* Cột 2: Phân quyền riêng theo Tab */}
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-2 text-indigo-400 font-bold mb-2">
-                                <Shield className="w-5 h-5" />
-                                Đặc quyền riêng cho tài khoản
-                            </div>
-                            <p className="text-xs text-slate-500 mb-4">* Những Tab này sẽ được ưu tiên hiển thị cho tài khoản này bất kể Role chính.</p>
-
-                            <div className="grid grid-cols-1 gap-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                                {MENU_ITEMS.map((item) => {
-                                    const isEnabled = editForm.custom_permissions.includes(item.id);
-                                    return (
-                                        <button
-                                            key={item.id}
-                                            onClick={() => handlePermissionToggle(item.id)}
-                                            className={`flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${(item as any).isSub ? 'ml-6 scale-[0.95]' : ''
-                                                } ${isEnabled
-                                                    ? 'bg-indigo-600/10 border-indigo-500/50 text-white'
-                                                    : 'bg-slate-800/20 border-slate-800 text-slate-500 hover:border-slate-700'
-                                                }`}
-                                        >
-                                            <item.icon className={`w-4 h-4 ${isEnabled ? 'text-indigo-400' : 'text-slate-600'}`} />
-                                            <span className="flex-1 text-xs font-semibold">{item.label}</span>
-                                            {isEnabled ? (
-                                                <CheckSquare className="w-4 h-4 text-indigo-500" />
-                                            ) : (
-                                                <Square className="w-4 h-4 text-slate-700" />
-                                            )}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
                     </div>
 
                     <DialogFooter className="flex gap-2 border-t border-slate-800 pt-6">

@@ -16,9 +16,7 @@ const PLATFORMS = [
   { id: 'ig', label: 'Instagram', symbol: 'I', color: '#E1306C' },
   { id: 'yt', label: 'YouTube', symbol: '▶', color: '#FF0000' },
   { id: 'zl', label: 'Zalo', symbol: 'Z', color: '#0068FF' },
-  { id: 'tw', label: 'Twitter', symbol: 't', color: '#1DA1F2' },
   { id: 'th', label: 'Threads', symbol: 'Th', color: '#000000' },
-  { id: 'l8', label: 'Lemon8', symbol: 'L', color: '#FFE100' },
 ];
 
 export default function DailyReportWorkspace() {
