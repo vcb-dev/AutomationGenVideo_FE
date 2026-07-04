@@ -72,6 +72,7 @@ export default function PresentationTab({
   const [scoreComment, setScoreComment] = useState<string>('');
   const [isSavingScore, setIsSavingScore] = useState<boolean>(false);
   const [scoreActiveTab, setScoreActiveTab] = useState<'score' | 'history'>('score');
+  const [isScoreModalOpen, setIsScoreModalOpen] = useState<boolean>(false);
 
   // Load existing score when selectedSlide changes
   useEffect(() => {
@@ -154,7 +155,7 @@ export default function PresentationTab({
   };
 
   const handleSaveScore = async () => {
-    if (!selectedSlide || !user) return;
+    if (!selectedSlide || !user) return false;
     setIsSavingScore(true);
     try {
       const payload = {
@@ -194,6 +195,7 @@ export default function PresentationTab({
       } else {
         alert('Đã lưu điểm và nhận xét thành công!');
       }
+      return true;
     } catch (err: any) {
       console.error(err);
       if (showToast) {
@@ -201,6 +203,7 @@ export default function PresentationTab({
       } else {
         alert('Lỗi khi lưu điểm: ' + (err.response?.data?.message || err.message));
       }
+      return false;
     } finally {
       setIsSavingScore(false);
     }
@@ -934,7 +937,7 @@ export default function PresentationTab({
               )}
 
 
-              {/* Vote & Approve buttons */}
+              {/* Vote & Score buttons */}
               {presentationMenu !== 'action' && presentationMenu !== 'editorPerf' && presentationMenu !== 'newWin' && (
 
                 <div className="flex gap-3 border-t border-white/[0.06] pt-3 items-center">
@@ -953,16 +956,12 @@ export default function PresentationTab({
                   </button>
                   <button
                     onClick={() => {
-                      const isApproved = selectedSlide.isApproved === 'true';
-                      updateSlideField(presentationMenu, validSlideIndex, 'isApproved', (!isApproved).toString());
+                      setIsScoreModalOpen(true);
                     }}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border text-xs font-black transition-all duration-200 ${selectedSlide.isApproved === 'true'
-                      ? 'bg-emerald-600/90 hover:bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-950/20 scale-[1.01]'
-                      : 'bg-white/[0.02] text-slate-400 border-white/[0.04] hover:bg-white/[0.05] hover:text-slate-200'
-                      }`}
+                    className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border border-purple-500/20 bg-purple-600/90 hover:bg-purple-500 text-white text-xs font-black transition-all duration-200 shadow-md shadow-purple-950/20 scale-[1.01]"
                   >
-                    <CheckSquare className={`w-3.5 h-3.5 transition-transform ${selectedSlide.isApproved === 'true' ? 'scale-110 text-white' : 'text-slate-500'}`} />
-                    <span>{selectedSlide.isApproved === 'true' ? 'Đã Duyệt' : 'Duyệt'}</span>
+                    <Award className="w-3.5 h-3.5 text-white" />
+                    <span>Chấm điểm</span>
                   </button>
                 </div>
               )}
@@ -1010,114 +1009,59 @@ export default function PresentationTab({
 
           {selectedSlide ? (
             <div className="flex-1 overflow-y-auto flex flex-col gap-3 pr-1 custom-scrollbar">
-              {/* Chấm điểm & Review chéo Widget */}
+              {/* Review chéo Widget */}
               {(presentationMenu === 'win' || presentationMenu === 'fail') && selectedSlide && (
                 <div className="bg-[#0c1322] border border-white/[0.08] backdrop-blur-md rounded-2xl p-4 shadow-xl flex flex-col gap-3 overflow-hidden">
-                  {/* Widget Header & Tabs */}
+                  {/* Widget Header */}
                   <div className="flex items-center justify-between border-b border-white/[0.06] pb-2">
                     <span className="text-[10px] font-black uppercase tracking-wider text-purple-400 flex items-center gap-1">
-                      <Award className="w-3.5 h-3.5" /> ĐÁNH GIÁ VIDEO
+                      <Award className="w-3.5 h-3.5" /> XEM CHÉO (ĐÁNH GIÁ VIDEO)
                     </span>
-
-                    <div className="flex bg-white/[0.04] p-0.5 rounded-lg border border-white/[0.05]">
-                      <button
-                        onClick={() => setScoreActiveTab('score')}
-                        className={`px-2 py-1 rounded-md text-[9px] font-bold transition-all ${scoreActiveTab === 'score' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
-                      >
-                        Chấm điểm
-                      </button>
-                      <button
-                        onClick={() => setScoreActiveTab('history')}
-                        className={`px-2 py-1 rounded-md text-[9px] font-bold transition-all relative ${scoreActiveTab === 'history' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
-                      >
-                        Xem chéo
-                        {((selectedSlide as any).scores || []).length > 0 && (
-                          <span className="absolute -top-1 -right-1 bg-purple-500 text-white text-[7px] w-3 h-3 rounded-full flex items-center justify-center font-black">
-                            {((selectedSlide as any).scores || []).length}
-                          </span>
-                        )}
-                      </button>
-                    </div>
+                    {((selectedSlide as any).scores || []).length > 0 && (
+                      <span className="bg-purple-500/20 text-purple-300 text-[9px] px-2 py-0.5 rounded-full font-black border border-purple-500/30">
+                        {((selectedSlide as any).scores || []).length} Đánh giá
+                      </span>
+                    )}
                   </div>
 
-                  {/* Tab 1: Chấm điểm */}
-                  {scoreActiveTab === 'score' && (
-                    <div className="flex flex-col gap-3 overflow-x-hidden">
-                      {renderScoreSlider('Đánh giá video', scoreHook, handleScoreChange)}
-
-                      {/* GPA Display & Color classification */}
-                      {(() => {
-                        const { text, colorClass } = getGpaAndBadge();
-                        return (
-                          <div className={`flex flex-col gap-1.5 p-2 rounded-xl border mt-1 transition-all text-center ${colorClass}`}>
-                            <span className="text-[10px] font-extrabold tracking-wider uppercase">{text}</span>
-                          </div>
-                        );
-                      })()}
-
-                      {/* Nhận xét comment area */}
-                      <div className="flex flex-col gap-1.5 mt-2">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase">Nhận xét / Góp ý</label>
-                        <textarea
-                          rows={2}
-                          value={scoreComment}
-                          onChange={(e) => setScoreComment(e.target.value)}
-                          placeholder="Nhập nhận xét của bạn về video..."
-                          className="w-full bg-white/[0.04] border border-white/[0.08] focus:border-purple-500/50 rounded-xl p-2 text-xs text-white placeholder-slate-500 outline-none transition-all resize-none"
-                        />
+                  {/* History List */}
+                  <div className="flex flex-col gap-2.5 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                    {((selectedSlide as any).scores || []).length === 0 ? (
+                      <div className="text-center py-6 text-xs text-slate-500 font-semibold">
+                        Chưa có ai đánh giá video này.
                       </div>
-
-                      {/* Save button */}
-                      <button
-                        onClick={handleSaveScore}
-                        disabled={isSavingScore}
-                        className="w-full mt-1 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-[10px] font-black tracking-wider uppercase transition-all shadow shadow-purple-500/20"
-                      >
-                        {isSavingScore ? 'Đang lưu...' : 'Lưu điểm & đánh giá'}
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Tab 2: Xem chéo */}
-                  {scoreActiveTab === 'history' && (
-                    <div className="flex flex-col gap-2.5 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
-                      {((selectedSlide as any).scores || []).length === 0 ? (
-                        <div className="text-center py-6 text-xs text-slate-500 font-semibold">
-                          Chưa có ai đánh giá video này.
-                        </div>
-                      ) : (
-                        ((selectedSlide as any).scores || []).map((s: any, idx: number) => {
-                          const badge = getScoreBadge(s.score_total);
-                          return (
-                            <div key={idx} className="bg-white/[0.02] border border-white/[0.05] p-3 rounded-xl flex flex-col gap-2 hover:bg-white/[0.04] transition-all">
-                              <div className="flex justify-between items-center">
-                                <div className="flex flex-col gap-1">
-                                  <span className="text-xs font-black text-white">{s.scored_by?.full_name || 'Thành viên'}</span>
-                                  <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded border inline-block w-fit ${badge.colorClass}`}>
-                                    {badge.text}
-                                  </span>
-                                </div>
-                                <div className="text-right">
-                                  <span className="text-[8px] font-extrabold text-purple-400 block uppercase tracking-widest mb-0.5">Đánh giá</span>
-                                  <div className="flex items-baseline justify-end gap-0.5">
-                                    <span className="text-base font-black text-white">{s.score_total?.toFixed(1)}</span>
-                                    <span className="text-[10px] font-bold text-slate-500">/10</span>
-                                  </div>
+                    ) : (
+                      ((selectedSlide as any).scores || []).map((s: any, idx: number) => {
+                        const badge = getScoreBadge(s.score_total);
+                        return (
+                          <div key={idx} className="bg-white/[0.02] border border-white/[0.05] p-3 rounded-xl flex flex-col gap-2 hover:bg-white/[0.04] transition-all">
+                            <div className="flex justify-between items-center">
+                              <div className="flex flex-col gap-1">
+                                <span className="text-xs font-black text-white">{s.scored_by?.full_name || 'Thành viên'}</span>
+                                <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded border inline-block w-fit ${badge.colorClass}`}>
+                                  {badge.text}
+                                </span>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-[8px] font-extrabold text-purple-400 block uppercase tracking-widest mb-0.5">Đánh giá</span>
+                                <div className="flex items-baseline justify-end gap-0.5">
+                                  <span className="text-base font-black text-white">{s.score_total?.toFixed(1)}</span>
+                                  <span className="text-[10px] font-bold text-slate-500">/10</span>
                                 </div>
                               </div>
-
-                              {s.comment && (
-                                <div className="text-[10px] text-slate-300 bg-white/[0.01] border border-white/[0.03] p-2.5 rounded-lg italic leading-relaxed">
-                                  <span className="font-bold not-italic text-slate-500 block text-[8px] uppercase tracking-wider mb-1">Ý kiến góp ý</span>
-                                  &ldquo;{s.comment}&rdquo;
-                                </div>
-                              )}
                             </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  )}
+
+                            {s.comment && (
+                              <div className="text-[10px] text-slate-300 bg-white/[0.01] border border-white/[0.03] p-2.5 rounded-lg italic leading-relaxed">
+                                <span className="font-bold not-italic text-slate-500 block text-[8px] uppercase tracking-wider mb-1">Ý kiến góp ý</span>
+                                &ldquo;{s.comment}&rdquo;
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
               )}
               {/* Analysis Card 1 */}
@@ -1576,65 +1520,71 @@ export default function PresentationTab({
                 </div>
 
                 {/* Hàng 1 - Cột Phải: Side details list card matching image (col-span-3) */}
-                <div className="col-span-3 flex flex-col gap-2.5 h-full overflow-y-auto custom-scrollbar pr-1">
+                <div className="col-span-3 flex flex-col gap-2.5 h-full pr-1">
                   {/* Row 1: Views */}
-                  <div className="flex items-center gap-3.5 bg-[#090F1C]/80 border border-white/[0.05] p-3 rounded-2xl shadow-md">
-                    <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
-                      <Eye className="w-5 h-5" />
+                  <div className="flex-1 flex items-center gap-4 bg-[#090F1C]/80 border border-white/[0.05] p-4 rounded-2xl shadow-md">
+                    <div className="w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0 animate-pulse-slow">
+                      <Eye className="w-6 h-6" />
                     </div>
                     <div>
-                      <div className="text-[9px] text-slate-500 uppercase tracking-widest font-black mb-0.5">LƯỢT XEM (VIEWS)</div>
-                      <div className="text-sm font-bold text-white">
+                      <div className="text-[11px] text-slate-400 uppercase tracking-widest font-black mb-1">LƯỢT XEM (VIEWS)</div>
+                      <div className="text-lg font-black text-white">
                         {isPerf ? selectedSlide.totalVideos + ' video' : formatPresentationViews(selectedSlide.views || '0')}
                       </div>
                     </div>
                   </div>
 
                   {/* Row 2: Vote */}
-                  <div className="flex items-center gap-3.5 bg-[#090F1C]/80 border border-white/[0.05] p-3 rounded-2xl shadow-md">
-                    <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 shrink-0">
-                      <Heart className={`w-5 h-5 ${selectedSlide.isVoted === 'true' ? 'fill-rose-500' : ''}`} />
+                  <div className="flex-1 flex items-center gap-4 bg-[#090F1C]/80 border border-white/[0.05] p-4 rounded-2xl shadow-md">
+                    <div className="w-12 h-12 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 shrink-0">
+                      <Heart className={`w-6 h-6 ${selectedSlide.isVoted === 'true' ? 'fill-rose-500' : ''}`} />
                     </div>
                     <div>
-                      <div className="text-[9px] text-slate-500 uppercase tracking-widest font-black mb-0.5">VOTE</div>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-sm font-bold text-white">
+                      <div className="text-[11px] text-slate-400 uppercase tracking-widest font-black mb-1">VOTE</div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-lg font-black text-white">
                           {isPerf ? selectedSlide.winVideos + ' win' : (selectedSlide.isVoted === 'true' ? '24' : '23')}
                         </span>
                         {selectedSlide.isVoted === 'true' && (
-                          <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-rose-500/10 border border-rose-500/20 text-rose-400">ĐÃ VOTE</span>
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-500/10 border border-rose-500/20 text-rose-400">ĐÃ VOTE</span>
                         )}
                       </div>
                     </div>
                   </div>
 
-                  {/* Row 3: Approved */}
-                  <div className="flex items-center gap-3.5 bg-[#090F1C]/80 border border-white/[0.05] p-3 rounded-2xl shadow-md">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
-                      <CheckCircle className="w-5 h-5" />
+                  {/* Row 3: Score */}
+                  <div className="flex-1 flex items-center gap-4 bg-[#090F1C]/80 border border-white/[0.05] p-4 rounded-2xl shadow-md">
+                    <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 shrink-0">
+                      <Award className="w-6 h-6" />
                     </div>
                     <div>
-                      <div className="text-[9px] text-slate-500 uppercase tracking-widest font-black mb-0.5">DUYỆT</div>
-                      <div className="mt-1">
-                        {isPerf ? (
-                          <span className="text-sm font-bold text-emerald-400">Đã tính</span>
-                        ) : selectedSlide.isApproved === 'true' ? (
-                          <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">ĐÃ DUYỆT</span>
-                        ) : (
-                          <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black bg-amber-500/10 border border-amber-500/20 text-amber-400">CHỜ DUYỆT</span>
-                        )}
+                      <div className="text-[11px] text-slate-400 uppercase tracking-widest font-black mb-1">ĐIỂM TRUNG BÌNH</div>
+                      <div className="mt-1 flex items-baseline gap-0.5">
+                        {(() => {
+                          const scoresList = (selectedSlide as any).scores || [];
+                          const avgScore = scoresList.length > 0
+                            ? (scoresList.reduce((acc: number, s: any) => acc + (s.score_total || 0), 0) / scoresList.length).toFixed(1)
+                            : null;
+                          return avgScore ? (
+                            <>
+                              <span className="text-lg font-black text-purple-400">{avgScore}</span>
+                              <span className="text-xs font-bold text-slate-400">/10</span>
+                            </>
+                          ) : (
+                            <span className="text-lg font-black text-slate-500">Chưa chấm</span>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>
-
                   {/* Row 4: Last update / Deadline */}
-                  <div className="flex items-center gap-3.5 bg-[#090F1C]/80 border border-white/[0.05] p-3 rounded-2xl shadow-md">
-                    <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 shrink-0">
-                      <Calendar className="w-5 h-5" />
+                  <div className="flex-1 flex items-center gap-4 bg-[#090F1C]/80 border border-white/[0.05] p-4 rounded-2xl shadow-md">
+                    <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 shrink-0">
+                      <Calendar className="w-6 h-6" />
                     </div>
                     <div>
-                      <div className="text-[9px] text-slate-500 uppercase tracking-widest font-black mb-0.5">NGÀY ĐĂNG</div>
-                      <div className="text-sm font-bold text-white">
+                      <div className="text-[11px] text-slate-400 uppercase tracking-widest font-black mb-1">NGÀY ĐĂNG</div>
+                      <div className="text-lg font-black text-white">
                         {presentationMenu === 'action' ? selectedSlide.deadline : selectedSlide.postDate || '10/06/2026'}
                       </div>
                     </div>
@@ -1772,6 +1722,80 @@ export default function PresentationTab({
           </div>
         );
       })()}
+
+      {/* Scoring Modal */}
+      {isScoreModalOpen && selectedSlide && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-[2000] flex items-center justify-center p-4">
+          <div className="bg-[#0c1322] border border-white/[0.08] rounded-2xl p-6 w-full max-w-md shadow-2xl flex flex-col gap-4 relative animate-fade-in text-white">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
+              <div className="flex items-center gap-2">
+                <Award className="w-5 h-5 text-purple-400" />
+                <span className="text-sm font-black uppercase tracking-wider text-slate-200">
+                  Chấm điểm Video
+                </span>
+              </div>
+              <button
+                onClick={() => setIsScoreModalOpen(false)}
+                className="p-1 hover:bg-white/[0.05] rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-slate-400 hover:text-white" />
+              </button>
+            </div>
+
+
+
+            {/* Body */}
+            <div className="flex flex-col gap-4">
+              {renderScoreSlider('Đánh giá video', scoreHook, handleScoreChange)}
+
+              {/* GPA Display & Color classification */}
+              {(() => {
+                const { text, colorClass } = getGpaAndBadge();
+                return (
+                  <div className={`flex flex-col gap-1.5 p-2 rounded-xl border transition-all text-center ${colorClass}`}>
+                    <span className="text-[10px] font-extrabold tracking-wider uppercase">{text}</span>
+                  </div>
+                );
+              })()}
+
+              {/* Nhận xét comment area */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Nhận xét / Góp ý</label>
+                <textarea
+                  rows={3}
+                  value={scoreComment}
+                  onChange={(e) => setScoreComment(e.target.value)}
+                  placeholder="Nhập nhận xét của bạn về video..."
+                  className="w-full bg-white/[0.04] border border-white/[0.08] focus:border-purple-500/50 rounded-xl p-3 text-xs text-white placeholder-slate-500 outline-none transition-all resize-none leading-relaxed"
+                />
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex gap-3 border-t border-white/[0.06] pt-4 mt-1">
+              <button
+                onClick={() => setIsScoreModalOpen(false)}
+                className="flex-1 py-2.5 rounded-xl border border-white/[0.08] hover:bg-white/[0.05] text-slate-300 text-xs font-black tracking-wider uppercase transition-all"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={async () => {
+                  const success = await handleSaveScore();
+                  if (success) {
+                    setIsScoreModalOpen(false);
+                  }
+                }}
+                disabled={isSavingScore}
+                className="flex-1 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-xs font-black tracking-wider uppercase transition-all shadow shadow-purple-500/20"
+              >
+                {isSavingScore ? 'Đang lưu...' : 'Lưu điểm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
