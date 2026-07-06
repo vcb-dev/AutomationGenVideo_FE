@@ -72,7 +72,7 @@ export default function PageVideosPage() {
       {/* Header */}
       <div className="flex items-center gap-4">
         <button
-          onClick={() => router.push('/dashboard/channels/facebook')}
+          onClick={() => router.push('/dashboard/internalChannels/facebook')}
           className="flex items-center justify-center w-10 h-10 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition-colors"
         >
           <ArrowLeft size={18} className="text-slate-600" />

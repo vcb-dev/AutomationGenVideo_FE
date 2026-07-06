@@ -145,7 +145,8 @@ function SidebarContent({
       path.startsWith('/dashboard/ai') ||
       path.startsWith('/dashboard/search-video') ||
       path.startsWith('/dashboard/channel-analysis') ||
-      path.startsWith('/dashboard/channels') ||
+      path.startsWith('/dashboard/internalchannels') ||
+      path.startsWith('/dashboard/externalchannels') ||
       path.startsWith('/dashboard/video-library') ||
       path.startsWith('/dashboard/content')
     ) {
@@ -228,8 +229,8 @@ function SidebarContent({
             items: [
               // { label: 'Channels', href: '/dashboard/facebook/channels', icon: Users },
               { label: 'Phân tích kênh', href: '/dashboard/channel-analysis', icon: BarChart3 },
-              { label: 'Kênh nội bộ', href: '/dashboard/channels', icon: BookOpen },
-              { label: 'Kênh nội bộ', href: '/dashboard/channels', icon: BookOpen },
+              { label: 'Kênh nội bộ', href: '/dashboard/internalChannels', icon: BookOpen },
+              { label: 'Khám phá kênh', href: '/dashboard/externalChannels', icon: Users },
             ]
           },
           {
@@ -248,16 +249,12 @@ function SidebarContent({
         ]
       }
     ];
-    // LOG RA ĐỂ XEM ĐÃ CÓ "Kênh nội bộ" CHƯA
-    console.log("Full Platform Config:", JSON.stringify(items));
     return items;
   }, [user?.roles, isManagement, isManagerOrAdmin, isManagerRole, isAdminRole]);
 
   const currentPlatform = useMemo(() =>
     platforms.find(p => p.id === activePlatform),
     [platforms, activePlatform]);
-  console.log("activePlatform:", activePlatform);
-  console.log("currentPlatform menus:", currentPlatform?.menus);
 
   const handleMouseEnter = useCallback(() => {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);

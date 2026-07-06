@@ -40,11 +40,11 @@ function NotificationItem({ n }: { n: ScrapeNotification }) {
           {platformLabel[n.platform]} — <span className="text-slate-500 font-normal">"{n.label}"</span>
         </p>
         <p className="text-xs text-slate-500 mt-0.5">
-          {n.status === 'scraping' && 'Đang cào dữ liệu...'}
+          {n.status === 'scraping' && 'Đang cào...'}
           {n.status === 'done' && (
-            n.newCount !== undefined
-              ? `Hoàn thành · ${n.newCount > 0 ? `+${n.newCount} video mới` : 'Không có video mới'}`
-              : 'Hoàn thành'
+            n.kind === 'profile'
+              ? `Đã cào xong profile "${n.label}" với ${n.newCount ?? 0} video`
+              : `Đã cào xong keyword "${n.label}" với ${n.newCount ?? 0} video`
           )}
           {n.status === 'error' && 'Cào thất bại'}
         </p>

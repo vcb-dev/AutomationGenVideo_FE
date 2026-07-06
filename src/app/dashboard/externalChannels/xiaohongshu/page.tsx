@@ -219,6 +219,8 @@ function XhsProfileCard({
 function VideoSearchTab() {
   const { token } = useAuthStore();
   const queryClient = useQueryClient();
+  const { addNotification, updateNotification } = useScrapingStore();
+  const notifIdRef = useRef<string | null>(null);
 
   const [keyword, setKeyword] = useState('');
   const [numPosts, setNumPosts] = useState('20');
@@ -305,12 +307,35 @@ function VideoSearchTab() {
       if (!kw) throw new Error('Nhập keyword');
       return scraperService.xiaohongshuSearch(token, kw, Number(numPosts) || 20);
     },
+    onMutate: () => {
+      notifIdRef.current = addNotification({
+        platform: 'xiaohongshu',
+        kind: 'keyword',
+        label: keyword.trim(),
+        status: 'scraping',
+        startedAt: new Date(),
+      });
+    },
     onSuccess: (data) => {
       toast.success(data.message || 'Tìm kiếm xong');
       queryClient.invalidateQueries({ queryKey: ['xhs-videos'] });
       queryClient.invalidateQueries({ queryKey: ['xhs-suggest'] });
+      if (notifIdRef.current) {
+        updateNotification(notifIdRef.current, {
+          status: 'done',
+          completedAt: new Date(),
+          newCount: data.created ?? 0,
+        });
+        notifIdRef.current = null;
+      }
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => {
+      toast.error(e.message);
+      if (notifIdRef.current) {
+        updateNotification(notifIdRef.current, { status: 'error' });
+        notifIdRef.current = null;
+      }
+    },
   });
 
   const handleSearch = () => {
@@ -462,6 +487,8 @@ function ProfilesTab() {
 
   // Track notification IDs per user_id so we can update them when scraping finishes
   const scrapeNotifIds = useRef<Map<string, string>>(new Map());
+  // Số video đã có trước khi bắt đầu cào (để tính số video mới khi xong)
+  const beforeVideoCounts = useRef<Map<string, number>>(new Map());
   // Track previous scraping statuses to detect transitions
   const prevStatusMap = useRef<Record<number, string>>({});
 
@@ -484,12 +511,14 @@ function ProfilesTab() {
       if (prev === 'processing' && p.scraping_status !== 'processing') {
         const notifId = scrapeNotifIds.current.get(p.user_id);
         if (notifId) {
+          const before = beforeVideoCounts.current.get(p.user_id) ?? 0;
           updateNotification(notifId, {
             status: p.scraping_status === 'completed' ? 'done' : 'error',
             completedAt: new Date(),
-            newCount: undefined,
+            newCount: Math.max(0, (p.videos_count ?? 0) - before),
           });
           scrapeNotifIds.current.delete(p.user_id);
+          beforeVideoCounts.current.delete(p.user_id);
         }
       }
       prevStatusMap.current[p.id] = p.scraping_status;
@@ -503,8 +532,10 @@ function ProfilesTab() {
       setUserId('');
 
       const label = data.profile?.nickname || uid;
+      beforeVideoCounts.current.set(uid, data.profile?.videos_count ?? 0);
       const notifId = addNotification({
         platform: 'xiaohongshu',
+        kind: 'profile',
         label,
         status: 'scraping',
         startedAt: new Date(),

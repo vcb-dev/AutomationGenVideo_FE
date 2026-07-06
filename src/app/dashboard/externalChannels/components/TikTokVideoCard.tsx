@@ -121,7 +121,7 @@ export default function TikTokVideoCard({ video }: { video: TikTokVideo }) {
               <div className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-600" />
             )}
             <span className="text-xs text-slate-500 dark:text-slate-400 truncate">
-              @{video.author.username}
+              {video.author.display_name || video.author.username}
             </span>
             {video.author.is_verified && (
               <SealCheck size={12} weight="fill" className="text-blue-500 flex-shrink-0" />

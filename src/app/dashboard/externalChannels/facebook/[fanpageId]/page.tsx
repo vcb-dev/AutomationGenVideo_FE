@@ -12,6 +12,7 @@ import toast from 'react-hot-toast';
 import ReelCard from '../../components/ReelCard';
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService } from '@/services/scraperService';
+import { useScrapingStore } from '@/store/scraping-store';
 
 function formatNum(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -25,6 +26,9 @@ export default function FanpageDetailPage() {
   const queryClient = useQueryClient();
   const { fanpageId } = useParams<{ fanpageId: string }>();
   const id = Number(fanpageId);
+  const { addNotification, updateNotification } = useScrapingStore();
+  const scrapeNotifIdRef = useRef<string | null>(null);
+  const beforeReelCountRef = useRef(0);
 
   // ─── Filter state ─────────────────────────────────────
   const [search, setSearch] = useState('');
@@ -79,9 +83,18 @@ export default function FanpageDetailPage() {
   useEffect(() => {
     if (prevProcessing.current && !isProcessingNow) {
       queryClient.invalidateQueries({ queryKey: ['scraper-fanpage-reels', id] });
+      if (scrapeNotifIdRef.current) {
+        const after = reelsQuery.data?.pages[0]?.count ?? 0;
+        updateNotification(scrapeNotifIdRef.current, {
+          status: 'done',
+          completedAt: new Date(),
+          newCount: Math.max(0, after - beforeReelCountRef.current),
+        });
+        scrapeNotifIdRef.current = null;
+      }
     }
     prevProcessing.current = !!isProcessingNow;
-  }, [isProcessingNow, id, queryClient]);
+  }, [isProcessingNow, id, queryClient, updateNotification]);
 
   const observerRef = useRef<IntersectionObserver>();
   const loadMoreRef = useCallback((node: HTMLDivElement | null) => {
@@ -97,15 +110,26 @@ export default function FanpageDetailPage() {
   const scrapeMutation = useMutation({
     mutationFn: () => token ? scraperService.triggerScrapeReels(token, id) : Promise.reject(),
     onSuccess: (d) => {
-      if (d.is_scraping) {
-        toast(d.message, { icon: '⏳' });
-      } else {
-        toast.success(d.message);
-      }
+      toast(d.message, { icon: '⏳' });
       queryClient.invalidateQueries({ queryKey: ['scraper-fanpage-detail', id] });
       queryClient.invalidateQueries({ queryKey: ['scraper-fanpage-reels', id] });
+      beforeReelCountRef.current = reelsQuery.data?.pages[0]?.count ?? 0;
+      const nId = addNotification({
+        platform: 'facebook',
+        kind: 'profile',
+        label: fp?.name || '',
+        status: 'scraping',
+        startedAt: new Date(),
+      });
+      scrapeNotifIdRef.current = nId;
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => {
+      toast.error(e.message);
+      if (scrapeNotifIdRef.current) {
+        updateNotification(scrapeNotifIdRef.current, { status: 'error' });
+        scrapeNotifIdRef.current = null;
+      }
+    },
   });
 
   const toggleMutation = useMutation({

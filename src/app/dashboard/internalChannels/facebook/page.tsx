@@ -461,7 +461,7 @@ export default function FacebookChannelsPage() {
                     key={p.page_id}
                     page={p}
                     channelInfo={getFbChannelInfo(p)}
-                    onViewVideos={() => router.push(`/dashboard/channels/facebook/${p.page_id}/videos`)}
+                    onViewVideos={() => router.push(`/dashboard/internalChannels/facebook/${p.page_id}/videos`)}
                     onScrape={() => handleScrape(p)}
                     onBackfill={() => handleBackfill(p)}
                   />
@@ -485,7 +485,7 @@ export default function FacebookChannelsPage() {
                       key={p.page_id}
                       page={p}
                       channelInfo={getFbChannelInfo(p)}
-                      onViewVideos={() => router.push(`/dashboard/channels/facebook/${p.page_id}/videos`)}
+                      onViewVideos={() => router.push(`/dashboard/internalChannels/facebook/${p.page_id}/videos`)}
                       onTriggerScrape={() => handleScrape(p)}
                       onBackfill={() => handleBackfill(p)}
                       loadingVideos={false}

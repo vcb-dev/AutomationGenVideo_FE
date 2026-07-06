@@ -133,6 +133,7 @@ export default function XhsProfileDetailPage() {
 
   // Notification tracking
   const scrapeNotifIdRef = useRef<string | null>(null);
+  const beforeVideoCountRef = useRef(0);
   const prevProcessing = useRef(false);
   useEffect(() => {
     if (prevProcessing.current && !isProcessingNow) {
@@ -140,9 +141,11 @@ export default function XhsProfileDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['xhs-profiles'] });
       if (scrapeNotifIdRef.current) {
         const status = profileQuery.data?.scraping_status;
+        const after = videosQuery.data?.pages[0]?.count ?? 0;
         updateNotification(scrapeNotifIdRef.current, {
           status: status === 'completed' ? 'done' : 'error',
           completedAt: new Date(),
+          newCount: Math.max(0, after - beforeVideoCountRef.current),
         });
         scrapeNotifIdRef.current = null;
       }
@@ -169,8 +172,10 @@ export default function XhsProfileDetailPage() {
     onSuccess: () => {
       toast.success('Đang cập nhật...');
       queryClient.invalidateQueries({ queryKey: ['xhs-profile', id] });
+      beforeVideoCountRef.current = videosQuery.data?.pages[0]?.count ?? 0;
       const notifId = addNotification({
         platform: 'xiaohongshu',
+        kind: 'profile',
         label: p?.nickname || p?.user_id || '',
         status: 'scraping',
         startedAt: new Date(),

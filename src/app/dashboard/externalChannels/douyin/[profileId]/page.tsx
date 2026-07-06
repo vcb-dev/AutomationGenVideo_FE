@@ -85,6 +85,7 @@ export default function DouyinProfileDetailPage() {
   const id = Number(profileId);
   const { addNotification, updateNotification } = useScrapingStore();
   const scrapeNotifIdRef = useRef<string | null>(null);
+  const beforeVideoCountRef = useRef(0);
 
   // ─── Filter state ─────────────────────────────────────
   const [search, setSearch] = useState('');
@@ -136,7 +137,12 @@ export default function DouyinProfileDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['douyin-profile-videos', id] });
       queryClient.invalidateQueries({ queryKey: ['douyin-profile-detail', id] });
       if (scrapeNotifIdRef.current) {
-        updateNotification(scrapeNotifIdRef.current, { status: 'done', completedAt: new Date() });
+        const after = videosQuery.data?.pages[0]?.count ?? 0;
+        updateNotification(scrapeNotifIdRef.current, {
+          status: 'done',
+          completedAt: new Date(),
+          newCount: Math.max(0, after - beforeVideoCountRef.current),
+        });
         scrapeNotifIdRef.current = null;
       }
     }
@@ -163,8 +169,10 @@ export default function DouyinProfileDetailPage() {
       toast.success('Đang cập nhật...');
       queryClient.invalidateQueries({ queryKey: ['douyin-profile-detail', id] });
       queryClient.invalidateQueries({ queryKey: ['douyin-profile-videos', id] });
+      beforeVideoCountRef.current = videosQuery.data?.pages[0]?.count ?? 0;
       const nId = addNotification({
         platform: 'douyin',
+        kind: 'profile',
         label: p?.nickname || p?.username || '',
         status: 'scraping',
         startedAt: new Date(),

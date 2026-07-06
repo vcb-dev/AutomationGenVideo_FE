@@ -11,7 +11,7 @@ import TikTokProfileCard from '../../externalChannels/components/TikTokProfileCa
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService, ExternalVideo } from '@/services/scraperService';
 import { channelsService, ChannelInfo } from '@/services/channelsService';
-import { useScrapingStore } from '@/store/scraping-store';
+import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
 
 const PAGE_SIZE = 12;
 
@@ -81,7 +81,7 @@ export default function TikTokChannelsPage() {
   const { token } = useAuthStore();
   const queryClient = useQueryClient();
   const router = useRouter();
-  const { addNotification } = useScrapingStore();
+  const { start: startProfileScrapeNotif } = useProfileScrapeNotification('tiktok');
 
   // ── Profiles ─────────────────────────────────────────
   const [username, setUsername] = useState('');
@@ -128,18 +128,23 @@ export default function TikTokChannelsPage() {
     return { team_name: null, owner_name: null };
   };
 
-  const handleScrapeSuccess = (data: { message: string; is_scraping?: boolean; already_exists?: boolean; newly_scraped?: boolean; profile_id: number }, label?: string) => {
+  const handleScrapeSuccess = (data: { message: string; is_scraping?: boolean; already_exists?: boolean; newly_scraped?: boolean; profile_id: number }, label?: string, before = 0) => {
     if (data.already_exists) {
       toast(data.message, { icon: '📋' });
-      router.push(`/dashboard/channels/tiktok/${data.profile_id}`);
-    } else if (data.is_scraping) {
-      toast(data.message, { icon: '⏳' });
-      addNotification({ platform: 'tiktok', label: label || username.trim(), status: 'scraping', startedAt: new Date() });
+      router.push(`/dashboard/internalChannels/tiktok/${data.profile_id}`);
     } else if (data.newly_scraped) {
       toast.success(data.message);
-      router.push(`/dashboard/channels/tiktok/${data.profile_id}`);
+      router.push(`/dashboard/internalChannels/tiktok/${data.profile_id}`);
     } else {
-      toast.success(data.message);
+      toast(data.message, { icon: '⏳' });
+      startProfileScrapeNotif({
+        label: label || username.trim(),
+        before,
+        fetchStatus: async () => {
+          const d = await scraperService.getTiktokProfileDetail(token!, data.profile_id);
+          return { scraping_status: d.scraping_status, count: d.videos_in_db };
+        },
+      });
     }
     setUsername('');
     queryClient.invalidateQueries({ queryKey: ['owned-tiktok-profiles'] });
@@ -161,7 +166,10 @@ export default function TikTokChannelsPage() {
       const clean = p.url.replace(/.*tiktok\.com\/@?/, '').split(/[/?]/)[0].trim();
       return scraperService.tiktokProfileScrape(token, clean, true);
     },
-    onSuccess: (data, vars) => handleScrapeSuccess(data, vars.label),
+    onSuccess: (data, vars) => {
+      const before = profiles.find(pr => pr.id === vars.id)?.videos_in_db ?? 0;
+      handleScrapeSuccess(data, vars.label, before);
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -293,7 +301,7 @@ export default function TikTokChannelsPage() {
               onScrape={() => rescrape.mutate({ id: p.id, url: p.url, label: p.nickname || p.username })}
               onToggleBookmark={() => toggleMutation.mutate({ id: p.id, field: 'is_bookmarked' })}
               onToggleTracked={() => toggleMutation.mutate({ id: p.id, field: 'is_tracked' })}
-              onViewDetail={() => router.push(`/dashboard/channels/tiktok/${p.id}`)}
+              onViewDetail={() => router.push(`/dashboard/internalChannels/tiktok/${p.id}`)}
             />
           ))}
         </div>
