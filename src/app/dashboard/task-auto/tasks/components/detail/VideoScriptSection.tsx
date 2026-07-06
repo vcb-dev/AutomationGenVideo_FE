@@ -1,23 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Sparkles, Loader2, Copy, Check, ChevronDown, ChevronUp, Hash, Languages } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Section } from './Section'
-
-interface Translation {
-  language: string
-  content: string
-  hashtags: string[]
-}
-
-interface VideoScript {
-  content: string
-  hashtags: string[]
-  translation?: Translation | null
-}
+import { getTaskVideoScript, generateTaskVideoScript, type VideoScript } from '@/lib/api/task-auto'
 
 export interface VideoScriptSectionProps {
+  taskId: string
   fileUrl?: string | null
   scriptText?: string | null
   contentTitle?: string | null
@@ -39,34 +29,37 @@ export function VideoScriptSection(props: VideoScriptSectionProps) {
   const [copied, setCopied] = useState(false)
   const [open, setOpen] = useState(false)
 
-  async function generate() {
+  // Nạp content AI đã cache cho task này (nếu có) — không tốn token vì không gọi lại DeepSeek
+  useEffect(() => {
+    let cancelled = false
+    getTaskVideoScript(props.taskId)
+      .then(cached => { if (!cancelled && cached) setScript(cached) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [props.taskId])
+
+  async function generate(force = false) {
     setLoading(true)
     setError(null)
     setOpen(true)
     try {
-      const res = await fetch('/api/ai/generate-script', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fileUrl:            props.fileUrl,
-          scriptText:         props.scriptText,
-          contentTitle:       props.contentTitle,
-          contentLine:        props.contentLine,
-          contentMarket:      props.contentMarket,
-          productName:        props.productName,
-          productSku:         props.productSku,
-          productPrice:       props.productPrice,
-          productMaterial:    props.productMaterial,
-          productPriceSegment: props.productPriceSegment,
-          productLine:        props.productLine,
-          productMarket:      props.productMarket,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)
-      setScript(data.script)
+      const { script: result } = await generateTaskVideoScript(props.taskId, {
+        fileUrl:            props.fileUrl,
+        scriptText:         props.scriptText,
+        contentTitle:       props.contentTitle,
+        contentLine:        props.contentLine,
+        contentMarket:      props.contentMarket,
+        productName:        props.productName,
+        productSku:         props.productSku,
+        productPrice:       props.productPrice,
+        productMaterial:    props.productMaterial,
+        productPriceSegment: props.productPriceSegment,
+        productLine:        props.productLine,
+        productMarket:      props.productMarket,
+      }, force)
+      setScript(result)
     } catch (e: any) {
-      setError(e.message ?? 'Có lỗi xảy ra')
+      setError(e.response?.data?.message ?? e.message ?? 'Có lỗi xảy ra')
     } finally {
       setLoading(false)
     }
@@ -148,7 +141,7 @@ export function VideoScriptSection(props: VideoScriptSectionProps) {
             )}
             <button
               type="button"
-              onClick={generate}
+              onClick={() => generate(!!script)}
               disabled={!canGenerate || loading}
               className={cn(
                 'flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-lg transition-colors',
