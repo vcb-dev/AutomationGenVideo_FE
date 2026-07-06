@@ -2,18 +2,11 @@
 
 import Image from "next/image";
 import { useState, useEffect } from 'react';
-import { Search, Plus, TrendingUp, Eye, Heart, Users, ArrowRight, X, Loader, Loader2, Video, RotateCcw, DownloadCloud } from 'lucide-react';
+import { Search, Plus, TrendingUp, Eye, Heart, Users, ArrowRight, X, Loader, Loader2, Video, RotateCcw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import apiClient from '@/lib/api-client';
 import toast from 'react-hot-toast';
-import { syncFromLarkAssignmentIfStale } from '@/lib/sync-lark-tracked-channels';
-import {
-    subscribeGlobalHrSync,
-    runGlobalHrSync,
-    isGlobalHrSyncBusy,
-    waitUntilGlobalHrIdle,
-} from '@/lib/global-hr-sync';
 import { enrichTrackedChannelApify } from '@/lib/enrich-tracked-channel-apify';
 import {
     channelAwaitingStats,
@@ -47,10 +40,7 @@ export default function DouyinChannelsPage() {
     const [loading, setLoading] = useState(false);
     const [refreshingIds, setRefreshingIds] = useState<Set<string>>(new Set());
     const [searchChannelQuery, setSearchChannelQuery] = useState('');
-    const [hrSyncing, setHrSyncing] = useState(false);
     const [listLoading, setListLoading] = useState(true);
-    const [longSyncHint, setLongSyncHint] = useState(false);
-    const [globalHrBusy, setGlobalHrBusy] = useState(false);
 
     const loadDouyinChannels = async (): Promise<ChannelProfile[]> => {
         try {
@@ -62,48 +52,13 @@ export default function DouyinChannelsPage() {
     };
 
     useEffect(() => {
-        return subscribeGlobalHrSync((busy) => {
-            setGlobalHrBusy(busy);
-            if (!busy) {
-                loadDouyinChannels().then(setChannels);
-            }
-        });
-    }, []);
-
-    useEffect(() => {
         let cancelled = false;
         (async () => {
             setListLoading(true);
             try {
-                if (isGlobalHrSyncBusy()) {
-                    setLongSyncHint(true);
-                    await waitUntilGlobalHrIdle();
-                    if (cancelled) return;
-                    setChannels(await loadDouyinChannels());
-                    setLongSyncHint(false);
-                    return;
-                }
-                const r = await syncFromLarkAssignmentIfStale();
-                if (cancelled) return;
                 const list = await loadDouyinChannels();
                 if (cancelled) return;
                 setChannels(list);
-                if (!cancelled && r && r.imported > 0) {
-                    toast.success(`Đã thêm ${r.imported} kênh từ HR (Lark)`, { duration: 4000 });
-                }
-                if (r && r.imported > 0 && list.some((c) => channelAwaitingStats(c))) {
-                    let tries = 0;
-                    const bgRefresh = async () => {
-                        if (cancelled || tries >= 30) return;
-                        tries++;
-                        await new Promise((res) => setTimeout(res, 15000));
-                        if (cancelled) return;
-                        const updated = await loadDouyinChannels();
-                        if (!cancelled) setChannels(updated);
-                        if (!cancelled && updated.some((c) => channelAwaitingStats(c))) bgRefresh();
-                    };
-                    bgRefresh();
-                }
             } catch {
                 /* ignore */
             } finally {
@@ -265,34 +220,6 @@ export default function DouyinChannelsPage() {
 
                         <div className="flex flex-wrap items-center gap-2">
                             <button
-                                type="button"
-                                disabled={hrSyncing || listLoading || globalHrBusy}
-                                onClick={async () => {
-                                    setHrSyncing(true);
-                                    setLongSyncHint(true);
-                                    try {
-                                        const r = await runGlobalHrSync('DOUYIN', loadDouyinChannels);
-                                        setChannels(await loadDouyinChannels());
-                                        if (r.imported > 0) {
-                                            toast.success(
-                                                `Đồng bộ ${r.imported} kênh (ưu tiên Douyin) — Apify đã cập nhật`,
-                                                { duration: 5000 },
-                                            );
-                                        } else toast.success('Đã kiểm tra — không có kênh mới từ HR');
-                                    } catch (e: any) {
-                                        toast.error(e?.message || 'Đồng bộ HR thất bại');
-                                    } finally {
-                                        setLongSyncHint(false);
-                                        setHrSyncing(false);
-                                    }
-                                }}
-                                className="flex items-center gap-2 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold transition-all shadow-md disabled:opacity-60"
-                                title="Kênh được phân công trên Lark"
-                            >
-                                {hrSyncing ? <Loader className="w-5 h-5 animate-spin" /> : <DownloadCloud className="w-5 h-5" />}
-                                Đồng bộ HR
-                            </button>
-                            <button
                                 onClick={() => setShowAddModal(true)}
                                 className="flex items-center gap-2 px-5 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-all shadow-lg"
                             >
@@ -309,19 +236,12 @@ export default function DouyinChannelsPage() {
 
             {/* Content */}
             <div className="container mx-auto px-4 max-w-7xl pt-8">
-                {listLoading || globalHrBusy ? (
+                {listLoading ? (
                     <div className="flex flex-col items-center justify-center py-24 px-4 min-h-[320px]">
                         <Loader2 className="w-12 h-12 text-red-600 animate-spin mb-6" />
                         <p className="text-slate-800 font-semibold text-lg text-center">
-                            {longSyncHint || hrSyncing || globalHrBusy
-                                ? 'Đang đồng bộ HR & lấy số liệu Apify…'
-                                : 'Đang tải kênh Douyin…'}
+                            Đang tải kênh Douyin…
                         </p>
-                        {(longSyncHint || hrSyncing || globalHrBusy) && (
-                            <p className="text-slate-500 text-sm mt-3 max-w-md text-center">
-                                Có thể vài phút — không đóng trang cho đến khi số liệu hiển thị.
-                            </p>
-                        )}
                     </div>
                 ) : (
                     <>

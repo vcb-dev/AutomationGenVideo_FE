@@ -333,6 +333,9 @@ export default function ComposePage() {
   const prevJobStatusRef = useRef<Record<string, string>>({});
   const prevJobQueueNullRef = useRef<Record<string, boolean>>({});
   const channelInfoRef = useRef<Record<string, { name: string; platform: string }>>({});
+  // Batch jobIds (joined) đã hiển thị toast hoàn tất — chặn duplicate toast khi
+  // React StrictMode double-invoke effect (mount → cleanup → mount lại trong dev)
+  const notifiedBatchRef = useRef<string | null>(null);
 
   const addPublishLog = useCallback((msg: string) => {
     const time = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -396,40 +399,13 @@ export default function ComposePage() {
   useEffect(() => {
     if (!activeJobIds || activeJobIds.length === 0) return;
 
-    const handleJobs = (jobs: any[]) => {
-      setPublishProgress(prev => {
-        const newChannels = prev.channels.map(ch => {
-          const jobId = Object.entries(jobChannelMap).find(([, cid]) => cid === ch.id)?.[0];
-          if (!jobId) return ch;
-          const job = jobs.find((j: any) => j.id === jobId);
-          if (!job) return ch;
-          if (job.status === 'COMPLETED') {
-            const r = job.result as Record<string, unknown> | null | undefined;
-            const postUrl = (typeof r?.url === 'string' ? r.url : typeof r?.videoId === 'string' ? `https://youtube.com/watch?v=${r.videoId}` : undefined);
-            return { ...ch, status: 'success' as const, queuePosition: null, postUrl };
-          }
-          if (job.status === 'FAILED')    return { ...ch, status: 'fail' as const, error: job.error_msg ?? undefined, queuePosition: null };
-          const isProcessing = job.queuePosition === null;
-          return { ...ch, status: isProcessing ? 'posting' as const : 'pending' as const, queuePosition: job.queuePosition };
-        });
-        return { ...prev, channels: newChannels };
-      });
-
-      const allDone = jobs.every((j: any) => ['COMPLETED', 'FAILED', 'CANCELLED'].includes(j.status));
-      if (allDone) {
-        setActiveJobIds(null);
-        setPublishing(false);
-        setPublishProgress(prev => ({ ...prev, phase: 'done' }));
-        if (jobs.every((j: any) => j.status === 'COMPLETED')) {
-          toast.success(t.compose.postSuccessAll);
-          setMessage(''); setMediaUrls([]); setHashtags([]); setSelectedAccountIds([]);
-        } else {
-          toast.error(t.compose.someFailed);
-        }
-      }
-    };
+    // Khoá theo batch jobIds — dùng ref (bền qua StrictMode double-invoke) để
+    // chặn xử lý "allDone" nhiều lần cho cùng 1 lượt đăng bài
+    const batchKey = activeJobIds.join(',');
+    let timer: ReturnType<typeof setInterval>;
 
     const poll = async () => {
+      if (notifiedBatchRef.current === batchKey) return;
       try {
         const { jobs } = await socialApi.queue.pollStatus(activeJobIds);
 
@@ -491,6 +467,10 @@ export default function ComposePage() {
         });
 
         if (allDone) {
+          if (notifiedBatchRef.current === batchKey) return;
+          notifiedBatchRef.current = batchKey;
+          clearInterval(timer);
+
           const successCount = jobs.filter(j => j.status === 'COMPLETED').length;
           const failCount = jobs.filter(j => j.status === 'FAILED').length;
           addPublishLog(`🏁 Hoàn tất: ${successCount} thành công, ${failCount} thất bại`);
@@ -511,7 +491,7 @@ export default function ComposePage() {
     };
 
     poll();
-    const timer = setInterval(poll, 2000);
+    timer = setInterval(poll, 2000);
 
     return () => {
       clearInterval(timer);

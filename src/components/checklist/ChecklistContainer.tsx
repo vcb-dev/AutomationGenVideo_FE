@@ -331,7 +331,7 @@ const ChecklistContainer = ({
                             const newChannels = initialTrafficChannels();
                             const newEvidences: Record<string, { url: string; name: string; token: string }[]> = {};
 
-                            const platforms = ['fb', 'ig', 'tiktok', 'yt', 'thread', 'lemon8', 'zalo', 'twitter'];
+                            const platforms = ['fb', 'ig', 'tiktok', 'yt', 'thread', 'zalo'];
 
                             // Check for evidence_files fallback for older/synced records
                             let sharedEvidences: any[] = [];
@@ -443,7 +443,7 @@ const ChecklistContainer = ({
             const newEvidences: Record<string, { url: string; name: string; token: string }[]> = {};
             const newEntries: Record<string, any[]> = {};
 
-            const platforms = ['fb', 'ig', 'tiktok', 'yt', 'thread', 'lemon8', 'zalo', 'twitter'];
+            const platforms = ['fb', 'ig', 'tiktok', 'yt', 'thread', 'zalo'];
             
             teamRecords.forEach(rec => {
                 platforms.forEach(p => {
@@ -505,27 +505,16 @@ const ChecklistContainer = ({
         return user.team.split(',').map((t: string) => t.trim()).filter(Boolean);
     }, [user?.team]);
 
-    // Fetch user channels (re-fetch when selectedTeam changes)
+    // Fetch user channels via authenticated endpoint
     useEffect(() => {
         const fetchChannels = async () => {
-            if (!user?.email && !user?.full_name) return;
+            const token = useAuthStore.getState().token;
+            if (!token) return;
             try {
-                const beBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
-                const url = new URL(`${beBaseUrl}/lark/channel`, window.location.origin);
-
-                // Send both email and owner so the backend can match channels by EITHER field.
-                // This ensures correct results even if the channel.email enrichment was incomplete.
-                if (user.email) {
-                    url.searchParams.append('email', user.email);
-                }
-                if (user.full_name) {
-                    url.searchParams.append('owner', user.full_name);
-                }
-                if (selectedTeam) {
-                    url.searchParams.append('team', selectedTeam);
-                }
-
-                const res = await fetch(url.toString());
+                const beBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
+                const res = await fetch(`${beBaseUrl}/channels/my`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
                 if (res.ok) {
                     const data = await res.json();
                     setAvailableChannels(data);
@@ -535,7 +524,7 @@ const ChecklistContainer = ({
             }
         };
         fetchChannels();
-    }, [user?.email, user?.full_name, selectedTeam]);
+    }, [user?.id]);
 
     const roles = user?.roles || [];
     const isAdmin = roles.includes(UserRole.ADMIN) || roles.includes(UserRole.MANAGER) || larkRole?.toLowerCase() === 'admin';
@@ -628,7 +617,7 @@ const ChecklistContainer = ({
 
             // #region agent log
             if (typeof window !== 'undefined') {
-                const platforms = ['fb', 'ig', 'tiktok', 'yt', 'thread', 'lemon8', 'zalo', 'twitter'];
+                const platforms = ['fb', 'ig', 'tiktok', 'yt', 'thread', 'zalo'];
                 const evidenceCounts = platforms.reduce((acc: any, k) => {
                     acc[k] = (platformEvidences?.[k] || []).length;
                     return acc;

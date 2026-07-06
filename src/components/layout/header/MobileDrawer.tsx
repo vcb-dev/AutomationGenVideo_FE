@@ -7,15 +7,8 @@ import { ChevronDown, ChevronRight, Settings, LogOut, Video } from "lucide-react
 import { User, UserRole } from "@/types/auth";
 import { NavMenu } from "./types";
 import { getSectionClasses } from "./color-utils";
-
-const ROLE_LABELS: Record<UserRole, string> = {
-    [UserRole.ADMIN]: "Quản trị viên",
-    [UserRole.MANAGER]: "Quản lý",
-    [UserRole.LEADER]: "Trưởng nhóm",
-    [UserRole.MEMBER]: "Thành viên",
-    [UserRole.EDITOR]: "Editor",
-    [UserRole.CONTENT]: "Content",
-};
+import { useLang } from "@/contexts/SocialLanguageContext";
+import { useRoleLabels } from "./use-role-labels";
 
 interface MobileDrawerProps {
     isOpen: boolean;
@@ -51,7 +44,9 @@ export default function MobileDrawer({
     setMobileSubItemKey,
 }: MobileDrawerProps) {
     const pathname = usePathname() || "";
-    const roleLabel = user?.roles?.[0] ? (ROLE_LABELS[user.roles[0]] ?? user.roles[0]) : "";
+    const { t } = useLang();
+    const roleLabels = useRoleLabels();
+    const roleLabel = user?.roles?.[0] ? (roleLabels[user.roles[0]] ?? user.roles[0]) : "";
     const isManagement = user?.roles?.some((r) =>
         [UserRole.ADMIN, UserRole.MANAGER, UserRole.LEADER].includes(r),
     );
@@ -59,8 +54,8 @@ export default function MobileDrawer({
     return (
         <AnimatePresence>
             {isOpen && (
-                <div className="fixed inset-0 z-[999] md:hidden">
-                    {/* Backdrop */}
+                <div className="fixed inset-0 z-[999] lg:hidden">
+                    {/* Backdrop — full screen so clicking outside drawer closes it */}
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -70,13 +65,13 @@ export default function MobileDrawer({
                         onClick={onClose}
                     />
 
-                    {/* Drawer panel */}
+                    {/* Drawer panel — left half only */}
                     <motion.div
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
                         transition={{ duration: 0.2, ease: "easeOut" }}
-                        className="absolute inset-x-0 top-16 bottom-0 bg-[#0d1424] border-t border-white/[0.06] overflow-y-auto"
+                        className="absolute left-0 right-1/2 top-16 bottom-0 bg-[#0d1424] border-t border-white/[0.06] overflow-y-auto"
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* User info banner */}
@@ -337,7 +332,7 @@ export default function MobileDrawer({
                                     <span
                                         className={`text-base font-bold ${pathname.startsWith("/dashboard/thong-ke") ? "text-blue-400" : "text-slate-200"}`}
                                     >
-                                        Báo cáo content
+                                        {t.nav.contentReport}
                                     </span>
                                 </Link>
                                 <div className="mx-5 border-t border-white/[0.05]" />
@@ -354,7 +349,7 @@ export default function MobileDrawer({
                                         <div className="w-8 h-8 rounded-md flex items-center justify-center flex-shrink-0 bg-white/[0.06] text-slate-500">
                                             <Settings className="w-4 h-4" />
                                         </div>
-                                        <span className="text-base font-bold">Cài đặt</span>
+                                        <span className="text-base font-bold">{t.nav.settings}</span>
                                     </Link>
                                     <div className="mx-5 border-t border-white/[0.05]" />
                                 </>
@@ -371,7 +366,7 @@ export default function MobileDrawer({
                                 <div className="w-8 h-8 rounded-md flex items-center justify-center flex-shrink-0 bg-red-500/10 text-red-400">
                                     <LogOut className="w-4 h-4" />
                                 </div>
-                                <span className="text-base font-bold">Đăng xuất</span>
+                                <span className="text-base font-bold">{t.nav.logout}</span>
                             </button>
                         </div>
                     </motion.div>

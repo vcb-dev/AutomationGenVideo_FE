@@ -132,7 +132,7 @@ export default function GlobalSearchPage() {
         { id: 'TIKTOK', label: 'TikTok', icon: Music2, color: 'from-[#00f2ea] to-[#ff0050]', glow: 'shadow-[#00f2ea]/20', bg: 'bg-[#00f2ea]' },
         { id: 'FACEBOOK', label: 'Facebook', icon: Facebook, color: 'from-[#1877F2] to-[#0052D4]', glow: 'shadow-[#1877F2]/20', bg: 'bg-[#1877F2]', disabled: true },
         { id: 'INSTAGRAM', label: 'Instagram', icon: Instagram, color: 'from-[#833ab4] via-[#fd1d1d] to-[#fcb045]', glow: 'shadow-[#fd1d1d]/20', bg: 'bg-[#fd1d1d]' },
-        { id: 'DOUYIN', label: 'Douyin', icon: Music, color: 'from-[#25F4EE] to-[#FE2C55]', glow: 'shadow-[#fe2c55]/20', bg: 'bg-[#FE2C55]' },
+        { id: 'DOUYIN', label: 'Douyin', icon: Music, color: 'from-[#25F4EE] to-[#FE2C55]', glow: 'shadow-[#fe2c55]/20', bg: 'bg-[#FE2C55]', disabled: true },
         { id: 'XIAOHONGSHU', label: 'Xiaohongshu', icon: BookOpen, color: 'from-[#ff2741] to-[#eb3349]', glow: 'shadow-[#ff2741]/20', bg: 'bg-[#ff2741]', disabled: true },
     ];
 
