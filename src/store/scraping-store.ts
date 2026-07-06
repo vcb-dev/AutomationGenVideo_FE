@@ -3,6 +3,8 @@ import { create } from 'zustand';
 export interface ScrapeNotification {
   id: string;
   platform: 'tiktok' | 'instagram' | 'facebook' | 'xiaohongshu' | 'douyin';
+  /** 'profile' = cào theo tài khoản đang theo dõi; 'keyword' = tìm theo từ khoá */
+  kind: 'profile' | 'keyword';
   label: string;
   status: 'scraping' | 'done' | 'error';
   startedAt: Date;

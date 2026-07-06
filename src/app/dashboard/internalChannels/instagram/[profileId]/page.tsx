@@ -12,6 +12,7 @@ import toast from 'react-hot-toast';
 
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService, InstagramReel } from '@/services/scraperService';
+import { useScrapingStore } from '@/store/scraping-store';
 
 function proxyImg(url: string): string {
   if (!url) return '';
@@ -120,6 +121,9 @@ export default function OwnedInstagramProfileDetailPage() {
   const queryClient = useQueryClient();
   const { profileId } = useParams<{ profileId: string }>();
   const id = Number(profileId);
+  const { addNotification, updateNotification } = useScrapingStore();
+  const scrapeNotifIdRef = useRef<string | null>(null);
+  const beforeReelCountRef = useRef(0);
 
   const [search, setSearch] = useState('');
   const [minPlays, setMinPlays] = useState('');
@@ -167,9 +171,18 @@ export default function OwnedInstagramProfileDetailPage() {
     if (prevProcessing.current && !isProcessingNow) {
       queryClient.invalidateQueries({ queryKey: ['instagram-profile-reels', id] });
       queryClient.invalidateQueries({ queryKey: ['instagram-profile-detail', id] });
+      if (scrapeNotifIdRef.current) {
+        const after = reelsQuery.data?.pages[0]?.count ?? 0;
+        updateNotification(scrapeNotifIdRef.current, {
+          status: 'done',
+          completedAt: new Date(),
+          newCount: Math.max(0, after - beforeReelCountRef.current),
+        });
+        scrapeNotifIdRef.current = null;
+      }
     }
     prevProcessing.current = !!isProcessingNow;
-  }, [isProcessingNow, id, queryClient]);
+  }, [isProcessingNow, id, queryClient, updateNotification]);
 
   const observerRef = useRef<IntersectionObserver>();
   const loadMoreRef = useCallback((node: HTMLDivElement | null) => {
@@ -194,8 +207,23 @@ export default function OwnedInstagramProfileDetailPage() {
       }
       queryClient.invalidateQueries({ queryKey: ['instagram-profile-detail', id] });
       queryClient.invalidateQueries({ queryKey: ['instagram-profile-reels', id] });
+      beforeReelCountRef.current = reelsQuery.data?.pages[0]?.count ?? 0;
+      const nId = addNotification({
+        platform: 'instagram',
+        kind: 'profile',
+        label: p?.username || '',
+        status: 'scraping',
+        startedAt: new Date(),
+      });
+      scrapeNotifIdRef.current = nId;
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => {
+      toast.error(e.message);
+      if (scrapeNotifIdRef.current) {
+        updateNotification(scrapeNotifIdRef.current, { status: 'error' });
+        scrapeNotifIdRef.current = null;
+      }
+    },
   });
 
   const toggleMutation = useMutation({
@@ -289,7 +317,7 @@ export default function OwnedInstagramProfileDetailPage() {
             </div>
 
             <button
-              onClick={() => router.push('/dashboard/channels/instagram')}
+              onClick={() => router.push('/dashboard/internalChannels/instagram')}
               className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium border border-border rounded-md hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex-shrink-0"
             >
               <ArrowLeft size={14} /> Quay lại

@@ -105,6 +105,7 @@ export default function TikTokProfileDetailPage() {
   const id = Number(profileId);
   const { addNotification, updateNotification } = useScrapingStore();
   const scrapeNotifIdRef = useRef<string | null>(null);
+  const beforeVideoCountRef = useRef(0);
 
   // ─── Filter state ─────────────────────────────────────
   const [search, setSearch] = useState('');
@@ -156,7 +157,12 @@ export default function TikTokProfileDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['tiktok-profile-videos', id] });
       queryClient.invalidateQueries({ queryKey: ['tiktok-profile-detail', id] });
       if (scrapeNotifIdRef.current) {
-        updateNotification(scrapeNotifIdRef.current, { status: 'done', completedAt: new Date() });
+        const after = videosQuery.data?.pages[0]?.count ?? 0;
+        updateNotification(scrapeNotifIdRef.current, {
+          status: 'done',
+          completedAt: new Date(),
+          newCount: Math.max(0, after - beforeVideoCountRef.current),
+        });
         scrapeNotifIdRef.current = null;
       }
     }
@@ -187,17 +193,15 @@ export default function TikTokProfileDetailPage() {
       }
       queryClient.invalidateQueries({ queryKey: ['tiktok-profile-detail', id] });
       queryClient.invalidateQueries({ queryKey: ['tiktok-profile-videos', id] });
+      beforeVideoCountRef.current = videosQuery.data?.pages[0]?.count ?? 0;
       const nId = addNotification({
         platform: 'tiktok',
+        kind: 'profile',
         label: p?.nickname || p?.username || '',
         status: 'scraping',
         startedAt: new Date(),
       });
       scrapeNotifIdRef.current = nId;
-      if (!data.is_scraping) {
-        updateNotification(nId, { status: 'done', completedAt: new Date() });
-        scrapeNotifIdRef.current = null;
-      }
     },
     onError: (e: Error) => {
       toast.error(e.message);

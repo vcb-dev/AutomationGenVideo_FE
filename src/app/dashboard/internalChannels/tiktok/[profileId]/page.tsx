@@ -103,6 +103,7 @@ export default function OwnedTikTokProfileDetailPage() {
   const id = Number(profileId);
   const { addNotification, updateNotification } = useScrapingStore();
   const scrapeNotifIdRef = useRef<string | null>(null);
+  const beforeVideoCountRef = useRef(0);
 
   const [search, setSearch] = useState('');
   const [minPlays, setMinPlays] = useState('');
@@ -151,7 +152,12 @@ export default function OwnedTikTokProfileDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['tiktok-profile-videos', id] });
       queryClient.invalidateQueries({ queryKey: ['tiktok-profile-detail', id] });
       if (scrapeNotifIdRef.current) {
-        updateNotification(scrapeNotifIdRef.current, { status: 'done', completedAt: new Date() });
+        const after = videosQuery.data?.pages[0]?.count ?? 0;
+        updateNotification(scrapeNotifIdRef.current, {
+          status: 'done',
+          completedAt: new Date(),
+          newCount: Math.max(0, after - beforeVideoCountRef.current),
+        });
         scrapeNotifIdRef.current = null;
       }
     }
@@ -181,17 +187,15 @@ export default function OwnedTikTokProfileDetailPage() {
       }
       queryClient.invalidateQueries({ queryKey: ['tiktok-profile-detail', id] });
       queryClient.invalidateQueries({ queryKey: ['tiktok-profile-videos', id] });
+      beforeVideoCountRef.current = videosQuery.data?.pages[0]?.count ?? 0;
       const nId = addNotification({
         platform: 'tiktok',
+        kind: 'profile',
         label: p?.nickname || p?.username || '',
         status: 'scraping',
         startedAt: new Date(),
       });
       scrapeNotifIdRef.current = nId;
-      if (!data.is_scraping) {
-        updateNotification(nId, { status: 'done', completedAt: new Date() });
-        scrapeNotifIdRef.current = null;
-      }
     },
     onError: (e: Error) => {
       toast.error(e.message);
@@ -306,7 +310,7 @@ export default function OwnedTikTokProfileDetailPage() {
             </div>
 
             <button
-              onClick={() => router.push('/dashboard/channels/tiktok')}
+              onClick={() => router.push('/dashboard/internalChannels/tiktok')}
               className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium border border-border rounded-md hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex-shrink-0"
             >
               <ArrowLeft size={14} /> Quay lại

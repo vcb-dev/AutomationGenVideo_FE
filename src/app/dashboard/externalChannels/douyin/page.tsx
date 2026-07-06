@@ -15,6 +15,7 @@ import DouyinProfileCard from '../components/DouyinProfileCard';
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService, DouyinVideo } from '@/services/scraperService';
 import { useScrapingStore } from '@/store/scraping-store';
+import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
 
 type Tab = 'videos' | 'profiles';
 
@@ -22,6 +23,7 @@ export default function DouyinExternalPage() {
   const { token, user } = useAuthStore();
   const isAdmin = user?.roles?.includes('ADMIN') ?? false;
   const { addNotification, updateNotification } = useScrapingStore();
+  const { start: startProfileScrapeNotif } = useProfileScrapeNotification('douyin');
   const router = useRouter();
 
   const [activeTab, setActiveTab] = useState<Tab>('videos');
@@ -109,6 +111,7 @@ export default function DouyinExternalPage() {
     onMutate: () => {
       const nId = addNotification({
         platform: 'douyin',
+        kind: 'keyword',
         label: keyword.trim(),
         status: 'scraping',
         startedAt: new Date(),
@@ -198,11 +201,13 @@ export default function DouyinExternalPage() {
         router.push(`/dashboard/externalChannels/douyin/${data.profile_id}`);
       } else {
         toast(data.message, { icon: '⏳' });
-        addNotification({
-          platform: 'douyin',
+        startProfileScrapeNotif({
           label: profileSecId.trim(),
-          status: 'scraping',
-          startedAt: new Date(),
+          before: 0,
+          fetchStatus: async () => {
+            const d = await scraperService.getDouyinProfileDetail(token!, data.profile_id);
+            return { scraping_status: d.scraping_status, count: d.videos_in_db };
+          },
         });
       }
       setProfileSecId('');
@@ -217,11 +222,14 @@ export default function DouyinExternalPage() {
     onSuccess: (data, vars) => {
       queryClient.invalidateQueries({ queryKey: ['douyin-profiles'] });
       if (!data.already_exists && !data.newly_scraped) {
-        addNotification({
-          platform: 'douyin',
+        const before = profiles.find(pr => pr.sec_user_id === vars.secUserId)?.videos_in_db ?? 0;
+        startProfileScrapeNotif({
           label: vars.label,
-          status: 'scraping',
-          startedAt: new Date(),
+          before,
+          fetchStatus: async () => {
+            const d = await scraperService.getDouyinProfileDetail(token!, data.profile_id);
+            return { scraping_status: d.scraping_status, count: d.videos_in_db };
+          },
         });
       }
     },

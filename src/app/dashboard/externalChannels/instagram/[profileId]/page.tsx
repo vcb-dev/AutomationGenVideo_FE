@@ -12,6 +12,7 @@ import toast from 'react-hot-toast';
 
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService, InstagramReel } from '@/services/scraperService';
+import { useScrapingStore } from '@/store/scraping-store';
 
 function proxyImg(url: string): string {
   if (!url) return '';
@@ -120,6 +121,9 @@ export default function InstagramProfileDetailPage() {
   const queryClient = useQueryClient();
   const { profileId } = useParams<{ profileId: string }>();
   const id = Number(profileId);
+  const { addNotification, updateNotification } = useScrapingStore();
+  const scrapeNotifIdRef = useRef<string | null>(null);
+  const beforeReelCountRef = useRef(0);
 
   const [search, setSearch] = useState('');
   const [minPlays, setMinPlays] = useState('');
@@ -167,9 +171,18 @@ export default function InstagramProfileDetailPage() {
     if (prevProcessing.current && !isProcessingNow) {
       queryClient.invalidateQueries({ queryKey: ['instagram-profile-reels', id] });
       queryClient.invalidateQueries({ queryKey: ['instagram-profile-detail', id] });
+      if (scrapeNotifIdRef.current) {
+        const after = reelsQuery.data?.pages[0]?.count ?? 0;
+        updateNotification(scrapeNotifIdRef.current, {
+          status: 'done',
+          completedAt: new Date(),
+          newCount: Math.max(0, after - beforeReelCountRef.current),
+        });
+        scrapeNotifIdRef.current = null;
+      }
     }
     prevProcessing.current = !!isProcessingNow;
-  }, [isProcessingNow, id, queryClient]);
+  }, [isProcessingNow, id, queryClient, updateNotification]);
 
   const observerRef = useRef<IntersectionObserver>();
   const loadMoreRef = useCallback((node: HTMLDivElement | null) => {
@@ -194,8 +207,23 @@ export default function InstagramProfileDetailPage() {
       }
       queryClient.invalidateQueries({ queryKey: ['instagram-profile-detail', id] });
       queryClient.invalidateQueries({ queryKey: ['instagram-profile-reels', id] });
+      beforeReelCountRef.current = reelsQuery.data?.pages[0]?.count ?? 0;
+      const nId = addNotification({
+        platform: 'instagram',
+        kind: 'profile',
+        label: p?.username || '',
+        status: 'scraping',
+        startedAt: new Date(),
+      });
+      scrapeNotifIdRef.current = nId;
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => {
+      toast.error(e.message);
+      if (scrapeNotifIdRef.current) {
+        updateNotification(scrapeNotifIdRef.current, { status: 'error' });
+        scrapeNotifIdRef.current = null;
+      }
+    },
   });
 
   const toggleMutation = useMutation({

@@ -10,6 +10,7 @@ import toast from 'react-hot-toast';
 import InstagramProfileCard from '../components/InstagramProfileCard';
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService } from '@/services/scraperService';
+import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
 
 const PAGE_SIZE = 12;
 
@@ -18,6 +19,7 @@ export default function InstagramExternalPage() {
   const isAdmin = user?.roles?.includes('ADMIN') ?? false;
   const queryClient = useQueryClient();
   const router = useRouter();
+  const { start: startProfileScrapeNotif } = useProfileScrapeNotification('instagram');
 
   // State
   const [profileUsername, setProfileUsername] = useState('');
@@ -47,14 +49,20 @@ export default function InstagramExternalPage() {
   const total = profilesQuery.data?.count || 0;
 
   // ─── Mutations ────────────────────────────────────────
-  const handleScrapeSuccess = (data: { message: string; is_scraping?: boolean; already_exists?: boolean; profile_id: number }) => {
+  const handleScrapeSuccess = (data: { message: string; is_scraping?: boolean; already_exists?: boolean; profile_id: number }, label?: string, before = 0) => {
     if (data.already_exists) {
       toast(data.message, { icon: '📋' });
       router.push(`/dashboard/externalChannels/instagram/${data.profile_id}`);
-    } else if (data.is_scraping) {
-      toast(data.message, { icon: '⏳' });
     } else {
-      toast.success(data.message);
+      toast(data.message, { icon: '⏳' });
+      startProfileScrapeNotif({
+        label: label || profileUsername.trim(),
+        before,
+        fetchStatus: async () => {
+          const d = await scraperService.getInstagramProfileDetail(token!, data.profile_id);
+          return { scraping_status: d.scraping_status, count: d.reels_in_db };
+        },
+      });
     }
     setProfileUsername('');
     queryClient.invalidateQueries({ queryKey: ['instagram-profiles'] });
@@ -65,7 +73,7 @@ export default function InstagramExternalPage() {
       if (!token) throw new Error('No token');
       return scraperService.instagramProfileScrape(token, username);
     },
-    onSuccess: handleScrapeSuccess,
+    onSuccess: (data) => handleScrapeSuccess(data, profileUsername.trim()),
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -82,7 +90,10 @@ export default function InstagramExternalPage() {
       if (!token) throw new Error('No token');
       return scraperService.instagramProfileScrape(token, p.username);
     },
-    onSuccess: handleScrapeSuccess,
+    onSuccess: (data, vars) => {
+      const before = profiles.find(pr => pr.id === vars.id)?.reels_in_db ?? 0;
+      handleScrapeSuccess(data, vars.username, before);
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
