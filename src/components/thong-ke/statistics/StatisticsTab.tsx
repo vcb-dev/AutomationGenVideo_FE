@@ -5,8 +5,9 @@ import {
   Target, Sparkles, XCircle, CheckCircle, FileDown, Download,
   X, MessageSquare, Wrench, Calendar
 } from 'lucide-react';
-import { TeamData } from '../types';
+import { TeamData, AttendanceStatus } from '../types';
 import { TEAMS_DATA } from '../constants';
+import AttendanceSection from './AttendanceSection';
 
 interface StatisticsTabProps {
   teamsData: Record<string, TeamData>;
@@ -26,6 +27,14 @@ interface StatisticsTabProps {
   handleStartExport: (type: 'pdf' | 'excel') => void;
   filterMode?: 'all' | 'week' | 'month';
   currentPeriod?: { id: string; type: 'WEEK' | 'MONTH'; label: string; start_date: string; end_date: string } | null;
+  currentUserId?: string;
+  currentUserName?: string;
+  currentUserRoles?: string[];
+  onSelfCheckIn?: (sessionId: string, status: AttendanceStatus, note?: string) => Promise<void>;
+  onCreateSession?: (scheduledAt: string, title?: string, notes?: string) => Promise<void>;
+  onBulkUpdate?: (sessionId: string, records: { user_id: string; status: AttendanceStatus; note?: string }[]) => Promise<void>;
+  onFinalizeSession?: (sessionId: string) => Promise<void>;
+  onReopenSession?: (sessionId: string) => Promise<void>;
 }
 
 export default function StatisticsTab({
@@ -35,7 +44,9 @@ export default function StatisticsTab({
   editorSortBy, setEditorSortBy,
   selectedEditorDetail, setSelectedEditorDetail,
   isExporting, exportProgress, exportType, handleStartExport,
-  filterMode, currentPeriod
+  filterMode, currentPeriod,
+  currentUserId, currentUserName, currentUserRoles, onSelfCheckIn, onCreateSession, onBulkUpdate,
+  onFinalizeSession, onReopenSession,
 }: StatisticsTabProps) {
 
   const baseData = teamsData[activeTab] || TEAMS_DATA[activeTab];
@@ -933,6 +944,21 @@ export default function StatisticsTab({
             </div>
           </div>
         </div>
+
+        {/* Attendance Section */}
+        <AttendanceSection
+          sessionData={baseData?.meetingSession}
+          teamMembers={baseData?.members || []}
+          activeTeam={activeTab}
+          currentUserId={currentUserId}
+          currentUserName={currentUserName}
+          currentUserRoles={currentUserRoles}
+          onSelfCheckIn={onSelfCheckIn}
+          onCreateSession={onCreateSession}
+          onBulkUpdate={onBulkUpdate}
+          onFinalizeSession={onFinalizeSession}
+          onReopenSession={onReopenSession}
+        />
 
         {/* Leaderboard & Platforms */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

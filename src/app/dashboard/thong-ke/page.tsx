@@ -1,13 +1,14 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, Suspense, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import ReportTab from '../../../components/thong-ke/report/ReportTab';
 import PresentationTab from '../../../components/thong-ke/presentation/PresentationTab';
 import StatisticsTab from '../../../components/thong-ke/statistics/StatisticsTab';
 import VideoModal from '../../../components/thong-ke/report/VideoModal';
-import { TeamData } from '../../../components/thong-ke/types';
+import { TeamData, MeetingSession, AttendanceStatus, MeetingSessionResponse } from '../../../components/thong-ke/types';
 import { apiClient } from '../../../lib/api-client';
+import { useAuthStore } from '@/store/auth-store';
 
 const viewsToNum = (viewsStr: any): number => {
   if (typeof viewsStr === 'number') return viewsStr;
@@ -61,6 +62,13 @@ function StatisticsDashboard() {
   // Toast notification state
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
   const [isLightMode, setIsLightMode] = useState<boolean>(false);
+
+  // Current user (from auth store, for attendance)
+  const authUser = useAuthStore((state) => state.user);
+
+  // Meeting session state (attendance)
+  const [meetingSession, setMeetingSession] = useState<MeetingSessionResponse | null>(null);
+
   const showToast = (message: string, type: 'error' | 'success' = 'error') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 5000);
@@ -157,6 +165,117 @@ function StatisticsDashboard() {
   useEffect(() => {
     fetchReportData();
   }, [activeTab, currentPeriod, refreshTrigger]);
+
+  // Fetch meeting session for Attendance Section (chỉ khi tab thong-ke active)
+  const fetchMeetingSession = useCallback(async () => {
+    if (!activeTab || !currentPeriod?.id || currentPeriod.type !== 'WEEK') {
+      setMeetingSession(null);
+      return;
+    }
+    try {
+      const res = await apiClient.get(
+        `/content-report/meetings?team=${activeTab}&periodId=${currentPeriod.id}`
+      );
+      setMeetingSession(res.data || null);
+    } catch (err) {
+      // 404 = chưa có session, không phải lỗi nghiêm trọng
+      setMeetingSession(null);
+    }
+  }, [activeTab, currentPeriod]);
+
+  useEffect(() => {
+    if (activeSubTab === 'thong-ke') {
+      fetchMeetingSession();
+    }
+  }, [activeSubTab, activeTab, currentPeriod, fetchMeetingSession]);
+
+  // Self check-in handler (đưa xuống page để tái dùng fetchMeetingSession sau khi upsert)
+  const handleSelfCheckIn = useCallback(async (
+    sessionId: string,
+    status: AttendanceStatus,
+    note?: string
+  ) => {
+    try {
+      await apiClient.post(`/content-report/meetings/${sessionId}/attendance`, { status, note });
+      // Refresh session data để AttendanceSection cập nhật danh sách
+      await fetchMeetingSession();
+      showToast('Điểm danh thành công!', 'success');
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Lỗi điểm danh';
+      showToast(msg, 'error');
+      throw err; // Re-throw để modal biết cần hiển thị lỗi
+    }
+  }, [fetchMeetingSession]);
+
+  // Create meeting session handler
+  const handleCreateMeetingSession = useCallback(async (
+    scheduledAt: string,
+    title?: string,
+    notes?: string
+  ) => {
+    if (!activeTab || !currentPeriod?.id) return;
+    try {
+      await apiClient.post(`/content-report/meetings`, {
+        team: activeTab,
+        period_id: currentPeriod.id,
+        scheduled_at: scheduledAt,
+        title,
+        notes
+      });
+      // Refresh session data
+      await fetchMeetingSession();
+      showToast('Khởi tạo buổi họp thành công!', 'success');
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Lỗi khởi tạo buổi họp';
+      showToast(msg, 'error');
+      throw err;
+    }
+  }, [activeTab, currentPeriod, fetchMeetingSession]);
+
+  // Bulk update attendance handler
+  const handleBulkUpdateAttendance = useCallback(async (
+    sessionId: string,
+    records: { user_id: string; status: AttendanceStatus; note?: string }[]
+  ) => {
+    try {
+      await apiClient.patch(`/content-report/meetings/${sessionId}/attendance/bulk`, { records });
+      // Refresh session data
+      await fetchMeetingSession();
+      showToast('Cập nhật điểm danh cả nhóm thành công!', 'success');
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Lỗi cập nhật điểm danh cả nhóm';
+      showToast(msg, 'error');
+      throw err;
+    }
+  }, [fetchMeetingSession]);
+
+  // Finalize attendance session handler
+  const handleFinalizeSession = useCallback(async (sessionId: string) => {
+    try {
+      await apiClient.post(`/content-report/meetings/${sessionId}/finalize`);
+      // Refresh session data
+      await fetchMeetingSession();
+      showToast('Chốt điểm danh buổi họp thành công!', 'success');
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Lỗi chốt buổi họp';
+      showToast(msg, 'error');
+      throw err;
+    }
+  }, [fetchMeetingSession]);
+
+  // Reopen attendance session handler
+  const handleReopenSession = useCallback(async (sessionId: string) => {
+    try {
+      await apiClient.post(`/content-report/meetings/${sessionId}/reopen`);
+      // Refresh session data
+      await fetchMeetingSession();
+      showToast('Mở lại buổi họp thành công!', 'success');
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Lỗi mở lại buổi họp';
+      showToast(msg, 'error');
+      throw err;
+    }
+  }, [fetchMeetingSession]);
 
   // Sync sub tab with query param
   useEffect(() => {
@@ -263,12 +382,16 @@ function StatisticsDashboard() {
     return result;
   }, [teamsList, activeTab, activeTeamData]);
 
-  // Construct a dummy Record<string, TeamData> populated with full month data for Statistics tab
+  // Construct teamsData with meetingSession injected for StatisticsTab
   const monthlyTeamsData = useMemo(() => {
     const result: Record<string, TeamData> = {};
     teamsList.forEach(tName => {
       if (tName === activeTab && activeMonthData) {
-        result[tName] = activeMonthData;
+        result[tName] = {
+          ...activeMonthData,
+          // Inject meetingSession cho team đang active (WEEK period)
+          meetingSession: tName === activeTab ? meetingSession : undefined,
+        };
       } else {
         result[tName] = {
           teamName: tName,
@@ -284,7 +407,7 @@ function StatisticsDashboard() {
       }
     });
     return result;
-  }, [teamsList, activeTab, activeMonthData]);
+  }, [teamsList, activeTab, activeMonthData, meetingSession]);
 
   const refreshAllData = () => {
     setRefreshTrigger(prev => prev + 1);
@@ -1037,6 +1160,14 @@ function StatisticsDashboard() {
           handleStartExport={handleStartExport}
           filterMode={filterMode}
           currentPeriod={currentPeriod}
+          currentUserId={authUser?.id}
+          currentUserName={authUser?.full_name}
+          currentUserRoles={authUser?.roles}
+          onSelfCheckIn={handleSelfCheckIn}
+          onCreateSession={handleCreateMeetingSession}
+          onBulkUpdate={handleBulkUpdateAttendance}
+          onFinalizeSession={handleFinalizeSession}
+          onReopenSession={handleReopenSession}
         />
       )}
 

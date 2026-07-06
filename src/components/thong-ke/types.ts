@@ -138,4 +138,57 @@ export interface TeamData {
   cloneVideos?: CloneVideoItem[];
   actions?: ActionItem[];
   members?: string[];
+  meetingSession?: MeetingSessionResponse | null;
 }
+
+export interface MeetingSessionResponse {
+  session: MeetingSession | null;
+  teamMembers: { id: string; full_name: string; image_url?: string | null }[];
+}
+
+// ─────────────────────────────────────────────
+// Attendance Types
+// ─────────────────────────────────────────────
+
+export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'ON_LEAVE' | 'LATE';
+
+export interface AttendanceRecord {
+  id: string;
+  session_id: string;
+  user_id: string;
+  status: AttendanceStatus;
+  note?: string | null;
+  marked_by_id: string;
+  created_at: string;
+  updated_at: string;
+  user: {
+    id: string;
+    full_name: string;
+    image_url?: string | null;
+  };
+  marked_by: {
+    id: string;
+    full_name: string;
+  };
+}
+
+export interface MeetingSession {
+  id: string;
+  team_id: string;
+  period_id: string;
+  title?: string | null;
+  scheduled_at: string;
+  notes?: string | null;
+  created_by: string;
+  is_finalized: boolean;
+  finalized_at?: string | null;
+  finalized_by_id?: string | null;
+  created_at: string;
+  updated_at: string;
+  team: { id: string; name: string };
+  period: { id: string; label: string; start_date: string; end_date: string };
+  creator: { id: string; full_name: string };
+  finalized_by?: { id: string; full_name: string } | null;
+  attendances: AttendanceRecord[];
+}
+
