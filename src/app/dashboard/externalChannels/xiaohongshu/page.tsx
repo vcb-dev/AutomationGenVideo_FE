@@ -13,6 +13,7 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService, XiaohongshuVideo, XiaohongshuProfile } from '@/services/scraperService';
 import { useScrapingStore } from '@/store/scraping-store';
+import { UserRole } from '@/types/auth';
 
 function formatNum(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -477,7 +478,7 @@ function VideoSearchTab() {
 // ─── PROFILES TAB ────────────────────────────────────────────
 function ProfilesTab() {
   const { token, user } = useAuthStore();
-  const isAdmin = user?.roles?.includes('ADMIN') ?? false;
+  const isAdmin = user?.roles?.includes(UserRole.ADMIN) ?? false;
   const queryClient = useQueryClient();
   const { addNotification, updateNotification } = useScrapingStore();
   const router = useRouter();
