@@ -423,6 +423,7 @@ export const scraperService = {
 
   getOwnedChannelVideos: async (token: string, params: {
     page?: number; page_size?: number; q?: string; sort?: string; platform?: string;
+    min_plays?: number; date_from?: string; date_to?: string;
   }): Promise<PaginatedExternalVideos> => {
     const res = await fetch(`${API_URL}/scraper/owned/videos/${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },
