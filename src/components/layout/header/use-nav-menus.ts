@@ -459,14 +459,14 @@ export function useNavMenus(
                         ],
                     },
                     {
-                        section: n.secDownloadTools,
+                        section: "CÔNG CỤ TẢI VIDEO",
                         color: "violet" as const,
                         items: [
                             {
-                                label: n.videoDownloader,
+                                label: "Tải video MXH",
                                 href: "/dashboard/tools/video-downloader",
                                 icon: DownloadCloud,
-                                description: n.videoDownloaderDesc,
+                                description: "Tải MP4/MP3 từ YouTube, TikTok, Facebook... kèm Chrome extension",
                             },
                         ],
                     },
