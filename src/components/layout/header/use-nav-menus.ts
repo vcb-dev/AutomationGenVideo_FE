@@ -31,6 +31,7 @@ import {
     Wrench,
     AudioLines,
     Wand2,
+    DownloadCloud,
 } from "lucide-react";
 import { NavMenu } from "./types";
 import { useLang } from "@/contexts/SocialLanguageContext";
@@ -431,6 +432,7 @@ export function useNavMenus(
                 activePathPrefixes: [
                     "/dashboard/ai/clone-voice",
                     "/dashboard/ai/overview",
+                    "/dashboard/tools/video-downloader",
                 ] as string[],
                 sections: [
                     {
@@ -448,6 +450,18 @@ export function useNavMenus(
                                 href: "/dashboard/ai/clone-voice",
                                 icon: AudioLines,
                                 description: n.cloneVoiceDesc,
+                            },
+                        ],
+                    },
+                    {
+                        section: n.secDownloadTools,
+                        color: "violet" as const,
+                        items: [
+                            {
+                                label: n.videoDownloader,
+                                href: "/dashboard/tools/video-downloader",
+                                icon: DownloadCloud,
+                                description: n.videoDownloaderDesc,
                             },
                         ],
                     },

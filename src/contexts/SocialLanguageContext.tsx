@@ -665,6 +665,7 @@ const T = {
       secTeamCatalog: 'ĐỘI NHÓM & DANH MỤC',
       secPersonal: 'CÁ NHÂN',
       secAiVoice: 'GIỌNG NÓI AI',
+      secDownloadTools: 'CÔNG CỤ TẢI VIDEO',
 
       dashboardAdmin: 'Dashboard Admin',
       dashboardAdminDesc: 'Biểu đồ tổng quan toàn hệ thống',
@@ -751,6 +752,9 @@ const T = {
       aiOverviewDesc: 'Xem báo cáo chi tiêu, token tiêu thụ & số lượng voice',
       cloneVoice: 'Clone Voice',
       cloneVoiceDesc: 'Clone & tạo giọng nói AI từ văn bản, dịch kịch bản',
+
+      videoDownloader: 'Tải video MXH',
+      videoDownloaderDesc: 'Tải MP4/MP3 từ YouTube, TikTok, Facebook... kèm Chrome extension',
 
       contentReport: 'Báo cáo content',
       systemSettings: 'Cài đặt hệ thống',
@@ -1425,6 +1429,7 @@ const T = {
       secTeamCatalog: 'TEAMS & CATALOG',
       secPersonal: 'PERSONAL',
       secAiVoice: 'AI VOICE',
+      secDownloadTools: 'VIDEO DOWNLOAD TOOLS',
 
       dashboardAdmin: 'Admin Dashboard',
       dashboardAdminDesc: 'System-wide overview charts',
@@ -1511,6 +1516,9 @@ const T = {
       aiOverviewDesc: 'View spending, token usage & voice count reports',
       cloneVoice: 'Clone Voice',
       cloneVoiceDesc: 'Clone & generate AI voices from text, translate scripts',
+
+      videoDownloader: 'Social Video Downloader',
+      videoDownloaderDesc: 'Download MP4/MP3 from YouTube, TikTok, Facebook... with Chrome extension',
 
       contentReport: 'Content Report',
       systemSettings: 'System Settings',
