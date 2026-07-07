@@ -77,6 +77,43 @@ export const promoteTaskVideo = (taskId: string) =>
 export const deleteTaskPendingVideo = (taskId: string) =>
   apiClient.delete(`/task-auto/tasks/${taskId}/pending-video`).then(r => r.data)
 
+// ── Task Video Script (AI content — DeepSeek, cache theo task) ──────────────
+
+export interface VideoScriptTranslation {
+  language: string
+  content: string
+  hashtags: string[]
+}
+
+export interface VideoScript {
+  content: string
+  hashtags: string[]
+  translation?: VideoScriptTranslation | null
+}
+
+export interface GenerateVideoScriptParams {
+  fileUrl?: string | null
+  scriptText?: string | null
+  contentTitle?: string | null
+  contentLine?: string | null
+  contentMarket?: string | null
+  productName?: string | null
+  productSku?: string | null
+  productPrice?: string | null
+  productMaterial?: string | null
+  productPriceSegment?: string | null
+  productLine?: string | null
+  productMarket?: string | null
+}
+
+export const getTaskVideoScript = (taskId: string) =>
+  apiClient.get<{ script: VideoScript | null }>(`/task-auto/tasks/${taskId}/video-script`).then(r => r.data.script)
+
+export const generateTaskVideoScript = (taskId: string, params: GenerateVideoScriptParams, force = false) =>
+  apiClient
+    .post<{ script: VideoScript; cached: boolean }>(`/task-auto/tasks/${taskId}/video-script`, { ...params, force })
+    .then(r => r.data)
+
 // ── Teams ─────────────────────────────────────────────────────────────────────
 
 export const getTeams = () =>

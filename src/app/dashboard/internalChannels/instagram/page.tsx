@@ -11,6 +11,7 @@ import InstagramProfileCard from '../../externalChannels/components/InstagramPro
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService, ExternalVideo } from '@/services/scraperService';
 import { channelsService, ChannelInfo } from '@/services/channelsService';
+import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
 
 const PAGE_SIZE = 12;
 
@@ -91,6 +92,7 @@ export default function InstagramChannelsPage() {
   const { token } = useAuthStore();
   const queryClient = useQueryClient();
   const router = useRouter();
+  const { start: startProfileScrapeNotif } = useProfileScrapeNotification('instagram');
 
   // ── Profiles ─────────────────────────────────────────
   const [username, setUsername] = useState('');
@@ -138,14 +140,20 @@ export default function InstagramChannelsPage() {
     return { team_name: null, owner_name: null };
   };
 
-  const handleScrapeSuccess = (data: { message: string; is_scraping?: boolean; already_exists?: boolean; profile_id: number }) => {
+  const handleScrapeSuccess = (data: { message: string; is_scraping?: boolean; already_exists?: boolean; profile_id: number }, label?: string, before = 0) => {
     if (data.already_exists) {
       toast(data.message, { icon: '📋' });
-      router.push(`/dashboard/channels/instagram/${data.profile_id}`);
-    } else if (data.is_scraping) {
-      toast(data.message, { icon: '⏳' });
+      router.push(`/dashboard/internalChannels/instagram/${data.profile_id}`);
     } else {
-      toast.success(data.message);
+      toast(data.message, { icon: '⏳' });
+      startProfileScrapeNotif({
+        label: label || username.trim(),
+        before,
+        fetchStatus: async () => {
+          const d = await scraperService.getInstagramProfileDetail(token!, data.profile_id);
+          return { scraping_status: d.scraping_status, count: d.reels_in_db };
+        },
+      });
     }
     setUsername('');
     queryClient.invalidateQueries({ queryKey: ['owned-instagram-profiles'] });
@@ -156,7 +164,7 @@ export default function InstagramChannelsPage() {
       if (!token) throw new Error('No token');
       return scraperService.instagramProfileScrape(token, u, true);
     },
-    onSuccess: handleScrapeSuccess,
+    onSuccess: (data) => handleScrapeSuccess(data, username.trim()),
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -165,7 +173,10 @@ export default function InstagramChannelsPage() {
       if (!token) throw new Error('No token');
       return scraperService.instagramProfileScrape(token, p.username, true);
     },
-    onSuccess: handleScrapeSuccess,
+    onSuccess: (data, vars) => {
+      const before = profiles.find(pr => pr.id === vars.id)?.reels_in_db ?? 0;
+      handleScrapeSuccess(data, vars.username, before);
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -297,7 +308,7 @@ export default function InstagramChannelsPage() {
               onScrape={() => rescrape.mutate({ id: p.id, username: p.username })}
               onToggleBookmark={() => toggleMutation.mutate({ id: p.id, field: 'is_bookmarked' })}
               onToggleTracked={() => toggleMutation.mutate({ id: p.id, field: 'is_tracked' })}
-              onViewDetail={() => router.push(`/dashboard/channels/instagram/${p.id}`)}
+              onViewDetail={() => router.push(`/dashboard/internalChannels/instagram/${p.id}`)}
             />
           ))}
         </div>

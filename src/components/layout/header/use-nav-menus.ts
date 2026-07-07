@@ -23,18 +23,13 @@ import {
     Languages,
     BookOpen,
     Zap,
-    Package,
     Radio,
     FolderOpen,
-    Mic,
-    ExternalLink,
-    Wrench,
     AudioLines,
     Wand2,
     DownloadCloud,
 } from "lucide-react";
 import { NavMenu } from "./types";
-import { useLang } from "@/contexts/SocialLanguageContext";
 
 export function useNavMenus(
     isManagerOrAdmin: boolean,
@@ -42,8 +37,6 @@ export function useNavMenus(
     options?: { isAdmin?: boolean; isLeader?: boolean; isManager?: boolean },
 ): NavMenu[] {
     const { isAdmin, isLeader, isManager } = options ?? {};
-    const { t } = useLang();
-    const n = t.nav;
     return useMemo<NavMenu[]>(
         () => [
             {
@@ -51,144 +44,149 @@ export function useNavMenus(
                 label: "VCB Portal",
                 activePathPrefixes: [
                     "/dashboard/manager",
+                    "/dashboard/editor-management",
                     "/dashboard/hr-management",
                     "/dashboard/hieu-suat",
                     "/dashboard/admin",
                     "/dashboard/leader",
-                    "/dashboard/channels",
+                    "/dashboard/channel-team",
                 ],
                 sections: [
                     {
-                        section: n.secOverview,
+                        section: "TỔNG QUAN",
                         color: "blue",
                         items: [
                             ...(isAdmin
                                 ? [
                                     {
-                                        label: n.dashboardAdmin,
+                                        label: "Dashboard Admin",
                                         href: "/dashboard/admin",
                                         icon: BarChart3,
-                                        description: n.dashboardAdminDesc,
+                                        description: "Biểu đồ tổng quan toàn hệ thống",
                                     },
                                 ]
                                 : []),
                             ...(isLeader
                                 ? [
                                     {
-                                        label: n.dashboardLeader,
+                                        label: "Dashboard Leader",
                                         href: "/dashboard/leader",
                                         icon: Crown,
-                                        description: n.dashboardLeaderDesc,
+                                        description: "Biểu đồ theo góc nhìn Leader",
                                     },
                                 ]
                                 : []),
                             {
-                                label: n.performance,
+                                label: "Hiệu suất",
                                 href: "/dashboard/manager/user-activity?tab=performance",
                                 icon: Activity,
-                                description: n.performanceDesc,
+                                description: "Theo dõi KPI & hiệu suất cá nhân",
                             },
                             ...(isManager
                                 ? [
                                     {
-                                        label: n.teamOverview,
+                                        label: "Tổng quan nhóm",
                                         href: "/dashboard/manager/user-activity?tab=dashboard",
                                         icon: LayoutDashboard,
-                                        description: n.teamOverviewDesc,
+                                        description: "Dashboard analytics toàn nhóm",
                                     },
                                     {
-                                        label: n.dashboardMain,
+                                        label: "Dashboard Tổng",
                                         href: "/dashboard/manager",
                                         icon: LayoutGrid,
-                                        description: n.dashboardMainDesc,
+                                        description: "Bảng điều khiển quản lý hệ thống",
                                     },
                                 ]
                                 : []),
                             {
-                                label: n.ranking,
+                                label: "Bảng xếp hạng",
                                 href: "/dashboard/manager/user-activity?tab=ranking",
                                 icon: Layout,
-                                description: n.rankingDesc,
+                                description: "Xếp hạng thành viên trong tháng",
                             },
                             {
-                                label: n.personalProgress,
+                                label: "Tiến độ cá nhân",
                                 href: "/dashboard/manager/user-activity?tab=personal",
                                 icon: User,
-                                description: n.personalProgressDesc,
+                                description: "Lịch sử & biểu đồ tiến độ cá nhân",
                             },
                         ],
                     },
                     {
-                        section: n.secDailyReport,
+                        section: "BÁO CÁO HÀNG NGÀY",
                         color: "violet",
                         items: [
                             ...(isAdmin
                                 ? []
                                 : [
                                     {
-                                        label: n.report,
+                                        label: "Báo cáo",
                                         href: "",
                                         icon: FileText,
-                                        description: n.reportDesc,
+                                        description: "Báo cáo ngày & tháng của Leader / Member",
                                         subPanel: [
                                             {
-                                                label: n.reportTraffic,
+                                                label: "Báo cáo traffic",
                                                 href: "/dashboard/manager/user-activity?tab=daily_report&report=daily&type=traffic",
                                                 icon: BarChart3,
-                                                description: n.reportTrafficDesc,
-                                                cta: n.reportTrafficCta,
+                                                description: "Thống kê lượt xem, click, nguồn traffic theo ngày",
+                                                cta: "Xem báo cáo",
                                                 accentColor: "blue" as const,
                                             },
                                             {
-                                                label: n.todayTasks,
+                                                label: "Công việc hôm nay",
                                                 href: "/dashboard/manager/user-activity?tab=daily_report&report=daily&type=tasks",
                                                 icon: ClipboardList,
-                                                description: n.todayTasksDesc,
-                                                cta: n.todayTasksCta,
+                                                description: "Danh sách task & tiến độ trong ngày của member",
+                                                cta: "Xem công việc",
                                                 accentColor: "blue" as const,
                                             },
                                             {
-                                                label: n.monthlyReport,
+                                                label: "Báo cáo tháng",
                                                 href: "/dashboard/manager/user-activity?tab=daily_report&report=monthly",
                                                 icon: CalendarDays,
-                                                description: n.monthlyReportDesc,
-                                                cta: n.monthlyReportCta,
+                                                description: "Tổng hợp hiệu suất, traffic và doanh thu theo tháng",
+                                                cta: "Xem báo cáo tháng",
                                                 accentColor: "indigo" as const,
                                             },
                                         ],
                                     },
                                 ]),
                             {
-                                label: isAdmin ? n.checklistView : n.checklist,
+                                label: isAdmin ? "Xem báo cáo" : "Checklist",
                                 href: "/dashboard/manager/user-activity?tab=daily_checklist",
                                 icon: CheckSquare,
-                                description: isAdmin ? n.checklistViewDesc : n.checklistDesc,
+                                description: isAdmin
+                                    ? "Xem báo cáo, checklist và phê duyệt trong hệ thống"
+                                    : "Danh sách công việc cần hoàn thành hôm nay",
                             },
                             {
-                                label: isAdmin ? n.outstandingApprove : n.outstanding,
+                                label: isAdmin ? "Duyệt vấn đề & win" : "Vấn đề & Win",
                                 href: "/dashboard/manager/user-activity?tab=daily_outstanding",
                                 icon: ClipboardList,
-                                description: isAdmin ? n.outstandingApproveDesc : n.outstandingDesc,
+                                description: isAdmin
+                                    ? "Duyệt và ghi nhận vấn đề nổi bật & thành tích ngày"
+                                    : "Ghi nhận vấn đề nổi bật & thành tích ngày",
                             },
                         ],
                     },
                     {
-                        section: n.secChannel,
+                        section: "KÊNH",
                         color: "slate" as const,
                         items: [
                             {
-                                label: n.myChannels,
+                                label: "Kênh của tôi",
                                 href: "/dashboard/channel-team/my",
                                 icon: Radio,
-                                description: n.myChannelsDesc,
+                                description: "Danh sách kênh MXH của bạn",
                             },
                             ...(isManagement
                                 ? [
                                     {
-                                        label: n.teamChannels,
+                                        label: "Quản lý kênh nhóm",
                                         href: "/dashboard/channel-team",
                                         icon: BookOpen,
-                                        description: n.teamChannelsDesc,
+                                        description: "Danh sách kênh MXH của toàn team",
                                     },
                                 ]
                                 : []),
@@ -197,14 +195,20 @@ export function useNavMenus(
                     ...(isManagement
                         ? [
                             {
-                                section: n.secManagement,
+                                section: "QUẢN LÝ",
                                 color: "slate" as const,
                                 items: [
                                     {
-                                        label: n.hr,
+                                        label: "Quản lý Editors",
+                                        href: "/dashboard/editor-management",
+                                        icon: Users,
+                                        description: "Quản lý danh sách Editor trong hệ thống",
+                                    },
+                                    {
+                                        label: "Quản lý nhân sự",
                                         href: "/dashboard/hr-management",
                                         icon: UserCog,
-                                        description: n.hrDesc,
+                                        description: "Thêm, sửa, xóa nhân sự trong team",
                                     },
                                 ],
                             },
@@ -214,62 +218,62 @@ export function useNavMenus(
             },
             {
                 id: "social-publishing",
-                label: n.menuSocial,
+                label: "Đăng bài MXH",
                 activePathPrefixes: [
                     "/dashboard/social",
                 ],
                 sections: [
                     {
-                        section: n.secAccount,
+                        section: "TÀI KHOẢN",
                         color: "blue",
                         items: [
                             {
-                                label: n.connectAccounts,
+                                label: "Kết nối tài khoản",
                                 href: "/dashboard/social/channels",
                                 icon: Link2,
-                                description: n.connectAccountsDesc,
+                                description: "Kết nối Facebook, Instagram, TikTok, Threads, YouTube, Zalo",
                             },
                         ],
                     },
                     {
-                        section: n.secPublish,
+                        section: "ĐĂNG BÀI",
                         color: "indigo",
                         items: [
                             {
-                                label: n.compose,
+                                label: "Soạn & đăng bài",
                                 href: "/dashboard/social/compose",
                                 icon: Send,
-                                description: n.composeDesc,
+                                description: "Tạo và đăng bài lên nhiều nền tảng",
                             },
                             {
-                                label: n.schedule,
+                                label: "Lịch đăng",
                                 href: "/dashboard/social/schedule",
                                 icon: Calendar,
-                                description: n.scheduleDesc,
+                                description: "Quản lý bài đăng theo lịch tự động",
                             },
                             {
-                                label: n.monthCalendar,
+                                label: "Lịch tháng",
                                 href: "/dashboard/social/calendar",
                                 icon: CalendarDays,
-                                description: n.monthCalendarDesc,
+                                description: "Xem bài đặt lịch dạng calendar theo tháng",
                             },
                         ],
                     },
                     {
-                        section: n.secStats,
+                        section: "THỐNG KÊ",
                         color: "slate",
                         items: [
                             {
-                                label: n.postHistory,
+                                label: "Lịch sử đăng",
                                 href: "/dashboard/social/history",
                                 icon: History,
-                                description: n.postHistoryDesc,
+                                description: "Theo dõi toàn bộ lịch sử bài đã đăng",
                             },
                             {
-                                label: n.socialStats,
+                                label: "Thống kê",
                                 href: "/dashboard/social/stats",
                                 icon: TrendingUp,
-                                description: n.socialStatsDesc,
+                                description: "Biểu đồ & phân tích hiệu suất đăng bài",
                             },
                         ],
                     },
@@ -277,7 +281,7 @@ export function useNavMenus(
             },
             {
                 id: "social-discovery",
-                label: n.menuDiscovery,
+                label: "Khám phá Video",
                 activePathPrefixes: [
                     "/dashboard/facebook",
                     "/dashboard/instagram",
@@ -290,33 +294,34 @@ export function useNavMenus(
                     "/dashboard/channel-analysis",
                     "/dashboard/video-library",
                     "/dashboard/content/generate",
-                    "/dashboard/channels",
+                    "/dashboard/internalChannels",
+                    "/dashboard/externalChannels",
                 ],
                 sections: [
                     {
-                        section: n.secAnalysis,
+                        section: "PHÂN TÍCH",
                         color: "blue",
                         items: [
                             {
-                                label: n.channels,
+                                label: "Channels",
                                 href: "/dashboard/facebook/channels",
                                 icon: Users,
-                                description: n.channelsDesc,
+                                description: "Quản lý kênh mạng xã hội",
                             },
                             {
-                                label: n.channelAnalysis,
+                                label: "Phân tích kênh",
                                 href: "/dashboard/channel-analysis",
                                 icon: BarChart3,
-                                description: n.channelAnalysisDesc,
+                                description: "Phân tích sâu dữ liệu kênh",
                             },
                             {
-                                label: "Kênh nội bộ",       // ← thêm
+                                label: "Kênh nội bộ",
                                 href: "/dashboard/internalChannels",
                                 icon: BookOpen,
                                 description: "Danh sách kênh MXH của team",
                             },
                             {
-                                label: "Khám phá kênh",  
+                                label: "Khám phá kênh",
                                 href: "/dashboard/externalChannels",
                                 icon: BookOpen,
                                 description: "Khám phá kênh MXH bên ngoài",
@@ -326,34 +331,34 @@ export function useNavMenus(
                     ...(isManagement
                         ? [
                             {
-                                section: n.secDiscover,
+                                section: "KHÁM PHÁ",
                                 color: "slate" as const,
                                 items: [
                                     {
-                                        label: n.searchHub,
+                                        label: "Tìm kiếm Video (Hub)",
                                         href: "/dashboard/search-video",
                                         icon: Search,
-                                        description: n.searchHubDesc,
+                                        description: "Tìm kiếm video trên toàn nền tảng",
                                     },
                                 ],
                             },
                         ]
                         : []),
                     {
-                        section: n.secCollections,
+                        section: "BỘ SƯU TẬP",
                         color: "violet" as const,
                         items: [
                             {
-                                label: n.collections,
+                                label: "Bộ sưu tập",
                                 href: "/dashboard/video-library",
                                 icon: Bookmark,
-                                description: n.collectionsDesc,
+                                description: "Video hay do Leader & Manager tuyển chọn cho team",
                             },
                             {
-                                label: n.translateContent,
+                                label: "Dịch Content",
                                 href: "/dashboard/content/generate?mode=translate-only",
                                 icon: Languages,
-                                description: n.translateContentDesc,
+                                description: "Dịch content có sẵn và recheck bằng bảng 3 cột",
                             },
                         ],
                     },
@@ -361,66 +366,66 @@ export function useNavMenus(
             },
             {
                 id: "task-auto",
-                label: n.menuTasks,
+                label: "Nhiệm vụ",
                 activePathPrefixes: ["/dashboard/task-auto"],
                 sections: [
                     {
-                        section: n.secTasks,
+                        section: "NHIỆM VỤ",
                         color: "indigo",
                         items: [
                             {
-                                label: n.taskOverview,
+                                label: "Tổng quan",
                                 href: "/dashboard/task-auto",
                                 icon: LayoutDashboard,
-                                description: n.taskOverviewDesc,
+                                description: "Dashboard tổng quan hệ thống nhiệm vụ",
                             },
                             {
-                                label: n.taskList,
+                                label: "Danh sách nhiệm vụ",
                                 href: "/dashboard/task-auto/tasks",
                                 icon: ClipboardList,
-                                description: n.taskListDesc,
+                                description: "Xem và quản lý toàn bộ nhiệm vụ",
                             },
                         ],
                     },
                     {
-                        section: n.secTeamCatalog,
+                        section: "ĐỘI NHÓM & DANH MỤC",
                         color: "blue",
                         items: [
                             {
-                                label: n.teams,
+                                label: "Đội nhóm",
                                 href: "/dashboard/task-auto/teams",
                                 icon: Users,
-                                description: n.teamsDesc,
+                                description: "Quản lý team, kho sản phẩm & source của team",
                             },
                             {
-                                label: n.catalog,
+                                label: "Danh mục tổng",
                                 href: "/dashboard/task-auto/catalog",
                                 icon: FolderOpen,
-                                description: n.catalogDesc,
+                                description: "Kho sản phẩm, content, source toàn hệ thống",
                             },
                         ],
                     },
                     {
-                        section: n.secPersonal,
+                        section: "CÁ NHÂN",
                         color: "violet",
                         items: [
                             {
-                                label: n.myCatalog,
+                                label: "Kho cá nhân",
                                 href: "/dashboard/task-auto/my-catalog",
                                 icon: User,
-                                description: n.myCatalogDesc,
+                                description: "Sản phẩm, content, source của bạn",
                             },
                             {
-                                label: n.kpi,
+                                label: "KPI",
                                 href: "/dashboard/task-auto/kpi",
                                 icon: BarChart3,
-                                description: n.kpiDesc,
+                                description: "Theo dõi chỉ số KPI cá nhân",
                             },
                             ...(isManagerOrAdmin ? [{
-                                label: n.taskSettings,
+                                label: "Cài đặt",
                                 href: "/dashboard/task-auto/settings",
                                 icon: Zap,
-                                description: n.taskSettingsDesc,
+                                description: "Cấu hình tự động hóa & phân công nhiệm vụ",
                             }] : []),
                         ],
                     },
@@ -428,7 +433,7 @@ export function useNavMenus(
             },
             {
                 id: "tien-ich",
-                label: n.menuUtilities,
+                label: "Tiện ích",
                 activePathPrefixes: [
                     "/dashboard/ai/clone-voice",
                     "/dashboard/ai/overview",
@@ -436,20 +441,20 @@ export function useNavMenus(
                 ] as string[],
                 sections: [
                     {
-                        section: n.secAiVoice,
+                        section: "GIỌNG NÓI AI",
                         color: "violet" as const,
                         items: [
                             {
-                                label: n.aiOverview,
+                                label: "Tổng quan",
                                 href: "/dashboard/ai/overview",
                                 icon: LayoutDashboard,
-                                description: n.aiOverviewDesc,
+                                description: "Xem báo cáo chi tiêu, token tiêu thụ & số lượng voice",
                             },
                             {
-                                label: n.cloneVoice,
+                                label: "Clone Voice",
                                 href: "/dashboard/ai/clone-voice",
                                 icon: AudioLines,
-                                description: n.cloneVoiceDesc,
+                                description: "Clone & tạo giọng nói AI từ văn bản, dịch kịch bản",
                             },
                         ],
                     },
@@ -468,6 +473,6 @@ export function useNavMenus(
                 ],
             },
         ],
-        [isManagerOrAdmin, isManagement, isAdmin, isLeader, isManager, n],
+        [isManagerOrAdmin, isManagement, isAdmin, isLeader, isManager],
     );
 }

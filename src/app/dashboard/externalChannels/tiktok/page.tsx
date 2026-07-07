@@ -12,6 +12,7 @@ import TikTokProfileCard from '../components/TikTokProfileCard';
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService } from '@/services/scraperService';
 import { useScrapingStore } from '@/store/scraping-store';
+import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
 
 type Tab = 'videos' | 'profiles';
 
@@ -23,6 +24,7 @@ export default function TiktokExternalPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const { addNotification, updateNotification } = useScrapingStore();
+  const { start: startProfileScrapeNotif } = useProfileScrapeNotification('tiktok');
 
   // Tab state
   const [activeTab, setActiveTab] = useState<Tab>('videos');
@@ -120,6 +122,7 @@ export default function TiktokExternalPage() {
     onMutate: () => {
       const nId = addNotification({
         platform: 'tiktok',
+        kind: 'keyword',
         label: keyword.trim(),
         status: 'scraping',
         startedAt: new Date(),
@@ -208,23 +211,23 @@ export default function TiktokExternalPage() {
   const profileTotal = profilesQuery.data?.count || 0;
 
   // ─── Profile mutations ───────────────────────────────
-  const handleScrapeSuccess = (data: { message: string; is_scraping?: boolean; already_exists?: boolean; newly_scraped?: boolean; profile_id: number }, label?: string) => {
+  const handleScrapeSuccess = (data: { message: string; is_scraping?: boolean; already_exists?: boolean; newly_scraped?: boolean; profile_id: number }, label?: string, before = 0) => {
     if (data.already_exists) {
       toast(data.message, { icon: '📋' });
       router.push(`/dashboard/externalChannels/tiktok/${data.profile_id}`);
-    } else if (data.is_scraping) {
-      toast(data.message, { icon: '⏳' });
-      addNotification({
-        platform: 'tiktok',
-        label: label || profileUsername.trim(),
-        status: 'scraping',
-        startedAt: new Date(),
-      });
     } else if (data.newly_scraped) {
       toast.success(data.message);
       router.push(`/dashboard/externalChannels/tiktok/${data.profile_id}`);
     } else {
-      toast.success(data.message);
+      toast(data.message, { icon: '⏳' });
+      startProfileScrapeNotif({
+        label: label || profileUsername.trim(),
+        before,
+        fetchStatus: async () => {
+          const d = await scraperService.getTiktokProfileDetail(token!, data.profile_id);
+          return { scraping_status: d.scraping_status, count: d.videos_in_db };
+        },
+      });
     }
     setProfileUsername('');
     queryClient.invalidateQueries({ queryKey: ['tiktok-profiles'] });
@@ -254,7 +257,10 @@ export default function TiktokExternalPage() {
       const username = p.url.replace(/.*tiktok\.com\/@?/, '').split(/[/?]/)[0].trim();
       return scraperService.tiktokProfileScrape(token, username);
     },
-    onSuccess: (data, vars) => handleScrapeSuccess(data, vars.label),
+    onSuccess: (data, vars) => {
+      const before = profiles.find(pr => pr.id === vars.id)?.videos_in_db ?? 0;
+      handleScrapeSuccess(data, vars.label, before);
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 

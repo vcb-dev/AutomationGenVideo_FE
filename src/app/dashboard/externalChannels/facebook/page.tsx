@@ -13,6 +13,7 @@ import ReelCard from '../components/ReelCard';
 import FilterPanel from '../components/FilterPanel';
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService, ScrapedFanpage } from '@/services/scraperService';
+import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
 
 const PAGE_SIZE_FANPAGES = 12;
 const PAGE_SIZE_REELS = 24;
@@ -21,6 +22,7 @@ export default function FacebookExternalPage() {
   const { token } = useAuthStore();
   const queryClient = useQueryClient();
   const router = useRouter();
+  const { start: startProfileScrapeNotif } = useProfileScrapeNotification('facebook');
 
   // Fanpage pagination + search
   const [fpPage, setFpPage] = useState(1);
@@ -62,10 +64,16 @@ export default function FacebookExternalPage() {
       if (data.already_exists) {
         toast(data.message, { icon: '📋' });
         router.push(`/dashboard/externalChannels/facebook/${data.fanpage_id}`);
-      } else if (data.is_scraping) {
-        toast(data.message, { icon: '⏳' });
       } else {
-        toast.success(data.message);
+        toast(data.message, { icon: '⏳' });
+        startProfileScrapeNotif({
+          label: pageUrl.trim(),
+          before: 0,
+          fetchStatus: async () => {
+            const d = await scraperService.getFanpageDetail(token!, data.fanpage_id);
+            return { scraping_status: d.scraping_status, count: d.reels_count };
+          },
+        });
       }
       setPageUrl('');
       queryClient.invalidateQueries({ queryKey: ['scraper-fanpages'] });
@@ -126,12 +134,16 @@ export default function FacebookExternalPage() {
       if (!token) throw new Error('No token');
       return scraperService.triggerScrapeReels(token, fp.id);
     },
-    onSuccess: (data) => {
-      if (data.is_scraping) {
-        toast(data.message, { icon: '⏳' });
-      } else {
-        toast.success(data.message);
-      }
+    onSuccess: (data, fp) => {
+      toast(data.message, { icon: '⏳' });
+      startProfileScrapeNotif({
+        label: fp.name,
+        before: fp.reels_count,
+        fetchStatus: async () => {
+          const d = await scraperService.getFanpageDetail(token!, fp.id);
+          return { scraping_status: d.scraping_status, count: d.reels_count };
+        },
+      });
       queryClient.invalidateQueries({ queryKey: ['scraper-fanpages'] });
     },
     onError: (e: Error) => toast.error(e.message),

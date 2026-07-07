@@ -690,6 +690,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                   </div>
 
                   <VideoScriptSection
+                    taskId={task.id}
                     fileUrl={fileUrl}
                     scriptText={scriptText}
                     contentTitle={contentTitle}
