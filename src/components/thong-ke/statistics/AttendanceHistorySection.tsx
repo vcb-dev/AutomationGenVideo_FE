@@ -235,12 +235,13 @@ interface AttendanceHistorySectionProps {
   onTeamChange: (team: string) => void;
   currentUserId?: string;
   currentUserRoles?: string[];
+  showToast?: (message: string, type?: 'success' | 'error') => void;
 }
 
 const MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
 export default function AttendanceHistorySection({
-  activeTeam, teamsList, onTeamChange, currentUserId, currentUserRoles,
+  activeTeam, teamsList, onTeamChange, currentUserId, currentUserRoles, showToast,
 }: AttendanceHistorySectionProps) {
   const now = new Date();
   const [historyMonth, setHistoryMonth] = useState(now.getMonth() + 1);
@@ -289,11 +290,16 @@ export default function AttendanceHistorySection({
       );
       setMemberDetail(res.data);
     } catch (err: any) {
-      setError(err?.response?.data?.message || 'Không thể tải chi tiết');
+      const msg = err?.response?.data?.message || err?.message || 'Không thể tải chi tiết';
+      if (showToast) {
+        showToast(msg, 'error');
+      } else {
+        console.error(msg);
+      }
     } finally {
       setMemberDetailLoading(false);
     }
-  }, [historyMonth, historyYear]);
+  }, [historyMonth, historyYear, showToast]);
 
   const visibleSessions = useMemo(() => {
     if (!historyData) return [];

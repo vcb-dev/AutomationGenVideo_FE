@@ -36,6 +36,7 @@ interface StatisticsTabProps {
   onBulkUpdate?: (sessionId: string, records: { user_id: string; status: AttendanceStatus; note?: string }[]) => Promise<void>;
   onFinalizeSession?: (sessionId: string) => Promise<void>;
   onReopenSession?: (sessionId: string) => Promise<void>;
+  showToast?: (message: string, type?: 'success' | 'error') => void;
 }
 
 export default function StatisticsTab({
@@ -47,7 +48,7 @@ export default function StatisticsTab({
   isExporting, exportProgress, exportType, handleStartExport,
   filterMode, currentPeriod,
   currentUserId, currentUserName, currentUserRoles, onSelfCheckIn, onCreateSession, onBulkUpdate,
-  onFinalizeSession, onReopenSession,
+  onFinalizeSession, onReopenSession, showToast,
 }: StatisticsTabProps) {
 
   const baseData = teamsData[activeTab] || TEAMS_DATA[activeTab];
@@ -1005,6 +1006,7 @@ export default function StatisticsTab({
               onTeamChange={onTabChange}
               currentUserId={currentUserId}
               currentUserRoles={currentUserRoles}
+              showToast={showToast}
             />
           )}
         </div>
