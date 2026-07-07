@@ -483,6 +483,7 @@ export default function AttendanceSection({
       setShowCreateModal(false);
     } catch (err) {
       console.error('Error creating meeting session:', err);
+      setShowCreateModal(false);
     } finally {
       setCreateLoading(false);
     }
@@ -496,6 +497,7 @@ export default function AttendanceSection({
       setShowBulkModal(false);
     } catch (err) {
       console.error('Error in bulk update:', err);
+      setShowBulkModal(false);
     } finally {
       setBulkLoading(false);
     }
@@ -601,6 +603,7 @@ export default function AttendanceSection({
       setShowModal(false);
     } catch (err) {
       console.error('Error in self check-in:', err);
+      setShowModal(false);
     } finally {
       setCheckInLoading(false);
     }
