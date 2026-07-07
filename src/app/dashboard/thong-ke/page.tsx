@@ -226,6 +226,10 @@ function StatisticsDashboard() {
       await fetchMeetingSession();
       showToast('Khởi tạo buổi họp thành công!', 'success');
     } catch (err: any) {
+      if (err?.response?.status === 403) {
+        console.warn('Lỗi 403 khi khởi tạo/kiểm tra buổi họp (không có quyền):', err?.response?.data || err);
+        return; // Bắt lỗi 403 và bỏ qua im lặng/log console, không hiện toast/crash UI
+      }
       const msg = err?.response?.data?.message || err?.message || 'Lỗi khởi tạo buổi họp';
       showToast(msg, 'error');
       throw err;

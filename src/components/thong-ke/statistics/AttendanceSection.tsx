@@ -481,6 +481,8 @@ export default function AttendanceSection({
     try {
       await onCreateSession(scheduledAt, title, notes);
       setShowCreateModal(false);
+    } catch (err) {
+      console.error('Error creating meeting session:', err);
     } finally {
       setCreateLoading(false);
     }
@@ -492,6 +494,8 @@ export default function AttendanceSection({
     try {
       await onBulkUpdate(sessionData.session.id, records);
       setShowBulkModal(false);
+    } catch (err) {
+      console.error('Error in bulk update:', err);
     } finally {
       setBulkLoading(false);
     }
@@ -502,6 +506,8 @@ export default function AttendanceSection({
     setFinalizeLoading(true);
     try {
       await onFinalizeSession(sessionData.session.id);
+    } catch (err) {
+      console.error('Error in finalize session:', err);
     } finally {
       setFinalizeLoading(false);
     }
@@ -512,6 +518,8 @@ export default function AttendanceSection({
     setReopenLoading(true);
     try {
       await onReopenSession(sessionData.session.id);
+    } catch (err) {
+      console.error('Error in reopen session:', err);
     } finally {
       setReopenLoading(false);
     }
@@ -591,6 +599,8 @@ export default function AttendanceSection({
     try {
       await onSelfCheckIn(session.id, status, note);
       setShowModal(false);
+    } catch (err) {
+      console.error('Error in self check-in:', err);
     } finally {
       setCheckInLoading(false);
     }
