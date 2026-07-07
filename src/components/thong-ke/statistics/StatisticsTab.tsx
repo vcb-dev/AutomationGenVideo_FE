@@ -3,11 +3,12 @@ import React, { useState, useMemo } from 'react';
 import {
   TrendingUp, Eye, Trophy, Video, Flame, Award, Share2,
   Target, Sparkles, XCircle, CheckCircle, FileDown, Download,
-  X, MessageSquare, Wrench, Calendar
+  X, MessageSquare, Wrench, Calendar, BarChart3, History
 } from 'lucide-react';
 import { TeamData, AttendanceStatus } from '../types';
 import { TEAMS_DATA } from '../constants';
 import AttendanceSection from './AttendanceSection';
+import AttendanceHistorySection from './AttendanceHistorySection';
 
 interface StatisticsTabProps {
   teamsData: Record<string, TeamData>;
@@ -51,6 +52,10 @@ export default function StatisticsTab({
 
   const baseData = teamsData[activeTab] || TEAMS_DATA[activeTab];
   const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
+  const [attendanceView, setAttendanceView] = useState<'current' | 'history'>('current');
+
+  // teamsList derived from teamsData keys
+  const teamsList = Object.keys(teamsData).length > 0 ? Object.keys(teamsData) : ['K1', 'K2', 'K3', 'K4', 'K5'];
 
   // Helper functions
   const parseViewsToNum = (vStr: string): number => {
@@ -946,19 +951,63 @@ export default function StatisticsTab({
         </div>
 
         {/* Attendance Section */}
-        <AttendanceSection
-          sessionData={baseData?.meetingSession}
-          teamMembers={baseData?.members || []}
-          activeTeam={activeTab}
-          currentUserId={currentUserId}
-          currentUserName={currentUserName}
-          currentUserRoles={currentUserRoles}
-          onSelfCheckIn={onSelfCheckIn}
-          onCreateSession={onCreateSession}
-          onBulkUpdate={onBulkUpdate}
-          onFinalizeSession={onFinalizeSession}
-          onReopenSession={onReopenSession}
-        />
+        <div className="flex flex-col gap-4">
+          {/* Sub-nav: Điểm danh tuần / Lịch sử */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 bg-slate-900/50 rounded-2xl p-1 border border-white/[0.05]">
+              <button
+                onClick={() => setAttendanceView('current')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black transition-all duration-200 ${
+                  attendanceView === 'current'
+                    ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Calendar className="w-3 h-3" />
+                Điểm danh tuần này
+              </button>
+              <button
+                onClick={() => setAttendanceView('history')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black transition-all duration-200 ${
+                  attendanceView === 'history'
+                    ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <BarChart3 className="w-3 h-3" />
+                Lịch sử điểm danh
+              </button>
+            </div>
+          </div>
+
+          {/* Current session view */}
+          {attendanceView === 'current' && (
+            <AttendanceSection
+              sessionData={baseData?.meetingSession}
+              teamMembers={baseData?.members || []}
+              activeTeam={activeTab}
+              currentUserId={currentUserId}
+              currentUserName={currentUserName}
+              currentUserRoles={currentUserRoles}
+              onSelfCheckIn={onSelfCheckIn}
+              onCreateSession={onCreateSession}
+              onBulkUpdate={onBulkUpdate}
+              onFinalizeSession={onFinalizeSession}
+              onReopenSession={onReopenSession}
+            />
+          )}
+
+          {/* History view */}
+          {attendanceView === 'history' && (
+            <AttendanceHistorySection
+              activeTeam={activeTab}
+              teamsList={teamsList}
+              onTeamChange={onTabChange}
+              currentUserId={currentUserId}
+              currentUserRoles={currentUserRoles}
+            />
+          )}
+        </div>
 
         {/* Leaderboard & Platforms */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

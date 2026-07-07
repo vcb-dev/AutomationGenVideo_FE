@@ -192,3 +192,65 @@ export interface MeetingSession {
   attendances: AttendanceRecord[];
 }
 
+// ─────────────────────────────────────────────
+// Attendance History Types
+// ─────────────────────────────────────────────
+
+export interface AttendanceHistoryCellData {
+  status: AttendanceStatus;
+  note: string | null;
+  marked_by: { id: string; full_name: string };
+  created_at: string;
+}
+
+export interface AttendanceMemberSummary {
+  present: number;
+  late: number;
+  absent: number;
+  on_leave: number;
+  no_record: number;
+  total_sessions: number;
+  attendance_rate: number;
+}
+
+export interface AttendanceHistoryMember {
+  id: string;
+  full_name: string;
+  image_url: string | null;
+  attendance_map: Record<string, AttendanceHistoryCellData | null>;
+  summary: AttendanceMemberSummary;
+}
+
+export interface AttendanceHistorySession {
+  id: string;
+  title: string | null;
+  scheduled_at: string;
+  week_label: string;
+  is_finalized: boolean;
+}
+
+export interface AttendanceHistoryResponse {
+  team: { id: string; name: string };
+  period: { month: number; year: number; label: string };
+  sessions: AttendanceHistorySession[];
+  members: AttendanceHistoryMember[];
+  session_summaries: Record<string, { present_count: number; total_members: number; rate: number }>;
+}
+
+// ─── View 2: Chi tiết cá nhân ───
+
+export interface UserHistorySessionItem {
+  session_id: string;
+  title: string | null;
+  week_label: string;
+  scheduled_at: string;
+  team: { id: string; name: string };
+  attendance: AttendanceHistoryCellData | null;
+}
+
+export interface UserAttendanceHistoryResponse {
+  user: { id: string; full_name: string; image_url: string | null };
+  period: { month: number; year: number };
+  sessions: UserHistorySessionItem[];
+  summary: AttendanceMemberSummary;
+}
