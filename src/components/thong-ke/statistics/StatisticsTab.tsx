@@ -27,15 +27,10 @@ interface StatisticsTabProps {
   exportType: 'pdf' | 'excel' | null;
   handleStartExport: (type: 'pdf' | 'excel') => void;
   filterMode?: 'all' | 'week' | 'month';
-  currentPeriod?: { id: string; type: 'WEEK' | 'MONTH'; label: string; start_date: string; end_date: string } | null;
+  periodsList?: any[];
   currentUserId?: string;
   currentUserName?: string;
   currentUserRoles?: string[];
-  onSelfCheckIn?: (sessionId: string, status: AttendanceStatus, note?: string) => Promise<void>;
-  onCreateSession?: (scheduledAt: string, title?: string, notes?: string) => Promise<void>;
-  onBulkUpdate?: (sessionId: string, records: { user_id: string; status: AttendanceStatus; note?: string }[]) => Promise<void>;
-  onFinalizeSession?: (sessionId: string) => Promise<void>;
-  onReopenSession?: (sessionId: string) => Promise<void>;
   showToast?: (message: string, type?: 'success' | 'error') => void;
 }
 
@@ -46,9 +41,8 @@ export default function StatisticsTab({
   editorSortBy, setEditorSortBy,
   selectedEditorDetail, setSelectedEditorDetail,
   isExporting, exportProgress, exportType, handleStartExport,
-  filterMode, currentPeriod,
-  currentUserId, currentUserName, currentUserRoles, onSelfCheckIn, onCreateSession, onBulkUpdate,
-  onFinalizeSession, onReopenSession, showToast,
+  filterMode, periodsList = [],
+  currentUserId, currentUserName, currentUserRoles, showToast,
 }: StatisticsTabProps) {
 
   const baseData = teamsData[activeTab] || TEAMS_DATA[activeTab];
@@ -984,17 +978,13 @@ export default function StatisticsTab({
           {/* Current session view */}
           {attendanceView === 'current' && (
             <AttendanceSection
-              sessionData={baseData?.meetingSession}
+              periodsList={periodsList}
               teamMembers={baseData?.members || []}
               activeTeam={activeTab}
               currentUserId={currentUserId}
               currentUserName={currentUserName}
               currentUserRoles={currentUserRoles}
-              onSelfCheckIn={onSelfCheckIn}
-              onCreateSession={onCreateSession}
-              onBulkUpdate={onBulkUpdate}
-              onFinalizeSession={onFinalizeSession}
-              onReopenSession={onReopenSession}
+              showToast={showToast}
             />
           )}
 

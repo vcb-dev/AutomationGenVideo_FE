@@ -1,20 +1,17 @@
 'use client';
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Users, CheckCircle2, XCircle, Clock, Calendar, ChevronDown, Loader2 } from 'lucide-react';
 import { MeetingSession, AttendanceStatus, AttendanceRecord, MeetingSessionResponse } from '../types';
+import { apiClient } from '../../../lib/api-client';
 
 interface AttendanceSectionProps {
-  sessionData: MeetingSessionResponse | null | undefined;
+  periodsList: any[];
   teamMembers: string[];         // Danh sách tên thành viên team
   activeTeam: string;            // K1 – K5
   currentUserId?: string;        // ID của user đang đăng nhập (từ auth context)
   currentUserName?: string;      // Tên user đang đăng nhập
   currentUserRoles?: string[];   // Quyền của user đang đăng nhập
-  onSelfCheckIn?: (sessionId: string, status: AttendanceStatus, note?: string) => Promise<void>;
-  onCreateSession?: (scheduledAt: string, title?: string, notes?: string) => Promise<void>;
-  onBulkUpdate?: (sessionId: string, records: { user_id: string; status: AttendanceStatus; note?: string }[]) => Promise<void>;
-  onFinalizeSession?: (sessionId: string) => Promise<void>;
-  onReopenSession?: (sessionId: string) => Promise<void>;
+  showToast?: (message: string, type?: 'success' | 'error') => void;
 }
 
 // ─────────────────────────────────────────────
@@ -449,17 +446,13 @@ function BulkUpdateModal({
 // Main Section
 // ─────────────────────────────────────────────
 export default function AttendanceSection({
-  sessionData,
+  periodsList,
   teamMembers,
   activeTeam,
   currentUserId,
   currentUserName,
   currentUserRoles,
-  onSelfCheckIn,
-  onCreateSession,
-  onBulkUpdate,
-  onFinalizeSession,
-  onReopenSession,
+  showToast,
 }: AttendanceSectionProps) {
   const [showModal, setShowModal] = useState(false);
   const [checkInLoading, setCheckInLoading] = useState(false);
@@ -475,14 +468,84 @@ export default function AttendanceSection({
   const [finalizeLoading, setFinalizeLoading] = useState(false);
   const [reopenLoading, setReopenLoading] = useState(false);
 
+  // 1. Ref for showToast (to prevent circular references/infinite render loops)
+  const showToastRef = useRef(showToast);
+  useEffect(() => {
+    showToastRef.current = showToast;
+  }, [showToast]);
+
+  // 2. Filter periods List for WEEK periods
+  const weekPeriods = useMemo(() => {
+    return (periodsList || []).filter((p) => p.type === 'WEEK');
+  }, [periodsList]);
+
+  // 3. Local selectedPeriod state
+  const [selectedPeriod, setSelectedPeriod] = useState<any>(null);
+
+  // 4. Initialize selectedPeriod based on the current date
+  useEffect(() => {
+    if (weekPeriods.length === 0) return;
+    const now = new Date();
+    let initialPeriod = weekPeriods.find((p) => {
+      const start = new Date(p.start_date);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(p.end_date);
+      end.setHours(23, 59, 59, 999);
+      return now >= start && now <= end;
+    });
+
+    if (!initialPeriod) {
+      initialPeriod = weekPeriods[weekPeriods.length - 1];
+    }
+    setSelectedPeriod(initialPeriod || null);
+  }, [weekPeriods]);
+
+  // 5. Local sessionData, loading, error states
+  const [sessionData, setSessionData] = useState<MeetingSessionResponse | null>(null);
+  const [loadingSession, setLoadingSession] = useState(false);
+
+  // 6. Fetch meeting session based on activeTeam and selectedPeriod
+  const fetchSession = useCallback(async () => {
+    if (!activeTeam || !selectedPeriod?.id) {
+      setSessionData(null);
+      return;
+    }
+    setLoadingSession(true);
+    try {
+      const res = await apiClient.get(
+        `/content-report/meetings?team=${activeTeam}&periodId=${selectedPeriod.id}`
+      );
+      setSessionData(res.data || null);
+    } catch (err) {
+      // 404 is expected when there is no meeting session yet for the selected period
+      setSessionData(null);
+    } finally {
+      setLoadingSession(false);
+    }
+  }, [activeTeam, selectedPeriod]);
+
+  useEffect(() => {
+    fetchSession();
+  }, [fetchSession]);
+
+  // 7. Internal event handlers
   const handleCreateSession = async (scheduledAt: string, title?: string, notes?: string) => {
-    if (!onCreateSession) return;
+    if (!activeTeam || !selectedPeriod?.id) return;
     setCreateLoading(true);
     try {
-      await onCreateSession(scheduledAt, title, notes);
+      await apiClient.post(`/content-report/meetings`, {
+        team: activeTeam,
+        period_id: selectedPeriod.id,
+        scheduled_at: scheduledAt,
+        title,
+        notes,
+      });
+      await fetchSession();
+      if (showToastRef.current) showToastRef.current('Khởi tạo buổi họp thành công!', 'success');
       setShowCreateModal(false);
-    } catch (err) {
-      console.error('Error creating meeting session:', err);
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Lỗi khởi tạo buổi họp';
+      if (showToastRef.current) showToastRef.current(msg, 'error');
       setShowCreateModal(false);
     } finally {
       setCreateLoading(false);
@@ -490,13 +553,17 @@ export default function AttendanceSection({
   };
 
   const handleBulkUpdate = async (records: { user_id: string; status: AttendanceStatus; note?: string }[]) => {
-    if (!onBulkUpdate || !sessionData?.session) return;
+    const session = sessionData?.session;
+    if (!session) return;
     setBulkLoading(true);
     try {
-      await onBulkUpdate(sessionData.session.id, records);
+      await apiClient.patch(`/content-report/meetings/${session.id}/attendance/bulk`, { records });
+      await fetchSession();
+      if (showToastRef.current) showToastRef.current('Cập nhật điểm danh cả nhóm thành công!', 'success');
       setShowBulkModal(false);
-    } catch (err) {
-      console.error('Error in bulk update:', err);
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Lỗi cập nhật điểm danh cả nhóm';
+      if (showToastRef.current) showToastRef.current(msg, 'error');
       setShowBulkModal(false);
     } finally {
       setBulkLoading(false);
@@ -504,24 +571,32 @@ export default function AttendanceSection({
   };
 
   const handleFinalize = async () => {
-    if (!onFinalizeSession || !sessionData?.session) return;
+    const session = sessionData?.session;
+    if (!session) return;
     setFinalizeLoading(true);
     try {
-      await onFinalizeSession(sessionData.session.id);
-    } catch (err) {
-      console.error('Error in finalize session:', err);
+      await apiClient.post(`/content-report/meetings/${session.id}/finalize`);
+      await fetchSession();
+      if (showToastRef.current) showToastRef.current('Chốt điểm danh buổi họp thành công!', 'success');
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Lỗi chốt buổi họp';
+      if (showToastRef.current) showToastRef.current(msg, 'error');
     } finally {
       setFinalizeLoading(false);
     }
   };
 
   const handleReopen = async () => {
-    if (!onReopenSession || !sessionData?.session) return;
+    const session = sessionData?.session;
+    if (!session) return;
     setReopenLoading(true);
     try {
-      await onReopenSession(sessionData.session.id);
-    } catch (err) {
-      console.error('Error in reopen session:', err);
+      await apiClient.post(`/content-report/meetings/${session.id}/reopen`);
+      await fetchSession();
+      if (showToastRef.current) showToastRef.current('Mở lại buổi họp thành công!', 'success');
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Lỗi mở lại buổi họp';
+      if (showToastRef.current) showToastRef.current(msg, 'error');
     } finally {
       setReopenLoading(false);
     }
@@ -596,18 +671,42 @@ export default function AttendanceSection({
   const attendanceRate = totalTeam > 0 ? (presentCount / totalTeam) * 100 : 0;
 
   const handleSelfCheckIn = async (status: AttendanceStatus, note?: string) => {
-    if (!onSelfCheckIn || !session) return;
+    const session = sessionData?.session;
+    if (!session) return;
     setCheckInLoading(true);
     try {
-      await onSelfCheckIn(session.id, status, note);
+      await apiClient.post(`/content-report/meetings/${session.id}/attendance`, { status, note });
+      await fetchSession();
+      if (showToastRef.current) showToastRef.current('Điểm danh thành công!', 'success');
       setShowModal(false);
-    } catch (err) {
-      console.error('Error in self check-in:', err);
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Lỗi điểm danh';
+      if (showToastRef.current) showToastRef.current(msg, 'error');
       setShowModal(false);
     } finally {
       setCheckInLoading(false);
     }
   };
+
+  // ── Hiển thị loading buổi họp ──
+  if (loadingSession) {
+    return (
+      <div className="bg-[#0e1626]/50 border border-white/[0.05] rounded-3xl p-6 flex flex-col gap-3 shadow-xl backdrop-blur-xl hover:border-white/[0.08] transition-all duration-300 animate-pulse">
+        <div className="flex items-center gap-2 border-b border-white/[0.05] pb-3">
+          <div className="p-2 bg-slate-700/30 border border-white/[0.06] rounded-xl text-slate-400">
+            <Users className="w-4 h-4" />
+          </div>
+          <span className="text-[11px] font-black uppercase text-slate-200 tracking-wider">
+            Thống Kê Điểm Danh — Team {activeTeam}
+          </span>
+        </div>
+        <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
+          <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+          <p className="text-[10px] text-slate-500 font-bold">Đang tải thông tin buổi họp...</p>
+        </div>
+      </div>
+    );
+  }
 
   // ── Hiển thị placeholder nếu chưa có session ──
   if (!sessionData || !session) {
@@ -622,14 +721,33 @@ export default function AttendanceSection({
           />
         )}
         <div className="bg-[#0e1626]/50 border border-white/[0.05] rounded-3xl p-6 flex flex-col gap-3 shadow-xl backdrop-blur-xl hover:border-white/[0.08] transition-all duration-300">
-          <div className="flex items-center gap-2 border-b border-white/[0.05] pb-3">
-            <div className="p-2 bg-slate-700/30 border border-white/[0.06] rounded-xl text-slate-400">
-              <Users className="w-4 h-4" />
+          <div className="flex items-center justify-between border-b border-white/[0.05] pb-3 gap-3">
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-slate-700/30 border border-white/[0.06] rounded-xl text-slate-400">
+                <Users className="w-4 h-4" />
+              </div>
+              <span className="text-[11px] font-black uppercase text-slate-200 tracking-wider">
+                Thống Kê Điểm Danh — Team {activeTeam}
+              </span>
             </div>
-            <span className="text-[11px] font-black uppercase text-slate-200 tracking-wider">
-              Thống Kê Điểm Danh — Team {activeTeam}
-            </span>
+
+            {/* Local Period Selector for AttendanceSection */}
+            {weekPeriods.length > 0 && (
+              <select
+                value={selectedPeriod?.id || ''}
+                onChange={(e) => {
+                  const found = weekPeriods.find((p) => p.id === e.target.value);
+                  if (found) setSelectedPeriod(found);
+                }}
+                className="bg-slate-900/60 border border-white/[0.08] rounded-xl px-2.5 py-1.5 text-[10px] text-slate-200 outline-none font-bold cursor-pointer"
+              >
+                {weekPeriods.map((p) => (
+                  <option key={p.id} value={p.id}>{p.label}</option>
+                ))}
+              </select>
+            )}
           </div>
+
           <div className="flex flex-col items-center justify-center py-8 gap-3 text-center">
             <div className="w-12 h-12 rounded-2xl bg-slate-800/50 border border-white/[0.05] flex items-center justify-center mb-1">
               <Calendar className="w-5 h-5 text-slate-500" />
@@ -643,7 +761,7 @@ export default function AttendanceSection({
                 }
               </p>
             </div>
-            {isManagement && onCreateSession && (
+            {isManagement && (
               <button
                 onClick={() => setShowCreateModal(true)}
                 className="mt-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-[11px] font-black px-5 py-2.5 rounded-xl transition-all duration-200 shadow-[0_4px_14px_rgba(37,99,235,0.3)] hover:scale-[1.02]"
@@ -692,9 +810,24 @@ export default function AttendanceSection({
             </div>
           </div>
 
-          {/* Self check-in & Bulk & Finalize buttons */}
-          <div className="flex items-center gap-2.5">
-            {!session.is_finalized && isManagement && onBulkUpdate && dbMembers.length > 0 && (
+          {/* Self check-in & Bulk & Finalize buttons + Local Week Selector */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            {weekPeriods.length > 0 && (
+              <select
+                value={selectedPeriod?.id || ''}
+                onChange={(e) => {
+                  const found = weekPeriods.find((p) => p.id === e.target.value);
+                  if (found) setSelectedPeriod(found);
+                }}
+                className="bg-slate-900/60 border border-white/[0.08] rounded-xl px-2.5 py-1.5 text-[10px] text-slate-200 outline-none font-bold cursor-pointer"
+              >
+                {weekPeriods.map((p) => (
+                  <option key={p.id} value={p.id}>{p.label}</option>
+                ))}
+              </select>
+            )}
+
+            {!session.is_finalized && isManagement && dbMembers.length > 0 && (
               <button
                 onClick={() => setShowBulkModal(true)}
                 className="flex items-center gap-1.5 px-4 py-2 bg-[#1e293b]/60 border border-white/[0.08] hover:border-blue-500 rounded-xl text-[11px] font-black text-slate-300 hover:text-white transition-all shadow-sm"
@@ -704,7 +837,7 @@ export default function AttendanceSection({
               </button>
             )}
 
-            {!session.is_finalized && isManagement && onFinalizeSession && (
+            {!session.is_finalized && isManagement && (
               <button
                 onClick={handleFinalize}
                 disabled={finalizeLoading}
@@ -714,26 +847,24 @@ export default function AttendanceSection({
               </button>
             )}
 
-            {onSelfCheckIn && (
-              <button
-                onClick={() => setShowModal(true)}
-                disabled={session.is_finalized || checkInLoading}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-black transition-all duration-200 shadow-sm ${
-                  session.is_finalized
-                    ? 'bg-slate-800/40 border border-white/[0.04] text-slate-500 cursor-not-allowed'
-                    : myRecord
-                    ? 'bg-white/[0.03] border border-white/[0.08] text-slate-300 hover:bg-white/[0.06]'
-                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-[0_4px_14px_rgba(37,99,235,0.3)] hover:shadow-[0_4px_18px_rgba(37,99,235,0.4)] hover:scale-[1.02]'
-                }`}
-              >
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                {session.is_finalized
-                  ? 'Đã chốt điểm danh'
+            <button
+              onClick={() => setShowModal(true)}
+              disabled={session.is_finalized || checkInLoading}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-black transition-all duration-200 shadow-sm ${
+                session.is_finalized
+                  ? 'bg-slate-800/40 border border-white/[0.04] text-slate-500 cursor-not-allowed'
                   : myRecord
-                  ? `Đã điểm danh (${STATUS_CONFIG[myRecord.status].label})`
-                  : 'Điểm danh của tôi'}
-              </button>
-            )}
+                  ? 'bg-white/[0.03] border border-white/[0.08] text-slate-300 hover:bg-white/[0.06]'
+                  : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-[0_4px_14px_rgba(37,99,235,0.3)] hover:shadow-[0_4px_18px_rgba(37,99,235,0.4)] hover:scale-[1.02]'
+              }`}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              {session.is_finalized
+                ? 'Đã chốt điểm danh'
+                : myRecord
+                ? `Đã điểm danh (${STATUS_CONFIG[myRecord.status].label})`
+                : 'Điểm danh của tôi'}
+            </button>
           </div>
         </div>
 
