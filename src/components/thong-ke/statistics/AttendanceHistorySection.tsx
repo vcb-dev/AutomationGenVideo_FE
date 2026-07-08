@@ -243,6 +243,11 @@ const MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 export default function AttendanceHistorySection({
   activeTeam, teamsList, onTeamChange, currentUserId, currentUserRoles, showToast,
 }: AttendanceHistorySectionProps) {
+  // Local team state: decoupled from global activeTab to prevent full-page
+  // unmount/remount (which destroys attendanceView state in parent).
+  // Only syncs when the PARENT changes activeTeam (e.g. via main team tabs).
+  const [localTeam, setLocalTeam] = useState(activeTeam);
+  useEffect(() => { setLocalTeam(activeTeam); }, [activeTeam]);
   const now = new Date();
   const [historyMonth, setHistoryMonth] = useState(now.getMonth() + 1);
   const [historyYear, setHistoryYear] = useState(now.getFullYear());
@@ -263,22 +268,24 @@ export default function AttendanceHistorySection({
   const [memberDetail, setMemberDetail] = useState<UserAttendanceHistoryResponse | null>(null);
 
   const fetchHistory = useCallback(async () => {
-    if (!activeTeam) return;
+    if (!localTeam) return;
     setLoading(true);
     setError(null);
     setHistoryData(null);
     try {
       const res = await apiClient.get(
-        `/content-report/attendance/history?team=${activeTeam}&month=${historyMonth}&year=${historyYear}`
+        `/content-report/attendance/history?team=${localTeam}&month=${historyMonth}&year=${historyYear}`
       );
       setHistoryData(res.data);
       setSelectedWeekIdx(0);
     } catch (err: any) {
-      setError(err?.response?.data?.message || err?.message || 'Không thể tải lịch sử điểm danh');
+      const msg = err?.response?.data?.message || err?.message || 'Không thể tải lịch sử điểm danh';
+      setError(msg);
+      if (showToast) showToast(msg, 'error');
     } finally {
       setLoading(false);
     }
-  }, [activeTeam, historyMonth, historyYear]);
+  }, [localTeam, historyMonth, historyYear, showToast]);
 
   useEffect(() => { fetchHistory(); }, [fetchHistory]);
 
@@ -358,8 +365,8 @@ export default function AttendanceHistorySection({
             {/* Team tabs */}
             <div className="flex items-center gap-1 bg-slate-900/50 rounded-xl p-1 border border-white/[0.05]">
               {teamsList.map((t) => (
-                <button key={t} onClick={() => onTeamChange(t)}
-                  className={`px-3 py-1 rounded-lg text-[10px] font-black transition-all duration-200 ${activeTeam === t ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-slate-200'}`}>
+                <button key={t} onClick={() => setLocalTeam(t)}
+                  className={`px-3 py-1 rounded-lg text-[10px] font-black transition-all duration-200 ${localTeam === t ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-slate-200'}`}>
                   {t}
                 </button>
               ))}
