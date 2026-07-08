@@ -753,7 +753,8 @@ const ChecklistContainer = ({
                                     ...entry,
                                     evidences: (entry.evidences || []).map((ev: any) => ({
                                         url: ev.url,
-                                        name: ev.name
+                                        name: ev.name,
+                                        token: ev.token
                                     }))
                                 }));
                                 return acc;
