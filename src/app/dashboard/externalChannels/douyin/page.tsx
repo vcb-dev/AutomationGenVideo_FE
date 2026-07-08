@@ -16,12 +16,13 @@ import { useAuthStore } from '@/store/auth-store';
 import { scraperService, DouyinVideo } from '@/services/scraperService';
 import { useScrapingStore } from '@/store/scraping-store';
 import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
+import { UserRole } from '@/types/auth';
 
 type Tab = 'videos' | 'profiles';
 
 export default function DouyinExternalPage() {
   const { token, user } = useAuthStore();
-  const isAdmin = user?.roles?.includes('ADMIN') ?? false;
+  const isAdmin = user?.roles?.includes(UserRole.ADMIN) ?? false;
   const { addNotification, updateNotification } = useScrapingStore();
   const { start: startProfileScrapeNotif } = useProfileScrapeNotification('douyin');
   const router = useRouter();

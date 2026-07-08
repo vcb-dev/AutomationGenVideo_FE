@@ -11,12 +11,13 @@ import InstagramProfileCard from '../components/InstagramProfileCard';
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService } from '@/services/scraperService';
 import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
+import { UserRole } from '@/types/auth';
 
 const PAGE_SIZE = 12;
 
 export default function InstagramExternalPage() {
   const { token, user } = useAuthStore();
-  const isAdmin = user?.roles?.includes('ADMIN') ?? false;
+  const isAdmin = user?.roles?.includes(UserRole.ADMIN) ?? false;
   const queryClient = useQueryClient();
   const router = useRouter();
   const { start: startProfileScrapeNotif } = useProfileScrapeNotification('instagram');
