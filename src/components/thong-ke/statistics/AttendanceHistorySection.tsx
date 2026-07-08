@@ -314,20 +314,79 @@ export default function AttendanceHistorySection({
     return [historyData.sessions[Math.min(selectedWeekIdx, historyData.sessions.length - 1)]];
   }, [historyData, viewMode, selectedWeekIdx]);
 
+  const computedSummary = useMemo(() => {
+    const map = new Map<string, { present: number; late: number; absent: number; on_leave: number; no_record: number; total: number; rate: number }>();
+    if (!historyData) return map;
+    
+    historyData.members.forEach(member => {
+      let present = 0;
+      let late = 0;
+      let absent = 0;
+      let on_leave = 0;
+      let no_record = 0;
+      
+      visibleSessions.forEach(session => {
+        const cell = member.attendance_map[session.id];
+        if (!cell) {
+          no_record++;
+        } else if (cell.status === 'PRESENT') {
+          present++;
+        } else if (cell.status === 'LATE') {
+          late++;
+        } else if (cell.status === 'ABSENT') {
+          absent++;
+        } else if (cell.status === 'ON_LEAVE') {
+          on_leave++;
+        }
+      });
+      
+      const total = visibleSessions.length;
+      const rate = total > 0 ? Math.round(((present + late) / total) * 100) : 0;
+      
+      map.set(member.id, {
+        present,
+        late,
+        absent,
+        on_leave,
+        no_record,
+        total,
+        rate
+      });
+    });
+    
+    return map;
+  }, [historyData, visibleSessions]);
+
   const sortedMembers = useMemo(() => {
     if (!historyData) return [];
     const members = [...historyData.members];
-    if (sortOrder === 'desc') members.sort((a, b) => b.summary.attendance_rate - a.summary.attendance_rate);
-    else if (sortOrder === 'asc') members.sort((a, b) => a.summary.attendance_rate - b.summary.attendance_rate);
+    if (sortOrder === 'desc') {
+      members.sort((a, b) => {
+        const rateA = computedSummary.get(a.id)?.rate ?? 0;
+        const rateB = computedSummary.get(b.id)?.rate ?? 0;
+        return rateB - rateA;
+      });
+    } else if (sortOrder === 'asc') {
+      members.sort((a, b) => {
+        const rateA = computedSummary.get(a.id)?.rate ?? 0;
+        const rateB = computedSummary.get(b.id)?.rate ?? 0;
+        return rateA - rateB;
+      });
+    }
     return members;
-  }, [historyData, sortOrder]);
+  }, [historyData, sortOrder, computedSummary]);
 
   const teamOverallStats = useMemo(() => {
     if (!historyData || historyData.members.length === 0) return null;
     const total = historyData.members.length;
-    const avgRate = Math.round(historyData.members.reduce((acc, m) => acc + m.summary.attendance_rate, 0) / total);
-    return { total, avgRate, totalSessions: historyData.sessions.length };
-  }, [historyData]);
+    const avgRate = Math.round(
+      historyData.members.reduce((acc, m) => {
+        const rate = computedSummary.get(m.id)?.rate ?? 0;
+        return acc + rate;
+      }, 0) / total
+    );
+    return { total, avgRate, totalSessions: visibleSessions.length };
+  }, [historyData, visibleSessions, computedSummary]);
 
   const handleSortToggle = () => setSortOrder((p) => p === 'desc' ? 'asc' : p === 'asc' ? null : 'desc');
   const SortIcon = sortOrder === 'desc' ? ArrowDown : sortOrder === 'asc' ? ArrowUp : ArrowUpDown;
@@ -485,7 +544,8 @@ export default function AttendanceHistorySection({
               {/* ── BODY ── */}
               <tbody>
                 {sortedMembers.map((member, rowIdx) => {
-                  const rate = member.summary.attendance_rate;
+                  const sum = computedSummary.get(member.id) || { present: 0, late: 0, absent: 0, on_leave: 0, no_record: 0, total: 0, rate: 0 };
+                  const rate = sum.rate;
                   const rateColor = rate >= 80 ? 'text-emerald-400' : rate >= 60 ? 'text-amber-400' : 'text-rose-400';
                   const barColor = rate >= 80 ? 'bg-emerald-500' : rate >= 60 ? 'bg-amber-500' : 'bg-rose-500';
                   return (
@@ -516,7 +576,7 @@ export default function AttendanceHistorySection({
                       <td className="px-3 py-2.5 text-center" style={{ borderLeft: '1px solid rgba(255,255,255,0.06)' }}>
                         <div className="flex flex-col items-center gap-1">
                           <span className={`text-[13px] font-black ${rateColor}`}>{rate}%</span>
-                          <span className="text-[8px] text-slate-500 font-bold">{member.summary.present + member.summary.late}/{member.summary.total_sessions} buổi</span>
+                          <span className="text-[8px] text-slate-500 font-bold">{sum.present + sum.late}/{sum.total} buổi</span>
                           <div className="w-14 h-1 bg-slate-800 rounded-full overflow-hidden">
                             <div className={`h-full rounded-full ${barColor}`} style={{ width: `${rate}%` }} />
                           </div>
