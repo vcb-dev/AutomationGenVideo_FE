@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth-store'
 import { MembersTab } from './components/MembersTab'
+import { CreateTeamModal } from './components/CreateTeamModal'
 import { TeamProductsTab } from './components/TeamProductsTab'
 import { TeamContentsTab } from './components/TeamContentsTab'
 import { TeamSourcesTab } from './components/TeamSourcesTab'
@@ -13,7 +14,7 @@ import { TeamWarehouseTab } from './components/TeamWarehouseTab'
 import { TeamStatsTab } from './components/TeamStatsTab'
 import { TeamPushRequestsTab } from './components/TeamPushRequestsTab'
 import { UserRole } from '@/types/auth'
-import { getTeams, getUsers } from '@/lib/api/task-auto'
+import { getTeams } from '@/lib/api/task-auto'
 import type { BrandType } from '@/types/task-auto'
 
 type TabId = 'members' | 'products' | 'contents' | 'sources' | 'warehouse' | 'stats' | 'push-requests'
@@ -50,12 +51,6 @@ export default function TeamsPage() {
   const { data: teams } = useQuery({
     queryKey: ['task-auto', 'teams'],
     queryFn: getTeams,
-  })
-
-  const { data: leaderOptions } = useQuery({
-    queryKey: ['task-auto', 'users', 'LEADER'],
-    queryFn: () => getUsers('LEADER'),
-    enabled: isAdminOrManager,
   })
 
   // Auto-select own team for non-admin/manager
@@ -99,7 +94,7 @@ export default function TeamsPage() {
           <h1 className="text-3xl font-black text-slate-900">Đội nhóm</h1>
           <p className="text-slate-500 text-base mt-1">Quản lý đội nhóm và thành viên</p>
         </div>
-        {/* {isAdminOrManager && (
+        {isAdminOrManager && (
           <button
             onClick={() => setCreateTeamOpen(true)}
             className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors"
@@ -107,7 +102,7 @@ export default function TeamsPage() {
             <Plus className="w-4 h-4" />
             Tạo đội mới
           </button>
-        )} */}
+        )}
       </div>
 
       {/* Tab bar */}
@@ -202,6 +197,12 @@ export default function TeamsPage() {
       {activeTab === 'stats' && showStatsTab && (
         <TeamStatsTab teamId={scaleDataTeamId} />
       )}
+
+      <CreateTeamModal
+        open={createTeamOpen}
+        onClose={() => setCreateTeamOpen(false)}
+        onSuccess={team => setSelectedTeamId(team.id)}
+      />
 
     </div>
   )

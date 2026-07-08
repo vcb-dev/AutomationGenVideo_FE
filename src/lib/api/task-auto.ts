@@ -1,5 +1,6 @@
 import { apiClient } from '@/lib/api-client'
 import type {
+  BrandType,
   Task,
   TasksQuery,
   Team,
@@ -122,7 +123,7 @@ export const getTeams = () =>
 export const getTeam = (id: string) =>
   apiClient.get<Team>(`/task-auto/teams/${id}`).then(r => r.data)
 
-export const createTeam = (body: { name: string; leader_id?: string | null; member_ids?: string[] }) =>
+export const createTeam = (body: { name: string; leader_id?: string | null; brand_type?: BrandType; member_ids?: string[] }) =>
   apiClient.post<Team>('/task-auto/teams', body).then(r => r.data)
 
 export const updateTeam = (id: string, body: Partial<Team> & { member_ids?: string[] }) =>
