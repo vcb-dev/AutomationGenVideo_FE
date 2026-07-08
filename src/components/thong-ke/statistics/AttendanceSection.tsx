@@ -863,7 +863,7 @@ export default function AttendanceSection({
                 ? 'Đã chốt điểm danh'
                 : myRecord
                 ? `Đã điểm danh (${STATUS_CONFIG[myRecord.status].label})`
-                : 'Điểm danh của tôi'}
+                : 'Điểm danh'}
             </button>
           </div>
         </div>
