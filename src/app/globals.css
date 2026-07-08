@@ -250,4 +250,81 @@
   .scrollbar-none::-webkit-scrollbar {
     display: none;             /* Chrome, Safari and Opera */
   }
+
+  /* Premium Glassmorphic Styles */
+  .glass-premium {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05), 0 20px 40px rgba(0, 0, 0, 0.45);
+  }
+
+  /* Slow pulse for background glow spots */
+  @keyframes pulse-slow {
+    0%, 100% { opacity: 0.35; transform: scale(1); }
+    50% { opacity: 0.55; transform: scale(1.08); }
+  }
+  .animate-pulse-slow {
+    animation: pulse-slow 10s ease-in-out infinite;
+  }
+
+  /* Hologram floating watermarks */
+  @keyframes float-trophy {
+    0%, 100% { transform: translateY(0) rotate(12deg) scale(1); }
+    50% { transform: translateY(-8px) rotate(14deg) scale(1.03); }
+  }
+  .animate-float-trophy {
+    animation: float-trophy 8s ease-in-out infinite;
+  }
+
+  @keyframes float-trend {
+    0%, 100% { transform: translateY(0) rotate(-6deg) scale(1); }
+    50% { transform: translateY(8px) rotate(-8deg) scale(1.03); }
+  }
+  .animate-float-trend {
+    animation: float-trend 9s ease-in-out infinite;
+  }
+
+  @keyframes float-clipboard {
+    0%, 100% { transform: translateY(0) rotate(4deg) scale(1); }
+    50% { transform: translateY(-6px) rotate(2deg) scale(1.02); }
+  }
+  .animate-float-clipboard {
+    animation: float-clipboard 10s ease-in-out infinite;
+  }
+
+  /* Play button ripple effect */
+  @keyframes play-pulse-ripple {
+    0% { transform: scale(0.95); opacity: 0.8; box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.35); }
+    70% { transform: scale(1.15); opacity: 0; box-shadow: 0 0 0 16px rgba(255, 255, 255, 0); }
+    100% { transform: scale(0.95); opacity: 0; box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+  }
+  .play-pulse-ripple {
+    position: relative;
+  }
+  .play-pulse-ripple::before {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: 9999px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    animation: play-pulse-ripple 2s infinite;
+    pointer-events: none;
+  }
+
+  /* ─── Fix Chrome autofill background override ─── */
+  /* Chrome injects a white/yellow bg on autofilled inputs — override with dark bg */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active {
+    /* Use box-shadow trick: browser can't override box-shadow color */
+    -webkit-box-shadow: 0 0 0 1000px rgb(3 7 18 / 0.9) inset !important;
+    box-shadow: 0 0 0 1000px rgb(3 7 18 / 0.9) inset !important;
+    -webkit-text-fill-color: #fff !important;
+    caret-color: #fff;
+    border-color: rgb(30 41 59) !important;
+    transition: background-color 5000s ease-in-out 0s;
+  }
 }
