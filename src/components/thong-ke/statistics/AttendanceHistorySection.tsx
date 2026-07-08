@@ -267,6 +267,11 @@ export default function AttendanceHistorySection({
   const [memberDetailLoading, setMemberDetailLoading] = useState(false);
   const [memberDetail, setMemberDetail] = useState<UserAttendanceHistoryResponse | null>(null);
 
+  // Ref for showToast: avoids adding it to useCallback deps (it's not memoized
+  // in the parent, so its identity changes every render → infinite loop).
+  const showToastRef = React.useRef(showToast);
+  React.useEffect(() => { showToastRef.current = showToast; }, [showToast]);
+
   const fetchHistory = useCallback(async () => {
     if (!localTeam) return;
     setLoading(true);
@@ -281,11 +286,11 @@ export default function AttendanceHistorySection({
     } catch (err: any) {
       const msg = err?.response?.data?.message || err?.message || 'Không thể tải lịch sử điểm danh';
       setError(msg);
-      if (showToast) showToast(msg, 'error');
+      if (showToastRef.current) showToastRef.current(msg, 'error');
     } finally {
       setLoading(false);
     }
-  }, [localTeam, historyMonth, historyYear, showToast]);
+  }, [localTeam, historyMonth, historyYear]);
 
   useEffect(() => { fetchHistory(); }, [fetchHistory]);
 
