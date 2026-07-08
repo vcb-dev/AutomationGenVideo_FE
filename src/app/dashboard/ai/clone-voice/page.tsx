@@ -540,7 +540,9 @@ export default function CloneVoicePage() {
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
-    // Handle voice cloning
+    // Handle voice cloning. Chạy nền + poll trạng thái thay vì 1 request chờ trực
+    // tiếp — mạng tới Minimax có thể chập chờn vài phút, request đồng bộ dễ bị
+    // BE/trình duyệt tự timeout dù cuối cùng Minimax vẫn xử lý xong.
     const handleCloneSubmit = async () => {
         if (!cloneFile || !cloneVoiceName.trim()) {
             toast.error('Vui lòng điền tên giọng và chọn file audio mẫu');
@@ -548,7 +550,7 @@ export default function CloneVoicePage() {
         }
 
         setIsCloning(true);
-        const loadingToast = toast.loading('Đang upload và clone giọng nói bằng Minimax...');
+        const loadingToast = toast.loading('Đang tải audio lên...');
 
         try {
             const formData = new FormData();
@@ -556,30 +558,56 @@ export default function CloneVoicePage() {
             formData.append('voice_name', cloneVoiceName);
             formData.append('gender', cloneGender);
 
-            const res = await fetch(`${getApiUrl()}/ai/voice/clone`, {
+            const startRes = await fetch(`${getApiUrl()}/ai/voice/clone/start`, {
                 method: 'POST',
                 headers: getAuthHeaders(),
                 body: formData,
             });
 
-            if (!res.ok) {
+            if (!startRes.ok) {
                 // BE Nest trả { message }, AI service (Django) trả { error } — đọc cả hai
-                const errMessage = await res.json().then((d) => d.error || d.message).catch(() => null);
-                throw new Error(errMessage || 'Lỗi khi clone giọng nói');
+                const errMessage = await startRes.json().then((d) => d.error || d.message).catch(() => null);
+                throw new Error(errMessage || 'Lỗi khi bắt đầu clone giọng nói');
             }
 
-            const data = await res.json();
-            if (data.success && data.voice) {
-                toast.success(`Đã clone giọng "${data.voice.name}" thành công!`, { id: loadingToast });
-                clearCloneFile();
-                setCloneVoiceName('');
-                
-                // Update selected voice to the new voice
-                setSelectedVoiceId(data.voice.voice_id);
-                // Refresh list
-                await fetchVoices();
-            } else {
-                throw new Error(data.error || 'Clone thất bại');
+            const startData = await startRes.json();
+            const jobId = startData.job_id;
+            if (!jobId) {
+                throw new Error('Không nhận được job_id từ server');
+            }
+
+            // Poll trạng thái — mạng xấu có thể khiến job mất vài phút mới xong.
+            const POLL_INTERVAL_MS = 4000;
+            const MAX_POLL_MS = 10 * 60 * 1000; // 10 phút
+            const startedAt = Date.now();
+
+            // eslint-disable-next-line no-constant-condition
+            while (true) {
+                await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+
+                const statusRes = await fetch(`${getApiUrl()}/ai/voice/clone/status/${jobId}`, {
+                    headers: getAuthHeaders(),
+                });
+                if (!statusRes.ok) {
+                    throw new Error('Không thể kiểm tra trạng thái clone');
+                }
+                const statusData = await statusRes.json();
+
+                if (statusData.status === 'completed') {
+                    toast.success(`Đã clone giọng "${statusData.voice?.name}" thành công!`, { id: loadingToast });
+                    clearCloneFile();
+                    setCloneVoiceName('');
+                    if (statusData.voice?.voice_id) setSelectedVoiceId(statusData.voice.voice_id);
+                    await fetchVoices();
+                    break;
+                }
+                if (statusData.status === 'error') {
+                    throw new Error(statusData.message || 'Clone thất bại');
+                }
+                if (Date.now() - startedAt > MAX_POLL_MS) {
+                    throw new Error('Clone đang mất nhiều thời gian hơn dự kiến — mạng tới Minimax có thể đang chập chờn. Vui lòng thử lại sau.');
+                }
+                toast.loading(statusData.message || 'Đang xử lý...', { id: loadingToast });
             }
         } catch (error: any) {
             console.error('Clone error:', error);

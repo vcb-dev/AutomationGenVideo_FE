@@ -42,12 +42,62 @@ interface TeamApi {
     _count: { members: number; tasks: number };
 }
 
+interface UsageByUser {
+    user_id: string;
+    full_name: string;
+    email: string;
+    characters: number;
+    tts_count: number;
+    clone_count: number;
+    last_used_at: string;
+}
+
+interface UsageStats {
+    total: { characters: number; tts_count: number; clone_count: number };
+    by_user: UsageByUser[];
+}
+
+function firstOfMonthStr() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+}
+
+function todayStr() {
+    return new Date().toISOString().split('T')[0];
+}
+
 export default function OverviewPage() {
     const { user } = useAuthStore();
     const [voicesCount, setVoicesCount] = useState(0);
     const [teams, setTeams] = useState<TeamApi[]>([]);
     const [teamsLoaded, setTeamsLoaded] = useState(false);
     const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+    const [usageStats, setUsageStats] = useState<UsageStats | null>(null);
+    const [usageLoaded, setUsageLoaded] = useState(false);
+
+    // Fetch voice usage stats (điểm TTS + số clone) — tháng hiện tại
+    useEffect(() => {
+        const fetchUsage = async () => {
+            try {
+                const token = getAuthToken();
+                const res = await fetch(
+                    `${getApiUrl()}/ai/voice/usage/stats?date_from=${firstOfMonthStr()}&date_to=${todayStr()}`,
+                    { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+                );
+                if (!res.ok) throw new Error('Không thể lấy thống kê tiêu dùng');
+                const data = await res.json();
+                if (data.success) setUsageStats(data);
+            } catch (error) {
+                console.error('Lỗi khi tải thống kê tiêu dùng:', error);
+                toast.error('Không thể tải thống kê tiêu dùng AI');
+            } finally {
+                setUsageLoaded(true);
+            }
+        };
+        fetchUsage();
+    }, []);
+
+    const usageByUserId = new Map((usageStats?.by_user ?? []).map(u => [u.user_id, u]));
 
     // Fetch real voices count from backend
     useEffect(() => {
@@ -153,31 +203,49 @@ export default function OverviewPage() {
 
                 {/* ─────────────────────────── STATS CARDS ─────────────────────────── */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* Spent Card - not tracked yet */}
+                    {/* Điểm âm thanh đã tiêu (usage_characters MiniMax tính phí) */}
                     <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
                         <div className="flex items-center justify-between">
-                            <span className="text-sm font-semibold text-gray-500">Chi tiêu đã dùng</span>
+                            <span className="text-sm font-semibold text-gray-500">Điểm âm thanh đã tiêu</span>
                             <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center">
                                 <DollarSign className="w-5 h-5 text-green-600" />
                             </div>
                         </div>
                         <div className="mt-4">
-                            <h3 className="text-lg font-semibold text-gray-400 italic">Chưa có dữ liệu</h3>
-                            <p className="text-xs text-gray-400 mt-2">Tính năng theo dõi chi tiêu đang được phát triển</p>
+                            {!usageLoaded ? (
+                                <h3 className="text-lg font-semibold text-gray-400 italic">Đang tải...</h3>
+                            ) : (
+                                <>
+                                    <div className="flex items-baseline gap-1">
+                                        <h3 className="text-2xl font-bold text-gray-900">{(usageStats?.total.characters ?? 0).toLocaleString('vi-VN')}</h3>
+                                        <span className="text-xs text-gray-400">điểm (tháng này)</span>
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-2">= số ký tự MiniMax tính phí khi tạo giọng nói</p>
+                                </>
+                            )}
                         </div>
                     </div>
 
-                    {/* Tokens Card - not tracked yet */}
+                    {/* Lượt sử dụng */}
                     <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
                         <div className="flex items-center justify-between">
-                            <span className="text-sm font-semibold text-gray-500">Token tiêu thụ</span>
+                            <span className="text-sm font-semibold text-gray-500">Lượt sử dụng</span>
                             <div className="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center">
                                 <Coins className="w-5 h-5 text-violet-600" />
                             </div>
                         </div>
                         <div className="mt-4">
-                            <h3 className="text-lg font-semibold text-gray-400 italic">Chưa có dữ liệu</h3>
-                            <p className="text-xs text-gray-400 mt-2">Tính năng theo dõi token đang được phát triển</p>
+                            {!usageLoaded ? (
+                                <h3 className="text-lg font-semibold text-gray-400 italic">Đang tải...</h3>
+                            ) : (
+                                <>
+                                    <div className="flex items-baseline gap-1">
+                                        <h3 className="text-2xl font-bold text-gray-900">{usageStats?.total.tts_count ?? 0}</h3>
+                                        <span className="text-xs text-gray-400">lượt tạo giọng · {usageStats?.total.clone_count ?? 0} giọng clone (tháng này)</span>
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-2">Thống kê từ khi bật theo dõi tiêu dùng</p>
+                                </>
+                            )}
                         </div>
                     </div>
 
@@ -282,15 +350,20 @@ export default function OverviewPage() {
                                                 <th className="pl-6 py-3">Tên thành viên</th>
                                                 <th className="py-3">Email</th>
                                                 <th className="py-3">Vai trò hệ thống</th>
+                                                <th className="py-3 text-right">Điểm đã tiêu</th>
+                                                <th className="py-3 text-right">Lượt TTS</th>
+                                                <th className="py-3 text-right">Giọng clone</th>
                                                 <th className="pr-6 py-3 text-right">Ngày tham gia</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-100">
                                             {adminSelectedTeam.members.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan={4} className="py-6 text-center text-xs text-gray-400">Team chưa có thành viên</td>
+                                                    <td colSpan={7} className="py-6 text-center text-xs text-gray-400">Team chưa có thành viên</td>
                                                 </tr>
-                                            ) : adminSelectedTeam.members.map((member) => (
+                                            ) : adminSelectedTeam.members.map((member) => {
+                                                const usage = usageByUserId.get(member.user_id);
+                                                return (
                                                 <tr key={member.id} className="hover:bg-gray-50/50 transition-colors">
                                                     <td className="pl-6 py-4">
                                                         <p className="text-xs font-semibold text-gray-800">{member.user.full_name}</p>
@@ -307,11 +380,21 @@ export default function OverviewPage() {
                                                             ))}
                                                         </div>
                                                     </td>
+                                                    <td className="py-4 text-right text-xs font-bold text-green-700">
+                                                        {(usage?.characters ?? 0).toLocaleString('vi-VN')}
+                                                    </td>
+                                                    <td className="py-4 text-right text-xs font-semibold text-violet-700">
+                                                        {usage?.tts_count ?? 0}
+                                                    </td>
+                                                    <td className="py-4 text-right text-xs font-semibold text-cyan-700">
+                                                        {usage?.clone_count ?? 0}
+                                                    </td>
                                                     <td className="pr-6 py-4 text-right text-xs text-gray-500">
                                                         {new Date(member.joined_at).toLocaleDateString('vi-VN')}
                                                     </td>
                                                 </tr>
-                                            ))}
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>
@@ -346,11 +429,16 @@ export default function OverviewPage() {
                                                 <th className="pl-6 py-3">Họ và tên</th>
                                                 <th className="py-3">Email liên hệ</th>
                                                 <th className="py-3">Vai trò hệ thống</th>
+                                                <th className="py-3 text-right">Điểm đã tiêu</th>
+                                                <th className="py-3 text-right">Lượt TTS</th>
+                                                <th className="py-3 text-right">Giọng clone</th>
                                                 <th className="pr-6 py-3 text-right">Ngày tham gia</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-100">
-                                            {leaderTeamData.members.map((member) => (
+                                            {leaderTeamData.members.map((member) => {
+                                                const usage = usageByUserId.get(member.user_id);
+                                                return (
                                                 <tr key={member.id} className="hover:bg-gray-50/50 transition-colors">
                                                     <td className="pl-6 py-4">
                                                         <p className="text-xs font-semibold text-gray-800">{member.user.full_name}</p>
@@ -367,11 +455,21 @@ export default function OverviewPage() {
                                                             ))}
                                                         </div>
                                                     </td>
+                                                    <td className="py-4 text-right text-xs font-bold text-green-700">
+                                                        {(usage?.characters ?? 0).toLocaleString('vi-VN')}
+                                                    </td>
+                                                    <td className="py-4 text-right text-xs font-semibold text-violet-700">
+                                                        {usage?.tts_count ?? 0}
+                                                    </td>
+                                                    <td className="py-4 text-right text-xs font-semibold text-cyan-700">
+                                                        {usage?.clone_count ?? 0}
+                                                    </td>
                                                     <td className="pr-6 py-4 text-right text-xs text-gray-500">
                                                         {new Date(member.joined_at).toLocaleDateString('vi-VN')}
                                                     </td>
                                                 </tr>
-                                            ))}
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>
@@ -380,21 +478,46 @@ export default function OverviewPage() {
                     </div>
                 )}
 
-                {/* 3. MEMBER LAYOUT (Personal activity log - not tracked yet) */}
+                {/* 3. MEMBER LAYOUT (Tiêu dùng cá nhân tháng này) */}
                 {isMemberOnly && (
                     <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
                         <div className="flex items-center justify-between mb-6">
-                            <h3 className="font-bold text-gray-950 text-base">Nhật ký tác vụ gần nhất</h3>
-                            <span className="text-xs text-gray-400">Chỉ hiển thị các tác vụ của bạn</span>
+                            <h3 className="font-bold text-gray-950 text-base">Tiêu dùng của bạn (tháng này)</h3>
+                            <span className="text-xs text-gray-400">Chỉ tính các tác vụ của bạn</span>
                         </div>
 
-                        <div className="py-10 flex flex-col items-center justify-center text-center">
-                            <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center mb-3">
-                                <Volume2 className="w-5 h-5 text-gray-300" />
-                            </div>
-                            <p className="text-sm text-gray-400 italic">Chưa có dữ liệu</p>
-                            <p className="text-xs text-gray-400 mt-1">Tính năng ghi nhật ký hoạt động đang được phát triển</p>
-                        </div>
+                        {(() => {
+                            const mine = user?.id ? usageByUserId.get(user.id) : undefined;
+                            if (!usageLoaded) {
+                                return <p className="text-sm text-gray-400 py-6 text-center">Đang tải...</p>;
+                            }
+                            if (!mine) {
+                                return (
+                                    <div className="py-10 flex flex-col items-center justify-center text-center">
+                                        <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center mb-3">
+                                            <Volume2 className="w-5 h-5 text-gray-300" />
+                                        </div>
+                                        <p className="text-sm text-gray-400 italic">Bạn chưa dùng tính năng giọng nói tháng này</p>
+                                    </div>
+                                );
+                            }
+                            return (
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div className="p-4 rounded-xl bg-green-50 border border-green-100 text-center">
+                                        <p className="text-xs text-green-700 font-semibold">Điểm đã tiêu</p>
+                                        <p className="text-2xl font-black text-green-700 mt-1">{mine.characters.toLocaleString('vi-VN')}</p>
+                                    </div>
+                                    <div className="p-4 rounded-xl bg-violet-50 border border-violet-100 text-center">
+                                        <p className="text-xs text-violet-700 font-semibold">Lượt tạo giọng (TTS)</p>
+                                        <p className="text-2xl font-black text-violet-700 mt-1">{mine.tts_count}</p>
+                                    </div>
+                                    <div className="p-4 rounded-xl bg-cyan-50 border border-cyan-100 text-center">
+                                        <p className="text-xs text-cyan-700 font-semibold">Giọng đã clone</p>
+                                        <p className="text-2xl font-black text-cyan-700 mt-1">{mine.clone_count}</p>
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </div>
                 )}
 
