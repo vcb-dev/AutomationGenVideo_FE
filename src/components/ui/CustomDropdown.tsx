@@ -66,7 +66,7 @@ export default function CustomDropdown({
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-1.5 w-max min-w-[120px] max-h-60 overflow-y-auto origin-top-right rounded-xl border border-white/[0.08] bg-[#0e1626] shadow-2xl backdrop-blur-xl p-1 z-50 focus:outline-none scrollbar-thin scrollbar-thumb-white/10">
+        <div className="absolute right-0 mt-1.5 w-max min-w-[120px] max-h-80 overflow-y-auto origin-top-right rounded-xl border border-white/[0.08] bg-[#0e1626] shadow-2xl backdrop-blur-xl p-1 z-50 focus:outline-none custom-scrollbar">
           <div className="flex flex-col gap-0.5">
             {options.map((option) => {
               const isSelected = option.value === value;
