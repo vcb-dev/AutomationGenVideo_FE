@@ -1047,6 +1047,7 @@ function StatisticsDashboard() {
           currentUserId={authUser?.id}
           currentUserName={authUser?.full_name}
           currentUserRoles={authUser?.roles}
+          authUserTeam={authUser?.team}
           showToast={showToast}
         />
       )}

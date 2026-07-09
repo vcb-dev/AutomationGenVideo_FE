@@ -12,6 +12,7 @@ interface AttendanceSectionProps {
   currentUserId?: string;        // ID của user đang đăng nhập (từ auth context)
   currentUserName?: string;      // Tên user đang đăng nhập
   currentUserRoles?: string[];   // Quyền của user đang đăng nhập
+  authUserTeam?: string | null;  // Team string của user từ auth store
   showToast?: (message: string, type?: 'success' | 'error') => void;
 }
 
@@ -454,6 +455,7 @@ export default function AttendanceSection({
   currentUserId,
   currentUserName,
   currentUserRoles,
+  authUserTeam,
   showToast,
 }: AttendanceSectionProps) {
   const [showModal, setShowModal] = useState(false);
@@ -475,6 +477,27 @@ export default function AttendanceSection({
   useEffect(() => {
     showToastRef.current = showToast;
   }, [showToast]);
+
+  // 1.5. Calculate allowedTeams based on roles and authUserTeam
+  const allowedTeams = useMemo(() => {
+    const roles = currentUserRoles || [];
+    if (roles.includes('ADMIN')) {
+      return teamsList;
+    }
+    if (!authUserTeam) return [];
+    const parsedUserTeams = authUserTeam
+      .split(',')
+      .map((t) => {
+        let trimmed = t.trim();
+        if (trimmed.toLowerCase().startsWith('team ')) {
+          trimmed = trimmed.substring(5).trim();
+        }
+        return trimmed.toLowerCase();
+      })
+      .filter((t) => t.length > 0);
+
+    return teamsList.filter((t) => parsedUserTeams.includes(t.toLowerCase()));
+  }, [teamsList, currentUserRoles, authUserTeam]);
 
   // 2. Local team state & sync from parent prop (without double-fetch)
   const [prevActiveTeam, setPrevActiveTeam] = useState(activeTeam);
@@ -746,18 +769,20 @@ export default function AttendanceSection({
             {/* Local Team and Period Selectors */}
             <div className="flex flex-wrap items-center gap-3">
               {/* Local Team Selector */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Xem team:</span>
-                <select
-                  value={localTeam}
-                  onChange={(e) => setLocalTeam(e.target.value)}
-                  className="bg-[#0f172a] border border-white/[0.08] focus:border-indigo-500 rounded-xl px-2.5 py-1.5 text-[10px] text-slate-200 outline-none font-bold cursor-pointer"
-                >
-                  {teamsList.map((t) => (
-                    <option key={t} value={t}>Team {t}</option>
-                  ))}
-                </select>
-              </div>
+              {allowedTeams.length > 1 && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Xem team:</span>
+                  <select
+                    value={localTeam}
+                    onChange={(e) => setLocalTeam(e.target.value)}
+                    className="bg-[#0f172a] border border-white/[0.08] focus:border-indigo-500 rounded-xl px-2.5 py-1.5 text-[10px] text-slate-200 outline-none font-bold cursor-pointer"
+                  >
+                    {allowedTeams.map((t) => (
+                      <option key={t} value={t}>Team {t}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* Local Period Selector for AttendanceSection */}
               {weekPeriods.length > 0 && (
@@ -845,18 +870,20 @@ export default function AttendanceSection({
           {/* Self check-in & Bulk & Finalize buttons + Local Week/Team Selectors */}
           <div className="flex flex-wrap items-center gap-2.5">
             {/* Local Team Selector */}
-            <div className="flex items-center gap-1.5 mr-1">
-              <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Xem team:</span>
-              <select
-                value={localTeam}
-                onChange={(e) => setLocalTeam(e.target.value)}
-                className="bg-[#0f172a] border border-white/[0.08] focus:border-indigo-500 rounded-xl px-2.5 py-1.5 text-[10px] text-slate-200 outline-none font-bold cursor-pointer"
-              >
-                {teamsList.map((t) => (
-                  <option key={t} value={t}>Team {t}</option>
-                ))}
-              </select>
-            </div>
+            {allowedTeams.length > 1 && (
+              <div className="flex items-center gap-1.5 mr-1">
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Xem team:</span>
+                <select
+                  value={localTeam}
+                  onChange={(e) => setLocalTeam(e.target.value)}
+                  className="bg-[#0f172a] border border-white/[0.08] focus:border-indigo-500 rounded-xl px-2.5 py-1.5 text-[10px] text-slate-200 outline-none font-bold cursor-pointer"
+                >
+                  {allowedTeams.map((t) => (
+                    <option key={t} value={t}>Team {t}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Local Week Selector */}
             {weekPeriods.length > 0 && (

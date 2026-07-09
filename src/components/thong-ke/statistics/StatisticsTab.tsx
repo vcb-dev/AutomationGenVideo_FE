@@ -31,6 +31,7 @@ interface StatisticsTabProps {
   currentUserId?: string;
   currentUserName?: string;
   currentUserRoles?: string[];
+  authUserTeam?: string | null;
   showToast?: (message: string, type?: 'success' | 'error') => void;
 }
 
@@ -42,7 +43,7 @@ export default function StatisticsTab({
   selectedEditorDetail, setSelectedEditorDetail,
   isExporting, exportProgress, exportType, handleStartExport,
   filterMode, periodsList = [],
-  currentUserId, currentUserName, currentUserRoles, showToast,
+  currentUserId, currentUserName, currentUserRoles, authUserTeam, showToast,
 }: StatisticsTabProps) {
 
   const baseData = teamsData[activeTab] || TEAMS_DATA[activeTab];
@@ -985,6 +986,7 @@ export default function StatisticsTab({
               currentUserId={currentUserId}
               currentUserName={currentUserName}
               currentUserRoles={currentUserRoles}
+              authUserTeam={authUserTeam}
               showToast={showToast}
             />
           )}
