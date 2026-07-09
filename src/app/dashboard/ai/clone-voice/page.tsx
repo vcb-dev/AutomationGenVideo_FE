@@ -4,7 +4,6 @@ import { useState, useRef, useEffect } from 'react';
 import {
     Mic,
     AudioLines,
-    Zap,
     Volume2,
     Globe,
     Play,
@@ -12,73 +11,14 @@ import {
     Upload,
     Trash2,
     ChevronDown,
-    Sliders,
     Wand2,
-    Palette,
     RefreshCw,
     FolderOpen,
     Check,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-/* ─────────────────────────── Types ─────────────────────────── */
-type VoiceMode = 'female-fast' | 'male-fast' | 'custom' | 'design';
-
-interface VoiceModeConfig {
-    id: VoiceMode;
-    label: string;
-    sublabel: string;
-    icon: React.ElementType;
-    activeColor: string;
-    activeBg: string;
-    activeBorder: string;
-    activeText: string;
-}
-
 /* ────────────────────────── Constants ──────────────────────── */
-const VOICE_MODES: VoiceModeConfig[] = [
-    {
-        id: 'female-fast',
-        label: 'Giọng nữ (nhanh)',
-        sublabel: 'Free, không cần GPU',
-        icon: Zap,
-        activeColor: 'text-violet-600',
-        activeBg: 'bg-violet-50',
-        activeBorder: 'border-violet-400',
-        activeText: 'text-violet-700',
-    },
-    {
-        id: 'male-fast',
-        label: 'Giọng nam (nhanh)',
-        sublabel: 'Free, không cần GPU',
-        icon: Zap,
-        activeColor: 'text-indigo-600',
-        activeBg: 'bg-indigo-50',
-        activeBorder: 'border-indigo-400',
-        activeText: 'text-indigo-700',
-    },
-    {
-        id: 'custom',
-        label: 'Giọng tùy chọn',
-        sublabel: 'Clone (cần GPU)',
-        icon: Mic,
-        activeColor: 'text-cyan-600',
-        activeBg: 'bg-cyan-50',
-        activeBorder: 'border-cyan-400',
-        activeText: 'text-cyan-700',
-    },
-    {
-        id: 'design',
-        label: 'Thiết kế giọng',
-        sublabel: 'Tạo giọng tùy chỉnh',
-        icon: Palette,
-        activeColor: 'text-pink-600',
-        activeBg: 'bg-pink-50',
-        activeBorder: 'border-pink-400',
-        activeText: 'text-pink-700',
-    },
-];
-
 const LANGUAGES = [
     'Tiếng Việt', 'English', '日本語', '한국어', '中文 (简体)',
     'Español', 'Français', 'Deutsch', 'Português', 'ภาษาไทย',
@@ -168,56 +108,8 @@ function SelectDropdown({
     );
 }
 
-function SliderControl({
-    label,
-    value,
-    min,
-    max,
-    step,
-    unit,
-    onChange,
-}: {
-    label: string;
-    value: number;
-    min: number;
-    max: number;
-    step: number;
-    unit: string;
-    onChange: (v: number) => void;
-}) {
-    const pct = ((value - min) / (max - min)) * 100;
-    return (
-        <div className="space-y-2">
-            <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-500 font-medium">{label}</span>
-                <span className="text-xs font-semibold text-violet-600">{value}{unit}</span>
-            </div>
-            <div className="relative h-1.5 bg-gray-200 rounded-full">
-                <div
-                    className="absolute inset-y-0 left-0 bg-gradient-to-r from-violet-500 to-indigo-500 rounded-full"
-                    style={{ width: `${pct}%` }}
-                />
-                <input
-                    type="range"
-                    min={min}
-                    max={max}
-                    step={step}
-                    value={value}
-                    onChange={(e) => onChange(Number(e.target.value))}
-                    className="absolute inset-0 w-full opacity-0 cursor-pointer h-full"
-                />
-                <div
-                    className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-white border-2 border-violet-500 shadow-md shadow-violet-200 pointer-events-none"
-                    style={{ left: `calc(${pct}% - 7px)` }}
-                />
-            </div>
-        </div>
-    );
-}
-
-/* ── Right panel contextual section ── */
+/* ── Right panel: cloned voice directory + upload ── */
 function VoiceContextPanel({
-    mode,
     voices,
     selectedVoiceId,
     onSelectVoiceId,
@@ -231,11 +123,8 @@ function VoiceContextPanel({
     onCloneGenderChange,
     isCloning,
     onCloneSubmit,
-    designPrompt,
-    onDesignPromptChange,
     onRefreshVoices,
 }: {
-    mode: VoiceMode;
     voices: any[];
     selectedVoiceId: string;
     onSelectVoiceId: (id: string) => void;
@@ -249,36 +138,14 @@ function VoiceContextPanel({
     onCloneGenderChange: (g: 'male' | 'female') => void;
     isCloning: boolean;
     onCloneSubmit: () => void;
-    designPrompt: string;
-    onDesignPromptChange: (v: string) => void;
     onRefreshVoices: () => void;
 }) {
-    if (mode === 'design') {
-        return (
-            <div className="mt-4 pt-4 border-t border-gray-100 space-y-3">
-                <div>
-                    <p className="text-xs text-gray-600 font-medium mb-1.5">Mô tả giọng (tiếng Anh)</p>
-                    <input
-                        type="text"
-                        value={designPrompt}
-                        onChange={(e) => onDesignPromptChange(e.target.value)}
-                        placeholder="female, calm, vietnamese accent"
-                        className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-700 placeholder-gray-400 shadow-sm
-                            focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 transition-all duration-200"
-                    />
-                    <p className="text-[11px] text-gray-400 mt-1.5">gender, age, pitch, accent, style...</p>
-                </div>
-            </div>
-        );
-    }
+    // Chỉ voice Minimax dùng được với endpoint TTS này — voice clone của provider
+    // khác (vd HeyGen) nếu hiển thị ở đây sẽ bị BE trả 400 khi generate.
+    const clonedVoices = voices.filter(v => v.is_cloned && (v.provider ?? 'minimax') === 'minimax');
 
-    if (mode === 'custom') {
-        // Chỉ voice Minimax dùng được với endpoint TTS này — voice clone của provider
-        // khác (vd HeyGen) nếu hiển thị ở đây sẽ bị BE trả 400 khi generate.
-        const clonedVoices = voices.filter(v => v.is_cloned && (v.provider ?? 'minimax') === 'minimax');
-
-        return (
-            <div className="mt-4 pt-4 border-t border-gray-100 space-y-4">
+    return (
+        <div className="mt-4 pt-4 border-t border-gray-100 space-y-4">
                 {/* Directory header */}
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-xs text-gray-500">
@@ -454,31 +321,23 @@ function VoiceContextPanel({
                 </div>
             </div>
         );
-    }
-
-    return null;
 }
 
 /* ─────────────────────────── Page ──────────────────────────── */
 export default function CloneVoicePage() {
-    const [selectedMode, setSelectedMode] = useState<VoiceMode>('female-fast');
     const [voices, setVoices] = useState<any[]>([]);
     const [selectedVoiceId, setSelectedVoiceId] = useState<string>('3f7bd9c515cb40cead3a233461c713ca'); // default HuyK
     const [text, setText] = useState('');
     const [translateLang, setTranslateLang] = useState('Tiếng Việt');
     const [ttsLang, setTtsLang] = useState('Tiếng Việt');
-    const [speed, setSpeed] = useState(1.0);
-    const [pitch, setPitch] = useState(0);
-    const [volume, setVolume] = useState(100);
     const [isGenerating, setIsGenerating] = useState(false);
     const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
-    
+
     // Cloning states
     const [cloneFile, setCloneFile] = useState<File | null>(null);
     const [cloneVoiceName, setCloneVoiceName] = useState('');
     const [cloneGender, setCloneGender] = useState<'male' | 'female'>('female');
     const [isCloning, setIsCloning] = useState(false);
-    const [designPrompt, setDesignPrompt] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -495,10 +354,10 @@ export default function CloneVoicePage() {
             const data = await res.json();
             if (data.success && data.voices) {
                 setVoices(data.voices);
-                
-                // If in custom mode, select the first cloned voice if current selected isn't cloned
+
+                // Select the first cloned voice if the current selection isn't a cloned voice
                 const cloned = data.voices.filter((v: any) => v.is_cloned && (v.provider ?? 'minimax') === 'minimax');
-                if (selectedMode === 'custom' && cloned.length > 0) {
+                if (cloned.length > 0) {
                     const exists = cloned.some((v: any) => v.voice_id === selectedVoiceId);
                     if (!exists) {
                         setSelectedVoiceId(cloned[0].voice_id);
@@ -513,7 +372,8 @@ export default function CloneVoicePage() {
 
     useEffect(() => {
         fetchVoices();
-    }, [selectedMode]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const MAX_CLONE_FILE_SIZE = 20 * 1024 * 1024; // 20MB, matches UI copy + BE limit
 
@@ -624,33 +484,16 @@ export default function CloneVoicePage() {
             return;
         }
 
-        if (selectedMode === 'design') {
-            // Backend has no voice-design API yet — refuse rather than silently
-            // generating audio with an unrelated hardcoded voice.
-            toast.error('Chế độ "Thiết kế giọng" chưa được hỗ trợ. Vui lòng chọn chế độ khác.');
+        const usable = voices.some(
+            (v) => v.voice_id === selectedVoiceId && v.is_cloned && (v.provider ?? 'minimax') === 'minimax',
+        );
+        if (!usable) {
+            toast.error('Vui lòng chọn một giọng đã clone (Minimax) trong danh sách, hoặc clone giọng mới trước.');
             return;
-        }
-
-        if (selectedMode === 'custom') {
-            const usable = voices.some(
-                (v) => v.voice_id === selectedVoiceId && v.is_cloned && (v.provider ?? 'minimax') === 'minimax',
-            );
-            if (!usable) {
-                toast.error('Vui lòng chọn một giọng đã clone (Minimax) trong danh sách, hoặc clone giọng mới trước.');
-                return;
-            }
         }
 
         setIsGenerating(true);
         const generatingToast = toast.loading('Đang chuyển văn bản thành giọng nói...');
-
-        // Map system modes to Minimax system voice IDs or use selected cloned voice
-        let activeVoiceId = selectedVoiceId;
-        if (selectedMode === 'female-fast') {
-            activeVoiceId = 'female-tianmei'; // Standard Minimax system female
-        } else if (selectedMode === 'male-fast') {
-            activeVoiceId = 'male-qn-qingse'; // Standard Minimax system male
-        }
 
         try {
             const res = await fetch(`${getApiUrl()}/ai/voice/tts`, {
@@ -661,10 +504,10 @@ export default function CloneVoicePage() {
                 },
                 body: JSON.stringify({
                     text,
-                    voice_id: activeVoiceId,
-                    speed,
-                    pitch,
-                    volume,
+                    voice_id: selectedVoiceId,
+                    speed: 1.0,
+                    pitch: 0,
+                    volume: 100,
                     language: LANGUAGE_TO_MINIMAX[ttsLang],
                 }),
             });
@@ -694,8 +537,6 @@ export default function CloneVoicePage() {
             setIsGenerating(false);
         }
     };
-
-    const selectedModeConfig = VOICE_MODES.find((m) => m.id === selectedMode)!;
 
     return (
         <div className="min-h-screen bg-gray-50 -m-6">
@@ -763,19 +604,6 @@ export default function CloneVoicePage() {
                                         <Globe className="w-3.5 h-3.5" />
                                         Dịch kịch bản
                                     </button>
-                                </div>
-                            </div>
-
-                            {/* Sliders */}
-                            <div className="mt-5 p-4 bg-gray-50 border border-gray-100 rounded-xl">
-                                <div className="flex items-center gap-2 mb-4">
-                                    <Sliders className="w-3.5 h-3.5 text-gray-400" />
-                                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Tùy chọn giọng nói</span>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-                                    <SliderControl label="Tốc độ" value={speed} min={0.5} max={2.0} step={0.1} unit="x" onChange={setSpeed} />
-                                    <SliderControl label="Cao độ" value={pitch} min={-10} max={10} step={1} unit="" onChange={setPitch} />
-                                    <SliderControl label="Âm lượng" value={volume} min={0} max={100} step={5} unit="%" onChange={setVolume} />
                                 </div>
                             </div>
 
@@ -854,46 +682,11 @@ export default function CloneVoicePage() {
                             {/* Section header */}
                             <div className="flex items-center gap-2 mb-4">
                                 <Mic className="w-4 h-4 text-gray-400" />
-                                <span className="text-sm font-semibold text-gray-700">Chế độ giọng</span>
+                                <span className="text-sm font-semibold text-gray-700">Giọng đã clone</span>
                             </div>
 
-                            {/* 2×2 mode grid */}
-                            <div className="grid grid-cols-2 gap-2.5">
-                                {VOICE_MODES.map((mode) => {
-                                    const Icon = mode.icon;
-                                    const active = selectedMode === mode.id;
-                                    return (
-                                        <button
-                                            key={mode.id}
-                                            id={`voice-mode-${mode.id}`}
-                                            onClick={() => setSelectedMode(mode.id)}
-                                            className={`flex flex-col items-center justify-center gap-2 p-4 rounded-xl border text-center transition-all duration-200
-                                                ${active
-                                                    ? `${mode.activeBg} ${mode.activeBorder} shadow-sm`
-                                                    : 'bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300'}`}
-                                        >
-                                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${active ? mode.activeBg : 'bg-gray-100'}`}>
-                                                <Icon
-                                                    className={active ? mode.activeColor : 'text-gray-400'}
-                                                    style={{ width: '18px', height: '18px' }}
-                                                />
-                                            </div>
-                                            <div>
-                                                <p className={`text-xs font-semibold leading-tight ${active ? mode.activeText : 'text-gray-600'}`}>
-                                                    {mode.label}
-                                                </p>
-                                                <p className={`text-[11px] mt-0.5 leading-tight ${active ? 'text-gray-500' : 'text-gray-400'}`}>
-                                                    {mode.sublabel}
-                                                </p>
-                                            </div>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-
-                            {/* Contextual panel */}
+                            {/* Cloned voice panel */}
                             <VoiceContextPanel
-                                mode={selectedMode}
                                 voices={voices}
                                 selectedVoiceId={selectedVoiceId}
                                 onSelectVoiceId={setSelectedVoiceId}
@@ -907,8 +700,6 @@ export default function CloneVoicePage() {
                                 onCloneGenderChange={setCloneGender}
                                 isCloning={isCloning}
                                 onCloneSubmit={handleCloneSubmit}
-                                designPrompt={designPrompt}
-                                onDesignPromptChange={setDesignPrompt}
                                 onRefreshVoices={fetchVoices}
                             />
                         </div>

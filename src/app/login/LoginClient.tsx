@@ -134,10 +134,7 @@ export default function LoginClient() {
               </div>
 
               <div className="space-y-1.5">
-                <div className="flex justify-between items-center ml-1 pr-1">
-                  <label className="text-xs font-medium text-slate-300">{tl.passwordLabel}</label>
-                  <a href="#" className="text-xs text-blue-400 hover:text-blue-300 transition-colors">{tl.forgotPassword}</a>
-                </div>
+                <label className="text-xs font-medium text-slate-300 ml-1">{tl.passwordLabel}</label>
                 <div className="relative group">
                   <Lock className="absolute left-4 top-3.5 w-5 h-5 text-slate-500 group-focus-within:text-blue-500 transition-colors" />
                   <input
