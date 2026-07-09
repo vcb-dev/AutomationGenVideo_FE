@@ -71,7 +71,7 @@ function StatisticsDashboard() {
     if (!authUser || teamsList.length === 0) return;
 
     const roles = (authUser.roles || []) as string[];
-    if (roles.includes('ADMIN')) return; // Keep default team for ADMIN
+    if (roles.includes('ADMIN') || roles.includes('MANAGER')) return; // Keep default team for ADMIN and MANAGER
 
     const authUserTeam = authUser.team;
     if (!authUserTeam) return;
