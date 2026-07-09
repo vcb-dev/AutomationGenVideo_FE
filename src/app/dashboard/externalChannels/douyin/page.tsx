@@ -85,7 +85,7 @@ export default function DouyinExternalPage() {
   const [debouncedFilter, setDebouncedFilter] = useState('');
   const [filterKeyword, setFilterKeyword] = useState('');
   const [minDigg, setMinDigg] = useState('1000');
-  const [sortBy, setSortBy] = useState('date');
+  const [sortBy, setSortBy] = useState('scraped');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const filterTimer = useRef<NodeJS.Timeout>();
@@ -95,8 +95,8 @@ export default function DouyinExternalPage() {
     return () => clearTimeout(filterTimer.current);
   }, [filterSearch]);
 
-  const hasFilters = !!debouncedFilter || !!filterKeyword || minDigg !== '1000' || !!dateFrom || !!dateTo || sortBy !== 'date';
-  const clearFilters = () => { setFilterSearch(''); setFilterKeyword(''); setMinDigg('1000'); setDateFrom(''); setDateTo(''); setSortBy('date'); };
+  const hasFilters = !!debouncedFilter || !!filterKeyword || minDigg !== '1000' || !!dateFrom || !!dateTo || sortBy !== 'scraped';
+  const clearFilters = () => { setFilterSearch(''); setFilterKeyword(''); setMinDigg('1000'); setDateFrom(''); setDateTo(''); setSortBy('scraped'); };
 
   // ─── Notification refs ────────────────────────────────
   const notifIdRef = useRef<string | null>(null);
@@ -121,7 +121,7 @@ export default function DouyinExternalPage() {
     },
     onSuccess: (data) => {
       toast.success(data.message);
-      setSortBy('date');
+      setSortBy('scraped');
       queryClient.invalidateQueries({ queryKey: ['douyin-videos'] });
       if (notifIdRef.current) {
         updateNotification(notifIdRef.current, {
@@ -177,6 +177,9 @@ export default function DouyinExternalPage() {
     profileSearchTimer.current = setTimeout(() => { setDebouncedProfileSearch(profileSearch); setProfilePage(1); }, 300);
     return () => clearTimeout(profileSearchTimer.current);
   }, [profileSearch]);
+
+  const hasProfileFilters = !!profileSearch || profileSortBy !== 'followers';
+  const clearProfileFilters = () => { setProfileSearch(''); setProfileSortBy('followers'); };
 
   const profilesQuery = useQuery({
     queryKey: ['douyin-profiles', profilePage, debouncedProfileSearch, profileSortBy],
@@ -394,7 +397,8 @@ export default function DouyinExternalPage() {
               onChange={e => setSortBy(e.target.value)}
               className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
-              <option value="date">Mới nhất</option>
+              <option value="scraped">Mới cào về</option>
+              <option value="date">Ngày đăng mới nhất</option>
               <option value="likes">Nhiều tim nhất</option>
             </select>
             <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none" title="Từ ngày" />
@@ -514,6 +518,11 @@ export default function DouyinExternalPage() {
               <option value="followers">Nhiều followers nhất</option>
               <option value="recent">Mới thêm gần đây</option>
             </select>
+            {hasProfileFilters && (
+              <button onClick={clearProfileFilters} className="px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50">
+                Xóa bộ lọc
+              </button>
+            )}
           </div>
 
           {/* Count */}

@@ -107,6 +107,9 @@ export default function InstagramChannelsPage() {
     return () => clearTimeout(searchTimer.current);
   }, [search]);
 
+  const hasProfileFilters = !!search || sortBy !== 'followers';
+  const clearProfileFilters = () => { setSearch(''); setSortBy('followers'); };
+
   const profilesQuery = useQuery({
     queryKey: ['owned-instagram-profiles', page, debouncedSearch, sortBy],
     queryFn: () => token
@@ -277,6 +280,11 @@ export default function InstagramChannelsPage() {
           <option value="followers">Nhiều followers nhất</option>
           <option value="recent">Mới thêm gần đây</option>
         </select>
+        {hasProfileFilters && (
+          <button onClick={clearProfileFilters} className="px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50">
+            Xóa bộ lọc
+          </button>
+        )}
       </div>
 
       {/* ── Profiles ─────────────────────────────────── */}

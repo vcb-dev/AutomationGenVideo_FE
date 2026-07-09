@@ -128,6 +128,11 @@ export default function TikTokProfileDetailPage() {
     queryFn: () => token ? scraperService.getTiktokProfileDetail(token, id) : Promise.reject(),
     enabled: !!token && !!id,
     refetchInterval: 5000,
+    // scraping_status phản ánh tiến trình đang chạy nền — không được dùng cache cũ
+    // (staleTime mặc định toàn cục là 5 phút), nếu không mở lại trang có thể vẫn
+    // hiện trạng thái processing/completed từ lần xem trước cho tới khi interval bắt kịp.
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const isProcessingNow = detailQuery.data?.scraping_status === 'processing';
