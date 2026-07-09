@@ -3,6 +3,7 @@ import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { Users, CheckCircle2, XCircle, Clock, Calendar, ChevronDown, Loader2 } from 'lucide-react';
 import { MeetingSession, AttendanceStatus, AttendanceRecord, MeetingSessionResponse } from '../types';
 import { apiClient } from '../../../lib/api-client';
+import CustomDropdown from '../../ui/CustomDropdown';
 
 interface AttendanceSectionProps {
   periodsList: any[];
@@ -770,37 +771,25 @@ export default function AttendanceSection({
             <div className="flex flex-wrap items-center gap-3">
               {/* Local Team Selector */}
               {allowedTeams.length > 1 && (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Xem team:</span>
-                  <select
-                    value={localTeam}
-                    onChange={(e) => setLocalTeam(e.target.value)}
-                    className="bg-[#0f172a] border border-white/[0.08] focus:border-indigo-500 rounded-xl px-2.5 py-1.5 text-[10px] text-slate-200 outline-none font-bold cursor-pointer"
-                  >
-                    {allowedTeams.map((t) => (
-                      <option key={t} value={t}>Team {t}</option>
-                    ))}
-                  </select>
-                </div>
+                <CustomDropdown
+                  value={localTeam}
+                  onChange={(val) => setLocalTeam(val)}
+                  options={allowedTeams.map((t) => ({ value: t, label: `Team ${t}` }))}
+                  labelPrefix="Xem team:"
+                />
               )}
 
               {/* Local Period Selector for AttendanceSection */}
               {weekPeriods.length > 0 && (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Tuần:</span>
-                  <select
-                    value={selectedPeriod?.id || ''}
-                    onChange={(e) => {
-                      const found = weekPeriods.find((p) => p.id === e.target.value);
-                      if (found) setSelectedPeriod(found);
-                    }}
-                    className="bg-[#0f172a] border border-white/[0.08] focus:border-indigo-500 rounded-xl px-2.5 py-1.5 text-[10px] text-slate-200 outline-none font-bold cursor-pointer"
-                  >
-                    {weekPeriods.map((p) => (
-                      <option key={p.id} value={p.id}>{p.label}</option>
-                    ))}
-                  </select>
-                </div>
+                <CustomDropdown
+                  value={selectedPeriod?.id || ''}
+                  onChange={(val) => {
+                    const found = weekPeriods.find((p) => p.id === val);
+                    if (found) setSelectedPeriod(found);
+                  }}
+                  options={weekPeriods.map((p) => ({ value: p.id, label: p.label }))}
+                  labelPrefix="Tuần:"
+                />
               )}
             </div>
           </div>
@@ -871,37 +860,27 @@ export default function AttendanceSection({
           <div className="flex flex-wrap items-center gap-2.5">
             {/* Local Team Selector */}
             {allowedTeams.length > 1 && (
-              <div className="flex items-center gap-1.5 mr-1">
-                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Xem team:</span>
-                <select
-                  value={localTeam}
-                  onChange={(e) => setLocalTeam(e.target.value)}
-                  className="bg-[#0f172a] border border-white/[0.08] focus:border-indigo-500 rounded-xl px-2.5 py-1.5 text-[10px] text-slate-200 outline-none font-bold cursor-pointer"
-                >
-                  {allowedTeams.map((t) => (
-                    <option key={t} value={t}>Team {t}</option>
-                  ))}
-                </select>
-              </div>
+              <CustomDropdown
+                value={localTeam}
+                onChange={(val) => setLocalTeam(val)}
+                options={allowedTeams.map((t) => ({ value: t, label: `Team ${t}` }))}
+                labelPrefix="Xem team:"
+                className="mr-1"
+              />
             )}
 
             {/* Local Week Selector */}
             {weekPeriods.length > 0 && (
-              <div className="flex items-center gap-1.5 mr-2">
-                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Tuần:</span>
-                <select
-                  value={selectedPeriod?.id || ''}
-                  onChange={(e) => {
-                    const found = weekPeriods.find((p) => p.id === e.target.value);
-                    if (found) setSelectedPeriod(found);
-                  }}
-                  className="bg-[#0f172a] border border-white/[0.08] focus:border-indigo-500 rounded-xl px-2.5 py-1.5 text-[10px] text-slate-200 outline-none font-bold cursor-pointer"
-                >
-                  {weekPeriods.map((p) => (
-                    <option key={p.id} value={p.id}>{p.label}</option>
-                  ))}
-                </select>
-              </div>
+              <CustomDropdown
+                value={selectedPeriod?.id || ''}
+                onChange={(val) => {
+                  const found = weekPeriods.find((p) => p.id === val);
+                  if (found) setSelectedPeriod(found);
+                }}
+                options={weekPeriods.map((p) => ({ value: p.id, label: p.label }))}
+                labelPrefix="Tuần:"
+                className="mr-2"
+              />
             )}
 
             {!session.is_finalized && isManagement && dbMembers.length > 0 && (

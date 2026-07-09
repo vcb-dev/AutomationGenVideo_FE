@@ -15,6 +15,7 @@ import {
   AttendanceStatus,
 } from '../types';
 import { apiClient } from '../../../lib/api-client';
+import CustomDropdown from '../../ui/CustomDropdown';
 
 // ─────────────────────────────────────────────
 // Status config (5 trạng thái bao gồm NO_RECORD)
@@ -431,14 +432,16 @@ export default function AttendanceHistorySection({
             </div>
 
             {/* Month + Year */}
-            <select value={historyMonth} onChange={(e) => setHistoryMonth(Number(e.target.value))}
-              className="bg-slate-900/60 border border-white/[0.08] rounded-xl px-2.5 py-1.5 text-[10px] text-slate-200 outline-none font-bold cursor-pointer">
-              {MONTHS.map((m) => <option key={m} value={m}>Tháng {m}</option>)}
-            </select>
-            <select value={historyYear} onChange={(e) => setHistoryYear(Number(e.target.value))}
-              className="bg-slate-900/60 border border-white/[0.08] rounded-xl px-2.5 py-1.5 text-[10px] text-slate-200 outline-none font-bold cursor-pointer">
-              {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
-            </select>
+            <CustomDropdown
+              value={historyMonth}
+              onChange={(val) => setHistoryMonth(Number(val))}
+              options={MONTHS.map((m) => ({ value: m, label: `Tháng ${m}` }))}
+            />
+            <CustomDropdown
+              value={historyYear}
+              onChange={(val) => setHistoryYear(Number(val))}
+              options={yearOptions.map((y) => ({ value: y, label: String(y) }))}
+            />
 
             {/* Month/Week toggle */}
             <div className="flex items-center gap-0.5 bg-slate-900/50 rounded-xl p-0.5 border border-white/[0.05] ml-auto">
