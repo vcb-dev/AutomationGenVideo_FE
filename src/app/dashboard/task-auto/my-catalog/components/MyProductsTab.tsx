@@ -12,6 +12,7 @@ import { DarkModal } from '@/components/task-auto/DarkModal'
 import { DarkInput, CreatableSelect, CustomSelect } from '@/components/task-auto/DarkInput'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
+import { HeaderFilterDropdown } from '@/components/task-auto/HeaderFilterDropdown'
 import {
   getProducts, getTeamProducts, getSources, getTeamSources,
   getEditorProducts, createEditorProduct, updateEditorProduct, createEditorSource, getEditorSources, deleteEditorProduct, pushEditorProductToTeam,
@@ -368,6 +369,7 @@ interface Props { userId: string; brandType: 'DO_DA' | 'TRANG_SUC' }
 export function MyProductsTab({ userId, brandType }: Props) {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
+  const [productLineFilter, setProductLineFilter] = useState('')
   const [month, setMonth] = useState('')
   const [page, setPage] = useState(1)
   const [modal, setModal] = useState<null | 'create' | 'edit'>(null)
@@ -395,8 +397,14 @@ export function MyProductsTab({ userId, brandType }: Props) {
   const editingSources = editingSourcesData?.data ?? []
 
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'my-products', userId, brandType, search, month, page],
-    queryFn: () => getEditorProducts(userId, { brand_type: brandType, search: search || undefined, month: month || undefined, page, limit: 20 }),
+    queryKey: ['task-auto', 'my-products', userId, brandType, search, productLineFilter, month, page],
+    queryFn: () => getEditorProducts(userId, {
+      brand_type: brandType,
+      search: search || undefined,
+      product_line_id: productLineFilter || undefined,
+      month: month || undefined,
+      page, limit: 20,
+    }),
   })
 
   const { data: myPushRequests } = useQuery({
@@ -547,7 +555,14 @@ export function MyProductsTab({ userId, brandType }: Props) {
               <tr className="bg-slate-50 border-b-2 border-gray-200">
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">SKU</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Sản phẩm</th>
-                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Dòng SP</th>
+                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">
+                  <HeaderFilterDropdown
+                    label="Dòng SP"
+                    value={productLineFilter}
+                    onChange={v => { setProductLineFilter(v); setPage(1) }}
+                    options={(productLines ?? []).map(l => ({ value: l.id, label: l.name }))}
+                  />
+                </th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Thị trường</th>
                 <th className="text-right px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Giá bán</th>
                 {/* <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Người thêm</th> */}

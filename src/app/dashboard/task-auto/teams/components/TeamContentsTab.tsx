@@ -1,12 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { FileText, Plus, Search, X, BookOpen, Mic, Globe, Trash2, Edit2, Loader2 } from 'lucide-react'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
+import { Pagination, PAGE_SIZE } from '@/components/task-auto/Pagination'
+import { HeaderFilterDropdown } from '@/components/task-auto/HeaderFilterDropdown'
 import { ContentFormModal, parseMarkets } from '@/components/task-auto/ContentFormModal'
 import { ContentStatusBadge } from '@/components/task-auto/StatusBadge'
 import {
@@ -34,6 +36,8 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
   const [showCreate, setShowCreate] = useState(false)
   const [editingContent, setEditingContent] = useState<TeamContent | null>(null)
   const [search, setSearch] = useState('')
+  const [contentLineFilter, setContentLineFilter] = useState('')
+  const [page, setPage] = useState(1)
 
   const { data: teams } = useQuery({
     queryKey: ['task-auto', 'teams'],
@@ -87,7 +91,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
   const [removingContent, setRemovingContent] = useState<TeamContent | null>(null)
   const [pushingContent, setPushingContent] = useState<TeamContent | null>(null)
 
-  const filtered = (teamContents ?? []).filter(tc => {
+  const searched = (teamContents ?? []).filter(tc => {
     const effectiveMarket = tc.market ?? tc.source_editor_content?.market ?? null
     if (effectiveMarket && effectiveMarket !== teamMarket) return false
     if (!search) return true
@@ -98,6 +102,24 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
       tc?.content_line?.name?.toLowerCase().includes(q)
     )
   })
+
+  const contentLineCountMap = new Map<string, { id: string; name: string; count: number }>()
+  for (const tc of searched) {
+    const line = tc.content_line ?? tc.source_editor_content?.content_line
+    if (line) {
+      const e = contentLineCountMap.get(line.id)
+      if (e) e.count++
+      else contentLineCountMap.set(line.id, { id: line.id, name: line.name, count: 1 })
+    }
+  }
+  const contentLineOptions = Array.from(contentLineCountMap.values()).sort((a, b) => a.name.localeCompare(b.name, 'vi'))
+
+  const filtered = contentLineFilter
+    ? searched.filter(tc => (tc.content_line ?? tc.source_editor_content?.content_line)?.id === contentLineFilter)
+    : searched
+
+  useEffect(() => { setPage(1) }, [selectedTeamId, brandType, month, search, contentLineFilter])
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   return (
     <div className="space-y-5">
@@ -178,7 +200,15 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
               <thead>
                 <tr className="bg-slate-50 border-b-2 border-gray-200">
                   <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide w-[32%]">Tiêu đề</th>
-                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[15%]">Tuyến ND</th>
+                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[15%]">
+                    <HeaderFilterDropdown
+                      label="Tuyến ND"
+                      value={contentLineFilter}
+                      onChange={setContentLineFilter}
+                      options={contentLineOptions.map(o => ({ value: o.id, label: o.name, count: o.count }))}
+                      totalCount={searched.length}
+                    />
+                  </th>
                   <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[10%]">Thị trường</th>
                   <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[13%]">Trạng thái</th>
                   <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[9%]">File</th>
@@ -232,7 +262,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
                   </tr>
                 )}
 
-                {!isLoading && filtered.map((tc: TeamContent) => {
+                {!isLoading && paginated.map((tc: TeamContent) => {
                   const ec = tc.source_editor_content
                   const title = tc.title ?? ec?.title ?? null
                   const market = tc.market ?? ec?.market ?? null
@@ -354,6 +384,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
               </tbody>
             </table>
           </div>
+          <Pagination page={page} totalItems={filtered.length} onPageChange={setPage} />
         </div>
       )}
 

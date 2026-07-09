@@ -610,6 +610,7 @@ export interface SourcesQuery {
   product_id?: string
   user_id?: string
   owner?: 'global' | 'editor' | 'all' | ''
+  added_by_id?: string
   is_active?: boolean
   page?: number
   limit?: number

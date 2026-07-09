@@ -11,9 +11,10 @@ import { cn } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { DarkInput, ProductSearchSelect, CustomSelect } from '@/components/task-auto/DarkInput'
 import { EmptyState } from '@/components/task-auto/EmptyState'
+import { HeaderFilterDropdown } from '@/components/task-auto/HeaderFilterDropdown'
 import {
   getSources, createSource, updateSource, deleteSource,
-  getProducts, getTeams,
+  getProducts, getTeams, getUsers,
 } from '@/lib/api/task-auto'
 import { useAuthStore } from '@/store/auth-store'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
@@ -76,6 +77,7 @@ export function SourcesTab({ brandType, isScaleData = false, month, onMonthChang
 
   const [search, setSearch]           = useState('')
   const [typeFilter, setTypeFilter]   = useState<SourceType | ''>('')
+  const [addedByFilter, setAddedByFilter] = useState('')
   const [ownerFilter, setOwnerFilter] = useState<string>('')
   const [activeFilter, setActiveFilter] = useState<'all' | 'true' | 'false'>('all')
   const [page, setPage] = useState(1)
@@ -89,17 +91,23 @@ export function SourcesTab({ brandType, isScaleData = false, month, onMonthChang
   })
 
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'sources', brandType, search, typeFilter, ownerFilter, activeFilter, month, page],
+    queryKey: ['task-auto', 'sources', brandType, search, typeFilter, addedByFilter, ownerFilter, activeFilter, month, page],
     queryFn: () => getSources({
       brand_type: brandType,
-      search:    search     || undefined,
-      type:      typeFilter || undefined,
-      owner:     (ownerFilter as any) || undefined,
+      search:      search        || undefined,
+      type:        typeFilter    || undefined,
+      added_by_id: addedByFilter || undefined,
+      owner:       (ownerFilter as any) || undefined,
       is_active: activeFilter === 'all' ? undefined : activeFilter === 'true',
       month:     month || undefined,
       page,
       limit: 10,
     }),
+  })
+
+  const { data: addableUsers } = useQuery({
+    queryKey: ['task-auto', 'users'],
+    queryFn: () => getUsers(),
   })
 
   const { data: productsForSelect } = useQuery({
@@ -185,15 +193,6 @@ export function SourcesTab({ brandType, isScaleData = false, month, onMonthChang
             />
           </div>
           <CustomSelect
-            value={typeFilter}
-            onChange={v => { setTypeFilter(v as SourceType | ''); setPage(1) }}
-            options={[
-              { value: '', label: 'Tất cả loại' },
-              ...(Object.keys(SOURCE_TYPE_LABELS) as SourceType[]).map(k => ({ value: k, label: SOURCE_TYPE_LABELS[k] })),
-            ]}
-            className="min-w-[180px]"
-          />
-          <CustomSelect
             value={ownerFilter}
             onChange={v => { setOwnerFilter(v); setPage(1) }}
             options={OWNER_OPTIONS}
@@ -240,13 +239,27 @@ export function SourcesTab({ brandType, isScaleData = false, month, onMonthChang
             <thead>
               <tr className="bg-slate-50 border-b-2 border-gray-200">
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Tên source</th>
-                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Loại</th>
+                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">
+                  <HeaderFilterDropdown
+                    label="Loại"
+                    value={typeFilter}
+                    onChange={v => { setTypeFilter(v as SourceType | ''); setPage(1) }}
+                    options={(Object.keys(SOURCE_TYPE_LABELS) as SourceType[]).map(k => ({ value: k, label: SOURCE_TYPE_LABELS[k] }))}
+                  />
+                </th>
                 {/* <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Kho</th> */}
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Team order</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Code</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Link</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Sản phẩm</th>
-                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Người thêm</th>
+                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">
+                  <HeaderFilterDropdown
+                    label="Người thêm"
+                    value={addedByFilter}
+                    onChange={v => { setAddedByFilter(v); setPage(1) }}
+                    options={(addableUsers ?? []).map(u => ({ value: u.id, label: u.full_name }))}
+                  />
+                </th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Ngày thêm</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Trạng thái</th>
                 <th className="w-16" />
