@@ -12,6 +12,7 @@ import { DarkModal } from '@/components/task-auto/DarkModal'
 import { DarkInput, CustomSelect, ProductSearchSelect } from '@/components/task-auto/DarkInput'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
+import { HeaderFilterDropdown } from '@/components/task-auto/HeaderFilterDropdown'
 import {
   getSources,
   getEditorSources, createEditorSource, updateEditorSource, deleteEditorSource, pushEditorSourceToTeam,
@@ -491,12 +492,6 @@ export function MySourcesTab({ userId, brandType }: Props) {
               className="w-full pl-12 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-base text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
             />
           </div>
-          <CustomSelect
-            value={typeFilter}
-            onChange={v => { setTypeFilter(v as SourceType | ''); setPage(1) }}
-            options={[{ value: '', label: 'Tất cả loại' }, ...SOURCE_TYPES.map(t => ({ value: t, label: SOURCE_TYPE_LABELS[t] }))]}
-            className="min-w-[180px]"
-          />
           <input
             type="month"
             value={month}
@@ -531,7 +526,14 @@ export function MySourcesTab({ userId, brandType }: Props) {
             <thead>
               <tr className="bg-slate-50 border-b-2 border-gray-200">
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Tên source</th>
-                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Loại</th>
+                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">
+                  <HeaderFilterDropdown
+                    label="Loại"
+                    value={typeFilter}
+                    onChange={v => { setTypeFilter(v as SourceType | ''); setPage(1) }}
+                    options={SOURCE_TYPES.map(t => ({ value: t, label: SOURCE_TYPE_LABELS[t] }))}
+                  />
+                </th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Code</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Sản phẩm</th>
                 {/* <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Người thêm</th> */}

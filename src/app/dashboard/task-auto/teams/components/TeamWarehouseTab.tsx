@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {
@@ -14,6 +14,7 @@ import { EmptyState } from '@/components/task-auto/EmptyState'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { DarkInput, CustomSelect } from '@/components/task-auto/DarkInput'
+import { Pagination, PAGE_SIZE } from '@/components/task-auto/Pagination'
 import { ContentFormModal } from '@/components/task-auto/ContentFormModal'
 import { TeamProductFormModal } from './products/TeamProductFormModal'
 import {
@@ -243,6 +244,7 @@ export function TeamWarehouseTab({
   const qc = useQueryClient()
   const [month, setMonth] = useState(currentMonth())
   const [subTab, setSubTab] = useState<SubTab>('products')
+  const [page, setPage] = useState(1)
   const [showPickModal, setShowPickModal] = useState(false)
   const [createWhat, setCreateWhat] = useState<'product' | 'content' | 'source' | null>(null)
   const [confirmPush, setConfirmPush] = useState(false)
@@ -279,6 +281,9 @@ export function TeamWarehouseTab({
   }, [warehouse, subTab])
 
   const warehouseIds = useMemo(() => new Set(warehouseItems.map((i: any) => i.id)), [warehouseItems])
+
+  useEffect(() => { setPage(1) }, [selectedTeamId, month, subTab])
+  const paginatedItems = warehouseItems.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const removeMut = useMutation({
     mutationFn: (id: string) => removeTeamWarehouse(selectedTeamId, subTab as WarehouseCatalogType, month, [id]),
@@ -408,36 +413,39 @@ export function TeamWarehouseTab({
             description='Nhấn "Thêm vào kho" hoặc "Copy từ tháng trước" để bắt đầu'
           />
         ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-100">
-              <tr>
-                <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                  {subTab === 'products' ? 'Tên sản phẩm' : subTab === 'contents' ? 'Tiêu đề' : 'Tên source'}
-                </th>
-                <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                  {subTab === 'products' ? 'SKU' : subTab === 'contents' ? 'Loại content' : 'Loại'}
-                </th>
-                <th className="px-5 py-3 w-16"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {warehouseItems.map((item: any) => (
-                <tr key={item.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-5 py-3.5 font-medium text-slate-800">{labelOf(item)}</td>
-                  <td className="px-5 py-3.5 text-slate-500">{subOf(item)}</td>
-                  <td className="px-5 py-3.5 text-right">
-                    <button
-                      onClick={() => removeMut.mutate(item.id)}
-                      disabled={removeMut.isPending}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
+          <>
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-100">
+                <tr>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                    {subTab === 'products' ? 'Tên sản phẩm' : subTab === 'contents' ? 'Tiêu đề' : 'Tên source'}
+                  </th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                    {subTab === 'products' ? 'SKU' : subTab === 'contents' ? 'Loại content' : 'Loại'}
+                  </th>
+                  <th className="px-5 py-3 w-16"></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {paginatedItems.map((item: any) => (
+                  <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-5 py-3.5 font-medium text-slate-800">{labelOf(item)}</td>
+                    <td className="px-5 py-3.5 text-slate-500">{subOf(item)}</td>
+                    <td className="px-5 py-3.5 text-right">
+                      <button
+                        onClick={() => removeMut.mutate(item.id)}
+                        disabled={removeMut.isPending}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <Pagination page={page} totalItems={warehouseItems.length} onPageChange={setPage} />
+          </>
         )}
       </div>
 

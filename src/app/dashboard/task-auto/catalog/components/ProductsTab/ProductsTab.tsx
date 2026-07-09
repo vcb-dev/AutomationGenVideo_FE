@@ -6,8 +6,9 @@ import toast from 'react-hot-toast'
 import { Search, Plus, Edit2, Trash2, Loader2, Package, ChevronLeft, ChevronRight, ImageIcon } from 'lucide-react'
 import { cn, driveImageUrl } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
-import { DarkInput, CustomSelect, CreatableSelect } from '@/components/task-auto/DarkInput'
+import { DarkInput, CreatableSelect } from '@/components/task-auto/DarkInput'
 import { EmptyState } from '@/components/task-auto/EmptyState'
+import { HeaderFilterDropdown } from '@/components/task-auto/HeaderFilterDropdown'
 import {
   getProducts, createProduct, updateProduct, deleteProduct,
   getProductLines, createProductLine, deleteProductLine,
@@ -186,16 +187,6 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
               className="w-full pl-12 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-base text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
             />
           </div>
-          <CustomSelect
-            value={productLineFilter}
-            onChange={v => { setProductLineFilter(v); setPage(1) }}
-            options={[
-              { value: '', label: 'Tất cả dòng SP' },
-              ...(productLines?.map(l => ({ value: l.id, label: l.name })) ?? []),
-            ]}
-            className="min-w-[180px]"
-            searchable
-          />
           {/* <CustomSelect
             value={activeFilter}
             onChange={v => { setActiveFilter(v as 'all' | 'true' | 'false'); setPage(1) }}
@@ -239,7 +230,14 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
               <tr className="bg-slate-50 border-b-2 border-gray-200">
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">SKU</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Sản phẩm</th>
-                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Dòng SP</th>
+                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">
+                  <HeaderFilterDropdown
+                    label="Dòng SP"
+                    value={productLineFilter}
+                    onChange={v => { setProductLineFilter(v); setPage(1) }}
+                    options={(productLines ?? []).map(l => ({ value: l.id, label: l.name }))}
+                  />
+                </th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Chất liệu</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Thị trường</th>
                 <th className="text-right px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Giá bán</th>

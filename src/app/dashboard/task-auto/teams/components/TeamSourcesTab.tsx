@@ -12,6 +12,8 @@ import { EmptyState } from '@/components/task-auto/EmptyState'
 import { CustomSelect, DarkInput, ProductSearchSelect } from '@/components/task-auto/DarkInput'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
+import { Pagination, PAGE_SIZE } from '@/components/task-auto/Pagination'
+import { HeaderFilterDropdown } from '@/components/task-auto/HeaderFilterDropdown'
 import {
   getTeamSources, addTeamSource, updateTeamSource, removeTeamSource,
   pushTeamSourceToGlobal, getSources, getTeams, getTeamProducts,
@@ -43,6 +45,9 @@ type AddMode = 'manual' | 'global'
 export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, brandType, selectedTeamId, setSelectedTeamId, month, setMonth }: TeamSourcesTabProps) {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
+  const [typeFilter, setTypeFilter] = useState('')
+  const [addedByFilter, setAddedByFilter] = useState('')
+  const [page, setPage] = useState(1)
 
   const [modal, setModal]           = useState<null | 'add' | 'edit'>(null)
   const [viewingSource, setViewingSource] = useState<TeamSource | null>(null)
@@ -85,13 +90,40 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
     enabled: !!selectedTeamId,
   })
 
-  const filtered = search
+  const searched = search
     ? sources.filter(s => {
         const name = s.name ?? s.source_editor_source?.name ?? ''
         const link = s.link ?? s.source_editor_source?.link ?? ''
         return name.toLowerCase().includes(search.toLowerCase()) || link.includes(search)
       })
     : sources
+
+  const typeCountMap = new Map<string, { value: SourceType; count: number }>()
+  const addedByCountMap = new Map<string, { id: string; name: string; count: number }>()
+  for (const s of searched) {
+    const t = s.type ?? s.source_editor_source?.type
+    if (t) {
+      const e = typeCountMap.get(t)
+      if (e) e.count++
+      else typeCountMap.set(t, { value: t, count: 1 })
+    }
+    if (s.added_by) {
+      const e = addedByCountMap.get(s.added_by.id)
+      if (e) e.count++
+      else addedByCountMap.set(s.added_by.id, { id: s.added_by.id, name: s.added_by.full_name, count: 1 })
+    }
+  }
+  const typeOptions = Array.from(typeCountMap.values()).sort((a, b) => SOURCE_TYPE_LABELS[a.value].localeCompare(SOURCE_TYPE_LABELS[b.value], 'vi'))
+  const addedByOptions = Array.from(addedByCountMap.values()).sort((a, b) => a.name.localeCompare(b.name, 'vi'))
+
+  const filtered = searched.filter(s => {
+    if (typeFilter && (s.type ?? s.source_editor_source?.type) !== typeFilter) return false
+    if (addedByFilter && s.added_by?.id !== addedByFilter) return false
+    return true
+  })
+
+  useEffect(() => { setPage(1) }, [selectedTeamId, brandType, month, search, typeFilter, addedByFilter])
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const { data: productsForSelect } = useQuery({
     queryKey: ['task-auto', 'team-products-select', selectedTeamId],
@@ -291,18 +323,34 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
                 <thead>
                   <tr className="bg-slate-50 border-b-2 border-gray-200">
                     <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Tên source</th>
-                    <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 whitespace-nowrap">Loại</th>
+                    <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 whitespace-nowrap">
+                      <HeaderFilterDropdown
+                        label="Loại"
+                        value={typeFilter}
+                        onChange={setTypeFilter}
+                        options={typeOptions.map(o => ({ value: o.value, label: SOURCE_TYPE_LABELS[o.value], count: o.count }))}
+                        totalCount={searched.length}
+                      />
+                    </th>
                     <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 whitespace-nowrap">Code</th>
                     <th className="text-left px-5 py-4 text-sm font-bold text-slate-600">Link</th>
                     <th className="text-left px-5 py-4 text-sm font-bold text-slate-600">Sản phẩm</th>
-                    <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 whitespace-nowrap">Người thêm</th>
+                    <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 whitespace-nowrap">
+                      <HeaderFilterDropdown
+                        label="Người thêm"
+                        value={addedByFilter}
+                        onChange={setAddedByFilter}
+                        options={addedByOptions.map(o => ({ value: o.id, label: o.name, count: o.count }))}
+                        totalCount={searched.length}
+                      />
+                    </th>
                     <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 whitespace-nowrap">Ngày thêm</th>
                     <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 whitespace-nowrap">Trạng thái</th>
                     <th className="w-28" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {filtered.map(s => {
+                  {paginated.map(s => {
                     const es = s.source_editor_source
                     const sName = s.name ?? es?.name ?? '—'
                     const sLink = s.link ?? es?.link ?? null
@@ -401,6 +449,9 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
                 </tbody>
               </table>
             </div>
+          )}
+          {!isLoading && filtered.length > 0 && (
+            <Pagination page={page} totalItems={filtered.length} onPageChange={setPage} />
           )}
         </div>
       )}

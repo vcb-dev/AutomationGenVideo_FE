@@ -13,6 +13,7 @@ import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { ContentStatusBadge } from '@/components/task-auto/StatusBadge'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
+import { HeaderFilterDropdown } from '@/components/task-auto/HeaderFilterDropdown'
 import {
   parseMarkets, MarketPicker, VoicePicker, ContentFilePicker,
 } from '@/components/task-auto/ContentFormModal'
@@ -505,6 +506,7 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM' }: Pro
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<ContentUsageStatus | ''>('')
+  const [contentLineFilter, setContentLineFilter] = useState('')
   const [month, setMonth] = useState('')
   const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
@@ -514,13 +516,16 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM' }: Pro
   const [pushItem, setPushItem] = useState<Content | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
+  const { data: contentLines } = useQuery({ queryKey: ['task-auto', 'content-lines'], queryFn: getContentLines })
+
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'my-contents', userId, brandType, teamMarket, search, statusFilter, month, page],
+    queryKey: ['task-auto', 'my-contents', userId, brandType, teamMarket, search, statusFilter, contentLineFilter, month, page],
     queryFn: () => getEditorContents(userId, {
       brand_type: brandType,
       market: teamMarket,
       search: search || undefined,
       status: statusFilter || undefined,
+      content_line_id: contentLineFilter || undefined,
       month: month || undefined,
       page, limit: 20,
     }),
@@ -601,7 +606,14 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM' }: Pro
             <thead>
               <tr className="bg-slate-50 border-b-2 border-gray-200">
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide w-[40%]">Tiêu đề</th>
-                <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Tuyến ND</th>
+                <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">
+                  <HeaderFilterDropdown
+                    label="Tuyến ND"
+                    value={contentLineFilter}
+                    onChange={v => { setContentLineFilter(v); setPage(1) }}
+                    options={(contentLines ?? []).map(l => ({ value: l.id, label: l.name }))}
+                  />
+                </th>
                 <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Thị trường</th>
                 <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Trạng thái</th>
                 {/* <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Người thêm</th> */}
