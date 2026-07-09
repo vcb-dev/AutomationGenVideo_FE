@@ -122,7 +122,7 @@ export default function VideoModal({ isOpen, onClose, videoUrl, title, platform 
     >
       {/* Cinematic Floating Title (Top-Left) */}
       <div className="fixed top-6 left-6 text-left z-50 max-w-[calc(100%-250px)] pointer-events-none select-none">
-        <span className="text-[9px] font-black uppercase text-blue-400 tracking-[0.2em]">{platform || 'Video Content'}</span>
+        <span className="text-[11px] font-black uppercase text-blue-400 tracking-[0.2em]">{platform || 'Video Content'}</span>
         <h3 className="text-white font-extrabold text-xs md:text-base line-clamp-1 mt-1 drop-shadow-md">
           {title || 'Chi tiết video'}
         </h3>
@@ -170,7 +170,7 @@ export default function VideoModal({ isOpen, onClose, videoUrl, title, platform 
               <h4 className="text-xs md:text-sm font-black text-slate-200 uppercase tracking-widest">
                 Không thể tải video
               </h4>
-              <p className="text-[10px] md:text-xs text-slate-500 mt-2 max-w-sm leading-relaxed">
+              <p className="text-[12px] md:text-xs text-slate-500 mt-2 max-w-sm leading-relaxed">
                 {errorMsg}
               </p>
               <a
@@ -190,7 +190,7 @@ export default function VideoModal({ isOpen, onClose, videoUrl, title, platform 
               <h4 className="text-xs md:text-sm font-black text-slate-200 uppercase tracking-widest">
                 Bài đăng dạng album ảnh (slideshow)
               </h4>
-              <p className="text-[10px] md:text-xs text-slate-500 mt-2 max-w-sm leading-relaxed">
+              <p className="text-[12px] md:text-xs text-slate-500 mt-2 max-w-sm leading-relaxed">
                 Nền tảng TikTok không hỗ trợ trình chiếu Album ảnh trực tiếp trên các website bên ngoài. Bạn hãy xem đầy đủ hình ảnh và nghe nhạc nền tại liên kết gốc.
               </p>
               <a
@@ -238,7 +238,7 @@ export default function VideoModal({ isOpen, onClose, videoUrl, title, platform 
                   <h4 className="text-xs md:text-sm font-black text-slate-200 uppercase tracking-widest">
                     Trình phát không hỗ trợ nhúng trực tiếp
                   </h4>
-                  <p className="text-[10px] md:text-xs text-slate-500 mt-2 max-w-sm leading-relaxed">
+                  <p className="text-[12px] md:text-xs text-slate-500 mt-2 max-w-sm leading-relaxed">
                     Nền tảng này không hỗ trợ nhúng trực tiếp. Bạn hãy bấm vào nút bên dưới để xem trực tiếp tại liên kết gốc.
                   </p>
                   <a

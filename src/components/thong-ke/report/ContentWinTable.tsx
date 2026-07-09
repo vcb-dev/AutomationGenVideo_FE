@@ -90,7 +90,7 @@ export default function ContentWinTable({
 
 
   return (
-    <div className="flex flex-col rounded-xl overflow-hidden border border-[#10b981]/20 shadow-lg shadow-emerald-950/10">
+    <div className="flex flex-col rounded-xl overflow-hidden border border-emerald-200 dark:border-emerald-500/20 shadow-lg shadow-emerald-950/10">
       <style dangerouslySetInnerHTML={{
         __html: `
         .editable-placeholder:empty::before {
@@ -103,19 +103,19 @@ export default function ContentWinTable({
       `}} />
       <div
         onClick={onToggle}
-        className="bg-[#063529] px-4 py-3 flex items-center justify-between border-b border-[#10b981]/20 cursor-pointer select-none hover:bg-[#0a4d3b] transition-colors"
+        className="bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3 flex items-center justify-between border-b border-emerald-200 dark:border-emerald-500/20 cursor-pointer select-none hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-colors"
       >
-        <span className="text-[#10b981] font-black tracking-wider text-sm uppercase flex items-center gap-2">
-          <CheckCircle className="w-4 h-4 text-[#10b981]" /> Content win của team
+        <span className="text-emerald-700 dark:text-emerald-400 font-black tracking-wider text-sm uppercase flex items-center gap-2">
+          <CheckCircle className="w-4 h-4 text-emerald-700 dark:text-emerald-400" /> Content win của team
         </span>
-        <ChevronDown className={`w-4 h-4 text-[#10b981] transition-transform duration-200 ${isCollapsed ? '-rotate-90' : ''}`} />
+        <ChevronDown className={`w-4 h-4 text-emerald-700 dark:text-emerald-400 transition-transform duration-200 ${isCollapsed ? '-rotate-90' : ''}`} />
       </div>
 
       {!isCollapsed && (
-        <div className={`bg-[#0c1322] p-6 overflow-x-auto overflow-y-hidden transition-all duration-200 ${getBottomPaddingClass()}`}>
+        <div className={`bg-card p-6 overflow-x-auto overflow-y-hidden transition-all duration-200 ${getBottomPaddingClass()}`}>
           <table className="w-full table-fixed text-left border-collapse min-w-[1200px]">
             <thead>
-              <tr className="border-b border-white/[0.08] text-slate-400 text-[10px] uppercase tracking-wider font-bold bg-white/[0.02]">
+              <tr className="border-b border-border text-muted-foreground text-[12px] uppercase tracking-wider font-bold bg-muted/40">
                 <th className="py-3 px-4 w-12 text-center">#</th>
                 <th className="py-3 px-4 w-16">TEAM</th>
                 <th className="py-3 px-4 w-44">EDITOR</th>
@@ -133,10 +133,10 @@ export default function ContentWinTable({
               {videos.map((video, idx) => {
                 const isMock = video.dbId === 'mock-point';
                 return (
-                  <tr key={video.dbId} className="hover:bg-white/[0.02] transition-colors border-b border-white/[0.04]">
-                    <td className="py-3.5 px-4 text-center text-xs font-bold text-slate-500">{video.label}</td>
-                    <td className="py-3.5 px-4 text-xs text-slate-400 font-bold">{(video as any).teamName || activeTab}</td>
-                    <td className="py-3.5 px-4 text-xs font-semibold text-slate-300">
+                  <tr key={video.dbId} className="hover:bg-accent transition-colors border-b border-border">
+                    <td className="py-3.5 px-4 text-center text-xs font-bold text-muted-foreground">{video.label}</td>
+                    <td className="py-3.5 px-4 text-xs text-muted-foreground font-bold">{(video as any).teamName || activeTab}</td>
+                    <td className="py-3.5 px-4 text-xs font-semibold text-muted-foreground">
                       {isMock ? (
                         '-'
                       ) : (
@@ -153,9 +153,9 @@ export default function ContentWinTable({
                         />
                       )}
                     </td>
-                    <td className="py-2 px-3 max-w-[130px] focus-within:bg-white/[0.04] truncate">
+                    <td className="py-2 px-3 max-w-[130px] focus-within:bg-accent truncate">
                        {isMock ? (
-                         <span className="text-slate-500 text-xs">-</span>
+                         <span className="text-muted-foreground text-xs">-</span>
                        ) : (
                          <LinkInput
                            value={video.videoUrl || ''}
@@ -167,19 +167,19 @@ export default function ContentWinTable({
                       <div className="flex items-start shrink-0">
                         <label className="cursor-pointer group relative block">
                           {uploadingIndex === idx ? (
-                            <div className="w-10 h-10 rounded bg-slate-900 border border-dashed border-blue-500/50 flex items-center justify-center animate-pulse shrink-0">
-                              <span className="text-[10px] text-blue-400 font-medium">Up...</span>
+                            <div className="w-10 h-10 rounded bg-muted border border-dashed border-blue-500/50 flex items-center justify-center animate-pulse shrink-0">
+                              <span className="text-[12px] text-blue-600 dark:text-blue-400 font-medium">Up...</span>
                             </div>
                           ) : video.thumbnail && video.thumbnail !== 'Data point' ? (
-                            <div className="w-10 h-10 rounded bg-slate-800 border border-white/10 overflow-hidden transition-all duration-200 hover:border-blue-500 hover:scale-105 shrink-0">
+                            <div className="w-10 h-10 rounded bg-muted border border-border overflow-hidden transition-all duration-200 hover:border-blue-500 hover:scale-105 shrink-0">
                               <img src={video.thumbnail} className="w-full h-full object-cover" alt="Thumb" />
                               <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                 <ImageIcon className="w-4 h-4 text-white" />
                               </div>
                             </div>
                           ) : (
-                            <div className="w-10 h-10 rounded bg-slate-900 border border-dashed border-white/10 hover:border-blue-500 hover:bg-white/[0.02] flex items-center justify-center transition-all duration-200 shrink-0" title="Click để tải ảnh lên">
-                              <ImageIcon className="w-4 h-4 text-slate-500 group-hover:text-blue-400" />
+                            <div className="w-10 h-10 rounded bg-muted border border-dashed border-border hover:border-blue-500 hover:bg-accent flex items-center justify-center transition-all duration-200 shrink-0" title="Click để tải ảnh lên">
+                              <ImageIcon className="w-4 h-4 text-muted-foreground group-hover:text-blue-400" />
                             </div>
                           )}
                           <input
@@ -245,7 +245,7 @@ export default function ContentWinTable({
                         dataPlaceholder="Nhấp đúp để nhập nội dung..."
                         onSave={(val) => onUpdateRow(idx, 'content', val)}
                         disabled={isMock}
-                        className="text-slate-300 text-xs leading-relaxed"
+                        className="text-muted-foreground text-xs leading-relaxed"
                       />
                     </td>
                     <td className="py-3 px-4">
@@ -255,7 +255,7 @@ export default function ContentWinTable({
                         dataPlaceholder="Nhấp đúp để nhập phân tích..."
                         onSave={(val) => onUpdateRow(idx, 'analysis', val)}
                         disabled={isMock}
-                        className="text-slate-300 text-xs leading-relaxed"
+                        className="text-muted-foreground text-xs leading-relaxed"
                       />
                     </td>
                     <td
@@ -268,7 +268,7 @@ export default function ContentWinTable({
                         onUpdateRow(idx, 'views', formatted);
                         e.currentTarget.textContent = formatted;
                       }}
-                      className="py-3.5 px-4 text-right font-bold text-xs text-emerald-400 outline-none focus:bg-white/[0.04] cursor-text"
+                      className="py-3.5 px-4 text-right font-bold text-xs text-emerald-700 dark:text-emerald-400 outline-none focus:bg-accent cursor-text"
                     >
                       {isMock ? '-' : formatDotViews(video.views)}
                     </td>
@@ -289,10 +289,10 @@ export default function ContentWinTable({
             </tbody>
           </table>
 
-          <div className="mt-4 pt-3 border-t border-white/[0.04] flex justify-start">
+          <div className="mt-4 pt-3 border-t border-border flex justify-start">
             <button
               onClick={onAddRow}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-white/[0.06] hover:bg-white/[0.12] text-slate-300 hover:text-white rounded-lg text-xs font-bold transition shadow"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-muted hover:bg-accent text-muted-foreground hover:text-foreground rounded-lg text-xs font-bold transition shadow"
             >
               <Plus className="w-3.5 h-3.5" /> Thêm dòng mới
             </button>

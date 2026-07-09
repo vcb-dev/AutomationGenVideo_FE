@@ -165,29 +165,6 @@ export const TEAMS_DATA: Record<string, TeamData> = {
       { editor: 'Nguyễn Hoàng Long', totalVideos: 21, winVideos: 3, failVideos: 18, winRate: '14.3%', avgViews: '72K' },
       { editor: 'Lê Kiều Trang', totalVideos: 21, winVideos: 2, failVideos: 19, winRate: '9.5%', avgViews: '65K' }
     ]
-  },
-  K5: {
-    teamName: 'Team K5',
-    win5Stats: { total: 64, win: 7, fail: 57, percent: '10.9%' },
-    newVideoStats: { total: 40, win: 4, fail: 36, percent: '10.0%' },
-    videos: [
-      { id: 1, label: 'Video 1', content: 'Review sạc dự phòng không dây nam châm bám siêu chắc cho điện thoại.', analysis: 'Lắc mạnh điện thoại đang gắn sạc dự phòng không rơi để chứng minh lực hút nam châm từ tính mạnh mẽ của sản phẩm.', editor: 'Trịnh Hùng Cường', views: '95K views' },
-      { id: 2, label: 'Video 2', content: 'Review lót chuột cỡ lớn (deskmat) chống trượt in hình tranh thủy mặc.', analysis: 'Góc quay panorama khoe vẻ đẹp nghệ thuật của bàn làm việc sau khi trải lót chuột mới, kích thích thị giác cực mạnh.', editor: 'Nguyễn Mai Chi', views: '110K views' },
-      { id: 3, label: 'Video 3', content: 'Trải nghiệm quạt mini đeo cổ không cánh tiện lợi khi đi ngoài đường.', analysis: 'Đo tốc độ gió thổi bay tóc người mẫu khi đi bộ dưới trời nắng nóng, chứng minh tính thực tế và độ mát của quạt.', editor: 'Phạm Hải Đăng', views: '88K views' },
-      { id: 4, label: 'Video 4', content: 'Mở hộp kệ đỡ sách chống cận thị và bảo vệ cột sống cho bé học bài.', analysis: 'Mô tả chi tiết góc nghiêng khoa học điều chỉnh được và chia sẻ của bà mẹ bỉm sữa về thói quen học tập của con.', editor: 'Vương Mỹ Linh', views: '75K views' }
-    ],
-    failVideos: [
-      { id: 1, label: 'Video 1', content: 'Review chiếc máy phun sương mini tạo ẩm bàn làm việc.', failReason: 'Độ phun sương quá yếu hầu như không thấy khói nước trên cam, video thiếu sự thuyết phục.', editor: 'Trịnh Hùng Cường', views: '950 views' }
-    ],
-    caseStudies: [
-      { id: 1, label: 'Case 1', title: 'Review sáp vuốt tóc nam giữ nếp cực tốt khi đội mũ bảo hiểm.', channel: 'Kênh Men Style - @menstyle', views: '950K views', takeaway: 'Chạy thử xe máy thực tế đội mũ bảo hiểm 30 phút rồi tháo mũ vuốt lại nếp tóc, độ thuyết phục thực tiễn cực kỳ cao.' }
-    ],
-    editorPerformance: [
-      { editor: 'Trịnh Hùng Cường', totalVideos: 16, winVideos: 2, failVideos: 14, winRate: '12.5%', avgViews: '55K' },
-      { editor: 'Nguyễn Mai Chi', totalVideos: 16, winVideos: 2, failVideos: 14, winRate: '12.5%', avgViews: '58K' },
-      { editor: 'Phạm Hải Đăng', totalVideos: 16, winVideos: 2, failVideos: 14, winRate: '12.5%', avgViews: '52K' },
-      { editor: 'Vương Mỹ Linh', totalVideos: 16, winVideos: 1, failVideos: 15, winRate: '6.3%', avgViews: '45K' }
-    ]
   }
 };
 

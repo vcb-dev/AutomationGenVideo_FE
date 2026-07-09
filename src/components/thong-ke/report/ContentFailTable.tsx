@@ -89,7 +89,7 @@ export default function ContentFailTable({
 
 
   return (
-    <div className="flex flex-col rounded-xl overflow-hidden border border-red-500/20 shadow-lg shadow-red-950/10">
+    <div className="flex flex-col rounded-xl overflow-hidden border border-rose-200 dark:border-rose-500/20 shadow-lg shadow-red-950/10">
       <style dangerouslySetInnerHTML={{
         __html: `
         .editable-placeholder:empty::before {
@@ -102,19 +102,19 @@ export default function ContentFailTable({
       `}} />
       <div
         onClick={onToggle}
-        className="bg-[#271414] px-4 py-3 flex items-center justify-between border-b border-red-500/20 cursor-pointer select-none hover:bg-[#341b1b] transition-colors"
+        className="bg-rose-50 dark:bg-rose-500/10 px-4 py-3 flex items-center justify-between border-b border-rose-200 dark:border-rose-500/20 cursor-pointer select-none hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-colors"
       >
-        <span className="text-red-400 font-black tracking-wider text-sm uppercase flex items-center gap-2">
-          <XCircle className="w-4 h-4 text-red-400" /> Content fail của team
+        <span className="text-rose-700 dark:text-rose-400 font-black tracking-wider text-sm uppercase flex items-center gap-2">
+          <XCircle className="w-4 h-4 text-rose-700 dark:text-rose-400" /> Content fail của team
         </span>
-        <ChevronDown className={`w-4 h-4 text-red-400 transition-transform duration-200 ${isCollapsed ? '-rotate-90' : ''}`} />
+        <ChevronDown className={`w-4 h-4 text-rose-700 dark:text-rose-400 transition-transform duration-200 ${isCollapsed ? '-rotate-90' : ''}`} />
       </div>
 
       {!isCollapsed && (
-        <div className={`bg-[#0c1322] p-6 overflow-x-auto overflow-y-hidden transition-all duration-200 ${getBottomPaddingClass()}`}>
+        <div className={`bg-card p-6 overflow-x-auto overflow-y-hidden transition-all duration-200 ${getBottomPaddingClass()}`}>
           <table className="w-full table-fixed text-left border-collapse min-w-[1200px]">
             <thead>
-              <tr className="border-b border-white/[0.08] text-slate-400 text-[10px] uppercase tracking-wider font-bold bg-white/[0.02]">
+              <tr className="border-b border-border text-muted-foreground text-[12px] uppercase tracking-wider font-bold bg-muted/40">
                 <th className="py-3 px-4 w-12 text-center">#</th>
                 <th className="py-3 px-4 w-16">TEAM</th>
                 <th className="py-3 px-4 w-44">EDITOR</th>
@@ -133,12 +133,12 @@ export default function ContentFailTable({
                 const isMock = video.label === 'Data point';
                 const isSaving = typeof video.dbId === 'string' && video.dbId.startsWith('temp-');
                 return (
-                  <tr key={idx} className={`hover:bg-white/[0.02] transition-colors ${isSaving ? 'opacity-70' : ''}`}>
-                    <td className="py-3.5 px-4 text-center text-slate-500 font-bold text-xs">{idx + 1}</td>
-                    <td className="py-3.5 px-4 text-slate-300 font-semibold text-xs">
+                  <tr key={idx} className={`hover:bg-accent transition-colors ${isSaving ? 'opacity-70' : ''}`}>
+                    <td className="py-3.5 px-4 text-center text-muted-foreground font-bold text-xs">{idx + 1}</td>
+                    <td className="py-3.5 px-4 text-muted-foreground font-semibold text-xs">
                       {isMock ? 'Data point' : activeTab}
                     </td>
-                    <td className="py-3.5 px-4 text-xs font-semibold text-slate-300">
+                    <td className="py-3.5 px-4 text-xs font-semibold text-muted-foreground">
                       {isMock ? (
                         '-'
                       ) : (
@@ -155,9 +155,9 @@ export default function ContentFailTable({
                         />
                       )}
                     </td>
-                     <td className="py-2 px-3 max-w-[120px] focus-within:bg-white/[0.04] truncate">
+                     <td className="py-2 px-3 max-w-[120px] focus-within:bg-accent truncate">
                        {isMock ? (
-                         <span className="text-slate-500 text-xs">-</span>
+                         <span className="text-muted-foreground text-xs">-</span>
                        ) : (
                          <LinkInput
                            value={video.videoUrl || ''}
@@ -169,19 +169,19 @@ export default function ContentFailTable({
                       <div className="flex items-start shrink-0">
                         <label className="cursor-pointer group relative block">
                           {uploadingIndex === idx ? (
-                            <div className="w-10 h-10 rounded bg-slate-900 border border-dashed border-blue-500/50 flex items-center justify-center animate-pulse shrink-0">
-                              <span className="text-[10px] text-blue-400 font-medium">Up...</span>
+                            <div className="w-10 h-10 rounded bg-muted border border-dashed border-blue-500/50 flex items-center justify-center animate-pulse shrink-0">
+                              <span className="text-[12px] text-blue-600 dark:text-blue-400 font-medium">Up...</span>
                             </div>
                           ) : video.thumbnail && video.thumbnail !== 'Data point' ? (
-                            <div className="w-10 h-10 rounded bg-slate-800 border border-white/10 overflow-hidden transition-all duration-200 hover:border-blue-500 hover:scale-105 shrink-0">
+                            <div className="w-10 h-10 rounded bg-muted border border-border overflow-hidden transition-all duration-200 hover:border-blue-500 hover:scale-105 shrink-0">
                               <img src={video.thumbnail} className="w-full h-full object-cover" alt="Thumb" />
                               <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                 <ImageIcon className="w-4 h-4 text-white" />
                               </div>
                             </div>
                           ) : (
-                            <div className="w-10 h-10 rounded bg-slate-900 border border-dashed border-white/10 hover:border-blue-500 hover:bg-white/[0.02] flex items-center justify-center transition-all duration-200 shrink-0" title="Click để tải ảnh lên">
-                              <ImageIcon className="w-4 h-4 text-slate-500 group-hover:text-blue-400" />
+                            <div className="w-10 h-10 rounded bg-muted border border-dashed border-border hover:border-blue-500 hover:bg-accent flex items-center justify-center transition-all duration-200 shrink-0" title="Click để tải ảnh lên">
+                              <ImageIcon className="w-4 h-4 text-muted-foreground group-hover:text-blue-400" />
                             </div>
                           )}
                           <input
@@ -247,7 +247,7 @@ export default function ContentFailTable({
                         dataPlaceholder="Nhấp đúp để nhập nội dung..."
                         onSave={(val) => onUpdateRow(idx, 'content', val)}
                         disabled={isMock}
-                        className="text-slate-300 text-xs leading-relaxed"
+                        className="text-muted-foreground text-xs leading-relaxed"
                       />
                     </td>
                     <td className="py-3 px-4">
@@ -257,7 +257,7 @@ export default function ContentFailTable({
                         dataPlaceholder="Nhấp đúp để nhập lý do..."
                         onSave={(val) => onUpdateRow(idx, 'failReason', val)}
                         disabled={isMock}
-                        className="text-slate-300 text-xs leading-relaxed"
+                        className="text-muted-foreground text-xs leading-relaxed"
                       />
                     </td>
                     <td
@@ -270,7 +270,7 @@ export default function ContentFailTable({
                         onUpdateRow(idx, 'views', formatted);
                         e.currentTarget.textContent = formatted;
                       }}
-                      className="py-3.5 px-4 text-right font-bold text-xs text-red-400 outline-none focus:bg-white/[0.04] cursor-text"
+                      className="py-3.5 px-4 text-right font-bold text-xs text-rose-700 dark:text-rose-400 outline-none focus:bg-accent cursor-text"
                     >
                       {isMock ? '-' : formatDotViews(video.views)}
                     </td>
@@ -291,10 +291,10 @@ export default function ContentFailTable({
             </tbody>
           </table>
 
-          <div className="mt-4 pt-3 border-t border-white/[0.04] flex justify-start">
+          <div className="mt-4 pt-3 border-t border-border flex justify-start">
             <button
               onClick={onAddRow}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-white/[0.06] hover:bg-white/[0.12] text-slate-300 hover:text-white rounded-lg text-xs font-bold transition shadow"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-muted hover:bg-accent text-muted-foreground hover:text-foreground rounded-lg text-xs font-bold transition shadow"
             >
               <Plus className="w-3.5 h-3.5" /> Thêm dòng mới
             </button>
