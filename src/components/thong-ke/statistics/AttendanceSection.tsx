@@ -6,6 +6,7 @@ import { apiClient } from '../../../lib/api-client';
 
 interface AttendanceSectionProps {
   periodsList: any[];
+  teamsList: string[];
   teamMembers: string[];         // Danh sách tên thành viên team
   activeTeam: string;            // K1 – K5
   currentUserId?: string;        // ID của user đang đăng nhập (từ auth context)
@@ -447,6 +448,7 @@ function BulkUpdateModal({
 // ─────────────────────────────────────────────
 export default function AttendanceSection({
   periodsList,
+  teamsList = [],
   teamMembers,
   activeTeam,
   currentUserId,
@@ -474,15 +476,24 @@ export default function AttendanceSection({
     showToastRef.current = showToast;
   }, [showToast]);
 
-  // 2. Filter periods List for WEEK periods
+  // 2. Local team state & sync from parent prop (without double-fetch)
+  const [prevActiveTeam, setPrevActiveTeam] = useState(activeTeam);
+  const [localTeam, setLocalTeam] = useState(activeTeam);
+
+  if (activeTeam !== prevActiveTeam) {
+    setPrevActiveTeam(activeTeam);
+    setLocalTeam(activeTeam);
+  }
+
+  // 3. Filter periods List for WEEK periods
   const weekPeriods = useMemo(() => {
     return (periodsList || []).filter((p) => p.type === 'WEEK');
   }, [periodsList]);
 
-  // 3. Local selectedPeriod state
+  // 4. Local selectedPeriod state
   const [selectedPeriod, setSelectedPeriod] = useState<any>(null);
 
-  // 4. Initialize selectedPeriod based on the current date
+  // 5. Initialize selectedPeriod based on the current date
   useEffect(() => {
     if (weekPeriods.length === 0) return;
     const now = new Date();
@@ -500,20 +511,21 @@ export default function AttendanceSection({
     setSelectedPeriod(initialPeriod || null);
   }, [weekPeriods]);
 
-  // 5. Local sessionData, loading, error states
+  // 6. Local sessionData, loading, error states
   const [sessionData, setSessionData] = useState<MeetingSessionResponse | null>(null);
   const [loadingSession, setLoadingSession] = useState(false);
 
-  // 6. Fetch meeting session based on activeTeam and selectedPeriod
+  // 7. Fetch meeting session based on localTeam and selectedPeriod
   const fetchSession = useCallback(async () => {
-    if (!activeTeam || !selectedPeriod?.id) {
+    if (!localTeam || !selectedPeriod?.id) {
       setSessionData(null);
       return;
     }
     setLoadingSession(true);
+    setSessionData(null); // Clear previous team's data instantly to avoid content flash
     try {
       const res = await apiClient.get(
-        `/content-report/meetings?team=${activeTeam}&periodId=${selectedPeriod.id}`
+        `/content-report/meetings?team=${localTeam}&periodId=${selectedPeriod.id}`
       );
       setSessionData(res.data || null);
     } catch (err) {
@@ -522,19 +534,19 @@ export default function AttendanceSection({
     } finally {
       setLoadingSession(false);
     }
-  }, [activeTeam, selectedPeriod]);
+  }, [localTeam, selectedPeriod]);
 
   useEffect(() => {
     fetchSession();
   }, [fetchSession]);
 
-  // 7. Internal event handlers
+  // 8. Internal event handlers
   const handleCreateSession = async (scheduledAt: string, title?: string, notes?: string) => {
-    if (!activeTeam || !selectedPeriod?.id) return;
+    if (!localTeam || !selectedPeriod?.id) return;
     setCreateLoading(true);
     try {
       await apiClient.post(`/content-report/meetings`, {
-        team: activeTeam,
+        team: localTeam,
         period_id: selectedPeriod.id,
         scheduled_at: scheduledAt,
         title,
@@ -697,7 +709,7 @@ export default function AttendanceSection({
             <Users className="w-4 h-4" />
           </div>
           <span className="text-[11px] font-black uppercase text-slate-200 tracking-wider">
-            Thống Kê Điểm Danh — Team {activeTeam}
+            Thống Kê Điểm Danh — Team {localTeam}
           </span>
         </div>
         <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
@@ -717,7 +729,7 @@ export default function AttendanceSection({
             onClose={() => setShowCreateModal(false)}
             onSubmit={handleCreateSession}
             loading={createLoading}
-            activeTeam={activeTeam}
+            activeTeam={localTeam}
           />
         )}
         <div className="bg-[#0e1626]/50 border border-white/[0.05] rounded-3xl p-6 flex flex-col gap-3 shadow-xl backdrop-blur-xl hover:border-white/[0.08] transition-all duration-300">
@@ -727,25 +739,45 @@ export default function AttendanceSection({
                 <Users className="w-4 h-4" />
               </div>
               <span className="text-[11px] font-black uppercase text-slate-200 tracking-wider">
-                Thống Kê Điểm Danh — Team {activeTeam}
+                Thống Kê Điểm Danh — Team {localTeam}
               </span>
             </div>
 
-            {/* Local Period Selector for AttendanceSection */}
-            {weekPeriods.length > 0 && (
-              <select
-                value={selectedPeriod?.id || ''}
-                onChange={(e) => {
-                  const found = weekPeriods.find((p) => p.id === e.target.value);
-                  if (found) setSelectedPeriod(found);
-                }}
-                className="bg-slate-900/60 border border-white/[0.08] rounded-xl px-2.5 py-1.5 text-[10px] text-slate-200 outline-none font-bold cursor-pointer"
-              >
-                {weekPeriods.map((p) => (
-                  <option key={p.id} value={p.id}>{p.label}</option>
-                ))}
-              </select>
-            )}
+            {/* Local Team and Period Selectors */}
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Local Team Selector */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Xem team:</span>
+                <select
+                  value={localTeam}
+                  onChange={(e) => setLocalTeam(e.target.value)}
+                  className="bg-[#0f172a] border border-white/[0.08] focus:border-indigo-500 rounded-xl px-2.5 py-1.5 text-[10px] text-slate-200 outline-none font-bold cursor-pointer"
+                >
+                  {teamsList.map((t) => (
+                    <option key={t} value={t}>Team {t}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Local Period Selector for AttendanceSection */}
+              {weekPeriods.length > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Tuần:</span>
+                  <select
+                    value={selectedPeriod?.id || ''}
+                    onChange={(e) => {
+                      const found = weekPeriods.find((p) => p.id === e.target.value);
+                      if (found) setSelectedPeriod(found);
+                    }}
+                    className="bg-[#0f172a] border border-white/[0.08] focus:border-indigo-500 rounded-xl px-2.5 py-1.5 text-[10px] text-slate-200 outline-none font-bold cursor-pointer"
+                  >
+                    {weekPeriods.map((p) => (
+                      <option key={p.id} value={p.id}>{p.label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="flex flex-col items-center justify-center py-8 gap-3 text-center">
@@ -801,7 +833,7 @@ export default function AttendanceSection({
             </div>
             <div>
               <span className="text-[11px] font-black uppercase text-slate-200 tracking-wider">
-                Điểm Danh Buổi Họp — {activeTeam}
+                Điểm Danh Buổi Họp — {localTeam}
               </span>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <Clock className="w-3 h-3 text-slate-500" />
@@ -810,21 +842,39 @@ export default function AttendanceSection({
             </div>
           </div>
 
-          {/* Self check-in & Bulk & Finalize buttons + Local Week Selector */}
+          {/* Self check-in & Bulk & Finalize buttons + Local Week/Team Selectors */}
           <div className="flex flex-wrap items-center gap-2.5">
-            {weekPeriods.length > 0 && (
+            {/* Local Team Selector */}
+            <div className="flex items-center gap-1.5 mr-1">
+              <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Xem team:</span>
               <select
-                value={selectedPeriod?.id || ''}
-                onChange={(e) => {
-                  const found = weekPeriods.find((p) => p.id === e.target.value);
-                  if (found) setSelectedPeriod(found);
-                }}
-                className="bg-slate-900/60 border border-white/[0.08] rounded-xl px-2.5 py-1.5 text-[10px] text-slate-200 outline-none font-bold cursor-pointer"
+                value={localTeam}
+                onChange={(e) => setLocalTeam(e.target.value)}
+                className="bg-[#0f172a] border border-white/[0.08] focus:border-indigo-500 rounded-xl px-2.5 py-1.5 text-[10px] text-slate-200 outline-none font-bold cursor-pointer"
               >
-                {weekPeriods.map((p) => (
-                  <option key={p.id} value={p.id}>{p.label}</option>
+                {teamsList.map((t) => (
+                  <option key={t} value={t}>Team {t}</option>
                 ))}
               </select>
+            </div>
+
+            {/* Local Week Selector */}
+            {weekPeriods.length > 0 && (
+              <div className="flex items-center gap-1.5 mr-2">
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Tuần:</span>
+                <select
+                  value={selectedPeriod?.id || ''}
+                  onChange={(e) => {
+                    const found = weekPeriods.find((p) => p.id === e.target.value);
+                    if (found) setSelectedPeriod(found);
+                  }}
+                  className="bg-[#0f172a] border border-white/[0.08] focus:border-indigo-500 rounded-xl px-2.5 py-1.5 text-[10px] text-slate-200 outline-none font-bold cursor-pointer"
+                >
+                  {weekPeriods.map((p) => (
+                    <option key={p.id} value={p.id}>{p.label}</option>
+                  ))}
+                </select>
+              </div>
             )}
 
             {!session.is_finalized && isManagement && dbMembers.length > 0 && (

@@ -979,6 +979,7 @@ export default function StatisticsTab({
           {attendanceView === 'current' && (
             <AttendanceSection
               periodsList={periodsList}
+              teamsList={teamsList}
               teamMembers={baseData?.members || []}
               activeTeam={activeTab}
               currentUserId={currentUserId}
