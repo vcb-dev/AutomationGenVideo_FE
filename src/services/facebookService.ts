@@ -1,6 +1,7 @@
 import { FacebookPage, PaginatedPages, PaginatedVideos, PageFilters, VideoFilters } from '@/types/facebook';
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api').replace(/\/$/, '');
+// Đi qua BE (proxy sang AI ở src/modules/scraper-proxy), không gọi thẳng AI nữa.
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
 
 function buildParams(filters: Record<string, any>): string {
   const params = new URLSearchParams();

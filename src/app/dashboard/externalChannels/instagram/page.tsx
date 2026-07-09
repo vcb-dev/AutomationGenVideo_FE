@@ -35,6 +35,9 @@ export default function InstagramExternalPage() {
     return () => clearTimeout(searchTimer.current);
   }, [search]);
 
+  const hasFilters = !!search || sortBy !== 'followers';
+  const clearFilters = () => { setSearch(''); setSortBy('followers'); };
+
   // ─── Profiles Query ───────────────────────────────────
   const profilesQuery = useQuery({
     queryKey: ['instagram-profiles', page, debouncedSearch],
@@ -148,6 +151,11 @@ export default function InstagramExternalPage() {
           <option value="followers">Nhiều followers nhất</option>
           <option value="recent">Mới thêm gần đây</option>
         </select>
+        {hasFilters && (
+          <button onClick={clearFilters} className="px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50">
+            Xóa bộ lọc
+          </button>
+        )}
       </div>
 
       {/* Count */}

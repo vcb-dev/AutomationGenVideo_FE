@@ -35,6 +35,11 @@ export default function PageVideosPage() {
     return () => clearTimeout(searchTimerRef.current);
   }, [search]);
 
+  const hasFilters = !!search || minViews !== '10000' || !!minLikes || !!hashtagCat || !!dateFrom || !!dateTo;
+  const clearFilters = () => {
+    setSearch(''); setMinViews('10000'); setMinLikes(''); setHashtagCat(''); setDateFrom(''); setDateTo(''); setPage(1);
+  };
+
   const fetchVideos = useCallback(async () => {
     if (!token || !page_id) return;
     setLoading(true);
@@ -130,6 +135,11 @@ export default function PageVideosPage() {
         <input type="number" placeholder="Min likes" value={minLikes} onChange={e => { setMinLikes(e.target.value); setPage(1); }} className="w-28 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
         <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }} className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
         <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); }} className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+        {hasFilters && (
+          <button onClick={clearFilters} className="px-3 py-2 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">
+            Xóa bộ lọc
+          </button>
+        )}
       </div>
 
       {/* Content */}

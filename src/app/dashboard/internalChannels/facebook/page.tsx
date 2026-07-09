@@ -234,6 +234,9 @@ export default function FacebookChannelsPage() {
     return () => clearTimeout(searchTimer.current);
   }, [search]);
 
+  const hasPageFilters = !!search || !!status;
+  const clearPageFilters = () => { setSearch(''); setStatus(''); };
+
   const fetchPages = useCallback(async () => {
     if (!token) return;
     setPagesLoading(true);
@@ -442,6 +445,11 @@ export default function FacebookChannelsPage() {
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
               </select>
+              {hasPageFilters && (
+                <button onClick={clearPageFilters} className="px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50 dark:hover:bg-slate-800">
+                  Xóa bộ lọc
+                </button>
+              )}
             </div>
 
             {/* Loading / empty / grid */}
