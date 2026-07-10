@@ -8,12 +8,13 @@ import { UserRole } from '@/types/auth';
 import {
   UserCog, Plus, Search, Edit2, Bell,
   Users, UserCheck, UserX, ChevronLeft, ChevronRight,
-  Loader2, TrendingUp, UserPlus, UserMinus,
+  Loader2, TrendingUp, UserPlus, UserMinus, Trash2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
   TeamMember, FormData, RoleBadge, Avatar, SkeletonRows, HRModal, formatDate,
 } from './shared';
+import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog';
 
 const STATUS_TABS = [
   { key: '', label: 'Tất cả' },
@@ -70,6 +71,8 @@ export default function HRManagementPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<TeamMember | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<TeamMember | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const apiBase = process.env.NEXT_PUBLIC_API_URL;
 
@@ -216,6 +219,26 @@ export default function HRManagementPage() {
       setMembers(prev => prev.map(m => (m.id === member.id ? { ...m, is_active: !m.is_active } : m)));
       toast.success(member.is_active ? 'Đã vô hiệu hóa tài khoản' : 'Đã kích hoạt lại tài khoản');
     } finally { setActionLoading(null); }
+  };
+
+  const handleDelete = async () => {
+    if (!deleting) return;
+    setDeleteLoading(true);
+    try {
+      const res = await fetch(`${apiBase}/users/${deleting.id}/soft`, {
+        method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        toast.error(d.message ?? 'Xóa tài khoản thất bại');
+        return;
+      }
+      // Tài khoản đã xóa bị ẩn khỏi mọi danh sách phía backend — bỏ khỏi state cục bộ ngay,
+      // không cần fetch lại toàn bộ danh sách.
+      setMembers(prev => prev.filter(m => m.id !== deleting.id));
+      toast.success('Đã xóa tài khoản');
+      setDeleting(null);
+    } finally { setDeleteLoading(false); }
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -401,6 +424,12 @@ export default function HRManagementPage() {
                             ? <Loader2 className="w-4 h-4 animate-spin" />
                             : member.is_active ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
                         </button>
+                        <button
+                          onClick={() => setDeleting(member)}
+                          title="Xóa tài khoản"
+                          className="p-2 rounded-xl transition-colors hover:bg-red-100 text-red-600">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -409,6 +438,17 @@ export default function HRManagementPage() {
             </tbody>
           </table>
         </div>
+
+        <ConfirmDialog
+          open={!!deleting}
+          title="Xóa tài khoản"
+          message={deleting ? `Xóa vĩnh viễn tài khoản "${deleting.full_name}" (${deleting.email})? Tài khoản sẽ bị ẩn hoàn toàn khỏi mọi danh sách và KHÔNG thể khôi phục qua giao diện. Lịch sử task/KPI/checklist đã có vẫn được giữ nguyên.` : ''}
+          confirmLabel="Xóa vĩnh viễn"
+          isLoading={deleteLoading}
+          danger
+          onConfirm={handleDelete}
+          onCancel={() => setDeleting(null)}
+        />
 
         {/* Pagination */}
         {totalPages > 1 && (
