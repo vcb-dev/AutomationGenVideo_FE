@@ -141,13 +141,21 @@ export default function AccountManagement() {
         if (!selectedUser || !token) return;
         try {
             setIsSaving(true);
+            // team là field phái sinh từ Đội nhóm (Team/TeamMember) — chỉ gửi khi admin thực sự
+            // sửa ô team, để việc đổi role/tên không vô tình ghi đè/xoá team hiện có (gửi chuỗi
+            // rỗng sẽ gỡ user khỏi TOÀN BỘ team phía backend).
+            const { team, ...rest } = editForm;
+            const payload: Record<string, unknown> = { ...rest };
+            if (team.trim() !== (selectedUser.team || '').trim()) {
+                payload.team = team.trim();
+            }
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/${selectedUser.id}`, {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
                     Authorization: `Bearer ${token}`
                 },
-                body: JSON.stringify(editForm)
+                body: JSON.stringify(payload)
             });
             if (!response.ok) throw new Error('Failed to update user');
 
