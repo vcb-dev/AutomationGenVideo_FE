@@ -27,6 +27,7 @@ export interface ProductViewItem {
   priority_score?: number
   material?: { id: string; name: string } | null
   product_line?: { id: string; name: string } | null
+  classification?: { id: string; name: string } | null
   is_active?: boolean
   added_by?: { id: string; full_name: string } | null
   added_at?: string
@@ -39,6 +40,7 @@ export interface ProductViewItem {
     price?: string | number | null; price_segment?: string | null
     market?: string | null; priority_score?: number
     material?: { id: string; name: string } | null; product_line?: { id: string; name: string } | null
+    classification?: { id: string; name: string } | null
     material_id?: string | null; product_line_id?: string | null
   } | null
   source_team_product_id?: string | null
@@ -46,10 +48,12 @@ export interface ProductViewItem {
     sku: string | null; name: string | null; image_url?: string | null; image_urls?: string[]
     price?: string | number | null; price_segment?: string | null; market?: string | null; priority_score?: number
     material?: { id: string; name: string } | null; product_line?: { id: string; name: string } | null
+    classification?: { id: string; name: string } | null
     source_editor_product?: {
       sku: string | null; name: string | null; image_url?: string | null; image_urls?: string[]
       price?: string | number | null; price_segment?: string | null; market?: string | null; priority_score?: number
       material?: { id: string; name: string } | null; product_line?: { id: string; name: string } | null
+      classification?: { id: string; name: string } | null
     } | null
   } | null
 }
@@ -106,6 +110,7 @@ export function ProductViewModal({
   const imageUrl = item.image_url ?? ep?.image_url ?? tp?.image_url ?? tp_ep?.image_url ?? null
   const itemMaterial = item.material ?? ep?.material ?? tp?.material ?? tp_ep?.material ?? null
   const itemProductLine = item.product_line ?? ep?.product_line ?? tp?.product_line ?? tp_ep?.product_line ?? null
+  const itemClassification = item.classification ?? ep?.classification ?? tp?.classification ?? tp_ep?.classification ?? null
 
   const images = imageUrls.length ? imageUrls : imageUrl ? [imageUrl] : []
   const markets = (itemMarket ?? '').split(',').map(m => m.trim()).filter(Boolean)
@@ -289,7 +294,7 @@ export function ProductViewModal({
                       : <p className="text-base text-slate-300 italic">Chưa có giá</p>}
                   </div>
 
-                  {(itemProductLine || itemMaterial || itemPriceSegment || item.brand_type || prioScore > 0) && (
+                  {(itemProductLine || itemMaterial || itemClassification || itemPriceSegment || item.brand_type || prioScore > 0) && (
                     <div>
                       <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Thông tin</p>
                       <div className="space-y-0">
@@ -309,6 +314,12 @@ export function ProductViewModal({
                           <div className="flex items-center justify-between py-3 border-b border-slate-50">
                             <span className="text-base text-slate-500">Chất liệu</span>
                             <span className="text-base font-semibold text-slate-800">{itemMaterial.name}</span>
+                          </div>
+                        )}
+                        {itemClassification && (
+                          <div className="flex items-center justify-between py-3 border-b border-slate-50">
+                            <span className="text-base text-slate-500">Phân loại</span>
+                            <span className="text-base font-semibold text-slate-800">{itemClassification.name}</span>
                           </div>
                         )}
                         {itemPriceSegment && (

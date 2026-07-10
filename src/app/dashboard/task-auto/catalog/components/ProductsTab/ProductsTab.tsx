@@ -13,6 +13,7 @@ import {
   getProducts, createProduct, updateProduct, deleteProduct,
   getProductLines, createProductLine, deleteProductLine,
   getMaterials, createMaterial, deleteMaterial,
+  getProductClassifications, createProductClassification, deleteProductClassification,
   createSource,
 } from '@/lib/api/task-auto'
 import { useAuthStore } from '@/store/auth-store'
@@ -32,6 +33,7 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
   const canDelete = user?.roles?.some((r: string) => ['ADMIN', 'MANAGER'].includes(r)) ?? false
   const [search, setSearch] = useState('')
   const [productLineFilter, setProductLineFilter] = useState('')
+  const [classificationFilter, setClassificationFilter] = useState('')
   const [activeFilter, setActiveFilter] = useState<'all' | 'true' | 'false'>('all')
   const [page, setPage] = useState(1)
   const [modal, setModal] = useState<null | 'create' | 'edit'>(null)
@@ -41,7 +43,7 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
   const [showCatalogPanel, setShowCatalogPanel] = useState(false)
   const [form, setForm] = useState<Partial<Product> & { image_urls: string[] }>({
     sku: '', name: '', image_urls: [], price: '',
-    price_segment: '', priority_score: 0, material_id: '', product_line_id: '', is_active: true,
+    price_segment: '', priority_score: 0, material_id: '', product_line_id: '', classification_id: '', is_active: true,
   })
   const [markets, setMarkets] = useState<string[]>(['VIETNAM'])
   const [sourceDraft, setSourceDraft] = useState<SourceDraft>(defaultSource)
@@ -49,12 +51,14 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
 
   const { data: productLines } = useQuery({ queryKey: ['task-auto', 'product-lines'], queryFn: () => getProductLines() })
   const { data: materials } = useQuery({ queryKey: ['task-auto', 'materials', brandType], queryFn: () => getMaterials(brandType) })
+  const { data: productClassifications } = useQuery({ queryKey: ['task-auto', 'product-classifications'], queryFn: () => getProductClassifications() })
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'products', brandType, search, productLineFilter, activeFilter, month, page],
+    queryKey: ['task-auto', 'products', brandType, search, productLineFilter, classificationFilter, activeFilter, month, page],
     queryFn: () => getProducts({
       brand_type: brandType,
       search: search || undefined,
       product_line_id: productLineFilter || undefined,
+      classification_id: classificationFilter || undefined,
       is_active: activeFilter === 'all' ? undefined : activeFilter === 'true',
       month: month || undefined,
       page, limit: 10,
@@ -75,6 +79,7 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
       priority_score: form.priority_score,
       material_id: form.material_id || null,
       product_line_id: form.product_line_id || null,
+      classification_id: form.classification_id || null,
       is_active: form.is_active,
     }
   }
@@ -132,9 +137,19 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
     onSuccess: () => qc.invalidateQueries({ queryKey: ['task-auto', 'materials'] }),
     onError: () => toast.error('Không thể xóa chất liệu'),
   })
+  const createClassificationMut = useMutation({
+    mutationFn: ({ name }: { name: string }) => createProductClassification(name),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['task-auto', 'product-classifications'] }),
+    onError: () => toast.error('Không thể thêm phân loại sản phẩm'),
+  })
+  const deleteClassificationMut = useMutation({
+    mutationFn: deleteProductClassification,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['task-auto', 'product-classifications'] }),
+    onError: () => toast.error('Không thể xóa phân loại sản phẩm'),
+  })
 
   const openCreate = () => {
-    setForm({ sku: '', name: '', image_urls: [], price: '', price_segment: '', priority_score: 0, material_id: '', product_line_id: '', is_active: true })
+    setForm({ sku: '', name: '', image_urls: [], price: '', price_segment: '', priority_score: 0, material_id: '', product_line_id: '', classification_id: '', is_active: true })
     setMarkets(['VIETNAM'])
     setSourceDraft(defaultSource)
     setEditing(null)
@@ -239,6 +254,14 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
                   />
                 </th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Chất liệu</th>
+                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">
+                  <HeaderFilterDropdown
+                    label="Phân loại"
+                    value={classificationFilter}
+                    onChange={v => { setClassificationFilter(v); setPage(1) }}
+                    options={(productClassifications ?? []).map(c => ({ value: c.id, label: c.name }))}
+                  />
+                </th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Thị trường</th>
                 <th className="text-right px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Giá bán</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Trạng thái</th>
@@ -248,11 +271,11 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {isLoading && <LoadingRows cols={10} />}
+              {isLoading && <LoadingRows cols={11} />}
 
               {!isLoading && (!data?.data || data.data.length === 0) && (
                 <tr>
-                  <td colSpan={10}>
+                  <td colSpan={11}>
                     <EmptyState icon={Package} title="Không có sản phẩm nào" />
                   </td>
                 </tr>
@@ -268,6 +291,7 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
                 const rMarket = p.market || tp?.market || tp_ep?.market || null
                 const rProductLine = p.product_line ?? tp?.product_line ?? tp_ep?.product_line ?? null
                 const rMaterial = p.material ?? tp?.material ?? tp_ep?.material ?? null
+                const rClassification = p.classification ?? tp?.classification ?? tp_ep?.classification ?? null
                 const rImages = p.image_urls?.length ? p.image_urls : tp?.image_urls?.length ? tp.image_urls : tp_ep?.image_urls?.length ? tp_ep.image_urls : []
                 const rImageUrl = p.image_url ?? tp?.image_url ?? tp_ep?.image_url ?? null
                 const thumb = rImages[0] ?? rImageUrl
@@ -302,6 +326,12 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
                     <td className="px-5 py-4 whitespace-nowrap">
                       {rMaterial?.name
                         ? <span className="text-sm text-slate-600">{rMaterial.name}</span>
+                        : <span className="text-slate-300 text-sm">—</span>
+                      }
+                    </td>
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      {rClassification?.name
+                        ? <span className="text-sm text-slate-600">{rClassification.name}</span>
                         : <span className="text-slate-300 text-sm">—</span>
                       }
                     </td>
@@ -414,9 +444,9 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
               <Package className="w-4 h-4 text-indigo-600" />
             </span>
             <span className="text-left">
-              <span className="block text-sm font-bold text-slate-800">Dòng sản phẩm &amp; Chất liệu</span>
+              <span className="block text-sm font-bold text-slate-800">Dòng sản phẩm, Chất liệu &amp; Phân loại</span>
               <span className="block text-xs text-slate-400 mt-0.5">
-                {(productLines?.length ?? 0)} dòng sản phẩm · {(materials?.length ?? 0)} chất liệu
+                {(productLines?.length ?? 0)} dòng sản phẩm · {(materials?.length ?? 0)} chất liệu · {(productClassifications?.length ?? 0)} phân loại
               </span>
             </span>
           </span>
@@ -426,7 +456,7 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
           )} />
         </button>
         {showCatalogPanel && (
-          <div className="border-t border-gray-100 p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="border-t border-gray-100 p-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
             <MiniList
               title="Dòng sản phẩm"
               items={productLines ?? []}
@@ -442,6 +472,14 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
               onAdd={name => createMatMut.mutateAsync({ name })}
               onDelete={id => deleteMatMut.mutate(id)}
               color="teal"
+            />
+            <MiniList
+              title="Phân loại sản phẩm"
+              items={productClassifications ?? []}
+              addLabel="Nhập tên phân loại..."
+              onAdd={name => createClassificationMut.mutateAsync({ name })}
+              onDelete={id => deleteClassificationMut.mutate(id)}
+              color="indigo"
             />
           </div>
         )}
@@ -521,6 +559,23 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
                   const created = await createMaterial(name, brandType)
                   qc.setQueryData<typeof materials>(
                     ['task-auto', 'materials', brandType],
+                    old => [...(old ?? []), created]
+                  )
+                  return { id: created.id, label: created.name }
+                }}
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <CreatableSelect
+                label="Phân loại sản phẩm"
+                value={form.classification_id ?? ''}
+                onChange={v => setForm(f => ({ ...f, classification_id: v }))}
+                options={productClassifications?.map(c => ({ value: c.id, label: c.name })) ?? []}
+                createLabel="Thêm phân loại sản phẩm"
+                onCreate={async (name) => {
+                  const created = await createProductClassification(name)
+                  qc.setQueryData<typeof productClassifications>(
+                    ['task-auto', 'product-classifications'],
                     old => [...(old ?? []), created]
                   )
                   return { id: created.id, label: created.name }

@@ -17,6 +17,7 @@ import {
   createProduct, updateProduct, createProductLine, createMaterial, createSource,
   createEditorProduct, createEditorSource, getEditorSources,
   getProductLines, getMaterials, getSources,
+  getProductClassifications, createProductClassification,
 } from '@/lib/api/task-auto'
 import type { Product } from '@/types/task-auto'
 import { SOURCE_TYPE_LABELS } from '@/types/task-auto'
@@ -38,7 +39,7 @@ export function ProductFormModal({ open, editing, userId, title, defaultBrandTyp
   const [brandType, setBrandType] = useState<'DO_DA' | 'TRANG_SUC'>(defaultBrandType)
   const [form, setForm] = useState<Partial<Product> & { image_urls: string[] }>({
     sku: '', name: '', image_urls: [], price: '',
-    price_segment: '', priority_score: 0, material_id: '', product_line_id: '', is_active: true,
+    price_segment: '', priority_score: 0, material_id: '', product_line_id: '', classification_id: '', is_active: true,
   })
   const [markets, setMarkets] = useState<string[]>(['VIETNAM'])
   const [sourceDraft, setSourceDraft] = useState<SourceDraft>(defaultSource)
@@ -52,6 +53,11 @@ export function ProductFormModal({ open, editing, userId, title, defaultBrandTyp
   const { data: materials } = useQuery({
     queryKey: ['task-auto', 'materials', brandType],
     queryFn: () => getMaterials(brandType),
+    enabled: open,
+  })
+  const { data: productClassifications } = useQuery({
+    queryKey: ['task-auto', 'product-classifications'],
+    queryFn: () => getProductClassifications(),
     enabled: open,
   })
   const { data: sourcesData } = useQuery({
@@ -75,7 +81,7 @@ export function ProductFormModal({ open, editing, userId, title, defaultBrandTyp
         setSourceDraft(defaultSource)
       } else {
         setBrandType(defaultBrandType)
-        setForm({ sku: '', name: '', image_urls: [], price: '', price_segment: '', priority_score: 0, material_id: '', product_line_id: '', is_active: true })
+        setForm({ sku: '', name: '', image_urls: [], price: '', price_segment: '', priority_score: 0, material_id: '', product_line_id: '', classification_id: '', is_active: true })
         setMarkets(['VIETNAM'])
         setSourceDraft(defaultSource)
       }
@@ -95,6 +101,7 @@ export function ProductFormModal({ open, editing, userId, title, defaultBrandTyp
         priority_score: form.priority_score,
         material_id: form.material_id || null,
         product_line_id: form.product_line_id || null,
+        classification_id: form.classification_id || null,
         is_active: form.is_active,
       }
       const product = isEdit
@@ -197,6 +204,20 @@ export function ProductFormModal({ open, editing, userId, title, defaultBrandTyp
               onCreate={async (name) => {
                 const created = await createMaterial(name, brandType)
                 qc.setQueryData<typeof materials>(['task-auto', 'materials', brandType], old => [...(old ?? []), created])
+                return { id: created.id, label: created.name }
+              }}
+            />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <CreatableSelect
+              label="Phân loại sản phẩm"
+              value={form.classification_id ?? ''}
+              onChange={v => setForm(f => ({ ...f, classification_id: v }))}
+              options={productClassifications?.map(c => ({ value: c.id, label: c.name })) ?? []}
+              createLabel="Thêm phân loại sản phẩm"
+              onCreate={async (name) => {
+                const created = await createProductClassification(name)
+                qc.setQueryData<typeof productClassifications>(['task-auto', 'product-classifications'], old => [...(old ?? []), created])
                 return { id: created.id, label: created.name }
               }}
             />

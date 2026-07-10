@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
-import { CustomSelect } from '@/components/task-auto/DarkInput'
+import { CustomSelect, CreatableSelect } from '@/components/task-auto/DarkInput'
 import { ContentStatusBadge } from '@/components/task-auto/StatusBadge'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
@@ -22,7 +22,7 @@ import { DarkInput, DarkTextarea } from '@/components/task-auto/DarkInput'
 import {
   getContents, getTeamContents,
   getEditorContents, createEditorContent, updateEditorContent, deleteEditorContent, pushEditorContentToTeam,
-  getContentLines, getTeams, getMyPushRequests,
+  getContentLines, getContentClassifications, createContentClassification, getTeams, getMyPushRequests,
 } from '@/lib/api/task-auto'
 import { Content, TeamContent, ContentUsageStatus } from '@/types/task-auto'
 import { ContentViewModal } from '@/components/task-auto/ContentViewModal'
@@ -178,6 +178,7 @@ function ImportModal({
         voiceUrl: g.voice_url ?? tc?.voice_url ?? tc_ec?.voice_url ?? null,
         contentLineId: g.content_line_id ?? tc?.content_line?.id ?? tc_ec?.content_line?.id ?? null,
         contentLine: g.content_line ?? tc?.content_line ?? tc_ec?.content_line ?? null,
+        classificationId: g.classification_id ?? tc?.classification?.id ?? tc_ec?.classification?.id ?? null,
         market: g.market ?? tc?.market ?? tc_ec?.market ?? 'VIETNAM',
       }
     }
@@ -191,6 +192,7 @@ function ImportModal({
       voiceUrl: t.voice_url ?? ec?.voice_url ?? null,
       contentLineId: t.content_line_id ?? ec?.content_line_id ?? null,
       contentLine: t.content_line ?? ec?.content_line ?? null,
+      classificationId: t.classification_id ?? ec?.classification_id ?? null,
       market: t.market ?? ec?.market ?? 'VIETNAM',
     }
   }
@@ -227,6 +229,7 @@ function ImportModal({
             file_content_url: r.fileContentUrl ?? undefined,
             voice_url: r.voiceUrl ?? undefined,
             content_line_id: r.contentLineId ?? undefined,
+            classification_id: r.classificationId ?? undefined,
             market: r.market as any,
           } as any)
         })
@@ -383,11 +386,13 @@ function PersonalContentModal({
     file_content_url: editing?.file_content_url ?? '',
     voice_url: editing?.voice_url ?? '',
     content_line_id: editing?.content_line_id ?? '',
+    classification_id: editing?.classification_id ?? '',
   })
   const [market, setMarket] = useState<string>(editing?.market ?? defaultMarket)
   const voicePickerRef = useRef<VoicePickerHandle>(null)
 
   const { data: contentLines } = useQuery({ queryKey: ['task-auto', 'content-lines'], queryFn: getContentLines })
+  const { data: contentClassifications } = useQuery({ queryKey: ['task-auto', 'content-classifications'], queryFn: getContentClassifications })
 
   const createMut = useMutation({
     mutationFn: async () => createEditorContent(userId, {
@@ -397,6 +402,7 @@ function PersonalContentModal({
       file_content_url: form.file_content_url,
       voice_url: await voicePickerRef.current!.resolvePending(form.voice_url ?? ''),
       content_line_id: form.content_line_id || null,
+      classification_id: form.classification_id || null,
       brand_type: brandType,
       market: market as any,
     } as any),
@@ -416,6 +422,7 @@ function PersonalContentModal({
       file_content_url: form.file_content_url,
       voice_url: await voicePickerRef.current!.resolvePending(form.voice_url ?? ''),
       content_line_id: form.content_line_id || null,
+      classification_id: form.classification_id || null,
       market: market as any,
     } as any),
     onSuccess: () => {
@@ -459,13 +466,25 @@ function PersonalContentModal({
             value={form.title ?? ''}
             onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
           />
-          <div className="w-1/2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <CustomSelect
               label="Tuyến nội dung"
               value={form.content_line_id ?? ''}
               onChange={v => setForm(f => ({ ...f, content_line_id: v }))}
               options={[{ value: '', label: '-- Không chọn --' }, ...(contentLines?.map(l => ({ value: l.id, label: l.name })) ?? [])]}
               searchable
+            />
+            <CreatableSelect
+              label="Phân loại nội dung"
+              value={form.classification_id ?? ''}
+              onChange={v => setForm(f => ({ ...f, classification_id: v }))}
+              options={contentClassifications?.map(c => ({ value: c.id, label: c.name })) ?? []}
+              createLabel="Thêm phân loại nội dung"
+              onCreate={async (name) => {
+                const created = await createContentClassification(name)
+                qc.setQueryData<typeof contentClassifications>(['task-auto', 'content-classifications'], old => [...(old ?? []), created])
+                return { id: created.id, label: created.name }
+              }}
             />
           </div>
           <MarketPicker label="Thị trường" value={market} onChange={setMarket} />
@@ -507,6 +526,7 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM' }: Pro
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<ContentUsageStatus | ''>('')
   const [contentLineFilter, setContentLineFilter] = useState('')
+  const [classificationFilter, setClassificationFilter] = useState('')
   const [month, setMonth] = useState('')
   const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
@@ -517,15 +537,17 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM' }: Pro
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const { data: contentLines } = useQuery({ queryKey: ['task-auto', 'content-lines'], queryFn: getContentLines })
+  const { data: contentClassifications } = useQuery({ queryKey: ['task-auto', 'content-classifications'], queryFn: getContentClassifications })
 
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'my-contents', userId, brandType, teamMarket, search, statusFilter, contentLineFilter, month, page],
+    queryKey: ['task-auto', 'my-contents', userId, brandType, teamMarket, search, statusFilter, contentLineFilter, classificationFilter, month, page],
     queryFn: () => getEditorContents(userId, {
       brand_type: brandType,
       market: teamMarket,
       search: search || undefined,
       status: statusFilter || undefined,
       content_line_id: contentLineFilter || undefined,
+      classification_id: classificationFilter || undefined,
       month: month || undefined,
       page, limit: 20,
     }),
@@ -614,6 +636,14 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM' }: Pro
                     options={(contentLines ?? []).map(l => ({ value: l.id, label: l.name }))}
                   />
                 </th>
+                <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">
+                  <HeaderFilterDropdown
+                    label="Phân loại"
+                    value={classificationFilter}
+                    onChange={v => { setClassificationFilter(v); setPage(1) }}
+                    options={(contentClassifications ?? []).map(c => ({ value: c.id, label: c.name }))}
+                  />
+                </th>
                 <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Thị trường</th>
                 <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Trạng thái</th>
                 {/* <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Người thêm</th> */}
@@ -622,9 +652,9 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM' }: Pro
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {isLoading && <LoadingRows cols={7} />}
+              {isLoading && <LoadingRows cols={8} />}
               {!isLoading && !data?.data?.length && (
-                <tr><td colSpan={7}><EmptyState icon={FileText} title="Chưa có content cá nhân nào" /></td></tr>
+                <tr><td colSpan={8}><EmptyState icon={FileText} title="Chưa có content cá nhân nào" /></td></tr>
               )}
               {data?.data.map(c => (
                 <tr key={c.id} className="hover:bg-indigo-50/20 transition-colors group cursor-pointer" onClick={() => setDetailItem(c)}>
@@ -636,6 +666,11 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM' }: Pro
                   <td className="px-4 py-4 whitespace-nowrap">
                     {c.content_line?.name
                       ? <span className="text-sm font-medium text-slate-700">{c.content_line.name}</span>
+                      : <span className="text-slate-300 text-sm">—</span>}
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap">
+                    {c.classification?.name
+                      ? <span className="text-sm font-medium text-slate-700">{c.classification.name}</span>
                       : <span className="text-slate-300 text-sm">—</span>}
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap">

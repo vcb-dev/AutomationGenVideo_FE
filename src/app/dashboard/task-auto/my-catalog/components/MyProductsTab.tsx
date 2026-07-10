@@ -17,6 +17,7 @@ import {
   getProducts, getTeamProducts, getSources, getTeamSources,
   getEditorProducts, createEditorProduct, updateEditorProduct, createEditorSource, getEditorSources, deleteEditorProduct, pushEditorProductToTeam,
   getProductLines, createProductLine, getMaterials, createMaterial,
+  getProductClassifications, createProductClassification,
   getTeams, getMyPushRequests,
 } from '@/lib/api/task-auto'
 import {
@@ -157,6 +158,7 @@ function ImportModal({
         priorityScore: g.priority_score ?? 0,
         materialId: g.material_id ?? tp?.material?.id ?? tp_ep?.material?.id ?? null,
         productLineId: g.product_line_id ?? tp?.product_line?.id ?? tp_ep?.product_line?.id ?? null,
+        classificationId: g.classification_id ?? tp?.classification?.id ?? tp_ep?.classification?.id ?? null,
       }
     }
     const t = p as TeamProduct
@@ -172,6 +174,7 @@ function ImportModal({
       priorityScore: t.priority_score ?? 0,
       materialId: t.material_id ?? ep?.material_id ?? null,
       productLineId: t.product_line_id ?? ep?.product_line_id ?? null,
+      classificationId: t.classification_id ?? ep?.classification_id ?? null,
     }
   }
 
@@ -217,6 +220,7 @@ function ImportModal({
             priority_score: r.priorityScore,
             material_id: r.materialId,
             product_line_id: r.productLineId,
+            classification_id: r.classificationId,
             is_active: true,
           } as any)
 
@@ -370,6 +374,7 @@ export function MyProductsTab({ userId, brandType }: Props) {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [productLineFilter, setProductLineFilter] = useState('')
+  const [classificationFilter, setClassificationFilter] = useState('')
   const [month, setMonth] = useState('')
   const [page, setPage] = useState(1)
   const [modal, setModal] = useState<null | 'create' | 'edit'>(null)
@@ -381,7 +386,7 @@ export function MyProductsTab({ userId, brandType }: Props) {
 
   const [form, setForm] = useState<Partial<Product> & { image_urls: string[] }>({
     sku: '', name: '', image_urls: [], price: '',
-    price_segment: '', priority_score: 0, material_id: '', product_line_id: '', is_active: true,
+    price_segment: '', priority_score: 0, material_id: '', product_line_id: '', classification_id: '', is_active: true,
   })
   const [markets, setMarkets] = useState<string[]>(['VIETNAM'])
   const [sourceDraft, setSourceDraft] = useState<SourceDraft>(defaultSource)
@@ -389,6 +394,7 @@ export function MyProductsTab({ userId, brandType }: Props) {
 
   const { data: productLines } = useQuery({ queryKey: ['task-auto', 'product-lines'], queryFn: () => getProductLines() })
   const { data: materials } = useQuery({ queryKey: ['task-auto', 'materials', brandType], queryFn: () => getMaterials(brandType) })
+  const { data: productClassifications } = useQuery({ queryKey: ['task-auto', 'product-classifications'], queryFn: () => getProductClassifications() })
   const { data: editingSourcesData } = useQuery({
     queryKey: ['task-auto', 'editor-sources-by-product', editing?.id],
     queryFn: () => getEditorSources(userId, { editor_product_id: editing!.id, limit: 100 }),
@@ -397,11 +403,12 @@ export function MyProductsTab({ userId, brandType }: Props) {
   const editingSources = editingSourcesData?.data ?? []
 
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'my-products', userId, brandType, search, productLineFilter, month, page],
+    queryKey: ['task-auto', 'my-products', userId, brandType, search, productLineFilter, classificationFilter, month, page],
     queryFn: () => getEditorProducts(userId, {
       brand_type: brandType,
       search: search || undefined,
       product_line_id: productLineFilter || undefined,
+      classification_id: classificationFilter || undefined,
       month: month || undefined,
       page, limit: 20,
     }),
@@ -424,6 +431,7 @@ export function MyProductsTab({ userId, brandType }: Props) {
       priority_score: form.priority_score,
       material_id: form.material_id || null,
       product_line_id: form.product_line_id || null,
+      classification_id: form.classification_id || null,
       is_active: form.is_active,
     }
   }
@@ -480,6 +488,7 @@ export function MyProductsTab({ userId, brandType }: Props) {
       priority_score: prefill?.priority_score ?? 0,
       material_id: prefill?.material_id ?? '',
       product_line_id: prefill?.product_line_id ?? '',
+      classification_id: prefill?.classification_id ?? '',
       is_active: true,
     })
     setMarkets(prefill?.market ? parseMarkets(prefill.market) : ['VIETNAM'])
@@ -563,6 +572,14 @@ export function MyProductsTab({ userId, brandType }: Props) {
                     options={(productLines ?? []).map(l => ({ value: l.id, label: l.name }))}
                   />
                 </th>
+                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">
+                  <HeaderFilterDropdown
+                    label="Phân loại"
+                    value={classificationFilter}
+                    onChange={v => { setClassificationFilter(v); setPage(1) }}
+                    options={(productClassifications ?? []).map(c => ({ value: c.id, label: c.name }))}
+                  />
+                </th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Thị trường</th>
                 <th className="text-right px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Giá bán</th>
                 {/* <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Người thêm</th> */}
@@ -571,9 +588,9 @@ export function MyProductsTab({ userId, brandType }: Props) {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {isLoading && <LoadingRows cols={8} />}
+              {isLoading && <LoadingRows cols={9} />}
               {!isLoading && !data?.data?.length && (
-                <tr><td colSpan={8}><EmptyState icon={Package} title="Chưa có sản phẩm cá nhân nào" /></td></tr>
+                <tr><td colSpan={9}><EmptyState icon={Package} title="Chưa có sản phẩm cá nhân nào" /></td></tr>
               )}
               {data?.data.map(p => {
                 const thumb = p.image_urls?.[0] ?? p.image_url
@@ -597,6 +614,11 @@ export function MyProductsTab({ userId, brandType }: Props) {
                     <td className="px-5 py-4 whitespace-nowrap">
                       {p.product_line?.name
                         ? <span className="text-sm font-medium text-slate-700">{p.product_line.name}</span>
+                        : <span className="text-slate-300 text-sm">—</span>}
+                    </td>
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      {p.classification?.name
+                        ? <span className="text-sm font-medium text-slate-700">{p.classification.name}</span>
                         : <span className="text-slate-300 text-sm">—</span>}
                     </td>
                     <td className="px-5 py-4 whitespace-nowrap">
@@ -735,6 +757,20 @@ export function MyProductsTab({ userId, brandType }: Props) {
                 onCreate={async (name) => {
                   const created = await createMaterial(name, brandType)
                   qc.setQueryData<typeof materials>(['task-auto', 'materials', brandType], old => [...(old ?? []), created])
+                  return { id: created.id, label: created.name }
+                }}
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <CreatableSelect
+                label="Phân loại sản phẩm"
+                value={form.classification_id ?? ''}
+                onChange={v => setForm(f => ({ ...f, classification_id: v }))}
+                options={productClassifications?.map(c => ({ value: c.id, label: c.name })) ?? []}
+                createLabel="Thêm phân loại sản phẩm"
+                onCreate={async (name) => {
+                  const created = await createProductClassification(name)
+                  qc.setQueryData<typeof productClassifications>(['task-auto', 'product-classifications'], old => [...(old ?? []), created])
                   return { id: created.id, label: created.name }
                 }}
               />

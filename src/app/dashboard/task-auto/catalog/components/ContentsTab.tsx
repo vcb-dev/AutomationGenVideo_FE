@@ -13,6 +13,7 @@ import { ContentFormModal, parseMarkets } from '@/components/task-auto/ContentFo
 import {
   getContents, deleteContent,
   getContentLines, createContentLine, deleteContentLine,
+  getContentClassifications, createContentClassification, deleteContentClassification,
 } from '@/lib/api/task-auto'
 import { useAuthStore } from '@/store/auth-store'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
@@ -132,6 +133,7 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<ContentUsageStatus | ''>('')
   const [contentLineFilter, setContentLineFilter] = useState('')
+  const [classificationFilter, setClassificationFilter] = useState('')
   const [marketFilter, setMarketFilter] = useState('')
   const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
@@ -140,13 +142,15 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const { data: contentLines } = useQuery({ queryKey: ['task-auto', 'content-lines'], queryFn: getContentLines })
+  const { data: contentClassifications } = useQuery({ queryKey: ['task-auto', 'content-classifications'], queryFn: getContentClassifications })
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'contents', brandType, search, statusFilter, contentLineFilter, marketFilter, month, page],
+    queryKey: ['task-auto', 'contents', brandType, search, statusFilter, contentLineFilter, classificationFilter, marketFilter, month, page],
     queryFn: () => getContents({
       brand_type: brandType,
       search: search || undefined,
       status: statusFilter || undefined,
       content_line_id: contentLineFilter || undefined,
+      classification_id: classificationFilter || undefined,
       market: marketFilter || undefined,
       month: month || undefined,
       page, limit: 10,
@@ -162,6 +166,16 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
     mutationFn: deleteContentLine,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['task-auto', 'content-lines'] }),
     onError: () => toast.error('Không thể xóa tuyến nội dung'),
+  })
+  const createClassificationMut = useMutation({
+    mutationFn: createContentClassification,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['task-auto', 'content-classifications'] }),
+    onError: () => toast.error('Không thể thêm phân loại nội dung'),
+  })
+  const deleteClassificationMut = useMutation({
+    mutationFn: deleteContentClassification,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['task-auto', 'content-classifications'] }),
+    onError: () => toast.error('Không thể xóa phân loại nội dung'),
   })
 
   const deleteMut = useMutation({
@@ -248,6 +262,14 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
                       options={(contentLines ?? []).map(l => ({ value: l.id, label: l.name }))}
                     />
                   </th>
+                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[12%]">
+                    <HeaderFilterDropdown
+                      label="Phân loại"
+                      value={classificationFilter}
+                      onChange={v => { setClassificationFilter(v); setPage(1) }}
+                      options={(contentClassifications ?? []).map(c => ({ value: c.id, label: c.name }))}
+                    />
+                  </th>
                   <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[9%]">Thị trường</th>
                   <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[13%]">Trạng thái</th>
                   <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[7%]">Lượt xem</th>
@@ -257,11 +279,11 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {isLoading && <LoadingRows cols={8} />}
+                {isLoading && <LoadingRows cols={9} />}
 
                 {!isLoading && (!data?.data || data.data.length === 0) && (
                   <tr>
-                    <td colSpan={8}>
+                    <td colSpan={9}>
                       <EmptyState icon={FileText} title="Không có content nào" />
                     </td>
                   </tr>
@@ -272,6 +294,7 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
                   const tc_ec = tc?.source_editor_content
                   const rTitle = c.title || tc?.title || tc_ec?.title || null
                   const rContentLine = c.content_line ?? tc?.content_line ?? tc_ec?.content_line ?? null
+                  const rClassification = c.classification ?? tc?.classification ?? tc_ec?.classification ?? null
                   const rMarket = c.market || tc?.market || tc_ec?.market || null
                   return (<tr key={c.id} className="hover:bg-indigo-50/20 transition-colors group cursor-pointer" onClick={() => setDetailItem(c)}>
 
@@ -286,6 +309,14 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
                     <td className="px-4 py-4 whitespace-nowrap">
                       {rContentLine?.name
                         ? <span className="text-sm font-medium text-slate-700">{rContentLine.name}</span>
+                        : <span className="text-slate-300 text-sm">—</span>
+                      }
+                    </td>
+
+                    {/* Phân loại */}
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      {rClassification?.name
+                        ? <span className="text-sm font-medium text-slate-700">{rClassification.name}</span>
                         : <span className="text-slate-300 text-sm">—</span>
                       }
                     </td>
@@ -366,13 +397,20 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
       </div>
 
       {/* Sidebar */}
-      <div className="lg:w-64 lg:shrink-0">
+      <div className="lg:w-64 lg:shrink-0 space-y-4">
         <MiniList
           title="Tuyến nội dung"
           items={contentLines ?? []}
           addLabel="Tên tuyến nội dung..."
           onAdd={name => createLineMut.mutateAsync(name)}
           onDelete={id => deleteLineMut.mutate(id)}
+        />
+        <MiniList
+          title="Phân loại nội dung"
+          items={contentClassifications ?? []}
+          addLabel="Tên phân loại nội dung..."
+          onAdd={name => createClassificationMut.mutateAsync(name)}
+          onDelete={id => deleteClassificationMut.mutate(id)}
         />
       </div>
 

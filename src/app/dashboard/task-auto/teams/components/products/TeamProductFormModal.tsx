@@ -16,6 +16,7 @@ import {
 import {
   addTeamProduct, updateTeamProduct, createProductLine, createMaterial,
   getProductLines, getMaterials, addTeamSource, getTeamSources, removeTeamSource,
+  getProductClassifications, createProductClassification,
 } from '@/lib/api/task-auto'
 import type { TeamProduct, BrandType } from '@/types/task-auto'
 
@@ -37,12 +38,13 @@ interface FormState {
   priority_score: number
   material_id: string
   product_line_id: string
+  classification_id: string
   is_active: boolean
 }
 
 const defaultForm: FormState = {
   sku: '', name: '', image_urls: [], price: '',
-  price_segment: '', priority_score: 0, material_id: '', product_line_id: '', is_active: true,
+  price_segment: '', priority_score: 0, material_id: '', product_line_id: '', classification_id: '', is_active: true,
 }
 
 export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandType = 'DO_DA', onClose, onSuccess }: Props) {
@@ -63,6 +65,11 @@ export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandTy
   const { data: materials } = useQuery({
     queryKey: ['task-auto', 'materials', brandType],
     queryFn: () => getMaterials(brandType),
+    enabled: open,
+  })
+  const { data: productClassifications } = useQuery({
+    queryKey: ['task-auto', 'product-classifications'],
+    queryFn: () => getProductClassifications(),
     enabled: open,
   })
   const { data: existingSources, refetch: refetchSources } = useQuery({
@@ -86,6 +93,7 @@ export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandTy
           priority_score: teamProduct.priority_score ?? 0,
           material_id: teamProduct.material_id ?? '',
           product_line_id: teamProduct.product_line_id ?? '',
+          classification_id: teamProduct.classification_id ?? '',
           is_active: teamProduct.is_active ?? true,
         })
         setMarkets(teamProduct.market ? teamProduct.market.split(',').map(m => m.trim()) : ['VIETNAM'])
@@ -122,6 +130,7 @@ export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandTy
         priority_score: form.priority_score,
         material_id: form.material_id || null,
         product_line_id: form.product_line_id || null,
+        classification_id: form.classification_id || null,
         is_active: form.is_active,
       }
       const addSourceIfNeeded = async (productId: string) => {
@@ -244,6 +253,20 @@ export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandTy
               onCreate={async (name) => {
                 const created = await createMaterial(name, brandType)
                 qc.setQueryData<typeof materials>(['task-auto', 'materials', brandType], old => [...(old ?? []), created])
+                return { id: created.id, label: created.name }
+              }}
+            />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <CreatableSelect
+              label="Phân loại sản phẩm"
+              value={form.classification_id}
+              onChange={v => setForm(f => ({ ...f, classification_id: v }))}
+              options={productClassifications?.map(c => ({ value: c.id, label: c.name })) ?? []}
+              createLabel="Thêm phân loại sản phẩm"
+              onCreate={async (name) => {
+                const created = await createProductClassification(name)
+                qc.setQueryData<typeof productClassifications>(['task-auto', 'product-classifications'], old => [...(old ?? []), created])
                 return { id: created.id, label: created.name }
               }}
             />

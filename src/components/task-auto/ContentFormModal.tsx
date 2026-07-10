@@ -6,10 +6,11 @@ import toast from 'react-hot-toast'
 import { Loader2, Mic, X, Play, Pause, FileText, Upload } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
-import { DarkInput, DarkTextarea, CustomSelect } from '@/components/task-auto/DarkInput'
+import { DarkInput, DarkTextarea, CustomSelect, CreatableSelect } from '@/components/task-auto/DarkInput'
 import {
   createContent, updateContent, createEditorContent, updateTeamContent,
   getContentLines, uploadVoiceFile, uploadContentFile,
+  getContentClassifications, createContentClassification,
 } from '@/lib/api/task-auto'
 import type { Content } from '@/types/task-auto'
 
@@ -344,7 +345,7 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
 
   const [form, setForm] = useState<Partial<Content>>({
     title: '', body: '', script: '', file_content_url: '', voice_url: '',
-    content_line_id: '',
+    content_line_id: '', classification_id: '',
   })
   const [market, setMarket] = useState<string>(initialMarket ?? 'VIETNAM')
   const [resolvingVoice, setResolvingVoice] = useState(false)
@@ -356,7 +357,7 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
         setForm({ ...editing })
         setMarket(editing.market ?? initialMarket ?? 'VIETNAM')
       } else {
-        setForm({ title: '', body: '', script: '', file_content_url: '', voice_url: '', content_line_id: '' })
+        setForm({ title: '', body: '', script: '', file_content_url: '', voice_url: '', content_line_id: '', classification_id: '' })
         setMarket(initialMarket ?? 'VIETNAM')
       }
     }
@@ -365,6 +366,11 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
   const { data: contentLines } = useQuery({
     queryKey: ['task-auto', 'content-lines'],
     queryFn: getContentLines,
+    enabled: open,
+  })
+  const { data: contentClassifications } = useQuery({
+    queryKey: ['task-auto', 'content-classifications'],
+    queryFn: getContentClassifications,
     enabled: open,
   })
 
@@ -411,6 +417,7 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
       file_content_url: form.file_content_url,
       voice_url,
       content_line_id: form.content_line_id || null,
+      classification_id: form.classification_id || null,
       market,
     }
     if (!isEdit) {
@@ -465,7 +472,7 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
             value={form.title ?? ''}
             onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
           />
-          <div className='w-1/2'>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <CustomSelect
               label="Tuyến nội dung"
               value={form.content_line_id ?? ''}
@@ -476,8 +483,19 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
               ]}
               searchable
             />
+            <CreatableSelect
+              label="Phân loại nội dung"
+              value={form.classification_id ?? ''}
+              onChange={v => setForm(f => ({ ...f, classification_id: v }))}
+              options={contentClassifications?.map(c => ({ value: c.id, label: c.name })) ?? []}
+              createLabel="Thêm phân loại nội dung"
+              onCreate={async (name) => {
+                const created = await createContentClassification(name)
+                qc.setQueryData<typeof contentClassifications>(['task-auto', 'content-classifications'], old => [...(old ?? []), created])
+                return { id: created.id, label: created.name }
+              }}
+            />
           </div>
-            
 
           <MarketPicker label="Thị trường" value={market} onChange={setMarket} />
         </div>

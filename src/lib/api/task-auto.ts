@@ -10,6 +10,8 @@ import type {
   ContentLine,
   ProductLine,
   Material,
+  ProductClassification,
+  ContentClassification,
   Product,
   ProductsQuery,
   Content,
@@ -25,6 +27,7 @@ import type {
   TeamProduct,
   TeamContent,
   TeamPushRequest,
+  Notification,
 } from '@/types/task-auto'
 
 function qs(params: Record<string, string | number | boolean | undefined | null>): string {
@@ -114,6 +117,19 @@ export const generateTaskVideoScript = (taskId: string, params: GenerateVideoScr
   apiClient
     .post<{ script: VideoScript; cached: boolean }>(`/task-auto/tasks/${taskId}/video-script`, { ...params, force })
     .then(r => r.data)
+
+export const updateTaskVideoScript = (
+  taskId: string,
+  body: { content: string; hashtags?: string[]; translation?: { content: string; hashtags?: string[] } },
+) =>
+  apiClient
+    .patch<{ script: VideoScript }>(`/task-auto/tasks/${taskId}/video-script`, body)
+    .then(r => r.data.script)
+
+export const translateTaskVideoScript = (taskId: string, market?: string | null) =>
+  apiClient
+    .post<{ script: VideoScript }>(`/task-auto/tasks/${taskId}/video-script/translate`, { market })
+    .then(r => r.data.script)
 
 // ── Teams ─────────────────────────────────────────────────────────────────────
 
@@ -316,6 +332,30 @@ export const updateContentLine = (id: string, body: { a_type?: string | null }) 
 
 export const deleteContentLine = (id: string) =>
   apiClient.delete(`/task-auto/content-lines/${id}`).then(r => r.data)
+
+export const getProductClassifications = () =>
+  apiClient.get<ProductClassification[]>('/task-auto/product-classifications').then(r => r.data)
+
+export const createProductClassification = (name: string) =>
+  apiClient.post<ProductClassification>('/task-auto/product-classifications', { name }).then(r => r.data)
+
+export const updateProductClassification = (id: string, name: string) =>
+  apiClient.patch<ProductClassification>(`/task-auto/product-classifications/${id}`, { name }).then(r => r.data)
+
+export const deleteProductClassification = (id: string) =>
+  apiClient.delete(`/task-auto/product-classifications/${id}`).then(r => r.data)
+
+export const getContentClassifications = () =>
+  apiClient.get<ContentClassification[]>('/task-auto/content-classifications').then(r => r.data)
+
+export const createContentClassification = (name: string) =>
+  apiClient.post<ContentClassification>('/task-auto/content-classifications', { name }).then(r => r.data)
+
+export const updateContentClassification = (id: string, name: string) =>
+  apiClient.patch<ContentClassification>(`/task-auto/content-classifications/${id}`, { name }).then(r => r.data)
+
+export const deleteContentClassification = (id: string) =>
+  apiClient.delete(`/task-auto/content-classifications/${id}`).then(r => r.data)
 
 // ── Catalog — Products ────────────────────────────────────────────────────────
 
@@ -562,3 +602,17 @@ export interface MemberSourceStat {
 
 export const getTeamMemberSourceStats = (teamId: string, month?: string) =>
   apiClient.get<MemberSourceStat[]>(`/task-auto/teams/${teamId}/member-source-stats${qs({ month })}`).then(r => r.data)
+
+// ── Notifications ────────────────────────────────────────────────────────────
+
+export const getTaskNotifications = (q: { unread_only?: boolean; page?: number; limit?: number } = {}) =>
+  apiClient.get<PaginatedResult<Notification>>(`/task-auto/notifications${qs(q as any)}`).then(r => r.data)
+
+export const getTaskNotificationUnreadCount = () =>
+  apiClient.get<{ count: number }>('/task-auto/notifications/unread-count').then(r => r.data)
+
+export const markTaskNotificationRead = (id: string) =>
+  apiClient.patch<Notification>(`/task-auto/notifications/${id}/read`).then(r => r.data)
+
+export const markAllTaskNotificationsRead = () =>
+  apiClient.post<{ updated: number }>('/task-auto/notifications/read-all').then(r => r.data)
