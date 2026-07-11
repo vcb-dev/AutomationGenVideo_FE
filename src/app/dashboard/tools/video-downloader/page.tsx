@@ -16,7 +16,11 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const AI_SERVICE_URL = (process.env.NEXT_PUBLIC_AI_SERVICE_URL || 'http://localhost:8001').replace(/\/$/, '');
+// Gọi qua proxy same-origin /api/video-downloader/* (route.ts) thay vì thẳng AI_SERVICE_URL,
+// vì trang này có thể được mở từ máy khác qua Cloudflare Tunnel (extension VCB) — nếu gọi thẳng
+// biến NEXT_PUBLIC_AI_SERVICE_URL (đóng cứng lúc build, thường là localhost:8001) thì trình duyệt
+// người dùng ở xa sẽ cố kết nối tới localhost của chính họ và luôn thất bại.
+const PROXY_BASE = '/api/video-downloader';
 const POLL_INTERVAL_MS = 1200;
 
 const SUPPORTED = [
@@ -98,7 +102,7 @@ function VideoDownloaderInner() {
         setLoadingInfo(true);
         setInfo(null);
         try {
-            const res = await fetch(`${AI_SERVICE_URL}/api/tools/video-downloader/info/`, {
+            const res = await fetch(`${PROXY_BASE}/info`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
                 body: JSON.stringify({ url: u }),
@@ -122,7 +126,7 @@ function VideoDownloaderInner() {
 
     const fetchFinishedFile = async (jobId: string) => {
         try {
-            const res = await fetch(`${AI_SERVICE_URL}/api/tools/video-downloader/jobs/${jobId}/file/`, {
+            const res = await fetch(`${PROXY_BASE}/jobs/${jobId}/file`, {
                 headers: getAuthHeaders(),
             });
             if (!res.ok) {
@@ -159,7 +163,7 @@ function VideoDownloaderInner() {
         }
         setJob({ status: 'queued', percent: 0, message: 'Đang khởi tạo...' });
         try {
-            const res = await fetch(`${AI_SERVICE_URL}/api/tools/video-downloader/jobs/`, {
+            const res = await fetch(`${PROXY_BASE}/jobs`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
                 body: JSON.stringify({ url: u, type: format, quality }),
@@ -170,7 +174,7 @@ function VideoDownloaderInner() {
             const jobId = data.job_id as string;
             pollRef.current = setInterval(async () => {
                 try {
-                    const sres = await fetch(`${AI_SERVICE_URL}/api/tools/video-downloader/jobs/${jobId}/`, {
+                    const sres = await fetch(`${PROXY_BASE}/jobs/${jobId}`, {
                         headers: getAuthHeaders(),
                     });
                     const sdata = await sres.json();
