@@ -1,27 +1,23 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Search, Plus, Edit2, Trash2, Loader2, Package, ChevronLeft, ChevronRight, ImageIcon } from 'lucide-react'
+import { Search, Plus, Edit2, Trash2, Package, ChevronLeft, ChevronRight, ImageIcon } from 'lucide-react'
 import { cn, driveImageUrl } from '@/lib/utils'
-import { DarkModal } from '@/components/task-auto/DarkModal'
-import { DarkInput, CreatableSelect } from '@/components/task-auto/DarkInput'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { HeaderFilterDropdown } from '@/components/task-auto/HeaderFilterDropdown'
 import {
-  getProducts, createProduct, updateProduct, deleteProduct,
+  getProducts, deleteProduct,
   getProductLines, createProductLine, deleteProductLine,
   getMaterials, createMaterial, deleteMaterial,
   getProductClassifications, createProductClassification, deleteProductClassification,
-  createSource, getAutoAssignSettings,
 } from '@/lib/api/task-auto'
 import { useAuthStore } from '@/store/auth-store'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
-import { parseMarkets, formatPrice, defaultSource } from './product-utils'
-import type { SourceDraft } from './product-utils'
-import { MarketBadge, LoadingRows, MiniList, MarketPicker, PriceInput, MultiImagePicker, SourceForm } from './ProductFormFields'
-import type { MultiImagePickerHandle } from './ProductFormFields'
+import { parseMarkets, formatPrice } from './product-utils'
+import { MarketBadge, LoadingRows, MiniList } from './ProductFormFields'
+import { ProductFormModal } from '@/components/task-auto/ProductFormModal'
 import { ProductViewModal } from '@/components/task-auto/ProductViewModal'
 import { Product } from '@/types/task-auto'
 
@@ -41,15 +37,7 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
   const [viewProduct, setViewProduct] = useState<Product | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [showCatalogPanel, setShowCatalogPanel] = useState(false)
-  const [form, setForm] = useState<Partial<Product> & { image_urls: string[] }>({
-    sku: '', name: '', image_urls: [], price: '',
-    price_segment: '', priority_score: 0, cooldown_days: null, material_id: '', product_line_id: '', classification_id: '', is_active: true,
-  })
-  const [markets, setMarkets] = useState<string[]>(['VIETNAM'])
-  const [sourceDraft, setSourceDraft] = useState<SourceDraft>(defaultSource)
-  const imagePickerRef = useRef<MultiImagePickerHandle>(null)
 
-  const { data: autoAssignSettings } = useQuery({ queryKey: ['task-auto', 'auto-assign-settings'], queryFn: getAutoAssignSettings })
   const { data: productLines } = useQuery({ queryKey: ['task-auto', 'product-lines'], queryFn: () => getProductLines() })
   const { data: materials } = useQuery({ queryKey: ['task-auto', 'materials', brandType], queryFn: () => getMaterials(brandType) })
   const { data: productClassifications } = useQuery({ queryKey: ['task-auto', 'product-classifications'], queryFn: () => getProductClassifications() })
@@ -67,57 +55,6 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
   })
 
   const refresh = () => qc.refetchQueries({ queryKey: ['task-auto', 'products'] })
-
-  const buildBody = async () => {
-    const image_urls = await imagePickerRef.current!.resolvePending(form.image_urls)
-    return {
-      name: form.name,
-      brand_type: brandType,
-      image_urls,
-      price: form.price || undefined,
-      market: markets.join(','),
-      price_segment: form.price_segment || undefined,
-      priority_score: form.priority_score,
-      cooldown_days: form.cooldown_days ?? null,
-      material_id: form.material_id || null,
-      product_line_id: form.product_line_id || null,
-      classification_id: form.classification_id || null,
-      is_active: form.is_active,
-    }
-  }
-
-  const createMut = useMutation({
-    mutationFn: async () => {
-      const product = await createProduct({ sku: form.sku, ...await buildBody() })
-      if (sourceDraft.enabled && sourceDraft.name && sourceDraft.link) {
-        await createSource({
-          type: sourceDraft.type, name: sourceDraft.name, link: sourceDraft.link,
-          code: sourceDraft.code || undefined, product_id: product.id, is_active: true,
-        } as any).catch(() => null)
-        qc.invalidateQueries({ queryKey: ['task-auto', 'sources'] })
-      }
-      return product
-    },
-    onSuccess: async () => { await refresh(); toast.success('Đã thêm sản phẩm'); setModal(null) },
-    onError: (e: any) => toast.error(e?.response?.data?.message || 'Không thể thêm sản phẩm'),
-  })
-
-  const updateMut = useMutation({
-    mutationFn: async () => {
-      const id = editing!.id
-      const product = await updateProduct(id, await buildBody())
-      if (sourceDraft.enabled && sourceDraft.name && sourceDraft.link) {
-        await createSource({
-          type: sourceDraft.type, name: sourceDraft.name, link: sourceDraft.link,
-          code: sourceDraft.code || undefined, product_id: id, is_active: true,
-        } as any).catch(() => null)
-        qc.invalidateQueries({ queryKey: ['task-auto', 'sources'] })
-      }
-      return product
-    },
-    onSuccess: async () => { await refresh(); toast.success('Đã cập nhật sản phẩm'); setModal(null) },
-    onError: (e: any) => toast.error(e?.response?.data?.message || 'Không thể cập nhật sản phẩm'),
-  })
 
   const createLineMut = useMutation({
     mutationFn: ({ name }: { name: string }) => createProductLine(name),
@@ -151,29 +88,14 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
   })
 
   const openCreate = () => {
-    setForm({ sku: '', name: '', image_urls: [], price: '', price_segment: '', priority_score: 0, cooldown_days: null, material_id: '', product_line_id: '', classification_id: '', is_active: true })
-    setMarkets(['VIETNAM'])
-    setSourceDraft(defaultSource)
     setEditing(null)
     setModal('create')
   }
 
   const openEdit = (p: Product) => {
-    const image_urls = p.image_urls?.length ? p.image_urls : (p.image_url ? [p.image_url] : [])
-    setForm({ ...p, image_urls })
-    setMarkets(parseMarkets(p.market))
-    setSourceDraft(defaultSource)
     setEditing(p)
     setViewProduct(null)
     setModal('edit')
-  }
-
-  const handleSubmit = () => {
-    if (!form.sku || !form.name) return toast.error('SKU và tên là bắt buộc')
-    if (markets.length === 0) return toast.error('Chọn ít nhất một thị trường')
-    if (sourceDraft.enabled && (!sourceDraft.name || !sourceDraft.link)) return toast.error('Source cần có tên và link')
-    if (modal === 'create') createMut.mutate()
-    else if (editing) updateMut.mutate()
   }
 
   const deleteMut = useMutation({
@@ -186,7 +108,6 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
     },
   })
 
-  const saving = createMut.isPending || updateMut.isPending
   const total = data?.total ?? 0
 
   return (
@@ -488,180 +409,16 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
       </div>
 
       {/* Create / Edit modal */}
-      <DarkModal
-        open={!!modal}
-        onClose={() => setModal(null)}
-        title={modal === 'create' ? 'Thêm sản phẩm mới' : 'Chỉnh sửa sản phẩm'}
-        size="xl"
-        footer={
-          <>
-            <button onClick={() => setModal(null)} className="bg-gray-100 hover:bg-gray-200 text-slate-800 rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors">
-              Hủy
-            </button>
-            <button onClick={handleSubmit} disabled={saving || markets.length === 0}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors disabled:opacity-60">
-              {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              {modal === 'create' ? 'Thêm mới' : 'Lưu thay đổi'}
-            </button>
-          </>
-        }
-      >
-        <div className="space-y-6">
-
-          {/* Thông tin cơ bản */}
-          <div className="space-y-4">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
-              Thông tin cơ bản
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <DarkInput
-                label="SKU *"
-                placeholder="VD: NM101"
-                value={form.sku ?? ''}
-                onChange={e => setForm(f => ({ ...f, sku: e.target.value }))}
-              />
-              <MarketPicker label="Thị trường" value={markets} onChange={setMarkets} />
-            </div>
-            <DarkInput
-              label="Tên sản phẩm *"
-              placeholder="Nhập tên sản phẩm đầy đủ..."
-              value={form.name ?? ''}
-              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-            />
-          </div>
-
-          {/* Phân loại & Giá */}
-          <div className="space-y-4">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
-              Phân loại & Giá
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <CreatableSelect
-                label="Dòng sản phẩm"
-                value={form.product_line_id ?? ''}
-                onChange={v => setForm(f => ({ ...f, product_line_id: v }))}
-                options={productLines?.map(l => ({ value: l.id, label: l.name })) ?? []}
-                createLabel="Thêm dòng sản phẩm"
-                onCreate={async (name) => {
-                  const created = await createProductLine(name)
-                  qc.setQueryData<typeof productLines>(
-                    ['task-auto', 'product-lines'],
-                    old => [...(old ?? []), created]
-                  )
-                  return { id: created.id, label: created.name }
-                }}
-              />
-              <CreatableSelect
-                label="Chất liệu"
-                value={form.material_id ?? ''}
-                onChange={v => setForm(f => ({ ...f, material_id: v }))}
-                options={materials?.map(m => ({ value: m.id, label: m.name })) ?? []}
-                createLabel="Thêm chất liệu"
-                onCreate={async (name) => {
-                  const created = await createMaterial(name, brandType)
-                  qc.setQueryData<typeof materials>(
-                    ['task-auto', 'materials', brandType],
-                    old => [...(old ?? []), created]
-                  )
-                  return { id: created.id, label: created.name }
-                }}
-              />
-              <CreatableSelect
-                label="Phân loại sản phẩm"
-                value={form.classification_id ?? ''}
-                onChange={v => setForm(f => ({ ...f, classification_id: v }))}
-                options={productClassifications?.map(c => ({ value: c.id, label: c.name })) ?? []}
-                createLabel="Thêm phân loại sản phẩm"
-                onCreate={async (name) => {
-                  const created = await createProductClassification(name)
-                  qc.setQueryData<typeof productClassifications>(
-                    ['task-auto', 'product-classifications'],
-                    old => [...(old ?? []), created]
-                  )
-                  return { id: created.id, label: created.name }
-                }}
-              />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <PriceInput
-                label="Giá bán (₫)"
-                value={form.price ?? ''}
-                onChange={v => setForm(f => ({ ...f, price: v }))}
-              />
-              <DarkInput
-                label="Phân khúc giá"
-                placeholder="VD: MID, HIGH"
-                value={form.price_segment ?? ''}
-                onChange={e => setForm(f => ({ ...f, price_segment: e.target.value }))}
-              />
-              <DarkInput
-                label="Điểm ưu tiên"
-                type="number"
-                placeholder="0"
-                value={form.priority_score ?? 0}
-                onChange={e => setForm(f => ({ ...f, priority_score: Number(e.target.value) }))}
-                min={0}
-              />
-              <div>
-                <DarkInput
-                  label="Giãn cách giao lại SP (ngày)"
-                  type="number"
-                  placeholder={`Mặc định: ${autoAssignSettings?.default_cooldown_days ?? 5} ngày`}
-                  value={form.cooldown_days ?? ''}
-                  onChange={e => setForm(f => ({ ...f, cooldown_days: e.target.value === '' ? null : Number(e.target.value) }))}
-                  min={0}
-                />
-                <p className="text-xs text-slate-400 mt-1.5 leading-snug">
-                  Sau khi giao cho 1 editor, phải chờ đủ số ngày này mới được giao lại SP này cho chính người đó. Để trống = dùng mặc định hệ thống.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Hình ảnh */}
-          <div className="space-y-4">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
-              Hình ảnh sản phẩm
-            </p>
-            <MultiImagePicker
-              ref={imagePickerRef}
-              values={form.image_urls ?? []}
-              onChange={urls => setForm(f => ({ ...f, image_urls: urls }))}
-            />
-          </div>
-
-          {/* Trạng thái */}
-          <div className="space-y-3">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
-              Trạng thái
-            </p>
-            <div className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3 border border-gray-200">
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" checked={form.is_active ?? true}
-                  onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))}
-                  className="sr-only peer" />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-indigo-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5" />
-              </label>
-              <div>
-                <p className="text-sm font-semibold text-slate-800">
-                  {form.is_active ? 'Đang hoạt động' : 'Không hoạt động'}
-                </p>
-                <p className="text-xs text-slate-500">
-                  {form.is_active ? 'Sản phẩm hiển thị và có thể dùng trong task' : 'Sản phẩm bị ẩn khỏi danh sách'}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Source */}
-          <div className="space-y-3">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
-              Source đi kèm <span className="text-gray-300 font-normal normal-case tracking-normal">(tuỳ chọn)</span>
-            </p>
-            <SourceForm value={sourceDraft} onChange={setSourceDraft} />
-          </div>
-        </div>
-      </DarkModal>
+      {modal && (
+        <ProductFormModal
+          open
+          editing={editing}
+          defaultBrandType={brandType}
+          lockBrandType
+          onClose={() => setModal(null)}
+          onSuccess={() => { refresh(); setModal(null) }}
+        />
+      )}
 
       {viewProduct && (
         <ProductViewModal

@@ -99,20 +99,22 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
     refetchOnWindowFocus: true,
   })
 
-  // ✅ Query từ bất kỳ content ID nào available
-  const contentIdToQuery = task?.content_id ?? task?.editor_content_id ?? task?.team_content_id
+  // ✅ Chỉ query full content khi có content_id toàn cục (endpoint /task-auto/contents/:id
+  // chỉ tìm trong bảng content global). editor_content/team_content đã được include sẵn trong
+  // `task` và được resolve qua fallback chain bên dưới.
   const { data: fullContent } = useQuery({
-    queryKey: ['task-auto', 'content', contentIdToQuery],
-    queryFn: () => getContent(contentIdToQuery!),
-    enabled: !!contentIdToQuery,
+    queryKey: ['task-auto', 'content', task?.content_id],
+    queryFn: () => getContent(task!.content_id!),
+    enabled: !!task?.content_id,
   })
 
-  // ✅ Query từ bất kỳ product ID nào available
-  const productIdToQuery = task?.product_id ?? task?.editor_product_id ?? task?.team_product_id
+  // ✅ Chỉ query full product khi có product_id toàn cục (endpoint /task-auto/products/:id
+  // chỉ tìm trong bảng `products`). editor_product/team_product đã được include sẵn trong
+  // `task` và được resolve qua fallback chain bên dưới (teamProductResolved/globalProductResolved).
   const { data: fullProduct } = useQuery({
-    queryKey: ['task-auto', 'product', productIdToQuery],
-    queryFn: () => getProduct(productIdToQuery!),
-    enabled: !!productIdToQuery,
+    queryKey: ['task-auto', 'product', task?.product_id],
+    queryFn: () => getProduct(task!.product_id!),
+    enabled: !!task?.product_id,
   })
 
   const { data: productSourcesData } = useQuery({

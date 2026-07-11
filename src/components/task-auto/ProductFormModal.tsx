@@ -15,7 +15,7 @@ import {
 import type { MultiImagePickerHandle } from '@/app/dashboard/task-auto/catalog/components/ProductsTab/ProductFormFields'
 import {
   createProduct, updateProduct, createProductLine, createMaterial, createSource,
-  createEditorProduct, createEditorSource, getEditorSources,
+  createEditorProduct, updateEditorProduct, createEditorSource, getEditorSources,
   getProductLines, getMaterials, getSources,
   getProductClassifications, createProductClassification, getAutoAssignSettings,
 } from '@/lib/api/task-auto'
@@ -28,11 +28,13 @@ interface Props {
   userId?: string
   title?: string
   defaultBrandType?: 'DO_DA' | 'TRANG_SUC'
+  /** Ẩn lựa chọn nhóm sản phẩm khi form được mở từ một tab đã cố định nhóm (VD: tab Đồ da/Trang sức riêng biệt). */
+  lockBrandType?: boolean
   onClose: () => void
   onSuccess: (product: Product) => void
 }
 
-export function ProductFormModal({ open, editing, userId, title, defaultBrandType = 'DO_DA', onClose, onSuccess }: Props) {
+export function ProductFormModal({ open, editing, userId, title, defaultBrandType = 'DO_DA', lockBrandType, onClose, onSuccess }: Props) {
   const qc = useQueryClient()
   const isEdit = !!editing
 
@@ -111,7 +113,9 @@ export function ProductFormModal({ open, editing, userId, title, defaultBrandTyp
         is_active: form.is_active,
       }
       const product = isEdit
-        ? await updateProduct(editing!.id, basePayload)
+        ? userId
+          ? await updateEditorProduct(userId, editing!.id, basePayload)
+          : await updateProduct(editing!.id, basePayload)
         : userId
           ? await createEditorProduct(userId, { sku: form.sku, ...basePayload })
           : await createProduct({ sku: form.sku, ...basePayload })
@@ -176,12 +180,21 @@ export function ProductFormModal({ open, editing, userId, title, defaultBrandTyp
           </div>
           <DarkInput label="Tên sản phẩm *" placeholder="Nhập tên sản phẩm đầy đủ..."
             value={form.name ?? ''} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-          <CustomSelect
-            label="Nhóm sản phẩm *"
-            value={brandType}
-            onChange={v => setBrandType(v as 'DO_DA' | 'TRANG_SUC')}
-            options={[{ value: 'DO_DA', label: 'Đồ da' }, { value: 'TRANG_SUC', label: 'Trang sức' }]}
-          />
+          {lockBrandType ? (
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Nhóm sản phẩm</label>
+              <div className="px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-slate-600">
+                {brandType === 'DO_DA' ? 'Đồ da' : 'Trang sức'}
+              </div>
+            </div>
+          ) : (
+            <CustomSelect
+              label="Nhóm sản phẩm *"
+              value={brandType}
+              onChange={v => setBrandType(v as 'DO_DA' | 'TRANG_SUC')}
+              options={[{ value: 'DO_DA', label: 'Đồ da' }, { value: 'TRANG_SUC', label: 'Trang sức' }]}
+            />
+          )}
         </div>
 
         <div className="space-y-4">
