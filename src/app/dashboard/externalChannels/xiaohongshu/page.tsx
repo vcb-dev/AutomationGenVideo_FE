@@ -260,7 +260,7 @@ function VideoSearchTab() {
 
   const [filterQ, setFilterQ] = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
-  const [sortBy, setSortBy] = useState<'likes' | 'date' | 'collects'>('likes');
+  const [sortBy, setSortBy] = useState<'scraped' | 'likes' | 'date' | 'collects'>('scraped');
   const [minLikes, setMinLikes] = useState('');
   const [keywordFilter, setKeywordFilter] = useState('');
   const filterTimer = useRef<NodeJS.Timeout>();
@@ -270,6 +270,9 @@ function VideoSearchTab() {
     filterTimer.current = setTimeout(() => setDebouncedQ(filterQ), 300);
     return () => clearTimeout(filterTimer.current);
   }, [filterQ]);
+
+  const hasFilters = !!filterQ || !!keywordFilter || !!minLikes || sortBy !== 'scraped';
+  const clearFilters = () => { setFilterQ(''); setKeywordFilter(''); setMinLikes(''); setSortBy('scraped'); };
 
   const videosQuery = useInfiniteQuery({
     queryKey: ['xhs-videos', debouncedQ, sortBy, minLikes, keywordFilter],
@@ -423,12 +426,18 @@ function VideoSearchTab() {
           placeholder="Min likes"
           className="w-28 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
         />
-        <select value={sortBy} onChange={e => setSortBy(e.target.value as 'likes' | 'date' | 'collects')}
+        <select value={sortBy} onChange={e => setSortBy(e.target.value as 'scraped' | 'likes' | 'date' | 'collects')}
           className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary">
+          <option value="scraped">Mới cào về</option>
           <option value="likes">Nhiều likes nhất</option>
           <option value="collects">Nhiều saves nhất</option>
-          <option value="date">Mới nhất</option>
+          <option value="date">Ngày đăng mới nhất</option>
         </select>
+        {hasFilters && (
+          <button onClick={clearFilters} className="px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50">
+            Xóa bộ lọc
+          </button>
+        )}
       </div>
 
       <h2 className="text-sm font-semibold text-foreground">

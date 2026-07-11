@@ -4,14 +4,17 @@ import { useQuery } from '@tanstack/react-query'
 import {
   CheckCircle2, Target, ArrowRight, Video, FileText, Package,
   CalendarClock, Flame, Send, XCircle, Zap, BarChart3, Award,
+  AlertTriangle, Clock,
 } from 'lucide-react'
 import Link from 'next/link'
+import type { ElementType } from 'react'
 import { cn } from '@/lib/utils'
 import { getTasks } from '@/lib/api/task-auto'
 import { useAuthStore } from '@/store/auth-store'
 import type { Task, TaskStatus } from '@/types/task-auto'
 import { StatCard } from './StatCard'
 import { StatusBar } from './StatusBar'
+import { DashboardCard, MetricStat } from './DashboardUI'
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -59,12 +62,12 @@ function getGreeting() {
   return 'Chào buổi tối'
 }
 
-const TONE_TEXT: Record<string, string> = {
-  danger:  'text-red-600',
-  warning: 'text-amber-600',
-  info:    'text-indigo-600',
-  success: 'text-emerald-600',
-  neutral: 'text-slate-400',
+const INSIGHT_STYLES: Record<string, { cls: string; icon: ElementType }> = {
+  danger:  { cls: 'bg-red-50 border border-red-100 text-red-600',       icon: AlertTriangle },
+  warning: { cls: 'bg-amber-50 border border-amber-100 text-amber-700', icon: Clock },
+  info:    { cls: 'bg-indigo-50 border border-indigo-100 text-indigo-600', icon: Target },
+  success: { cls: 'bg-emerald-50 border border-emerald-100 text-emerald-600', icon: Award },
+  neutral: { cls: 'bg-slate-50 border border-slate-100 text-slate-500', icon: Target },
 }
 
 function getInsight({ overdue, todayDeadline, rejected, hasKpi, remaining }: {
@@ -248,38 +251,27 @@ function PerformanceSummary({ tasks }: { tasks: Record<string, number> }) {
   const rejectionRate = total > 0 ? Math.round((rejected / total) * 100) : 0
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-slate-50 flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
-          <BarChart3 className="w-4 h-4 text-blue-600" />
-        </div>
-        <div>
-          <h2 className="text-base font-black text-slate-900 leading-tight">Hiệu suất cá nhân</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Tổng toàn thời gian</p>
-        </div>
-      </div>
+    <DashboardCard
+      icon={BarChart3} iconColor="text-blue-600" iconBg="bg-blue-50"
+      title="Hiệu suất cá nhân" subtitle="Tổng toàn thời gian"
+    >
       <div className="grid grid-cols-1 lg:grid-cols-5 lg:divide-x divide-slate-100">
         <div className="lg:col-span-2 grid grid-cols-2 divide-x divide-slate-100 border-b lg:border-b-0 border-slate-100">
-          <div className="px-4 py-5 text-center">
-            <p className="text-xs font-semibold text-slate-400 mb-1">Tỷ lệ duyệt</p>
-            <p className={cn('text-3xl font-black', approvalRate >= 80 ? 'text-emerald-600' : approvalRate >= 50 ? 'text-amber-500' : 'text-red-500')}>
-              {approvalRate}%
-            </p>
-            <p className="text-xs text-slate-400 mt-1">{approved}/{total} task</p>
-          </div>
-          <div className="px-4 py-5 text-center">
-            <p className="text-xs font-semibold text-slate-400 mb-1">Tỷ lệ từ chối</p>
-            <p className={cn('text-3xl font-black', rejectionRate > 20 ? 'text-red-500' : rejectionRate > 10 ? 'text-amber-500' : 'text-slate-600')}>
-              {rejectionRate}%
-            </p>
-            <p className="text-xs text-slate-400 mt-1">{rejected} bị từ chối</p>
-          </div>
+          <MetricStat
+            icon={CheckCircle2} label="Tỷ lệ duyệt" value={`${approvalRate}%`} sub={`${approved}/${total} task`}
+            tone={approvalRate >= 80 ? 'emerald' : approvalRate >= 50 ? 'amber' : 'red'}
+          />
+          <MetricStat
+            icon={XCircle} label="Tỷ lệ từ chối" value={`${rejectionRate}%`} sub={`${rejected} bị từ chối`}
+            tone={rejectionRate > 20 ? 'red' : rejectionRate > 10 ? 'amber' : 'slate'}
+            active={rejectionRate > 10}
+          />
         </div>
         <div className="lg:col-span-3 px-5 py-4">
           <StatusBar tasks={tasks} />
         </div>
       </div>
-    </div>
+    </DashboardCard>
   )
 }
 
@@ -297,14 +289,14 @@ function RejectedTasksPanel({ userId }: { userId: string }) {
   if (tasks.length === 0) return null
 
   return (
-    <div className="bg-red-50/60 rounded-2xl border border-red-200 overflow-hidden">
+    <div className="bg-red-50/60 rounded-2xl border border-red-200 shadow-sm shadow-red-100 overflow-hidden">
       <div className="px-5 py-4 border-b border-red-100/80 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
-            <XCircle className="w-4 h-4 text-red-600" />
+          <div className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+            <XCircle className="w-[18px] h-[18px] text-red-600" />
           </div>
           <div>
-            <h2 className="text-sm font-black text-red-800 leading-tight">Cần xử lý lại</h2>
+            <h2 className="text-sm font-black text-red-800 leading-tight tracking-tight">Cần xử lý lại</h2>
             <p className="text-xs text-red-500 mt-0.5">Task bị từ chối — cần chỉnh sửa và nộp lại</p>
           </div>
           <span className="ml-1 px-2.5 py-0.5 text-xs font-bold bg-red-200 text-red-700 rounded-full">
@@ -312,7 +304,7 @@ function RejectedTasksPanel({ userId }: { userId: string }) {
           </span>
         </div>
         <Link href="/dashboard/task-auto/tasks?status=REJECTED"
-          className="text-xs font-semibold text-red-600 hover:text-red-500 flex items-center gap-1">
+          className="shrink-0 text-xs font-semibold text-red-600 hover:text-red-500 flex items-center gap-1">
           Xem tất cả <ArrowRight className="w-3 h-3" />
         </Link>
       </div>
@@ -327,9 +319,10 @@ function RejectedTasksPanel({ userId }: { userId: string }) {
 
 function DailyProgress({ userId }: { userId: string }) {
   const today = new Date().toISOString().split('T')[0]
-  const dateLabel = new Date().toLocaleDateString('vi-VN', {
+  const rawDateLabel = new Date().toLocaleDateString('vi-VN', {
     weekday: 'long', day: 'numeric', month: 'numeric',
   })
+  const dateLabel = rawDateLabel.charAt(0).toUpperCase() + rawDateLabel.slice(1)
 
   const { data: todayData } = useQuery({
     queryKey: ['task-auto', 'tasks-today', userId, today],
@@ -367,26 +360,12 @@ function DailyProgress({ userId }: { userId: string }) {
   const barCls  = pct === 100 ? 'bg-emerald-500' : pct >= 60 ? 'bg-indigo-500' : 'bg-amber-400'
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col overflow-hidden">
-      {/* Header */}
-      <div className="px-6 pt-5 pb-4 border-b border-slate-50">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0">
-              <CalendarClock className="w-4.5 h-4.5 text-indigo-600" />
-            </div>
-            <div>
-              <h2 className="text-base font-black text-slate-900 leading-tight">Tiến độ hôm nay</h2>
-              <p className="text-xs text-slate-400 mt-0.5 capitalize">{dateLabel}</p>
-            </div>
-          </div>
-          <Link href="/dashboard/task-auto/tasks"
-            className="text-sm font-semibold text-indigo-600 hover:text-indigo-500 flex items-center gap-1">
-            Xem tất cả <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
-      </div>
-
+    <DashboardCard
+      icon={CalendarClock} iconColor="text-indigo-600" iconBg="bg-indigo-50"
+      title="Tiến độ hôm nay" subtitle={dateLabel}
+      action={{ href: '/dashboard/task-auto/tasks', label: 'Xem tất cả' }}
+      className="flex flex-col"
+    >
       {/* Progress summary */}
       <div className="px-6 py-4 border-b border-slate-50">
         <div className="flex items-center gap-5">
@@ -449,7 +428,7 @@ function DailyProgress({ userId }: { userId: string }) {
           </div>
         )}
       </div>
-    </div>
+    </DashboardCard>
   )
 }
 
@@ -481,13 +460,16 @@ export function PersonalDashboard({ d }: { d: any }) {
     <div className="space-y-5">
 
       {/* ── Greeting & insight ── */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-black text-slate-900">{getGreeting()}, {firstName}</h1>
-          <p className={cn('text-sm font-semibold mt-1', TONE_TEXT[insight.tone])}>{insight.text}</p>
+      <div className="bg-gradient-to-br from-indigo-50 via-white to-white border border-indigo-100/60 rounded-2xl shadow-sm shadow-slate-200/60 px-6 py-5 flex flex-wrap items-center justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="text-xl font-black text-slate-900 tracking-tight">{getGreeting()}, {firstName}</h1>
+          <div className={cn('inline-flex items-center gap-1.5 mt-2 text-xs font-semibold px-3 py-1.5 rounded-full', INSIGHT_STYLES[insight.tone].cls)}>
+            {(() => { const Icon = INSIGHT_STYLES[insight.tone].icon; return <Icon className="w-3.5 h-3.5 shrink-0" /> })()}
+            {insight.text}
+          </div>
         </div>
         {kpi && (
-          <div className="flex items-center gap-2 shrink-0 bg-white border border-slate-100 rounded-xl px-4 py-2.5 shadow-sm">
+          <div className="flex items-center gap-2 shrink-0 bg-white/90 border border-indigo-100 rounded-xl px-4 py-2.5 shadow-sm">
             <Target className="w-4 h-4 text-indigo-500" />
             <span className="text-sm text-slate-500">KPI tháng {formatMonth(kpi.month)}:</span>
             <span className={cn('text-sm font-black', kpiPctCls)}>{kpiPct}%</span>
@@ -539,26 +521,11 @@ export function PersonalDashboard({ d }: { d: any }) {
         {user?.id && <DailyProgress userId={user.id} />}
 
         {/* Right: KPI */}
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-          {/* Card header */}
-          <div className="px-6 pt-5 pb-4 border-b border-slate-50">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0">
-                  <Target className="w-4.5 h-4.5 text-indigo-600" />
-                </div>
-                <div>
-                  <h2 className="text-base font-black text-slate-900 leading-tight">KPI cá nhân</h2>
-                  {kpi && <p className="text-xs text-slate-400 mt-0.5">{formatMonth(kpi.month)}</p>}
-                </div>
-              </div>
-              <Link href="/dashboard/task-auto/kpi"
-                className="text-sm font-semibold text-indigo-600 hover:text-indigo-500 flex items-center gap-1">
-                Chi tiết <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-            </div>
-          </div>
-
+        <DashboardCard
+          icon={Target} iconColor="text-indigo-600" iconBg="bg-indigo-50"
+          title="KPI cá nhân" subtitle={kpi ? formatMonth(kpi.month) : undefined}
+          action={{ href: '/dashboard/task-auto/kpi', label: 'Chi tiết' }}
+        >
           {kpi ? (
             <div className="px-6 py-5 space-y-4">
 
@@ -675,7 +642,7 @@ export function PersonalDashboard({ d }: { d: any }) {
               </Link>
             </div>
           )}
-        </div>
+        </DashboardCard>
       </div>
 
       {/* ── Lifetime performance ── */}

@@ -1,0 +1,25 @@
+{
+    "manifest_version": 3,
+    "name": "VCB Video Downloader",
+    "version": "1.0.0",
+    "description": "Tải video từ YouTube, TikTok, Facebook, Instagram... bằng 1 cú click qua hệ thống VCB.",
+    "action": {
+        "default_title": "Tải video này qua VCB"
+    },
+    "background": {
+        "service_worker": "background.js"
+    },
+    "options_ui": {
+        "page": "options.html",
+        "open_in_tab": true
+    },
+    "permissions": [
+        "activeTab",
+        "storage"
+    ],
+    "icons": {
+        "16": "icon16.png",
+        "48": "icon48.png",
+        "128": "icon128.png"
+    }
+}

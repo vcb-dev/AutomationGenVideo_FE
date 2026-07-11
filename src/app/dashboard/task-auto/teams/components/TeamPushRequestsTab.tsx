@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { Loader2, Package, FileText, Users, Check, X, Inbox } from 'lucide-react'
@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { EmptyState } from '@/components/task-auto/EmptyState'
+import { Pagination, PAGE_SIZE } from '@/components/task-auto/Pagination'
 import { getTeams, getTeamPushRequests, reviewPushRequest } from '@/lib/api/task-auto'
 import type { TeamPushRequest } from '@/types/task-auto'
 
@@ -73,6 +74,7 @@ interface Props {
 export function TeamPushRequestsTab({ isAdminOrManager, userId, selectedTeamId, setSelectedTeamId }: Props) {
   const qc = useQueryClient()
   const [statusFilter, setStatusFilter] = useState<'PENDING' | 'APPROVED' | 'REJECTED' | ''>('PENDING')
+  const [page, setPage] = useState(1)
   const [rejecting, setRejecting] = useState<TeamPushRequest | null>(null)
 
   const { data: teams } = useQuery({ queryKey: ['task-auto', 'teams'], queryFn: getTeams })
@@ -89,6 +91,9 @@ export function TeamPushRequestsTab({ isAdminOrManager, userId, selectedTeamId, 
     queryFn: () => getTeamPushRequests(effectiveTeamId, statusFilter || undefined),
     enabled: !!effectiveTeamId,
   })
+
+  useEffect(() => { setPage(1) }, [effectiveTeamId, statusFilter])
+  const paginated = (requests ?? []).slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const approve = useMutation({
     mutationFn: (id: string) => reviewPushRequest(id, 'APPROVED'),
@@ -157,7 +162,7 @@ export function TeamPushRequestsTab({ isAdminOrManager, userId, selectedTeamId, 
               {!isLoading && !requests?.length && (
                 <tr><td colSpan={7}><EmptyState icon={Inbox} title="Không có yêu cầu nào" /></td></tr>
               )}
-              {requests?.map(r => {
+              {paginated.map(r => {
                 const isProduct = r.type === 'PRODUCT'
                 const name = isProduct
                   ? (r.editor_product?.name ?? '—')
@@ -222,6 +227,9 @@ export function TeamPushRequestsTab({ isAdminOrManager, userId, selectedTeamId, 
             </tbody>
           </table>
         </div>
+        {!isLoading && !!requests?.length && (
+          <Pagination page={page} totalItems={requests.length} onPageChange={setPage} />
+        )}
       </div>
 
       {rejecting && <RejectModal request={rejecting} onClose={() => setRejecting(null)} />}

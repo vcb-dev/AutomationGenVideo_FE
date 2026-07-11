@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import { useQuery } from '@tanstack/react-query'
+import toast from 'react-hot-toast'
 import {
   Package, X, Star, Trash2, Download,
   ChevronLeft, ChevronRight, Edit2, ZoomIn, Database, ExternalLink,
@@ -143,12 +144,24 @@ export function ProductViewModal({
   const loadingSrc = loadingGlobalSrc || loadingTeamSrc || loadingEditorSrc || loadingGlobalForTeam
 
   const downloadImage = async (url: string, name: string) => {
+    const toastId = toast.loading('Đang tải ảnh...')
     try {
-      const res = await fetch(url, { mode: 'cors' })
+      const proxyUrl = `/api/capture-image?url=${encodeURIComponent(url)}`
+      const res = await fetch(proxyUrl)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const blob = await res.blob()
-      const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: name })
-      document.body.appendChild(a); a.click(); document.body.removeChild(a)
-    } catch { window.open(url, '_blank') }
+      const objectUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = objectUrl
+      a.download = name
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(objectUrl)
+      toast.success('Đã tải ảnh thành công', { id: toastId })
+    } catch {
+      toast.error('Không thể tải ảnh', { id: toastId })
+    }
   }
 
   if (!open) return null

@@ -43,6 +43,9 @@ export default function TiktokExternalPage() {
     return () => clearTimeout(profileSearchTimer.current);
   }, [profileSearch]);
 
+  const hasProfileFilters = !!profileSearch || profileSortBy !== 'followers';
+  const clearProfileFilters = () => { setProfileSearch(''); setProfileSortBy('followers'); };
+
   // Search state
   const [keyword, setKeyword] = useState('');
   const [numPosts, setNumPosts] = useState('30');
@@ -97,7 +100,7 @@ export default function TiktokExternalPage() {
   const [filterSearch, setFilterSearch] = useState('');
   const [filterKeyword, setFilterKeyword] = useState('');
   const [minPlays, setMinPlays] = useState('');
-  const [sortBy, setSortBy] = useState('date');
+  const [sortBy, setSortBy] = useState('scraped');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [debouncedFilter, setDebouncedFilter] = useState('');
@@ -108,8 +111,8 @@ export default function TiktokExternalPage() {
     return () => clearTimeout(filterTimer.current);
   }, [filterSearch]);
 
-  const hasFilters = !!debouncedFilter || !!filterKeyword || !!minPlays || !!dateFrom || !!dateTo || sortBy !== 'date';
-  const clearFilters = () => { setFilterSearch(''); setFilterKeyword(''); setMinPlays(''); setDateFrom(''); setDateTo(''); setSortBy('date'); };
+  const hasFilters = !!debouncedFilter || !!filterKeyword || !!minPlays || !!dateFrom || !!dateTo || sortBy !== 'scraped';
+  const clearFilters = () => { setFilterSearch(''); setFilterKeyword(''); setMinPlays(''); setDateFrom(''); setDateTo(''); setSortBy('scraped'); };
 
   const notifIdRef = useRef<string | null>(null);
 
@@ -132,7 +135,7 @@ export default function TiktokExternalPage() {
     },
     onSuccess: (data) => {
       toast.success(data.message);
-      setSortBy('date');
+      setSortBy('scraped');
       queryClient.invalidateQueries({ queryKey: ['tiktok-videos'] });
       if (notifIdRef.current) {
         updateNotification(notifIdRef.current, {
@@ -381,7 +384,8 @@ export default function TiktokExternalPage() {
               onChange={e => setSortBy(e.target.value)}
               className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
-              <option value="date">Mới nhất</option>
+              <option value="scraped">Mới cào về</option>
+              <option value="date">Ngày đăng mới nhất</option>
               <option value="plays">Nhiều plays nhất</option>
               <option value="likes">Nhiều likes nhất</option>
             </select>
@@ -495,6 +499,11 @@ export default function TiktokExternalPage() {
               <option value="followers">Nhiều followers nhất</option>
               <option value="recent">Mới thêm gần đây</option>
             </select>
+            {hasProfileFilters && (
+              <button onClick={clearProfileFilters} className="px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50">
+                Xóa bộ lọc
+              </button>
+            )}
           </div>
 
           {/* Profiles count */}

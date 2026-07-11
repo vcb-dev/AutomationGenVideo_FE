@@ -13,8 +13,9 @@ import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { ContentStatusBadge } from '@/components/task-auto/StatusBadge'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
+import { HeaderFilterDropdown } from '@/components/task-auto/HeaderFilterDropdown'
 import {
-  parseMarkets, MarketPicker, VoicePicker,
+  parseMarkets, MarketPicker, VoicePicker, ContentFilePicker,
 } from '@/components/task-auto/ContentFormModal'
 import type { VoicePickerHandle } from '@/components/task-auto/ContentFormModal'
 import { DarkInput, DarkTextarea } from '@/components/task-auto/DarkInput'
@@ -162,8 +163,40 @@ function ImportModal({
     ? (globalData?.data ?? [])
     : (teamData ?? [])
 
+  // Content được đẩy lên kho tổng/kho team từ kho khác có title/body rỗng ở bản ghi gốc —
+  // dữ liệu thật nằm ở source_team_content (kho tổng) hoặc source_editor_content (kho team).
+  const resolveImportItem = (c: Content | TeamContent) => {
+    if (scope === 'global') {
+      const g = c as Content
+      const tc = g.source_team_content
+      const tc_ec = tc?.source_editor_content
+      return {
+        title: g.title || tc?.title || tc_ec?.title || '',
+        body: g.body ?? tc?.body ?? tc_ec?.body ?? null,
+        script: g.script ?? tc?.script ?? tc_ec?.script ?? null,
+        fileContentUrl: g.file_content_url ?? tc?.file_content_url ?? tc_ec?.file_content_url ?? null,
+        voiceUrl: g.voice_url ?? tc?.voice_url ?? tc_ec?.voice_url ?? null,
+        contentLineId: g.content_line_id ?? tc?.content_line?.id ?? tc_ec?.content_line?.id ?? null,
+        contentLine: g.content_line ?? tc?.content_line ?? tc_ec?.content_line ?? null,
+        market: g.market ?? tc?.market ?? tc_ec?.market ?? 'VIETNAM',
+      }
+    }
+    const t = c as TeamContent
+    const ec = t.source_editor_content
+    return {
+      title: t.title || ec?.title || '',
+      body: t.body ?? ec?.body ?? null,
+      script: t.script ?? ec?.script ?? null,
+      fileContentUrl: t.file_content_url ?? ec?.file_content_url ?? null,
+      voiceUrl: t.voice_url ?? ec?.voice_url ?? null,
+      contentLineId: t.content_line_id ?? ec?.content_line_id ?? null,
+      contentLine: t.content_line ?? ec?.content_line ?? null,
+      market: t.market ?? ec?.market ?? 'VIETNAM',
+    }
+  }
+
   const available = rawItems.filter(c => {
-    const title = c.title?.trim().toLowerCase() ?? ''
+    const title = resolveImportItem(c).title.trim().toLowerCase()
     if (myTitleSet.has(title)) return false
     if (scope === 'team' && search) return title.includes(search.toLowerCase())
     return true
@@ -184,16 +217,17 @@ function ImportModal({
           const sourceId = isTeamContent
             ? (c as TeamContent).source_content_id ?? undefined
             : c.id
+          const r = resolveImportItem(c)
           return createEditorContent(userId, {
             ...(sourceId ? { source_content_id: sourceId } : {}),
             brand_type: brandType,
-            title: c.title ?? undefined,
-            body: c.body ?? undefined,
-            script: c.script ?? undefined,
-            file_content_url: c.file_content_url ?? undefined,
-            voice_url: c.voice_url ?? undefined,
-            content_line_id: (c as any).content_line_id ?? undefined,
-            market: (c.market ?? 'VIETNAM') as any,
+            title: r.title || undefined,
+            body: r.body ?? undefined,
+            script: r.script ?? undefined,
+            file_content_url: r.fileContentUrl ?? undefined,
+            voice_url: r.voiceUrl ?? undefined,
+            content_line_id: r.contentLineId ?? undefined,
+            market: r.market as any,
           } as any)
         })
       )
@@ -287,6 +321,7 @@ function ImportModal({
           )}
           {!isLoading && !loadingMyContents && available.map(c => {
             const selected = selectedIds.has(c.id)
+            const r = resolveImportItem(c)
             return (
               <button
                 key={c.id}
@@ -305,11 +340,11 @@ function ImportModal({
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-slate-800 text-sm truncate">
-                    {c.title || <span className="text-slate-400 italic font-normal">Chưa đặt tên</span>}
+                    {r.title || <span className="text-slate-400 italic font-normal">Chưa đặt tên</span>}
                   </p>
                   <div className="flex items-center gap-2 mt-0.5">
-                    {parseMarkets(c.market).map(m => <MarketBadge key={m} market={m} />)}
-                    {c.content_line?.name && <span className="text-xs text-slate-400">{c.content_line.name}</span>}
+                    {parseMarkets(r.market).map(m => <MarketBadge key={m} market={m} />)}
+                    {r.contentLine?.name && <span className="text-xs text-slate-400">{r.contentLine.name}</span>}
                   </div>
                 </div>
               </button>
@@ -447,11 +482,9 @@ function PersonalContentModal({
             value={form.body ?? ''}
             onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
           />
-          <DarkInput
-            label="URL file content"
-            placeholder="https://drive.google.com/..."
+          <ContentFilePicker
             value={form.file_content_url ?? ''}
-            onChange={e => setForm(f => ({ ...f, file_content_url: e.target.value }))}
+            onChange={url => setForm(f => ({ ...f, file_content_url: url }))}
           />
         </div>
         <div className="space-y-4">
@@ -473,6 +506,7 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM' }: Pro
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<ContentUsageStatus | ''>('')
+  const [contentLineFilter, setContentLineFilter] = useState('')
   const [month, setMonth] = useState('')
   const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
@@ -482,13 +516,16 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM' }: Pro
   const [pushItem, setPushItem] = useState<Content | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
+  const { data: contentLines } = useQuery({ queryKey: ['task-auto', 'content-lines'], queryFn: getContentLines })
+
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'my-contents', userId, brandType, teamMarket, search, statusFilter, month, page],
+    queryKey: ['task-auto', 'my-contents', userId, brandType, teamMarket, search, statusFilter, contentLineFilter, month, page],
     queryFn: () => getEditorContents(userId, {
       brand_type: brandType,
       market: teamMarket,
       search: search || undefined,
       status: statusFilter || undefined,
+      content_line_id: contentLineFilter || undefined,
       month: month || undefined,
       page, limit: 20,
     }),
@@ -569,7 +606,14 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM' }: Pro
             <thead>
               <tr className="bg-slate-50 border-b-2 border-gray-200">
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide w-[40%]">Tiêu đề</th>
-                <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Tuyến ND</th>
+                <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">
+                  <HeaderFilterDropdown
+                    label="Tuyến ND"
+                    value={contentLineFilter}
+                    onChange={v => { setContentLineFilter(v); setPage(1) }}
+                    options={(contentLines ?? []).map(l => ({ value: l.id, label: l.name }))}
+                  />
+                </th>
                 <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Thị trường</th>
                 <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Trạng thái</th>
                 {/* <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Người thêm</th> */}

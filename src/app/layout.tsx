@@ -10,7 +10,8 @@ import { LanguageProvider } from '@/contexts/SocialLanguageContext';
 
 const roboto = Roboto({
   subsets: ['latin', 'vietnamese'],
-  weight: ['400', '500', '700'],
+  weight: ['400', '500', '700', '900'],
+  variable: '--font-roboto',
   display: 'swap',
 });
 
@@ -26,7 +27,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="vi">
-      <body className={`${roboto.className} antialiased`}>
+      <body className={`${roboto.variable} font-sans antialiased`}>
         <AuthHydration />
         <ThemeProvider>
           <LanguageProvider>

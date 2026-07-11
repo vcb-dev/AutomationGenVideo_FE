@@ -26,6 +26,8 @@ import {
     Radio,
     FolderOpen,
     AudioLines,
+    Wand2,
+    DownloadCloud,
 } from "lucide-react";
 import { NavMenu } from "./types";
 
@@ -435,6 +437,7 @@ export function useNavMenus(
                 activePathPrefixes: [
                     "/dashboard/ai/clone-voice",
                     "/dashboard/ai/overview",
+                    "/dashboard/tools/video-downloader",
                 ] as string[],
                 sections: [
                     {
@@ -452,6 +455,18 @@ export function useNavMenus(
                                 href: "/dashboard/ai/clone-voice",
                                 icon: AudioLines,
                                 description: "Clone & tạo giọng nói AI từ văn bản, dịch kịch bản",
+                            },
+                        ],
+                    },
+                    {
+                        section: "CÔNG CỤ TẢI VIDEO",
+                        color: "violet" as const,
+                        items: [
+                            {
+                                label: "Tải video MXH",
+                                href: "/dashboard/tools/video-downloader",
+                                icon: DownloadCloud,
+                                description: "Tải MP4/MP3 từ YouTube, TikTok, Facebook... kèm Chrome extension",
                             },
                         ],
                     },

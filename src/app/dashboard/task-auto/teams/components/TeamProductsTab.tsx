@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { ShoppingBag, Plus, Search, X, ImageIcon, Edit2, Trash2, Upload } from 'lucide-react'
@@ -8,6 +8,8 @@ import { cn, driveImageUrl } from '@/lib/utils'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
+import { Pagination, PAGE_SIZE } from '@/components/task-auto/Pagination'
+import { HeaderFilterDropdown } from '@/components/task-auto/HeaderFilterDropdown'
 
 import type { TeamProduct } from '@/types/task-auto'
 import { getTeamProducts, getTeams, removeTeamProduct, pushTeamProductToGlobal, getTeamSources, pushTeamSourceToGlobal } from '@/lib/api/task-auto'
@@ -41,6 +43,8 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
   const [editingProduct, setEditingProduct] = useState<TeamProduct | null>(null)
   const [viewProduct, setViewProduct] = useState<TeamProduct | null>(null)
   const [search, setSearch] = useState('')
+  const [productLineFilter, setProductLineFilter] = useState('')
+  const [page, setPage] = useState(1)
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null)
   const [deletingProductName, setDeletingProductName] = useState('')
   const [pushingProduct, setPushingProduct] = useState<TeamProduct | null>(null)
@@ -105,13 +109,31 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
 
   const existingSkus = (teamProducts ?? []).map(tp => tp.sku ?? tp.source_editor_product?.sku ?? '').filter(Boolean)
 
-  const filtered = (teamProducts ?? []).filter(tp => {
+  const searched = (teamProducts ?? []).filter(tp => {
     if (!search) return true
     const q = search.toLowerCase()
     const effectiveName = tp.name ?? tp.source_editor_product?.name ?? ''
     const effectiveSku = tp.sku ?? tp.source_editor_product?.sku ?? ''
     return effectiveName.toLowerCase().includes(q) || effectiveSku.toLowerCase().includes(q)
   })
+
+  const productLineCountMap = new Map<string, { id: string; name: string; count: number }>()
+  for (const tp of searched) {
+    const line = tp.product_line
+    if (line) {
+      const e = productLineCountMap.get(line.id)
+      if (e) e.count++
+      else productLineCountMap.set(line.id, { id: line.id, name: line.name, count: 1 })
+    }
+  }
+  const productLineOptions = Array.from(productLineCountMap.values()).sort((a, b) => a.name.localeCompare(b.name, 'vi'))
+
+  const filtered = productLineFilter
+    ? searched.filter(tp => tp.product_line?.id === productLineFilter)
+    : searched
+
+  useEffect(() => { setPage(1) }, [selectedTeamId, brandType, month, search, productLineFilter])
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   return (
     <div className="space-y-5">
@@ -185,7 +207,15 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
                 <tr className="bg-slate-50 border-b-2 border-gray-200">
                   <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">SKU</th>
                   <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Sản phẩm</th>
-                  <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Dòng SP</th>
+                  <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">
+                    <HeaderFilterDropdown
+                      label="Dòng SP"
+                      value={productLineFilter}
+                      onChange={setProductLineFilter}
+                      options={productLineOptions.map(o => ({ value: o.id, label: o.name, count: o.count }))}
+                      totalCount={searched.length}
+                    />
+                  </th>
                   <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Thị trường</th>
                   <th className="text-right px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Giá bán</th>
                   <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Trạng thái</th>
@@ -238,7 +268,7 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
                 )}
 
                 {/* Rows */}
-                {!isLoading && filtered.map((tp: TeamProduct) => {
+                {!isLoading && paginated.map((tp: TeamProduct) => {
                   const ep = tp.source_editor_product
                   const tpName = tp.name ?? ep?.name ?? '—'
                   const tpSku = tp.sku ?? ep?.sku ?? null
@@ -392,6 +422,7 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
               </tbody>
             </table>
           </div>
+          <Pagination page={page} totalItems={filtered.length} onPageChange={setPage} />
         </div>
       )}
 

@@ -28,11 +28,20 @@ interface Channel {
 interface ChannelFormData {
   name: string; platform: string;
   link_channel: string; status: string;
+  owner_id: string;
+}
+
+interface OwnerOption {
+  id: string;
+  full_name: string;
+  email: string;
+  team?: string | null;
 }
 
 const EMPTY_FORM: ChannelFormData = {
   name: '', platform: 'facebook',
   link_channel: '', status: 'đang hoạt động',
+  owner_id: '',
 };
 
 const PLATFORMS = [
@@ -69,6 +78,10 @@ export default function InternalChannelsPage() {
   const { token, user } = useAuthStore();
   const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
   const isLeader = (user as any)?.roles?.includes(UserRole.LEADER);
+  const isAdmin = (user as any)?.roles?.includes(UserRole.ADMIN);
+  const isManager = (user as any)?.roles?.includes(UserRole.MANAGER);
+  // ADMIN/MANAGER có toàn quyền sửa/xóa kênh, không giới hạn team (khớp quyền BE)
+  const canManage = isLeader || isAdmin || isManager;
   const userTeam = (user as any)?.team ?? null;
 
   const [channels,      setChannels]      = useState<Channel[]>([]);
@@ -83,6 +96,7 @@ export default function InternalChannelsPage() {
   const [saving,        setSaving]        = useState(false);
   const [deleteTarget,  setDeleteTarget]  = useState<Channel | null>(null);
   const [deleting,      setDeleting]      = useState(false);
+  const [teamMembers,   setTeamMembers]   = useState<OwnerOption[]>([]);
 
   const statusDropRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -112,6 +126,21 @@ export default function InternalChannelsPage() {
 
   useEffect(() => { fetchChannels(); }, [fetchChannels]);
 
+  // Danh sách member để chọn chủ kênh (owner) khi sửa — LEADER chỉ thấy team mình,
+  // ADMIN/MANAGER thấy toàn bộ user (BE tự lọc theo role gọi API).
+  useEffect(() => {
+    if (!canManage) return;
+    (async () => {
+      try {
+        const res = await fetch(`${apiUrl}/users/team-members`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        setTeamMembers(await res.json());
+      } catch { /* không chặn UI nếu tải danh sách member thất bại */ }
+    })();
+  }, [apiUrl, token, canManage]);
+
   // ─── FILTER LOGIC ───
   const filtered = channels.filter(c => {
     const okPlat   = platFilter === 'all'   || c.platform?.toLowerCase() === platFilter;
@@ -133,10 +162,24 @@ export default function InternalChannelsPage() {
   const openEdit   = (ch: Channel) => {
     setEditTarget(ch);
     setForm({ name: ch.name, platform: ch.platform ?? 'facebook',
-      link_channel: ch.link_channel ?? '', status: ch.status ?? 'đang hoạt động' });
+      link_channel: ch.link_channel ?? '', status: ch.status ?? 'đang hoạt động',
+      owner_id: ch.owner?.id ?? '' });
     setShowModal(true);
   };
   const closeModal = () => { if (saving) return; setShowModal(false); setEditTarget(null); };
+
+  // Owner khả dụng để gán = member cùng team với kênh; luôn giữ owner hiện tại trong danh sách
+  // dù họ không (còn) khớp filter, để không làm mất lựa chọn đang hiển thị.
+  const ownerOptions: OwnerOption[] = (() => {
+    if (!editTarget) return [];
+    const teamName = editTarget.team?.name?.toLowerCase();
+    const base = teamMembers.filter(m => !teamName || m.team?.toLowerCase() === teamName);
+    const current = editTarget.owner;
+    if (current && !base.some(m => m.id === current.id)) {
+      return [{ id: current.id, full_name: current.full_name, email: current.email }, ...base];
+    }
+    return base;
+  })();
 
   const clearAllFilters = () => { setSearch(''); setPlatFilter('all'); setStatusFilter('all'); };
   const hasFilter = search || platFilter !== 'all' || statusFilter !== 'all';
@@ -146,7 +189,12 @@ export default function InternalChannelsPage() {
     setSaving(true);
     try {
       const isEdit = !!editTarget;
-      const body = form;
+      // owner_id chỉ có ý nghĩa khi sửa (create luôn tự gán owner = người tạo ở BE);
+      // để trống nghĩa là "không đổi chủ kênh".
+      const { owner_id, ...rest } = form;
+      const body: Record<string, string> = isEdit && owner_id
+        ? { ...rest, owner_id }
+        : rest;
       const res = await fetch(
         isEdit ? `${apiUrl}/channels/${editTarget!.id}` : `${apiUrl}/channels`,
         { method: isEdit ? 'PATCH' : 'POST',
@@ -293,7 +341,7 @@ export default function InternalChannelsPage() {
 
             {/* Column headers */}
             <div className={`grid px-7 py-4 border-b border-slate-100 bg-slate-50
-              ${isLeader
+              ${canManage
                 ? 'grid-cols-[2fr_1fr_1fr_1fr_88px]'
                 : 'grid-cols-[2fr_1fr_1fr_1fr]'} gap-6`}>
               <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Tên kênh</span>
@@ -357,7 +405,7 @@ export default function InternalChannelsPage() {
                   )}
                 </AnimatePresence>
               </div>
-              {isLeader && <span className="text-xs font-black text-slate-400 uppercase tracking-widest text-right">Thao tác</span>}
+              {canManage && <span className="text-xs font-black text-slate-400 uppercase tracking-widest text-right">Thao tác</span>}
             </div>
 
             {/* No results */}
@@ -381,7 +429,7 @@ export default function InternalChannelsPage() {
                       initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                       transition={{ delay: idx * 0.02 }}
                       className={`grid px-7 py-5 items-center hover:bg-slate-50/80 transition-colors group
-                        ${isLeader
+                        ${canManage
                           ? 'grid-cols-[2fr_1fr_1fr_1fr_88px]'
                           : 'grid-cols-[2fr_1fr_1fr_1fr]'} gap-6`}>
 
@@ -427,7 +475,7 @@ export default function InternalChannelsPage() {
                       </div>
 
                       {/* Actions */}
-                      {isLeader && (
+                      {canManage && (
                         <div className="flex items-center justify-end gap-1">
                           <button onClick={() => openEdit(ch)}
                             className="p-2.5 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
@@ -546,6 +594,25 @@ export default function InternalChannelsPage() {
                       className={`${inputCls} pl-11`} />
                   </div>
                 </div>
+
+                {editTarget && (
+                  <div>
+                    <label className={labelCls}>Chủ kênh (Owner)</label>
+                    <div className="relative">
+                      <select value={form.owner_id}
+                        onChange={e => setForm(f => ({ ...f, owner_id: e.target.value }))}
+                        className={`${inputCls} appearance-none pr-10 cursor-pointer`}>
+                        <option value="">-- Không đổi --</option>
+                        {ownerOptions.map(m => (
+                          <option key={m.id} value={m.id}>
+                            {m.full_name}{m.email ? ` (${m.email})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="px-8 pb-8 pt-2 flex gap-4">

@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { ContentStatusBadge } from '@/components/task-auto/StatusBadge'
 import { EmptyState } from '@/components/task-auto/EmptyState'
+import { HeaderFilterDropdown } from '@/components/task-auto/HeaderFilterDropdown'
 import { ContentFormModal, parseMarkets } from '@/components/task-auto/ContentFormModal'
 import {
   getContents, deleteContent,
@@ -198,16 +199,6 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
               className="min-w-[175px]"
             /> */}
             <CustomSelect
-              value={contentLineFilter}
-              onChange={v => { setContentLineFilter(v); setPage(1) }}
-              options={[
-                { value: '', label: 'Tất cả tuyến nội dung' },
-                ...(contentLines?.map(l => ({ value: l.id, label: l.name })) ?? []),
-              ]}
-              className="min-w-[200px]"
-              searchable
-            />
-            <CustomSelect
               value={marketFilter}
               onChange={v => { setMarketFilter(v); setPage(1) }}
               options={[
@@ -249,7 +240,14 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
               <thead>
                 <tr className="bg-slate-50 border-b-2 border-gray-200">
                   <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide w-[35%]">Tiêu đề</th>
-                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[15%]">Tuyến ND</th>
+                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[15%]">
+                    <HeaderFilterDropdown
+                      label="Tuyến ND"
+                      value={contentLineFilter}
+                      onChange={v => { setContentLineFilter(v); setPage(1) }}
+                      options={(contentLines ?? []).map(l => ({ value: l.id, label: l.name }))}
+                    />
+                  </th>
                   <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[9%]">Thị trường</th>
                   <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[13%]">Trạng thái</th>
                   <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[7%]">Lượt xem</th>
