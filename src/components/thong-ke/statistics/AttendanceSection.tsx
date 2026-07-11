@@ -62,7 +62,7 @@ function SelfCheckInModal({
     await onSubmit(selectedStatus, note.trim() || undefined);
   };
 
-  const statusOptions: AttendanceStatus[] = ['PRESENT', 'LATE', 'ABSENT', 'ON_LEAVE'];
+  const statusOptions: AttendanceStatus[] = ['PRESENT', 'ABSENT'];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -400,9 +400,7 @@ function BulkUpdateModal({
                     className="bg-slate-950/60 border border-white/[0.08] focus:border-blue-500 rounded-xl px-2 py-1.5 text-[10px] text-slate-200 outline-none w-28 cursor-pointer select-none font-bold"
                   >
                     <option value="PRESENT">Có mặt</option>
-                    <option value="LATE">Đi trễ</option>
                     <option value="ABSENT">Vắng</option>
-                    <option value="ON_LEAVE">Nghỉ phép</option>
                   </select>
 
                   <input
