@@ -14,7 +14,7 @@ import { TeamWarehouseTab } from './components/TeamWarehouseTab'
 import { TeamStatsTab } from './components/TeamStatsTab'
 import { TeamPushRequestsTab } from './components/TeamPushRequestsTab'
 import { UserRole } from '@/types/auth'
-import { getTeams } from '@/lib/api/task-auto'
+import { getTeams, isPrivilegedSourceTeamMember } from '@/lib/api/task-auto'
 import type { BrandType } from '@/types/task-auto'
 
 type TabId = 'members' | 'products' | 'contents' | 'sources' | 'warehouse' | 'stats' | 'push-requests'
@@ -70,6 +70,8 @@ export default function TeamsPage() {
   const scaleDataTeam = teams?.find(t => t.name === 'Scale Data')
   const scaleDataTeamId = scaleDataTeam?.id ?? ''
   const isScaleDataMember = isAdminOrManager || !!(scaleDataTeam?.members?.some((m: any) => m.user_id === user?.id))
+  // Quyền quản lý source xuyên team: Scale Data hoặc MEDIA (khớp BE ScaleDataSourceGuard/assertCanManageSource)
+  const canManageAnyTeamSources = isAdminOrManager || isPrivilegedSourceTeamMember(teams, user?.id)
 
   // Tab "Thống kê" hiển thị với mọi Scale Data member — luôn dùng Scale Data team ID
   const showStatsTab = isScaleDataMember && !!scaleDataTeamId
@@ -163,13 +165,13 @@ export default function TeamsPage() {
       {activeTab === 'sources' && (
         <TeamSourcesTab
           isAdminOrManager={isAdminOrManager}
-          isScaleData={isScaleDataMember}
+          isScaleData={canManageAnyTeamSources}
           userId={user?.id}
-          brandType={isScaleDataMember && !isAdminOrManager
+          brandType={canManageAnyTeamSources && !isAdminOrManager
             ? (teams?.find(t => t.id === sourceTeamId)?.brand_type ?? brand)
             : brand}
-          selectedTeamId={isScaleDataMember && !isAdminOrManager ? sourceTeamId : selectedTeamId}
-          setSelectedTeamId={isScaleDataMember && !isAdminOrManager ? setSourceTeamId : setSelectedTeamId}
+          selectedTeamId={canManageAnyTeamSources && !isAdminOrManager ? sourceTeamId : selectedTeamId}
+          setSelectedTeamId={canManageAnyTeamSources && !isAdminOrManager ? setSourceTeamId : setSelectedTeamId}
           month={month}
           setMonth={setMonth}
         />

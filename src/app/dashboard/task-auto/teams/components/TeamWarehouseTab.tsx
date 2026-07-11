@@ -19,7 +19,8 @@ import { ContentFormModal } from '@/components/task-auto/ContentFormModal'
 import { TeamProductFormModal } from './products/TeamProductFormModal'
 import {
   getTeams,
-  getTeamWarehouse, addTeamWarehouse, removeTeamWarehouse, pushTeamToMonth,
+  getTeamWarehouse, addTeamWarehouse, addTeamWarehouseProducts, updateTeamProductWarehouseQuantity,
+  removeTeamWarehouse, pushTeamToMonth,
   getTeamProducts, getTeamContents, getTeamSources,
   addTeamContent, addTeamSource,
   type WarehouseCatalogType,
@@ -58,6 +59,7 @@ function PickItemsModal({
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [quantities, setQuantities] = useState<Record<string, number>>({})
 
   const { data: teamProducts } = useQuery({
     queryKey: ['task-auto', 'team-products', teamId],
@@ -92,11 +94,15 @@ function PickItemsModal({
   }, [allItems, warehouseIds, search])
 
   const addMut = useMutation({
-    mutationFn: () => addTeamWarehouse(teamId, subTab as WarehouseCatalogType, month, [...selected]),
+    mutationFn: () =>
+      subTab === 'products'
+        ? addTeamWarehouseProducts(teamId, month, [...selected].map(id => ({ id, target_quantity: quantities[id] ?? 1 })))
+        : addTeamWarehouse(teamId, subTab as WarehouseCatalogType, month, [...selected]),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['task-auto', 'warehouse', 'team', teamId, month] })
       toast.success(`Đã thêm ${selected.size} mục vào kho ${month}`)
       setSelected(new Set())
+      setQuantities({})
       onAdded()
       onClose()
     },
@@ -133,6 +139,18 @@ function PickItemsModal({
               <input type="checkbox" className="w-4 h-4 accent-indigo-600" checked={selected.has(item.id)} onChange={() => toggle(item.id)} />
               <span className="text-sm text-slate-700 flex-1">{item.name ?? item.title ?? item.sku ?? item.id}</span>
               {item.sku && <span className="text-xs text-slate-400">{item.sku}</span>}
+              {subTab === 'products' && selected.has(item.id) && (
+                <span className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                  <span className="text-xs text-slate-400">SL video</span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={quantities[item.id] ?? 1}
+                    onChange={e => setQuantities(q => ({ ...q, [item.id]: Math.max(1, Number(e.target.value) || 1) }))}
+                    className="w-14 text-right text-sm font-semibold text-slate-800 bg-white border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                </span>
+              )}
             </label>
           ))}
         </div>
@@ -158,6 +176,24 @@ function PickItemsModal({
         </div>
       </div>
     </div>
+  )
+}
+
+// ── Product quantity cell (target_quantity — số video cần cho SP trong tháng) ──
+
+function ProductQuantityCell({ value, onSave }: { value: number; onSave: (v: number) => void }) {
+  const [draft, setDraft] = useState(value)
+  useEffect(() => setDraft(value), [value])
+
+  return (
+    <input
+      type="number"
+      min={1}
+      value={draft}
+      onChange={e => setDraft(Math.max(1, Number(e.target.value) || 1))}
+      onBlur={() => { if (draft !== value) onSave(draft) }}
+      className="w-16 text-right text-sm font-semibold text-slate-800 bg-transparent border border-transparent hover:border-gray-200 focus:border-indigo-400 focus:bg-white rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-400 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+    />
   )
 }
 
@@ -304,6 +340,16 @@ export function TeamWarehouseTab({
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Lỗi copy kho'),
   })
 
+  const updateQuantityMut = useMutation({
+    mutationFn: (item: { id: string; target_quantity: number }) =>
+      updateTeamProductWarehouseQuantity(selectedTeamId, month, [item]),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['task-auto', 'warehouse', 'team', selectedTeamId, month] })
+      toast.success('Đã cập nhật số lượng video')
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message || 'Lỗi cập nhật số lượng'),
+  })
+
   const addProductToWarehouse = async (teamProduct?: TeamProduct) => {
     if (!teamProduct) { setCreateWhat(null); return }
     try {
@@ -423,6 +469,9 @@ export function TeamWarehouseTab({
                   <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
                     {subTab === 'products' ? 'SKU' : subTab === 'contents' ? 'Loại content' : 'Loại'}
                   </th>
+                  {subTab === 'products' && (
+                    <th className="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide w-28">SL video</th>
+                  )}
                   <th className="px-5 py-3 w-16"></th>
                 </tr>
               </thead>
@@ -431,6 +480,14 @@ export function TeamWarehouseTab({
                   <tr key={item.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-5 py-3.5 font-medium text-slate-800">{labelOf(item)}</td>
                     <td className="px-5 py-3.5 text-slate-500">{subOf(item)}</td>
+                    {subTab === 'products' && (
+                      <td className="px-5 py-3.5 text-right">
+                        <ProductQuantityCell
+                          value={item.warehouses?.[0]?.target_quantity ?? 1}
+                          onSave={v => updateQuantityMut.mutate({ id: item.id, target_quantity: v })}
+                        />
+                      </td>
+                    )}
                     <td className="px-5 py-3.5 text-right">
                       <button
                         onClick={() => removeMut.mutate(item.id)}

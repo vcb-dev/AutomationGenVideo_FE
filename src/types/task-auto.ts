@@ -72,6 +72,8 @@ export interface TeamProduct {
   market: string | null
   price_segment: string | null
   priority_score: number
+  /** Override số ngày cooldown riêng (per editor); null = dùng default_cooldown_days toàn cục */
+  cooldown_days: number | null
   material_id: string | null
   product_line_id: string | null
   classification_id: string | null
@@ -92,7 +94,8 @@ export interface TeamProduct {
     id: string; sku: string; name: string
     image_url: string | null; image_urls: string[]
     price: string | null; market: string | null; price_segment: string | null
-    priority_score: number; material_id: string | null; product_line_id: string | null
+    priority_score: number; cooldown_days: number | null
+    material_id: string | null; product_line_id: string | null
     classification_id: string | null
     brand_type: BrandType; is_active: boolean
   } | null
@@ -280,6 +283,8 @@ export interface Product {
   market: string | null
   price_segment: string | null
   priority_score: number
+  /** Override số ngày cooldown riêng (per editor); null = dùng default_cooldown_days toàn cục */
+  cooldown_days: number | null
   material_id: string | null
   product_line_id: string | null
   classification_id: string | null
@@ -302,11 +307,13 @@ export interface Product {
   source_team_product?: {
     id: string; sku: string | null; name: string | null; image_url: string | null; image_urls: string[]
     price: string | null; market: string | null; price_segment: string | null; priority_score: number
+    cooldown_days: number | null
     material?: { id: string; name: string } | null; product_line?: { id: string; name: string } | null
     classification?: { id: string; name: string } | null
     source_editor_product?: {
       id: string; sku: string | null; name: string | null; image_url: string | null; image_urls: string[]
       price: string | null; market: string | null; price_segment: string | null; priority_score: number
+      cooldown_days: number | null
       material?: { id: string; name: string } | null; product_line?: { id: string; name: string } | null
       classification?: { id: string; name: string } | null
     } | null
@@ -560,6 +567,8 @@ export interface AutoAssignSetting {
   timezone: string
   weekend_enabled: boolean
   is_active: boolean
+  /** Số ngày cooldown mặc định (per editor+product) cho sản phẩm chưa tự set cooldown_days riêng */
+  default_cooldown_days: number
   updated_by: string | null
   updated_at: string
 }

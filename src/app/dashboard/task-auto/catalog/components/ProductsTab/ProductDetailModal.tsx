@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import { useQuery } from '@tanstack/react-query'
 import {
-  X, Edit2, Package, Database, Loader2, ExternalLink, Star, Tag, Layers, BarChart3,
+  X, Edit2, Package, Database, Loader2, ExternalLink, Star, Tag, Layers, BarChart3, Timer,
   Download, ChevronLeft, ChevronRight, ZoomIn
 } from 'lucide-react'
 import { cn, driveImageUrl } from '@/lib/utils'
@@ -246,7 +246,7 @@ export function ProductDetailModal({ product, onClose, onEdit }: {
                   )}
 
                   {/* Attributes */}
-                  {(product.product_line || product.material || product.price_segment || prioScore > 0) && (
+                  {(product.product_line || product.material || product.price_segment || prioScore > 0 || product.cooldown_days != null) && (
                     <div>
                       <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2.5">Thông tin</p>
                       <div className="space-y-0">
@@ -269,11 +269,20 @@ export function ProductDetailModal({ product, onClose, onEdit }: {
                           </div>
                         )}
                         {prioScore > 0 && (
-                          <div className="flex items-center justify-between py-2.5">
+                          <div className={cn('flex items-center justify-between py-2.5', product.cooldown_days != null ? 'border-b border-slate-50' : '')}>
                             <span className="text-sm text-slate-500">Điểm ưu tiên</span>
                             <span className="flex items-center gap-1.5 text-sm font-bold text-amber-600">
                               <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
                               {prioScore}
+                            </span>
+                          </div>
+                        )}
+                        {product.cooldown_days != null && (
+                          <div className="flex items-center justify-between py-2.5">
+                            <span className="text-sm text-slate-500">Cooldown</span>
+                            <span className="flex items-center gap-1.5 text-sm font-bold text-indigo-600">
+                              <Timer className="w-4 h-4" />
+                              {product.cooldown_days} ngày
                             </span>
                           </div>
                         )}

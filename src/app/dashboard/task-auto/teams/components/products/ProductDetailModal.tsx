@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import { useQuery } from '@tanstack/react-query'
 import {
-  Package, X, Star, Trash2, Download,
+  Package, X, Star, Trash2, Download, Timer,
   ChevronLeft, ChevronRight, Edit2, ZoomIn, Database, ExternalLink,
 } from 'lucide-react'
 import { cn, driveImageUrl } from '@/lib/utils'
@@ -46,6 +46,7 @@ export function ProductDetailModal({ teamProduct, canRemove, onRemove, onEdit, o
   const marketRaw = tp.market ?? ep?.market ?? null
   const priceSegment = tp.price_segment ?? ep?.price_segment ?? null
   const prioScore = tp.priority_score ?? ep?.priority_score ?? 0
+  const cooldownDays = tp.cooldown_days ?? ep?.cooldown_days ?? null
   const isActive = tp.is_active
 
   const images = rawImages
@@ -270,7 +271,7 @@ export function ProductDetailModal({ teamProduct, canRemove, onRemove, onEdit, o
                   </div>
 
                   {/* Attributes */}
-                  {(tp.product_line || tp.material || priceSegment || prioScore > 0) && (
+                  {(tp.product_line || tp.material || priceSegment || prioScore > 0 || cooldownDays != null) && (
                     <div>
                       <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2.5">Thông tin</p>
                       <div className="space-y-0">
@@ -293,11 +294,20 @@ export function ProductDetailModal({ teamProduct, canRemove, onRemove, onEdit, o
                           </div>
                         )}
                         {prioScore > 0 && (
-                          <div className="flex items-center justify-between py-2.5">
+                          <div className={cn('flex items-center justify-between py-2.5', cooldownDays != null ? 'border-b border-slate-50' : '')}>
                             <span className="text-sm text-slate-500">Điểm ưu tiên</span>
                             <span className="flex items-center gap-1.5 text-sm font-bold text-amber-600">
                               <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
                               {prioScore}
+                            </span>
+                          </div>
+                        )}
+                        {cooldownDays != null && (
+                          <div className="flex items-center justify-between py-2.5">
+                            <span className="text-sm text-slate-500">Cooldown</span>
+                            <span className="flex items-center gap-1.5 text-sm font-bold text-indigo-600">
+                              <Timer className="w-4 h-4" />
+                              {cooldownDays} ngày
                             </span>
                           </div>
                         )}

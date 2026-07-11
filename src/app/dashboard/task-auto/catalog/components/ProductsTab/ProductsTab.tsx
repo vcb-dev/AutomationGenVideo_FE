@@ -14,7 +14,7 @@ import {
   getProductLines, createProductLine, deleteProductLine,
   getMaterials, createMaterial, deleteMaterial,
   getProductClassifications, createProductClassification, deleteProductClassification,
-  createSource,
+  createSource, getAutoAssignSettings,
 } from '@/lib/api/task-auto'
 import { useAuthStore } from '@/store/auth-store'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
@@ -43,12 +43,13 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
   const [showCatalogPanel, setShowCatalogPanel] = useState(false)
   const [form, setForm] = useState<Partial<Product> & { image_urls: string[] }>({
     sku: '', name: '', image_urls: [], price: '',
-    price_segment: '', priority_score: 0, material_id: '', product_line_id: '', classification_id: '', is_active: true,
+    price_segment: '', priority_score: 0, cooldown_days: null, material_id: '', product_line_id: '', classification_id: '', is_active: true,
   })
   const [markets, setMarkets] = useState<string[]>(['VIETNAM'])
   const [sourceDraft, setSourceDraft] = useState<SourceDraft>(defaultSource)
   const imagePickerRef = useRef<MultiImagePickerHandle>(null)
 
+  const { data: autoAssignSettings } = useQuery({ queryKey: ['task-auto', 'auto-assign-settings'], queryFn: getAutoAssignSettings })
   const { data: productLines } = useQuery({ queryKey: ['task-auto', 'product-lines'], queryFn: () => getProductLines() })
   const { data: materials } = useQuery({ queryKey: ['task-auto', 'materials', brandType], queryFn: () => getMaterials(brandType) })
   const { data: productClassifications } = useQuery({ queryKey: ['task-auto', 'product-classifications'], queryFn: () => getProductClassifications() })
@@ -77,6 +78,7 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
       market: markets.join(','),
       price_segment: form.price_segment || undefined,
       priority_score: form.priority_score,
+      cooldown_days: form.cooldown_days ?? null,
       material_id: form.material_id || null,
       product_line_id: form.product_line_id || null,
       classification_id: form.classification_id || null,
@@ -149,7 +151,7 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
   })
 
   const openCreate = () => {
-    setForm({ sku: '', name: '', image_urls: [], price: '', price_segment: '', priority_score: 0, material_id: '', product_line_id: '', classification_id: '', is_active: true })
+    setForm({ sku: '', name: '', image_urls: [], price: '', price_segment: '', priority_score: 0, cooldown_days: null, material_id: '', product_line_id: '', classification_id: '', is_active: true })
     setMarkets(['VIETNAM'])
     setSourceDraft(defaultSource)
     setEditing(null)
@@ -533,7 +535,7 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
               Phân loại & Giá
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <CreatableSelect
                 label="Dòng sản phẩm"
                 value={form.product_line_id ?? ''}
@@ -564,8 +566,6 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
                   return { id: created.id, label: created.name }
                 }}
               />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <CreatableSelect
                 label="Phân loại sản phẩm"
                 value={form.classification_id ?? ''}
@@ -582,7 +582,7 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
                 }}
               />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <PriceInput
                 label="Giá bán (₫)"
                 value={form.price ?? ''}
@@ -602,6 +602,19 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
                 onChange={e => setForm(f => ({ ...f, priority_score: Number(e.target.value) }))}
                 min={0}
               />
+              <div>
+                <DarkInput
+                  label="Giãn cách giao lại SP (ngày)"
+                  type="number"
+                  placeholder={`Mặc định: ${autoAssignSettings?.default_cooldown_days ?? 5} ngày`}
+                  value={form.cooldown_days ?? ''}
+                  onChange={e => setForm(f => ({ ...f, cooldown_days: e.target.value === '' ? null : Number(e.target.value) }))}
+                  min={0}
+                />
+                <p className="text-xs text-slate-400 mt-1.5 leading-snug">
+                  Sau khi giao cho 1 editor, phải chờ đủ số ngày này mới được giao lại SP này cho chính người đó. Để trống = dùng mặc định hệ thống.
+                </p>
+              </div>
             </div>
           </div>
 

@@ -136,6 +136,13 @@ export const translateTaskVideoScript = (taskId: string, market?: string | null)
 export const getTeams = () =>
   apiClient.get<Team[]>('/task-auto/teams').then(r => r.data)
 
+/** Tên các team được cấp quyền quản lý source ở kho ngang với ADMIN/MANAGER — khớp với BE (team-membership.util.ts). */
+export const PRIVILEGED_SOURCE_TEAM_NAMES = ['Scale Data', 'MEDIA']
+
+/** True nếu user là thành viên của một team có quyền quản lý source đặc biệt (Scale Data, MEDIA). */
+export const isPrivilegedSourceTeamMember = (teams: Team[] | undefined, userId: string | undefined) =>
+  !!teams?.some(t => PRIVILEGED_SOURCE_TEAM_NAMES.includes(t.name) && t.members?.some((m: any) => m.user_id === userId))
+
 export const getTeam = (id: string) =>
   apiClient.get<Team>(`/task-auto/teams/${id}`).then(r => r.data)
 
@@ -562,12 +569,24 @@ export const removeGlobalWarehouse = (type: WarehouseCatalogType, month: string,
 export const autoCarryGlobal = (month: string) =>
   apiClient.post('/task-auto/warehouse/auto-carry', { month }).then(r => r.data)
 
+// Product quantity — số video cụ thể cần cho sản phẩm này trong tháng (target_quantity)
+export interface WarehouseProductItem {
+  id: string
+  target_quantity: number
+}
+
 // Team
 export const getTeamWarehouse = (teamId: string, month: string) =>
   apiClient.get<TeamWarehouseData>(`/task-auto/warehouse/teams/${teamId}${qs({ month })}`).then(r => r.data)
 
 export const addTeamWarehouse = (teamId: string, type: WarehouseCatalogType, month: string, ids: string[]) =>
   apiClient.post(`/task-auto/warehouse/teams/${teamId}/${type}`, { month, ids }).then(r => r.data)
+
+export const addTeamWarehouseProducts = (teamId: string, month: string, items: WarehouseProductItem[]) =>
+  apiClient.post(`/task-auto/warehouse/teams/${teamId}/products`, { month, items }).then(r => r.data)
+
+export const updateTeamProductWarehouseQuantity = (teamId: string, month: string, items: WarehouseProductItem[]) =>
+  apiClient.patch(`/task-auto/warehouse/teams/${teamId}/products/quantity`, { month, items }).then(r => r.data)
 
 export const removeTeamWarehouse = (teamId: string, type: WarehouseCatalogType, month: string, ids: string[]) =>
   apiClient.delete(`/task-auto/warehouse/teams/${teamId}/${type}`, { data: { month, ids } }).then(r => r.data)
@@ -581,6 +600,12 @@ export const getEditorWarehouse = (editorId: string, month: string) =>
 
 export const addEditorWarehouse = (editorId: string, type: WarehouseCatalogType, month: string, ids: string[]) =>
   apiClient.post(`/task-auto/warehouse/editors/${editorId}/${type}`, { month, ids }).then(r => r.data)
+
+export const addEditorWarehouseProducts = (editorId: string, month: string, items: WarehouseProductItem[]) =>
+  apiClient.post(`/task-auto/warehouse/editors/${editorId}/products`, { month, items }).then(r => r.data)
+
+export const updateEditorProductWarehouseQuantity = (editorId: string, month: string, items: WarehouseProductItem[]) =>
+  apiClient.patch(`/task-auto/warehouse/editors/${editorId}/products/quantity`, { month, items }).then(r => r.data)
 
 export const removeEditorWarehouse = (editorId: string, type: WarehouseCatalogType, month: string, ids: string[]) =>
   apiClient.delete(`/task-auto/warehouse/editors/${editorId}/${type}`, { data: { month, ids } }).then(r => r.data)

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Settings, Zap, Clock, Globe, Calendar, Power, Loader2 } from 'lucide-react'
+import { Settings, Zap, Clock, Globe, Calendar, Power, Loader2, Timer } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ConfirmDialog } from '@/components/task-auto'
 import { formatDateTime } from '@/components/task-auto/helpers'
@@ -35,11 +35,17 @@ export function SettingsCard({ canEdit }: { canEdit: boolean }) {
   })
 
   const [form, setForm] = useState<Partial<AutoAssignSetting>>({
-    schedule_time: '08:00', timezone: 'Asia/Ho_Chi_Minh', weekend_enabled: false, is_active: false,
+    schedule_time: '08:00', timezone: 'Asia/Ho_Chi_Minh', weekend_enabled: false, is_active: false, default_cooldown_days: 5,
   })
 
   useEffect(() => {
-    if (settings) setForm({ schedule_time: settings.schedule_time, timezone: settings.timezone, weekend_enabled: settings.weekend_enabled, is_active: settings.is_active })
+    if (settings) setForm({
+      schedule_time: settings.schedule_time,
+      timezone: settings.timezone,
+      weekend_enabled: settings.weekend_enabled,
+      is_active: settings.is_active,
+      default_cooldown_days: settings.default_cooldown_days,
+    })
   }, [settings])
 
   const updateMut = useMutation({
@@ -97,7 +103,7 @@ export function SettingsCard({ canEdit }: { canEdit: boolean }) {
           </div>
 
           {/* Settings fields */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
             <div>
               <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-1.5">
                 <Clock className="w-4 h-4 text-slate-400" /> Thời gian chạy (HH:MM)
@@ -111,6 +117,16 @@ export function SettingsCard({ canEdit }: { canEdit: boolean }) {
               </label>
               <input type="text" value={form.timezone ?? 'Asia/Ho_Chi_Minh'} onChange={e => setForm(f => ({ ...f, timezone: e.target.value }))} disabled={!canEdit} placeholder="Asia/Ho_Chi_Minh"
                 className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:bg-gray-50 transition-colors" />
+            </div>
+            <div>
+              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-1.5">
+                <Timer className="w-4 h-4 text-slate-400" /> Cooldown mặc định (ngày)
+              </label>
+              <input type="number" min={0} value={form.default_cooldown_days ?? 5}
+                onChange={e => setForm(f => ({ ...f, default_cooldown_days: e.target.value === '' ? 0 : Number(e.target.value) }))}
+                disabled={!canEdit}
+                className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:bg-gray-50 transition-colors" />
+              <p className="text-xs text-slate-400 mt-1">Áp dụng cho sản phẩm chưa tự set cooldown riêng</p>
             </div>
           </div>
 
