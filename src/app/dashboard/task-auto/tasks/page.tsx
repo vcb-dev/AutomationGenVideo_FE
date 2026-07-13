@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Users, User, LayoutGrid, Table2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth-store'
@@ -26,6 +27,8 @@ function todayString() {
 
 export default function TasksPage() {
   const { user } = useAuthStore()
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const userRoles: UserRole[] = user?.roles ?? []
 
   const isAdmin   = userRoles.includes(UserRole.ADMIN)
@@ -60,8 +63,24 @@ export default function TasksPage() {
   const [page, setPage]               = useState(1)
   const [submittedPage, setSubmittedPage] = useState(1)
 
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(() => searchParams?.get('taskId') ?? null)
   const [showCreate, setShowCreate]   = useState(false)
+
+  // Cho phép mở thẳng task khi truy cập từ thông báo (?taskId=...)
+  const taskIdParam = searchParams?.get('taskId') ?? null
+  useEffect(() => {
+    if (taskIdParam) setSelectedTaskId(taskIdParam)
+  }, [taskIdParam])
+
+  function closeTaskDetail() {
+    setSelectedTaskId(null)
+    if (searchParams?.get('taskId')) {
+      const params = new URLSearchParams(searchParams.toString())
+      params.delete('taskId')
+      const query = params.toString()
+      router.replace(query ? `/dashboard/task-auto/tasks?${query}` : '/dashboard/task-auto/tasks')
+    }
+  }
 
   const { data: teamsData } = useQuery({
     queryKey: ['task-auto', 'teams'],
@@ -238,7 +257,7 @@ export default function TasksPage() {
       {selectedTaskId && (
         <TaskDetailPanel
           taskId={selectedTaskId}
-          onClose={() => setSelectedTaskId(null)}
+          onClose={closeTaskDetail}
           userRoles={userRoles}
           currentUserId={user?.id}
         />

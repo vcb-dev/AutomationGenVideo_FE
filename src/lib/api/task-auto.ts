@@ -10,6 +10,8 @@ import type {
   ContentLine,
   ProductLine,
   Material,
+  ProductClassification,
+  ContentClassification,
   Product,
   ProductsQuery,
   Content,
@@ -25,6 +27,7 @@ import type {
   TeamProduct,
   TeamContent,
   TeamPushRequest,
+  Notification,
 } from '@/types/task-auto'
 
 function qs(params: Record<string, string | number | boolean | undefined | null>): string {
@@ -115,10 +118,30 @@ export const generateTaskVideoScript = (taskId: string, params: GenerateVideoScr
     .post<{ script: VideoScript; cached: boolean }>(`/task-auto/tasks/${taskId}/video-script`, { ...params, force })
     .then(r => r.data)
 
+export const updateTaskVideoScript = (
+  taskId: string,
+  body: { content: string; hashtags?: string[]; translation?: { content: string; hashtags?: string[] } },
+) =>
+  apiClient
+    .patch<{ script: VideoScript }>(`/task-auto/tasks/${taskId}/video-script`, body)
+    .then(r => r.data.script)
+
+export const translateTaskVideoScript = (taskId: string, market?: string | null) =>
+  apiClient
+    .post<{ script: VideoScript }>(`/task-auto/tasks/${taskId}/video-script/translate`, { market })
+    .then(r => r.data.script)
+
 // ── Teams ─────────────────────────────────────────────────────────────────────
 
 export const getTeams = () =>
   apiClient.get<Team[]>('/task-auto/teams').then(r => r.data)
+
+/** Tên các team được cấp quyền quản lý source ở kho ngang với ADMIN/MANAGER — khớp với BE (team-membership.util.ts). */
+export const PRIVILEGED_SOURCE_TEAM_NAMES = ['Scale Data', 'MEDIA']
+
+/** True nếu user là thành viên của một team có quyền quản lý source đặc biệt (Scale Data, MEDIA). */
+export const isPrivilegedSourceTeamMember = (teams: Team[] | undefined, userId: string | undefined) =>
+  !!teams?.some(t => PRIVILEGED_SOURCE_TEAM_NAMES.includes(t.name) && t.members?.some((m: any) => m.user_id === userId))
 
 export const getTeam = (id: string) =>
   apiClient.get<Team>(`/task-auto/teams/${id}`).then(r => r.data)
@@ -316,6 +339,30 @@ export const updateContentLine = (id: string, body: { a_type?: string | null }) 
 
 export const deleteContentLine = (id: string) =>
   apiClient.delete(`/task-auto/content-lines/${id}`).then(r => r.data)
+
+export const getProductClassifications = () =>
+  apiClient.get<ProductClassification[]>('/task-auto/product-classifications').then(r => r.data)
+
+export const createProductClassification = (name: string) =>
+  apiClient.post<ProductClassification>('/task-auto/product-classifications', { name }).then(r => r.data)
+
+export const updateProductClassification = (id: string, name: string) =>
+  apiClient.patch<ProductClassification>(`/task-auto/product-classifications/${id}`, { name }).then(r => r.data)
+
+export const deleteProductClassification = (id: string) =>
+  apiClient.delete(`/task-auto/product-classifications/${id}`).then(r => r.data)
+
+export const getContentClassifications = () =>
+  apiClient.get<ContentClassification[]>('/task-auto/content-classifications').then(r => r.data)
+
+export const createContentClassification = (name: string) =>
+  apiClient.post<ContentClassification>('/task-auto/content-classifications', { name }).then(r => r.data)
+
+export const updateContentClassification = (id: string, name: string) =>
+  apiClient.patch<ContentClassification>(`/task-auto/content-classifications/${id}`, { name }).then(r => r.data)
+
+export const deleteContentClassification = (id: string) =>
+  apiClient.delete(`/task-auto/content-classifications/${id}`).then(r => r.data)
 
 // ── Catalog — Products ────────────────────────────────────────────────────────
 
@@ -522,12 +569,24 @@ export const removeGlobalWarehouse = (type: WarehouseCatalogType, month: string,
 export const autoCarryGlobal = (month: string) =>
   apiClient.post('/task-auto/warehouse/auto-carry', { month }).then(r => r.data)
 
+// Product quantity — số video cụ thể cần cho sản phẩm này trong tháng (target_quantity)
+export interface WarehouseProductItem {
+  id: string
+  target_quantity: number
+}
+
 // Team
 export const getTeamWarehouse = (teamId: string, month: string) =>
   apiClient.get<TeamWarehouseData>(`/task-auto/warehouse/teams/${teamId}${qs({ month })}`).then(r => r.data)
 
 export const addTeamWarehouse = (teamId: string, type: WarehouseCatalogType, month: string, ids: string[]) =>
   apiClient.post(`/task-auto/warehouse/teams/${teamId}/${type}`, { month, ids }).then(r => r.data)
+
+export const addTeamWarehouseProducts = (teamId: string, month: string, items: WarehouseProductItem[]) =>
+  apiClient.post(`/task-auto/warehouse/teams/${teamId}/products`, { month, items }).then(r => r.data)
+
+export const updateTeamProductWarehouseQuantity = (teamId: string, month: string, items: WarehouseProductItem[]) =>
+  apiClient.patch(`/task-auto/warehouse/teams/${teamId}/products/quantity`, { month, items }).then(r => r.data)
 
 export const removeTeamWarehouse = (teamId: string, type: WarehouseCatalogType, month: string, ids: string[]) =>
   apiClient.delete(`/task-auto/warehouse/teams/${teamId}/${type}`, { data: { month, ids } }).then(r => r.data)
@@ -541,6 +600,12 @@ export const getEditorWarehouse = (editorId: string, month: string) =>
 
 export const addEditorWarehouse = (editorId: string, type: WarehouseCatalogType, month: string, ids: string[]) =>
   apiClient.post(`/task-auto/warehouse/editors/${editorId}/${type}`, { month, ids }).then(r => r.data)
+
+export const addEditorWarehouseProducts = (editorId: string, month: string, items: WarehouseProductItem[]) =>
+  apiClient.post(`/task-auto/warehouse/editors/${editorId}/products`, { month, items }).then(r => r.data)
+
+export const updateEditorProductWarehouseQuantity = (editorId: string, month: string, items: WarehouseProductItem[]) =>
+  apiClient.patch(`/task-auto/warehouse/editors/${editorId}/products/quantity`, { month, items }).then(r => r.data)
 
 export const removeEditorWarehouse = (editorId: string, type: WarehouseCatalogType, month: string, ids: string[]) =>
   apiClient.delete(`/task-auto/warehouse/editors/${editorId}/${type}`, { data: { month, ids } }).then(r => r.data)
@@ -562,3 +627,17 @@ export interface MemberSourceStat {
 
 export const getTeamMemberSourceStats = (teamId: string, month?: string) =>
   apiClient.get<MemberSourceStat[]>(`/task-auto/teams/${teamId}/member-source-stats${qs({ month })}`).then(r => r.data)
+
+// ── Notifications ────────────────────────────────────────────────────────────
+
+export const getTaskNotifications = (q: { unread_only?: boolean; page?: number; limit?: number } = {}) =>
+  apiClient.get<PaginatedResult<Notification>>(`/task-auto/notifications${qs(q as any)}`).then(r => r.data)
+
+export const getTaskNotificationUnreadCount = () =>
+  apiClient.get<{ count: number }>('/task-auto/notifications/unread-count').then(r => r.data)
+
+export const markTaskNotificationRead = (id: string) =>
+  apiClient.patch<Notification>(`/task-auto/notifications/${id}/read`).then(r => r.data)
+
+export const markAllTaskNotificationsRead = () =>
+  apiClient.post<{ updated: number }>('/task-auto/notifications/read-all').then(r => r.data)

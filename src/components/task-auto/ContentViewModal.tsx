@@ -50,6 +50,7 @@ export interface ContentViewItem {
   voice_url?: string | null
   file_content_url?: string | null
   content_line?: { name: string } | null
+  classification?: { name: string } | null
   added_by?: { full_name: string } | null
   added_at?: string
   created_at?: string
@@ -59,6 +60,7 @@ export interface ContentViewItem {
     voice_url?: string | null; file_content_url?: string | null
     market?: string | null; status?: string | null
     content_line?: { name: string } | null
+    classification?: { name: string } | null
   } | null
   source_team_content_id?: string | null
   source_team_content?: {
@@ -66,11 +68,13 @@ export interface ContentViewItem {
     voice_url?: string | null; file_content_url?: string | null
     market?: string | null; status?: string | null
     content_line?: { name: string } | null
+    classification?: { name: string } | null
     source_editor_content?: {
       title?: string | null; body?: string | null; script?: string | null
       voice_url?: string | null; file_content_url?: string | null
       market?: string | null; status?: string | null
       content_line?: { name: string } | null
+      classification?: { name: string } | null
     } | null
   } | null
 }
@@ -110,6 +114,7 @@ export function ContentViewModal({
   const itemVoiceUrl = item.voice_url ?? ec?.voice_url ?? tc?.voice_url ?? tc_ec?.voice_url ?? null
   const itemFileContentUrl = item.file_content_url ?? ec?.file_content_url ?? tc?.file_content_url ?? tc_ec?.file_content_url ?? null
   const itemContentLine = item.content_line ?? ec?.content_line ?? tc?.content_line ?? tc_ec?.content_line ?? null
+  const itemClassification = item.classification ?? ec?.classification ?? tc?.classification ?? tc_ec?.classification ?? null
 
   const markets = (itemMarket ?? '').split(',').map(m => m.trim()).filter(Boolean)
   const voicePreviewSrc = drivePreviewUrl(itemVoiceUrl)
@@ -189,6 +194,11 @@ export function ContentViewModal({
                   {itemContentLine && (
                     <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-violet-100 text-violet-700">
                       {itemContentLine.name}
+                    </span>
+                  )}
+                  {itemClassification && (
+                    <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-fuchsia-100 text-fuchsia-700">
+                      {itemClassification.name}
                     </span>
                   )}
                   <span className={cn('px-2 py-0.5 rounded-md text-xs font-semibold', CATALOG_COLORS[catalogType])}>

@@ -44,6 +44,7 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
   const [viewProduct, setViewProduct] = useState<TeamProduct | null>(null)
   const [search, setSearch] = useState('')
   const [productLineFilter, setProductLineFilter] = useState('')
+  const [classificationFilter, setClassificationFilter] = useState('')
   const [page, setPage] = useState(1)
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null)
   const [deletingProductName, setDeletingProductName] = useState('')
@@ -128,11 +129,23 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
   }
   const productLineOptions = Array.from(productLineCountMap.values()).sort((a, b) => a.name.localeCompare(b.name, 'vi'))
 
-  const filtered = productLineFilter
+  const classificationCountMap = new Map<string, { id: string; name: string; count: number }>()
+  for (const tp of searched) {
+    const cls = tp.classification
+    if (cls) {
+      const e = classificationCountMap.get(cls.id)
+      if (e) e.count++
+      else classificationCountMap.set(cls.id, { id: cls.id, name: cls.name, count: 1 })
+    }
+  }
+  const classificationOptions = Array.from(classificationCountMap.values()).sort((a, b) => a.name.localeCompare(b.name, 'vi'))
+
+  const filtered = (productLineFilter
     ? searched.filter(tp => tp.product_line?.id === productLineFilter)
     : searched
+  ).filter(tp => !classificationFilter || tp.classification?.id === classificationFilter)
 
-  useEffect(() => { setPage(1) }, [selectedTeamId, brandType, month, search, productLineFilter])
+  useEffect(() => { setPage(1) }, [selectedTeamId, brandType, month, search, productLineFilter, classificationFilter])
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   return (
@@ -216,6 +229,15 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
                       totalCount={searched.length}
                     />
                   </th>
+                  <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">
+                    <HeaderFilterDropdown
+                      label="Phân loại"
+                      value={classificationFilter}
+                      onChange={setClassificationFilter}
+                      options={classificationOptions.map(o => ({ value: o.id, label: o.name, count: o.count }))}
+                      totalCount={searched.length}
+                    />
+                  </th>
                   <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Thị trường</th>
                   <th className="text-right px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Giá bán</th>
                   <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Trạng thái</th>
@@ -228,7 +250,7 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
                 {/* Loading skeleton */}
                 {isLoading && Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i}>
-                    {Array.from({ length: 9 }).map((_, j) => (
+                    {Array.from({ length: 10 }).map((_, j) => (
                       <td key={j} className="px-5 py-4">
                         <div className="h-4 bg-gray-100 rounded animate-pulse" />
                       </td>
@@ -239,7 +261,7 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
                 {/* Empty states */}
                 {!isLoading && filtered.length === 0 && (
                   <tr>
-                    <td colSpan={9}>
+                    <td colSpan={10}>
                       {teamProducts?.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-14 gap-3">
                           <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center">
@@ -325,6 +347,14 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
                       <td className="px-5 py-4 whitespace-nowrap">
                         {tp.product_line?.name
                           ? <span className="text-sm font-medium text-slate-700">{tp.product_line.name}</span>
+                          : <span className="text-slate-300 text-sm">—</span>
+                        }
+                      </td>
+
+                      {/* Phân loại */}
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        {tp.classification?.name
+                          ? <span className="text-sm font-medium text-slate-700">{tp.classification.name}</span>
                           : <span className="text-slate-300 text-sm">—</span>
                         }
                       </td>
