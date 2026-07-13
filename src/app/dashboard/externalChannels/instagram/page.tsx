@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CircleNotch, MagnifyingGlassPlus, UserCircle, FilmReel, CaretDown, CaretUp, Eye, Heart, ChatCircle } from '@phosphor-icons/react';
+import { CircleNotch, MagnifyingGlassPlus, UserCircle, FilmReel, CaretDown, CaretUp, Eye, Heart, ChatCircle, Warning } from '@phosphor-icons/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { MagnifyingGlass, X } from '@phosphor-icons/react';
 import { useRouter } from 'next/navigation';
@@ -31,7 +31,7 @@ function InstagramReelCard({ reel }: { reel: InstagramReel }) {
       rel="noopener noreferrer"
       className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-md transition-shadow flex flex-col"
     >
-      <div className="relative aspect-[9/16] bg-slate-100 overflow-hidden max-h-[280px]">
+      <div className="relative aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[280px]">
         {reel.thumbnail_url ? (
           <img
             src={reel.thumbnail_url}
@@ -40,10 +40,11 @@ function InstagramReelCard({ reel }: { reel: InstagramReel }) {
             loading="lazy"
             onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
           />
-        ) : null}
-        <div className="absolute inset-0 flex items-center justify-center bg-slate-800 text-slate-500 -z-10">
-          <Eye size={32} />
-        </div>
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-slate-400 dark:text-slate-500">
+            <Eye size={32} />
+          </div>
+        )}
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-2.5 pb-2 pt-6">
           <div className="flex items-center gap-3 text-white text-xs">
             <span className="flex items-center gap-1"><Eye size={12} weight="fill" />{formatNum(reel.play_count)}</span>
@@ -373,7 +374,15 @@ export default function InstagramExternalPage() {
           </div>
         )}
 
-        {!reelsQuery.isLoading && allReels.length === 0 && (
+        {reelsQuery.isError && (
+          <div className="flex flex-col items-center py-16 gap-4 bg-card border border-border rounded-xl">
+            <Warning size={32} className="text-amber-500" />
+            <p className="text-sm text-foreground">Có lỗi xảy ra.</p>
+            <button onClick={() => reelsQuery.refetch()} className="px-4 py-2 text-sm font-medium border border-border rounded-md hover:bg-slate-50">Thử lại</button>
+          </div>
+        )}
+
+        {!reelsQuery.isLoading && !reelsQuery.isError && allReels.length === 0 && (
           <div className="flex flex-col items-center py-16 gap-4 bg-card border border-border rounded-xl">
             <FilmReel size={32} className="text-slate-300" />
             <p className="text-sm text-foreground font-medium">Không tìm thấy Reels nào</p>
