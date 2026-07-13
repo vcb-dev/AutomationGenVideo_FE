@@ -1,40 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
-export default function FollowerGrowthChart() {
-  const [chartData, setChartData] = useState<any[]>([]);
+interface Props {
+  history?: any[];
+}
 
-  useEffect(() => {
-    // Generate mock follower growth data
-    const generateMockData = () => {
-      const data = [];
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - 30);
-      
-      let followers = 335000;
-      
-      for (let i = 0; i < 30; i++) {
-        const date = new Date(startDate);
-        date.setDate(date.getDate() + i);
-        
-        const dailyGrowth = Math.floor(Math.random() * 150) + 50; // 50-200 daily growth
-        followers += dailyGrowth;
-        
-        data.push({
-          date: date.toISOString().split('T')[0],
-          displayDate: `${date.getMonth() + 1}/${date.getDate()}`,
-          dailyGrowth,
-          followers,
-        });
-      }
-      
-      return data;
-    };
-
-    setChartData(generateMockData());
-  }, []);
+export default function FollowerGrowthChart({ history = [] }: Props) {
+  // Use history directly - no need for state since it's already a prop
+  const chartData = history && history.length > 0 ? history : [];
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
@@ -79,14 +53,14 @@ export default function FollowerGrowthChart() {
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-              <XAxis 
-                dataKey="displayDate" 
+              <XAxis
+                dataKey="displayDate"
                 stroke="#64748b"
                 fontSize={11}
                 tickLine={false}
                 axisLine={{ stroke: '#cbd5e1' }}
               />
-              <YAxis 
+              <YAxis
                 yAxisId="left"
                 stroke="#10b981"
                 fontSize={11}
@@ -95,7 +69,7 @@ export default function FollowerGrowthChart() {
                 width={50}
                 tickFormatter={(value) => `+${value}`}
               />
-              <YAxis 
+              <YAxis
                 yAxisId="right"
                 orientation="right"
                 stroke="#3b82f6"
@@ -110,17 +84,17 @@ export default function FollowerGrowthChart() {
                 }}
               />
               <Tooltip content={<CustomTooltip />} />
-              <Bar 
+              <Bar
                 yAxisId="left"
-                dataKey="dailyGrowth" 
+                dataKey="dailyGrowth"
                 fill="#10b981"
                 radius={[4, 4, 0, 0]}
                 maxBarSize={30}
               />
-              <Line 
+              <Line
                 yAxisId="right"
-                type="monotone" 
-                dataKey="followers" 
+                type="monotone"
+                dataKey="followers"
                 stroke="#3b82f6"
                 strokeWidth={3}
                 dot={false}
@@ -129,8 +103,12 @@ export default function FollowerGrowthChart() {
             </ComposedChart>
           </ResponsiveContainer>
         ) : (
-          <div className="h-full flex items-center justify-center text-slate-400">
-            Loading...
+          <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-2">
+            <span className="bg-slate-100 p-3 rounded-full mb-2">
+              📈
+            </span>
+            <span className="font-medium text-sm">Đang thu thập dữ liệu lịch sử</span>
+            <span className="text-xs text-slate-300">Biểu đồ sẽ hiển thị sau khi hệ thống ghi nhận sự thay đổi (24h+)</span>
           </div>
         )}
       </div>

@@ -1,0 +1,37 @@
+---
+description: Áp dụng React & Next.js best practices của Vercel khi viết, review hoặc refactor code React/Next.js
+globs: **/*.tsx, **/*.ts, **/*.jsx, **/*.js
+alwaysApply: false
+---
+
+# Vercel React Best Practices
+
+Khi viết, review hoặc refactor code React/Next.js, hãy tham chiếu bộ quy tắc tại:
+`.agents/skills/vercel-react-best-practices/AGENTS.md`
+
+## Thứ tự ưu tiên áp dụng
+
+1. **CRITICAL** - Loại bỏ async waterfall (xem `rules/async-*.md`)
+2. **CRITICAL** - Giảm bundle size (xem `rules/bundle-*.md`)
+3. **HIGH** - Tối ưu server-side (xem `rules/server-*.md`)
+4. **MEDIUM-HIGH** - Client data fetching (xem `rules/client-*.md`)
+5. **MEDIUM** - Giảm re-render (xem `rules/rerender-*.md`)
+6. **MEDIUM** - Rendering performance (xem `rules/rendering-*.md`)
+7. **LOW-MEDIUM** - JavaScript performance (xem `rules/js-*.md`)
+8. **LOW** - Advanced patterns (xem `rules/advanced-*.md`)
+
+## Các lỗi phổ biến cần tránh
+
+- Không dùng `await` tuần tự cho các request độc lập — dùng `Promise.all()`
+- Không import từ barrel file (index.ts) — import trực tiếp từ file nguồn
+- Không định nghĩa component bên trong component khác
+- Không dùng `useEffect` để tính derived state — tính trực tiếp trong render
+- Không dùng `useMemo` cho expression đơn giản trả về primitive
+- Không parse `localStorage` trong mỗi lần render — dùng lazy state init
+
+## Khi làm việc với file này, hãy:
+
+1. Kiểm tra xem có async waterfall nào không trước tiên
+2. Kiểm tra dynamic import cho các component nặng
+3. Kiểm tra re-render không cần thiết
+4. Đọc rule tương ứng trong `.agents/skills/vercel-react-best-practices/rules/` để biết chi tiết

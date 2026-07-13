@@ -1,5 +1,6 @@
 'use client';
 
+import Image from "next/image";
 import { useState } from 'react';
 import { Music, Loader2, Play, Heart, Eye, Download, ExternalLink } from 'lucide-react';
 import Button from '@/components/ui/button';
@@ -182,14 +183,14 @@ export default function MusicPostsPage() {
               >
                 {/* Thumbnail */}
                 <div className="relative aspect-video bg-gray-100">
-                  <img
+                  <Image
                     src={video.thumbnail || video.cover}
                     alt={video.title || video.caption}
                     className="w-full h-full object-cover"
                     onError={(e) => {
                       e.currentTarget.src = 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=400&h=300&fit=crop';
                     }}
-                  />
+                   width={0} height={0} sizes="100vw" unoptimized/>
                   <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-30 transition-opacity flex items-center justify-center">
                     <Play className="w-12 h-12 text-white opacity-0 hover:opacity-100 transition-opacity" />
                   </div>

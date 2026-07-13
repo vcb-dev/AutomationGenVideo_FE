@@ -1,6 +1,8 @@
 export enum UserRole {
   ADMIN = 'ADMIN',
   MANAGER = 'MANAGER',
+  MEMBER = 'MEMBER',
+  LEADER = 'LEADER',
   EDITOR = 'EDITOR',
   CONTENT = 'CONTENT',
 }
@@ -9,13 +11,14 @@ export interface User {
   id: string;
   email: string;
   full_name: string;
-  role: UserRole;
+  roles: UserRole[];
   manager_id?: string;
   is_active: boolean;
   last_login_at?: string;
   last_activity_at?: string;
   total_login_count: number;
   total_action_count: number;
+  team?: string;
   created_at: string;
   updated_at: string;
 }
@@ -23,14 +26,6 @@ export interface User {
 export interface LoginRequest {
   email: string;
   password: string;
-}
-
-export interface RegisterRequest {
-  email: string;
-  password: string;
-  full_name: string;
-  role: UserRole;
-  manager_id?: string;
 }
 
 export interface AuthResponse {

@@ -1,5 +1,6 @@
 'use client';
 
+import Image from "next/image";
 import { useState } from 'react';
 import { Play, Heart, MessageCircle, Share2, Calendar, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -16,10 +17,12 @@ export default function TopViralVideos({ videos }: TopViralVideosProps) {
 
   const [visibleCount, setVisibleCount] = useState(INITIAL_ROWS * COLUMNS);
 
-  // 1. Filter videos with > 10k views
-  const viralVideos = videos.filter(v => (Number(v.views_count) || 0) >= 10000)
-    // 2. Sort by views descending
-    .sort((a, b) => (Number(b.views_count) || 0) - (Number(a.views_count) || 0));
+  // Show ALL videos, sorted by date (newest first)
+  const allVideos = [...videos].sort((a, b) => {
+    const dateA = new Date(a.published_at || 0).getTime();
+    const dateB = new Date(b.published_at || 0).getTime();
+    return dateB - dateA;
+  });
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
@@ -37,23 +40,23 @@ export default function TopViralVideos({ videos }: TopViralVideosProps) {
     setVisibleCount(prev => prev + (LOAD_MORE_ROWS * COLUMNS));
   };
 
-  if (viralVideos.length === 0) {
+  if (allVideos.length === 0) {
     return null; 
   }
 
-  const visibleVideos = viralVideos.slice(0, visibleCount);
-  const hasMore = visibleCount < viralVideos.length;
+  const visibleVideos = allVideos.slice(0, visibleCount);
+  const hasMore = visibleCount < allVideos.length;
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
-            <span className="text-xl">🔥</span>
+          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+            <span className="text-xl">�</span>
           </div>
           <div>
-            <h3 className="text-lg font-bold text-slate-900">Top Viral Videos</h3>
-            <p className="text-sm text-slate-500">{viralVideos.length} videos with over 10k views found</p>
+            <h3 className="text-lg font-bold text-slate-900">All Scraped Videos</h3>
+            <p className="text-sm text-slate-500">{allVideos.length} videos found</p>
           </div>
         </div>
       </div>
@@ -73,7 +76,7 @@ export default function TopViralVideos({ videos }: TopViralVideosProps) {
             >
               {/* Thumbnail */}
               <div className="aspect-[9/16] relative bg-black/5">
-                <img 
+                <Image 
                   src={video.thumbnail_url || '/placeholder-video.jpg'} 
                   alt={video.title || 'Video thumbnail'}
                   className="w-full h-full object-cover"
@@ -83,7 +86,7 @@ export default function TopViralVideos({ videos }: TopViralVideosProps) {
                     const target = e.target as HTMLImageElement;
                     target.src = '/placeholder-video.jpg';
                   }}
-                />
+                 width={0} height={0} sizes="100vw" unoptimized/>
                 
                 {/* Overlay Gradient */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-60 group-hover:opacity-40 transition-opacity" />
@@ -147,7 +150,7 @@ export default function TopViralVideos({ videos }: TopViralVideosProps) {
             onClick={handleLoadMore}
             className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 text-slate-600 font-semibold rounded-xl hover:bg-slate-50 hover:text-slate-900 transition-all shadow-sm group"
           >
-            Show More Viral Videos
+            Show More Videos
             <ChevronDown className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" />
           </button>
         </div>

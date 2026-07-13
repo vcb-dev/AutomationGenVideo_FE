@@ -1,7 +1,7 @@
 'use client';
 
-import { useRouter, useParams } from 'next/navigation';
-import { Calendar, Clock, BarChart3, ChevronRight } from 'lucide-react';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
+import { Calendar, Clock, BarChart3, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react';
 
 interface PostingStatsProps {
   videos: any[];
@@ -10,11 +10,9 @@ interface PostingStatsProps {
 export default function PostingStats({ videos }: PostingStatsProps) {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
+  const platform = searchParams.get('platform') || 'tiktok';
   
-  // if (!videos || videos.length === 0) return null;
-
-  // ... (keep helper functions and counting logic)
-  // [Restoring existing logic for brevity]
   const isSameDay = (d1: Date, d2: Date) => {
     return d1.getFullYear() === d2.getFullYear() &&
            d1.getMonth() === d2.getMonth() &&
@@ -26,21 +24,38 @@ export default function PostingStats({ videos }: PostingStatsProps) {
   // Yesterday
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
+  
+  // Day before yesterday
+  const dayBeforeYesterday = new Date(now);
+  dayBeforeYesterday.setDate(now.getDate() - 2);
 
   // Start of Week (Monday as start)
   const startOfWeek = new Date(now);
   const day = now.getDay(); // 0 (Sun) to 6 (Sat)
-  const diff = now.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
+  const diff = now.getDate() - day + (day === 0 ? -6 : 1);
   startOfWeek.setDate(diff);
   startOfWeek.setHours(0, 0, 0, 0);
+  
+  // Previous week
+  const startOfPreviousWeek = new Date(startOfWeek);
+  startOfPreviousWeek.setDate(startOfWeek.getDate() - 7);
+  const endOfPreviousWeek = new Date(startOfWeek);
+  endOfPreviousWeek.setMilliseconds(-1);
 
   // Start of Month
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  
+  // Previous month
+  const startOfPreviousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const endOfPreviousMonth = new Date(now.getFullYear(), now.getMonth(), 0);
 
   // Counts
   let countYesterday = 0;
+  let countDayBeforeYesterday = 0;
   let countThisWeek = 0;
+  let countPreviousWeek = 0;
   let countThisMonth = 0;
+  let countPreviousMonth = 0;
 
   videos.forEach(v => {
     if (!v.published_at) return;
@@ -50,22 +65,50 @@ export default function PostingStats({ videos }: PostingStatsProps) {
     if (isSameDay(pubDate, yesterday)) {
       countYesterday++;
     }
+    
+    // Day before yesterday
+    if (isSameDay(pubDate, dayBeforeYesterday)) {
+      countDayBeforeYesterday++;
+    }
 
     // This Week
     if (pubDate >= startOfWeek) {
       countThisWeek++;
+    }
+    
+    // Previous Week
+    if (pubDate >= startOfPreviousWeek && pubDate <= endOfPreviousWeek) {
+      countPreviousWeek++;
     }
 
     // This Month
     if (pubDate >= startOfMonth) {
       countThisMonth++;
     }
+    
+    // Previous Month
+    if (pubDate >= startOfPreviousMonth && pubDate <= endOfPreviousMonth) {
+      countPreviousMonth++;
+    }
   });
+  
+  // Calculate growth percentages
+  const yesterdayGrowth = countDayBeforeYesterday > 0 
+    ? ((countYesterday - countDayBeforeYesterday) / countDayBeforeYesterday) * 100 
+    : null;
+  
+  const weekGrowth = countPreviousWeek > 0 
+    ? ((countThisWeek - countPreviousWeek) / countPreviousWeek) * 100 
+    : null;
+  
+  const monthGrowth = countPreviousMonth > 0 
+    ? ((countThisMonth - countPreviousMonth) / countPreviousMonth) * 100 
+    : null;
 
   const handleNavigate = (period: string) => {
-      // Navigate to /dashboard/ai/analytics/[username]/activity?period=...
+      // Navigate to /dashboard/ai/analytics/[username]/activity?period=...&platform=...
       const currentPath = window.location.pathname; // Should be /dashboard/ai/analytics/[username]
-      router.push(`${currentPath}/activity?period=${period}`);
+      router.push(`${currentPath}/activity?period=${period}&platform=${platform}`);
   };
 
   return (

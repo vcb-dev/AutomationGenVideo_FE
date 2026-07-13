@@ -1,5 +1,6 @@
 'use client';
 
+import Image from "next/image";
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Trash2, ExternalLink, Heart, Eye, MessageCircle } from 'lucide-react';
@@ -48,7 +49,8 @@ export default function CollectionDetailPage() {
 
   const fetchCollection = async () => {
     try {
-      const response = await fetch(`http://localhost:3000/ai/collections/${params.id}/`);
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+      const response = await fetch(`${baseUrl}/ai/collections/${params.id}/`);
       const data = await response.json();
       if (data.success) {
         setCollection(data.collection);
@@ -65,11 +67,11 @@ export default function CollectionDetailPage() {
 
     try {
       const response = await fetch(
-        `http://localhost:3000/ai/collections/${params.id}/remove-video/${videoId}/`,
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api'}/ai/collections/${params.id}/remove-video/${videoId}/`,
         { method: 'DELETE' }
       );
       const data = await response.json();
-      
+
       if (data.success) {
         fetchCollection();
       }
@@ -109,7 +111,7 @@ export default function CollectionDetailPage() {
       <div className="mb-8">
         <button
           onClick={() => router.push('/dashboard/collections')}
-          className="flex items-center gap-2 text-gray-600 hover:text-gray-800 mb-4"
+          className="relative z-50 cursor-pointer flex items-center gap-2 text-gray-600 hover:text-gray-800 mb-4"
         >
           <ArrowLeft className="w-5 h-5" />
           Quay lại
@@ -156,11 +158,11 @@ export default function CollectionDetailPage() {
               {/* Thumbnail */}
               <div className="relative aspect-video bg-gray-100">
                 {cv.video.thumbnail_url ? (
-                  <img
+                  <Image
                     src={cv.video.thumbnail_url}
                     alt={cv.video.title}
                     className="w-full h-full object-cover"
-                  />
+                   width={0} height={0} sizes="100vw" unoptimized/>
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-gray-400">
                     No Image

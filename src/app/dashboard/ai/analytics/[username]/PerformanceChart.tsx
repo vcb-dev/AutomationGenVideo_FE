@@ -22,7 +22,7 @@ export default function PerformanceChart({ videos }: PerformanceChartProps) {
   // Process video data by date
   const processChartData = () => {
     if (!videos || videos.length === 0) return [];
-
+0
     const dataByDate: any = {};
     
     videos.forEach((video) => {
@@ -68,7 +68,7 @@ export default function PerformanceChart({ videos }: PerformanceChartProps) {
       <div className="flex gap-1.5 mb-6 flex-wrap">
         {metrics.map((metric) => {
           const Icon = metric.icon;
-          return (
+          return (  
             <button
               key={metric.key}
               onClick={() => setActiveMetric(metric.key)}

@@ -46,15 +46,9 @@ export default function VideoDurationAnalysis({ videos = [] }: VideoDurationAnal
       });
 
       setChartData(data);
+      setChartData(data);
     } else {
-      // Mock data
-      setChartData([
-        { range: '0-30s', avgViews: 35000, avgEngagement: 0.8 },
-        { range: '31-60s', avgViews: 58000, avgEngagement: 0.9 },
-        { range: '61-90s', avgViews: 50000, avgEngagement: 1.1 },
-        { range: '91-120s', avgViews: 45000, avgEngagement: 1.4 },
-        { range: '121s+', avgViews: 25000, avgEngagement: 1.2 },
-      ]);
+      setChartData([]);
     }
   }, [videos]);
 

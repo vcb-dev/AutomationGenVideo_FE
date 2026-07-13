@@ -61,3 +61,6 @@ temp/
 # OS
 Thumbs.db
 .DS_Store
+
+# Cursor Agent Skills (install lại bằng skills-lock.json)
+.agents/skills/

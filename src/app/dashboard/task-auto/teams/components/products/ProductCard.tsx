@@ -1,0 +1,132 @@
+'use client'
+
+import { useState } from 'react'
+import { Package, Star, Trash2, Pencil } from 'lucide-react'
+import { cn, driveImageUrl } from '@/lib/utils'
+import { ProductViewModal } from '@/components/task-auto/ProductViewModal'
+import type { TeamProduct } from '@/types/task-auto'
+
+interface Props {
+  teamProduct: TeamProduct
+  canRemove: boolean
+  onRemove: () => void
+  onEdit?: () => void
+}
+
+export function ProductCard({ teamProduct, canRemove, onRemove, onEdit }: Props) {
+  const [showDetail, setShowDetail] = useState(false)
+  const [imgError, setImgError] = useState(false)
+  const p = teamProduct
+  const ep = p.source_editor_product
+  // Resolve effective values: own data first, fallback to editor product FK
+  const name = p.name ?? ep?.name ?? null
+  const sku = p.sku ?? ep?.sku ?? null
+  const imageUrls = p.image_urls?.length ? p.image_urls : (ep?.image_urls ?? [])
+  const imageUrl = p.image_url ?? ep?.image_url ?? null
+  const price = p.price ?? ep?.price ?? null
+  const market = p.market ?? ep?.market ?? null
+  const priorityScore = p.priority_score ?? ep?.priority_score ?? 0
+  const rawThumb = imageUrls[0] ?? imageUrl ?? null
+  const thumb = rawThumb && !imgError ? (driveImageUrl(rawThumb) ?? rawThumb) : null
+
+  return (
+    <>
+      <div
+        onClick={() => setShowDetail(true)}
+        className="group bg-white border border-gray-100 rounded-xl overflow-hidden hover:shadow-md hover:border-indigo-200 transition-all cursor-pointer"
+      >
+        {/* Image */}
+        <div className="relative h-44 bg-gray-50 overflow-hidden">
+          {thumb ? (
+            <img
+              src={thumb}
+              alt={name ?? ''}
+              onError={() => setImgError(true)}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <Package className="w-8 h-8 text-slate-200" />
+            </div>
+          )}
+
+          {/* Market badge */}
+          {market && (
+            <span className={cn(
+              'absolute top-2 left-2 px-1.5 py-0.5 rounded text-[10px] font-bold shadow-sm',
+              market === 'VIETNAM' ? 'bg-red-500 text-white' : 'bg-blue-500 text-white'
+            )}>
+              {market === 'VIETNAM' ? 'VN' : 'GL'}
+            </span>
+          )}
+
+          {/* Actions */}
+          {canRemove && (
+            <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+              {onEdit && (
+                <button
+                  onClick={e => { e.stopPropagation(); onEdit() }}
+                  className="p-1.5 rounded-lg bg-white/90 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 shadow-sm transition-colors"
+                  title="Chỉnh sửa sản phẩm"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              )}
+              <button
+                onClick={e => { e.stopPropagation(); onRemove() }}
+                className="p-1.5 rounded-lg bg-white/90 text-slate-400 hover:text-red-500 hover:bg-red-50 shadow-sm transition-colors"
+                title="Xóa khỏi kho team"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* Product line overlay */}
+          {p?.product_line && (
+            <div className="absolute bottom-0 left-0 right-0 px-2.5 py-1.5 bg-gradient-to-t from-black/60 to-transparent">
+              <span className="text-[11px] font-semibold text-white leading-none">{p.product_line.name}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Info */}
+        <div className="px-3 py-2.5">
+          <p className="font-semibold text-slate-800 text-sm leading-snug line-clamp-2 min-h-[2.5rem]">
+            {name ?? '—'}
+          </p>
+          <p className="text-[11px] text-slate-400 font-mono mt-0.5">{sku}</p>
+          <div className="flex items-center justify-between mt-2">
+            {price ? (
+              <p className="text-sm font-black text-indigo-600">
+                {Number(price).toLocaleString('vi-VN')}₫
+              </p>
+            ) : (
+              <span className="text-xs text-slate-300">—</span>
+            )}
+            {priorityScore > 0 && (
+              <div className="flex items-center gap-0.5">
+                <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                <span className="text-xs font-bold text-amber-500">{priorityScore}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {showDetail && (
+        <ProductViewModal
+          open
+          item={teamProduct as any}
+          catalogType="team"
+          teamId={teamProduct.team_id}
+          canEdit={!!onEdit}
+          canDelete={canRemove}
+          onClose={() => setShowDetail(false)}
+          onEdit={onEdit ? () => { setShowDetail(false); onEdit() } : undefined}
+          onDelete={() => { setShowDetail(false); onRemove() }}
+        />
+      )}
+    </>
+  )
+}

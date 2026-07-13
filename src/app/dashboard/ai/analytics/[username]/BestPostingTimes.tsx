@@ -39,12 +39,10 @@ export default function BestPostingTimes({ videos = [] }: BestPostingTimesProps)
       );
 
       setHeatmapData(avgEngagement);
+      setHeatmapData(avgEngagement);
     } else {
-      // Mock data for demonstration
-      const mockData = Array(7).fill(0).map(() => 
-        Array(24).fill(0).map(() => Math.random() * 1000)
-      );
-      setHeatmapData(mockData);
+      // Just set empty data
+      setHeatmapData([]);
     }
   }, [videos]);
 

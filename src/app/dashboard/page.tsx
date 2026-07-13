@@ -1,11 +1,28 @@
 'use client';
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
-import { Facebook, Hammer, Construction } from 'lucide-react';
+import { Facebook, Construction } from 'lucide-react';
+import { UserRole } from '@/types/auth';
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
+  const router = useRouter();
 
+  useEffect(() => {
+    if (user) {
+      if (user.roles?.some(r => r === UserRole.MANAGER || r === UserRole.ADMIN)) {
+        router.push('/dashboard/manager');
+      } else {
+        router.push('/dashboard/manager/user-activity?tab=performance');
+      }
+    }
+  }, [user, router]);
+
+  if (user) return null;
+
+  // Keep rendering placeholder for a flicker, but redirect is primary
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8 animate-fade-in-up">
       <div className="w-24 h-24 bg-blue-50 rounded-full flex items-center justify-center mb-6">

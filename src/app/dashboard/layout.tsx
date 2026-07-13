@@ -1,16 +1,10 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
-import { Home, Users, Settings, LogOut, Menu, X, Video, Search, Radio } from 'lucide-react';
-import Link from 'next/link';
-import { useState } from 'react';
-import Badge from '@/components/ui/Badge';
-import Button from '@/components/ui/button';
-import { UserRole } from '@/types/auth';
-
-import SmartSidebar from '@/components/layout/Sidebar';
+import Header from '@/components/layout/Header';
+import { BackgroundTaskManager } from '@/components/social/BackgroundTaskManager';
 
 export default function DashboardLayout({
   children,
@@ -18,77 +12,98 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const { user, isAuthenticated, logout } = useAuthStore();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [isHydrated, setIsHydrated] = useState(false);
+  const { user, isAuthenticated, logout, token } = useAuthStore(s => ({
+    user: s.user,
+    isAuthenticated: s.isAuthenticated,
+    logout: s.logout,
+    token: s.token,
+  }));
+  const [isHydrated, setIsHydrated] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    try { return !!useAuthStore.getState().user; } catch { return false; }
+  });
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [allowedMenuIds, setAllowedMenuIds] = useState<string[]>([]);
 
   useEffect(() => {
     setIsHydrated(true);
-  }, []);
+    router.prefetch('/');
+  }, [router]);
 
   useEffect(() => {
-    if (isHydrated && !isAuthenticated && !user) {
-      console.log('Dashboard: Not authenticated, redirecting to homepage');
+    if (!isHydrated || isAuthenticated || user || isLoggingOut) return;
+    const storedToken = localStorage.getItem('auth_token');
+    if (!storedToken) {
       router.push('/');
+    } else if (!useAuthStore.getState().isLoading) {
+      useAuthStore.getState().loadUser();
     }
-  }, [isHydrated, isAuthenticated, user, router]);
+  }, [isHydrated, isAuthenticated, user, router, isLoggingOut]);
 
-  const handleLogout = () => {
-    logout();
-    router.push('/');
+  useEffect(() => {
+    const CACHE_KEY = 'perm_menu_ids';
+    const CACHE_TTL = 5 * 60 * 1000;
+
+    const fetchPermissions = async () => {
+      if (!token) return;
+
+      try {
+        const cached = sessionStorage.getItem(CACHE_KEY);
+        if (cached) {
+          const { data, ts } = JSON.parse(cached);
+          if (Date.now() - ts < CACHE_TTL) {
+            setAllowedMenuIds(data);
+            return;
+          }
+        }
+      } catch { /* ignore */ }
+
+      try {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/role-permissions/my-tabs`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setAllowedMenuIds(data);
+          try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data, ts: Date.now() })); } catch { /* ignore */ }
+        }
+      } catch (err) {
+        console.error('Failed to fetch header permissions', err);
+      }
+    };
+    fetchPermissions();
+  }, [token]);
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try { sessionStorage.removeItem('perm_menu_ids'); } catch { /* ignore */ }
+    router.replace('/');
+    setTimeout(() => {
+      logout();
+    }, 500);
   };
-
-  const menuItems = [
-    { icon: Home, label: 'Dashboard', href: '/dashboard', roles: ['ADMIN', 'MANAGER', 'EDITOR', 'CONTENT'] },
-    { icon: Search, label: 'Tìm kiếm Video', href: '/dashboard/ai/search', roles: ['ADMIN', 'MANAGER', 'EDITOR', 'CONTENT'] },
-    { icon: Radio, label: 'Kênh theo dõi', href: '/dashboard/ai/channels', roles: ['ADMIN', 'MANAGER'] },
-    { icon: Video, label: 'Music Posts', href: '/dashboard/ai/music', roles: ['ADMIN', 'MANAGER', 'EDITOR', 'CONTENT'] },
-    { icon: Users, label: 'Quản lý Users', href: '/dashboard/users', roles: ['ADMIN', 'MANAGER'] },
-    { icon: Settings, label: 'Cài đặt', href: '/dashboard/settings', roles: ['ADMIN'] },
-  ];
-
-  const filteredMenuItems = menuItems.filter(item => 
-    user && item.roles.includes(user.role)
-  );
 
   if (!isHydrated || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Smart Sidebar (Desktop & Mobile adaptation) */}
-      <SmartSidebar 
-        user={user} 
-        onLogout={handleLogout} 
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      <Header
+        user={user}
+        onLogout={handleLogout}
+        allowedMenuIds={allowedMenuIds}
       />
 
-      {/* Main content */}
-      {/* Margin left matches the icon dock width (80px). The drawer (240px) overlays or pushes depending on preference, but floating overlay is smoother for auto-collapse */}
-      <div className="pl-[80px] transition-all duration-300">
-        {/* Header - Make it stick but transparent or matching? */}
-        <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
-          <div className="flex items-center justify-between px-6 py-4">
-            <div className="flex-1 lg:hidden" />
-            <div className="flex items-center gap-4 ml-auto">
-               {/* Optional User info in header if sidebar is collapsed? */}
-               <div className="text-right hidden sm:block">
-                  <p className="text-sm font-medium text-gray-900">{user.full_name}</p>
-                  <p className="text-xs text-gray-500">{user.role}</p>
-               </div>
-            </div>
-          </div>
-        </header>
-
-        {/* Page content */}
-        <main className="p-6">
-          {children}
-        </main>
-      </div>
+      <main className="flex-1 p-6">
+        {children}
+      </main>
+      <BackgroundTaskManager />
     </div>
   );
 }
