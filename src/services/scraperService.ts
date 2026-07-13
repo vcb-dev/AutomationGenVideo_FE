@@ -418,6 +418,19 @@ export interface PaginatedYoutubeShorts {
   shorts: YoutubeShort[];
 }
 
+export interface YoutubeShortWithProfile extends YoutubeShort {
+  profile: { id: number; channel_id: string; title: string; avatar_url: string; };
+}
+
+export interface PaginatedYoutubeShortsList {
+  status: string;
+  count: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  shorts: YoutubeShortWithProfile[];
+}
+
 export interface KuaishouProfile {
   id: number;
   // eid: định danh trong URL profile (kuaishou.com/profile/{eid}) — dùng khi
@@ -888,6 +901,18 @@ export const scraperService = {
     return res.json();
   },
 
+  getInstagramReels: async (token: string, params?: {
+    page?: number; page_size?: number; q?: string;
+    profile_id?: number; min_plays?: number;
+    date_from?: string; date_to?: string; sort?: string;
+  }): Promise<PaginatedInstagramReels> => {
+    const res = await fetch(`${API_URL}/scraper/instagram/reels/${buildParams(params || {})}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Không thể tải reels');
+    return res.json();
+  },
+
   // ─── YOUTUBE ──────────────────────────────────────────
 
   youtubeChannelScrape: async (token: string, channelId: string, isOwned?: boolean): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; newly_scraped?: boolean; profile_id: number }> => {
@@ -939,6 +964,17 @@ export const scraperService = {
       body: JSON.stringify({ field }),
     });
     if (!res.ok) throw new Error('Toggle failed');
+    return res.json();
+  },
+
+  getYoutubeShorts: async (token: string, params?: {
+    page?: number; page_size?: number; q?: string;
+    profile_id?: number; min_views?: number; sort?: string;
+  }): Promise<PaginatedYoutubeShortsList> => {
+    const res = await fetch(`${API_URL}/scraper/youtube/shorts/${buildParams(params || {})}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Không thể tải shorts');
     return res.json();
   },
 
