@@ -7,8 +7,8 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 
-import KuaishouVideoCard from '../components/KuaishouVideoCard';
-import KuaishouProfileCard from '../components/KuaishouProfileCard';
+import BilibiliVideoCard from '../components/BilibiliVideoCard';
+import BilibiliProfileCard from '../components/BilibiliProfileCard';
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService } from '@/services/scraperService';
 import { useScrapingStore } from '@/store/scraping-store';
@@ -19,18 +19,18 @@ type Tab = 'videos' | 'profiles';
 
 const PAGE_SIZE_PROFILES = 12;
 
-export default function KuaishouExternalPage() {
+export default function BilibiliExternalPage() {
   const { token, user } = useAuthStore();
   const isAdmin = user?.roles?.includes(UserRole.ADMIN) ?? false;
   const queryClient = useQueryClient();
   const router = useRouter();
   const { addNotification, updateNotification } = useScrapingStore();
-  const { start: startProfileScrapeNotif } = useProfileScrapeNotification('kuaishou');
+  const { start: startProfileScrapeNotif } = useProfileScrapeNotification('bilibili');
 
   const [activeTab, setActiveTab] = useState<Tab>('videos');
 
   // ─── Profile tab state ────────────────────────────────
-  const [profileUserId, setProfileUserId] = useState('');
+  const [profileMid, setProfileMid] = useState('');
   const [profileSearch, setProfileSearch] = useState('');
   const [debouncedProfileSearch, setDebouncedProfileSearch] = useState('');
   const [profilePage, setProfilePage] = useState(1);
@@ -58,7 +58,7 @@ export default function KuaishouExternalPage() {
   const [topKeywords, setTopKeywords] = useState<{ keyword: string; count: number }[]>([]);
   useEffect(() => {
     if (!token) return;
-    scraperService.kuaishouKeywordSuggest(token, '').then(setTopKeywords);
+    scraperService.bilibiliKeywordSuggest(token, '').then(setTopKeywords);
   }, [token]);
 
   useEffect(() => {
@@ -68,7 +68,7 @@ export default function KuaishouExternalPage() {
       return;
     }
     suggestTimer.current = setTimeout(async () => {
-      const results = await scraperService.kuaishouKeywordSuggest(token, keyword);
+      const results = await scraperService.bilibiliKeywordSuggest(token, keyword);
       setSuggestions(results);
       setShowSuggestions(results.length > 0);
     }, 250);
@@ -119,11 +119,11 @@ export default function KuaishouExternalPage() {
     mutationFn: () => {
       if (!token || !keyword.trim()) throw new Error('Keyword required');
       const num = Math.min(200, Math.max(1, parseInt(numPosts) || 30));
-      return scraperService.kuaishouSearch(token, keyword.trim(), num);
+      return scraperService.bilibiliSearch(token, keyword.trim(), num);
     },
     onMutate: () => {
       const nId = addNotification({
-        platform: 'kuaishou',
+        platform: 'bilibili',
         kind: 'keyword',
         label: keyword.trim(),
         status: 'scraping',
@@ -134,7 +134,7 @@ export default function KuaishouExternalPage() {
     onSuccess: (data) => {
       toast.success(data.message);
       setSortBy('scraped');
-      queryClient.invalidateQueries({ queryKey: ['kuaishou-videos'] });
+      queryClient.invalidateQueries({ queryKey: ['bilibili-videos'] });
       if (notifIdRef.current) {
         updateNotification(notifIdRef.current, {
           status: 'done',
@@ -156,17 +156,17 @@ export default function KuaishouExternalPage() {
   const [allKeywords, setAllKeywords] = useState<string[]>([]);
   useEffect(() => {
     if (!token) return;
-    scraperService.kuaishouKeywordSuggest(token, '').then(list => {
+    scraperService.bilibiliKeywordSuggest(token, '').then(list => {
       setAllKeywords(list.map(s => s.keyword));
     });
   }, [token]);
 
   // ─── Videos infinite scroll ───────────────────────────
   const videosQuery = useInfiniteQuery({
-    queryKey: ['kuaishou-videos', debouncedFilter, filterKeyword, minViews, sortBy, dateFrom, dateTo],
+    queryKey: ['bilibili-videos', debouncedFilter, filterKeyword, minViews, sortBy, dateFrom, dateTo],
     queryFn: ({ pageParam = 1 }) => {
       if (!token) return Promise.reject('No token');
-      return scraperService.getKuaishouVideos(token, {
+      return scraperService.getBilibiliVideos(token, {
         q: debouncedFilter || undefined,
         search_keyword: filterKeyword || undefined,
         page: pageParam,
@@ -197,8 +197,8 @@ export default function KuaishouExternalPage() {
 
   // ─── Profiles Query (paginated) ──────────────────────
   const profilesQuery = useQuery({
-    queryKey: ['kuaishou-profiles', profilePage, debouncedProfileSearch, profileSortBy],
-    queryFn: () => token ? scraperService.getKuaishouProfiles(token, {
+    queryKey: ['bilibili-profiles', profilePage, debouncedProfileSearch, profileSortBy],
+    queryFn: () => token ? scraperService.getBilibiliProfiles(token, {
       page: profilePage, page_size: PAGE_SIZE_PROFILES, search: debouncedProfileSearch || undefined,
       sort_by: profileSortBy,
     }) : Promise.reject('No token'),
@@ -214,46 +214,46 @@ export default function KuaishouExternalPage() {
   const handleScrapeSuccess = (data: { message: string; is_scraping?: boolean; already_exists?: boolean; newly_scraped?: boolean; profile_id: number }, label?: string, before = 0) => {
     if (data.already_exists) {
       toast(data.message, { icon: '📋' });
-      router.push(`/dashboard/externalChannels/kuaishou/${data.profile_id}`);
+      router.push(`/dashboard/externalChannels/bilibili/${data.profile_id}`);
     } else if (data.newly_scraped) {
       toast.success(data.message);
-      router.push(`/dashboard/externalChannels/kuaishou/${data.profile_id}`);
+      router.push(`/dashboard/externalChannels/bilibili/${data.profile_id}`);
     } else {
       toast(data.message, { icon: '⏳' });
       startProfileScrapeNotif({
-        label: label || profileUserId.trim(),
+        label: label || profileMid.trim(),
         before,
         fetchStatus: async () => {
-          const d = await scraperService.getKuaishouProfileDetail(token!, data.profile_id);
+          const d = await scraperService.getBilibiliProfileDetail(token!, data.profile_id);
           return { scraping_status: d.scraping_status, count: d.videos_in_db };
         },
       });
     }
-    setProfileUserId('');
-    queryClient.invalidateQueries({ queryKey: ['kuaishou-profiles'] });
+    setProfileMid('');
+    queryClient.invalidateQueries({ queryKey: ['bilibili-profiles'] });
   };
 
   const profileScrapeMutation = useMutation({
     mutationFn: (raw: string) => {
       if (!token) throw new Error('No token');
-      return scraperService.kuaishouProfileScrape(token, raw);
+      return scraperService.bilibiliProfileScrape(token, raw);
     },
-    onSuccess: (data) => handleScrapeSuccess(data, profileUserId.trim()),
+    onSuccess: (data) => handleScrapeSuccess(data, profileMid.trim()),
     onError: (e: Error) => toast.error(e.message),
   });
 
   const profileToggleMutation = useMutation({
     mutationFn: ({ id, field }: { id: number; field: 'is_bookmarked' | 'is_tracked' }) => {
       if (!token) throw new Error('No token');
-      return scraperService.toggleKuaishouProfile(token, id, field);
+      return scraperService.toggleBilibiliProfile(token, id, field);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['kuaishou-profiles'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['bilibili-profiles'] }),
   });
 
   const profileRescrape = useMutation({
-    mutationFn: (p: { id: number; eid: string; label?: string }) => {
+    mutationFn: (p: { id: number; mid: string; label?: string }) => {
       if (!token) throw new Error('No token');
-      return scraperService.kuaishouProfileScrape(token, p.eid);
+      return scraperService.bilibiliProfileScrape(token, p.mid);
     },
     onSuccess: (data, vars) => {
       const before = profiles.find(pr => pr.id === vars.id)?.videos_in_db ?? 0;
@@ -301,7 +301,7 @@ export default function KuaishouExternalPage() {
                   onChange={e => setKeyword(e.target.value)}
                   onFocus={handleInputFocus}
                   onKeyDown={e => { if (e.key === 'Enter') { setShowSuggestions(false); searchMutation.mutate(); } }}
-                  placeholder="Nhập keyword để tìm video KuaiShou..."
+                  placeholder="Nhập keyword để tìm video Bilibili..."
                   className="w-full pl-10 pr-3 py-2.5 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 />
                 {showSuggestions && (
@@ -413,15 +413,15 @@ export default function KuaishouExternalPage() {
           {!videosQuery.isLoading && !videosQuery.isError && allVideos.length === 0 && (
             <div className="flex flex-col items-center py-16 gap-4 bg-card border border-border rounded-xl">
               <FilmReel size={32} className="text-slate-300" />
-              <p className="text-sm text-foreground font-medium">Chưa có video KuaiShou nào</p>
-              <p className="text-xs text-slate-400 text-center max-w-sm">Nhập keyword rồi bấm &quot;Tìm kiếm&quot; để cào video từ KuaiShou.</p>
+              <p className="text-sm text-foreground font-medium">Chưa có video Bilibili nào</p>
+              <p className="text-xs text-slate-400 text-center max-w-sm">Nhập keyword rồi bấm &quot;Tìm kiếm&quot; để cào video từ Bilibili.</p>
             </div>
           )}
 
           {allVideos.length > 0 && (
             <>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                {allVideos.map(v => <KuaishouVideoCard key={v.post_id} video={v} />)}
+                {allVideos.map(v => <BilibiliVideoCard key={v.post_id} video={v} />)}
                 {videosQuery.isFetchingNextPage && Array.from({ length: 6 }).map((_, i) => (
                   <div key={`skel-${i}`} className="bg-card border border-border rounded-lg overflow-hidden animate-pulse">
                     <div className="aspect-[9/16] max-h-[280px] bg-slate-200 dark:bg-slate-700" />
@@ -445,16 +445,16 @@ export default function KuaishouExternalPage() {
                 <div className="relative flex-1 max-w-xl">
                   <input
                     type="text"
-                    value={profileUserId}
-                    onChange={e => setProfileUserId(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter' && profileUserId.trim()) profileScrapeMutation.mutate(profileUserId.trim()); }}
-                    placeholder="User ID (vd: 228905802) hoặc link kuaishou.com/profile/xxxx"
+                    value={profileMid}
+                    onChange={e => setProfileMid(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && profileMid.trim()) profileScrapeMutation.mutate(profileMid.trim()); }}
+                    placeholder="Mid (vd: 203680252) hoặc link space.bilibili.com/xxxx"
                     className="w-full pl-3 pr-3 py-2.5 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   />
                 </div>
                 <button
-                  onClick={() => profileScrapeMutation.mutate(profileUserId.trim())}
-                  disabled={profileScrapeMutation.isPending || !profileUserId.trim()}
+                  onClick={() => profileScrapeMutation.mutate(profileMid.trim())}
+                  disabled={profileScrapeMutation.isPending || !profileMid.trim()}
                   className="flex items-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground text-sm font-bold rounded-md hover:opacity-90 disabled:opacity-50 whitespace-nowrap shadow-sm hover:shadow-md transition-all"
                 >
                   {profileScrapeMutation.isPending ? (
@@ -505,20 +505,20 @@ export default function KuaishouExternalPage() {
             <div className="flex flex-col items-center py-16 gap-4 bg-card border border-border rounded-xl">
               <UserCircle size={40} className="text-slate-300" />
               <p className="text-sm text-foreground font-medium">Chưa có profile nào</p>
-              <p className="text-xs text-slate-400 text-center max-w-sm">Nhập User ID ở trên để bắt đầu cào.</p>
+              <p className="text-xs text-slate-400 text-center max-w-sm">Nhập Mid ở trên để bắt đầu cào.</p>
             </div>
           )}
 
           {profiles.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {profiles.map(p => (
-                <KuaishouProfileCard
+                <BilibiliProfileCard
                   key={p.id}
                   profile={p}
-                  onScrape={isAdmin ? () => profileRescrape.mutate({ id: p.id, eid: p.eid, label: p.nickname || p.eid }) : undefined}
+                  onScrape={isAdmin ? () => profileRescrape.mutate({ id: p.id, mid: p.mid, label: p.nickname || p.mid }) : undefined}
                   onToggleBookmark={() => profileToggleMutation.mutate({ id: p.id, field: 'is_bookmarked' })}
                   onToggleTracked={() => profileToggleMutation.mutate({ id: p.id, field: 'is_tracked' })}
-                  onViewDetail={() => router.push(`/dashboard/externalChannels/kuaishou/${p.id}`)}
+                  onViewDetail={() => router.push(`/dashboard/externalChannels/bilibili/${p.id}`)}
                 />
               ))}
             </div>

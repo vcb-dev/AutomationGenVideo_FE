@@ -6,6 +6,7 @@ import {
   FacebookLogo,
   TiktokLogo,
   InstagramLogo,
+  YoutubeLogo,
 } from '@phosphor-icons/react';
 
 const TABS = [
@@ -13,6 +14,7 @@ const TABS = [
   { id: 'facebook',     label: 'Facebook',     icon: FacebookLogo,  color: 'text-blue-600'  },
   { id: 'tiktok',       label: 'TikTok',       icon: TiktokLogo,    color: 'text-slate-900' },
   { id: 'instagram',    label: 'Instagram',    icon: InstagramLogo, color: 'text-pink-500'  },
+  { id: 'youtube',      label: 'YouTube',      icon: YoutubeLogo,   color: 'text-red-600'   },
   // { id: 'douyin',       label: 'Douyin',       icon: TiktokLogo,    color: 'text-cyan-500'  },
   // { id: 'xiaohongshu',  label: 'Xiaohongshu',  icon: null,          color: '',              },
 ];

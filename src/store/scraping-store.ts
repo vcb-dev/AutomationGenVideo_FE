@@ -2,7 +2,7 @@ import { create } from 'zustand';
 
 export interface ScrapeNotification {
   id: string;
-  platform: 'tiktok' | 'instagram' | 'facebook' | 'xiaohongshu' | 'douyin';
+  platform: 'tiktok' | 'instagram' | 'facebook' | 'xiaohongshu' | 'douyin' | 'youtube' | 'kuaishou' | 'bilibili';
   /** 'profile' = cào theo tài khoản đang theo dõi; 'keyword' = tìm theo từ khoá */
   kind: 'profile' | 'keyword';
   label: string;
