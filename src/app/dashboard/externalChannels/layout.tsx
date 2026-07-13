@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { FacebookLogo, TiktokLogo, InstagramLogo, SquaresFour } from '@phosphor-icons/react';
+import { FacebookLogo, TiktokLogo, InstagramLogo, YoutubeLogo, SquaresFour } from '@phosphor-icons/react';
 import NotificationBell from './components/NotificationBell';
 
 const platforms = [
@@ -9,9 +9,11 @@ const platforms = [
   { id: 'facebook', label: 'Facebook', icon: FacebookLogo, color: 'text-blue-600' },
   { id: 'tiktok', label: 'TikTok', icon: TiktokLogo, color: 'text-slate-900 dark:text-white' },
   { id: 'instagram', label: 'Instagram', icon: InstagramLogo, color: 'text-pink-500' },
+  { id: 'youtube', label: 'YouTube', icon: YoutubeLogo, color: 'text-red-600' },
   { id: 'douyin', label: 'Douyin', icon: TiktokLogo, color: 'text-cyan-500' },
   { id: 'xiaohongshu', label: 'XiaoHongShu', icon: null, emoji: '📕' },
   { id: 'kuaishou', label: 'KuaiShou', icon: null, emoji: '⚡' },
+  { id: 'bilibili', label: 'Bilibili', icon: null, emoji: '📺' },
 ];
 
 export default function ExternalChannelsLayout({ children }: { children: React.ReactNode }) {
