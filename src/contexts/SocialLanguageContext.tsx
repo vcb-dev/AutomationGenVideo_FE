@@ -239,6 +239,8 @@ const T = {
       filterAll: 'Tất cả',
       filterImage: 'Ảnh',
       filterVideo: 'Video',
+      filterDate: 'Lọc theo ngày tải lên',
+      filterAllDates: 'Xem tất cả ngày',
       fileCount: (total: number) => `${total} file`,
       uploadingFile: (index: number, total: number, isVideo: boolean, fileName: string) =>
         `[${index}/${total}] ${isVideo ? 'Đang tải lên Google Drive' : 'Đang lưu'} ${fileName}...`,
@@ -1008,6 +1010,8 @@ const T = {
       filterAll: 'All',
       filterImage: 'Image',
       filterVideo: 'Video',
+      filterDate: 'Filter by upload date',
+      filterAllDates: 'Show all dates',
       fileCount: (total: number) => `${total} files`,
       uploadingFile: (index: number, total: number, isVideo: boolean, fileName: string) =>
         `[${index}/${total}] ${isVideo ? 'Uploading to Google Drive' : 'Saving'} ${fileName}...`,

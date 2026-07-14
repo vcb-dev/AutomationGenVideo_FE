@@ -41,6 +41,7 @@ const CATALOG_COLORS: Record<string, string> = {
 
 export interface ContentViewItem {
   id: string
+  code?: string | null
   title?: string | null
   brand_type?: string | null
   market?: string | null
@@ -56,7 +57,7 @@ export interface ContentViewItem {
   created_at?: string
   source_editor_content_id?: string | null
   source_editor_content?: {
-    title?: string | null; body?: string | null; script?: string | null
+    code?: string | null; title?: string | null; body?: string | null; script?: string | null
     voice_url?: string | null; file_content_url?: string | null
     market?: string | null; status?: string | null
     content_line?: { name: string } | null
@@ -64,13 +65,13 @@ export interface ContentViewItem {
   } | null
   source_team_content_id?: string | null
   source_team_content?: {
-    title?: string | null; body?: string | null; script?: string | null
+    code?: string | null; title?: string | null; body?: string | null; script?: string | null
     voice_url?: string | null; file_content_url?: string | null
     market?: string | null; status?: string | null
     content_line?: { name: string } | null
     classification?: { name: string } | null
     source_editor_content?: {
-      title?: string | null; body?: string | null; script?: string | null
+      code?: string | null; title?: string | null; body?: string | null; script?: string | null
       voice_url?: string | null; file_content_url?: string | null
       market?: string | null; status?: string | null
       content_line?: { name: string } | null
@@ -106,6 +107,7 @@ export function ContentViewModal({
   const ec = item.source_editor_content
   const tc = item.source_team_content
   const tc_ec = tc?.source_editor_content
+  const itemCode = item.code ?? ec?.code ?? tc?.code ?? tc_ec?.code ?? null
   const itemTitle = item.title ?? ec?.title ?? tc?.title ?? tc_ec?.title ?? null
   const itemMarket = item.market ?? ec?.market ?? tc?.market ?? tc_ec?.market ?? null
   const itemStatus = item.status ?? ec?.status ?? tc?.status ?? tc_ec?.status ?? null
@@ -154,6 +156,11 @@ export function ContentViewModal({
                   <h2 className="font-bold text-slate-900 text-xl leading-snug">
                     {itemTitle || <span className="text-slate-400 italic font-normal text-lg">Chưa đặt tên</span>}
                   </h2>
+                  {itemCode && (
+                    <span className="px-2.5 py-1 rounded-full text-xs font-mono font-semibold bg-slate-100 text-slate-600 shrink-0">
+                      {itemCode}
+                    </span>
+                  )}
                   {itemStatus && (
                     <span className={cn('px-2.5 py-1 rounded-full text-xs font-semibold shrink-0', STATUS_COLORS[itemStatus] ?? 'bg-slate-100 text-slate-500')}>
                       {STATUS_LABELS[itemStatus] ?? itemStatus}

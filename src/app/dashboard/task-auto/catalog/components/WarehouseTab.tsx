@@ -85,8 +85,8 @@ function PickItemsModal({
     const q = search.toLowerCase()
     return notIn.filter(item => {
       const name = (item as any).name ?? (item as any).title ?? ''
-      const sku = (item as any).sku ?? ''
-      return name.toLowerCase().includes(q) || sku.toLowerCase().includes(q)
+      const code = (item as any).sku ?? (item as any).code ?? ''
+      return name.toLowerCase().includes(q) || code.toLowerCase().includes(q)
     })
   }, [allItems, warehouseIds, search])
 
@@ -143,7 +143,9 @@ function PickItemsModal({
             <label key={item.id} className="flex items-center gap-3 px-6 py-3 hover:bg-gray-50 cursor-pointer">
               <input type="checkbox" className="w-4 h-4 accent-indigo-600" checked={selected.has(item.id)} onChange={() => toggle(item.id)} />
               <span className="text-sm text-slate-700 flex-1">{labelOf(item)}</span>
-              {(item as any).sku && <span className="text-xs text-slate-400">{(item as any).sku}</span>}
+              {((item as any).sku || (item as any).code) && (
+                <span className="text-xs text-slate-400">{(item as any).sku || (item as any).code}</span>
+              )}
             </label>
           ))}
         </div>
@@ -426,9 +428,16 @@ export function WarehouseTab({ brandType, isAdminOrManager = false, isScaleData 
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {pagedItems.map(item => (
+              {pagedItems.map(item => {
+                const itemCode = subTab === 'contents'
+                  ? ((item as any).code || (item as any).source_team_content?.code || (item as any).source_team_content?.source_editor_content?.code || '')
+                  : ''
+                return (
                 <tr key={item.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-5 py-3.5 font-medium text-slate-800">{labelOf(item)}</td>
+                  <td className="px-5 py-3.5 font-medium text-slate-800">
+                    {labelOf(item)}
+                    {itemCode && <span className="ml-2 text-xs font-mono font-normal text-slate-400">{itemCode}</span>}
+                  </td>
                   <td className="px-5 py-3.5 text-slate-500">{subOf(item, subTab)}</td>
                   <td className="px-5 py-3.5 text-right">
                     {canWriteCurrent && (
@@ -443,7 +452,7 @@ export function WarehouseTab({ brandType, isAdminOrManager = false, isScaleData 
                     )}
                   </td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         )}

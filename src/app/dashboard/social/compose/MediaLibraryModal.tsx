@@ -24,6 +24,14 @@ function formatBytes(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function todayStr() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect = 10, mode = 'media' }: Props) {
   const { t } = useSocialLang();
   const [items, setItems]       = useState<MediaLibraryItem[]>([]);
@@ -34,6 +42,7 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
   const [selected, setSelected]     = useState<Set<string>>(new Set());
   const [search, setSearch]         = useState('');
   const [filter, setFilter]         = useState<'all' | 'image' | 'video'>('all');
+  const [dateFilter, setDateFilter] = useState<string>(todayStr());
   const [stats, setStats]           = useState<{ count: number; totalMB: number } | null>(null);
   const [uploading, setUploading]   = useState(false);
   const [uploadPct, setUploadPct]   = useState(0);
@@ -42,10 +51,10 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
   const [historyData, setHistoryData] = useState<{ posts: any[] } | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
 
-  const load = useCallback(async (p = 1, background = false) => {
+  const load = useCallback(async (p = 1, background = false, date = dateFilter) => {
     if (!background) setLoading(true);
     try {
-      const res = await socialApi.library.list(p, 20);
+      const res = await socialApi.library.list(p, 20, date || undefined);
       setItems(res.items);
       setTotal(res.total);
       setPages(res.pages);
@@ -55,7 +64,7 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
     } finally {
       if (!background) setLoading(false);
     }
-  }, []);
+  }, [dateFilter]);
 
   useEffect(() => {
     if (!open) { setSelected(new Set()); return; }
@@ -258,6 +267,22 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
                 </button>
               ))}
             </div>
+            <input
+              type="date"
+              value={dateFilter}
+              onChange={e => setDateFilter(e.target.value)}
+              max={todayStr()}
+              className="px-2.5 py-1.5 text-xs font-medium border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 text-slate-600"
+              title={t.mediaLibrary.filterDate}
+            />
+            {dateFilter && (
+              <button
+                onClick={() => setDateFilter('')}
+                className="px-2.5 py-1.5 text-xs font-bold text-slate-500 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition-colors whitespace-nowrap"
+              >
+                {t.mediaLibrary.filterAllDates}
+              </button>
+            )}
             <span className="text-xs text-slate-400">{t.mediaLibrary.fileCount(total)}</span>
 
             {/* Upload vào thư viện */}
@@ -301,9 +326,9 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
                 </div>
                 <p className="text-sm font-bold text-slate-500">{t.mediaLibrary.emptyTitle}</p>
                 <p className="text-xs text-slate-400 mt-1 mb-3">
-                  {search || filter !== 'all' ? t.mediaLibrary.emptyNoMatch : t.mediaLibrary.emptyHint}
+                  {search || filter !== 'all' || dateFilter ? t.mediaLibrary.emptyNoMatch : t.mediaLibrary.emptyHint}
                 </p>
-                {!search && filter === 'all' && (
+                {!search && filter === 'all' && !dateFilter && (
                   <button
                     onClick={() => fileInputRef.current?.click()}
                     className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-colors"
