@@ -109,6 +109,8 @@ export interface TeamContent {
   // Inline content data (null khi record là FK-reference từ kho editor)
   brand_type: BrandType
   market: string | null
+  /** Mã content (business code), unique toàn hệ thống */
+  code: string | null
   title: string | null
   body: string | null
   script: string | null
@@ -129,7 +131,7 @@ export interface TeamContent {
   classification?: { id: string; name: string } | null
   added_by?: Pick<UserBasic, 'id' | 'full_name'>
   source_editor_content?: {
-    id: string; title: string | null; body: string | null; script: string | null
+    id: string; code: string | null; title: string | null; body: string | null; script: string | null
     file_content_url: string | null; voice_url: string | null
     content_line_id: string | null; classification_id: string | null; brand_type: BrandType
     market: string | null; status: ContentUsageStatus | null
@@ -324,6 +326,8 @@ export interface Content {
   id: string
   brand_type: BrandType
   market: string
+  /** Mã content (business code), unique toàn hệ thống */
+  code: string | null
   title: string | null
   body: string | null
   script: string | null
@@ -349,12 +353,12 @@ export interface Content {
   added_by?: UserBasic
   source_team_content_id?: string | null
   source_team_content?: {
-    id: string; title: string | null; market: string | null; script: string | null; body: string | null
+    id: string; code: string | null; title: string | null; market: string | null; script: string | null; body: string | null
     file_content_url: string | null; voice_url: string | null
     content_line?: ContentLine | null
     classification?: { id: string; name: string } | null
     source_editor_content?: {
-      id: string; title: string | null; market: string | null; script: string | null; body: string | null
+      id: string; code: string | null; title: string | null; market: string | null; script: string | null; body: string | null
       file_content_url: string | null; voice_url: string | null
       content_line?: ContentLine | null
       classification?: { id: string; name: string } | null
@@ -367,7 +371,7 @@ export interface Source {
   brand_type: BrandType
   type: SourceType
   name: string
-  link: string
+  link: string | null
   nas_link?: string | null
   code: string | null
   product_id: string | null
@@ -472,19 +476,19 @@ export interface Task {
   updated_at: string
   // Relations
   team?: Pick<Team, 'id' | 'name'>
-  content?: Pick<Content, 'id' | 'title' | 'script' | 'file_content_url' | 'market'> & {
+  content?: Pick<Content, 'id' | 'code' | 'title' | 'script' | 'file_content_url' | 'market'> & {
     content_line?: ContentLine | null
     source_team_content?: {
-      id: string; title?: string | null; market?: string | null; script?: string | null; body?: string | null
+      id: string; code?: string | null; title?: string | null; market?: string | null; script?: string | null; body?: string | null
       file_content_url?: string | null; voice_url?: string | null; content_line?: ContentLine | null
-      source_editor_content?: { id: string; title?: string | null; market?: string | null; script?: string | null; body?: string | null; file_content_url?: string | null; voice_url?: string | null; content_line?: ContentLine | null } | null
+      source_editor_content?: { id: string; code?: string | null; title?: string | null; market?: string | null; script?: string | null; body?: string | null; file_content_url?: string | null; voice_url?: string | null; content_line?: ContentLine | null } | null
     } | null
   } | null
-  team_content?: Pick<TeamContent, 'id' | 'title' | 'script' | 'file_content_url' | 'market' | 'body' | 'voice_url'> & {
+  team_content?: Pick<TeamContent, 'id' | 'code' | 'title' | 'script' | 'file_content_url' | 'market' | 'body' | 'voice_url'> & {
     content_line?: ContentLine | null
-    source_editor_content?: { title?: string | null; market?: string | null; script?: string | null; body?: string | null; file_content_url?: string | null; voice_url?: string | null; content_line?: ContentLine | null } | null
+    source_editor_content?: { code?: string | null; title?: string | null; market?: string | null; script?: string | null; body?: string | null; file_content_url?: string | null; voice_url?: string | null; content_line?: ContentLine | null } | null
   } | null
-  editor_content?: Pick<Content, 'id' | 'title' | 'script' | 'file_content_url' | 'market' | 'body' | 'voice_url'> & { content_line?: ContentLine | null } | null
+  editor_content?: Pick<Content, 'id' | 'code' | 'title' | 'script' | 'file_content_url' | 'market' | 'body' | 'voice_url'> & { content_line?: ContentLine | null } | null
   product?: Pick<Product, 'id' | 'sku' | 'name' | 'image_url' | 'image_urls' | 'price' | 'market' | 'price_segment' | 'priority_score'> & {
     material?: { id: string; name: string } | null
     product_line?: { id: string; name: string } | null

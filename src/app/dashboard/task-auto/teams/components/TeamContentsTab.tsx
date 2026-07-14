@@ -10,7 +10,6 @@ import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
 import { Pagination, PAGE_SIZE } from '@/components/task-auto/Pagination'
 import { HeaderFilterDropdown } from '@/components/task-auto/HeaderFilterDropdown'
 import { ContentFormModal, parseMarkets } from '@/components/task-auto/ContentFormModal'
-import { ContentStatusBadge } from '@/components/task-auto/StatusBadge'
 import {
   getTeams, getTeamContents, addTeamContent, removeTeamContent,
   pushTeamContentToGlobal,
@@ -212,7 +211,8 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
             <table className="w-full">
               <thead>
                 <tr className="bg-slate-50 border-b-2 border-gray-200">
-                  <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide w-[32%]">Tiêu đề</th>
+                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[10%]">Mã</th>
+                  <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide w-[25%]">Tiêu đề</th>
                   <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[15%]">
                     <HeaderFilterDropdown
                       label="Tuyến ND"
@@ -232,7 +232,6 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
                     />
                   </th>
                   <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[10%]">Thị trường</th>
-                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[13%]">Trạng thái</th>
                   <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[9%]">File</th>
                   <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[13%]">Người thêm</th>
                   <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Ngày thêm</th>
@@ -286,9 +285,9 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
 
                 {!isLoading && paginated.map((tc: TeamContent) => {
                   const ec = tc.source_editor_content
+                  const code = tc.code ?? ec?.code ?? null
                   const title = tc.title ?? ec?.title ?? null
                   const market = tc.market ?? ec?.market ?? null
-                  const status = tc.status ?? ec?.status ?? null
                   const voiceUrl = tc.voice_url ?? ec?.voice_url ?? null
                   const fileContentUrl = tc.file_content_url ?? ec?.file_content_url ?? null
                   const markets = parseMarkets(market)
@@ -298,6 +297,13 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
                       onClick={() => setSelectedContent(tc)}
                       className="hover:bg-indigo-50/20 transition-colors group cursor-pointer"
                     >
+                      {/* Mã content */}
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <span className="inline-block bg-slate-100 text-slate-600 font-mono text-xs font-semibold px-2.5 py-1 rounded-lg">
+                          {code || <span className="text-slate-300">—</span>}
+                        </span>
+                      </td>
+
                       {/* Tiêu đề */}
                       <td className="px-5 py-4 max-w-0">
                         <span className="text-base font-semibold text-slate-800 truncate block" title={title ?? ''}>
@@ -336,11 +342,6 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
                             : <span className="text-slate-300 text-sm">—</span>
                           }
                         </div>
-                      </td>
-
-                      {/* Trạng thái */}
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        <ContentStatusBadge status={status as any} />
                       </td>
 
                       {/* Voice / File */}
@@ -472,6 +473,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
               await addTeamContent(selectedTeamId, {
                 brand_type: content.brand_type,
                 market: content.market,
+                code: content.code,
                 title: content.title,
                 body: content.body,
                 script: content.script,

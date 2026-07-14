@@ -1,6 +1,6 @@
 'use client'
 
-import { Loader2, Play, Upload, CheckCircle2, XCircle, RotateCcw, Ban, Check } from 'lucide-react'
+import { Loader2, Play, Upload, CheckCircle2, XCircle, RotateCcw, Ban, Check, CalendarClock } from 'lucide-react'
 import type { Task } from '@/types/task-auto'
 
 interface Props {
@@ -10,6 +10,7 @@ interface Props {
   canApproveReject: boolean
   canCancel: boolean
   canStart: boolean
+  canSchedulePost: boolean
   isPendingStart: boolean
   isPendingApprove: boolean
   isPendingCancel: boolean
@@ -23,14 +24,15 @@ interface Props {
   onReject: () => void
   onCancel: () => void
   onResubmit: () => void
+  onSchedulePost: () => void
 }
 
 export function TaskPanelFooter({
   task, editMode,
-  isAssignee, canApproveReject, canCancel, canStart,
+  isAssignee, canApproveReject, canCancel, canStart, canSchedulePost,
   isPendingStart, isPendingApprove, isPendingCancel, isPendingUpdate,
   onClose, onCancelEdit, onSaveEdit,
-  onStart, onSubmit, onApprove, onReject, onCancel, onResubmit,
+  onStart, onSubmit, onApprove, onReject, onCancel, onResubmit, onSchedulePost,
 }: Props) {
   return (
     <div className="flex items-center justify-between gap-3 px-6 py-4 bg-white border-t border-gray-200 shrink-0">
@@ -90,6 +92,12 @@ export function TaskPanelFooter({
               <button onClick={onResubmit}
                 className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors">
                 <RotateCcw className="w-4 h-4" /> Nộp lại
+              </button>
+            )}
+            {canSchedulePost && (
+              <button onClick={onSchedulePost}
+                className="border border-indigo-200 text-indigo-600 hover:bg-indigo-50 rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors">
+                <CalendarClock className="w-4 h-4" /> Lên lịch đăng bài
               </button>
             )}
             {!['APPROVED', 'REJECTED', 'CANCELLED'].includes(task.status) && canCancel && (

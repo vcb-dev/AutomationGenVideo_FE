@@ -344,7 +344,7 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
   const isEdit = !!editing
 
   const [form, setForm] = useState<Partial<Content>>({
-    title: '', body: '', script: '', file_content_url: '', voice_url: '',
+    code: '', title: '', body: '', script: '', file_content_url: '', voice_url: '',
     content_line_id: '', classification_id: '',
   })
   const [market, setMarket] = useState<string>(initialMarket ?? 'VIETNAM')
@@ -357,7 +357,7 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
         setForm({ ...editing })
         setMarket(editing.market ?? initialMarket ?? 'VIETNAM')
       } else {
-        setForm({ title: '', body: '', script: '', file_content_url: '', voice_url: '', content_line_id: '', classification_id: '' })
+        setForm({ code: '', title: '', body: '', script: '', file_content_url: '', voice_url: '', content_line_id: '', classification_id: '' })
         setMarket(initialMarket ?? 'VIETNAM')
       }
     }
@@ -381,7 +381,7 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
       toast.success('Đã thêm content')
       onSuccess(content)
     },
-    onError: () => toast.error('Không thể thêm content'),
+    onError: (e: any) => toast.error(e?.response?.data?.message || 'Không thể thêm content'),
   })
 
   const updateMut = useMutation({
@@ -393,7 +393,7 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
       toast.success('Đã cập nhật content')
       onSuccess(content)
     },
-    onError: () => toast.error('Không thể cập nhật content'),
+    onError: (e: any) => toast.error(e?.response?.data?.message || 'Không thể cập nhật content'),
   })
 
   const saving = createMut.isPending || updateMut.isPending || resolvingVoice
@@ -411,6 +411,7 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
     setResolvingVoice(false)
 
     const sharedBody = {
+      code: form.code?.trim() || null,
       title: form.title,
       body: form.body,
       script: form.script,
@@ -425,7 +426,7 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
       if (userId) {
         createEditorContent(userId, body as any)
           .then(content => { qc.invalidateQueries({ queryKey: ['task-auto', 'contents'] }); toast.success('Đã thêm content'); onSuccess(content) })
-          .catch(() => toast.error('Không thể thêm content'))
+          .catch((e: any) => toast.error(e?.response?.data?.message || 'Không thể thêm content'))
       } else {
         createMut.mutate(body as any)
       }
@@ -466,12 +467,20 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
             Thông tin chính
           </p>
-          <DarkInput
-            label="Tiêu đề content"
-            placeholder="Nhập tiêu đề..."
-            value={form.title ?? ''}
-            onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <DarkInput
+              label="Mã content"
+              placeholder="VD: CT-101"
+              value={form.code ?? ''}
+              onChange={e => setForm(f => ({ ...f, code: e.target.value }))}
+            />
+            <DarkInput
+              label="Tiêu đề content"
+              placeholder="Nhập tiêu đề..."
+              value={form.title ?? ''}
+              onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+            />
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <CustomSelect
               label="Tuyến nội dung"

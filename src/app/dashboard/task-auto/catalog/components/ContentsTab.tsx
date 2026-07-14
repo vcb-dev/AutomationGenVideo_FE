@@ -199,7 +199,7 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
               <input
                 value={search}
                 onChange={e => { setSearch(e.target.value); setPage(1) }}
-                placeholder="Tìm kiếm tiêu đề content..."
+                placeholder="Tìm kiếm mã, tiêu đề content..."
                 className="w-full pl-12 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-base text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
               />
             </div>
@@ -253,7 +253,8 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
             <table className="w-full">
               <thead>
                 <tr className="bg-slate-50 border-b-2 border-gray-200">
-                  <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide w-[35%]">Tiêu đề</th>
+                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[10%]">Mã</th>
+                  <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide w-[28%]">Tiêu đề</th>
                   <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[15%]">
                     <HeaderFilterDropdown
                       label="Tuyến ND"
@@ -279,11 +280,11 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {isLoading && <LoadingRows cols={9} />}
+                {isLoading && <LoadingRows cols={10} />}
 
                 {!isLoading && (!data?.data || data.data.length === 0) && (
                   <tr>
-                    <td colSpan={9}>
+                    <td colSpan={10}>
                       <EmptyState icon={FileText} title="Không có content nào" />
                     </td>
                   </tr>
@@ -292,11 +293,19 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
                 {data?.data.map(c => {
                   const tc = c.source_team_content
                   const tc_ec = tc?.source_editor_content
+                  const rCode = c.code || tc?.code || tc_ec?.code || ''
                   const rTitle = c.title || tc?.title || tc_ec?.title || null
                   const rContentLine = c.content_line ?? tc?.content_line ?? tc_ec?.content_line ?? null
                   const rClassification = c.classification ?? tc?.classification ?? tc_ec?.classification ?? null
                   const rMarket = c.market || tc?.market || tc_ec?.market || null
                   return (<tr key={c.id} className="hover:bg-indigo-50/20 transition-colors group cursor-pointer" onClick={() => setDetailItem(c)}>
+
+                    {/* Mã content */}
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <span className="inline-block bg-slate-100 text-slate-600 font-mono text-xs font-semibold px-2.5 py-1 rounded-lg">
+                        {rCode || <span className="text-slate-300">—</span>}
+                      </span>
+                    </td>
 
                     {/* Tiêu đề */}
                     <td className="px-5 py-4 max-w-0">

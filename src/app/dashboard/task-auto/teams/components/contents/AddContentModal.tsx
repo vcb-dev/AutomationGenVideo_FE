@@ -39,6 +39,7 @@ export function AddContentModal({ open, teamId, existingContentIds, onClose, onS
     const tc = c.source_team_content
     const tc_ec = tc?.source_editor_content
     return {
+      code: c.code || tc?.code || tc_ec?.code || '',
       title: c.title || tc?.title || tc_ec?.title || '',
       contentLine: c.content_line ?? tc?.content_line ?? tc_ec?.content_line ?? null,
     }
@@ -131,7 +132,7 @@ export function AddContentModal({ open, teamId, existingContentIds, onClose, onS
           type="text"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Tìm tiêu đề content..."
+          placeholder="Tìm mã hoặc tiêu đề content..."
           className="w-full pl-9 pr-9 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
         />
         {search && (
@@ -174,6 +175,7 @@ export function AddContentModal({ open, teamId, existingContentIds, onClose, onS
                   <p className="font-semibold text-slate-800 text-sm truncate">
                     {r.title || <span className="text-slate-400 italic font-normal">Chưa đặt tên</span>}
                   </p>
+                  <p className="text-xs text-slate-400 truncate">Mã: {r.code || '—'}</p>
                   <p className="text-xs text-slate-400 truncate">
                     {r.contentLine?.name ?? 'Chưa có tuyến nội dung'}
                   </p>

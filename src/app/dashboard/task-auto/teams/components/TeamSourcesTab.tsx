@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {
-  Radio, Plus, Search, ExternalLink, Trash2, Edit2,
+  Radio, Plus, Search, Trash2, Edit2,
   Loader2, Globe, ListFilter, PenLine, Check, X, ArrowUpToLine, Link2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -20,6 +20,7 @@ import {
 } from '@/lib/api/task-auto'
 import { TeamSource, Source, SOURCE_TYPE_LABELS, SourceType } from '@/types/task-auto'
 import { SourceViewModal } from '@/components/task-auto/SourceViewModal'
+import { NasLinkCell } from '@/components/task-auto/NasLinkCell'
 
 const SOURCE_TYPE_COLORS: Record<SourceType, string> = {
   PRODUCT_STOCK: 'bg-indigo-100 text-indigo-700',
@@ -220,13 +221,13 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
   }
 
   const handleManualSubmit = () => {
-    if (!form.name || !form.link) return toast.error('Tên và link là bắt buộc')
+    if (!form.name || !form.nas_link) return toast.error('Tên và Link ổ NAS là bắt buộc')
     const body = {
       brand_type: formBrandType,
       type:       form.type!,
       name:       form.name,
-      link:       form.link,
-      nas_link:        form.nas_link || undefined,
+      link:       form.link || undefined,
+      nas_link:        form.nas_link,
       code:            form.code || undefined,
       team_product_id: form.team_product_id || undefined,
       is_active:       form.is_active ?? true,
@@ -333,7 +334,7 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
                       />
                     </th>
                     <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 whitespace-nowrap">Code</th>
-                    <th className="text-left px-5 py-4 text-sm font-bold text-slate-600">Link</th>
+                    <th className="text-left px-5 py-4 text-sm font-bold text-slate-600">Link ổ NAS</th>
                     <th className="text-left px-5 py-4 text-sm font-bold text-slate-600">Sản phẩm</th>
                     <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 whitespace-nowrap">
                       <HeaderFilterDropdown
@@ -353,7 +354,7 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
                   {paginated.map(s => {
                     const es = s.source_editor_source
                     const sName = s.name ?? es?.name ?? '—'
-                    const sLink = s.link ?? es?.link ?? null
+                    const sNasLink = s.nas_link ?? es?.nas_link ?? null
                     const sType = s.type ?? es?.type ?? null
                     const sCode = s.code ?? es?.code ?? null
                     return (
@@ -382,17 +383,8 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
                           ? <span className="bg-slate-100 text-slate-600 font-mono text-xs font-semibold px-2.5 py-1 rounded-lg">{sCode}</span>
                           : <span className="text-slate-300 text-sm">—</span>}
                       </td>
-                      <td className="px-5 py-4 max-w-[200px]">
-                        {sLink ? (
-                          <a href={sLink} target="_blank" rel="noreferrer" title={sLink}
-                            onClick={e => e.stopPropagation()}
-                            className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-400 text-sm transition-colors">
-                            <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-                            <span className="truncate">{sLink}</span>
-                          </a>
-                        ) : (
-                          <span className="text-slate-300 text-sm">—</span>
-                        )}
+                      <td className="px-5 py-4 max-w-[200px]" onClick={e => e.stopPropagation()}>
+                        <NasLinkCell value={sNasLink} />
                       </td>
                       <td className="px-5 py-4">
                         <span className="text-sm text-slate-700 truncate block max-w-[160px]">
@@ -557,10 +549,10 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
                 onChange={e => setForm(f => ({ ...f, code: e.target.value }))} />
               <DarkInput label="Tên Source *" placeholder="Tên nguồn tài liệu..." value={form.name ?? ''}
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-              <DarkInput label="Link *" placeholder="https://drive.google.com/..." value={form.link ?? ''}
-                onChange={e => setForm(f => ({ ...f, link: e.target.value }))} />
-              <DarkInput label="Link ổ NAS" placeholder="\\nas\... hoặc smb://... (tuỳ chọn)" value={form.nas_link ?? ''}
+              <DarkInput label="Link ổ NAS *" placeholder="\\nas\... hoặc smb://..." value={form.nas_link ?? ''}
                 onChange={e => setForm(f => ({ ...f, nas_link: e.target.value }))} />
+              <DarkInput label="Link" placeholder="https://drive.google.com/... (tuỳ chọn)" value={form.link ?? ''}
+                onChange={e => setForm(f => ({ ...f, link: e.target.value }))} />
               <ProductSearchSelect label="Sản phẩm liên kết" value={form.team_product_id ?? ''}
                 onChange={id => setForm(f => ({ ...f, team_product_id: id }))}
                 products={(productsForSelect ?? []).map(p => ({ ...p, sku: p.sku ?? p.source_editor_product?.sku ?? '', name: p.name ?? p.source_editor_product?.name ?? '' }))}
@@ -675,7 +667,9 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
             onChange={e => setForm(f => ({ ...f, code: e.target.value }))} />
           <DarkInput label="Tên Source *" placeholder="Tên nguồn tài liệu..." value={form.name ?? ''}
             onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-          <DarkInput label="Link *" placeholder="https://drive.google.com/..." value={form.link ?? ''}
+          <DarkInput label="Link ổ NAS *" placeholder="\\nas\... hoặc smb://..." value={form.nas_link ?? ''}
+            onChange={e => setForm(f => ({ ...f, nas_link: e.target.value }))} />
+          <DarkInput label="Link" placeholder="https://drive.google.com/... (tuỳ chọn)" value={form.link ?? ''}
             onChange={e => setForm(f => ({ ...f, link: e.target.value }))} />
           {editing?.team_product ? (
             <div className="space-y-1">
