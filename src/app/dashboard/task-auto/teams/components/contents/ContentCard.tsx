@@ -69,12 +69,15 @@ export function ContentCard({ teamContent, canRemove, canPushToGlobal, onRemove,
           </div>
 
           {/* Title */}
-          <p className={cn(
-            'font-bold text-base leading-snug line-clamp-2',
-            c?.title ? 'text-slate-800' : 'text-slate-400 italic font-normal'
-          )}>
-            {c?.title || 'Chưa đặt tên'}
-          </p>
+          <div>
+            <p className={cn(
+              'font-bold text-base leading-snug line-clamp-2',
+              c?.title ? 'text-slate-800' : 'text-slate-400 italic font-normal'
+            )}>
+              {c?.title || 'Chưa đặt tên'}
+            </p>
+            {c?.code && <p className="text-[11px] text-slate-400 font-mono mt-0.5">{c.code}</p>}
+          </div>
 
           {/* Body preview */}
           {preview && c?.body && (

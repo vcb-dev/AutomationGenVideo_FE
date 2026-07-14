@@ -83,6 +83,7 @@ export default function InternalChannelsPage() {
   // ADMIN/MANAGER có toàn quyền sửa/xóa kênh, không giới hạn team (khớp quyền BE)
   const canManage = isLeader || isAdmin || isManager;
   const userTeam = (user as any)?.team ?? null;
+  const userId = (user as any)?.id ?? null;
 
   const [channels,      setChannels]      = useState<Channel[]>([]);
   const [loading,       setLoading]       = useState(true);
@@ -126,10 +127,16 @@ export default function InternalChannelsPage() {
 
   useEffect(() => { fetchChannels(); }, [fetchChannels]);
 
+  // Chủ kênh (owner) cũng được sửa/xóa kênh của chính mình dù không phải LEADER (khớp quyền BE)
+  const isOwnChannel = (ch: Channel) => !!userId && ch.owner?.id === userId;
+  const canManageChannel = (ch: Channel) => canManage || isOwnChannel(ch);
+  // Có cần hiển thị cột "Thao tác" không: LEADER/ADMIN/MANAGER luôn có, hoặc user sở hữu ít nhất 1 kênh
+  const showActionsCol = canManage || channels.some(isOwnChannel);
+
   // Danh sách member để chọn chủ kênh (owner) khi sửa — LEADER chỉ thấy team mình,
   // ADMIN/MANAGER thấy toàn bộ user (BE tự lọc theo role gọi API).
   useEffect(() => {
-    if (!canManage) return;
+    if (!showActionsCol) return;
     (async () => {
       try {
         const res = await fetch(`${apiUrl}/users/team-members`, {
@@ -139,7 +146,7 @@ export default function InternalChannelsPage() {
         setTeamMembers(await res.json());
       } catch { /* không chặn UI nếu tải danh sách member thất bại */ }
     })();
-  }, [apiUrl, token, canManage]);
+  }, [apiUrl, token, showActionsCol]);
 
   // ─── FILTER LOGIC ───
   const filtered = channels.filter(c => {
@@ -341,7 +348,7 @@ export default function InternalChannelsPage() {
 
             {/* Column headers */}
             <div className={`grid px-7 py-4 border-b border-slate-100 bg-slate-50
-              ${canManage
+              ${showActionsCol
                 ? 'grid-cols-[2fr_1fr_1fr_1fr_88px]'
                 : 'grid-cols-[2fr_1fr_1fr_1fr]'} gap-6`}>
               <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Tên kênh</span>
@@ -405,7 +412,7 @@ export default function InternalChannelsPage() {
                   )}
                 </AnimatePresence>
               </div>
-              {canManage && <span className="text-xs font-black text-slate-400 uppercase tracking-widest text-right">Thao tác</span>}
+              {showActionsCol && <span className="text-xs font-black text-slate-400 uppercase tracking-widest text-right">Thao tác</span>}
             </div>
 
             {/* No results */}
@@ -429,7 +436,7 @@ export default function InternalChannelsPage() {
                       initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                       transition={{ delay: idx * 0.02 }}
                       className={`grid px-7 py-5 items-center hover:bg-slate-50/80 transition-colors group
-                        ${canManage
+                        ${showActionsCol
                           ? 'grid-cols-[2fr_1fr_1fr_1fr_88px]'
                           : 'grid-cols-[2fr_1fr_1fr_1fr]'} gap-6`}>
 
@@ -475,18 +482,22 @@ export default function InternalChannelsPage() {
                       </div>
 
                       {/* Actions */}
-                      {canManage && (
+                      {showActionsCol && (
                         <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => openEdit(ch)}
-                            className="p-2.5 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
-                            title="Sửa kênh">
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => setDeleteTarget(ch)}
-                            className="p-2.5 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
-                            title="Xóa kênh">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {canManageChannel(ch) && (
+                            <>
+                              <button onClick={() => openEdit(ch)}
+                                className="p-2.5 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
+                                title="Sửa kênh">
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button onClick={() => setDeleteTarget(ch)}
+                                className="p-2.5 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
+                                title="Xóa kênh">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
                         </div>
                       )}
                     </motion.div>

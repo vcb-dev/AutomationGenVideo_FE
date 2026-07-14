@@ -87,7 +87,8 @@ function PickItemsModal({
     const q = search.toLowerCase()
     return notIn.filter((item: any) => {
       const name = item.name ?? item.title ?? ''
-      return name.toLowerCase().includes(q) || (item.sku ?? '').toLowerCase().includes(q)
+      const code = item.sku ?? item.code ?? ''
+      return name.toLowerCase().includes(q) || code.toLowerCase().includes(q)
     })
   }, [allItems, warehouseIds, search])
 
@@ -136,7 +137,7 @@ function PickItemsModal({
             <label key={item.id} className="flex items-center gap-3 px-6 py-3 hover:bg-gray-50 cursor-pointer">
               <input type="checkbox" className="w-4 h-4 accent-indigo-600" checked={selected.has(item.id)} onChange={() => toggle(item.id)} />
               <span className="text-sm text-slate-700 flex-1">{item.name ?? item.title ?? item.sku ?? item.id}</span>
-              {item.sku && <span className="text-xs text-slate-400">{item.sku}</span>}
+              {(item.sku || item.code) && <span className="text-xs text-slate-400">{item.sku || item.code}</span>}
               {subTab === 'products' && selected.has(item.id) && (
                 <span className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
                   <span className="text-xs text-slate-400">SL video</span>
@@ -428,7 +429,12 @@ export function MyWarehouseTab({
             <tbody className="divide-y divide-gray-50">
               {warehouseItems.map((item: any) => (
                 <tr key={item.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-5 py-3.5 font-medium text-slate-800">{labelOf(item)}</td>
+                  <td className="px-5 py-3.5 font-medium text-slate-800">
+                    {labelOf(item)}
+                    {subTab === 'contents' && item.code && (
+                      <span className="ml-2 text-xs font-mono font-normal text-slate-400">{item.code}</span>
+                    )}
+                  </td>
                   <td className="px-5 py-3.5 text-slate-500">{subOf(item)}</td>
                   {subTab === 'products' && (
                     <td className="px-5 py-3.5 text-right">

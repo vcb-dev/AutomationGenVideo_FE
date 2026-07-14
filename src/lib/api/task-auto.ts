@@ -628,6 +628,22 @@ export interface MemberSourceStat {
 export const getTeamMemberSourceStats = (teamId: string, month?: string) =>
   apiClient.get<MemberSourceStat[]>(`/task-auto/teams/${teamId}/member-source-stats${qs({ month })}`).then(r => r.data)
 
+export interface MemberPushStat {
+  user_id:                 string
+  full_name:               string
+  email:                   string
+  approved_content_pushes: number
+}
+
+export interface TeamMonthlyPushStats {
+  team_id: string
+  month:   string
+  members: MemberPushStat[]
+}
+
+export const getTeamMonthlyPushStats = (teamId: string, month?: string) =>
+  apiClient.get<TeamMonthlyPushStats>(`/task-auto/teams/${teamId}/push-stats${qs({ month })}`).then(r => r.data)
+
 // ── Notifications ────────────────────────────────────────────────────────────
 
 export const getTaskNotifications = (q: { unread_only?: boolean; page?: number; limit?: number } = {}) =>

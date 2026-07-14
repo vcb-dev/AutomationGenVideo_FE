@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Search, Plus, X, Loader2, Link as LinkIcon, Hash,
   Facebook, Instagram, Music2, Youtube, Globe,
-  ExternalLink, Radio,
+  ExternalLink, Radio, Pencil, Trash2,
   ChevronDown, SlidersHorizontal,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -77,8 +77,11 @@ export default function MyChannelsPage() {
   const [statusFilter,   setStatusFilter]   = useState('all');
   const [showStatusDrop, setShowStatusDrop] = useState(false);
   const [showModal,      setShowModal]      = useState(false);
+  const [editTarget,     setEditTarget]     = useState<Channel | null>(null);
   const [form,           setForm]           = useState<ChannelFormData>(EMPTY_FORM);
   const [saving,         setSaving]         = useState(false);
+  const [deleteTarget,   setDeleteTarget]   = useState<Channel | null>(null);
+  const [deleting,       setDeleting]       = useState(false);
 
   const statusDropRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -120,25 +123,52 @@ export default function MyChannelsPage() {
   const clearAllFilters = () => { setSearch(''); setPlatFilter('all'); setStatusFilter('all'); };
   const hasFilter = search || platFilter !== 'all' || statusFilter !== 'all';
 
-  const openCreate = () => { setForm(EMPTY_FORM); setShowModal(true); };
-  const closeModal = () => { if (saving) return; setShowModal(false); };
+  const openCreate = () => { setEditTarget(null); setForm(EMPTY_FORM); setShowModal(true); };
+  const openEdit   = (ch: Channel) => {
+    setEditTarget(ch);
+    setForm({
+      name: ch.name, platform: ch.platform ?? 'facebook',
+      channel_id: ch.channel_id ?? '', link_channel: ch.link_channel ?? '',
+      status: ch.status ?? 'đang hoạt động',
+    });
+    setShowModal(true);
+  };
+  const closeModal = () => { if (saving) return; setShowModal(false); setEditTarget(null); };
 
   const handleSave = async () => {
     if (!form.name.trim()) { toast.error('Tên kênh không được để trống'); return; }
     setSaving(true);
     try {
-      const res = await fetch(`${apiUrl}/channels`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(form),
-      });
+      const isEdit = !!editTarget;
+      const res = await fetch(
+        isEdit ? `${apiUrl}/channels/${editTarget!.id}` : `${apiUrl}/channels`,
+        {
+          method: isEdit ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(form),
+        },
+      );
       const data = await res.json();
       if (!res.ok) { toast.error(data.message || 'Lưu thất bại'); return; }
-      toast.success('Đã thêm kênh mới');
+      toast.success(isEdit ? 'Đã cập nhật kênh' : 'Đã thêm kênh mới');
       closeModal();
       fetchChannels();
     } catch { toast.error('Có lỗi xảy ra'); }
     finally { setSaving(false); }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`${apiUrl}/channels/${deleteTarget.id}`, {
+        method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.message || 'Xóa thất bại'); return; }
+      toast.success('Đã xóa kênh'); setDeleteTarget(null); fetchChannels();
+    } catch { toast.error('Có lỗi xảy ra'); }
+    finally { setDeleting(false); }
   };
 
   const inputCls = "w-full px-4 py-3.5 bg-slate-50 border-2 border-slate-200 rounded-2xl text-base text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-400 focus:bg-white transition-all";
@@ -245,7 +275,7 @@ export default function MyChannelsPage() {
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
 
             {/* Column headers */}
-            <div className="grid grid-cols-[2fr_1fr_1fr_1fr] px-7 py-4 border-b border-slate-100 bg-slate-50 gap-6">
+            <div className="grid grid-cols-[2fr_1fr_1fr_1fr_88px] px-7 py-4 border-b border-slate-100 bg-slate-50 gap-6">
               <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Tên kênh</span>
               <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Platform</span>
               <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Team</span>
@@ -304,6 +334,7 @@ export default function MyChannelsPage() {
                   )}
                 </AnimatePresence>
               </div>
+              <span className="text-xs font-black text-slate-400 uppercase tracking-widest text-right">Thao tác</span>
             </div>
 
             {/* No results */}
@@ -326,7 +357,7 @@ export default function MyChannelsPage() {
                     <motion.div key={ch.id}
                       initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                       transition={{ delay: idx * 0.02 }}
-                      className="grid grid-cols-[2fr_1fr_1fr_1fr] px-7 py-5 items-center hover:bg-slate-50/80 transition-colors group gap-6">
+                      className="grid grid-cols-[2fr_1fr_1fr_1fr_88px] px-7 py-5 items-center hover:bg-slate-50/80 transition-colors group gap-6">
 
                       {/* Name */}
                       <div className="flex items-center gap-4 min-w-0">
@@ -367,6 +398,20 @@ export default function MyChannelsPage() {
                           <span className={`w-2 h-2 rounded-full ${stat.dot}`} />
                           {stat.label}
                         </span>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => openEdit(ch)}
+                          className="p-2.5 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
+                          title="Sửa kênh">
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => setDeleteTarget(ch)}
+                          className="p-2.5 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
+                          title="Xóa kênh">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </motion.div>
                   );
@@ -409,11 +454,13 @@ export default function MyChannelsPage() {
               <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-200">
-                    <Plus className="w-6 h-6 text-white" />
+                    {editTarget ? <Pencil className="w-5 h-5 text-white" /> : <Plus className="w-6 h-6 text-white" />}
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold text-slate-900">Thêm kênh mới</h2>
-                    <p className="text-sm text-slate-400 mt-0.5">Kênh sẽ tự động gán vào team của bạn</p>
+                    <h2 className="text-xl font-bold text-slate-900">{editTarget ? 'Sửa kênh' : 'Thêm kênh mới'}</h2>
+                    <p className="text-sm text-slate-400 mt-0.5">
+                      {editTarget ? editTarget.name : 'Kênh sẽ tự động gán vào team của bạn'}
+                    </p>
                   </div>
                 </div>
                 <button onClick={closeModal}
@@ -492,7 +539,41 @@ export default function MyChannelsPage() {
                 <button onClick={handleSave} disabled={saving || !form.name.trim()}
                   className="flex-[2] py-4 bg-indigo-600 hover:bg-indigo-700 text-white text-base font-bold rounded-2xl transition-all shadow-lg shadow-indigo-200 disabled:opacity-40 flex items-center justify-center gap-2.5">
                   {saving && <Loader2 className="w-5 h-5 animate-spin" />}
-                  {saving ? 'Đang lưu...' : 'Thêm kênh'}
+                  {saving ? 'Đang lưu...' : editTarget ? 'Lưu thay đổi' : 'Thêm kênh'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── MODAL XÓA KÊNH ─── */}
+      <AnimatePresence>
+        {deleteTarget && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => !deleting && setDeleteTarget(null)}>
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }} onClick={e => e.stopPropagation()}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-9 text-center">
+              <div className="w-20 h-20 rounded-3xl bg-red-50 flex items-center justify-center mx-auto mb-6">
+                <Trash2 className="w-10 h-10 text-red-400" />
+              </div>
+              <h3 className="text-2xl font-bold text-slate-800 mb-2">Xóa kênh này?</h3>
+              <p className="text-base text-slate-500 mb-1">
+                Bạn sắp xóa kênh <span className="font-bold text-slate-800">"{deleteTarget.name}"</span>.
+              </p>
+              <p className="text-sm text-slate-400 mb-9">Hành động này không thể hoàn tác.</p>
+              <div className="flex gap-3">
+                <button onClick={() => setDeleteTarget(null)} disabled={deleting}
+                  className="flex-1 py-4 border-2 border-slate-200 text-slate-600 text-base font-bold rounded-2xl hover:bg-slate-50 transition-colors">
+                  Hủy
+                </button>
+                <button onClick={handleDelete} disabled={deleting}
+                  className="flex-[2] py-4 bg-red-500 hover:bg-red-600 text-white text-base font-bold rounded-2xl transition-all shadow-lg shadow-red-100 flex items-center justify-center gap-2">
+                  {deleting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+                  {deleting ? 'Đang xóa...' : 'Xóa kênh'}
                 </button>
               </div>
             </motion.div>

@@ -105,6 +105,14 @@ function getContentTitle(c: any): string {
     || 'Unknown'
 }
 
+function getContentCode(c: any): string | undefined {
+  return c.code
+    || c.source_editor_content?.code
+    || c.source_team_content?.code
+    || c.source_team_content?.source_editor_content?.code
+    || undefined
+}
+
 function getContentLine(c: any): string | undefined {
   if (!c) return undefined
   return c.content_line?.name
@@ -228,7 +236,9 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
 
   const teamContents: Content[] = (teamContentsRaw ?? [])
     .map(tc => tc as unknown as Content)
-    .filter(c => !contentSearch || getContentTitle(c).toLowerCase().includes(contentSearch.toLowerCase()))
+    .filter(c => !contentSearch ||
+      getContentTitle(c).toLowerCase().includes(contentSearch.toLowerCase()) ||
+      getContentCode(c)?.toLowerCase().includes(contentSearch.toLowerCase()))
 
   const contents: Content[] =
     contentScope === 'personal' ? (personalContentsData?.data ?? []) :
@@ -399,14 +409,14 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
             items={contents.map(c => ({
               value: c.id,
               label: getContentTitle(c),
-              sublabel: getContentLine(c),
+              sublabel: getContentCode(c),
             }))}
             searchValue={contentSearch}
             onSearchChange={setContentSearch}
             loading={loadingContents}
             placeholder={`Tìm trong ${scopeLabel[contentScope]}...`}
             clearLabel="-- Không chọn --"
-            searchPlaceholder="Tìm theo tiêu đề..."
+            searchPlaceholder="Tìm theo mã hoặc tiêu đề..."
             createLabel="Tạo content mới..."
             onCreateClick={() => setShowContentModal(true)}
             filterSlot={<ScopeSwitch value={contentScope} onChange={setContentScope} hasTeam={!!activeTeamForWarehouse} />}

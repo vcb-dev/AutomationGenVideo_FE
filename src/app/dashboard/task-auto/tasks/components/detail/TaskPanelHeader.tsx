@@ -9,6 +9,7 @@ interface Props {
   task: Task | undefined
   editMode: boolean
   contentTitle?: string | null
+  contentCode?: string | null
   productName?: string | null
   productSku?: string | null
   onToggleEdit: () => void
@@ -16,7 +17,7 @@ interface Props {
 }
 
 export function TaskPanelHeader({
-  task, editMode, contentTitle, productName, productSku,
+  task, editMode, contentTitle, contentCode, productName, productSku,
   onToggleEdit, onClose,
 }: Props) {
   return (
@@ -26,6 +27,9 @@ export function TaskPanelHeader({
           <h2 className="text-base font-bold text-gray-900 leading-snug line-clamp-2">
             {contentTitle || 'Chi tiết Task'}
           </h2>
+          {contentCode && (
+            <span className="font-mono text-xs text-gray-400 shrink-0">{contentCode}</span>
+          )}
           {task && <TaskStatusBadge status={task.status} />}
           {task && (task.task_type === 'AUTO' ? (
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
