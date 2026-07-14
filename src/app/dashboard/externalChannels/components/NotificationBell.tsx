@@ -18,6 +18,9 @@ const platformLabel: Record<ScrapeNotification['platform'], string> = {
   facebook: 'Facebook',
   xiaohongshu: 'Xiaohongshu',
   douyin: 'Douyin',
+  youtube: 'YouTube',
+  kuaishou: 'KuaiShou',
+  bilibili: 'Bilibili',
 };
 
 function NotificationItem({ n }: { n: ScrapeNotification }) {

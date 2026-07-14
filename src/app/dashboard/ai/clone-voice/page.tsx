@@ -6,7 +6,6 @@ import {
     AudioLines,
     Volume2,
     Globe,
-    Play,
     Download,
     Upload,
     Trash2,
@@ -332,6 +331,8 @@ export default function CloneVoicePage() {
     const [ttsLang, setTtsLang] = useState('Tiếng Việt');
     const [isGenerating, setIsGenerating] = useState(false);
     const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
+    // Đơn giá VND / 1000 ký tự (BE trả kèm trong /ai/voice/list; 0 = chưa cấu hình → ẩn phần tiền)
+    const [vndPer1kChars, setVndPer1kChars] = useState(0);
 
     // Cloning states
     const [cloneFile, setCloneFile] = useState<File | null>(null);
@@ -343,6 +344,8 @@ export default function CloneVoicePage() {
 
     const charCount = text.length;
     const maxChars = 5000;
+    // MiniMax tính phí theo ký tự ("điểm âm thanh") — ước tính tiền cho đoạn text hiện tại
+    const estimatedCostVnd = Math.round((charCount / 1000) * vndPer1kChars);
 
     // Fetch voices on mount
     const fetchVoices = async () => {
@@ -354,6 +357,7 @@ export default function CloneVoicePage() {
             const data = await res.json();
             if (data.success && data.voices) {
                 setVoices(data.voices);
+                setVndPer1kChars(Number(data.pricing?.vnd_per_1k_chars) || 0);
 
                 // Select the first cloned voice if the current selection isn't a cloned voice
                 const cloned = data.voices.filter((v: any) => v.is_cloned && (v.provider ?? 'minimax') === 'minimax');
@@ -521,12 +525,6 @@ export default function CloneVoicePage() {
             if (data.success && data.audio_url) {
                 setGeneratedUrl(data.audio_url);
                 toast.success('Đã tạo giọng nói thành công!', { id: generatingToast });
-                
-                // Play audio automatically
-                if (audioRef.current) {
-                    audioRef.current.src = data.audio_url;
-                    audioRef.current.play().catch(() => {});
-                }
             } else {
                 throw new Error(data.error || 'Tạo giọng nói thất bại');
             }
@@ -540,9 +538,6 @@ export default function CloneVoicePage() {
 
     return (
         <div className="min-h-screen bg-gray-50 -m-6">
-            {/* Hidden audio element for autoplay */}
-            <audio ref={audioRef} className="hidden" />
-
             {/* Main content */}
             <div className="max-w-7xl mx-auto px-6 py-8">
                 <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6">
@@ -573,8 +568,13 @@ export default function CloneVoicePage() {
                                     className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3.5 text-sm text-gray-700 placeholder-gray-400 resize-none shadow-sm
                                         focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 transition-all duration-200"
                                 />
-                                <div className="absolute bottom-3 right-3 text-xs text-gray-400">
-                                    {charCount} / {maxChars} ký tự
+                                <div className="absolute bottom-3 right-3 flex items-center gap-2 text-xs">
+                                    {vndPer1kChars > 0 && charCount > 0 && (
+                                        <span className="px-2 py-0.5 rounded-md bg-green-50 border border-green-200 text-green-700 font-semibold">
+                                            ≈ {estimatedCostVnd.toLocaleString('vi-VN')}đ
+                                        </span>
+                                    )}
+                                    <span className="text-gray-400">{charCount} / {maxChars} ký tự</span>
                                 </div>
                             </div>
 
@@ -646,31 +646,25 @@ export default function CloneVoicePage() {
                                                 <p className="text-[11px] text-gray-500">output_voice.mp3</p>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <button 
-                                                onClick={() => {
-                                                    if (audioRef.current) {
-                                                        audioRef.current.src = generatedUrl;
-                                                        audioRef.current.play().catch(() => {});
-                                                    }
-                                                }}
-                                                className="w-8 h-8 rounded-lg bg-violet-100 hover:bg-violet-200 flex items-center justify-center transition-colors"
-                                                title="Nghe lại"
-                                            >
-                                                <Play className="w-3.5 h-3.5 text-violet-600" />
-                                            </button>
-                                            <a 
-                                                href={generatedUrl} 
-                                                download="minimax_voice.mp3"
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="w-8 h-8 rounded-lg bg-violet-100 hover:bg-violet-200 flex items-center justify-center transition-colors"
-                                                title="Tải xuống"
-                                            >
-                                                <Download className="w-3.5 h-3.5 text-violet-600" />
-                                            </a>
-                                        </div>
+                                        <a
+                                            href={generatedUrl}
+                                            download="minimax_voice.mp3"
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="w-8 h-8 rounded-lg bg-violet-100 hover:bg-violet-200 flex items-center justify-center transition-colors"
+                                            title="Tải xuống"
+                                        >
+                                            <Download className="w-3.5 h-3.5 text-violet-600" />
+                                        </a>
                                     </div>
+                                    {/* Player nghe trực tiếp trên web — không cần tải về */}
+                                    <audio
+                                        ref={audioRef}
+                                        src={generatedUrl}
+                                        controls
+                                        autoPlay
+                                        className="w-full mt-3 h-10"
+                                    />
                                 </div>
                             )}
                         </div>

@@ -360,6 +360,247 @@ export interface PaginatedInstagramReels {
   reels: InstagramReel[];
 }
 
+export interface YoutubeProfile {
+  id: number;
+  channel_id: string;
+  title: string;
+  description: string;
+  url: string;
+  avatar_url: string;
+  banner_url: string;
+  is_verified: boolean;
+  has_business_email: boolean;
+  subscriber_count: number;
+  video_count: number;
+  view_count: number;
+  country: string;
+  channel_created_at: string | null;
+  is_tracked: boolean;
+  is_bookmarked: boolean;
+  is_owned: boolean;
+  is_initial_scraped: boolean;
+  scraping_status: 'idle' | 'processing' | 'completed' | 'failed';
+  scrape_error: string | null;
+  last_scraped_at: string | null;
+  created_at: string;
+  shorts_in_db: number;
+  // detail only
+  total_views?: number;
+}
+
+export interface YoutubeShort {
+  video_id: string;
+  title: string;
+  hashtags: string[];
+  url: string;
+  thumbnail_url: string;
+  view_count: number;
+  view_count_text: string;
+  created_at: string;
+}
+
+export interface PaginatedYoutubeProfiles {
+  status: string;
+  count: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  profiles: YoutubeProfile[];
+}
+
+export interface PaginatedYoutubeShorts {
+  status: string;
+  count: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  profile: YoutubeProfile;
+  shorts: YoutubeShort[];
+}
+
+export interface KuaishouProfile {
+  id: number;
+  // eid: định danh trong URL profile (kuaishou.com/profile/{eid}) — dùng khi
+  // gọi kuaishouProfileScrape. user_id (numeric) chỉ để hiển thị/tham chiếu,
+  // có thể null trong khoảnh khắc ngắn trước khi resolve xong.
+  eid: string;
+  user_id: string | null;
+  username: string;
+  nickname: string;
+  url: string;
+  avatar_url: string;
+  biography: string;
+  gender: string;
+  followers_count: number;
+  following_count: number;
+  likes_count: number;
+  videos_count: number;
+  is_tracked: boolean;
+  is_bookmarked: boolean;
+  is_initial_scraped: boolean;
+  scraping_status: 'idle' | 'processing' | 'completed' | 'failed';
+  scrape_error: string | null;
+  last_scraped_at: string | null;
+  created_at: string;
+  videos_in_db: number;
+  // detail only
+  total_views?: number;
+}
+
+export interface KuaishouVideo {
+  post_id: string;
+  url: string;
+  description: string;
+  hashtags: string[];
+  thumbnail_url: string;
+  video_duration: number;
+  view_count: number;
+  like_count: number;
+  comment_count: number;
+  share_count: number;
+  collect_count: number;
+  date_posted: string;
+  created_at: string;
+}
+
+export interface PaginatedKuaishouProfiles {
+  status: string;
+  count: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  profiles: KuaishouProfile[];
+}
+
+export interface PaginatedKuaishouVideos {
+  status: string;
+  count: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  profile: KuaishouProfile;
+  videos: KuaishouVideo[];
+}
+
+export interface KuaishouSearchVideo {
+  post_id: string;
+  url: string;
+  description: string;
+  hashtags: string[];
+  thumbnail_url: string;
+  video_duration: number;
+  view_count: number;
+  like_count: number;
+  comment_count: number;
+  share_count: number;
+  collect_count: number;
+  search_keyword: string;
+  date_posted: string;
+  author: {
+    id: string;
+    eid: string;
+    username: string;
+    avatar_url: string;
+    is_verified: boolean;
+  } | null;
+}
+
+export interface PaginatedKuaishouSearchVideos {
+  status: string;
+  count: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  videos: KuaishouSearchVideo[];
+}
+
+export interface BilibiliProfile {
+  id: number;
+  mid: string;
+  username: string;
+  nickname: string;
+  url: string;
+  avatar_url: string;
+  biography: string;
+  is_verified: boolean;
+  verify_desc: string;
+  followers_count: number;
+  following_count: number;
+  likes_count: number;
+  videos_count: number;
+  is_tracked: boolean;
+  is_bookmarked: boolean;
+  is_initial_scraped: boolean;
+  scraping_status: 'idle' | 'processing' | 'completed' | 'failed';
+  scrape_error: string | null;
+  last_scraped_at: string | null;
+  created_at: string;
+  videos_in_db: number;
+  // detail only
+  total_views?: number;
+}
+
+export interface BilibiliVideo {
+  post_id: string;
+  url: string;
+  description: string;
+  thumbnail_url: string;
+  video_duration: number;
+  view_count: number;
+  danmaku_count: number;
+  date_posted: string;
+  created_at: string;
+}
+
+export interface PaginatedBilibiliProfiles {
+  status: string;
+  count: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  profiles: BilibiliProfile[];
+}
+
+export interface PaginatedBilibiliVideos {
+  status: string;
+  count: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  profile: BilibiliProfile;
+  videos: BilibiliVideo[];
+}
+
+export interface BilibiliSearchVideo {
+  post_id: string;
+  url: string;
+  description: string;
+  hashtags: string[];
+  thumbnail_url: string;
+  video_duration: number;
+  view_count: number;
+  like_count: number;
+  comment_count: number;
+  collect_count: number;
+  danmaku_count: number;
+  search_keyword: string;
+  date_posted: string;
+  author: {
+    id: string;
+    username: string;
+    avatar_url: string;
+  } | null;
+}
+
+export interface PaginatedBilibiliSearchVideos {
+  status: string;
+  count: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  videos: BilibiliSearchVideo[];
+}
+
 export interface KeywordSuggestion {
   id: number;
   keyword: string;
@@ -639,6 +880,229 @@ export const scraperService = {
 
   toggleInstagramProfile: async (token: string, id: number, field: 'is_bookmarked' | 'is_tracked'): Promise<any> => {
     const res = await fetch(`${API_URL}/scraper/instagram/profiles/${id}/toggle/`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ field }),
+    });
+    if (!res.ok) throw new Error('Toggle failed');
+    return res.json();
+  },
+
+  // ─── YOUTUBE ──────────────────────────────────────────
+
+  youtubeChannelScrape: async (token: string, channelId: string, isOwned?: boolean): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; newly_scraped?: boolean; profile_id: number }> => {
+    const res = await fetch(`${API_URL}/scraper/youtube/profiles/scrape/`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channel_id: channelId, ...(isOwned !== undefined ? { is_owned: isOwned } : {}) }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.error || 'Không thể cào channel');
+    }
+    return res.json();
+  },
+
+  getYoutubeProfiles: async (token: string, params?: {
+    page?: number; page_size?: number; search?: string; sort_by?: string; is_owned?: boolean;
+  }): Promise<PaginatedYoutubeProfiles> => {
+    const res = await fetch(`${API_URL}/scraper/youtube/profiles/${buildParams(params || {})}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Không thể tải profiles');
+    return res.json();
+  },
+
+  getYoutubeProfileDetail: async (token: string, id: number): Promise<YoutubeProfile> => {
+    const res = await fetch(`${API_URL}/scraper/youtube/profiles/${id}/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Không tìm thấy profile');
+    return res.json();
+  },
+
+  getYoutubeProfileShorts: async (token: string, profileId: number, params: {
+    page?: number; page_size?: number; q?: string;
+    min_views?: number; sort?: string;
+  }): Promise<PaginatedYoutubeShorts> => {
+    const res = await fetch(`${API_URL}/scraper/youtube/profiles/${profileId}/shorts/${buildParams(params)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Không thể tải shorts');
+    return res.json();
+  },
+
+  toggleYoutubeProfile: async (token: string, id: number, field: 'is_bookmarked' | 'is_tracked'): Promise<any> => {
+    const res = await fetch(`${API_URL}/scraper/youtube/profiles/${id}/toggle/`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ field }),
+    });
+    if (!res.ok) throw new Error('Toggle failed');
+    return res.json();
+  },
+
+  // ─── KUAISHOU ─────────────────────────────────────────
+  // Không có is_owned — Kuaishou chỉ có kênh ngoài (external).
+
+  kuaishouSearch: async (token: string, keyword: string, numOfPosts = 30): Promise<{ message: string; created: number; updated: number }> => {
+    const res = await fetch(`${API_URL}/scraper/kuaishou/search/`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keyword, num_of_posts: numOfPosts }),
+    });
+    if (!res.ok) throw new Error('Không thể tìm kiếm');
+    return res.json();
+  },
+
+  getKuaishouVideos: async (token: string, params: {
+    page?: number; page_size?: number; q?: string; search_keyword?: string;
+    min_views?: number; sort?: string; date_from?: string; date_to?: string;
+  }): Promise<PaginatedKuaishouSearchVideos> => {
+    const res = await fetch(`${API_URL}/scraper/kuaishou/videos/${buildParams(params)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Không thể tải videos');
+    return res.json();
+  },
+
+  kuaishouKeywordSuggest: async (token: string, q: string): Promise<{ keyword: string; count: number }[]> => {
+    const res = await fetch(`${API_URL}/scraper/kuaishou/keywords/suggest/${buildParams({ q })}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    return (await res.json()).suggestions || [];
+  },
+
+  kuaishouProfileScrape: async (token: string, eid: string): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; newly_scraped?: boolean; profile_id: number }> => {
+    const res = await fetch(`${API_URL}/scraper/kuaishou/profiles/scrape/`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eid }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.error || 'Không thể cào profile');
+    }
+    return res.json();
+  },
+
+  getKuaishouProfiles: async (token: string, params?: {
+    page?: number; page_size?: number; search?: string; sort_by?: string;
+  }): Promise<PaginatedKuaishouProfiles> => {
+    const res = await fetch(`${API_URL}/scraper/kuaishou/profiles/${buildParams(params || {})}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Không thể tải profiles');
+    return res.json();
+  },
+
+  getKuaishouProfileDetail: async (token: string, id: number): Promise<KuaishouProfile> => {
+    const res = await fetch(`${API_URL}/scraper/kuaishou/profiles/${id}/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Không tìm thấy profile');
+    return res.json();
+  },
+
+  getKuaishouProfileVideos: async (token: string, profileId: number, params: {
+    page?: number; page_size?: number; q?: string;
+    min_views?: number; sort?: string;
+  }): Promise<PaginatedKuaishouVideos> => {
+    const res = await fetch(`${API_URL}/scraper/kuaishou/profiles/${profileId}/videos/${buildParams(params)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Không thể tải videos');
+    return res.json();
+  },
+
+  toggleKuaishouProfile: async (token: string, id: number, field: 'is_bookmarked' | 'is_tracked'): Promise<any> => {
+    const res = await fetch(`${API_URL}/scraper/kuaishou/profiles/${id}/toggle/`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ field }),
+    });
+    if (!res.ok) throw new Error('Toggle failed');
+    return res.json();
+  },
+
+  // ─── BILIBILI ─────────────────────────────────────────
+  // Không có is_owned — Bilibili chỉ có kênh ngoài (external). mid là ID duy
+  // nhất (numeric), không có vấn đề 2 không gian ID như Kuaishou.
+
+  bilibiliSearch: async (token: string, keyword: string, numOfPosts = 30): Promise<{ message: string; created: number; updated: number }> => {
+    const res = await fetch(`${API_URL}/scraper/bilibili/search/`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keyword, num_of_posts: numOfPosts }),
+    });
+    if (!res.ok) throw new Error('Không thể tìm kiếm');
+    return res.json();
+  },
+
+  getBilibiliVideos: async (token: string, params: {
+    page?: number; page_size?: number; q?: string; search_keyword?: string;
+    min_views?: number; sort?: string; date_from?: string; date_to?: string;
+  }): Promise<PaginatedBilibiliSearchVideos> => {
+    const res = await fetch(`${API_URL}/scraper/bilibili/videos/${buildParams(params)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Không thể tải videos');
+    return res.json();
+  },
+
+  bilibiliKeywordSuggest: async (token: string, q: string): Promise<{ keyword: string; count: number }[]> => {
+    const res = await fetch(`${API_URL}/scraper/bilibili/keywords/suggest/${buildParams({ q })}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    return (await res.json()).suggestions || [];
+  },
+
+  bilibiliProfileScrape: async (token: string, mid: string): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; newly_scraped?: boolean; profile_id: number }> => {
+    const res = await fetch(`${API_URL}/scraper/bilibili/profiles/scrape/`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mid }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.error || 'Không thể cào profile');
+    }
+    return res.json();
+  },
+
+  getBilibiliProfiles: async (token: string, params?: {
+    page?: number; page_size?: number; search?: string; sort_by?: string;
+  }): Promise<PaginatedBilibiliProfiles> => {
+    const res = await fetch(`${API_URL}/scraper/bilibili/profiles/${buildParams(params || {})}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Không thể tải profiles');
+    return res.json();
+  },
+
+  getBilibiliProfileDetail: async (token: string, id: number): Promise<BilibiliProfile> => {
+    const res = await fetch(`${API_URL}/scraper/bilibili/profiles/${id}/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Không tìm thấy profile');
+    return res.json();
+  },
+
+  getBilibiliProfileVideos: async (token: string, profileId: number, params: {
+    page?: number; page_size?: number; q?: string;
+    min_views?: number; sort?: string;
+  }): Promise<PaginatedBilibiliVideos> => {
+    const res = await fetch(`${API_URL}/scraper/bilibili/profiles/${profileId}/videos/${buildParams(params)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Không thể tải videos');
+    return res.json();
+  },
+
+  toggleBilibiliProfile: async (token: string, id: number, field: 'is_bookmarked' | 'is_tracked'): Promise<any> => {
+    const res = await fetch(`${API_URL}/scraper/bilibili/profiles/${id}/toggle/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ field }),
