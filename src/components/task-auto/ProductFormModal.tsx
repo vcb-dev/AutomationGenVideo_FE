@@ -296,7 +296,7 @@ export function ProductFormModal({ open, editing, userId, title, defaultBrandTyp
               {existingSources.map(s => (
                 <a
                   key={s.id}
-                  href={s.link}
+                  href={s.link ?? undefined}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/30 transition-all group"

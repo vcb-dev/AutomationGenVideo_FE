@@ -187,17 +187,17 @@ function SourceCreateModal({
   month: string
 }) {
   const qc = useQueryClient()
-  const [form, setForm] = useState({ name: '', type: 'PRODUCT_STOCK', link: '' })
+  const [form, setForm] = useState({ name: '', type: 'PRODUCT_STOCK', link: '', nas_link: '' })
 
   const mut = useMutation({
     mutationFn: async () => {
-      const src = await createSource({ name: form.name.trim(), brand_type: brandType, type: form.type as any, link: form.link.trim() || undefined })
+      const src = await createSource({ name: form.name.trim(), brand_type: brandType, type: form.type as any, link: form.link.trim() || undefined, nas_link: form.nas_link.trim() })
       await addGlobalWarehouse('sources', month, [src.id])
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['task-auto', 'warehouse', 'global', month] })
       toast.success(`Đã tạo source và thêm vào kho ${month}`)
-      setForm({ name: '', type: 'PRODUCT_STOCK', link: '' })
+      setForm({ name: '', type: 'PRODUCT_STOCK', link: '', nas_link: '' })
       onClose()
     },
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Lỗi tạo source'),
@@ -214,7 +214,7 @@ function SourceCreateModal({
           <button onClick={onClose} className="bg-gray-100 hover:bg-gray-200 text-slate-800 rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors">Huỷ</button>
           <button
             onClick={() => mut.mutate()}
-            disabled={!form.name.trim() || !form.type || mut.isPending}
+            disabled={!form.name.trim() || !form.type || !form.nas_link.trim() || mut.isPending}
             className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors disabled:opacity-60"
           >
             {mut.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -231,7 +231,8 @@ function SourceCreateModal({
           options={Object.entries(SOURCE_TYPE_LABELS).map(([k, v]) => ({ value: k, label: v }))}
         />
         <DarkInput label="Tên source *" placeholder="Tên nguồn tài liệu..." value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-        <DarkInput label="Link" placeholder="https://..." value={form.link} onChange={e => setForm(f => ({ ...f, link: e.target.value }))} />
+        <DarkInput label="Link ổ NAS *" placeholder="\\nas\... hoặc smb://..." value={form.nas_link} onChange={e => setForm(f => ({ ...f, nas_link: e.target.value }))} />
+        <DarkInput label="Link" placeholder="https://... (tuỳ chọn)" value={form.link} onChange={e => setForm(f => ({ ...f, link: e.target.value }))} />
       </div>
     </DarkModal>
   )

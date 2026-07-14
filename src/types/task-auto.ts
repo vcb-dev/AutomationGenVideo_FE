@@ -371,7 +371,7 @@ export interface Source {
   brand_type: BrandType
   type: SourceType
   name: string
-  link: string
+  link: string | null
   nas_link?: string | null
   code: string | null
   product_id: string | null

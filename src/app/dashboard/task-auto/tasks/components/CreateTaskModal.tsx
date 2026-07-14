@@ -461,7 +461,7 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
             <div className="flex flex-wrap gap-2 pl-1">
               <span className="text-xs text-slate-400 self-center">Source kèm:</span>
               {productSources.map(s => (
-                <a key={s.id} href={s.link} target="_blank" rel="noopener noreferrer"
+                <a key={s.id} href={s.link ?? undefined} target="_blank" rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-medium rounded-full transition-colors">
                   {s.name}
                 </a>
