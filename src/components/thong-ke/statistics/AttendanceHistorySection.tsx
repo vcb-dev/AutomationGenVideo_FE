@@ -397,7 +397,7 @@ export default function AttendanceHistorySection({
   return (
     <div className="flex flex-col gap-5">
       {/* ─── Header & Filters ─── */}
-      <div className="bg-[#0e1626]/50 border border-white/[0.06] rounded-3xl p-5 backdrop-blur-xl shadow-xl">
+      <div className="relative z-30 bg-[#0e1626]/50 border border-white/[0.06] rounded-3xl p-5 backdrop-blur-xl shadow-xl">
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">

@@ -40,7 +40,7 @@ export default function CustomDropdown({
   const selectedOption = options.find((opt) => opt.value === value) || options[0];
 
   return (
-    <div className={cn("relative inline-block text-left", className)} ref={containerRef}>
+    <div className={cn("relative inline-block text-left", isOpen && "z-30", className)} ref={containerRef}>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}

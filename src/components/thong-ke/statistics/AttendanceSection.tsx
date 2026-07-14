@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { Users, CheckCircle2, XCircle, Clock, Calendar, ChevronDown, Loader2 } from 'lucide-react';
+import { Users, CheckCircle2, XCircle, Clock, Calendar, ChevronDown, Loader2, Save, X } from 'lucide-react';
 import { MeetingSession, AttendanceStatus, AttendanceRecord, MeetingSessionResponse } from '../types';
 import { apiClient } from '../../../lib/api-client';
 import CustomDropdown from '../../ui/CustomDropdown';
@@ -286,27 +286,50 @@ function CreateSessionModal({
 // ─────────────────────────────────────────────
 function MemberStatusDropdown({
   value,
-  onChange
+  onChange,
+  onOpenChange,
+  openUpward = false
 }: {
   value: AttendanceStatus;
   onChange: (val: AttendanceStatus) => void;
+  onOpenChange?: (open: boolean) => void;
+  openUpward?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const toggleOpen = (open: boolean) => {
+    setIsOpen(open);
+    onOpenChange?.(open);
+  };
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
+        toggleOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const options: { value: AttendanceStatus; label: string; color: string; bg: string; hoverBg: string }[] = [
-    { value: 'PRESENT', label: 'Có mặt', color: 'text-emerald-400', bg: 'bg-emerald-500/10', hoverBg: 'hover:bg-emerald-500/20' },
-    { value: 'ABSENT', label: 'Vắng', color: 'text-rose-400', bg: 'bg-rose-500/10', hoverBg: 'hover:bg-rose-500/20' }
+  const options: { value: AttendanceStatus; label: string; dotColor: string; textColor: string; bg: string; border: string }[] = [
+    { 
+      value: 'PRESENT', 
+      label: 'Có mặt', 
+      dotColor: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]', 
+      textColor: 'text-emerald-400', 
+      bg: 'bg-emerald-500/10', 
+      border: 'border-emerald-500/20' 
+    },
+    { 
+      value: 'ABSENT', 
+      label: 'Vắng', 
+      dotColor: 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]', 
+      textColor: 'text-rose-400', 
+      bg: 'bg-rose-500/10', 
+      border: 'border-rose-500/20' 
+    }
   ];
 
   const current = options.find(o => o.value === value) || options[0];
@@ -315,37 +338,47 @@ function MemberStatusDropdown({
     <div className="relative w-28 shrink-0" ref={containerRef}>
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className={`w-full flex items-center justify-between h-8 px-3 rounded-xl border transition-all duration-200 text-[10px] font-black cursor-pointer select-none ${
+        onClick={() => toggleOpen(!isOpen)}
+        className={`w-full flex items-center justify-between h-8 px-3 rounded-xl border transition-all duration-300 text-[10px] font-black cursor-pointer select-none shadow-sm ${
           value === 'PRESENT'
-            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-            : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+            ? 'bg-emerald-950/10 border-emerald-500/30 text-emerald-400 hover:border-emerald-500/50'
+            : 'bg-rose-950/10 border-rose-500/30 text-rose-400 hover:border-rose-500/50'
         }`}
       >
-        <span>{current.label}</span>
-        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
+        <div className="flex items-center gap-2">
+          <span className={`w-2 h-2 rounded-full ${current.dotColor}`} />
+          <span>{current.label}</span>
+        </div>
+        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-300 shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 mt-1.5 w-full rounded-xl border border-white/[0.08] bg-[#0e1626] shadow-2xl backdrop-blur-xl p-1 z-50">
+        <div className={`absolute right-0 w-full rounded-xl border border-white/[0.08] bg-[#0e1626] shadow-2xl backdrop-blur-xl p-1 z-50 ${openUpward ? 'bottom-full mb-1.5' : 'mt-1.5'}`}>
           <div className="flex flex-col gap-0.5">
-            {options.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => {
-                  onChange(opt.value);
-                  setIsOpen(false);
-                }}
-                className={`flex items-center w-full px-3 py-1.5 rounded-lg text-[10px] font-bold text-left transition-colors cursor-pointer select-none ${
-                  opt.value === value
-                    ? `${opt.bg} ${opt.color}`
-                    : `text-slate-300 ${opt.hoverBg} hover:text-white`
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
+            {options.map((opt) => {
+              const isSelected = opt.value === value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    onChange(opt.value);
+                    toggleOpen(false);
+                  }}
+                  className={`flex items-center justify-between w-full px-3 py-2 rounded-lg text-[10px] font-bold text-left transition-all duration-150 cursor-pointer select-none border ${
+                    isSelected
+                      ? `${opt.bg} ${opt.border} ${opt.textColor} font-black shadow-sm`
+                      : 'border-transparent text-slate-400 hover:bg-white/[0.03] hover:text-white hover:border-white/[0.05]'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className={`w-1.5 h-1.5 rounded-full ${opt.dotColor}`} />
+                    <span>{opt.label}</span>
+                  </div>
+                  {isSelected && <span className="text-[10px] font-black leading-none">✓</span>}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
@@ -381,6 +414,15 @@ function BulkUpdateModal({
   });
 
   const [error, setError] = useState('');
+  const [openDropdownUserId, setOpenDropdownUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const originalStyle = window.getComputedStyle(document.body).overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalStyle;
+    };
+  }, []);
 
   const handleStatusChange = (userId: string, status: AttendanceStatus) => {
     setRecords(prev => ({
@@ -389,16 +431,6 @@ function BulkUpdateModal({
         ...prev[userId],
         status,
         note: status === 'ON_LEAVE' ? prev[userId].note : ''
-      }
-    }));
-  };
-
-  const handleNoteChange = (userId: string, note: string) => {
-    setRecords(prev => ({
-      ...prev,
-      [userId]: {
-        ...prev[userId],
-        note
       }
     }));
   };
@@ -431,16 +463,16 @@ function BulkUpdateModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-[#0e1626] border border-white/[0.08] rounded-3xl p-6 w-full max-w-lg shadow-2xl flex flex-col max-h-[85vh] text-left gap-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-lg animate-in fade-in duration-300" onClick={onClose} />
+      <div className="relative bg-[#0c1222]/50 border border-white/[0.06] rounded-[24px] p-6 w-full max-w-lg shadow-2xl flex flex-col max-h-[85vh] text-left gap-4 backdrop-blur-3xl ring-1 ring-white/[0.05] shadow-[0_10px_50px_rgba(0,0,0,0.5)] animate-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between border-b border-white/[0.05] pb-3">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-blue-500/10 border border-blue-500/30 rounded-2xl text-blue-400">
-              <Users className="w-5 h-5" />
+            <div className="p-2 bg-blue-500/10 border border-blue-500/30 rounded-xl text-blue-400">
+              <Users className="w-4.5 h-4.5" />
             </div>
             <div>
               <h3 className="text-sm font-black text-white">Điểm danh nhanh cả nhóm</h3>
-              <p className="text-[10px] text-slate-400 font-bold mt-0.5">Cập nhật hàng loạt trạng thái của team</p>
+              <p className="text-[10px] text-slate-400 font-bold mt-0.5">Cập nhật trạng thái hiện tại của các thành viên</p>
             </div>
           </div>
           <button onClick={onClose} className="text-slate-500 hover:text-slate-300 transition-colors">
@@ -448,36 +480,41 @@ function BulkUpdateModal({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-3 min-h-[200px]">
-          {teamMembers.map(member => {
+        <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-3 min-h-[200px] custom-scrollbar">
+          {teamMembers.map((member, index) => {
             const state = records[member.id] || { status: 'PRESENT', note: '' };
+            const isDropdownOpen = openDropdownUserId === member.id;
+            const openUpward = index >= teamMembers.length - 2 && teamMembers.length > 2;
+            const statusGlowClass = state.status === 'PRESENT'
+              ? 'bg-[#0a0f1e]/80 border-emerald-500/50 ring-1 ring-emerald-500/30 shadow-[0_0_24px_rgba(16,185,129,0.3)] scale-[1.01]'
+              : 'bg-[#0a0f1e]/80 border-rose-500/50 ring-1 ring-rose-500/30 shadow-[0_0_24px_rgba(244,63,94,0.3)] scale-[1.01]';
+
             return (
-              <div key={member.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-white/[0.02] border border-white/[0.04] rounded-2xl hover:bg-white/[0.03] transition-colors">
-                <div className="flex items-center gap-2.5 min-w-[140px] shrink-0">
+              <div 
+                key={member.id} 
+                className={`flex items-center justify-between gap-4 py-3 px-4 rounded-2xl border transition-all duration-300 relative ${
+                  isDropdownOpen
+                    ? `${statusGlowClass} z-20`
+                    : 'z-10 bg-[#0a0f1e]/20 border-white/[0.05] hover:bg-[#0a0f1e]/40 hover:border-white/[0.1] shadow-sm'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
                   {member.image_url ? (
-                    <img src={member.image_url} alt={member.full_name} className="w-7 h-7 rounded-full object-cover border border-white/10" />
+                    <img src={member.image_url} alt={member.full_name} className="w-10 h-10 rounded-full object-cover border border-white/10 shadow-sm" />
                   ) : (
-                    <div className="w-7 h-7 rounded-full bg-slate-800 border border-white/10 flex items-center justify-center text-[10px] font-black text-slate-300 shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-slate-800 border border-white/10 flex items-center justify-center text-xs font-black text-slate-300 shrink-0 shadow-sm">
                       {member.full_name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
                     </div>
                   )}
-                  <span className="text-[11px] font-black text-slate-200 truncate">{member.full_name}</span>
+                  <span className="text-[12.5px] font-black text-slate-200 truncate">{member.full_name}</span>
                 </div>
 
-                <div className="flex flex-1 flex-wrap items-center gap-3">
-                  <MemberStatusDropdown
-                    value={state.status}
-                    onChange={(val) => handleStatusChange(member.id, val)}
-                  />
-
-                  <input
-                    type="text"
-                    value={state.note}
-                    onChange={(e) => handleNoteChange(member.id, e.target.value)}
-                    placeholder="Ghi chú (không bắt buộc)..."
-                    className="flex-1 min-w-[120px] bg-[#070b13]/40 border border-white/[0.06] focus:border-blue-500/60 rounded-xl px-3 py-1.5 text-[10px] text-white outline-none placeholder-slate-500 transition-colors"
-                  />
-                </div>
+                <MemberStatusDropdown
+                  value={state.status}
+                  onChange={(val) => handleStatusChange(member.id, val)}
+                  onOpenChange={(open) => setOpenDropdownUserId(open ? member.id : null)}
+                  openUpward={openUpward}
+                />
               </div>
             );
           })}
@@ -495,9 +532,9 @@ function BulkUpdateModal({
           <button
             onClick={handleSubmit}
             disabled={loading}
-            className="flex-1 py-2.5 text-[11px] font-black text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 rounded-xl transition-all flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(37,99,235,0.3)]"
+            className="flex-1 py-2.5 text-[11px] font-black text-white bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 disabled:opacity-50 rounded-xl transition-all flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(37,99,235,0.5),0_0_40px_rgba(124,58,237,0.25)] hover:shadow-[0_4px_25px_rgba(37,99,235,0.6),0_0_50px_rgba(124,58,237,0.35)]"
           >
-            {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
             Lưu thay đổi
           </button>
         </div>
@@ -817,7 +854,7 @@ export default function AttendanceSection({
             activeTeam={localTeam}
           />
         )}
-        <div className="bg-[#0e1626]/50 border border-white/[0.05] rounded-3xl p-6 flex flex-col gap-3 shadow-xl backdrop-blur-xl hover:border-white/[0.08] transition-all duration-300">
+        <div className="relative z-30 bg-[#0e1626]/50 border border-white/[0.05] rounded-3xl p-6 flex flex-col gap-3 shadow-xl backdrop-blur-xl hover:border-white/[0.08] transition-all duration-300">
           <div className="flex items-center justify-between border-b border-white/[0.05] pb-3 gap-3">
             <div className="flex items-center gap-2">
               <div className="p-2 bg-slate-700/30 border border-white/[0.06] rounded-xl text-slate-400">
@@ -891,7 +928,7 @@ export default function AttendanceSection({
   return (
     <>
 
-      <div className="bg-[#0e1626]/50 border border-white/[0.05] rounded-3xl p-6 flex flex-col gap-5 shadow-xl backdrop-blur-xl hover:border-white/[0.08] transition-all duration-300">
+      <div className="relative z-30 bg-[#0e1626]/50 border border-white/[0.05] rounded-3xl p-6 flex flex-col gap-5 shadow-xl backdrop-blur-xl hover:border-white/[0.08] transition-all duration-300">
 
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/[0.05] pb-4">
@@ -1043,7 +1080,7 @@ export default function AttendanceSection({
             {presentRecords.length === 0 ? (
               <p className="text-[10px] text-slate-600 font-bold text-center py-3">Chưa có ai điểm danh</p>
             ) : (
-              <div className="flex flex-col gap-0.5 max-h-60 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-white/10">
+              <div className="flex flex-col gap-0.5 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
                 {presentRecords.map((r) => (
                   <MemberRow key={r.id} record={r} isCurrentUser={currentUserId === r.user_id} />
                 ))}
