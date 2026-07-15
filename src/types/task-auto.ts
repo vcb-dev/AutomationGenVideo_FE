@@ -588,7 +588,7 @@ export interface Notification {
   task_id: string | null
   is_read: boolean
   created_at: string
-  task?: Pick<Task, 'id' | 'status'> | null
+  task?: (Pick<Task, 'id' | 'status'> & { content_title: string | null }) | null
 }
 
 // ── Pagination ──────────────────────────────────

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Sparkles, Loader2, Copy, Check, Languages, Save, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Section } from './Section'
@@ -14,6 +14,12 @@ import {
 
 function arraysEqual(a: string[], b: string[]) {
   return a.length === b.length && a.every((v, i) => v === b[i])
+}
+
+function autoResize(el: HTMLTextAreaElement | null) {
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = `${el.scrollHeight}px`
 }
 
 // Khớp logic phía AI service (task_script_service.py): market rỗng hoặc chỉ gồm VN/Vietnam thì không cần dịch.
@@ -51,12 +57,13 @@ export function VideoScriptSection(props: VideoScriptSectionProps) {
   // (load lần đầu, sinh/sinh lại, lưu, hoặc dịch lại), không phải mỗi lần gõ phím.
   const [editedContent, setEditedContent] = useState('')
   const [editedHashtags, setEditedHashtags] = useState<string[]>([])
-  const [hashtagInput, setHashtagInput] = useState('')
   const [editedTranslationContent, setEditedTranslationContent] = useState('')
   const [editedTranslationHashtags, setEditedTranslationHashtags] = useState<string[]>([])
-  const [translationHashtagInput, setTranslationHashtagInput] = useState('')
   const [saving, setSaving] = useState(false)
   const [translating, setTranslating] = useState(false)
+
+  const contentTextareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const translationTextareaRef = useRef<HTMLTextAreaElement | null>(null)
 
   useEffect(() => {
     setEditedContent(script?.content ?? '')
@@ -64,6 +71,10 @@ export function VideoScriptSection(props: VideoScriptSectionProps) {
     setEditedTranslationContent(script?.translation?.content ?? '')
     setEditedTranslationHashtags(script?.translation?.hashtags ?? [])
   }, [script])
+
+  // Co giãn textarea theo nội dung — chạy lại cả khi gõ tay lẫn khi content được nạp/sinh AI/dịch.
+  useEffect(() => { autoResize(contentTextareaRef.current) }, [editedContent])
+  useEffect(() => { autoResize(translationTextareaRef.current) }, [editedTranslationContent])
 
   // Không gate theo `!!script` — người dùng có thể gõ tay content từ đầu, chưa từng sinh AI lần nào.
   const contentDirty =
@@ -161,46 +172,12 @@ export function VideoScriptSection(props: VideoScriptSectionProps) {
     }
   }
 
-  function addHashtag() {
-    const raw = hashtagInput.trim()
-    if (!raw) return
-    const tag = raw.startsWith('#') ? raw : `#${raw}`
-    if (!editedHashtags.includes(tag)) {
-      setEditedHashtags(prev => [...prev, tag])
-    }
-    setHashtagInput('')
-  }
-
   function removeHashtag(tag: string) {
     setEditedHashtags(prev => prev.filter(t => t !== tag))
   }
 
-  function handleHashtagKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter' || e.key === ',') {
-      e.preventDefault()
-      addHashtag()
-    }
-  }
-
-  function addTranslationHashtag() {
-    const raw = translationHashtagInput.trim()
-    if (!raw) return
-    const tag = raw.startsWith('#') ? raw : `#${raw}`
-    if (!editedTranslationHashtags.includes(tag)) {
-      setEditedTranslationHashtags(prev => [...prev, tag])
-    }
-    setTranslationHashtagInput('')
-  }
-
   function removeTranslationHashtag(tag: string) {
     setEditedTranslationHashtags(prev => prev.filter(t => t !== tag))
-  }
-
-  function handleTranslationHashtagKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter' || e.key === ',') {
-      e.preventDefault()
-      addTranslationHashtag()
-    }
   }
 
   function copyContent() {
@@ -332,45 +309,33 @@ export function VideoScriptSection(props: VideoScriptSectionProps) {
                 </div>
               </div>
               <textarea
+                ref={contentTextareaRef}
                 value={editedContent}
                 onChange={e => setEditedContent(e.target.value)}
-                rows={8}
+                rows={3}
                 placeholder="Gõ content tại đây, hoặc bấm 'Sinh content AI' để AI viết giúp..."
-                className="w-full text-sm text-violet-900 leading-relaxed whitespace-pre-line bg-white/70 border border-violet-200 rounded-lg px-3 py-2 resize-y focus:outline-none focus:ring-2 focus:ring-violet-300"
+                className="w-full text-sm text-violet-900 leading-relaxed whitespace-pre-line bg-white/70 border border-violet-200 rounded-lg px-3 py-2 resize-none overflow-hidden focus:outline-none focus:ring-2 focus:ring-violet-300"
               />
-              <div className="flex flex-wrap gap-2">
-                {editedHashtags.map((tag, i) => (
-                  <span
-                    key={`${tag}-${i}`}
-                    className="flex items-center gap-1 text-sm font-medium text-violet-700 bg-white border border-violet-200 pl-3 pr-1.5 py-1 rounded-full"
-                  >
-                    {tag}
-                    <button
-                      type="button"
-                      onClick={() => removeHashtag(tag)}
-                      className="text-violet-400 hover:text-violet-700"
+              {editedHashtags.length > 0 && (
+                <div className="flex items-center flex-wrap gap-2">
+                  <span className="text-[11px] font-bold text-violet-400 uppercase tracking-widest shrink-0">Hashtag gợi ý</span>
+                  {editedHashtags.map((tag, i) => (
+                    <span
+                      key={`${tag}-${i}`}
+                      className="flex items-center gap-1 text-sm font-medium text-violet-700 bg-white border border-violet-200 pl-3 pr-1.5 py-1 rounded-full"
                     >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  value={hashtagInput}
-                  onChange={e => setHashtagInput(e.target.value)}
-                  onKeyDown={handleHashtagKeyDown}
-                  placeholder="Thêm hashtag rồi nhấn Enter"
-                  className="text-sm border border-violet-200 rounded-lg px-3 py-1.5 flex-1 bg-white focus:outline-none focus:ring-2 focus:ring-violet-200"
-                />
-                <button
-                  type="button"
-                  onClick={addHashtag}
-                  className="text-xs font-semibold text-violet-600 hover:text-violet-800 px-2 py-1.5"
-                >
-                  Thêm
-                </button>
-              </div>
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => removeHashtag(tag)}
+                        className="text-violet-400 hover:text-violet-700"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Thị trường nước ngoài nhưng chưa từng dịch lần nào — cho bấm "Dịch" để AI tự xác định ngôn ngữ */}
@@ -433,44 +398,32 @@ export function VideoScriptSection(props: VideoScriptSectionProps) {
                   </div>
                 </div>
                 <textarea
+                  ref={translationTextareaRef}
                   value={editedTranslationContent}
                   onChange={e => setEditedTranslationContent(e.target.value)}
-                  rows={8}
-                  className="w-full text-sm text-sky-900 leading-relaxed whitespace-pre-line bg-white/70 border border-sky-200 rounded-lg px-3 py-2 resize-y focus:outline-none focus:ring-2 focus:ring-sky-300"
+                  rows={3}
+                  className="w-full text-sm text-sky-900 leading-relaxed whitespace-pre-line bg-white/70 border border-sky-200 rounded-lg px-3 py-2 resize-none overflow-hidden focus:outline-none focus:ring-2 focus:ring-sky-300"
                 />
-                <div className="flex flex-wrap gap-2">
-                  {editedTranslationHashtags.map((tag, i) => (
-                    <span
-                      key={`${tag}-${i}`}
-                      className="flex items-center gap-1 text-sm font-medium text-sky-700 bg-white border border-sky-200 pl-3 pr-1.5 py-1 rounded-full"
-                    >
-                      {tag}
-                      <button
-                        type="button"
-                        onClick={() => removeTranslationHashtag(tag)}
-                        className="text-sky-400 hover:text-sky-700"
+                {editedTranslationHashtags.length > 0 && (
+                  <div className="flex items-center flex-wrap gap-2">
+                    <span className="text-[11px] font-bold text-sky-400 uppercase tracking-widest shrink-0">Hashtag gợi ý</span>
+                    {editedTranslationHashtags.map((tag, i) => (
+                      <span
+                        key={`${tag}-${i}`}
+                        className="flex items-center gap-1 text-sm font-medium text-sky-700 bg-white border border-sky-200 pl-3 pr-1.5 py-1 rounded-full"
                       >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    value={translationHashtagInput}
-                    onChange={e => setTranslationHashtagInput(e.target.value)}
-                    onKeyDown={handleTranslationHashtagKeyDown}
-                    placeholder="Thêm hashtag rồi nhấn Enter"
-                    className="text-sm border border-sky-200 rounded-lg px-3 py-1.5 flex-1 bg-white focus:outline-none focus:ring-2 focus:ring-sky-200"
-                  />
-                  <button
-                    type="button"
-                    onClick={addTranslationHashtag}
-                    className="text-xs font-semibold text-sky-700 hover:text-sky-900 px-2 py-1.5"
-                  >
-                    Thêm
-                  </button>
-                </div>
+                        {tag}
+                        <button
+                          type="button"
+                          onClick={() => removeTranslationHashtag(tag)}
+                          className="text-sky-400 hover:text-sky-700"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -11,7 +11,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { socialApi, SocialPost, HistoryMember, PLATFORM_META } from '@/lib/api/social';
+import { socialApi, SocialPost, HistoryMember, PLATFORM_META, getPostUrl } from '@/lib/api/social';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/auth-store';
 import { useSocialLang } from '@/contexts/SocialLanguageContext';
@@ -119,22 +119,6 @@ function ActivityChart({ posts }: { posts: SocialPost[] }) {
 
 const PAGE_SIZE = 20;
 const GRID_PAGE_SIZE = 42;
-
-/** Lấy URL bài đã đăng từ result trả về bởi platform publisher */
-function getPostUrl(result?: Record<string, unknown> | null, platform?: string): string | null {
-  if (!result) return null;
-  if (typeof result.url === 'string' && result.url) return result.url;
-  if (typeof result.videoId === 'string') return `https://youtube.com/watch?v=${result.videoId}`;
-  // Fallback: construct URL from postId (covers old Facebook posts without url field)
-  if (typeof result.postId === 'string' && result.postId) {
-    if (!platform || platform === 'FACEBOOK') return `https://www.facebook.com/${result.postId}`;
-  }
-  // TikTok: videoId stored after backend fix
-  if (typeof result.tiktokVideoId === 'string' && result.tiktokVideoId) {
-    return `https://www.tiktok.com/video/${result.tiktokVideoId}`;
-  }
-  return null;
-}
 
 // ── Grid thumbnail item ─────────────────────────────────────────────────────
 function GridItem({ post, onClick }: { post: SocialPost; onClick: (p: SocialPost) => void }) {
