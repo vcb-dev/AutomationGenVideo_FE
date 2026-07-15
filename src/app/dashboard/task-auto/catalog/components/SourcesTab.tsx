@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {
-  Plus, Edit2, Trash2, ExternalLink, Loader2, Radio,
+  Plus, Edit2, Trash2, Loader2, Radio,
   ChevronLeft, ChevronRight, Search, Globe, User,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -12,6 +12,7 @@ import { DarkModal } from '@/components/task-auto/DarkModal'
 import { DarkInput, ProductSearchSelect, CustomSelect } from '@/components/task-auto/DarkInput'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { HeaderFilterDropdown } from '@/components/task-auto/HeaderFilterDropdown'
+import { NasLinkCell } from '@/components/task-auto/NasLinkCell'
 import {
   getSources, createSource, updateSource, deleteSource,
   getProducts, getTeams, getUsers,
@@ -161,10 +162,10 @@ export function SourcesTab({ brandType, isScaleData = false, month, onMonthChang
   const openEdit = (s: Source) => { setForm({ ...s, team_id: s.ordered_team_id ?? null }); setEditing(s); setModal('edit') }
 
   const handleSubmit = () => {
-    if (!form.name || !form.link) return toast.error('Tên và link là bắt buộc')
+    if (!form.name || !form.nas_link) return toast.error('Tên và Link ổ NAS là bắt buộc')
     const body = {
       name:       form.name,
-      link:       form.link,
+      link:       form.link || null,
       nas_link:   form.nas_link || null,
       code:       form.code || null,
       product_id: form.product_id || null,
@@ -250,7 +251,7 @@ export function SourcesTab({ brandType, isScaleData = false, month, onMonthChang
                 {/* <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Kho</th> */}
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Team order</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Code</th>
-                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Link</th>
+                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Link ổ NAS</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Sản phẩm</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">
                   <HeaderFilterDropdown
@@ -275,7 +276,7 @@ export function SourcesTab({ brandType, isScaleData = false, month, onMonthChang
                 const ts_es = ts?.source_editor_source
                 const rName = s.name || ts?.name || ts_es?.name || null
                 const rType = (s.type ?? ts?.type ?? ts_es?.type ?? 'PRODUCT_STOCK') as import('@/types/task-auto').SourceType
-                const rLink = s.link || ts?.link || ts_es?.link || null
+                const rNasLink = s.nas_link || ts?.nas_link || ts_es?.nas_link || null
                 const rCode = s.code || ts?.code || ts_es?.code || null
                 return (
                 <tr key={s.id} onClick={() => setViewingSource(s)} className="hover:bg-indigo-50/20 transition-colors group cursor-pointer">
@@ -302,14 +303,8 @@ export function SourcesTab({ brandType, isScaleData = false, month, onMonthChang
                       : <span className="text-slate-300 text-sm">—</span>
                     }
                   </td>
-                  <td className="px-5 py-4 max-w-[220px]">
-                    {rLink ? (
-                      <a href={rLink} target="_blank" rel="noreferrer" title={rLink}
-                        className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-400 text-sm transition-colors">
-                        <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-                        <span className="truncate">{rLink}</span>
-                      </a>
-                    ) : <span className="text-slate-300 text-sm">—</span>}
+                  <td className="px-5 py-4 max-w-[220px]" onClick={e => e.stopPropagation()}>
+                    <NasLinkCell value={rNasLink} />
                   </td>
                   <td className="px-5 py-4">
                     <span className="text-sm font-medium text-slate-700 truncate block max-w-[180px]" title={s.product?.name ?? ''}>
@@ -482,16 +477,16 @@ export function SourcesTab({ brandType, isScaleData = false, month, onMonthChang
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
             />
             <DarkInput
-              label="Link *"
-              placeholder="https://drive.google.com/..."
-              value={form.link ?? ''}
-              onChange={e => setForm(f => ({ ...f, link: e.target.value }))}
-            />
-            <DarkInput
-              label="Link ổ NAS"
-              placeholder="\\nas\... hoặc smb://... (tuỳ chọn)"
+              label="Link ổ NAS *"
+              placeholder="\\nas\... hoặc smb://..."
               value={form.nas_link ?? ''}
               onChange={e => setForm(f => ({ ...f, nas_link: e.target.value }))}
+            />
+            <DarkInput
+              label="Link"
+              placeholder="https://drive.google.com/... (tuỳ chọn)"
+              value={form.link ?? ''}
+              onChange={e => setForm(f => ({ ...f, link: e.target.value }))}
             />
             <ProductSearchSelect
               label="Sản phẩm liên kết"

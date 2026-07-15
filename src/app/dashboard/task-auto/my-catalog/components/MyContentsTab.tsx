@@ -171,6 +171,7 @@ function ImportModal({
       const tc = g.source_team_content
       const tc_ec = tc?.source_editor_content
       return {
+        code: g.code || tc?.code || tc_ec?.code || '',
         title: g.title || tc?.title || tc_ec?.title || '',
         body: g.body ?? tc?.body ?? tc_ec?.body ?? null,
         script: g.script ?? tc?.script ?? tc_ec?.script ?? null,
@@ -185,6 +186,7 @@ function ImportModal({
     const t = c as TeamContent
     const ec = t.source_editor_content
     return {
+      code: t.code || ec?.code || '',
       title: t.title || ec?.title || '',
       body: t.body ?? ec?.body ?? null,
       script: t.script ?? ec?.script ?? null,
@@ -345,6 +347,7 @@ function ImportModal({
                   <p className="font-semibold text-slate-800 text-sm truncate">
                     {r.title || <span className="text-slate-400 italic font-normal">Chưa đặt tên</span>}
                   </p>
+                  <p className="text-xs text-slate-400 truncate">Mã: {r.code || '—'}</p>
                   <div className="flex items-center gap-2 mt-0.5">
                     {parseMarkets(r.market).map(m => <MarketBadge key={m} market={m} />)}
                     {r.contentLine?.name && <span className="text-xs text-slate-400">{r.contentLine.name}</span>}
@@ -380,6 +383,7 @@ function PersonalContentModal({
   const isEdit = !!editing
   const brandType: 'DO_DA' | 'TRANG_SUC' = (editing?.brand_type as 'DO_DA' | 'TRANG_SUC') ?? defaultBrandType ?? 'TRANG_SUC'
   const [form, setForm] = useState<Partial<Content>>({
+    code: editing?.code ?? '',
     title: editing?.title ?? '',
     body: editing?.body ?? '',
     script: editing?.script ?? '',
@@ -396,6 +400,7 @@ function PersonalContentModal({
 
   const createMut = useMutation({
     mutationFn: async () => createEditorContent(userId, {
+      code: form.code?.trim() || null,
       title: form.title,
       body: form.body,
       script: form.script,
@@ -411,11 +416,12 @@ function PersonalContentModal({
       toast.success('Đã thêm content')
       onSuccess()
     },
-    onError: () => toast.error('Không thể thêm content'),
+    onError: (e: any) => toast.error(e?.response?.data?.message || 'Không thể thêm content'),
   })
 
   const updateMut = useMutation({
     mutationFn: async () => updateEditorContent(userId, editing!.id, {
+      code: form.code?.trim() || null,
       title: form.title,
       body: form.body,
       script: form.script,
@@ -430,7 +436,7 @@ function PersonalContentModal({
       toast.success('Đã cập nhật content')
       onSuccess()
     },
-    onError: () => toast.error('Không thể cập nhật content'),
+    onError: (e: any) => toast.error(e?.response?.data?.message || 'Không thể cập nhật content'),
   })
 
   const saving = createMut.isPending || updateMut.isPending
@@ -460,12 +466,20 @@ function PersonalContentModal({
           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
             Thông tin chính
           </p>
-          <DarkInput
-            label="Tiêu đề content"
-            placeholder="Nhập tiêu đề..."
-            value={form.title ?? ''}
-            onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <DarkInput
+              label="Mã content"
+              placeholder="VD: CT-101"
+              value={form.code ?? ''}
+              onChange={e => setForm(f => ({ ...f, code: e.target.value }))}
+            />
+            <DarkInput
+              label="Tiêu đề content"
+              placeholder="Nhập tiêu đề..."
+              value={form.title ?? ''}
+              onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+            />
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <CustomSelect
               label="Tuyến nội dung"
@@ -578,7 +592,7 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM' }: Pro
             <input
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1) }}
-              placeholder="Tìm tiêu đề content..."
+              placeholder="Tìm mã, tiêu đề content..."
               className="w-full pl-12 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-base text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
             />
           </div>
@@ -627,7 +641,8 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM' }: Pro
           <table className="w-full">
             <thead>
               <tr className="bg-slate-50 border-b-2 border-gray-200">
-                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide w-[40%]">Tiêu đề</th>
+                <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Mã</th>
+                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide w-[35%]">Tiêu đề</th>
                 <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">
                   <HeaderFilterDropdown
                     label="Tuyến ND"
@@ -652,12 +667,17 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM' }: Pro
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {isLoading && <LoadingRows cols={8} />}
+              {isLoading && <LoadingRows cols={9} />}
               {!isLoading && !data?.data?.length && (
-                <tr><td colSpan={8}><EmptyState icon={FileText} title="Chưa có content cá nhân nào" /></td></tr>
+                <tr><td colSpan={9}><EmptyState icon={FileText} title="Chưa có content cá nhân nào" /></td></tr>
               )}
               {data?.data.map(c => (
                 <tr key={c.id} className="hover:bg-indigo-50/20 transition-colors group cursor-pointer" onClick={() => setDetailItem(c)}>
+                  <td className="px-4 py-4 whitespace-nowrap">
+                    <span className="inline-block bg-slate-100 text-slate-600 font-mono text-xs font-semibold px-2.5 py-1 rounded-lg">
+                      {c.code || <span className="text-slate-300">—</span>}
+                    </span>
+                  </td>
                   <td className="px-5 py-4 max-w-0">
                     <span className="text-base font-semibold text-slate-800 truncate block hover:text-indigo-600 transition-colors" title={c.title ?? ''}>
                       {c.title || <span className="text-slate-400 italic font-normal text-sm">Chưa đặt tên</span>}

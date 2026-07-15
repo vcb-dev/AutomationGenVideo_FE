@@ -43,6 +43,7 @@ export interface SocialPost {
   thumb_url?: string;
   retry_count?: number;
   next_retry_at?: string;
+  task_id?: string;
   created_at: string;
   result?: SocialPostResult;
   account?: { name: string; username?: string; avatar_url?: string; platform: SocialPlatform };
@@ -245,7 +246,8 @@ export const socialApi = {
 
   schedule: {
     list: () => apiClient.get<SocialPost[]>('/social/schedule').then((r) => r.data),
-    create: (data: { accountId: string; message: string; mediaUrls?: string[]; pageId?: string; scheduledAt: string; privacy?: string; thumbUrl?: string }) =>
+    listByTask: (taskId: string) => apiClient.get<SocialPost[]>(`/social/schedule/by-task/${taskId}`).then((r) => r.data),
+    create: (data: { accountId: string; message: string; mediaUrls?: string[]; pageId?: string; scheduledAt: string; privacy?: string; thumbUrl?: string; taskId?: string }) =>
       apiClient.post('/social/schedule', data).then((r) => r.data),
     update: (id: string, data: { message?: string; scheduledAt?: string }) =>
       apiClient.put(`/social/schedule/${id}`, data).then((r) => r.data),
@@ -286,8 +288,8 @@ export const socialApi = {
   },
 
   library: {
-    list: (page = 1, limit = 20): Promise<{ items: MediaLibraryItem[]; total: number; pages: number }> =>
-      apiClient.get(`/social/library?page=${page}&limit=${limit}`).then((r) => r.data),
+    list: (page = 1, limit = 20, date?: string): Promise<{ items: MediaLibraryItem[]; total: number; pages: number }> =>
+      apiClient.get(`/social/library?page=${page}&limit=${limit}${date ? `&date=${date}` : ''}`).then((r) => r.data),
     stats: (): Promise<{ count: number; totalBytes: number; totalMB: number }> =>
       apiClient.get('/social/library/stats').then((r) => r.data),
     remove: (id: string) => apiClient.delete(`/social/library/${id}`).then((r) => r.data),

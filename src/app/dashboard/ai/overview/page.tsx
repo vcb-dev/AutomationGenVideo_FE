@@ -53,7 +53,8 @@ interface UsageByUser {
 }
 
 interface UsageStats {
-    total: { characters: number; tts_count: number; clone_count: number };
+    pricing?: { vnd_per_1k_chars: number };
+    total: { characters: number; tts_count: number; clone_count: number; cost_vnd?: number };
     by_user: UsageByUser[];
 }
 
@@ -202,7 +203,7 @@ export default function OverviewPage() {
             <div className="max-w-7xl mx-auto px-8 py-8 space-y-6">
 
                 {/* ─────────────────────────── STATS CARDS ─────────────────────────── */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     {/* Điểm âm thanh đã tiêu (usage_characters MiniMax tính phí) */}
                     <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
                         <div className="flex items-center justify-between">
@@ -221,6 +222,36 @@ export default function OverviewPage() {
                                         <span className="text-xs text-gray-400">điểm (tháng này)</span>
                                     </div>
                                     <p className="text-xs text-gray-400 mt-2">= số ký tự MiniMax tính phí khi tạo giọng nói</p>
+                                </>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Tiền đã tiêu (quy đổi từ điểm theo đơn giá gói MiniMax) */}
+                    <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm font-semibold text-gray-500">Đã tiêu hết</span>
+                            <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
+                                <Coins className="w-5 h-5 text-amber-600" />
+                            </div>
+                        </div>
+                        <div className="mt-4">
+                            {!usageLoaded ? (
+                                <h3 className="text-lg font-semibold text-gray-400 italic">Đang tải...</h3>
+                            ) : (usageStats?.pricing?.vnd_per_1k_chars ?? 0) > 0 ? (
+                                <>
+                                    <div className="flex items-baseline gap-1">
+                                        <h3 className="text-2xl font-bold text-gray-900">{(usageStats?.total.cost_vnd ?? 0).toLocaleString('vi-VN')}đ</h3>
+                                        <span className="text-xs text-gray-400">(tháng này)</span>
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-2">
+                                        Đơn giá {(usageStats?.pricing?.vnd_per_1k_chars ?? 0).toLocaleString('vi-VN')}đ / 1.000 ký tự
+                                    </p>
+                                </>
+                            ) : (
+                                <>
+                                    <h3 className="text-lg font-semibold text-gray-400">Chưa cấu hình giá</h3>
+                                    <p className="text-xs text-gray-400 mt-2">Set MINIMAX_VND_PER_1K_CHARS ở BE để hiển thị tiền</p>
                                 </>
                             )}
                         </div>

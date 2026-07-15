@@ -73,8 +73,9 @@ export default function TeamsPage() {
   // Quyền quản lý source xuyên team: Scale Data hoặc MEDIA (khớp BE ScaleDataSourceGuard/assertCanManageSource)
   const canManageAnyTeamSources = isAdminOrManager || isPrivilegedSourceTeamMember(teams, user?.id)
 
-  // Tab "Thống kê" hiển thị với mọi Scale Data member — luôn dùng Scale Data team ID
-  const showStatsTab = isScaleDataMember && !!scaleDataTeamId
+  // Tab "Thống kê" hiển thị với mọi Scale Data member (xem thống kê source, luôn dùng Scale Data team ID)
+  // hoặc leader (xem thống kê content đã đẩy được duyệt của team mình quản lý)
+  const showStatsTab = (isScaleDataMember && !!scaleDataTeamId) || isLeader
   // Tab "Chờ duyệt" cho leader/admin/manager — duyệt yêu cầu đẩy kho cá nhân → kho team
   const showPushRequestsTab = canManage
   const visibleTabs = [
@@ -197,7 +198,12 @@ export default function TeamsPage() {
       )}
 
       {activeTab === 'stats' && showStatsTab && (
-        <TeamStatsTab teamId={scaleDataTeamId} />
+        <TeamStatsTab
+          teamId={scaleDataTeamId}
+          isAdminOrManager={isAdminOrManager}
+          userId={user?.id}
+          showSourceStats={isScaleDataMember}
+        />
       )}
 
       <CreateTeamModal

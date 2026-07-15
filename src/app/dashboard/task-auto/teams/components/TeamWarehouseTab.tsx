@@ -89,7 +89,8 @@ function PickItemsModal({
     const q = search.toLowerCase()
     return notIn.filter((item: any) => {
       const name = item.name ?? item.title ?? ''
-      return name.toLowerCase().includes(q) || (item.sku ?? '').toLowerCase().includes(q)
+      const code = item.sku ?? item.code ?? ''
+      return name.toLowerCase().includes(q) || code.toLowerCase().includes(q)
     })
   }, [allItems, warehouseIds, search])
 
@@ -138,7 +139,7 @@ function PickItemsModal({
             <label key={item.id} className="flex items-center gap-3 px-6 py-3 hover:bg-gray-50 cursor-pointer">
               <input type="checkbox" className="w-4 h-4 accent-indigo-600" checked={selected.has(item.id)} onChange={() => toggle(item.id)} />
               <span className="text-sm text-slate-700 flex-1">{item.name ?? item.title ?? item.sku ?? item.id}</span>
-              {item.sku && <span className="text-xs text-slate-400">{item.sku}</span>}
+              {(item.sku || item.code) && <span className="text-xs text-slate-400">{item.sku || item.code}</span>}
               {subTab === 'products' && selected.has(item.id) && (
                 <span className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
                   <span className="text-xs text-slate-400">SL video</span>
@@ -209,18 +210,18 @@ function SourceCreateModal({
   month: string
 }) {
   const qc = useQueryClient()
-  const [form, setForm] = useState({ name: '', type: 'PRODUCT_STOCK', link: '' })
+  const [form, setForm] = useState({ name: '', type: 'PRODUCT_STOCK', link: '', nas_link: '' })
 
   const mut = useMutation({
     mutationFn: async () => {
-      const src = await addTeamSource(teamId, { name: form.name.trim(), brand_type: brandType, type: form.type, link: form.link.trim() || undefined })
+      const src = await addTeamSource(teamId, { name: form.name.trim(), brand_type: brandType, type: form.type, link: form.link.trim() || undefined, nas_link: form.nas_link.trim() })
       await addTeamWarehouse(teamId, 'sources', month, [src.id])
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['task-auto', 'warehouse', 'team', teamId, month] })
       qc.invalidateQueries({ queryKey: ['task-auto', 'team-sources', teamId] })
       toast.success(`Đã tạo source và thêm vào kho ${month}`)
-      setForm({ name: '', type: 'PRODUCT_STOCK', link: '' })
+      setForm({ name: '', type: 'PRODUCT_STOCK', link: '', nas_link: '' })
       onClose()
     },
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Lỗi tạo source'),
@@ -237,7 +238,7 @@ function SourceCreateModal({
           <button onClick={onClose} className="bg-gray-100 hover:bg-gray-200 text-slate-800 rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors">Huỷ</button>
           <button
             onClick={() => mut.mutate()}
-            disabled={!form.name.trim() || !form.type || mut.isPending}
+            disabled={!form.name.trim() || !form.type || !form.nas_link.trim() || mut.isPending}
             className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors disabled:opacity-60"
           >
             {mut.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -254,7 +255,8 @@ function SourceCreateModal({
           options={Object.entries(SOURCE_TYPE_LABELS).map(([k, v]) => ({ value: k, label: v }))}
         />
         <DarkInput label="Tên source *" placeholder="Tên nguồn tài liệu..." value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-        <DarkInput label="Link" placeholder="https://..." value={form.link} onChange={e => setForm(f => ({ ...f, link: e.target.value }))} />
+        <DarkInput label="Link ổ NAS *" placeholder="\\nas\... hoặc smb://..." value={form.nas_link} onChange={e => setForm(f => ({ ...f, nas_link: e.target.value }))} />
+        <DarkInput label="Link" placeholder="https://... (tuỳ chọn)" value={form.link} onChange={e => setForm(f => ({ ...f, link: e.target.value }))} />
       </div>
     </DarkModal>
   )
@@ -478,7 +480,12 @@ export function TeamWarehouseTab({
               <tbody className="divide-y divide-gray-50">
                 {paginatedItems.map((item: any) => (
                   <tr key={item.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-5 py-3.5 font-medium text-slate-800">{labelOf(item)}</td>
+                    <td className="px-5 py-3.5 font-medium text-slate-800">
+                      {labelOf(item)}
+                      {subTab === 'contents' && (item.code || item.source_editor_content?.code) && (
+                        <span className="ml-2 text-xs font-mono font-normal text-slate-400">{item.code || item.source_editor_content?.code}</span>
+                      )}
+                    </td>
                     <td className="px-5 py-3.5 text-slate-500">{subOf(item)}</td>
                     {subTab === 'products' && (
                       <td className="px-5 py-3.5 text-right">
