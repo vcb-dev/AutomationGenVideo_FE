@@ -85,46 +85,38 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
   const canManageSelected  = isAdminOrManager || isScaleData || isLeaderOfSelected || isMemberOfSelected
   const canPushToGlobal    = isAdminOrManager || isScaleData || isLeaderOfSelected
 
-  const { data: sources = [], isLoading } = useQuery({
-    queryKey: ['task-auto', 'team-sources', selectedTeamId, brandType, month],
-    queryFn: () => getTeamSources(selectedTeamId, { brand_type: brandType, month }),
+  const { data: page1Data, isLoading } = useQuery({
+    queryKey: ['task-auto', 'team-sources', selectedTeamId, brandType, month, search, typeFilter, addedByFilter, page],
+    queryFn: () => getTeamSources(selectedTeamId, {
+      brand_type: brandType, month, page, limit: PAGE_SIZE,
+      search: search || undefined, type: (typeFilter || undefined) as SourceType | undefined, added_by_id: addedByFilter || undefined,
+    }),
     enabled: !!selectedTeamId,
   })
+  const sources = page1Data?.data ?? []
+  const total = page1Data?.total ?? 0
 
-  const searched = search
-    ? sources.filter(s => {
-        const name = s.name ?? s.source_editor_source?.name ?? ''
-        const link = s.link ?? s.source_editor_source?.link ?? ''
-        return name.toLowerCase().includes(search.toLowerCase()) || link.includes(search)
-      })
-    : sources
-
-  const typeCountMap = new Map<string, { value: SourceType; count: number }>()
-  const addedByCountMap = new Map<string, { id: string; name: string; count: number }>()
-  for (const s of searched) {
-    const t = s.type ?? s.source_editor_source?.type
-    if (t) {
-      const e = typeCountMap.get(t)
-      if (e) e.count++
-      else typeCountMap.set(t, { value: t, count: 1 })
-    }
-    if (s.added_by) {
-      const e = addedByCountMap.get(s.added_by.id)
-      if (e) e.count++
-      else addedByCountMap.set(s.added_by.id, { id: s.added_by.id, name: s.added_by.full_name, count: 1 })
-    }
-  }
-  const typeOptions = Array.from(typeCountMap.values()).sort((a, b) => SOURCE_TYPE_LABELS[a.value].localeCompare(SOURCE_TYPE_LABELS[b.value], 'vi'))
-  const addedByOptions = Array.from(addedByCountMap.values()).sort((a, b) => a.name.localeCompare(b.name, 'vi'))
-
-  const filtered = searched.filter(s => {
-    if (typeFilter && (s.type ?? s.source_editor_source?.type) !== typeFilter) return false
-    if (addedByFilter && s.added_by?.id !== addedByFilter) return false
-    return true
+  // Danh sách đầy đủ (không phân trang) — chỉ dùng để loại source đã có (theo link) ra khỏi
+  // danh sách "chọn từ kho tổng", không dùng để hiển thị bảng.
+  const { data: allSources } = useQuery({
+    queryKey: ['task-auto', 'team-sources-all-links', selectedTeamId, brandType],
+    queryFn: () => getTeamSources(selectedTeamId, { brand_type: brandType }),
+    enabled: !!selectedTeamId && modal === 'add' && addMode === 'global',
   })
 
+  // Type là enum cố định — không cần đếm; "Người thêm" lấy từ danh sách thành viên team (đã có
+  // sẵn từ getTeams()) thay vì quét mảng đã tải, vì bảng chính giờ đã phân trang server.
+  const typeOptions = (Object.keys(SOURCE_TYPE_LABELS) as SourceType[])
+    .map(value => ({ value, label: SOURCE_TYPE_LABELS[value] }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'vi'))
+  const teamPeople = [
+    ...(selectedTeam?.leader ? [selectedTeam.leader] : []),
+    ...(selectedTeam?.members ?? []).map(m => m.user).filter((u): u is NonNullable<typeof u> => !!u),
+  ]
+  const addedByOptions = Array.from(new Map(teamPeople.map(u => [u.id, { id: u.id, name: u.full_name }])).values())
+    .sort((a, b) => a.name.localeCompare(b.name, 'vi'))
+
   useEffect(() => { setPage(1) }, [selectedTeamId, brandType, month, search, typeFilter, addedByFilter])
-  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const { data: productsForSelect } = useQuery({
     queryKey: ['task-auto', 'team-products-select', selectedTeamId],
@@ -253,7 +245,7 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
   }
 
   const saving = addMut.isPending || updateMut.isPending
-  const existingLinks = new Set(sources.map(s => s.link))
+  const existingLinks = new Set((allSources ?? []).map(s => s.link))
   const availableGlobal = (globalSourcesData?.data ?? []).filter(s => !existingLinks.has(s.link))
   const allGlobalSelected = availableGlobal.length > 0 && selectedGlobalIds.size === availableGlobal.length
   const toggleAllGlobal = () =>
@@ -315,7 +307,7 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
             <div className="flex justify-center items-center py-16">
               <Loader2 className="w-7 h-7 animate-spin text-indigo-500" />
             </div>
-          ) : filtered.length === 0 ? (
+          ) : sources.length === 0 ? (
             <EmptyState icon={Radio} title="Team chưa có source nào"
               description={canManageSelected ? 'Nhấn "Thêm Source" để thêm source vào kho của team.' : 'Chưa có source nào được thêm vào kho team.'} />
           ) : (
@@ -329,8 +321,7 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
                         label="Loại"
                         value={typeFilter}
                         onChange={setTypeFilter}
-                        options={typeOptions.map(o => ({ value: o.value, label: SOURCE_TYPE_LABELS[o.value], count: o.count }))}
-                        totalCount={searched.length}
+                        options={typeOptions}
                       />
                     </th>
                     <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 whitespace-nowrap">Code</th>
@@ -341,8 +332,7 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
                         label="Người thêm"
                         value={addedByFilter}
                         onChange={setAddedByFilter}
-                        options={addedByOptions.map(o => ({ value: o.id, label: o.name, count: o.count }))}
-                        totalCount={searched.length}
+                        options={addedByOptions.map(o => ({ value: o.id, label: o.name }))}
                       />
                     </th>
                     <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 whitespace-nowrap">Ngày thêm</th>
@@ -351,7 +341,7 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {paginated.map(s => {
+                  {sources.map(s => {
                     const es = s.source_editor_source
                     const sName = s.name ?? es?.name ?? '—'
                     const sNasLink = s.nas_link ?? es?.nas_link ?? null
@@ -442,8 +432,8 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
               </table>
             </div>
           )}
-          {!isLoading && filtered.length > 0 && (
-            <Pagination page={page} totalItems={filtered.length} onPageChange={setPage} />
+          {!isLoading && sources.length > 0 && (
+            <Pagination page={page} pageSize={PAGE_SIZE} totalItems={total} onPageChange={setPage} />
           )}
         </div>
       )}

@@ -664,9 +664,12 @@ export interface TeamSourcesQuery {
   type?: SourceType | ''
   product_id?: string
   team_product_id?: string
+  added_by_id?: string
   is_active?: boolean
   search?: string
   month?: string
+  page?: number
+  limit?: number
 }
 
 // ── Dashboard Stats ─────────────────────────────

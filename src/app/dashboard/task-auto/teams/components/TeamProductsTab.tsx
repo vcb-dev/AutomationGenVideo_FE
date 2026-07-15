@@ -12,7 +12,7 @@ import { Pagination, PAGE_SIZE } from '@/components/task-auto/Pagination'
 import { HeaderFilterDropdown } from '@/components/task-auto/HeaderFilterDropdown'
 
 import type { TeamProduct } from '@/types/task-auto'
-import { getTeamProducts, getTeams, removeTeamProduct, pushTeamProductToGlobal, getTeamSources, pushTeamSourceToGlobal } from '@/lib/api/task-auto'
+import { getTeamProducts, getTeams, removeTeamProduct, pushTeamProductToGlobal, getTeamSources, pushTeamSourceToGlobal, getProductLines, getProductClassifications } from '@/lib/api/task-auto'
 import { AddProductModal } from './products/AddProductModal'
 import { ProductViewModal } from '@/components/task-auto/ProductViewModal'
 import { TeamProductFormModal } from './products/TeamProductFormModal'
@@ -71,11 +71,32 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
     ? [{ value: '', label: 'Tất cả đội nhóm' }, ...(teams ?? []).map(t => ({ value: t.id, label: t.name }))]
     : myTeams.map(t => ({ value: t.id, label: t.name }))
 
-  const { data: teamProducts, isLoading } = useQuery({
-    queryKey: ['task-auto', 'team-products', selectedTeamId, brandType, month],
-    queryFn: () => getTeamProducts(selectedTeamId, brandType, month),
+  const { data: page1Data, isLoading } = useQuery({
+    queryKey: ['task-auto', 'team-products', selectedTeamId, brandType, month, search, productLineFilter, classificationFilter, page],
+    queryFn: () => getTeamProducts(selectedTeamId, brandType, month, {
+      page, limit: PAGE_SIZE, search: search || undefined,
+      product_line_id: productLineFilter || undefined, classification_id: classificationFilter || undefined,
+    }),
     enabled: !!selectedTeamId,
   })
+  const teamProducts = page1Data?.data ?? []
+  const total = page1Data?.total ?? 0
+
+  // Danh sách SKU đầy đủ trong kho team (không phân trang) — chỉ dùng để loại sản phẩm đã có
+  // ra khỏi danh sách "chọn từ kho tổng" trong AddProductModal, không dùng để hiển thị bảng.
+  const { data: allTeamProducts } = useQuery({
+    queryKey: ['task-auto', 'team-products-all-skus', selectedTeamId, brandType],
+    queryFn: () => getTeamProducts(selectedTeamId, brandType),
+    enabled: !!selectedTeamId && showAdd,
+  })
+
+  // Danh sách dòng SP/phân loại toàn hệ thống — dùng làm option cho dropdown lọc (không kèm
+  // số đếm theo kho team nữa vì bảng chính giờ đã phân trang server, không còn toàn bộ dữ liệu
+  // trong bộ nhớ để đếm).
+  const { data: allProductLines } = useQuery({ queryKey: ['task-auto', 'product-lines'], queryFn: getProductLines })
+  const { data: allClassifications } = useQuery({ queryKey: ['task-auto', 'product-classifications'], queryFn: getProductClassifications })
+  const productLineOptions = (allProductLines ?? []).map(l => ({ value: l.id, label: l.name })).sort((a, b) => a.label.localeCompare(b.label, 'vi'))
+  const classificationOptions = (allClassifications ?? []).map(c => ({ value: c.id, label: c.name })).sort((a, b) => a.label.localeCompare(b.label, 'vi'))
 
   const removeMut = useMutation({
     mutationFn: (productId: string) => removeTeamProduct(selectedTeamId, productId),
@@ -108,45 +129,9 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Đẩy ra kho tổng thất bại'),
   })
 
-  const existingSkus = (teamProducts ?? []).map(tp => tp.sku ?? tp.source_editor_product?.sku ?? '').filter(Boolean)
-
-  const searched = (teamProducts ?? []).filter(tp => {
-    if (!search) return true
-    const q = search.toLowerCase()
-    const effectiveName = tp.name ?? tp.source_editor_product?.name ?? ''
-    const effectiveSku = tp.sku ?? tp.source_editor_product?.sku ?? ''
-    return effectiveName.toLowerCase().includes(q) || effectiveSku.toLowerCase().includes(q)
-  })
-
-  const productLineCountMap = new Map<string, { id: string; name: string; count: number }>()
-  for (const tp of searched) {
-    const line = tp.product_line
-    if (line) {
-      const e = productLineCountMap.get(line.id)
-      if (e) e.count++
-      else productLineCountMap.set(line.id, { id: line.id, name: line.name, count: 1 })
-    }
-  }
-  const productLineOptions = Array.from(productLineCountMap.values()).sort((a, b) => a.name.localeCompare(b.name, 'vi'))
-
-  const classificationCountMap = new Map<string, { id: string; name: string; count: number }>()
-  for (const tp of searched) {
-    const cls = tp.classification
-    if (cls) {
-      const e = classificationCountMap.get(cls.id)
-      if (e) e.count++
-      else classificationCountMap.set(cls.id, { id: cls.id, name: cls.name, count: 1 })
-    }
-  }
-  const classificationOptions = Array.from(classificationCountMap.values()).sort((a, b) => a.name.localeCompare(b.name, 'vi'))
-
-  const filtered = (productLineFilter
-    ? searched.filter(tp => tp.product_line?.id === productLineFilter)
-    : searched
-  ).filter(tp => !classificationFilter || tp.classification?.id === classificationFilter)
+  const existingSkus = (allTeamProducts ?? []).map(tp => tp.sku ?? tp.source_editor_product?.sku ?? '').filter(Boolean)
 
   useEffect(() => { setPage(1) }, [selectedTeamId, brandType, month, search, productLineFilter, classificationFilter])
-  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   return (
     <div className="space-y-5">
@@ -192,9 +177,9 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
             className="px-3 py-3.5 border border-gray-200 rounded-xl text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
           />
 
-          {selectedTeamId && teamProducts && (
+          {selectedTeamId && page1Data && (
             <span className="text-sm text-slate-400 font-medium whitespace-nowrap">
-              {filtered.length} sản phẩm
+              {total} sản phẩm
             </span>
           )}
 
@@ -225,8 +210,7 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
                       label="Dòng SP"
                       value={productLineFilter}
                       onChange={setProductLineFilter}
-                      options={productLineOptions.map(o => ({ value: o.id, label: o.name, count: o.count }))}
-                      totalCount={searched.length}
+                      options={productLineOptions}
                     />
                   </th>
                   <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">
@@ -234,8 +218,7 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
                       label="Phân loại"
                       value={classificationFilter}
                       onChange={setClassificationFilter}
-                      options={classificationOptions.map(o => ({ value: o.id, label: o.name, count: o.count }))}
-                      totalCount={searched.length}
+                      options={classificationOptions}
                     />
                   </th>
                   <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Thị trường</th>
@@ -259,10 +242,10 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
                 ))}
 
                 {/* Empty states */}
-                {!isLoading && filtered.length === 0 && (
+                {!isLoading && teamProducts.length === 0 && (
                   <tr>
                     <td colSpan={10}>
-                      {teamProducts?.length === 0 ? (
+                      {total === 0 && !search && !productLineFilter && !classificationFilter ? (
                         <div className="flex flex-col items-center justify-center py-14 gap-3">
                           <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center">
                             <ShoppingBag className="w-7 h-7 text-indigo-300" />
@@ -290,7 +273,7 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
                 )}
 
                 {/* Rows */}
-                {!isLoading && paginated.map((tp: TeamProduct) => {
+                {!isLoading && teamProducts.map((tp: TeamProduct) => {
                   const ep = tp.source_editor_product
                   const tpName = tp.name ?? ep?.name ?? '—'
                   const tpSku = tp.sku ?? ep?.sku ?? null
@@ -452,7 +435,7 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
               </tbody>
             </table>
           </div>
-          <Pagination page={page} totalItems={filtered.length} onPageChange={setPage} />
+          <Pagination page={page} pageSize={PAGE_SIZE} totalItems={total} onPageChange={setPage} />
         </div>
       )}
 
