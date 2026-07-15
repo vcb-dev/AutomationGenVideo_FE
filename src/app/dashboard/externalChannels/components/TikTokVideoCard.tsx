@@ -97,8 +97,8 @@ export default function TikTokVideoCard({ video }: { video: TikTokVideo }) {
           </div>
         )}
 
-        {/* Keyword badge */}
-        {video.search_keyword && (
+        {/* Keyword badge — only for keyword-searched videos, not profile-scraped (@username) */}
+        {video.search_keyword && !video.search_keyword.startsWith('@') && (
           <div className="absolute top-2 left-2 px-1.5 py-0.5 bg-blue-600/80 backdrop-blur-sm rounded text-white text-xs truncate max-w-[70%]">
             {video.search_keyword}
           </div>
