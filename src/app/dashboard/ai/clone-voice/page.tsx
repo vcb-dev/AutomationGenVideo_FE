@@ -331,6 +331,12 @@ export default function CloneVoicePage() {
     const [ttsLang, setTtsLang] = useState('Tiếng Việt');
     const [isGenerating, setIsGenerating] = useState(false);
     const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
+    // Link riêng cho nút tải về (proxy BE + ?download=1 → server trả Content-Disposition
+    // attachment). Thuộc tính download của <a> bị trình duyệt bỏ qua với link cross-origin
+    // nên không dựa vào nó được.
+    const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+    // Tên file tải về, dạng "<tên giọng>_<ngày>_<giờ phút>.mp3" — BE nhận qua ?filename=
+    const [downloadName, setDownloadName] = useState<string | null>(null);
     // Đơn giá VND / 1000 ký tự (BE trả kèm trong /ai/voice/list; 0 = chưa cấu hình → ẩn phần tiền)
     const [vndPer1kChars, setVndPer1kChars] = useState(0);
 
@@ -523,7 +529,29 @@ export default function CloneVoicePage() {
 
             const data = await res.json();
             if (data.success && data.audio_url) {
-                setGeneratedUrl(data.audio_url);
+                // Có audio_file_id (đã upload Drive) → phát + tải qua proxy stream của BE.
+                // Link Drive uc?export=download không stream chuẩn cho <audio> (player
+                // hiện 00:00) và tải về hay lỗi; link gốc chỉ giữ làm fallback.
+                const proxyUrl = data.audio_file_id
+                    ? `${getApiUrl()}/ai/voice/tts/audio/${data.audio_file_id}`
+                    : null;
+
+                // Tên file tải về: "<tên giọng>_<ngày>_<giờ phút>.mp3", bỏ ký tự cấm trong tên file
+                const voiceName = (voices.find((v) => v.voice_id === selectedVoiceId)?.name || 'voice')
+                    .replace(/[\/\\:*?"<>|]+/g, ' ')
+                    .trim();
+                const now = new Date();
+                const pad = (n: number) => String(n).padStart(2, '0');
+                const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+                const fileName = `${voiceName}_${stamp}.mp3`;
+
+                setGeneratedUrl(proxyUrl ?? data.audio_url);
+                setDownloadUrl(
+                    proxyUrl
+                        ? `${proxyUrl}?download=1&filename=${encodeURIComponent(fileName)}`
+                        : data.audio_url,
+                );
+                setDownloadName(fileName);
                 toast.success('Đã tạo giọng nói thành công!', { id: generatingToast });
             } else {
                 throw new Error(data.error || 'Tạo giọng nói thất bại');
@@ -643,13 +671,12 @@ export default function CloneVoicePage() {
                                             </div>
                                             <div>
                                                 <p className="text-xs font-semibold text-gray-800">Giọng nói đã tạo</p>
-                                                <p className="text-[11px] text-gray-500">output_voice.mp3</p>
+                                                <p className="text-[11px] text-gray-500">{downloadName ?? 'minimax_voice.mp3'}</p>
                                             </div>
                                         </div>
                                         <a
-                                            href={generatedUrl}
-                                            download="minimax_voice.mp3"
-                                            target="_blank"
+                                            href={downloadUrl ?? generatedUrl}
+                                            download={downloadName ?? 'minimax_voice.mp3'}
                                             rel="noreferrer"
                                             className="w-8 h-8 rounded-lg bg-violet-100 hover:bg-violet-200 flex items-center justify-center transition-colors"
                                             title="Tải xuống"
