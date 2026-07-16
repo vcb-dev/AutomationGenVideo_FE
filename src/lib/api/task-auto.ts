@@ -166,8 +166,24 @@ export const setMemberEditorRole = (teamId: string, userId: string, isEditor: bo
 
 // ── Team Products (standalone) ────────────────────────────────────────────────
 
-export const getTeamProducts = (teamId: string, brandType?: string, month?: string) =>
-  apiClient.get<TeamProduct[]>(`/task-auto/teams/${teamId}/products${qs({ brand_type: brandType, month })}`).then(r => r.data)
+export interface TeamListOpts {
+  search?: string
+  page?: number
+  limit?: number
+  product_line_id?: string
+  classification_id?: string
+  content_line_id?: string
+  market?: string
+}
+
+// Không truyền `opts.page` → trả mảng đầy đủ như trước (dùng bởi dropdown chọn sản phẩm khi
+// tạo task, kho tháng team...). Truyền `opts.page` → BE chuyển sang chế độ phân trang + search.
+export function getTeamProducts(teamId: string, brandType?: string, month?: string): Promise<TeamProduct[]>
+export function getTeamProducts(teamId: string, brandType: string | undefined, month: string | undefined, opts: TeamListOpts & { page: number }): Promise<PaginatedResult<TeamProduct>>
+export function getTeamProducts(teamId: string, brandType?: string, month?: string, opts?: TeamListOpts) {
+  const query = qs({ brand_type: brandType, month, search: opts?.search, page: opts?.page, limit: opts?.limit, product_line_id: opts?.product_line_id, classification_id: opts?.classification_id })
+  return apiClient.get<any>(`/task-auto/teams/${teamId}/products${query}`).then(r => r.data)
+}
 
 /** Copy từ kho tổng: truyền { source_product_id }. Tạo mới: truyền full product data */
 export const addTeamProduct = (teamId: string, data: { source_product_id?: string; name?: string; sku?: string; brand_type?: string; [key: string]: any }) =>
@@ -184,13 +200,16 @@ export const pushTeamProductToGlobal = (teamId: string, teamProductId: string) =
 
 // ── Team Contents (standalone) ────────────────────────────────────────────────
 
-export const getTeamContents = (teamId: string, brandType?: string, month?: string) =>
-  apiClient.get<TeamContent[]>(`/task-auto/teams/${teamId}/contents${qs({ brand_type: brandType, month })}`).then(r => r.data)
+export function getTeamContents(teamId: string, brandType?: string, month?: string): Promise<TeamContent[]>
+export function getTeamContents(teamId: string, brandType: string | undefined, month: string | undefined, opts: TeamListOpts & { page: number }): Promise<PaginatedResult<TeamContent>>
+export function getTeamContents(teamId: string, brandType?: string, month?: string, opts?: TeamListOpts) {
+  const query = qs({ brand_type: brandType, month, search: opts?.search, page: opts?.page, limit: opts?.limit, content_line_id: opts?.content_line_id, classification_id: opts?.classification_id, market: opts?.market })
+  return apiClient.get<any>(`/task-auto/teams/${teamId}/contents${query}`).then(r => r.data)
+}
 
 /** Copy từ kho tổng: truyền { source_content_id }. Tạo mới: truyền full content data */
 export const addTeamContent = (teamId: string, data: { source_content_id?: string; brand_type?: string; [key: string]: any }) =>
   apiClient.post<TeamContent>(`/task-auto/teams/${teamId}/contents`, data).then(r => r.data)
-
 export const updateTeamContent = (teamId: string, teamContentId: string, data: Partial<TeamContent>) =>
   apiClient.patch<TeamContent>(`/task-auto/teams/${teamId}/contents/${teamContentId}`, data).then(r => r.data)
 
@@ -202,8 +221,12 @@ export const pushTeamContentToGlobal = (teamId: string, teamContentId: string) =
 
 // ── Team Sources ──────────────────────────────────────────────────────────────
 
-export const getTeamSources = (teamId: string, q: TeamSourcesQuery = {}) =>
-  apiClient.get<TeamSource[]>(`/task-auto/teams/${teamId}/sources${qs(q as any)}`).then(r => r.data)
+// Không truyền `q.page` → trả mảng đầy đủ như trước. Truyền `q.page` → BE chuyển sang phân trang + search.
+export function getTeamSources(teamId: string, q?: TeamSourcesQuery & { page?: undefined }): Promise<TeamSource[]>
+export function getTeamSources(teamId: string, q: TeamSourcesQuery & { page: number }): Promise<PaginatedResult<TeamSource>>
+export function getTeamSources(teamId: string, q: TeamSourcesQuery = {}) {
+  return apiClient.get<any>(`/task-auto/teams/${teamId}/sources${qs(q as any)}`).then(r => r.data)
+}
 
 export const addTeamSource = (teamId: string, data: { source_source_id?: string; brand_type?: string; type?: string; name?: string; link?: string; [key: string]: any }) =>
   apiClient.post<TeamSource>(`/task-auto/teams/${teamId}/sources`, data).then(r => r.data)

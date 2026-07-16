@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { CircleNotch, FilmReel, Warning, Eye, Heart, ChatCircle, FacebookLogo, TiktokLogo, InstagramLogo } from '@phosphor-icons/react';
+import { CircleNotch, FilmReel, Warning, Eye, Heart, ChatCircle, FacebookLogo, TiktokLogo, InstagramLogo, YoutubeLogo } from '@phosphor-icons/react';
 
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService, ExternalVideo } from '@/services/scraperService';
@@ -49,11 +49,10 @@ function getAuthorAvatar(video: ExternalVideo): string {
 }
 
 const platformConfig: Record<string, { icon: any; color: string; bg: string; label: string }> = {
-  facebook:    { icon: FacebookLogo,  color: 'text-blue-600',                          bg: 'bg-blue-50 dark:bg-blue-900/30',     label: 'Facebook'    },
-  tiktok:      { icon: TiktokLogo,    color: 'text-slate-800 dark:text-white',          bg: 'bg-slate-100 dark:bg-slate-800',     label: 'TikTok'      },
-  instagram:   { icon: InstagramLogo, color: 'text-pink-500',                           bg: 'bg-pink-50 dark:bg-pink-900/30',     label: 'Instagram'   },
-  douyin:      { icon: TiktokLogo,    color: 'text-cyan-500',                           bg: 'bg-cyan-50 dark:bg-cyan-900/30',     label: 'Douyin'      },
-  xiaohongshu: { icon: null,          color: 'text-red-500',                            bg: 'bg-red-50 dark:bg-red-900/30',       label: 'XiaoHongShu' },
+  facebook:  { icon: FacebookLogo,  color: 'text-blue-600',                 bg: 'bg-blue-50 dark:bg-blue-900/30',  label: 'Facebook'  },
+  tiktok:    { icon: TiktokLogo,    color: 'text-slate-800 dark:text-white', bg: 'bg-slate-100 dark:bg-slate-800',  label: 'TikTok'    },
+  instagram: { icon: InstagramLogo, color: 'text-pink-500',                 bg: 'bg-pink-50 dark:bg-pink-900/30',  label: 'Instagram' },
+  youtube:   { icon: YoutubeLogo,   color: 'text-red-600',                  bg: 'bg-red-50 dark:bg-red-900/30',    label: 'YouTube'   },
 };
 
 function VideoCard({ video }: { video: ExternalVideo }) {
@@ -208,8 +207,7 @@ export default function AllOwnedVideosPage() {
           <option value="facebook">Facebook</option>
           <option value="tiktok">TikTok</option>
           <option value="instagram">Instagram</option>
-          <option value="douyin">Douyin</option>
-          <option value="xiaohongshu">XiaoHongShu</option>
+          <option value="youtube">YouTube</option>
         </select>
         <input
           type="number"
@@ -259,7 +257,7 @@ export default function AllOwnedVideosPage() {
         <div className="flex flex-col items-center py-16 gap-4 bg-card border border-border rounded-xl">
           <FilmReel size={32} className="text-slate-300" />
           <p className="text-sm text-foreground font-medium">Chưa có video nào</p>
-          <p className="text-xs text-slate-400 text-center max-w-sm">Thêm kênh nội bộ từ các tab Facebook, TikTok, Instagram, Douyin, Xiaohongshu trước.</p>
+          <p className="text-xs text-slate-400 text-center max-w-sm">Thêm kênh nội bộ từ các tab Facebook, TikTok, Instagram, YouTube trước.</p>
         </div>
       )}
 

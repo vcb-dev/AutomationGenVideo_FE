@@ -14,6 +14,8 @@ import {
     RefreshCw,
     FolderOpen,
     Check,
+    CreditCard,
+    ExternalLink,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -36,6 +38,13 @@ const LANGUAGE_TO_MINIMAX: Record<string, string> = {
     'Português': 'Portuguese',
     'ภาษาไทย': 'Thai',
 };
+
+// Trang nạp tiền / gia hạn gói của MiniMax (mở tab mới, cần đăng nhập tài khoản MiniMax công ty)
+const MINIMAX_RECHARGE_URL = 'https://www.minimax.io/platform/user-center/payment/recharge';
+
+// Đơn giá mặc định khi BE chưa cấu hình env MINIMAX_VND_PER_1K_CHARS:
+// gói 250.000đ / 500.000 ký tự → 500đ mỗi 1.000 ký tự. BE trả giá khác 0 thì dùng giá BE.
+const DEFAULT_VND_PER_1K_CHARS = 500;
 
 // Helper to get API URL
 const getApiUrl = () => {
@@ -331,6 +340,12 @@ export default function CloneVoicePage() {
     const [ttsLang, setTtsLang] = useState('Tiếng Việt');
     const [isGenerating, setIsGenerating] = useState(false);
     const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
+    // Link riêng cho nút tải về (proxy BE + ?download=1 → server trả Content-Disposition
+    // attachment). Thuộc tính download của <a> bị trình duyệt bỏ qua với link cross-origin
+    // nên không dựa vào nó được.
+    const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+    // Tên file tải về, dạng "<tên giọng>_<ngày>_<giờ phút>.mp3" — BE nhận qua ?filename=
+    const [downloadName, setDownloadName] = useState<string | null>(null);
     // Đơn giá VND / 1000 ký tự (BE trả kèm trong /ai/voice/list; 0 = chưa cấu hình → ẩn phần tiền)
     const [vndPer1kChars, setVndPer1kChars] = useState(0);
 
@@ -344,8 +359,10 @@ export default function CloneVoicePage() {
 
     const charCount = text.length;
     const maxChars = 5000;
-    // MiniMax tính phí theo ký tự ("điểm âm thanh") — ước tính tiền cho đoạn text hiện tại
-    const estimatedCostVnd = Math.round((charCount / 1000) * vndPer1kChars);
+    // MiniMax tính phí theo ký tự ("điểm âm thanh") — ước tính tiền cho đoạn text hiện tại.
+    // BE chưa cấu hình giá thì dùng giá mặc định để ô tiền luôn hiển thị.
+    const effectiveVndPer1k = vndPer1kChars > 0 ? vndPer1kChars : DEFAULT_VND_PER_1K_CHARS;
+    const estimatedCostVnd = Math.round((charCount / 1000) * effectiveVndPer1k);
 
     // Fetch voices on mount
     const fetchVoices = async () => {
@@ -523,7 +540,29 @@ export default function CloneVoicePage() {
 
             const data = await res.json();
             if (data.success && data.audio_url) {
-                setGeneratedUrl(data.audio_url);
+                // Có audio_file_id (đã upload Drive) → phát + tải qua proxy stream của BE.
+                // Link Drive uc?export=download không stream chuẩn cho <audio> (player
+                // hiện 00:00) và tải về hay lỗi; link gốc chỉ giữ làm fallback.
+                const proxyUrl = data.audio_file_id
+                    ? `${getApiUrl()}/ai/voice/tts/audio/${data.audio_file_id}`
+                    : null;
+
+                // Tên file tải về: "<tên giọng>_<ngày>_<giờ phút>.mp3", bỏ ký tự cấm trong tên file
+                const voiceName = (voices.find((v) => v.voice_id === selectedVoiceId)?.name || 'voice')
+                    .replace(/[\/\\:*?"<>|]+/g, ' ')
+                    .trim();
+                const now = new Date();
+                const pad = (n: number) => String(n).padStart(2, '0');
+                const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+                const fileName = `${voiceName}_${stamp}.mp3`;
+
+                setGeneratedUrl(proxyUrl ?? data.audio_url);
+                setDownloadUrl(
+                    proxyUrl
+                        ? `${proxyUrl}?download=1&filename=${encodeURIComponent(fileName)}`
+                        : data.audio_url,
+                );
+                setDownloadName(fileName);
                 toast.success('Đã tạo giọng nói thành công!', { id: generatingToast });
             } else {
                 throw new Error(data.error || 'Tạo giọng nói thất bại');
@@ -547,13 +586,25 @@ export default function CloneVoicePage() {
                         <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
                             {/* Card header */}
                             <div className="flex items-center gap-3 mb-5">
-                                <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center">
+                                <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center flex-shrink-0">
                                     <Mic className="w-5 h-5 text-violet-600" />
                                 </div>
-                                <div>
+                                <div className="min-w-0">
                                     <h2 className="font-semibold text-gray-800">Text to Speech (Minimax AI)</h2>
                                     <p className="text-xs text-gray-500">Nhập văn bản, chọn ngôn ngữ và tạo giọng nói tự nhiên</p>
                                 </div>
+                                {/* Hết token / hết hạn gói MiniMax → nạp tiền hoặc gia hạn ngay tại đây */}
+                                <a
+                                    href={MINIMAX_RECHARGE_URL}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    title="Mở trang nạp tiền / gia hạn gói MiniMax (cần đăng nhập tài khoản MiniMax của công ty)"
+                                    className="ml-auto flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold hover:bg-amber-100 transition-colors whitespace-nowrap flex-shrink-0"
+                                >
+                                    <CreditCard className="w-3.5 h-3.5" />
+                                    Nạp tiền / Gia hạn MiniMax
+                                    <ExternalLink className="w-3 h-3 opacity-60" />
+                                </a>
                             </div>
 
                             {/* Textarea */}
@@ -569,11 +620,12 @@ export default function CloneVoicePage() {
                                         focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 transition-all duration-200"
                                 />
                                 <div className="absolute bottom-3 right-3 flex items-center gap-2 text-xs">
-                                    {vndPer1kChars > 0 && charCount > 0 && (
-                                        <span className="px-2 py-0.5 rounded-md bg-green-50 border border-green-200 text-green-700 font-semibold">
-                                            ≈ {estimatedCostVnd.toLocaleString('vi-VN')}đ
-                                        </span>
-                                    )}
+                                    <span
+                                        className="px-2 py-0.5 rounded-md bg-green-50 border border-green-200 text-green-700 font-semibold cursor-help"
+                                        title={`Đơn giá ${effectiveVndPer1k.toLocaleString('vi-VN')}đ / 1.000 ký tự${vndPer1kChars > 0 ? '' : ' (giá mặc định gói 250.000đ/500.000 ký tự — chỉnh qua env MINIMAX_VND_PER_1K_CHARS của BE)'}`}
+                                    >
+                                        💰 ≈ {estimatedCostVnd.toLocaleString('vi-VN')}đ
+                                    </span>
                                     <span className="text-gray-400">{charCount} / {maxChars} ký tự</span>
                                 </div>
                             </div>
@@ -643,13 +695,12 @@ export default function CloneVoicePage() {
                                             </div>
                                             <div>
                                                 <p className="text-xs font-semibold text-gray-800">Giọng nói đã tạo</p>
-                                                <p className="text-[11px] text-gray-500">output_voice.mp3</p>
+                                                <p className="text-[11px] text-gray-500">{downloadName ?? 'minimax_voice.mp3'}</p>
                                             </div>
                                         </div>
                                         <a
-                                            href={generatedUrl}
-                                            download="minimax_voice.mp3"
-                                            target="_blank"
+                                            href={downloadUrl ?? generatedUrl}
+                                            download={downloadName ?? 'minimax_voice.mp3'}
                                             rel="noreferrer"
                                             className="w-8 h-8 rounded-lg bg-violet-100 hover:bg-violet-200 flex items-center justify-center transition-colors"
                                             title="Tải xuống"

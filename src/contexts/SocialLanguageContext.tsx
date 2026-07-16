@@ -71,7 +71,7 @@ const T = {
     },
     dateLocale: 'vi',
     // ── NotificationBell ───────────────────────────────────────────────────
-    notifTitle: '🔔 Thông báo đăng bài',
+    notifTitle: '🔔 Thông báo',
     markAllRead: 'Đánh dấu đã đọc',
     noNotifs: 'Chưa có thông báo',
     notifsHint: 'Thông báo sẽ hiển thị khi bạn đăng bài',

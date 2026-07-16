@@ -6,12 +6,15 @@ import {
   Image as ImageIcon, Search,
   RefreshCw, Copy, RotateCcw, Filter, X, ArrowUpDown,
   TrendingUp, ChevronLeft, ChevronRight, Repeat2, Play, ExternalLink,
-  LayoutGrid, List, Eye, FileVideo, FileImage,
+  LayoutGrid, List, FileVideo, FileImage, Info,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { socialApi, SocialPost, HistoryMember, PLATFORM_META } from '@/lib/api/social';
+import { socialApi, SocialPost, HistoryMember, PLATFORM_META, getPostUrl } from '@/lib/api/social';
+// Overlay xem video fullscreen (prev/next) — tái dùng đúng component bên task-auto
+// để card video ở đây trông thống nhất với phần duyệt video.
+import { VideoPreviewOverlay } from '@/app/dashboard/task-auto/tasks/components/detail/VideoPreviewOverlay';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/auth-store';
 import { useSocialLang } from '@/contexts/SocialLanguageContext';
@@ -118,26 +121,19 @@ function ActivityChart({ posts }: { posts: SocialPost[] }) {
 }
 
 const PAGE_SIZE = 20;
-const GRID_PAGE_SIZE = 42;
+// Card 4:5 hiển thị 2-5 cột tuỳ màn hình — 40 chia hết cho 2/4/5 để hàng cuối không lẻ
+const GRID_PAGE_SIZE = 40;
 
-/** Lấy URL bài đã đăng từ result trả về bởi platform publisher */
-function getPostUrl(result?: Record<string, unknown> | null, platform?: string): string | null {
-  if (!result) return null;
-  if (typeof result.url === 'string' && result.url) return result.url;
-  if (typeof result.videoId === 'string') return `https://youtube.com/watch?v=${result.videoId}`;
-  // Fallback: construct URL from postId (covers old Facebook posts without url field)
-  if (typeof result.postId === 'string' && result.postId) {
-    if (!platform || platform === 'FACEBOOK') return `https://www.facebook.com/${result.postId}`;
-  }
-  // TikTok: videoId stored after backend fix
-  if (typeof result.tiktokVideoId === 'string' && result.tiktokVideoId) {
-    return `https://www.tiktok.com/video/${result.tiktokVideoId}`;
-  }
-  return null;
-}
-
-// ── Grid thumbnail item ─────────────────────────────────────────────────────
-function GridItem({ post, onClick }: { post: SocialPost; onClick: (p: SocialPost) => void }) {
+// ── Grid video card (kiểu card duyệt video bên task-auto: thumbnail 4:5 + info đầy đủ) ──
+function GridItem({
+  post, onOpenDetail, onPlay,
+}: {
+  post: SocialPost;
+  onOpenDetail: (p: SocialPost) => void;
+  /** Có video → click card mở overlay xem video; không có → mở modal chi tiết */
+  onPlay?: () => void;
+}) {
+  const { t } = useSocialLang();
   const [mediaFailed, setMediaFailed] = useState(false);
   const meta = (PLATFORM_META as any)[post.platform] || PLATFORM_META.FACEBOOK;
   const firstMedia = post.media_urls?.[0];
@@ -147,73 +143,114 @@ function GridItem({ post, onClick }: { post: SocialPost; onClick: (p: SocialPost
 
   const thumbSrc = mediaFailed ? null :
     post.thumb_url ||
-    (driveFileId ? `https://drive.google.com/thumbnail?id=${driveFileId}&sz=w400` : null) ||
+    (driveFileId ? `https://drive.google.com/thumbnail?id=${driveFileId}&sz=w800` : null) ||
     (!isVideo && firstMedia ? resolveMediaUrl(firstMedia) : null);
 
   // Video thông thường (non-Drive): dùng URL gốc để browser tự render frame đầu
   const regularVideoSrc = !mediaFailed && isVideo && !isDrive && firstMedia ? resolveMediaUrl(firstMedia) : null;
 
-  const isOk   = post.status === 'COMPLETED';
-  const isFail = post.status === 'FAILED';
+  const isOk      = post.status === 'COMPLETED';
+  const isFail    = post.status === 'FAILED';
+  const isPending = post.status === 'PENDING';
+  const statusLabel = isOk ? t.history.statusSuccess : isFail ? t.history.statusFailed : isPending ? t.history.statusPending : t.history.statusCancelled;
+
+  const message = (post.message || '').trim();
 
   return (
     <div
-      onClick={() => onClick(post)}
-      className="relative aspect-square cursor-pointer overflow-hidden bg-slate-800 group"
+      onClick={() => (onPlay ? onPlay() : onOpenDetail(post))}
+      className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-shadow group cursor-pointer flex flex-col"
     >
-      {/* Thumbnail */}
-      {thumbSrc ? (
-        <img
-          src={thumbSrc}
-          alt=""
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-          onError={() => setMediaFailed(true)}
-        />
-      ) : regularVideoSrc ? (
-        // Browser tự hiện frame đầu của video khi preload="metadata"
-        <video
-          src={regularVideoSrc}
-          preload="metadata"
-          muted
-          playsInline
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-          onError={() => setMediaFailed(true)}
-        />
-      ) : (
-        <div className={`w-full h-full flex flex-col items-center justify-center gap-1 ${meta.color} bg-opacity-80`}>
-          <span className="text-3xl">{meta.emoji}</span>
-          {isVideo
-            ? <FileVideo className="w-5 h-5 text-white/60" />
-            : <FileImage className="w-5 h-5 text-white/60" />}
-        </div>
-      )}
-
-      {/* Hover overlay — play button */}
-      {(isVideo || isDrive) && (
-        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
-          <div className="w-11 h-11 bg-white/90 rounded-full flex items-center justify-center shadow-lg">
-            <Play className="w-5 h-5 text-slate-800 ml-0.5" />
+      {/* ── Thumbnail 4:5 ── */}
+      <div className="aspect-[4/5] bg-slate-100 relative overflow-hidden">
+        {thumbSrc ? (
+          <img
+            src={thumbSrc}
+            alt=""
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            onError={() => setMediaFailed(true)}
+          />
+        ) : regularVideoSrc ? (
+          // Browser tự hiện frame đầu của video khi preload="metadata"
+          <video
+            src={regularVideoSrc}
+            preload="metadata"
+            muted
+            playsInline
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            onError={() => setMediaFailed(true)}
+          />
+        ) : (
+          <div className={`w-full h-full flex flex-col items-center justify-center gap-2 ${meta.color} bg-opacity-80`}>
+            <span className="text-4xl">{meta.emoji}</span>
+            {firstMedia && (isVideo
+              ? <FileVideo className="w-6 h-6 text-white/60" />
+              : <FileImage className="w-6 h-6 text-white/60" />)}
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Bottom gradient: media count (eye style như TikTok) */}
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent px-2 pb-1.5 pt-5">
-        <div className="flex items-center justify-between">
-          <span className="flex items-center gap-1 text-white text-[11px] font-bold drop-shadow">
-            <Eye className="w-3 h-3" />
-            {post.media_urls?.length ?? 0}
+        {/* Hover overlay — play button */}
+        {isVideo && (
+          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
+            <div className="w-12 h-12 bg-white/90 rounded-full flex items-center justify-center shadow-lg">
+              <Play className="w-5 h-5 text-slate-800 ml-0.5" />
+            </div>
+          </div>
+        )}
+
+        {/* Status chip */}
+        <span className={`absolute top-2 left-2 text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 shadow-sm ${
+          isOk ? 'bg-emerald-100 text-emerald-700' : isFail ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+        }`}>
+          {isOk ? <CheckCircle className="w-3 h-3" /> : isFail ? <XCircle className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+          {statusLabel}
+        </span>
+
+        {/* Nút xem chi tiết (modal) — click card thì phát video nên cần lối vào riêng */}
+        <button
+          onClick={e => { e.stopPropagation(); onOpenDetail(post); }}
+          title="Xem chi tiết bài đăng"
+          className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition-colors"
+        >
+          <Info className="w-4 h-4" />
+        </button>
+
+        {/* Bottom gradient: nền tảng + số file đính kèm */}
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent px-2.5 pb-2 pt-6 flex items-center justify-between">
+          <span className="text-white text-[11px] font-bold drop-shadow flex items-center gap-1">
+            {meta.emoji} {meta.label}
           </span>
-          <span className="text-white/70 text-[10px] font-medium">
-            {meta.emoji}
-          </span>
+          {(post.media_urls?.length ?? 0) > 1 && (
+            <span className="text-white/90 text-[10px] font-bold">📎 {post.media_urls.length}</span>
+          )}
         </div>
       </div>
 
-      {/* Status dot */}
-      <div className={`absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full border-2 border-white shadow ${
-        isOk ? 'bg-emerald-400' : isFail ? 'bg-red-400' : 'bg-amber-400'
-      }`} />
+      {/* ── Info ── */}
+      <div className="p-3 flex-1 flex flex-col">
+        <p className="text-[13px] font-semibold text-slate-800 line-clamp-2 min-h-[2.4rem] leading-snug" title={message}>
+          {message || <span className="text-slate-400 italic font-normal">(Không có nội dung)</span>}
+        </p>
+
+        {post.account?.name && (
+          <p className="text-xs text-slate-400 mt-1 truncate">{meta.emoji} {post.account.name}</p>
+        )}
+
+        <div className="flex items-center justify-between mt-2 gap-2 min-h-[1.1rem]">
+          {post.user?.full_name && (
+            <span className="text-xs font-medium text-slate-600 truncate">👤 {post.user.full_name}</span>
+          )}
+          {post.user?.team && (
+            <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full shrink-0 ml-auto">
+              {post.user.team}
+            </span>
+          )}
+        </div>
+
+        <p className="text-[11px] text-slate-400 mt-1.5">
+          {post.source === 'SCHEDULED' ? '🗓' : '⚡'} {new Date(post.created_at).toLocaleString('vi')}
+        </p>
+      </div>
     </div>
   );
 }
@@ -432,6 +469,8 @@ export default function HistoryPage() {
   const [page, setPage]                   = useState(1);
   const [viewMode, setViewMode]           = useState<'grid' | 'list'>('grid');
   const [selectedPost, setSelectedPost]   = useState<SocialPost | null>(null);
+  // Index trong playablePosts (bài có video) đang mở ở overlay xem video; null = đóng
+  const [previewIdx, setPreviewIdx]       = useState<number | null>(null);
 
   // Tải danh sách teams + members (một lần, khi mount)
   useEffect(() => {
@@ -509,8 +548,19 @@ export default function HistoryPage() {
   const totalPages = Math.ceil(filtered.length / currentPageSize);
   const paginated  = filtered.slice((page - 1) * currentPageSize, page * currentPageSize);
 
+  // Các bài có video trong trang hiện tại — overlay xem video prev/next chạy trên danh sách này
+  const playablePosts = useMemo(
+    () => paginated.filter(p => {
+      const m = p.media_urls?.[0];
+      return !!m && isVideoUrl(m);
+    }),
+    [paginated],
+  );
+
   // Reset to page 1 when filter or viewMode changes
   useEffect(() => { setPage(1); }, [statusFilter, platformFilter, search, dateFrom, dateTo, sortOrder, teamFilter, memberFilter, viewMode]);
+  // Đóng overlay khi đổi trang/filter — index cũ không còn trỏ đúng bài
+  useEffect(() => { setPreviewIdx(null); }, [page, statusFilter, platformFilter, search, dateFrom, dateTo, sortOrder, teamFilter, memberFilter, viewMode]);
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -836,9 +886,15 @@ export default function HistoryPage() {
         {/* Post list / grid */}
         {loading ? (
           viewMode === 'grid' ? (
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-0.5">
-              {Array.from({ length: 21 }).map((_, i) => (
-                <div key={i} className="aspect-square bg-slate-200 animate-pulse" />
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <div key={i} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                  <div className="aspect-[4/5] bg-slate-100 animate-pulse" />
+                  <div className="p-3 space-y-2">
+                    <div className="h-4 bg-slate-100 rounded animate-pulse w-3/4" />
+                    <div className="h-3 bg-slate-100 rounded animate-pulse w-1/2" />
+                  </div>
+                </div>
               ))}
             </div>
           ) : (
@@ -861,11 +917,19 @@ export default function HistoryPage() {
             )}
           </div>
         ) : viewMode === 'grid' ? (
-          /* ── GRID VIEW ── */
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-0.5">
-            {paginated.map(post => (
-              <GridItem key={post.id} post={post} onClick={setSelectedPost} />
-            ))}
+          /* ── GRID VIEW — card video kiểu task-auto ── */
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
+            {paginated.map(post => {
+              const playableIdx = playablePosts.findIndex(p => p.id === post.id);
+              return (
+                <GridItem
+                  key={post.id}
+                  post={post}
+                  onOpenDetail={setSelectedPost}
+                  onPlay={playableIdx >= 0 ? () => setPreviewIdx(playableIdx) : undefined}
+                />
+              );
+            })}
           </div>
         ) : (
           /* ── LIST VIEW ── */
@@ -1112,6 +1176,23 @@ export default function HistoryPage() {
             canFilter={canFilter}
           />
         )}
+
+        {/* Overlay xem video fullscreen (←/→ chuyển video, Esc đóng) */}
+        {previewIdx !== null && playablePosts[previewIdx] && (() => {
+          const media = playablePosts[previewIdx].media_urls[0];
+          const fid = extractDriveFileId(media);
+          const resultUrl = fid ? `https://drive.google.com/file/d/${fid}/view` : resolveMediaUrl(media);
+          return (
+            <VideoPreviewOverlay
+              resultUrl={resultUrl}
+              onClose={() => setPreviewIdx(null)}
+              onPrev={() => setPreviewIdx(i => (i !== null ? Math.max(0, i - 1) : i))}
+              onNext={() => setPreviewIdx(i => (i !== null ? Math.min(playablePosts.length - 1, i + 1) : i))}
+              hasPrev={previewIdx > 0}
+              hasNext={previewIdx < playablePosts.length - 1}
+            />
+          );
+        })()}
 
         {/* Pagination */}
         {totalPages > 1 && (
