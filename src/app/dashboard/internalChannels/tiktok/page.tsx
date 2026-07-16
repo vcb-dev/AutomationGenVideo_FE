@@ -190,6 +190,7 @@ export default function TikTokChannelsPage() {
   const [sortVideos, setSortVideos] = useState('date');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [minPlays, setMinPlays] = useState('');
   const videoSearchTimer = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
@@ -198,7 +199,7 @@ export default function TikTokChannelsPage() {
   }, [videoSearch]);
 
   const videosQuery = useInfiniteQuery({
-    queryKey: ['owned-tiktok-videos', debouncedVideoSearch, sortVideos, dateFrom, dateTo],
+    queryKey: ['owned-tiktok-videos', debouncedVideoSearch, sortVideos, dateFrom, dateTo, minPlays],
     queryFn: ({ pageParam = 1 }) => {
       if (!token) return Promise.reject('No token');
       return scraperService.getOwnedChannelVideos(token, {
@@ -207,6 +208,7 @@ export default function TikTokChannelsPage() {
         sort: sortVideos,
         date_from: dateFrom || undefined,
         date_to: dateTo || undefined,
+        min_plays: minPlays ? Number(minPlays) : undefined,
       });
     },
     getNextPageParam: (last) => last.page < last.total_pages ? last.page + 1 : undefined,
@@ -227,7 +229,7 @@ export default function TikTokChannelsPage() {
     if (node) observerRef.current.observe(node);
   }, [videosQuery.isFetchingNextPage, videosQuery.hasNextPage, videosQuery.fetchNextPage]);
 
-  const hasVideoFilters = !!debouncedVideoSearch || !!dateFrom || !!dateTo || sortVideos !== 'date';
+  const hasVideoFilters = !!debouncedVideoSearch || !!dateFrom || !!dateTo || !!minPlays || sortVideos !== 'date';
 
   return (
     <div className="flex flex-col gap-5">
@@ -350,8 +352,15 @@ export default function TikTokChannelsPage() {
           </select>
           <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none" title="Từ ngày" />
           <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none" title="Đến ngày" />
+          <input
+            type="number"
+            value={minPlays}
+            onChange={e => setMinPlays(e.target.value)}
+            placeholder="Min views"
+            className="w-28 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          />
           {hasVideoFilters && (
-            <button onClick={() => { setVideoSearch(''); setSortVideos('date'); setDateFrom(''); setDateTo(''); }} className="px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50 dark:hover:bg-slate-800">
+            <button onClick={() => { setVideoSearch(''); setSortVideos('date'); setDateFrom(''); setDateTo(''); setMinPlays(''); }} className="px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50 dark:hover:bg-slate-800">
               Xóa bộ lọc
             </button>
           )}

@@ -1214,7 +1214,10 @@ export const scraperService = {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ sec_user_id: secUserId, num_of_posts: numOfPosts, ...(isOwned !== undefined ? { is_owned: isOwned } : {}) }),
     });
-    if (!res.ok) throw new Error('Không thể cào profile Douyin');
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.error || 'Không thể cào profile Douyin');
+    }
     return res.json();
   },
 
