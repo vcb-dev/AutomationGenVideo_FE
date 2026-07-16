@@ -2,12 +2,12 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Send, Clock, CheckCircle, XCircle, AlertCircle, RotateCcw, Ban, Search } from 'lucide-react'
+import { Loader2, Send, Clock, CheckCircle, XCircle, AlertCircle, RotateCcw, Ban, Search, ExternalLink } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { cn } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { formatDateTime } from '@/components/task-auto/helpers'
-import { socialApi, PLATFORM_META, SocialPlatform, SocialPost } from '@/lib/api/social'
+import { socialApi, PLATFORM_META, SocialPlatform, SocialPost, getPostUrl } from '@/lib/api/social'
 import { useSocialAccounts } from '@/hooks/useSocialAccounts'
 import HashtagPanel from '@/app/dashboard/social/compose/HashtagPanel'
 
@@ -294,39 +294,53 @@ function ScheduledPostRow({ post, currentUserId, onCancel, onRetry, isCancelling
   const cfg = STATUS_CONFIG[post.status] || STATUS_CONFIG.PENDING
   const Icon = cfg.icon
   const isOwner = !!currentUserId && post.user_id === currentUserId
+  const postUrl = post.status === 'COMPLETED' ? getPostUrl(post.result, post.platform) : null
 
   return (
-    <div className={cn('flex items-center gap-3 px-3 py-2.5 rounded-xl border', cfg.bg, cfg.border)}>
-      <div className={cn('w-7 h-7 rounded-full flex items-center justify-center text-white text-xs shrink-0', meta.color)}>
-        {meta.emoji}
+    <div className={cn('px-3 py-2.5 rounded-xl border space-y-2', cfg.bg, cfg.border)}>
+      <div className="flex items-center gap-3">
+        <div className={cn('w-7 h-7 rounded-full flex items-center justify-center text-white text-xs shrink-0', meta.color)}>
+          {meta.emoji}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-gray-800 truncate">{post.account?.name || meta.label}</p>
+          <p className="text-xs text-gray-400">{formatDateTime(post.scheduled_at || post.executed_at)}</p>
+        </div>
+        <div className={cn('flex items-center gap-1 text-xs font-semibold shrink-0', cfg.text)}>
+          <Icon className="w-3.5 h-3.5" />
+          {cfg.label}
+        </div>
+        {isOwner && post.status === 'PENDING' && (
+          <button
+            onClick={onCancel}
+            disabled={isCancelling}
+            title="Huỷ bài đăng"
+            className="p-1.5 rounded-lg text-red-500 hover:bg-red-100 disabled:opacity-50 transition-colors shrink-0"
+          >
+            {isCancelling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Ban className="w-3.5 h-3.5" />}
+          </button>
+        )}
+        {isOwner && post.status === 'FAILED' && (
+          <button
+            onClick={onRetry}
+            disabled={isRetrying}
+            title="Thử lại"
+            className="p-1.5 rounded-lg text-indigo-500 hover:bg-indigo-100 disabled:opacity-50 transition-colors shrink-0"
+          >
+            {isRetrying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+          </button>
+        )}
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-gray-800 truncate">{post.account?.name || meta.label}</p>
-        <p className="text-xs text-gray-400">{formatDateTime(post.scheduled_at || post.executed_at)}</p>
-      </div>
-      <div className={cn('flex items-center gap-1 text-xs font-semibold shrink-0', cfg.text)}>
-        <Icon className="w-3.5 h-3.5" />
-        {cfg.label}
-      </div>
-      {isOwner && post.status === 'PENDING' && (
-        <button
-          onClick={onCancel}
-          disabled={isCancelling}
-          title="Huỷ bài đăng"
-          className="p-1.5 rounded-lg text-red-500 hover:bg-red-100 disabled:opacity-50 transition-colors shrink-0"
+      {postUrl && (
+        <a
+          href={postUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 px-2.5 py-1.5 bg-white/70 border border-emerald-200 text-emerald-700 rounded-lg text-xs font-semibold hover:bg-white transition-colors"
         >
-          {isCancelling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Ban className="w-3.5 h-3.5" />}
-        </button>
-      )}
-      {isOwner && post.status === 'FAILED' && (
-        <button
-          onClick={onRetry}
-          disabled={isRetrying}
-          title="Thử lại"
-          className="p-1.5 rounded-lg text-indigo-500 hover:bg-indigo-100 disabled:opacity-50 transition-colors shrink-0"
-        >
-          {isRetrying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
-        </button>
+          <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">{postUrl}</span>
+        </a>
       )}
     </div>
   )

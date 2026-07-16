@@ -328,6 +328,22 @@ export const socialApi = {
   },
 };
 
+/** Lấy URL bài đã đăng từ result trả về bởi platform publisher */
+export function getPostUrl(result?: SocialPostResult | Record<string, unknown> | null, platform?: string): string | null {
+  if (!result) return null;
+  if (typeof result.url === 'string' && result.url) return result.url;
+  if (typeof result.videoId === 'string') return `https://youtube.com/watch?v=${result.videoId}`;
+  // Fallback: construct URL from postId (covers old Facebook posts without url field)
+  if (typeof result.postId === 'string' && result.postId) {
+    if (!platform || platform === 'FACEBOOK') return `https://www.facebook.com/${result.postId}`;
+  }
+  // TikTok: videoId stored after backend fix
+  if (typeof result.tiktokVideoId === 'string' && result.tiktokVideoId) {
+    return `https://www.tiktok.com/video/${result.tiktokVideoId}`;
+  }
+  return null;
+}
+
 export const PLATFORM_META: Record<SocialPlatform, { label: string; color: string; emoji: string }> = {
   FACEBOOK:  { label: 'Facebook',   color: 'bg-blue-600',   emoji: '👤' },
   INSTAGRAM: { label: 'Instagram',  color: 'bg-pink-500',   emoji: '📷' },

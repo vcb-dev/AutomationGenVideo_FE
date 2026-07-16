@@ -308,6 +308,9 @@ export default function NotificationBell() {
                             </span>
                           </div>
                           {n.body && <p className="text-[11px] text-slate-500 line-clamp-2">{n.body}</p>}
+                          {n.task?.content_title && (
+                            <p className="text-[11px] text-slate-400 truncate mt-0.5">📌 {n.task.content_title}</p>
+                          )}
                         </div>
                       </div>
                     </div>
