@@ -13,6 +13,7 @@ import {
     Puzzle,
     CheckCircle2,
     HardDrive,
+    Layers,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -67,6 +68,10 @@ function getAuthHeaders(): Record<string, string> {
     return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+function sleep(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function VideoDownloaderInner() {
     const searchParams = useSearchParams();
     const [url, setUrl] = useState('');
@@ -75,21 +80,52 @@ function VideoDownloaderInner() {
     const [info, setInfo] = useState<VideoInfo | null>(null);
     const [loadingInfo, setLoadingInfo] = useState(false);
     const [job, setJob] = useState<JobProgress | null>(null);
-    const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const [queueTotal, setQueueTotal] = useState(0);
+    const [queuePos, setQueuePos] = useState(0);
+    const cancelledRef = useRef(false);
 
     useEffect(() => {
+        // Reset lúc mount — React Strict Mode (dev) chạy mount→gỡ→mount lại 1 lần khi
+        // khởi động; nếu không reset ở đây, cờ hủy bị set true ở lần gỡ giả lập rồi kẹt
+        // mãi mãi, khiến pollJobUntilSettled không bao giờ chạy dù job vẫn tạo được.
+        cancelledRef.current = false;
         return () => {
-            if (pollRef.current) clearInterval(pollRef.current);
+            cancelledRef.current = true;
         };
     }, []);
 
-    // Nhận ?url= từ Chrome extension
+    // Nhận từ Chrome extension (icon hover trên video hoặc popup):
+    // - ?url=&format=&quality=&auto=  → tải 1 video (auto=1: bỏ qua xác nhận, tải luôn)
+    // - ?urls=["...","..."]&format=&quality=  → popup "Tải tất cả video trên trang", tải lần lượt
     useEffect(() => {
-        const fromExt = searchParams.get('url');
-        if (fromExt) {
-            setUrl(fromExt);
-            void fetchInfo(fromExt);
+        const fmtParam = searchParams.get('format');
+        const qualityParam = searchParams.get('quality');
+        const autoParam = searchParams.get('auto') === '1';
+        const fmt: 'mp4' | 'mp3' = fmtParam === 'mp3' ? 'mp3' : 'mp4';
+        const q: 'best' | '1080' | '720' = qualityParam === '1080' || qualityParam === '720' ? qualityParam : 'best';
+        if (fmtParam) setFormat(fmt);
+        if (qualityParam) setQuality(q);
+
+        const urlsParam = searchParams.get('urls');
+        if (urlsParam) {
+            let parsed: unknown = null;
+            try { parsed = JSON.parse(urlsParam); } catch { /* để urls=[] rỗng bên dưới */ }
+            const urls = Array.isArray(parsed)
+                ? parsed.filter((u): u is string => typeof u === 'string' && /^https?:\/\//.test(u))
+                : [];
+            if (urls.length > 0) {
+                void runQueue(urls, fmt, q);
+                return;
+            }
         }
+
+        const fromExt = searchParams.get('url');
+        if (!fromExt) return;
+        setUrl(fromExt);
+        void (async () => {
+            await fetchInfo(fromExt);
+            if (autoParam) await handleDownload(fromExt, fmt, q);
+        })();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -117,14 +153,15 @@ function VideoDownloaderInner() {
         }
     };
 
-    const stopPolling = () => {
-        if (pollRef.current) {
-            clearInterval(pollRef.current);
-            pollRef.current = null;
-        }
+    // Bắn 1 CustomEvent trên window khi job kết thúc — nếu trang này đang mở từ extension VCB,
+    // content script của extension (chạy trên chính domain hệ thống) sẽ nghe sự kiện này và
+    // báo notification hệ điều hành, để người dùng không cần ngồi canh tab. Không có extension
+    // nghe cũng không sao (dispatchEvent không lỗi dù không ai lắng nghe).
+    const notifyExtension = (success: boolean, detail: { title?: string; error?: string }) => {
+        window.dispatchEvent(new CustomEvent('vcb-download-complete', { detail: { success, ...detail } }));
     };
 
-    const fetchFinishedFile = async (jobId: string) => {
+    const fetchFinishedFile = async (jobId: string, fallbackFormat: 'mp4' | 'mp3'): Promise<boolean> => {
         try {
             const res = await fetch(`${PROXY_BASE}/jobs/${jobId}/file`, {
                 headers: getAuthHeaders(),
@@ -137,71 +174,110 @@ function VideoDownloaderInner() {
             const blob = await res.blob();
             const cd = res.headers.get('Content-Disposition') || '';
             const m = /filename\*?=(?:UTF-8''|")?([^";]+)/i.exec(cd);
-            const filename = m ? decodeURIComponent(m[1]) : `video.${format}`;
+            const filename = m ? decodeURIComponent(m[1]) : `video.${fallbackFormat}`;
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
             a.download = filename;
             a.click();
             URL.revokeObjectURL(a.href);
             toast.success('Tải xong!');
+            notifyExtension(true, { title: filename });
+            return true;
         } catch (e: any) {
             toast.error(e.message || 'Tải thất bại');
+            notifyExtension(false, { error: e.message });
+            return false;
         } finally {
-            setJob(null);
+            if (!cancelledRef.current) setJob(null);
         }
     };
 
-    const handleDownload = async () => {
-        const u = url.trim();
-        if (!/^https?:\/\//.test(u)) {
-            toast.error('Vui lòng dán link video hợp lệ');
-            return;
+    const pollJobUntilSettled = async (jobId: string): Promise<JobProgress> => {
+        while (!cancelledRef.current) {
+            const sres = await fetch(`${PROXY_BASE}/jobs/${jobId}`, {
+                headers: getAuthHeaders(),
+            });
+            const sdata = await sres.json();
+            if (!sres.ok) throw new Error(sdata.error || 'Không kiểm tra được tiến trình');
+            if (!cancelledRef.current) setJob(sdata);
+            if (sdata.status === 'done' || sdata.status === 'error') return sdata;
+            await sleep(POLL_INTERVAL_MS);
         }
+        throw new Error('cancelled');
+    };
+
+    // Lõi tải 1 video — dùng chung cho cả nút "Tải" đơn lẻ lẫn hàng đợi "Tải tất cả" từ extension.
+    // Trả về true/false để runQueue biết video này có tải thành công hay không.
+    const downloadOne = async (
+        targetUrl: string,
+        targetFormat: 'mp4' | 'mp3',
+        targetQuality: 'best' | '1080' | '720'
+    ): Promise<boolean> => {
         if (!getAuthHeaders().Authorization) {
             toast.error('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.');
-            return;
+            return false;
         }
         setJob({ status: 'queued', percent: 0, message: 'Đang khởi tạo...' });
         try {
             const res = await fetch(`${PROXY_BASE}/jobs`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-                body: JSON.stringify({ url: u, type: format, quality }),
+                body: JSON.stringify({ url: targetUrl, type: targetFormat, quality: targetQuality }),
             });
             const data = await res.json();
             if (!res.ok || !data.success) throw new Error(data.error || 'Không khởi tạo được tiến trình tải');
 
-            const jobId = data.job_id as string;
-            pollRef.current = setInterval(async () => {
-                try {
-                    const sres = await fetch(`${PROXY_BASE}/jobs/${jobId}`, {
-                        headers: getAuthHeaders(),
-                    });
-                    const sdata = await sres.json();
-                    if (!sres.ok) throw new Error(sdata.error || 'Không kiểm tra được tiến trình');
-
-                    setJob(sdata);
-                    if (sdata.status === 'done') {
-                        stopPolling();
-                        void fetchFinishedFile(jobId);
-                    } else if (sdata.status === 'error') {
-                        stopPolling();
-                        toast.error(sdata.error || 'Tải thất bại');
-                        setJob(null);
-                    }
-                } catch (e: any) {
-                    stopPolling();
-                    toast.error(e.message || 'Mất kết nối khi theo dõi tiến trình tải');
-                    setJob(null);
-                }
-            }, POLL_INTERVAL_MS);
+            const sdata = await pollJobUntilSettled(data.job_id);
+            if (cancelledRef.current) return false;
+            if (sdata.status === 'error') {
+                toast.error(sdata.error || 'Tải thất bại');
+                notifyExtension(false, { error: sdata.error ?? undefined });
+                setJob(null);
+                return false;
+            }
+            return await fetchFinishedFile(data.job_id, targetFormat);
         } catch (e: any) {
-            toast.error(e.message || 'Không khởi tạo được tiến trình tải');
-            setJob(null);
+            if (!cancelledRef.current) {
+                toast.error(e.message || 'Không khởi tạo được tiến trình tải');
+                notifyExtension(false, { error: e.message });
+                setJob(null);
+            }
+            return false;
+        }
+    };
+
+    const handleDownload = async (
+        targetUrl?: string,
+        targetFormat?: 'mp4' | 'mp3',
+        targetQuality?: 'best' | '1080' | '720'
+    ) => {
+        const u = (targetUrl ?? url).trim();
+        if (!/^https?:\/\//.test(u)) {
+            toast.error('Vui lòng dán link video hợp lệ');
+            return;
+        }
+        await downloadOne(u, targetFormat ?? format, targetQuality ?? quality);
+    };
+
+    // "Tải tất cả video trên trang" từ popup extension — tải lần lượt, 1 lỗi không chặn các video còn lại.
+    const runQueue = async (urls: string[], fmt: 'mp4' | 'mp3', q: 'best' | '1080' | '720') => {
+        setQueueTotal(urls.length);
+        let okCount = 0;
+        for (let i = 0; i < urls.length; i++) {
+            if (cancelledRef.current) break;
+            setQueuePos(i + 1);
+            setUrl(urls[i]);
+            await fetchInfo(urls[i]);
+            if (await downloadOne(urls[i], fmt, q)) okCount++;
+        }
+        if (!cancelledRef.current) {
+            setQueueTotal(0);
+            toast.success(`Đã tải xong ${okCount}/${urls.length} video`);
         }
     };
 
     const downloading = job !== null;
+    const inQueue = queueTotal > 0;
 
     return (
         <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
@@ -214,6 +290,13 @@ function VideoDownloaderInner() {
                     Dán link video từ mạng xã hội để tải về dạng MP4 hoặc trích âm thanh MP3.
                 </p>
             </div>
+
+            {inQueue && (
+                <div className="bg-violet-50 dark:bg-violet-950 border border-violet-200 dark:border-violet-800 rounded-xl px-4 py-2.5 text-sm text-violet-700 dark:text-violet-300 flex items-center gap-2">
+                    <Layers className="w-4 h-4 flex-shrink-0" />
+                    Đang tải video {queuePos}/{queueTotal} từ extension (danh sách "Tải tất cả")...
+                </div>
+            )}
 
             {/* Input */}
             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-4 shadow-sm">
@@ -288,7 +371,7 @@ function VideoDownloaderInner() {
 
                 {!downloading ? (
                     <button
-                        onClick={handleDownload}
+                        onClick={() => handleDownload()}
                         disabled={!url.trim()}
                         className="w-full flex items-center justify-center gap-2 py-3 rounded-lg bg-violet-600 hover:bg-violet-700 text-white font-semibold disabled:opacity-50"
                     >
@@ -341,11 +424,13 @@ function VideoDownloaderInner() {
             {/* Extension */}
             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-5 space-y-3 shadow-sm">
                 <h2 className="font-semibold flex items-center gap-2">
-                    <Puzzle className="w-5 h-5 text-violet-600" /> Chrome Extension — tải bằng 1 cú click
+                    <Puzzle className="w-5 h-5 text-violet-600" /> Chrome Extension — rê chuột là thấy nút tải
                 </h2>
                 <p className="text-sm text-gray-500">
-                    Cài extension để khi đang xem video trên bất kỳ nền tảng nào, chỉ cần bấm icon extension là
-                    tự động mở trang này với link video đã điền sẵn.
+                    Cài extension để khi rê chuột vào bất kỳ video nào trên trang web (YouTube, TikTok, Facebook,
+                    Instagram...), một nút tải nhỏ sẽ hiện ngay góc video — bấm là mở trang này với link đã điền
+                    sẵn (giống tính năng tải video của Cốc Cốc). Có thể bật "Tự động tải" trong Cài đặt để tải
+                    ngay không cần xác nhận thêm, hoặc mở popup extension để "Tải tất cả video trên trang" cùng lúc.
                 </p>
                 <a
                     href="/extensions/vcb-video-downloader.zip"
@@ -360,8 +445,8 @@ function VideoDownloaderInner() {
                         'Mở chrome://extensions (Chrome/Edge/Brave đều được).',
                         'Bật "Chế độ dành cho nhà phát triển" (Developer mode) ở góc phải.',
                         'Bấm "Tải tiện ích đã giải nén" (Load unpacked) và chọn thư mục vừa giải nén.',
-                        'Bấm icon extension trên thanh công cụ → mở trang Cài đặt → dán đúng địa chỉ trang web này rồi Lưu.',
-                        'Xong! Mở video bất kỳ và bấm icon để tải.',
+                        'Bấm icon extension trên thanh công cụ → "Cài đặt nâng cao" → dán đúng địa chỉ trang web này rồi Lưu.',
+                        'Xong! Rê chuột vào video bất kỳ để hiện nút tải, hoặc chuột phải chọn "Tải video này qua VCB".',
                     ].map((step, i) => (
                         <li key={i} className="flex gap-2">
                             <CheckCircle2 className="w-4 h-4 text-violet-500 flex-shrink-0 mt-0.5" />
