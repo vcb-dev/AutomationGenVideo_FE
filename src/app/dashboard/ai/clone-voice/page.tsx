@@ -430,6 +430,16 @@ export default function CloneVoicePage() {
             return;
         }
 
+        // Chặn sớm clone trùng tên (server cũng chặn) — mỗi lần clone đều tính phí
+        // MiniMax và tạo voice_id mới, trùng tên gần như luôn là thao tác nhầm.
+        const dupe = voices.find(
+            (v) => v.is_cloned && (v.name || '').trim().toLowerCase() === cloneVoiceName.trim().toLowerCase(),
+        );
+        if (dupe) {
+            toast.error(`Đã có giọng clone tên "${dupe.name}". Đặt tên khác hoặc xoá giọng cũ trước khi clone lại (mỗi lần clone đều tính phí).`);
+            return;
+        }
+
         setIsCloning(true);
         const loadingToast = toast.loading('Đang tải audio lên...');
 
@@ -543,9 +553,13 @@ export default function CloneVoicePage() {
                 // Có audio_file_id (đã upload Drive) → phát + tải qua proxy stream của BE.
                 // Link Drive uc?export=download không stream chuẩn cho <audio> (player
                 // hiện 00:00) và tải về hay lỗi; link gốc chỉ giữ làm fallback.
+                // Drive chưa cấu hình → BE trả audio_file_name, phát/tải qua proxy
+                // stream thẳng từ AI (link /media/... gốc chết trên production).
                 const proxyUrl = data.audio_file_id
                     ? `${getApiUrl()}/ai/voice/tts/audio/${data.audio_file_id}`
-                    : null;
+                    : data.audio_file_name
+                        ? `${getApiUrl()}/ai/voice/tts/stream/${data.audio_file_name}`
+                        : null;
 
                 // Tên file tải về: "<tên giọng>_<ngày>_<giờ phút>.mp3", bỏ ký tự cấm trong tên file
                 const voiceName = (voices.find((v) => v.voice_id === selectedVoiceId)?.name || 'voice')
