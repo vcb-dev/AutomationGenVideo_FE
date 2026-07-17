@@ -492,7 +492,6 @@ function ProfilesTab() {
   const { addNotification, updateNotification } = useScrapingStore();
   const router = useRouter();
   const [userId, setUserId] = useState('');
-  const [numPosts, setNumPosts] = useState('600');
   const [q, setQ] = useState('');
 
   // Track notification IDs per user_id so we can update them when scraping finishes
@@ -536,7 +535,7 @@ function ProfilesTab() {
   }, [profilesQuery.data?.profiles, updateNotification]);
 
   const scrapeMutation = useMutation({
-    mutationFn: (uid: string) => scraperService.xhsProfileScrape(token!, uid, Number(numPosts) || 600),
+    mutationFn: (uid: string) => scraperService.xhsProfileScrape(token!, uid),
     onSuccess: (data, uid) => {
       toast.success(data.message || 'Đã thêm profile và bắt đầu cào');
       setUserId('');
@@ -580,13 +579,6 @@ function ProfilesTab() {
               onKeyDown={e => { if (e.key === 'Enter' && userId.trim()) scrapeMutation.mutate(userId.trim()); }}
               placeholder="User ID (vd: 61b46d790000000010008153)"
               className="flex-1 min-w-[280px] px-3 py-2.5 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary font-mono"
-            />
-            <input
-              type="number" value={numPosts}
-              onChange={e => setNumPosts(e.target.value)}
-              min={1} max={600}
-              className="w-24 px-3 py-2.5 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              placeholder="Số video"
             />
             <button
               onClick={() => { if (userId.trim()) scrapeMutation.mutate(userId.trim()); }}
