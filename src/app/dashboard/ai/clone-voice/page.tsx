@@ -349,6 +349,8 @@ export default function CloneVoicePage() {
     // Đơn giá VND / 1000 ký tự (BE trả kèm trong /ai/voice/list; 0 = chưa cấu hình → ẩn phần tiền)
     const [vndPer1kChars, setVndPer1kChars] = useState(0);
 
+    const [isTranslating, setIsTranslating] = useState(false);
+
     // Cloning states
     const [cloneFile, setCloneFile] = useState<File | null>(null);
     const [cloneVoiceName, setCloneVoiceName] = useState('');
@@ -430,6 +432,16 @@ export default function CloneVoicePage() {
             return;
         }
 
+        // Chặn sớm clone trùng tên (server cũng chặn) — mỗi lần clone đều tính phí
+        // MiniMax và tạo voice_id mới, trùng tên gần như luôn là thao tác nhầm.
+        const dupe = voices.find(
+            (v) => v.is_cloned && (v.name || '').trim().toLowerCase() === cloneVoiceName.trim().toLowerCase(),
+        );
+        if (dupe) {
+            toast.error(`Đã có giọng clone tên "${dupe.name}". Đặt tên khác hoặc xoá giọng cũ trước khi clone lại (mỗi lần clone đều tính phí).`);
+            return;
+        }
+
         setIsCloning(true);
         const loadingToast = toast.loading('Đang tải audio lên...');
 
@@ -498,6 +510,46 @@ export default function CloneVoicePage() {
         }
     };
 
+    // Dịch nội dung textarea sang `translateLang`, ghi đè lại text — dùng chung
+    // AI dịch kịch bản video (BE proxy voice/translate-text → translateVideoScript).
+    const handleTranslate = async () => {
+        if (!text.trim()) {
+            toast.error('Vui lòng nhập văn bản cần dịch');
+            return;
+        }
+
+        setIsTranslating(true);
+        const translatingToast = toast.loading(`Đang dịch sang ${translateLang}...`);
+
+        try {
+            const res = await fetch(`${getApiUrl()}/ai/voice/translate-text`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...getAuthHeaders(),
+                },
+                body: JSON.stringify({ text, language: translateLang }),
+            });
+
+            if (!res.ok) {
+                const errMessage = await res.json().then((d) => d.error || d.message).catch(() => null);
+                throw new Error(errMessage || 'Không thể dịch văn bản');
+            }
+
+            const data = await res.json();
+            if (!data.content) {
+                throw new Error('Dịch thất bại: AI không trả về nội dung');
+            }
+            setText(data.content.slice(0, maxChars));
+            toast.success(`Đã dịch sang ${translateLang}!`, { id: translatingToast });
+        } catch (error: any) {
+            console.error('Translate error:', error);
+            toast.error(error.message || 'Lỗi khi dịch văn bản', { id: translatingToast });
+        } finally {
+            setIsTranslating(false);
+        }
+    };
+
     // Handle TTS generation
     const handleGenerate = async () => {
         if (!text.trim()) {
@@ -543,9 +595,13 @@ export default function CloneVoicePage() {
                 // Có audio_file_id (đã upload Drive) → phát + tải qua proxy stream của BE.
                 // Link Drive uc?export=download không stream chuẩn cho <audio> (player
                 // hiện 00:00) và tải về hay lỗi; link gốc chỉ giữ làm fallback.
+                // Drive chưa cấu hình → BE trả audio_file_name, phát/tải qua proxy
+                // stream thẳng từ AI (link /media/... gốc chết trên production).
                 const proxyUrl = data.audio_file_id
                     ? `${getApiUrl()}/ai/voice/tts/audio/${data.audio_file_id}`
-                    : null;
+                    : data.audio_file_name
+                        ? `${getApiUrl()}/ai/voice/tts/stream/${data.audio_file_name}`
+                        : null;
 
                 // Tên file tải về: "<tên giọng>_<ngày>_<giờ phút>.mp3", bỏ ký tự cấm trong tên file
                 const voiceName = (voices.find((v) => v.voice_id === selectedVoiceId)?.name || 'voice')
@@ -650,10 +706,21 @@ export default function CloneVoicePage() {
                                         />
                                     </div>
                                     <button
-                                        onClick={() => toast('Tính năng dịch kịch bản chưa được hỗ trợ', { icon: 'ℹ️' })}
-                                        className="mb-0.5 px-3.5 py-2.5 bg-violet-50 border border-violet-200 hover:bg-violet-100 rounded-xl text-xs text-violet-600 font-medium transition-all duration-150 flex items-center gap-1.5 whitespace-nowrap shadow-sm"
+                                        onClick={handleTranslate}
+                                        disabled={isTranslating || !text.trim()}
+                                        className={`mb-0.5 px-3.5 py-2.5 border rounded-xl text-xs font-medium transition-all duration-150 flex items-center gap-1.5 whitespace-nowrap shadow-sm
+                                            ${isTranslating || !text.trim()
+                                                ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
+                                                : 'bg-violet-50 border-violet-200 hover:bg-violet-100 text-violet-600'}`}
                                     >
-                                        <Globe className="w-3.5 h-3.5" />
+                                        {isTranslating ? (
+                                            <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                                            </svg>
+                                        ) : (
+                                            <Globe className="w-3.5 h-3.5" />
+                                        )}
                                         Dịch kịch bản
                                     </button>
                                 </div>
