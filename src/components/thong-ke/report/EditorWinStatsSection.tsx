@@ -67,57 +67,57 @@ export default function EditorWinStatsSection({
   const percentFormatted = `${percentSum.toFixed(1).replace('.', ',')}%`;
 
   return (
-    <div className="flex flex-col rounded-xl overflow-hidden border border-blue-500/20 shadow-lg shadow-blue-950/10">
+    <div className="flex flex-col rounded-xl overflow-hidden border border-blue-200 dark:border-blue-500/20 shadow-lg shadow-blue-950/10">
       <div
         onClick={onToggle}
-        className="bg-[#1e293b] px-4 py-3 flex items-center justify-between border-b border-blue-500/20 cursor-pointer select-none hover:bg-[#2b3a52] transition-colors"
+        className="bg-blue-50 dark:bg-blue-500/10 px-4 py-3 flex items-center justify-between border-b border-blue-200 dark:border-blue-500/20 cursor-pointer select-none hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors"
       >
-        <span className="text-blue-300 font-black tracking-wider text-sm uppercase flex items-center gap-2">
-          <TrendingUp className="w-4 h-4 text-blue-400" /> Số video content win của cá nhân trong team
+        <span className="text-blue-700 dark:text-blue-400 font-black tracking-wider text-sm uppercase flex items-center gap-2">
+          <TrendingUp className="w-4 h-4 text-blue-700 dark:text-blue-400" /> Số video content win của cá nhân trong team
         </span>
-        <ChevronDown className={`w-4 h-4 text-blue-400 transition-transform duration-200 ${isCollapsed ? '-rotate-90' : ''}`} />
+        <ChevronDown className={`w-4 h-4 text-blue-700 dark:text-blue-400 transition-transform duration-200 ${isCollapsed ? '-rotate-90' : ''}`} />
       </div>
 
       {!isCollapsed && (
-        <div className="bg-[#0c1322] p-6 flex flex-col gap-6">
+        <div className="bg-card p-6 flex flex-col gap-6">
           {/* TỔNG VIDEO TEAM */}
           <div>
-            <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-3">TỔNG VIDEO TEAM</h3>
+            <h3 className="text-xs font-extrabold text-muted-foreground uppercase tracking-wider mb-3">TỔNG VIDEO TEAM</h3>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-[#1e293b]/30 border border-white/[0.04] rounded-xl p-4 flex items-center justify-between transition-all hover:border-blue-500/20 shadow-md">
+              <div className="bg-muted border border-border rounded-xl p-4 flex items-center justify-between transition-all hover:border-blue-500/20 shadow-md">
                 <div className="flex flex-col">
-                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Tổng Video</span>
-                  <span className="text-2xl font-black text-white mt-1">{totalSum}</span>
+                  <span className="text-[12px] font-extrabold text-muted-foreground uppercase tracking-wider">Tổng Video</span>
+                  <span className="text-2xl font-black text-foreground mt-1">{totalSum}</span>
                 </div>
-                <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
-                  <Video className="w-5 h-5 text-blue-400" />
+                <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center border border-blue-200 dark:border-blue-500/20">
+                  <Video className="w-5 h-5 text-blue-700 dark:text-blue-400" />
                 </div>
               </div>
-              <div className="bg-[#1e293b]/30 border border-white/[0.04] rounded-xl p-4 flex items-center justify-between transition-all hover:border-emerald-500/20 shadow-md">
+              <div className="bg-muted border border-border rounded-xl p-4 flex items-center justify-between transition-all hover:border-emerald-500/20 shadow-md">
                 <div className="flex flex-col">
-                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Video Win</span>
-                  <span className="text-2xl font-black text-emerald-400 mt-1">{winSum}</span>
+                  <span className="text-[12px] font-extrabold text-muted-foreground uppercase tracking-wider">Video Win</span>
+                  <span className="text-2xl font-black text-emerald-700 dark:text-emerald-400 mt-1">{winSum}</span>
                 </div>
-                <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
-                  <Award className="w-5 h-5 text-emerald-400" />
+                <div className="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center border border-emerald-200 dark:border-emerald-500/20">
+                  <Award className="w-5 h-5 text-emerald-700 dark:text-emerald-400" />
                 </div>
               </div>
-              <div className="bg-[#1e293b]/30 border border-white/[0.04] rounded-xl p-4 flex items-center justify-between transition-all hover:border-red-500/20 shadow-md">
+              <div className="bg-muted border border-border rounded-xl p-4 flex items-center justify-between transition-all hover:border-red-500/20 shadow-md">
                 <div className="flex flex-col">
-                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Video Fail</span>
-                  <span className="text-2xl font-black text-red-400 mt-1">{failSum}</span>
+                  <span className="text-[12px] font-extrabold text-muted-foreground uppercase tracking-wider">Video Fail</span>
+                  <span className="text-2xl font-black text-rose-700 dark:text-rose-400 mt-1">{failSum}</span>
                 </div>
-                <div className="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center border border-red-500/20">
-                  <XCircle className="w-5 h-5 text-red-400" />
+                <div className="w-10 h-10 rounded-lg bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center border border-rose-200 dark:border-rose-500/20">
+                  <XCircle className="w-5 h-5 text-rose-700 dark:text-rose-400" />
                 </div>
               </div>
-              <div className="bg-[#1e293b]/30 border border-white/[0.04] rounded-xl p-4 flex items-center justify-between transition-all hover:border-emerald-500/20 shadow-md">
+              <div className="bg-muted border border-border rounded-xl p-4 flex items-center justify-between transition-all hover:border-emerald-500/20 shadow-md">
                 <div className="flex flex-col">
-                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Tỷ Lệ Win</span>
-                  <span className="text-2xl font-black text-emerald-400 mt-1">{percentFormatted}</span>
+                  <span className="text-[12px] font-extrabold text-muted-foreground uppercase tracking-wider">Tỷ Lệ Win</span>
+                  <span className="text-2xl font-black text-emerald-700 dark:text-emerald-400 mt-1">{percentFormatted}</span>
                 </div>
-                <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
-                  <TrendingUp className="w-5 h-5 text-emerald-400" />
+                <div className="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center border border-emerald-200 dark:border-emerald-500/20">
+                  <TrendingUp className="w-5 h-5 text-emerald-700 dark:text-emerald-400" />
                 </div>
               </div>
             </div>
@@ -125,28 +125,28 @@ export default function EditorWinStatsSection({
 
           {/* HIỆU SUẤT CÁ NHÂN (10K VIEW) */}
           <div>
-            <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-3">HIỆU SUẤT CÁ NHÂN (10K VIEW)</h3>
+            <h3 className="text-xs font-extrabold text-muted-foreground uppercase tracking-wider mb-3">HIỆU SUẤT CÁ NHÂN (10K VIEW)</h3>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse min-w-[600px]">
                 <thead>
-                  <tr className="border-b border-white/[0.08] text-slate-400 text-[11px] uppercase tracking-wider font-bold">
+                  <tr className="border-b border-border text-muted-foreground text-[13px] uppercase tracking-wider font-bold">
                     <th className="pb-3 pl-2 w-12">#</th>
                     <th className="pb-3">TÊN</th>
                     <th className="pb-3 text-center">
                       TỔNG VIDEO
-                      <span className="ml-1 text-blue-400/50 normal-case font-normal text-[9px]">(nhập)</span>
+                      <span className="ml-1 text-blue-600/50 dark:text-blue-400/50 normal-case font-normal text-[11px]">(nhập)</span>
                     </th>
                     <th className="pb-3 text-center">
                       WIN
-                      <span className="ml-1 text-blue-400/50 normal-case font-normal text-[9px]">(nhập)</span>
+                      <span className="ml-1 text-blue-600/50 dark:text-blue-400/50 normal-case font-normal text-[11px]">(nhập)</span>
                     </th>
                     <th className="pb-3 text-center">
                       FAIL
-                      <span className="ml-1 text-slate-600 normal-case font-normal text-[9px]">(tự tính)</span>
+                      <span className="ml-1 text-muted-foreground normal-case font-normal text-[11px]">(tự tính)</span>
                     </th>
                     <th className="pb-3 text-right pr-2">
                       % WIN
-                      <span className="ml-1 text-slate-600 normal-case font-normal text-[9px]">(tự tính)</span>
+                      <span className="ml-1 text-muted-foreground normal-case font-normal text-[11px]">(tự tính)</span>
                     </th>
                     <th className="pb-3 w-12 text-center"></th>
                   </tr>
@@ -156,15 +156,15 @@ export default function EditorWinStatsSection({
                     const item = inputs[index] ?? { total: 0, win: 0 };
                     const cv = computed[index] ?? { fail: 0, winRate: '0,0%' };
                     return (
-                      <tr key={index} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="py-3 pl-2 text-slate-400 font-medium">{index + 1}</td>
+                      <tr key={index} className="hover:bg-accent transition-colors">
+                        <td className="py-3 pl-2 text-muted-foreground font-medium">{index + 1}</td>
 
                         {/* TÊN */}
                         <td
                           contentEditable
                           suppressContentEditableWarning
                           onBlur={(e) => onUpdateRow(index, 'editor', e.currentTarget.textContent || '')}
-                          className="py-3 font-bold text-slate-200 outline-none focus:bg-white/[0.04] cursor-text"
+                          className="py-3 font-bold text-foreground outline-none focus:bg-accent cursor-text"
                         >
                           {perf.editor}
                         </td>
@@ -191,7 +191,7 @@ export default function EditorWinStatsSection({
                               const rawVal = factor > 0 ? Math.round(numVal / factor) : numVal;
                               onUpdateRow(index, 'totalVideos', rawVal.toString());
                             }}
-                            className="w-20 text-center bg-transparent text-slate-300 font-semibold outline-none focus:bg-white/[0.04] rounded px-2 py-1 border border-transparent focus:border-blue-500/30 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            className="w-20 text-center bg-transparent text-muted-foreground font-semibold outline-none focus:bg-accent rounded px-2 py-1 border border-transparent focus:border-blue-500/30 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
                         </td>
 
@@ -217,15 +217,15 @@ export default function EditorWinStatsSection({
                               const rawVal = factor > 0 ? Math.round(numVal / factor) : numVal;
                               onUpdateRow(index, 'winVideos', rawVal.toString());
                             }}
-                            className="w-20 text-center bg-transparent text-emerald-400 font-semibold outline-none focus:bg-white/[0.04] rounded px-2 py-1 border border-transparent focus:border-emerald-500/30 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            className="w-20 text-center bg-transparent text-emerald-700 dark:text-emerald-400 font-semibold outline-none focus:bg-accent rounded px-2 py-1 border border-transparent focus:border-emerald-500/30 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
                         </td>
 
                         {/* FAIL — tự tính */}
-                        <td className="py-3 text-center text-red-400 font-semibold select-none">{cv.fail}</td>
+                        <td className="py-3 text-center text-rose-700 dark:text-rose-400 font-semibold select-none">{cv.fail}</td>
 
                         {/* % WIN — tự tính */}
-                        <td className="py-3 text-right pr-2 text-emerald-400 font-extrabold select-none">{cv.winRate}</td>
+                        <td className="py-3 text-right pr-2 text-emerald-700 dark:text-emerald-400 font-extrabold select-none">{cv.winRate}</td>
 
                         <td className="py-3 text-center pr-2">
                           <button
@@ -243,10 +243,10 @@ export default function EditorWinStatsSection({
               </table>
             </div>
 
-            <div className="mt-4 pt-3 border-t border-white/[0.04] flex justify-start">
+            <div className="mt-4 pt-3 border-t border-border flex justify-start">
               <button
                 onClick={onAddRow}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white/[0.06] hover:bg-white/[0.12] text-slate-300 hover:text-white rounded-lg text-xs font-bold transition shadow"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-muted hover:bg-accent text-muted-foreground hover:text-foreground rounded-lg text-xs font-bold transition shadow"
               >
                 <Plus className="w-3.5 h-3.5" /> Thêm dòng mới
               </button>

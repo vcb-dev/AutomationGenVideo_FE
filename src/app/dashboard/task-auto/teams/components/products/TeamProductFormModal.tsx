@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { Loader2, Trash2, Link2 } from 'lucide-react'
@@ -9,12 +9,14 @@ import { DarkInput, CreatableSelect, CustomSelect } from '@/components/task-auto
 import {
   MarketPicker, PriceInput, MultiImagePicker, SourceForm,
 } from '@/app/dashboard/task-auto/catalog/components/ProductsTab/ProductFormFields'
+import type { MultiImagePickerHandle } from '@/app/dashboard/task-auto/catalog/components/ProductsTab/ProductFormFields'
 import {
   SourceDraft, defaultSource,
 } from '@/app/dashboard/task-auto/catalog/components/ProductsTab/product-utils'
 import {
   addTeamProduct, updateTeamProduct, createProductLine, createMaterial,
   getProductLines, getMaterials, addTeamSource, getTeamSources, removeTeamSource,
+  getProductClassifications, createProductClassification, getAutoAssignSettings,
 } from '@/lib/api/task-auto'
 import type { TeamProduct, BrandType } from '@/types/task-auto'
 
@@ -34,14 +36,16 @@ interface FormState {
   price: string
   price_segment: string
   priority_score: number
+  cooldown_days: number | null
   material_id: string
   product_line_id: string
+  classification_id: string
   is_active: boolean
 }
 
 const defaultForm: FormState = {
   sku: '', name: '', image_urls: [], price: '',
-  price_segment: '', priority_score: 0, material_id: '', product_line_id: '', is_active: true,
+  price_segment: '', priority_score: 0, cooldown_days: null, material_id: '', product_line_id: '', classification_id: '', is_active: true,
 }
 
 export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandType = 'DO_DA', onClose, onSuccess }: Props) {
@@ -52,7 +56,13 @@ export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandTy
   const [form, setForm] = useState<FormState>(defaultForm)
   const [markets, setMarkets] = useState<string[]>(['VIETNAM'])
   const [sourceDraft, setSourceDraft] = useState<SourceDraft>(defaultSource)
+  const imagePickerRef = useRef<MultiImagePickerHandle>(null)
 
+  const { data: autoAssignSettings } = useQuery({
+    queryKey: ['task-auto', 'auto-assign-settings'],
+    queryFn: getAutoAssignSettings,
+    enabled: open,
+  })
   const { data: productLines } = useQuery({
     queryKey: ['task-auto', 'product-lines'],
     queryFn: () => getProductLines(),
@@ -61,6 +71,11 @@ export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandTy
   const { data: materials } = useQuery({
     queryKey: ['task-auto', 'materials', brandType],
     queryFn: () => getMaterials(brandType),
+    enabled: open,
+  })
+  const { data: productClassifications } = useQuery({
+    queryKey: ['task-auto', 'product-classifications'],
+    queryFn: () => getProductClassifications(),
     enabled: open,
   })
   const { data: existingSources, refetch: refetchSources } = useQuery({
@@ -82,8 +97,10 @@ export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandTy
           price: teamProduct.price ?? '',
           price_segment: teamProduct.price_segment ?? '',
           priority_score: teamProduct.priority_score ?? 0,
+          cooldown_days: teamProduct.cooldown_days ?? null,
           material_id: teamProduct.material_id ?? '',
           product_line_id: teamProduct.product_line_id ?? '',
+          classification_id: teamProduct.classification_id ?? '',
           is_active: teamProduct.is_active ?? true,
         })
         setMarkets(teamProduct.market ? teamProduct.market.split(',').map(m => m.trim()) : ['VIETNAM'])
@@ -109,16 +126,19 @@ export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandTy
 
   const mut = useMutation({
     mutationFn: async () => {
+      const image_urls = await imagePickerRef.current!.resolvePending(form.image_urls)
       const payload = {
         name: form.name,
         brand_type: brandType,
-        image_urls: form.image_urls,
+        image_urls,
         price: form.price || undefined,
         market: markets.join(','),
         price_segment: form.price_segment || undefined,
         priority_score: form.priority_score,
+        cooldown_days: form.cooldown_days,
         material_id: form.material_id || null,
         product_line_id: form.product_line_id || null,
+        classification_id: form.classification_id || null,
         is_active: form.is_active,
       }
       const addSourceIfNeeded = async (productId: string) => {
@@ -219,7 +239,7 @@ export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandTy
           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
             Phân loại & Giá
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <CreatableSelect
               label="Dòng sản phẩm"
               value={form.product_line_id}
@@ -244,8 +264,20 @@ export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandTy
                 return { id: created.id, label: created.name }
               }}
             />
+            <CreatableSelect
+              label="Phân loại sản phẩm"
+              value={form.classification_id}
+              onChange={v => setForm(f => ({ ...f, classification_id: v }))}
+              options={productClassifications?.map(c => ({ value: c.id, label: c.name })) ?? []}
+              createLabel="Thêm phân loại sản phẩm"
+              onCreate={async (name) => {
+                const created = await createProductClassification(name)
+                qc.setQueryData<typeof productClassifications>(['task-auto', 'product-classifications'], old => [...(old ?? []), created])
+                return { id: created.id, label: created.name }
+              }}
+            />
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <PriceInput label="Giá bán (₫)" value={form.price} onChange={v => setForm(f => ({ ...f, price: v }))} />
             <DarkInput
               label="Phân khúc giá"
@@ -261,6 +293,19 @@ export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandTy
               value={form.priority_score}
               onChange={e => setForm(f => ({ ...f, priority_score: Number(e.target.value) }))}
             />
+            <div>
+              <DarkInput
+                label="Giãn cách giao lại SP (ngày)"
+                type="number"
+                placeholder={`Mặc định: ${autoAssignSettings?.default_cooldown_days ?? 5} ngày`}
+                min={0}
+                value={form.cooldown_days ?? ''}
+                onChange={e => setForm(f => ({ ...f, cooldown_days: e.target.value === '' ? null : Number(e.target.value) }))}
+              />
+              <p className="text-xs text-slate-400 mt-1.5 leading-snug">
+                Sau khi giao cho 1 editor, phải chờ đủ số ngày này mới được giao lại SP này cho chính người đó. Để trống = dùng mặc định hệ thống.
+              </p>
+            </div>
           </div>
         </div>
 
@@ -268,7 +313,7 @@ export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandTy
           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
             Hình ảnh sản phẩm
           </p>
-          <MultiImagePicker values={form.image_urls} onChange={urls => setForm(f => ({ ...f, image_urls: urls }))} />
+          <MultiImagePicker ref={imagePickerRef} values={form.image_urls} onChange={urls => setForm(f => ({ ...f, image_urls: urls }))} />
         </div>
 
         <div className="space-y-4">

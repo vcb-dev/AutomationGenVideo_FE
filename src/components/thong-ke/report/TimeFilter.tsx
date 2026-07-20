@@ -10,13 +10,13 @@ interface TimeFilterProps {
 
 export default function TimeFilter({ filterMode, selectedWeek, onFilterModeChange, onWeekChange }: TimeFilterProps) {
   return (
-    <div className="flex flex-col gap-3.5 bg-slate-950/20 border border-white/[0.04] p-4 rounded-2xl max-w-full">
+    <div className="flex flex-col gap-3.5 bg-muted/40 border border-border p-4 rounded-2xl max-w-full">
       {/* Cấp 1: Chọn Loại Báo Cáo */}
       <div className="flex items-center gap-3 flex-wrap">
-        <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-          <Calendar className="w-3.5 h-3.5 text-blue-400" /> Loại báo cáo:
+        <span className="text-[12px] font-black text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+          <Calendar className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" /> Loại báo cáo:
         </span>
-        <div className="flex bg-slate-950/40 border border-white/[0.06] p-0.5 rounded-lg shadow-inner gap-1">
+        <div className="flex bg-muted border border-border p-0.5 rounded-lg shadow-inner gap-1">
           {([
             { key: 'week', label: 'Báo cáo Tuần' },
             { key: 'month', label: 'Báo cáo Tháng' }
@@ -33,9 +33,9 @@ export default function TimeFilter({ filterMode, selectedWeek, onFilterModeChang
                     onWeekChange('all');
                   }
                 }}
-                className={`px-4 py-1.5 text-[10px] font-bold rounded-md transition-all duration-200 ${isActive
+                className={`px-4 py-1.5 text-[12px] font-bold rounded-md transition-all duration-200 ${isActive
                   ? 'bg-blue-600 text-white shadow-sm font-black'
-                  : 'text-slate-400 hover:text-white hover:bg-white/[0.02]'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                   }`}
               >
                 {item.label}
@@ -47,8 +47,8 @@ export default function TimeFilter({ filterMode, selectedWeek, onFilterModeChang
 
       {/* Cấp 2: Chọn chu kỳ chi tiết (Chỉ hiển thị khi chọn Báo cáo Tuần) */}
       {filterMode === 'week' && (
-        <div className="flex items-center gap-3 pt-2.5 border-t border-white/[0.04] transition-all flex-wrap animate-slide-down">
-          <div className="flex bg-slate-950/30 border border-white/[0.04] p-0.5 rounded-lg shadow-inner gap-1 flex-wrap">
+        <div className="flex items-center gap-3 pt-2.5 border-t border-border transition-all flex-wrap animate-slide-down">
+          <div className="flex bg-muted border border-border p-0.5 rounded-lg shadow-inner gap-1 flex-wrap">
             {([
               { key: '1', label: 'Tuần 1' },
               { key: '2', label: 'Tuần 2' },
@@ -58,9 +58,9 @@ export default function TimeFilter({ filterMode, selectedWeek, onFilterModeChang
               <button
                 key={item.key}
                 onClick={() => onWeekChange(item.key)}
-                className={`px-4 py-1.5 text-[9.5px] font-bold rounded-md transition-all duration-200 ${selectedWeek === item.key
+                className={`px-4 py-1.5 text-[11.5px] font-bold rounded-md transition-all duration-200 ${selectedWeek === item.key
                   ? 'bg-indigo-600 text-white shadow-sm font-black'
-                  : 'text-slate-400 hover:text-white hover:bg-white/[0.02]'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                   }`}
               >
                 {item.label}

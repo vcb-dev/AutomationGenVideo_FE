@@ -72,8 +72,11 @@ export interface TeamProduct {
   market: string | null
   price_segment: string | null
   priority_score: number
+  /** Override số ngày cooldown riêng (per editor); null = dùng default_cooldown_days toàn cục */
+  cooldown_days: number | null
   material_id: string | null
   product_line_id: string | null
+  classification_id: string | null
   is_active: boolean
   /** null = tạo mới từ team; có giá trị = copy từ kho tổng */
   source_product_id: string | null
@@ -85,12 +88,15 @@ export interface TeamProduct {
   // Relations
   material?: { id: string; name: string } | null
   product_line?: { id: string; name: string } | null
+  classification?: { id: string; name: string } | null
   added_by?: Pick<UserBasic, 'id' | 'full_name'>
   source_editor_product?: {
     id: string; sku: string; name: string
     image_url: string | null; image_urls: string[]
     price: string | null; market: string | null; price_segment: string | null
-    priority_score: number; material_id: string | null; product_line_id: string | null
+    priority_score: number; cooldown_days: number | null
+    material_id: string | null; product_line_id: string | null
+    classification_id: string | null
     brand_type: BrandType; is_active: boolean
   } | null
 }
@@ -103,12 +109,15 @@ export interface TeamContent {
   // Inline content data (null khi record là FK-reference từ kho editor)
   brand_type: BrandType
   market: string | null
+  /** Mã content (business code), unique toàn hệ thống */
+  code: string | null
   title: string | null
   body: string | null
   script: string | null
   file_content_url: string | null
   voice_url: string | null
   content_line_id: string | null
+  classification_id: string | null
   status: ContentUsageStatus | null
   /** null = tạo mới từ team; có giá trị = copy từ kho tổng */
   source_content_id: string | null
@@ -119,13 +128,15 @@ export interface TeamContent {
   updated_at: string
   // Relations
   content_line?: { id: string; name: string } | null
+  classification?: { id: string; name: string } | null
   added_by?: Pick<UserBasic, 'id' | 'full_name'>
   source_editor_content?: {
-    id: string; title: string | null; body: string | null; script: string | null
+    id: string; code: string | null; title: string | null; body: string | null; script: string | null
     file_content_url: string | null; voice_url: string | null
-    content_line_id: string | null; brand_type: BrandType
+    content_line_id: string | null; classification_id: string | null; brand_type: BrandType
     market: string | null; status: ContentUsageStatus | null
     content_line?: { id: string; name: string } | null
+    classification?: { id: string; name: string } | null
   } | null
 }
 
@@ -251,6 +262,18 @@ export interface Material {
   _count?: { products: number }
 }
 
+export interface ProductClassification {
+  id: string
+  name: string
+  _count?: { products: number }
+}
+
+export interface ContentClassification {
+  id: string
+  name: string
+  _count?: { contents: number }
+}
+
 export interface Product {
   id: string
   sku: string
@@ -262,8 +285,11 @@ export interface Product {
   market: string | null
   price_segment: string | null
   priority_score: number
+  /** Override số ngày cooldown riêng (per editor); null = dùng default_cooldown_days toàn cục */
+  cooldown_days: number | null
   material_id: string | null
   product_line_id: string | null
+  classification_id: string | null
   /** null = kho chung; có giá trị = sản phẩm riêng của editor */
   user_id: string | null
   /** Có khi response là EditorProduct/TeamProduct — global Product.id để gắn vào Task */
@@ -275,6 +301,7 @@ export interface Product {
   updated_at: string
   material?: Material | null
   product_line?: ProductLine | null
+  classification?: ProductClassification | null
   owner_user?: Pick<UserBasic, 'id' | 'full_name'> | null
   added_by?: UserBasic
   _count?: { contents: number; tasks: number }
@@ -282,11 +309,15 @@ export interface Product {
   source_team_product?: {
     id: string; sku: string | null; name: string | null; image_url: string | null; image_urls: string[]
     price: string | null; market: string | null; price_segment: string | null; priority_score: number
+    cooldown_days: number | null
     material?: { id: string; name: string } | null; product_line?: { id: string; name: string } | null
+    classification?: { id: string; name: string } | null
     source_editor_product?: {
       id: string; sku: string | null; name: string | null; image_url: string | null; image_urls: string[]
       price: string | null; market: string | null; price_segment: string | null; priority_score: number
+      cooldown_days: number | null
       material?: { id: string; name: string } | null; product_line?: { id: string; name: string } | null
+      classification?: { id: string; name: string } | null
     } | null
   } | null
 }
@@ -295,6 +326,8 @@ export interface Content {
   id: string
   brand_type: BrandType
   market: string
+  /** Mã content (business code), unique toàn hệ thống */
+  code: string | null
   title: string | null
   body: string | null
   script: string | null
@@ -302,6 +335,7 @@ export interface Content {
   voice_url: string | null
   voice_id: string | null
   content_line_id: string | null
+  classification_id: string | null
   /** null = kho chung; có giá trị = content riêng của editor */
   user_id: string | null
   /** Có khi response là EditorContent/TeamContent — global Content.id để gắn vào Task */
@@ -314,17 +348,20 @@ export interface Content {
   created_at: string
   updated_at: string
   content_line?: ContentLine | null
+  classification?: ContentClassification | null
   owner_user?: Pick<UserBasic, 'id' | 'full_name'> | null
   added_by?: UserBasic
   source_team_content_id?: string | null
   source_team_content?: {
-    id: string; title: string | null; market: string | null; script: string | null; body: string | null
+    id: string; code: string | null; title: string | null; market: string | null; script: string | null; body: string | null
     file_content_url: string | null; voice_url: string | null
     content_line?: ContentLine | null
+    classification?: { id: string; name: string } | null
     source_editor_content?: {
-      id: string; title: string | null; market: string | null; script: string | null; body: string | null
+      id: string; code: string | null; title: string | null; market: string | null; script: string | null; body: string | null
       file_content_url: string | null; voice_url: string | null
       content_line?: ContentLine | null
+      classification?: { id: string; name: string } | null
     } | null
   } | null
 }
@@ -334,7 +371,7 @@ export interface Source {
   brand_type: BrandType
   type: SourceType
   name: string
-  link: string
+  link: string | null
   nas_link?: string | null
   code: string | null
   product_id: string | null
@@ -439,19 +476,19 @@ export interface Task {
   updated_at: string
   // Relations
   team?: Pick<Team, 'id' | 'name'>
-  content?: Pick<Content, 'id' | 'title' | 'script' | 'file_content_url' | 'market'> & {
+  content?: Pick<Content, 'id' | 'code' | 'title' | 'script' | 'file_content_url' | 'market'> & {
     content_line?: ContentLine | null
     source_team_content?: {
-      id: string; title?: string | null; market?: string | null; script?: string | null; body?: string | null
+      id: string; code?: string | null; title?: string | null; market?: string | null; script?: string | null; body?: string | null
       file_content_url?: string | null; voice_url?: string | null; content_line?: ContentLine | null
-      source_editor_content?: { id: string; title?: string | null; market?: string | null; script?: string | null; body?: string | null; file_content_url?: string | null; voice_url?: string | null; content_line?: ContentLine | null } | null
+      source_editor_content?: { id: string; code?: string | null; title?: string | null; market?: string | null; script?: string | null; body?: string | null; file_content_url?: string | null; voice_url?: string | null; content_line?: ContentLine | null } | null
     } | null
   } | null
-  team_content?: Pick<TeamContent, 'id' | 'title' | 'script' | 'file_content_url' | 'market' | 'body' | 'voice_url'> & {
+  team_content?: Pick<TeamContent, 'id' | 'code' | 'title' | 'script' | 'file_content_url' | 'market' | 'body' | 'voice_url'> & {
     content_line?: ContentLine | null
-    source_editor_content?: { title?: string | null; market?: string | null; script?: string | null; body?: string | null; file_content_url?: string | null; voice_url?: string | null; content_line?: ContentLine | null } | null
+    source_editor_content?: { code?: string | null; title?: string | null; market?: string | null; script?: string | null; body?: string | null; file_content_url?: string | null; voice_url?: string | null; content_line?: ContentLine | null } | null
   } | null
-  editor_content?: Pick<Content, 'id' | 'title' | 'script' | 'file_content_url' | 'market' | 'body' | 'voice_url'> & { content_line?: ContentLine | null } | null
+  editor_content?: Pick<Content, 'id' | 'code' | 'title' | 'script' | 'file_content_url' | 'market' | 'body' | 'voice_url'> & { content_line?: ContentLine | null } | null
   product?: Pick<Product, 'id' | 'sku' | 'name' | 'image_url' | 'image_urls' | 'price' | 'market' | 'price_segment' | 'priority_score'> & {
     material?: { id: string; name: string } | null
     product_line?: { id: string; name: string } | null
@@ -534,6 +571,8 @@ export interface AutoAssignSetting {
   timezone: string
   weekend_enabled: boolean
   is_active: boolean
+  /** Số ngày cooldown mặc định (per editor+product) cho sản phẩm chưa tự set cooldown_days riêng */
+  default_cooldown_days: number
   updated_by: string | null
   updated_at: string
 }
@@ -549,7 +588,7 @@ export interface Notification {
   task_id: string | null
   is_read: boolean
   created_at: string
-  task?: Pick<Task, 'id' | 'status'> | null
+  task?: (Pick<Task, 'id' | 'status'> & { content_title: string | null }) | null
 }
 
 // ── Pagination ──────────────────────────────────
@@ -581,6 +620,7 @@ export type BrandType = 'DO_DA' | 'TRANG_SUC'
 export interface ProductsQuery {
   brand_type?: BrandType
   product_line_id?: string
+  classification_id?: string
   team_id?: string
   user_id?: string
   owner?: 'global' | 'personal' | 'all' | ''
@@ -595,6 +635,7 @@ export interface ContentsQuery {
   brand_type?: BrandType
   status?: ContentUsageStatus | ''
   content_line_id?: string
+  classification_id?: string
   market?: string
   user_id?: string
   owner?: 'global' | 'personal' | 'all' | ''
@@ -610,6 +651,7 @@ export interface SourcesQuery {
   product_id?: string
   user_id?: string
   owner?: 'global' | 'editor' | 'all' | ''
+  added_by_id?: string
   is_active?: boolean
   page?: number
   limit?: number
@@ -622,9 +664,12 @@ export interface TeamSourcesQuery {
   type?: SourceType | ''
   product_id?: string
   team_product_id?: string
+  added_by_id?: string
   is_active?: boolean
   search?: string
   month?: string
+  page?: number
+  limit?: number
 }
 
 // ── Dashboard Stats ─────────────────────────────

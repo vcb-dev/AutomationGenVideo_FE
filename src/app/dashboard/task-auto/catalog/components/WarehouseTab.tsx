@@ -85,8 +85,8 @@ function PickItemsModal({
     const q = search.toLowerCase()
     return notIn.filter(item => {
       const name = (item as any).name ?? (item as any).title ?? ''
-      const sku = (item as any).sku ?? ''
-      return name.toLowerCase().includes(q) || sku.toLowerCase().includes(q)
+      const code = (item as any).sku ?? (item as any).code ?? ''
+      return name.toLowerCase().includes(q) || code.toLowerCase().includes(q)
     })
   }, [allItems, warehouseIds, search])
 
@@ -143,7 +143,9 @@ function PickItemsModal({
             <label key={item.id} className="flex items-center gap-3 px-6 py-3 hover:bg-gray-50 cursor-pointer">
               <input type="checkbox" className="w-4 h-4 accent-indigo-600" checked={selected.has(item.id)} onChange={() => toggle(item.id)} />
               <span className="text-sm text-slate-700 flex-1">{labelOf(item)}</span>
-              {(item as any).sku && <span className="text-xs text-slate-400">{(item as any).sku}</span>}
+              {((item as any).sku || (item as any).code) && (
+                <span className="text-xs text-slate-400">{(item as any).sku || (item as any).code}</span>
+              )}
             </label>
           ))}
         </div>
@@ -185,17 +187,17 @@ function SourceCreateModal({
   month: string
 }) {
   const qc = useQueryClient()
-  const [form, setForm] = useState({ name: '', type: 'PRODUCT_STOCK', link: '' })
+  const [form, setForm] = useState({ name: '', type: 'PRODUCT_STOCK', link: '', nas_link: '' })
 
   const mut = useMutation({
     mutationFn: async () => {
-      const src = await createSource({ name: form.name.trim(), brand_type: brandType, type: form.type as any, link: form.link.trim() || undefined })
+      const src = await createSource({ name: form.name.trim(), brand_type: brandType, type: form.type as any, link: form.link.trim() || undefined, nas_link: form.nas_link.trim() })
       await addGlobalWarehouse('sources', month, [src.id])
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['task-auto', 'warehouse', 'global', month] })
       toast.success(`Đã tạo source và thêm vào kho ${month}`)
-      setForm({ name: '', type: 'PRODUCT_STOCK', link: '' })
+      setForm({ name: '', type: 'PRODUCT_STOCK', link: '', nas_link: '' })
       onClose()
     },
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Lỗi tạo source'),
@@ -212,7 +214,7 @@ function SourceCreateModal({
           <button onClick={onClose} className="bg-gray-100 hover:bg-gray-200 text-slate-800 rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors">Huỷ</button>
           <button
             onClick={() => mut.mutate()}
-            disabled={!form.name.trim() || !form.type || mut.isPending}
+            disabled={!form.name.trim() || !form.type || !form.nas_link.trim() || mut.isPending}
             className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors disabled:opacity-60"
           >
             {mut.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -229,7 +231,8 @@ function SourceCreateModal({
           options={Object.entries(SOURCE_TYPE_LABELS).map(([k, v]) => ({ value: k, label: v }))}
         />
         <DarkInput label="Tên source *" placeholder="Tên nguồn tài liệu..." value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-        <DarkInput label="Link" placeholder="https://..." value={form.link} onChange={e => setForm(f => ({ ...f, link: e.target.value }))} />
+        <DarkInput label="Link ổ NAS *" placeholder="\\nas\... hoặc smb://..." value={form.nas_link} onChange={e => setForm(f => ({ ...f, nas_link: e.target.value }))} />
+        <DarkInput label="Link" placeholder="https://... (tuỳ chọn)" value={form.link} onChange={e => setForm(f => ({ ...f, link: e.target.value }))} />
       </div>
     </DarkModal>
   )
@@ -426,9 +429,16 @@ export function WarehouseTab({ brandType, isAdminOrManager = false, isScaleData 
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {pagedItems.map(item => (
+              {pagedItems.map(item => {
+                const itemCode = subTab === 'contents'
+                  ? ((item as any).code || (item as any).source_team_content?.code || (item as any).source_team_content?.source_editor_content?.code || '')
+                  : ''
+                return (
                 <tr key={item.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-5 py-3.5 font-medium text-slate-800">{labelOf(item)}</td>
+                  <td className="px-5 py-3.5 font-medium text-slate-800">
+                    {labelOf(item)}
+                    {itemCode && <span className="ml-2 text-xs font-mono font-normal text-slate-400">{itemCode}</span>}
+                  </td>
                   <td className="px-5 py-3.5 text-slate-500">{subOf(item, subTab)}</td>
                   <td className="px-5 py-3.5 text-right">
                     {canWriteCurrent && (
@@ -443,7 +453,7 @@ export function WarehouseTab({ brandType, isAdminOrManager = false, isScaleData 
                     )}
                   </td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         )}

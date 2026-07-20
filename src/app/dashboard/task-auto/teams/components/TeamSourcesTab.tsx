@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {
-  Radio, Plus, Search, ExternalLink, Trash2, Edit2,
+  Radio, Plus, Search, Trash2, Edit2,
   Loader2, Globe, ListFilter, PenLine, Check, X, ArrowUpToLine, Link2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -12,12 +12,15 @@ import { EmptyState } from '@/components/task-auto/EmptyState'
 import { CustomSelect, DarkInput, ProductSearchSelect } from '@/components/task-auto/DarkInput'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
+import { Pagination, PAGE_SIZE } from '@/components/task-auto/Pagination'
+import { HeaderFilterDropdown } from '@/components/task-auto/HeaderFilterDropdown'
 import {
   getTeamSources, addTeamSource, updateTeamSource, removeTeamSource,
   pushTeamSourceToGlobal, getSources, getTeams, getTeamProducts,
 } from '@/lib/api/task-auto'
 import { TeamSource, Source, SOURCE_TYPE_LABELS, SourceType } from '@/types/task-auto'
 import { SourceViewModal } from '@/components/task-auto/SourceViewModal'
+import { NasLinkCell } from '@/components/task-auto/NasLinkCell'
 
 const SOURCE_TYPE_COLORS: Record<SourceType, string> = {
   PRODUCT_STOCK: 'bg-indigo-100 text-indigo-700',
@@ -43,8 +46,12 @@ type AddMode = 'manual' | 'global'
 export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, brandType, selectedTeamId, setSelectedTeamId, month, setMonth }: TeamSourcesTabProps) {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
+  const [typeFilter, setTypeFilter] = useState('')
+  const [addedByFilter, setAddedByFilter] = useState('')
+  const [page, setPage] = useState(1)
 
-  const [modal, setModal]           = useState<null | 'add' | 'view' | 'edit'>(null)
+  const [modal, setModal]           = useState<null | 'add' | 'edit'>(null)
+  const [viewingSource, setViewingSource] = useState<TeamSource | null>(null)
   const [addMode, setAddMode]       = useState<AddMode>('manual')
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [pushingId, setPushingId]   = useState<string | null>(null)
@@ -78,19 +85,38 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
   const canManageSelected  = isAdminOrManager || isScaleData || isLeaderOfSelected || isMemberOfSelected
   const canPushToGlobal    = isAdminOrManager || isScaleData || isLeaderOfSelected
 
-  const { data: sources = [], isLoading } = useQuery({
-    queryKey: ['task-auto', 'team-sources', selectedTeamId, brandType, month],
-    queryFn: () => getTeamSources(selectedTeamId, { brand_type: brandType, month }),
+  const { data: page1Data, isLoading } = useQuery({
+    queryKey: ['task-auto', 'team-sources', selectedTeamId, brandType, month, search, typeFilter, addedByFilter, page],
+    queryFn: () => getTeamSources(selectedTeamId, {
+      brand_type: brandType, month, page, limit: PAGE_SIZE,
+      search: search || undefined, type: (typeFilter || undefined) as SourceType | undefined, added_by_id: addedByFilter || undefined,
+    }),
     enabled: !!selectedTeamId,
   })
+  const sources = page1Data?.data ?? []
+  const total = page1Data?.total ?? 0
 
-  const filtered = search
-    ? sources.filter(s => {
-        const name = s.name ?? s.source_editor_source?.name ?? ''
-        const link = s.link ?? s.source_editor_source?.link ?? ''
-        return name.toLowerCase().includes(search.toLowerCase()) || link.includes(search)
-      })
-    : sources
+  // Danh sách đầy đủ (không phân trang) — chỉ dùng để loại source đã có (theo link) ra khỏi
+  // danh sách "chọn từ kho tổng", không dùng để hiển thị bảng.
+  const { data: allSources } = useQuery({
+    queryKey: ['task-auto', 'team-sources-all-links', selectedTeamId, brandType],
+    queryFn: () => getTeamSources(selectedTeamId, { brand_type: brandType }),
+    enabled: !!selectedTeamId && modal === 'add' && addMode === 'global',
+  })
+
+  // Type là enum cố định — không cần đếm; "Người thêm" lấy từ danh sách thành viên team (đã có
+  // sẵn từ getTeams()) thay vì quét mảng đã tải, vì bảng chính giờ đã phân trang server.
+  const typeOptions = (Object.keys(SOURCE_TYPE_LABELS) as SourceType[])
+    .map(value => ({ value, label: SOURCE_TYPE_LABELS[value] }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'vi'))
+  const teamPeople = [
+    ...(selectedTeam?.leader ? [selectedTeam.leader] : []),
+    ...(selectedTeam?.members ?? []).map(m => m.user).filter((u): u is NonNullable<typeof u> => !!u),
+  ]
+  const addedByOptions = Array.from(new Map(teamPeople.map(u => [u.id, { id: u.id, name: u.full_name }])).values())
+    .sort((a, b) => a.name.localeCompare(b.name, 'vi'))
+
+  useEffect(() => { setPage(1) }, [selectedTeamId, brandType, month, search, typeFilter, addedByFilter])
 
   const { data: productsForSelect } = useQuery({
     queryKey: ['task-auto', 'team-products-select', selectedTeamId],
@@ -131,10 +157,10 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
     onSuccess: async (_, { id }) => {
       const updated = await qc.fetchQuery({ queryKey: refetchKey, queryFn: () => getTeamSources(selectedTeamId, { brand_type: brandType }) }).catch(() => null)
       const fresh = (updated as TeamSource[] | null)?.find(s => s.id === id)
-      if (fresh) setEditing(fresh)
       await qc.refetchQueries({ queryKey: refetchKey })
       toast.success('Đã cập nhật source')
-      setModal('view')
+      setModal(null)
+      if (fresh) setViewingSource(fresh)
     },
     onError: () => toast.error('Không thể cập nhật source'),
   })
@@ -167,8 +193,7 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
   })
 
   const openView = (s: TeamSource) => {
-    setEditing(s)
-    setModal('view')
+    setViewingSource(s)
   }
 
   const openAdd = () => {
@@ -188,13 +213,13 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
   }
 
   const handleManualSubmit = () => {
-    if (!form.name || !form.link) return toast.error('Tên và link là bắt buộc')
+    if (!form.name || !form.nas_link) return toast.error('Tên và Link ổ NAS là bắt buộc')
     const body = {
       brand_type: formBrandType,
       type:       form.type!,
       name:       form.name,
-      link:       form.link,
-      nas_link:        form.nas_link || undefined,
+      link:       form.link || undefined,
+      nas_link:        form.nas_link,
       code:            form.code || undefined,
       team_product_id: form.team_product_id || undefined,
       is_active:       form.is_active ?? true,
@@ -220,7 +245,7 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
   }
 
   const saving = addMut.isPending || updateMut.isPending
-  const existingLinks = new Set(sources.map(s => s.link))
+  const existingLinks = new Set((allSources ?? []).map(s => s.link))
   const availableGlobal = (globalSourcesData?.data ?? []).filter(s => !existingLinks.has(s.link))
   const allGlobalSelected = availableGlobal.length > 0 && selectedGlobalIds.size === availableGlobal.length
   const toggleAllGlobal = () =>
@@ -282,7 +307,7 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
             <div className="flex justify-center items-center py-16">
               <Loader2 className="w-7 h-7 animate-spin text-indigo-500" />
             </div>
-          ) : filtered.length === 0 ? (
+          ) : sources.length === 0 ? (
             <EmptyState icon={Radio} title="Team chưa có source nào"
               description={canManageSelected ? 'Nhấn "Thêm Source" để thêm source vào kho của team.' : 'Chưa có source nào được thêm vào kho team.'} />
           ) : (
@@ -291,21 +316,35 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
                 <thead>
                   <tr className="bg-slate-50 border-b-2 border-gray-200">
                     <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Tên source</th>
-                    <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 whitespace-nowrap">Loại</th>
+                    <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 whitespace-nowrap">
+                      <HeaderFilterDropdown
+                        label="Loại"
+                        value={typeFilter}
+                        onChange={setTypeFilter}
+                        options={typeOptions}
+                      />
+                    </th>
                     <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 whitespace-nowrap">Code</th>
-                    <th className="text-left px-5 py-4 text-sm font-bold text-slate-600">Link</th>
+                    <th className="text-left px-5 py-4 text-sm font-bold text-slate-600">Link ổ NAS</th>
                     <th className="text-left px-5 py-4 text-sm font-bold text-slate-600">Sản phẩm</th>
-                    <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 whitespace-nowrap">Người thêm</th>
+                    <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 whitespace-nowrap">
+                      <HeaderFilterDropdown
+                        label="Người thêm"
+                        value={addedByFilter}
+                        onChange={setAddedByFilter}
+                        options={addedByOptions.map(o => ({ value: o.id, label: o.name }))}
+                      />
+                    </th>
                     <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 whitespace-nowrap">Ngày thêm</th>
                     <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 whitespace-nowrap">Trạng thái</th>
                     <th className="w-28" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {filtered.map(s => {
+                  {sources.map(s => {
                     const es = s.source_editor_source
                     const sName = s.name ?? es?.name ?? '—'
-                    const sLink = s.link ?? es?.link ?? null
+                    const sNasLink = s.nas_link ?? es?.nas_link ?? null
                     const sType = s.type ?? es?.type ?? null
                     const sCode = s.code ?? es?.code ?? null
                     return (
@@ -334,17 +373,8 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
                           ? <span className="bg-slate-100 text-slate-600 font-mono text-xs font-semibold px-2.5 py-1 rounded-lg">{sCode}</span>
                           : <span className="text-slate-300 text-sm">—</span>}
                       </td>
-                      <td className="px-5 py-4 max-w-[200px]">
-                        {sLink ? (
-                          <a href={sLink} target="_blank" rel="noreferrer" title={sLink}
-                            onClick={e => e.stopPropagation()}
-                            className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-400 text-sm transition-colors">
-                            <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-                            <span className="truncate">{sLink}</span>
-                          </a>
-                        ) : (
-                          <span className="text-slate-300 text-sm">—</span>
-                        )}
+                      <td className="px-5 py-4 max-w-[200px]" onClick={e => e.stopPropagation()}>
+                        <NasLinkCell value={sNasLink} />
                       </td>
                       <td className="px-5 py-4">
                         <span className="text-sm text-slate-700 truncate block max-w-[160px]">
@@ -402,6 +432,9 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
               </table>
             </div>
           )}
+          {!isLoading && sources.length > 0 && (
+            <Pagination page={page} pageSize={PAGE_SIZE} totalItems={total} onPageChange={setPage} />
+          )}
         </div>
       )}
 
@@ -429,18 +462,18 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
       />
 
       {/* ─── Modal Chi tiết Source ─── */}
-      {editing && modal === 'view' && (
+      {viewingSource && (
         <SourceViewModal
           open
-          item={editing as any}
+          item={viewingSource as any}
           catalogType="team"
           canEdit={canManageSelected}
           canDelete={canManageSelected}
           canPushToGlobal={canPushToGlobal}
-          onClose={() => setModal(null)}
-          onEdit={() => openEdit(editing)}
-          onDelete={() => setDeletingId(editing.id)}
-          onPushToGlobal={() => { setModal(null); setPushingId(editing.id) }}
+          onClose={() => setViewingSource(null)}
+          onEdit={() => { setViewingSource(null); openEdit(viewingSource) }}
+          onDelete={() => { setViewingSource(null); setDeletingId(viewingSource.id) }}
+          onPushToGlobal={() => { setViewingSource(null); setPushingId(viewingSource.id) }}
         />
       )}
 
@@ -506,10 +539,10 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
                 onChange={e => setForm(f => ({ ...f, code: e.target.value }))} />
               <DarkInput label="Tên Source *" placeholder="Tên nguồn tài liệu..." value={form.name ?? ''}
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-              <DarkInput label="Link *" placeholder="https://drive.google.com/..." value={form.link ?? ''}
-                onChange={e => setForm(f => ({ ...f, link: e.target.value }))} />
-              <DarkInput label="Link ổ NAS" placeholder="\\nas\... hoặc smb://... (tuỳ chọn)" value={form.nas_link ?? ''}
+              <DarkInput label="Link ổ NAS *" placeholder="\\nas\... hoặc smb://..." value={form.nas_link ?? ''}
                 onChange={e => setForm(f => ({ ...f, nas_link: e.target.value }))} />
+              <DarkInput label="Link" placeholder="https://drive.google.com/... (tuỳ chọn)" value={form.link ?? ''}
+                onChange={e => setForm(f => ({ ...f, link: e.target.value }))} />
               <ProductSearchSelect label="Sản phẩm liên kết" value={form.team_product_id ?? ''}
                 onChange={id => setForm(f => ({ ...f, team_product_id: id }))}
                 products={(productsForSelect ?? []).map(p => ({ ...p, sku: p.sku ?? p.source_editor_product?.sku ?? '', name: p.name ?? p.source_editor_product?.name ?? '' }))}
@@ -624,7 +657,9 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
             onChange={e => setForm(f => ({ ...f, code: e.target.value }))} />
           <DarkInput label="Tên Source *" placeholder="Tên nguồn tài liệu..." value={form.name ?? ''}
             onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-          <DarkInput label="Link *" placeholder="https://drive.google.com/..." value={form.link ?? ''}
+          <DarkInput label="Link ổ NAS *" placeholder="\\nas\... hoặc smb://..." value={form.nas_link ?? ''}
+            onChange={e => setForm(f => ({ ...f, nas_link: e.target.value }))} />
+          <DarkInput label="Link" placeholder="https://drive.google.com/... (tuỳ chọn)" value={form.link ?? ''}
             onChange={e => setForm(f => ({ ...f, link: e.target.value }))} />
           {editing?.team_product ? (
             <div className="space-y-1">

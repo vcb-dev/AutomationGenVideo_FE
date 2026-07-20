@@ -51,7 +51,7 @@ export default function StatisticsTab({
   const [attendanceView, setAttendanceView] = useState<'current' | 'history'>('current');
 
   // teamsList derived from teamsData keys
-  const teamsList = Object.keys(teamsData).length > 0 ? Object.keys(teamsData) : ['K1', 'K2', 'K3', 'K4', 'K5'];
+  const teamsList = Object.keys(teamsData).length > 0 ? Object.keys(teamsData) : ['K1', 'K2', 'K3', 'K4'];
 
   // Helper functions
   const parseViewsToNum = (vStr: string): number => {
@@ -270,7 +270,7 @@ export default function StatisticsTab({
   const minTrendVal = Math.min(...trendPoints, 0);
   const trendRange = maxTrendVal - minTrendVal;
   // ============================================
-  // CALCULATE OVERALL COMPANY METRICS (K1 - K5)
+  // CALCULATE OVERALL COMPANY METRICS (K1 - K4)
   // ============================================
   const companyMetrics = useMemo(() => {
     let totalWin = 0;
@@ -458,39 +458,39 @@ export default function StatisticsTab({
   return (
     <>
       {/* Dashboard Header Banner */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-gradient-to-r from-[#0e1626]/80 via-[#121b2e]/80 to-[#0e1626]/80 border border-white/[0.06] p-6 rounded-3xl backdrop-blur-xl shadow-2xl relative overflow-hidden group transition-all duration-300">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-card border border-border p-6 rounded-3xl backdrop-blur-xl shadow-2xl relative overflow-hidden group transition-all duration-300">
         <div className="absolute inset-0 bg-grid-white/[0.02] pointer-events-none" />
         <div className="absolute top-0 right-1/4 w-80 h-32 bg-blue-500/10 rounded-full blur-3xl pointer-events-none animate-pulse" />
         <div className="flex items-center gap-3.5 relative z-10">
-          <div className="p-3 bg-gradient-to-br from-blue-500/20 to-indigo-500/15 border border-blue-500/35 rounded-2xl text-blue-400 shadow-[0_0_20px_rgba(59,130,246,0.25)] group-hover:scale-105 transition-transform duration-300">
+          <div className="p-3 bg-gradient-to-br from-blue-500/20 to-indigo-500/15 border border-blue-500/35 rounded-2xl text-blue-600 dark:text-blue-400 shadow-[0_0_20px_rgba(59,130,246,0.25)] group-hover:scale-105 transition-transform duration-300">
             <TrendingUp className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-lg font-black tracking-tight text-white flex items-center gap-2">
+            <h1 className="text-lg font-black tracking-tight text-foreground flex items-center gap-2">
               TRUNG TÂM PHÂN TÍCH HIỆU SUẤT
-              <span className="flex items-center gap-1 text-[9px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+              <span className="flex items-center gap-1 text-[11px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider shadow-[0_0_10px_rgba(16,185,129,0.1)]">
                 <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping" /> Live
               </span>
             </h1>
-            <p className="text-xs text-slate-400 font-semibold mt-0.5">Báo cáo hiệu quả chiến dịch sản xuất video và hoạt động nhóm</p>
+            <p className="text-xs text-muted-foreground font-semibold mt-0.5">Báo cáo hiệu quả chiến dịch sản xuất video và hoạt động nhóm</p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-3 relative z-10 self-start lg:self-auto">
           <div className="flex items-center gap-2 mr-2">
-            <button onClick={() => handleStartExport('pdf')} disabled={isExporting} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800/80 hover:bg-slate-700/80 border border-white/[0.08] text-slate-300 hover:text-white rounded-lg text-xs font-bold transition shadow-md disabled:opacity-50" title="Xuất báo cáo PDF tổng hợp">
-              <FileDown className="w-3.5 h-3.5 text-rose-400" /> PDF Report
+            <button onClick={() => handleStartExport('pdf')} disabled={isExporting} className="flex items-center gap-1.5 px-3 py-1.5 bg-muted hover:bg-accent border border-border text-foreground hover:text-foreground rounded-lg text-xs font-bold transition shadow-md disabled:opacity-50" title="Xuất báo cáo PDF tổng hợp">
+              <FileDown className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" /> PDF Report
             </button>
-            <button onClick={() => handleStartExport('excel')} disabled={isExporting} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800/80 hover:bg-slate-700/80 border border-white/[0.08] text-slate-300 hover:text-white rounded-lg text-xs font-bold transition shadow-md disabled:opacity-50" title="Xuất bảng số liệu Excel">
-              <Download className="w-3.5 h-3.5 text-emerald-400" /> Excel Data
+            <button onClick={() => handleStartExport('excel')} disabled={isExporting} className="flex items-center gap-1.5 px-3 py-1.5 bg-muted hover:bg-accent border border-border text-foreground hover:text-foreground rounded-lg text-xs font-bold transition shadow-md disabled:opacity-50" title="Xuất bảng số liệu Excel">
+              <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> Excel Data
             </button>
           </div>
-          <div className="flex bg-slate-950/60 border border-white/[0.08] p-1 rounded-xl shadow-inner shrink-0">
+          <div className="flex bg-muted border border-border p-1 rounded-xl shadow-inner shrink-0">
             {Object.keys(teamsData).map((tab) => {
               const isActive = activeTab === tab;
               return (
                 <button key={tab} onClick={() => { onTabChange(tab); setSelectedEditorDetail(null); }}
-                  className={`px-5 py-2 text-xs font-black rounded-lg transition-all duration-300 relative ${isActive ? 'bg-blue-600 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)] scale-100' : 'text-slate-400 hover:text-white hover:bg-white/[0.02]'}`}>
+                  className={`px-5 py-2 text-xs font-black rounded-lg transition-all duration-300 relative ${isActive ? 'bg-blue-600 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)] scale-100' : 'text-muted-foreground hover:text-foreground hover:bg-accent'}`}>
                   {tab}
                 </button>
               );
@@ -500,12 +500,12 @@ export default function StatisticsTab({
       </div>
 
       {/* Platform Filter */}
-      <div className="flex items-center gap-1.5 bg-[#0b101d]/60 border border-white/[0.05] p-1 rounded-2xl self-start shadow-inner">
+      <div className="flex items-center gap-1.5 bg-card border border-border p-1 rounded-2xl self-start shadow-inner">
         {(['All', 'TikTok', 'Instagram Reels', 'YouTube Shorts'] as const).map((filter) => {
           const isActive = platformFilter === filter;
           return (
             <button key={filter} onClick={() => setPlatformFilter(filter)}
-              className={`px-4 py-1.5 rounded-xl text-xs font-black transition-all duration-300 relative ${isActive ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-[0_4px_12px_rgba(37,99,235,0.25)] scale-100' : 'text-slate-400 hover:text-white hover:bg-white/[0.02]'}`}>
+              className={`px-4 py-1.5 rounded-xl text-xs font-black transition-all duration-300 relative ${isActive ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-[0_4px_12px_rgba(37,99,235,0.25)] scale-100' : 'text-muted-foreground hover:text-foreground hover:bg-accent'}`}>
               {filter === 'All' ? 'Tất cả nền tảng' : filter}
             </button>
           );
@@ -515,64 +515,64 @@ export default function StatisticsTab({
       {/* Main Statistics Content */}
       <div className="flex flex-col gap-6 mt-4 pb-16">
         {/* Company Overall Statistics & Crown Section */}
-        <div className="bg-[#0e1626]/30 border border-white/[0.04] p-6 rounded-3xl shadow-xl backdrop-blur-xl flex flex-col gap-5 hover:border-white/[0.07] transition-all duration-300">
-          <div className="flex items-center justify-between border-b border-white/[0.05] pb-3">
-            <span className="text-[11px] font-black uppercase text-slate-200 tracking-wider flex items-center gap-1.5">
-              <Sparkles className="w-4 h-4 text-amber-400" /> Phân Tích Hiệu Suất & Đánh Giá Toàn Công Ty (K1 - K5)
+        <div className="bg-card border border-border p-6 rounded-3xl shadow-xl backdrop-blur-xl flex flex-col gap-5 hover:border-border transition-all duration-300">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <span className="text-[13px] font-black uppercase text-foreground tracking-wider flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400" /> Phân Tích Hiệu Suất & Đánh Giá Toàn Công Ty (K1 - K4)
             </span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* KPI 1: Tổng Sản Lượng Công Ty */}
-            <div className="bg-[#0e1626]/50 border border-white/[0.05] rounded-3xl p-5 flex flex-col gap-1 shadow hover:border-blue-500/20 transition-all duration-300 relative overflow-hidden group">
+            <div className="bg-card border border-border rounded-3xl p-5 flex flex-col gap-1 shadow hover:border-blue-500/20 transition-all duration-300 relative overflow-hidden group">
               <div className="absolute top-0 right-0 w-20 h-20 bg-blue-500/[0.02] rounded-full blur-lg pointer-events-none" />
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Video className="w-3.5 h-3.5 text-blue-400" /> Tổng Sản Lượng
+              <span className="text-[12px] font-black text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <Video className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" /> Tổng Sản Lượng
               </span>
-              <span className="text-2xl font-black text-white mt-2 tracking-tight">{companyMetrics.totalVideos} Video</span>
-              <span className="text-[10px] text-slate-500 font-bold mt-1">
+              <span className="text-2xl font-black text-foreground mt-2 tracking-tight">{companyMetrics.totalVideos} Video</span>
+              <span className="text-[12px] text-muted-foreground font-bold mt-1">
                 {companyMetrics.totalWin} Win · {companyMetrics.totalFail} Fail
               </span>
             </div>
 
             {/* KPI 2: Tỷ Lệ Win Rate Trung Bình */}
-            <div className="bg-[#0e1626]/50 border border-white/[0.05] rounded-3xl p-5 flex flex-col gap-1 shadow hover:border-emerald-500/20 transition-all duration-300 relative overflow-hidden group">
+            <div className="bg-card border border-border rounded-3xl p-5 flex flex-col gap-1 shadow hover:border-emerald-500/20 transition-all duration-300 relative overflow-hidden group">
               <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500/[0.02] rounded-full blur-lg pointer-events-none" />
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Trophy className="w-3.5 h-3.5 text-emerald-400" /> Tỷ Lệ Win Rate TB
+              <span className="text-[12px] font-black text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <Trophy className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> Tỷ Lệ Win Rate TB
               </span>
-              <span className="text-2xl font-black text-emerald-400 mt-2 tracking-tight">
+              <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-2 tracking-tight">
                 {companyMetrics.overallWinRate.toFixed(1).replace('.', ',')}%
               </span>
-              <div className="w-full bg-slate-800 rounded-full h-1.5 mt-2 overflow-hidden">
+              <div className="w-full bg-muted rounded-full h-1.5 mt-2 overflow-hidden">
                 <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${Math.min(companyMetrics.overallWinRate, 100)}%` }} />
               </div>
             </div>
 
             {/* KPI 3: Điểm Đánh Giá Trung Bình */}
-            <div className="bg-[#0e1626]/50 border border-white/[0.05] rounded-3xl p-5 flex flex-col gap-1 shadow hover:border-purple-500/20 transition-all duration-300 relative overflow-hidden group">
+            <div className="bg-card border border-border rounded-3xl p-5 flex flex-col gap-1 shadow hover:border-purple-500/20 transition-all duration-300 relative overflow-hidden group">
               <div className="absolute top-0 right-0 w-20 h-20 bg-purple-500/[0.02] rounded-full blur-lg pointer-events-none" />
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-purple-400" /> Điểm Đánh Giá TB
+              <span className="text-[12px] font-black text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" /> Điểm Đánh Giá TB
               </span>
-              <span className="text-2xl font-black text-purple-400 mt-2 tracking-tight">
+              <span className="text-2xl font-black text-purple-600 dark:text-purple-400 mt-2 tracking-tight">
                 {companyMetrics.overallAvgScore > 0 ? `${companyMetrics.overallAvgScore.toFixed(1)}/10` : '-'}
               </span>
-              <span className="text-[10px] text-slate-500 font-bold mt-1">
+              <span className="text-[12px] text-muted-foreground font-bold mt-1">
                 Dựa trên {companyMetrics.scoredVideosCount} video đã chấm
               </span>
             </div>
 
             {/* KPI 4: Team Sáng Tạo Nhất (Crowned!) */}
-            <div className="bg-gradient-to-br from-amber-500/[0.05] via-[#0e1626]/50 to-amber-500/[0.02] border border-amber-500/20 rounded-3xl p-5 flex flex-col gap-1 shadow-[0_0_15px_rgba(245,158,11,0.05)] hover:border-amber-500/40 hover:shadow-[0_0_20px_rgba(245,158,11,0.1)] transition-all duration-300 relative overflow-hidden group">
+            <div className="bg-gradient-to-br from-amber-500/[0.05] via-card to-amber-500/[0.02] border border-amber-500/20 rounded-3xl p-5 flex flex-col gap-1 shadow-[0_0_15px_rgba(245,158,11,0.05)] hover:border-amber-500/40 hover:shadow-[0_0_20px_rgba(245,158,11,0.1)] transition-all duration-300 relative overflow-hidden group">
               <div className="absolute top-0 right-0 w-20 h-20 bg-amber-500/[0.05] rounded-full blur-lg pointer-events-none animate-pulse" />
-              <span className="text-[10px] font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Trophy className="w-3.5 h-3.5 text-amber-400" /> Team Sáng Tạo Nhất
+              <span className="text-[12px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Trophy className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" /> Team Sáng Tạo Nhất
               </span>
               <span className="text-2xl font-black text-amber-300 mt-2 tracking-tight flex items-center gap-1.5">
                 🏆 {companyMetrics.mostCreativeTeam ? companyMetrics.mostCreativeTeam.teamName : 'Chưa có'}
               </span>
-              <span className="text-[10px] text-amber-500/80 font-bold mt-1">
+              <span className="text-[12px] text-amber-500/80 font-bold mt-1">
                 {companyMetrics.mostCreativeTeam && companyMetrics.mostCreativeTeam.avgScore > 0 
                   ? `Điểm Đánh Giá TB: ${companyMetrics.mostCreativeTeam.avgScore.toFixed(1)}/10`
                   : 'Chưa có dữ liệu đánh giá'}
@@ -584,77 +584,77 @@ export default function StatisticsTab({
         {/* KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* KPI 1: Tổng Views */}
-          <div className="bg-[#0e1626]/50 border border-white/[0.05] rounded-3xl p-5 flex flex-col gap-1 shadow-lg hover:shadow-2xl hover:-translate-y-0.5 hover:border-blue-500/30 transition-all duration-300 relative overflow-hidden group">
+          <div className="bg-card border border-border rounded-3xl p-5 flex flex-col gap-1 shadow-lg hover:shadow-2xl hover:-translate-y-0.5 hover:border-blue-500/30 transition-all duration-300 relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-full blur-xl pointer-events-none group-hover:bg-blue-500/10 transition-colors" />
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5"><Eye className="w-3.5 h-3.5 text-blue-400" /> Tổng Lượt Xem</span>
-              <span className="text-[9px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded font-black flex items-center gap-0.5">↑ 14.5%</span>
+              <span className="text-[12px] font-black text-muted-foreground uppercase tracking-wider flex items-center gap-1.5"><Eye className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" /> Tổng Lượt Xem</span>
+              <span className="text-[11px] text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded font-black flex items-center gap-0.5">↑ 14.5%</span>
             </div>
-            <span className="text-3xl font-black text-white mt-2.5 tracking-tight">{formattedTotalViews}</span>
-            <span className="text-[10px] text-slate-500 font-bold mt-1.5">Lọc theo nền tảng đang chọn</span>
+            <span className="text-3xl font-black text-foreground mt-2.5 tracking-tight">{formattedTotalViews}</span>
+            <span className="text-[12px] text-muted-foreground font-bold mt-1.5">Lọc theo nền tảng đang chọn</span>
           </div>
 
           {/* KPI 2: Tỷ Lệ Win */}
-          <div className="bg-[#0e1626]/50 border border-white/[0.05] rounded-3xl p-5 flex flex-col gap-1 shadow-lg hover:shadow-2xl hover:-translate-y-0.5 hover:border-emerald-500/30 transition-all duration-300 relative overflow-hidden group">
+          <div className="bg-card border border-border rounded-3xl p-5 flex flex-col gap-1 shadow-lg hover:shadow-2xl hover:-translate-y-0.5 hover:border-emerald-500/30 transition-all duration-300 relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-24 h-24 bg-[#10b981]/5 rounded-full blur-xl pointer-events-none group-hover:bg-[#10b981]/10 transition-colors" />
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5"><Trophy className="w-3.5 h-3.5 text-[#10b981]" /> Tỷ Lệ Win Chung</span>
+            <span className="text-[12px] font-black text-muted-foreground uppercase tracking-wider flex items-center gap-1.5"><Trophy className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> Tỷ Lệ Win Chung</span>
             {(() => {
               const radius = 18;
               const circumference = 2 * Math.PI * radius;
               const strokeDashoffset = circumference - (Math.min(winPct, 100) / 100) * circumference;
               return (
                 <div className="flex items-center justify-between mt-2">
-                  <span className="text-3xl font-black text-[#10b981] tracking-tight">{winRatePercent}</span>
+                  <span className="text-3xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">{winRatePercent}</span>
                   <div className="relative w-11 h-11 shrink-0 flex items-center justify-center mr-1">
                     <svg className="w-full h-full transform -rotate-90">
                       <circle cx="22" cy="22" r={radius} className="stroke-slate-800" strokeWidth="3.5" fill="transparent" />
                       <circle cx="22" cy="22" r={radius} className="stroke-[#10b981] transition-all duration-500" strokeWidth="3.5" fill="transparent" strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} strokeLinecap="round" style={{ filter: 'drop-shadow(0 0 4px rgba(16, 185, 129, 0.4))' }} />
                     </svg>
-                    <span className="absolute text-[8px] font-black text-[#10b981]">WIN</span>
+                    <span className="absolute text-[10px] font-black text-emerald-600 dark:text-emerald-400">WIN</span>
                   </div>
                 </div>
               );
             })()}
-            <span className="text-[10px] text-slate-500 font-bold mt-1">Đạt KPI trên tổng số video của nhóm</span>
+            <span className="text-[12px] text-muted-foreground font-bold mt-1">Đạt KPI trên tổng số video của nhóm</span>
           </div>
 
           {/* KPI 3: Quy Mô Nội Dung */}
-          <div className="bg-[#0e1626]/50 border border-white/[0.05] rounded-3xl p-5 flex flex-col gap-1 shadow-lg hover:shadow-2xl hover:-translate-y-0.5 hover:border-purple-500/30 transition-all duration-300 relative overflow-hidden group">
+          <div className="bg-card border border-border rounded-3xl p-5 flex flex-col gap-1 shadow-lg hover:shadow-2xl hover:-translate-y-0.5 hover:border-purple-500/30 transition-all duration-300 relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-24 h-24 bg-[#8b5cf6]/5 rounded-full blur-xl pointer-events-none group-hover:bg-[#8b5cf6]/10 transition-colors" />
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5"><Video className="w-3.5 h-3.5 text-[#8b5cf6]" /> Quy Mô Nội Dung</span>
+            <span className="text-[12px] font-black text-muted-foreground uppercase tracking-wider flex items-center gap-1.5"><Video className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" /> Quy Mô Nội Dung</span>
             <div className="flex flex-col gap-2.5 mt-2">
-              <span className="text-3xl font-black text-white tracking-tight">{totalVal} <span className="text-sm text-slate-400 font-bold">Video</span></span>
+              <span className="text-3xl font-black text-foreground tracking-tight">{totalVal} <span className="text-sm text-muted-foreground font-bold">Video</span></span>
               <div className="flex flex-col gap-1">
-                <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden flex border border-white/[0.04]">
+                <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden flex border border-border">
                   <div className="h-full bg-emerald-500" style={{ width: `${winPct}%` }} />
                   <div className="h-full bg-rose-500" style={{ width: `${100 - winPct}%` }} />
                 </div>
-                <div className="flex items-center justify-between text-[8px] font-black text-slate-500">
-                  <span className="text-emerald-400">{winVal} Win ({winPct.toFixed(0)}%)</span>
-                  <span className="text-rose-400">{failVal} Fail</span>
+                <div className="flex items-center justify-between text-[10px] font-black text-muted-foreground">
+                  <span className="text-emerald-600 dark:text-emerald-400">{winVal} Win ({winPct.toFixed(0)}%)</span>
+                  <span className="text-rose-600 dark:text-rose-400">{failVal} Fail</span>
                 </div>
               </div>
             </div>
           </div>
 
           {/* KPI 4: Kênh Chủ Đạo */}
-          <div className="bg-[#0e1626]/50 border border-white/[0.05] rounded-3xl p-5 flex flex-col gap-1 shadow-lg hover:shadow-2xl hover:-translate-y-0.5 hover:border-amber-500/30 transition-all duration-300 relative overflow-hidden group">
+          <div className="bg-card border border-border rounded-3xl p-5 flex flex-col gap-1 shadow-lg hover:shadow-2xl hover:-translate-y-0.5 hover:border-amber-500/30 transition-all duration-300 relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-24 h-24 bg-[#f43f5e]/5 rounded-full blur-xl pointer-events-none group-hover:bg-[#f43f5e]/10 transition-colors" />
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5"><Flame className="w-3.5 h-3.5 text-[#f43f5e]" /> Kênh Chủ Đạo</span>
+            <span className="text-[12px] font-black text-muted-foreground uppercase tracking-wider flex items-center gap-1.5"><Flame className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" /> Kênh Chủ Đạo</span>
             {(() => {
               const pfViews = platformStats[dominantPlatform]?.views || 0;
               const totalViewsSum = Object.keys(platformStats).reduce((a: number, k: string) => a + platformStats[k].views, 0) || 1;
               const pfPercentage = (pfViews / totalViewsSum) * 100;
-              let brandColor = 'text-cyan-400';
+              let brandColor = 'text-cyan-600 dark:text-cyan-400';
               let brandBg = 'bg-cyan-500/10 border-cyan-500/20';
-              if (dominantPlatform.includes('Reels') || dominantPlatform.includes('Instagram')) { brandColor = 'text-pink-400'; brandBg = 'bg-pink-500/10 border-pink-500/20'; }
-              else if (dominantPlatform.includes('Shorts') || dominantPlatform.includes('YouTube')) { brandColor = 'text-red-400'; brandBg = 'bg-red-500/10 border-red-500/20'; }
+              if (dominantPlatform.includes('Reels') || dominantPlatform.includes('Instagram')) { brandColor = 'text-pink-600 dark:text-pink-400'; brandBg = 'bg-pink-500/10 border-pink-500/20'; }
+              else if (dominantPlatform.includes('Shorts') || dominantPlatform.includes('YouTube')) { brandColor = 'text-red-600 dark:text-red-400'; brandBg = 'bg-red-500/10 border-red-500/20'; }
               return (
                 <div className="flex flex-col gap-1 mt-1.5">
                   <span className={`text-2xl font-black tracking-tight ${brandColor} uppercase truncate`}>{dominantPlatform}</span>
                   <div className="flex items-center justify-between mt-1">
-                    <span className="text-[10px] text-slate-500 font-bold">Thị phần views:</span>
-                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border ${brandBg} ${brandColor}`}>{pfPercentage.toFixed(0)}%</span>
+                    <span className="text-[12px] text-muted-foreground font-bold">Thị phần views:</span>
+                    <span className={`text-[11px] font-black px-1.5 py-0.5 rounded border ${brandBg} ${brandColor}`}>{pfPercentage.toFixed(0)}%</span>
                   </div>
                 </div>
               );
@@ -663,28 +663,28 @@ export default function StatisticsTab({
         </div>
 
         {/* View Trend Line Chart */}
-        <div className="bg-[#0e1626]/50 border border-white/[0.05] rounded-3xl p-6 flex flex-col gap-4 shadow-xl backdrop-blur-xl hover:border-white/[0.08] transition-all duration-300">
-          <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
-            <span className="text-[11px] font-black uppercase text-slate-200 tracking-wider flex items-center gap-1.5">
-              <TrendingUp className="w-4 h-4 text-indigo-400" /> Xu Hướng Tăng Trưởng Views Lũy Kế
+        <div className="bg-card border border-border rounded-3xl p-6 flex flex-col gap-4 shadow-xl backdrop-blur-xl hover:border-border transition-all duration-300">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <span className="text-[13px] font-black uppercase text-foreground tracking-wider flex items-center gap-1.5">
+              <TrendingUp className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /> Xu Hướng Tăng Trưởng Views Lũy Kế
             </span>
             <div className="flex items-center gap-3">
               {/* Trend Mode Switcher */}
-              <div className="flex bg-slate-950/60 border border-white/[0.08] p-0.5 rounded-lg shadow-inner mr-2 select-none">
+              <div className="flex bg-muted border border-border p-0.5 rounded-lg shadow-inner mr-2 select-none">
                 <button
                   onClick={() => setTrendMode('week')}
-                  className={`px-3 py-1 text-[9px] font-black rounded-md transition-all ${trendMode === 'week' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                  className={`px-3 py-1 text-[11px] font-black rounded-md transition-all ${trendMode === 'week' ? 'bg-blue-600 text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
                 >
                   Theo Tuần
                 </button>
                 <button
                   onClick={() => setTrendMode('month')}
-                  className={`px-3 py-1 text-[9px] font-black rounded-md transition-all ${trendMode === 'month' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                  className={`px-3 py-1 text-[11px] font-black rounded-md transition-all ${trendMode === 'month' ? 'bg-blue-600 text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
                 >
                   Theo Tháng
                 </button>
               </div>
-              <span className="text-[10px] text-slate-500 font-bold">Đơn vị: Lượt xem</span>
+              <span className="text-[12px] text-muted-foreground font-bold">Đơn vị: Lượt xem</span>
             </div>
           </div>
           <div className="w-full overflow-x-auto">
@@ -711,14 +711,14 @@ export default function StatisticsTab({
                 {trendPoints.map((val, idx) => (
                   <g key={idx} className="cursor-pointer group/dot">
                     <circle cx={getX(idx)} cy={getY(val)} r="5" className="fill-blue-500 stroke-slate-900 stroke-2 hover:r-7 transition-all" />
-                    <text x={getX(idx)} y={getY(val) - 12} textAnchor="middle" className="text-[9px] font-black fill-slate-300 opacity-0 group-hover/dot:opacity-100 transition-opacity">{formatViewsCompact(val)}</text>
+                    <text x={getX(idx)} y={getY(val) - 12} textAnchor="middle" className="text-[11px] font-black fill-slate-300 opacity-0 group-hover/dot:opacity-100 transition-opacity">{formatViewsCompact(val)}</text>
                   </g>
                 ))}
                 {(trendMode === 'week'
                   ? ['Tuần 1', 'Tuần 2', 'Tuần 3', 'Tuần 4', 'Tuần 5']
                   : ['Tháng 5', 'Tháng 6', 'Tháng 7']
                 ).map((w, idx) => (
-                  <text key={idx} x={getX(idx)} y="148" textAnchor="middle" className="text-[9px] font-bold fill-slate-500 uppercase">{w}</text>
+                  <text key={idx} x={getX(idx)} y="148" textAnchor="middle" className="text-[11px] font-bold fill-slate-500 uppercase">{w}</text>
                 ))}
               </svg>
             </div>
@@ -726,21 +726,21 @@ export default function StatisticsTab({
         </div>
 
         {/* Weekly Performance Breakdown */}
-        <div className="bg-[#0e1626]/50 border border-white/[0.05] rounded-3xl p-6 flex flex-col gap-4 shadow-xl backdrop-blur-xl hover:border-white/[0.08] transition-all duration-300">
-          <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
-            <span className="text-[11px] font-black uppercase text-slate-200 tracking-wider flex items-center gap-1.5">
-              <Calendar className="w-4 h-4 text-purple-400" /> Bảng phân tích hiệu suất theo Tuần (Team {activeTab})
+        <div className="bg-card border border-border rounded-3xl p-6 flex flex-col gap-4 shadow-xl backdrop-blur-xl hover:border-border transition-all duration-300">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <span className="text-[13px] font-black uppercase text-foreground tracking-wider flex items-center gap-1.5">
+              <Calendar className="w-4 h-4 text-purple-600 dark:text-purple-400" /> Bảng phân tích hiệu suất theo Tuần (Team {activeTab})
             </span>
             
             {/* Week Switcher Pills */}
-            <div className="flex bg-slate-950/60 border border-white/[0.08] p-0.5 rounded-lg shadow-inner select-none">
+            <div className="flex bg-muted border border-border p-0.5 rounded-lg shadow-inner select-none">
               {['Tuần 1', 'Tuần 2', 'Tuần 3', 'Tuần 4'].map((w) => {
                 const isActive = selectedStatWeek === w;
                 return (
                   <button
                     key={w}
                     onClick={() => setSelectedStatWeek(w)}
-                    className={`px-3 py-1 text-[9px] font-black rounded-md transition-all ${isActive ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                    className={`px-3 py-1 text-[11px] font-black rounded-md transition-all ${isActive ? 'bg-blue-600 text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
                   >
                     {w}
                   </button>
@@ -753,40 +753,40 @@ export default function StatisticsTab({
             const currentWeekStat = weeklyStats.find(w => w.key === selectedStatWeek) || weeklyStats[0];
             const winRate = currentWeekStat.winRate;
             let statusText = 'Khá';
-            let statusColor = 'text-blue-400 bg-blue-500/10 border-blue-500/20';
+            let statusColor = 'text-blue-600 dark:text-blue-400 bg-blue-500/10 border-blue-500/20';
             if (winRate >= 70) {
               statusText = 'Xuất Sắc';
-              statusColor = 'text-amber-400 bg-amber-500/10 border-amber-500/20';
+              statusColor = 'text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20';
             } else if (winRate >= 50) {
               statusText = 'Tốt';
-              statusColor = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+              statusColor = 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
             } else if (winRate > 0 && winRate < 35) {
               statusText = 'Yếu';
-              statusColor = 'text-rose-400 bg-rose-500/10 border-rose-500/20';
+              statusColor = 'text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/20';
             } else if (winRate === 0) {
               statusText = 'Chưa có dữ liệu';
-              statusColor = 'text-slate-400 bg-slate-500/10 border-slate-500/20';
+              statusColor = 'text-muted-foreground bg-slate-500/10 border-slate-500/20';
             }
 
             return (
-              <div className="bg-gradient-to-br from-[#0e1626]/60 via-[#121c33]/40 to-[#0e1626]/60 border border-white/[0.06] rounded-3xl p-6 shadow-2xl relative overflow-hidden group transition-all duration-300">
+              <div className="bg-card border border-border rounded-3xl p-6 shadow-2xl relative overflow-hidden group transition-all duration-300">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/[0.02] rounded-full blur-3xl pointer-events-none" />
                 <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/[0.02] rounded-full blur-3xl pointer-events-none" />
                 
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/[0.05] pb-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-purple-500/10 border border-purple-500/35 rounded-2xl text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.2)]">
+                    <div className="p-2.5 bg-purple-500/10 border border-purple-500/35 rounded-2xl text-purple-600 dark:text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.2)]">
                       <Calendar className="w-5 h-5" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-black text-white uppercase tracking-wider">{currentWeekStat.label} - Tổng Quan</h3>
-                      <p className="text-[10px] text-slate-400 font-bold mt-0.5">Thời gian thực tế trong kỳ báo cáo</p>
+                      <h3 className="text-sm font-black text-foreground uppercase tracking-wider">{currentWeekStat.label} - Tổng Quan</h3>
+                      <p className="text-[12px] text-muted-foreground font-bold mt-0.5">Thời gian thực tế trong kỳ báo cáo</p>
                     </div>
                   </div>
                   
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Đánh giá chung:</span>
-                    <span className={`text-[10px] font-black px-3 py-1 rounded-full border uppercase tracking-wider shadow-sm ${statusColor}`}>
+                    <span className="text-[12px] font-black text-muted-foreground uppercase tracking-widest">Đánh giá chung:</span>
+                    <span className={`text-[12px] font-black px-3 py-1 rounded-full border uppercase tracking-wider shadow-sm ${statusColor}`}>
                       {statusText}
                     </span>
                   </div>
@@ -794,39 +794,39 @@ export default function StatisticsTab({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mt-6">
                   {/* Card 1: Lượt xem (Views) */}
-                  <div className="bg-[#0b111e]/40 border border-white/[0.04] p-5 rounded-2xl flex flex-col justify-between hover:border-blue-500/30 hover:shadow-[0_0_15px_rgba(59,130,246,0.05)] transition-all duration-300 relative overflow-hidden group/item h-[120px]">
+                  <div className="bg-card border border-border p-5 rounded-2xl flex flex-col justify-between hover:border-blue-500/30 hover:shadow-[0_0_15px_rgba(59,130,246,0.05)] transition-all duration-300 relative overflow-hidden group/item h-[120px]">
                     <div className="absolute right-4 top-4 text-blue-500/[0.03] group-hover/item:text-blue-500/[0.06] transition-colors">
                       <Eye className="w-12 h-12" />
                     </div>
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                      <Eye className="w-3.5 h-3.5 text-blue-400" /> Tổng Lượt Xem
+                    <span className="text-[12px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+                      <Eye className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" /> Tổng Lượt Xem
                     </span>
                     <div className="mt-4">
-                      <span className="text-2xl font-black text-white tracking-tight leading-none">
+                      <span className="text-2xl font-black text-foreground tracking-tight leading-none">
                         {formatViewsCompact(currentWeekStat.views)}
                       </span>
-                      <p className="text-[9px] text-slate-500 font-bold mt-2">Tổng số lượt xem tích lũy</p>
+                      <p className="text-[11px] text-muted-foreground font-bold mt-2">Tổng số lượt xem tích lũy</p>
                     </div>
                   </div>
 
                   {/* Card 2: Sản lượng Video */}
-                  <div className="bg-[#0b111e]/40 border border-white/[0.04] p-5 rounded-2xl flex flex-col justify-between hover:border-purple-500/30 hover:shadow-[0_0_15px_rgba(168,85,247,0.05)] transition-all duration-300 relative overflow-hidden group/item h-[120px]">
+                  <div className="bg-card border border-border p-5 rounded-2xl flex flex-col justify-between hover:border-purple-500/30 hover:shadow-[0_0_15px_rgba(168,85,247,0.05)] transition-all duration-300 relative overflow-hidden group/item h-[120px]">
                     <div className="absolute right-4 top-4 text-purple-500/[0.03] group-hover/item:text-purple-500/[0.06] transition-colors">
                       <Video className="w-12 h-12" />
                     </div>
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                      <Video className="w-3.5 h-3.5 text-purple-400" /> Sản Lượng Video
+                    <span className="text-[12px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+                      <Video className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" /> Sản Lượng Video
                     </span>
                     <div className="mt-4">
                       <div className="flex items-baseline gap-1">
-                        <span className="text-2xl font-black text-white tracking-tight leading-none">{currentWeekStat.total}</span>
-                        <span className="text-[10px] text-slate-400 font-black uppercase">Video</span>
+                        <span className="text-2xl font-black text-foreground tracking-tight leading-none">{currentWeekStat.total}</span>
+                        <span className="text-[12px] text-muted-foreground font-black uppercase">Video</span>
                       </div>
                       <div className="flex gap-2 mt-2">
-                        <span className="text-[9px] text-emerald-400 font-black bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded">
+                        <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-black bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded">
                           {currentWeekStat.win} Win
                         </span>
-                        <span className="text-[9px] text-rose-400 font-black bg-rose-500/10 border border-rose-500/20 px-1.5 py-0.5 rounded">
+                        <span className="text-[11px] text-rose-600 dark:text-rose-400 font-black bg-rose-500/10 border border-rose-500/20 px-1.5 py-0.5 rounded">
                           {currentWeekStat.fail} Fail
                         </span>
                       </div>
@@ -834,36 +834,36 @@ export default function StatisticsTab({
                   </div>
 
                   {/* Card 3: Tỷ Lệ Win Rate */}
-                  <div className="bg-[#0b111e]/40 border border-white/[0.04] p-5 rounded-2xl flex flex-col justify-between hover:border-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.05)] transition-all duration-300 relative overflow-hidden group/item h-[120px]">
+                  <div className="bg-card border border-border p-5 rounded-2xl flex flex-col justify-between hover:border-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.05)] transition-all duration-300 relative overflow-hidden group/item h-[120px]">
                     <div className="absolute right-4 top-4 text-emerald-500/[0.03] group-hover/item:text-emerald-500/[0.06] transition-colors">
                       <Trophy className="w-12 h-12" />
                     </div>
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                      <Trophy className="w-3.5 h-3.5 text-emerald-400" /> Tỷ Lệ Win Rate
+                    <span className="text-[12px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+                      <Trophy className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> Tỷ Lệ Win Rate
                     </span>
                     <div className="mt-4">
-                      <span className="text-2xl font-black text-emerald-400 tracking-tight leading-none">
+                      <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight leading-none">
                         {currentWeekStat.winRate.toFixed(1).replace('.', ',')}%
                       </span>
-                      <div className="w-full bg-slate-900 rounded-full h-1 overflow-hidden border border-white/[0.02] mt-3">
+                      <div className="w-full bg-muted rounded-full h-1 overflow-hidden border border-border mt-3">
                         <div className="bg-gradient-to-r from-emerald-500 to-teal-500 h-full rounded-full" style={{ width: `${currentWeekStat.winRate}%` }} />
                       </div>
                     </div>
                   </div>
 
                   {/* Card 4: Điểm Đánh Giá TB */}
-                  <div className="bg-[#0b111e]/40 border border-white/[0.04] p-5 rounded-2xl flex flex-col justify-between hover:border-amber-500/30 hover:shadow-[0_0_15px_rgba(245,158,11,0.05)] transition-all duration-300 relative overflow-hidden group/item h-[120px]">
+                  <div className="bg-card border border-border p-5 rounded-2xl flex flex-col justify-between hover:border-amber-500/30 hover:shadow-[0_0_15px_rgba(245,158,11,0.05)] transition-all duration-300 relative overflow-hidden group/item h-[120px]">
                     <div className="absolute right-4 top-4 text-amber-500/[0.03] group-hover/item:text-amber-500/[0.06] transition-colors">
                       <Sparkles className="w-12 h-12" />
                     </div>
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Điểm Đánh Giá TB
+                    <span className="text-[12px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" /> Điểm Đánh Giá TB
                     </span>
                     <div className="mt-4">
-                      <span className="text-2xl font-black text-amber-400 tracking-tight leading-none">
+                      <span className="text-2xl font-black text-amber-600 dark:text-amber-400 tracking-tight leading-none">
                         {currentWeekStat.avgScore > 0 ? `${currentWeekStat.avgScore.toFixed(1)}/10` : '-'}
                       </span>
-                      <p className="text-[9px] text-slate-500 font-bold mt-2 truncate">
+                      <p className="text-[11px] text-muted-foreground font-bold mt-2 truncate">
                         {currentWeekStat.scoredCount > 0 ? `Dựa trên ${currentWeekStat.scoredCount} video đã chấm` : 'Chưa có điểm chấm'}
                       </p>
                     </div>
@@ -875,28 +875,28 @@ export default function StatisticsTab({
         </div>
 
         {/* Weekly Charts Comparison */}
-        <div className="bg-[#0e1626]/50 border border-white/[0.05] rounded-3xl p-6 flex flex-col gap-4 shadow-xl backdrop-blur-xl hover:border-white/[0.08] transition-all duration-300">
-          <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
-            <span className="text-[11px] font-black uppercase text-slate-200 tracking-wider flex items-center gap-1.5">
-              <TrendingUp className="w-4 h-4 text-purple-400" /> Biểu đồ so sánh hiệu suất giữa các Tuần (Team {activeTab})
+        <div className="bg-card border border-border rounded-3xl p-6 flex flex-col gap-4 shadow-xl backdrop-blur-xl hover:border-border transition-all duration-300">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <span className="text-[13px] font-black uppercase text-foreground tracking-wider flex items-center gap-1.5">
+              <TrendingUp className="w-4 h-4 text-purple-600 dark:text-purple-400" /> Biểu đồ so sánh hiệu suất giữa các Tuần (Team {activeTab})
             </span>
-            <span className="text-[10px] text-slate-400 font-bold">So sánh trực quan các chỉ số theo tuần</span>
+            <span className="text-[12px] text-muted-foreground font-bold">So sánh trực quan các chỉ số theo tuần</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* 1. Lượt xem */}
             <div className="flex flex-col gap-3">
-              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Lượt xem từng tuần</span>
+              <span className="text-[12px] font-black uppercase text-muted-foreground tracking-wider">Lượt xem từng tuần</span>
               <div className="flex flex-col gap-2.5">
                 {weeklyStats.map((stat) => {
                   const maxViews = Math.max(...weeklyStats.map(s => s.views), 1);
                   const viewPercentage = (stat.views / maxViews) * 100;
                   return (
                     <div key={stat.key} className="flex items-center gap-3">
-                      <span className="w-12 text-[11px] font-black text-slate-300">{stat.label}</span>
-                      <div className="flex-1 h-3 bg-slate-950 rounded-lg overflow-hidden border border-white/[0.04] relative flex items-center">
+                      <span className="w-12 text-[13px] font-black text-foreground">{stat.label}</span>
+                      <div className="flex-1 h-3 bg-muted rounded-lg overflow-hidden border border-border relative flex items-center">
                         <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg" style={{ width: `${viewPercentage}%` }} />
-                        <span className="absolute right-2 text-[9px] font-black text-white">{formatViewsCompact(stat.views)}</span>
+                        <span className="absolute right-2 text-[11px] font-black text-foreground">{formatViewsCompact(stat.views)}</span>
                       </div>
                     </div>
                   );
@@ -906,15 +906,15 @@ export default function StatisticsTab({
 
             {/* 2. Sản lượng Win Rate */}
             <div className="flex flex-col gap-3">
-              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Tỷ lệ Win Rate</span>
+              <span className="text-[12px] font-black uppercase text-muted-foreground tracking-wider">Tỷ lệ Win Rate</span>
               <div className="flex flex-col gap-2.5">
                 {weeklyStats.map((stat) => {
                   return (
                     <div key={stat.key} className="flex items-center gap-3">
-                      <span className="w-12 text-[11px] font-black text-slate-300">{stat.label}</span>
-                      <div className="flex-1 h-3 bg-slate-950 rounded-lg overflow-hidden border border-white/[0.04] relative flex items-center">
+                      <span className="w-12 text-[13px] font-black text-foreground">{stat.label}</span>
+                      <div className="flex-1 h-3 bg-muted rounded-lg overflow-hidden border border-border relative flex items-center">
                         <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-600 rounded-lg" style={{ width: `${stat.winRate}%` }} />
-                        <span className="absolute right-2 text-[9px] font-black text-white">{stat.winRate.toFixed(1).replace('.', ',')}% ({stat.total} video)</span>
+                        <span className="absolute right-2 text-[11px] font-black text-foreground">{stat.winRate.toFixed(1).replace('.', ',')}% ({stat.total} video)</span>
                       </div>
                     </div>
                   );
@@ -924,17 +924,17 @@ export default function StatisticsTab({
 
             {/* 3. Điểm Đánh Giá TB */}
             <div className="flex flex-col gap-3">
-              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Điểm chất lượng trung bình</span>
+              <span className="text-[12px] font-black uppercase text-muted-foreground tracking-wider">Điểm chất lượng trung bình</span>
               <div className="flex flex-col gap-2.5">
                 {weeklyStats.map((stat) => {
                   const maxScore = 10;
                   const scorePercentage = (stat.avgScore / maxScore) * 100;
                   return (
                     <div key={stat.key} className="flex items-center gap-3">
-                      <span className="w-12 text-[11px] font-black text-slate-300">{stat.label}</span>
-                      <div className="flex-1 h-3 bg-slate-950 rounded-lg overflow-hidden border border-white/[0.04] relative flex items-center">
+                      <span className="w-12 text-[13px] font-black text-foreground">{stat.label}</span>
+                      <div className="flex-1 h-3 bg-muted rounded-lg overflow-hidden border border-border relative flex items-center">
                         <div className="h-full bg-gradient-to-r from-purple-500 to-indigo-600 rounded-lg" style={{ width: `${stat.avgScore > 0 ? scorePercentage : 0}%` }} />
-                        <span className="absolute right-2 text-[9px] font-black text-white">
+                        <span className="absolute right-2 text-[11px] font-black text-foreground">
                           {stat.avgScore > 0 ? `${stat.avgScore.toFixed(1)}/10` : 'Chưa chấm'}
                         </span>
                       </div>
@@ -950,13 +950,13 @@ export default function StatisticsTab({
         <div className="flex flex-col gap-4">
           {/* Sub-nav: Điểm danh tuần / Lịch sử */}
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 bg-slate-900/50 rounded-2xl p-1 border border-white/[0.05]">
+            <div className="flex items-center gap-1 bg-muted rounded-2xl p-1 border border-border">
               <button
                 onClick={() => setAttendanceView('current')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black transition-all duration-200 ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-black transition-all duration-200 ${
                   attendanceView === 'current'
                     ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                    : 'text-slate-400 hover:text-slate-200'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 <Calendar className="w-3 h-3" />
@@ -964,10 +964,10 @@ export default function StatisticsTab({
               </button>
               <button
                 onClick={() => setAttendanceView('history')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black transition-all duration-200 ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-black transition-all duration-200 ${
                   attendanceView === 'history'
                     ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
-                    : 'text-slate-400 hover:text-slate-200'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 <BarChart3 className="w-3 h-3" />
@@ -1007,17 +1007,17 @@ export default function StatisticsTab({
         {/* Leaderboard & Platforms */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Editor Performance Leaderboard */}
-          <div className="lg:col-span-7 bg-[#0e1626]/50 border border-white/[0.05] rounded-3xl p-6 flex flex-col gap-4 shadow-xl backdrop-blur-xl hover:border-white/[0.08] transition-all duration-300">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/[0.06] pb-3 gap-3">
-              <span className="text-[11px] font-black uppercase text-slate-200 tracking-wider flex items-center gap-1.5">
-                <Award className="w-4 h-4 text-amber-400" /> Bảng Xếp Hạng Editor ({activeTab})
+          <div className="lg:col-span-7 bg-card border border-border rounded-3xl p-6 flex flex-col gap-4 shadow-xl backdrop-blur-xl hover:border-border transition-all duration-300">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-border pb-3 gap-3">
+              <span className="text-[13px] font-black uppercase text-foreground tracking-wider flex items-center gap-1.5">
+                <Award className="w-4 h-4 text-amber-600 dark:text-amber-400" /> Bảng Xếp Hạng Editor ({activeTab})
               </span>
               <div className="flex items-center gap-2">
-                <input type="text" placeholder="Tìm Editor..." value={editorSearchQuery} onChange={(e) => setEditorSearchQuery(e.target.value)} className="bg-slate-950/60 border border-white/[0.08] focus:border-blue-500 rounded-lg px-2.5 py-1 text-[11px] text-white outline-none w-32 focus:w-40 transition-all placeholder-slate-500" />
+                <input type="text" placeholder="Tìm Editor..." value={editorSearchQuery} onChange={(e) => setEditorSearchQuery(e.target.value)} className="bg-muted border border-border focus:border-blue-500 rounded-lg px-2.5 py-1 text-[13px] text-foreground outline-none w-32 focus:w-40 transition-all placeholder:text-muted-foreground" />
                 <div className="relative" onBlur={() => setTimeout(() => setIsSortDropdownOpen(false), 200)}>
                   <button
                     onClick={() => setIsSortDropdownOpen(!isSortDropdownOpen)}
-                    className="flex items-center justify-between gap-1.5 bg-slate-950/60 hover:bg-slate-900/60 border border-white/[0.08] rounded-lg px-2.5 py-1 text-[11px] text-slate-300 hover:text-white outline-none cursor-pointer select-none font-bold"
+                    className="flex items-center justify-between gap-1.5 bg-muted hover:bg-accent border border-border rounded-lg px-2.5 py-1 text-[13px] text-foreground hover:text-foreground outline-none cursor-pointer select-none font-bold"
                   >
                     <span>
                       {editorSortBy === 'winRate' && 'Sắp xếp: % Win'}
@@ -1025,12 +1025,12 @@ export default function StatisticsTab({
                       {editorSortBy === 'avgViews' && 'Sắp xếp: Views TB'}
                       {editorSortBy === 'avgQualityScore' && 'Sắp xếp: Điểm Đánh giá'}
                     </span>
-                    <svg className="w-2.5 h-2.5 text-slate-400 transition-transform duration-200" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" style={{ transform: isSortDropdownOpen ? 'rotate(180deg)' : 'none' }}>
+                    <svg className="w-2.5 h-2.5 text-muted-foreground transition-transform duration-200" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" style={{ transform: isSortDropdownOpen ? 'rotate(180deg)' : 'none' }}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
                   {isSortDropdownOpen && (
-                    <div className="absolute right-0 top-full mt-1.5 w-40 bg-[#0e1626]/95 backdrop-blur-xl border border-white/[0.08] rounded-xl py-1 shadow-2xl z-30 flex flex-col overflow-hidden">
+                    <div className="absolute right-0 top-full mt-1.5 w-40 bg-card backdrop-blur-xl border border-border rounded-xl py-1 shadow-2xl z-30 flex flex-col overflow-hidden">
                       {[
                         { key: 'winRate', label: 'Sắp xếp: % Win' },
                         { key: 'totalVideos', label: 'Sắp xếp: Tổng Video' },
@@ -1043,8 +1043,8 @@ export default function StatisticsTab({
                             setEditorSortBy(opt.key as any);
                             setIsSortDropdownOpen(false);
                           }}
-                          className={`px-3 py-1.5 text-[11px] text-left font-bold transition-colors cursor-pointer hover:bg-white/[0.04] ${
-                            editorSortBy === opt.key ? 'text-blue-400 bg-blue-500/[0.04]' : 'text-slate-300'
+                          className={`px-3 py-1.5 text-[13px] text-left font-bold transition-colors cursor-pointer hover:bg-accent ${
+                            editorSortBy === opt.key ? 'text-blue-600 dark:text-blue-400 bg-blue-500/[0.04]' : 'text-foreground'
                           }`}
                         >
                           {opt.label}
@@ -1057,7 +1057,7 @@ export default function StatisticsTab({
             </div>
 
             {/* Top 3 Podium */}
-            <div className="flex items-end justify-center gap-3 sm:gap-6 pt-5 pb-3 border-b border-white/[0.04] mb-2 bg-[#0c1322]/20 rounded-3xl p-4 relative overflow-hidden">
+            <div className="flex items-end justify-center gap-3 sm:gap-6 pt-5 pb-3 border-b border-border mb-2 bg-card rounded-3xl p-4 relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-t from-blue-500/[0.02] to-transparent pointer-events-none" />
               {/* Silver */}
               {filteredRankedPerformance[1] && (() => {
@@ -1066,15 +1066,15 @@ export default function StatisticsTab({
                 return (
                   <div onClick={() => setSelectedEditorDetail(perf)} className="flex flex-col items-center w-24 sm:w-28 group relative cursor-pointer">
                     <div className="relative mb-2 flex items-center justify-center">
-                      <div className="absolute -top-3 right-0 bg-slate-400 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full border border-slate-300">#2</div>
+                      <div className="absolute -top-3 right-0 bg-slate-400 text-foreground text-[10px] font-black px-1.5 py-0.5 rounded-full border border-slate-300">#2</div>
                       <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-slate-400 to-slate-200 border-2 border-slate-300 flex items-center justify-center text-slate-800 text-xs font-black shadow-[0_0_15px_rgba(148,163,184,0.2)] group-hover:scale-105 transition-transform duration-300">{initials}</div>
                     </div>
-                    <span className="text-[10px] font-black text-slate-300 truncate w-full text-center group-hover:text-blue-400 transition-colors">{perf.editor}</span>
-                    <span className="text-[10px] font-bold text-slate-400">{perf.winRate} Win</span>
+                    <span className="text-[12px] font-black text-foreground truncate w-full text-center group-hover:text-blue-400 transition-colors">{perf.editor}</span>
+                    <span className="text-[12px] font-bold text-muted-foreground">{perf.winRate} Win</span>
                     <div className="w-full bg-gradient-to-t from-slate-500/10 to-slate-400/20 border border-slate-400/20 h-14 rounded-t-2xl mt-2 flex flex-col items-center justify-center shadow-lg relative overflow-hidden backdrop-blur-md">
                       <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-white/10" />
-                      <span className="text-lg font-black text-slate-300">2</span>
-                      <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest mt-0.5">BẠC</span>
+                      <span className="text-lg font-black text-foreground">2</span>
+                      <span className="text-[9.5px] font-black text-muted-foreground uppercase tracking-widest mt-0.5">BẠC</span>
                     </div>
                   </div>
                 );
@@ -1086,18 +1086,18 @@ export default function StatisticsTab({
                 return (
                   <div onClick={() => setSelectedEditorDetail(perf)} className="flex flex-col items-center w-28 sm:w-32 group z-10 relative cursor-pointer">
                     <div className="relative mb-2.5 flex items-center justify-center">
-                      <div className="absolute -top-3.5 right-0 bg-amber-400 text-amber-950 text-[9px] font-black px-1.5 py-0.5 rounded-full border border-white flex items-center gap-0.5 animate-bounce">👑 #1</div>
+                      <div className="absolute -top-3.5 right-0 bg-amber-400 text-amber-950 text-[11px] font-black px-1.5 py-0.5 rounded-full border border-white flex items-center gap-0.5 animate-bounce">👑 #1</div>
                       <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-amber-500 to-amber-200 border-2 border-amber-300 flex items-center justify-center text-amber-950 text-sm font-black shadow-[0_0_20px_rgba(245,158,11,0.3)] group-hover:scale-105 transition-transform duration-300 relative overflow-hidden">
                         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
                         {initials}
                       </div>
                     </div>
-                    <span className="text-xs font-black text-white truncate w-full text-center group-hover:text-amber-400 transition-colors">{perf.editor}</span>
-                    <span className="text-[11px] font-black text-amber-400">{perf.winRate} Win</span>
+                    <span className="text-xs font-black text-foreground truncate w-full text-center group-hover:text-amber-400 transition-colors">{perf.editor}</span>
+                    <span className="text-[13px] font-black text-amber-600 dark:text-amber-400">{perf.winRate} Win</span>
                     <div className="w-full bg-gradient-to-t from-amber-600/10 to-amber-500/20 border border-amber-400/30 h-20 rounded-t-2xl mt-2 flex flex-col items-center justify-center shadow-lg relative overflow-hidden backdrop-blur-md">
                       <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-white/25" />
                       <span className="text-xl font-black text-amber-300">1</span>
-                      <span className="text-[7.5px] font-black text-amber-400 uppercase tracking-widest mt-0.5">VÀNG</span>
+                      <span className="text-[9.5px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest mt-0.5">VÀNG</span>
                     </div>
                   </div>
                 );
@@ -1109,15 +1109,15 @@ export default function StatisticsTab({
                 return (
                   <div onClick={() => setSelectedEditorDetail(perf)} className="flex flex-col items-center w-24 sm:w-28 group relative cursor-pointer">
                     <div className="relative mb-2 flex items-center justify-center">
-                      <div className="absolute -top-3 right-0 bg-orange-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full border border-orange-500">#3</div>
+                      <div className="absolute -top-3 right-0 bg-orange-600 text-foreground text-[10px] font-black px-1.5 py-0.5 rounded-full border border-orange-500">#3</div>
                       <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-orange-500 to-orange-300 border-2 border-orange-400 flex items-center justify-center text-slate-800 text-xs font-black shadow-[0_0_15px_rgba(249,115,22,0.2)] group-hover:scale-105 transition-transform duration-300">{initials}</div>
                     </div>
-                    <span className="text-[10px] font-black text-slate-300 truncate w-full text-center group-hover:text-blue-400 transition-colors">{perf.editor}</span>
-                    <span className="text-[10px] font-bold text-slate-400">{perf.winRate} Win</span>
+                    <span className="text-[12px] font-black text-foreground truncate w-full text-center group-hover:text-blue-400 transition-colors">{perf.editor}</span>
+                    <span className="text-[12px] font-bold text-muted-foreground">{perf.winRate} Win</span>
                     <div className="w-full bg-gradient-to-t from-orange-700/10 to-orange-600/20 border border-orange-500/20 h-10 rounded-t-2xl mt-2 flex flex-col items-center justify-center shadow-lg relative overflow-hidden backdrop-blur-md">
                       <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-white/10" />
                       <span className="text-base font-black text-orange-300">3</span>
-                      <span className="text-[7.5px] font-black text-orange-400 uppercase tracking-widest mt-0.5">ĐỒNG</span>
+                      <span className="text-[9.5px] font-black text-orange-600 dark:text-orange-400 uppercase tracking-widest mt-0.5">ĐỒNG</span>
                     </div>
                   </div>
                 );
@@ -1128,7 +1128,7 @@ export default function StatisticsTab({
             <div className="overflow-x-auto w-full custom-scrollbar">
               <table className="w-full border-collapse text-left text-xs min-w-[500px]">
                 <thead>
-                  <tr className="border-b border-white/[0.06] text-slate-400 font-black tracking-wider uppercase text-[9px]">
+                  <tr className="border-b border-border text-muted-foreground font-black tracking-wider uppercase text-[11px]">
                     <th className="py-2.5 px-2 text-center w-12">Hạng</th>
                     <th className="py-2.5 px-3">Editor</th>
                     <th className="py-2.5 px-3">Tỷ lệ Win</th>
@@ -1142,25 +1142,25 @@ export default function StatisticsTab({
                   {filteredRankedPerformance.map((perf: any, index: number) => {
                     const winPercent = perf.total > 0 ? (perf.win / perf.total) * 100 : 0;
                     return (
-                      <tr key={perf.editor} onClick={() => setSelectedEditorDetail(perf)} className="hover:bg-white/[0.02] transition-colors group cursor-pointer">
-                        <td className="py-3 px-2 text-center font-black text-slate-500">{index + 1}</td>
-                        <td className="py-3 px-3 font-bold text-slate-200 group-hover:text-blue-400 transition-colors">{perf.editor}</td>
-                        <td className="py-3 px-3 font-black text-[#10b981]">{perf.winRate}</td>
+                      <tr key={perf.editor} onClick={() => setSelectedEditorDetail(perf)} className="hover:bg-accent transition-colors group cursor-pointer">
+                        <td className="py-3 px-2 text-center font-black text-muted-foreground">{index + 1}</td>
+                        <td className="py-3 px-3 font-bold text-foreground group-hover:text-blue-400 transition-colors">{perf.editor}</td>
+                        <td className="py-3 px-3 font-black text-emerald-600 dark:text-emerald-400">{perf.winRate}</td>
                         <td className="py-3 px-3">
                           <div className="flex flex-col gap-1 w-full max-w-[140px]">
-                            <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden flex border border-white/[0.04]">
+                            <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden flex border border-border">
                               <div className="h-full bg-emerald-500 rounded-l" style={{ width: `${winPercent}%` }} />
                               <div className="h-full bg-rose-500/70 rounded-r" style={{ width: `${100 - winPercent}%` }} />
                             </div>
-                            <div className="flex items-center justify-between text-[8px] font-bold text-slate-500">
-                              <span className="text-emerald-400">{perf.win} Win</span>
-                              <span className="text-rose-400">{perf.fail} Fail</span>
+                            <div className="flex items-center justify-between text-[10px] font-bold text-muted-foreground">
+                              <span className="text-emerald-600 dark:text-emerald-400">{perf.win} Win</span>
+                              <span className="text-rose-600 dark:text-rose-400">{perf.fail} Fail</span>
                             </div>
                           </div>
                         </td>
-                        <td className="py-3 px-3 text-center font-bold text-slate-300">{perf.total}</td>
-                        <td className="py-3 px-3 text-right font-black text-blue-400">{perf.avgViews || '-'}</td>
-                        <td className="py-3 px-3 text-center font-black text-purple-400">{perf.avgQualityScore}</td>
+                        <td className="py-3 px-3 text-center font-bold text-foreground">{perf.total}</td>
+                        <td className="py-3 px-3 text-right font-black text-blue-600 dark:text-blue-400">{perf.avgViews || '-'}</td>
+                        <td className="py-3 px-3 text-center font-black text-purple-600 dark:text-purple-400">{perf.avgQualityScore}</td>
                       </tr>
                     );
                   })}
@@ -1171,10 +1171,10 @@ export default function StatisticsTab({
 
           {/* Platform Analytics */}
           <div className="lg:col-span-5 flex flex-col gap-6">
-            <div className="bg-[#0e1626]/50 border border-white/[0.05] rounded-3xl p-6 flex flex-col gap-4 shadow-xl backdrop-blur-xl hover:border-white/[0.08] transition-all duration-300 flex-1">
-              <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
-                <span className="text-[11px] font-black uppercase text-slate-200 tracking-wider flex items-center gap-1.5">
-                  <Share2 className="w-4 h-4 text-blue-400" /> Ma Trận Nền Tảng (Nhấn để Lọc nhanh)
+            <div className="bg-card border border-border rounded-3xl p-6 flex flex-col gap-4 shadow-xl backdrop-blur-xl hover:border-border transition-all duration-300 flex-1">
+              <div className="flex items-center justify-between border-b border-border pb-3">
+                <span className="text-[13px] font-black uppercase text-foreground tracking-wider flex items-center gap-1.5">
+                  <Share2 className="w-4 h-4 text-blue-600 dark:text-blue-400" /> Ma Trận Nền Tảng (Nhấn để Lọc nhanh)
                 </span>
               </div>
               <div className="flex flex-col gap-4.5 justify-center flex-1 py-1">
@@ -1187,15 +1187,15 @@ export default function StatisticsTab({
                   const viewsPct = (stats.views / totalViewsSum) * 100;
 
                   let themeColor = 'from-cyan-500 to-blue-600';
-                  let borderTheme = 'border-cyan-500/20 bg-cyan-950/20';
+                  let borderTheme = 'border-cyan-500/20 bg-cyan-50 dark:bg-cyan-950/20';
                   let progressBg = 'bg-cyan-500';
-                  let icon = <svg className="w-5 h-5 text-cyan-400" viewBox="0 0 24 24" fill="currentColor"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.02 1.59 4.23.99 1.15 2.37 1.93 3.86 2.19v3.81c-1.63-.09-3.2-.66-4.51-1.67-.32-.24-.62-.51-.89-.8-.08 2.65-.03 5.3-.06 7.95-.08 1.93-.7 3.84-1.85 5.38-1.51 1.97-3.92 3.04-6.38 3.06-2.58.01-5.11-1.12-6.62-3.23-1.63-2.18-2.07-5.09-1.2-7.66.77-2.39 2.62-4.32 5.01-5.1 1.07-.37 2.21-.49 3.33-.36V7.47c-1.39-.24-2.88.08-3.99.98-1.15.91-1.79 2.34-1.74 3.82.02 1.45.69 2.84 1.8 3.73 1.18.98 2.79 1.34 4.27.97 1.47-.35 2.71-1.51 3.19-2.94.24-.68.32-1.4.3-2.11-.01-3.69-.01-7.39-.01-11.08-.01-.27.03-.56-.06-.82z" /></svg>;
+                  let icon = <svg className="w-5 h-5 text-cyan-600 dark:text-cyan-400" viewBox="0 0 24 24" fill="currentColor"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.02 1.59 4.23.99 1.15 2.37 1.93 3.86 2.19v3.81c-1.63-.09-3.2-.66-4.51-1.67-.32-.24-.62-.51-.89-.8-.08 2.65-.03 5.3-.06 7.95-.08 1.93-.7 3.84-1.85 5.38-1.51 1.97-3.92 3.04-6.38 3.06-2.58.01-5.11-1.12-6.62-3.23-1.63-2.18-2.07-5.09-1.2-7.66.77-2.39 2.62-4.32 5.01-5.1 1.07-.37 2.21-.49 3.33-.36V7.47c-1.39-.24-2.88.08-3.99.98-1.15.91-1.79 2.34-1.74 3.82.02 1.45.69 2.84 1.8 3.73 1.18.98 2.79 1.34 4.27.97 1.47-.35 2.71-1.51 3.19-2.94.24-.68.32-1.4.3-2.11-.01-3.69-.01-7.39-.01-11.08-.01-.27.03-.56-.06-.82z" /></svg>;
 
                   if (platformKey.includes('Reels') || platformKey.includes('Instagram')) {
-                    themeColor = 'from-pink-500 to-rose-600'; borderTheme = 'border-pink-500/20 bg-pink-950/20'; progressBg = 'bg-pink-500';
-                    icon = <svg className="w-5 h-5 text-pink-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5" /><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" /><line x1="17.5" y1="6.5" x2="17.51" y2="6.5" /></svg>;
+                    themeColor = 'from-pink-500 to-rose-600'; borderTheme = 'border-pink-500/20 bg-pink-50 dark:bg-pink-950/20'; progressBg = 'bg-pink-500';
+                    icon = <svg className="w-5 h-5 text-pink-600 dark:text-pink-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5" /><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" /><line x1="17.5" y1="6.5" x2="17.51" y2="6.5" /></svg>;
                   } else if (platformKey.includes('Shorts') || platformKey.includes('YouTube')) {
-                    themeColor = 'from-red-500 to-orange-600'; borderTheme = 'border-red-500/20 bg-red-950/20'; progressBg = 'bg-red-500';
+                    themeColor = 'from-red-500 to-orange-600'; borderTheme = 'border-red-500/20 bg-red-50 dark:bg-red-950/20'; progressBg = 'bg-red-500';
                     icon = <svg className="w-5 h-5 text-red-500" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.163c-.272-1.016-1.071-1.815-2.087-2.087C19.565 3.5 12 3.5 12 3.5s-7.565 0-9.411.576C1.573 4.348.774 5.147.502 6.163.003 8.01.003 12 .003 12s0 3.99.499 5.837c.272 1.016 1.071 1.815 2.087 2.087 1.846.576 9.411.576 9.411.576s7.565 0 9.411-.576c1.016-.272 1.815-1.071 2.087-2.087.499-1.847.499-5.837.499-5.837s0-3.99-.499-5.837z" /><polygon points="9.75 15.02 15.5 12 9.75 8.98" fill="#0c1322" /></svg>;
                   }
 
@@ -1203,26 +1203,26 @@ export default function StatisticsTab({
 
                   return (
                     <div key={platformKey} onClick={() => setPlatformFilter(isFilterActive ? 'All' : platformKey as any)}
-                      className={`border rounded-3xl p-4 flex flex-col gap-3 transition-all duration-300 hover:scale-[1.01] hover:shadow-lg cursor-pointer ${isFilterActive ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-950/10' : borderTheme}`}>
+                      className={`border rounded-3xl p-4 flex flex-col gap-3 transition-all duration-300 hover:scale-[1.01] hover:shadow-lg cursor-pointer ${isFilterActive ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50 dark:bg-blue-950/10' : borderTheme}`}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2.5">
-                          <div className="p-2 bg-slate-950/50 rounded-xl border border-white/[0.04]">{icon}</div>
-                          <span className="text-xs font-black uppercase tracking-wider text-slate-200">{platformKey}</span>
+                          <div className="p-2 bg-muted rounded-xl border border-border">{icon}</div>
+                          <span className="text-xs font-black uppercase tracking-wider text-foreground">{platformKey}</span>
                         </div>
-                        <span className="text-xs font-black text-white">{formatViewsCompact(stats.views)} views</span>
+                        <span className="text-xs font-black text-foreground">{formatViewsCompact(stats.views)} views</span>
                       </div>
                       <div className="flex flex-col gap-1.5">
-                        <div className="flex items-center justify-between text-[10px] font-bold text-slate-400">
+                        <div className="flex items-center justify-between text-[12px] font-bold text-muted-foreground">
                           <span>Tỷ trọng lượt xem:</span>
-                          <span className="text-white font-extrabold">{viewsPct.toFixed(1)}%</span>
+                          <span className="text-foreground font-extrabold">{viewsPct.toFixed(1)}%</span>
                         </div>
-                        <div className="h-2 w-full bg-slate-950 rounded-full overflow-hidden border border-white/[0.04]">
+                        <div className="h-2 w-full bg-muted rounded-full overflow-hidden border border-border">
                           <div className={`h-full bg-gradient-to-r ${themeColor} rounded-full`} style={{ width: `${viewsPct}%` }} />
                         </div>
                       </div>
-                      <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold border-t border-white/[0.04] pt-2.5 mt-0.5">
-                        <span className="bg-slate-950/40 px-2 py-0.5 rounded border border-white/[0.03]">{total} Video đã đăng</span>
-                        <span className="text-emerald-400 font-extrabold">{stats.win} Win / {stats.fail} Fail ({formattedWinRate})</span>
+                      <div className="flex items-center justify-between text-[12px] text-muted-foreground font-bold border-t border-border pt-2.5 mt-0.5">
+                        <span className="bg-muted px-2 py-0.5 rounded border border-border">{total} Video đã đăng</span>
+                        <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">{stats.win} Win / {stats.fail} Fail ({formattedWinRate})</span>
                       </div>
                     </div>
                   );
@@ -1231,26 +1231,26 @@ export default function StatisticsTab({
             </div>
 
             {/* Editor Contribution Share */}
-            <div className="bg-[#0e1626]/50 border border-white/[0.05] rounded-3xl p-6 flex flex-col gap-4 shadow-xl backdrop-blur-xl hover:border-white/[0.08] transition-all duration-300">
-              <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
-                <span className="text-[11px] font-black uppercase text-slate-200 tracking-wider flex items-center gap-1.5">
-                  <Video className="w-4 h-4 text-purple-400" /> Tỷ lệ Đóng góp Sản lượng Editor
+            <div className="bg-card border border-border rounded-3xl p-6 flex flex-col gap-4 shadow-xl backdrop-blur-xl hover:border-border transition-all duration-300">
+              <div className="flex items-center justify-between border-b border-border pb-3">
+                <span className="text-[13px] font-black uppercase text-foreground tracking-wider flex items-center gap-1.5">
+                  <Video className="w-4 h-4 text-purple-600 dark:text-purple-400" /> Tỷ lệ Đóng góp Sản lượng Editor
                 </span>
-                <span className="text-[10px] text-slate-400 font-bold">Tổng: {totalVal} Video</span>
+                <span className="text-[12px] text-muted-foreground font-bold">Tổng: {totalVal} Video</span>
               </div>
               <div className="flex flex-col gap-3.5 max-h-[160px] overflow-y-auto pr-1 custom-scrollbar">
                 {rankedPerformance.length === 0 ? (
-                  <span className="text-slate-500 text-xs italic font-medium py-4 text-center block">Không có dữ liệu đóng góp</span>
+                  <span className="text-muted-foreground text-xs italic font-medium py-4 text-center block">Không có dữ liệu đóng góp</span>
                 ) : (
                   rankedPerformance.map((perf: any) => {
                     const pct = totalVal > 0 ? (perf.total / totalVal) * 100 : 0;
                     return (
                       <div key={perf.editor} className="flex flex-col gap-1">
-                        <div className="flex items-center justify-between text-[11px] font-bold text-slate-300">
+                        <div className="flex items-center justify-between text-[13px] font-bold text-foreground">
                           <span className="truncate max-w-[150px]">{perf.editor}</span>
-                          <span className="text-slate-400 font-black">{perf.total} video ({pct.toFixed(0)}%)</span>
+                          <span className="text-muted-foreground font-black">{perf.total} video ({pct.toFixed(0)}%)</span>
                         </div>
-                        <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden border border-white/[0.04] flex">
+                        <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden border border-border flex">
                           <div className="h-full bg-emerald-500" style={{ width: `${pct * (perf.total > 0 ? perf.win / perf.total : 0)}%` }} />
                           <div className="h-full bg-rose-500/70" style={{ width: `${pct * (perf.total > 0 ? perf.fail / perf.total : 0)}%` }} />
                         </div>
@@ -1265,41 +1265,41 @@ export default function StatisticsTab({
 
         {/* Action Checklist & Insights */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-[#0e1626]/50 border border-white/[0.05] rounded-3xl p-6 flex flex-col gap-4 shadow-xl backdrop-blur-xl hover:border-white/[0.08] transition-all duration-300">
-            <span className="text-[11px] font-black uppercase text-slate-200 tracking-wider flex items-center gap-1.5 border-b border-white/[0.06] pb-3">
-              <Target className="w-4 h-4 text-cyan-400" /> Nhiệm Vụ Tuần Tới (Checklist)
+          <div className="bg-card border border-border rounded-3xl p-6 flex flex-col gap-4 shadow-xl backdrop-blur-xl hover:border-border transition-all duration-300">
+            <span className="text-[13px] font-black uppercase text-foreground tracking-wider flex items-center gap-1.5 border-b border-border pb-3">
+              <Target className="w-4 h-4 text-cyan-600 dark:text-cyan-400" /> Nhiệm Vụ Tuần Tới (Checklist)
             </span>
             <div className="flex flex-col gap-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
               {actionsList.length === 0 ? (
-                <div className="text-center py-8 text-xs text-slate-500 font-bold">Không có nhiệm vụ nào</div>
+                <div className="text-center py-8 text-xs text-muted-foreground font-bold">Không có nhiệm vụ nào</div>
               ) : (
                 actionsList.map((action: any) => {
-                  let priorityColor = 'text-slate-400 bg-slate-500/10 border-slate-500/30';
-                  if (action.priority === 'Cao') priorityColor = 'text-rose-400 bg-rose-500/10 border-rose-500/30';
-                  else if (action.priority === 'Trung bình') priorityColor = 'text-amber-400 bg-amber-500/10 border-amber-500/30';
-                  let statusColor = 'text-slate-500';
-                  if (action.status === 'Đang tiến hành') statusColor = 'text-blue-400 font-black';
-                  else if (action.status === 'Hoàn thành') statusColor = 'text-emerald-400 font-black';
+                  let priorityColor = 'text-muted-foreground bg-slate-500/10 border-slate-500/30';
+                  if (action.priority === 'Cao') priorityColor = 'text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/30';
+                  else if (action.priority === 'Trung bình') priorityColor = 'text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/30';
+                  let statusColor = 'text-muted-foreground';
+                  if (action.status === 'Đang tiến hành') statusColor = 'text-blue-600 dark:text-blue-400 font-black';
+                  else if (action.status === 'Hoàn thành') statusColor = 'text-emerald-600 dark:text-emerald-400 font-black';
                   return (
-                    <div key={action.id} className="flex gap-3 p-3 bg-[#0c1322]/40 rounded-xl border border-white/[0.02] hover:border-blue-500/10 transition-colors group">
+                    <div key={action.id} className="flex gap-3 p-3 bg-card rounded-xl border border-border hover:border-blue-500/10 transition-colors group">
                       <div className="mt-0.5 shrink-0">
                         {action.status === 'Hoàn thành' ? (
                           <div className="w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center text-slate-950 shadow-[0_0_8px_rgba(16,185,129,0.3)]"><CheckCircle className="w-3.5 h-3.5 stroke-[3px]" /></div>
                         ) : (
-                          <div className="w-4 h-4 rounded-full border border-slate-500 flex items-center justify-center text-transparent hover:border-blue-400 hover:text-blue-400/35 transition-colors cursor-pointer text-[8px] font-bold">✓</div>
+                          <div className="w-4 h-4 rounded-full border border-slate-500 flex items-center justify-center text-transparent hover:border-blue-400 hover:text-blue-400/35 transition-colors cursor-pointer text-[10px] font-bold">✓</div>
                         )}
                       </div>
                       <div className="flex-1 min-w-0 flex flex-col gap-1">
                         <div className="flex items-start justify-between gap-2">
-                          <span className={`text-xs font-black truncate ${action.status === 'Hoàn thành' ? 'line-through text-slate-500' : 'text-slate-200'}`}>{action.title}</span>
-                          <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border shrink-0 flex items-center gap-1 ${priorityColor}`}>
+                          <span className={`text-xs font-black truncate ${action.status === 'Hoàn thành' ? 'line-through text-muted-foreground' : 'text-foreground'}`}>{action.title}</span>
+                          <span className={`text-[11px] font-black px-1.5 py-0.5 rounded border shrink-0 flex items-center gap-1 ${priorityColor}`}>
                             {action.priority === 'Cao' && <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse" />}
                             {action.priority}
                           </span>
                         </div>
-                        <p className={`text-[10.5px] leading-relaxed font-semibold ${action.status === 'Hoàn thành' ? 'text-slate-500' : 'text-slate-400'}`}>{action.description}</p>
-                        <div className="flex items-center justify-between text-[10px] mt-1.5 text-slate-500 font-bold">
-                          <span>Thời hạn: <span className="text-slate-300">{action.deadline}</span></span>
+                        <p className={`text-[12.5px] leading-relaxed font-semibold ${action.status === 'Hoàn thành' ? 'text-muted-foreground' : 'text-muted-foreground'}`}>{action.description}</p>
+                        <div className="flex items-center justify-between text-[12px] mt-1.5 text-muted-foreground font-bold">
+                          <span>Thời hạn: <span className="text-foreground">{action.deadline}</span></span>
                           <span className={statusColor}>{action.status}</span>
                         </div>
                       </div>
@@ -1310,24 +1310,24 @@ export default function StatisticsTab({
             </div>
           </div>
 
-          <div className="bg-[#0e1626]/50 border border-white/[0.05] rounded-3xl p-6 flex flex-col gap-4 shadow-xl backdrop-blur-xl hover:border-white/[0.08] transition-all duration-300">
-            <span className="text-[11px] font-black uppercase text-slate-200 tracking-wider flex items-center gap-1.5 border-b border-white/[0.06] pb-3">
-              <Sparkles className="w-4 h-4 text-amber-400" /> Đánh Giá & Bài Học Rút Ra
+          <div className="bg-card border border-border rounded-3xl p-6 flex flex-col gap-4 shadow-xl backdrop-blur-xl hover:border-border transition-all duration-300">
+            <span className="text-[13px] font-black uppercase text-foreground tracking-wider flex items-center gap-1.5 border-b border-border pb-3">
+              <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400" /> Đánh Giá & Bài Học Rút Ra
             </span>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 h-full">
-              <div className="bg-[#0f2d24]/60 border border-emerald-500/20 rounded-xl p-3.5 flex flex-col gap-2">
-                <span className="text-[10px] font-black uppercase text-emerald-400 tracking-wider flex items-center gap-1"><Trophy className="w-3 h-3 text-emerald-400" /> Bài học Win hàng đầu</span>
-                <div className="flex flex-col gap-2.5 max-h-[220px] overflow-y-auto pr-1 custom-scrollbar text-[10px] text-slate-300 font-bold leading-relaxed">
-                  {topWinReasons.length === 0 ? (<span className="text-slate-500 text-xs italic font-medium py-4 text-center block">Đang tổng hợp dữ liệu...</span>) : (
-                    topWinReasons.map((reason, i) => (<div key={i} className="flex gap-2 p-2.5 bg-[#0c1322]/40 rounded-xl border border-white/[0.01] hover:bg-[#0c1322]/60 transition-colors"><span className="text-emerald-400 font-black shrink-0">✓</span><span className="flex-1 font-semibold text-slate-300">{reason}</span></div>))
+              <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 rounded-xl p-3.5 flex flex-col gap-2">
+                <span className="text-[12px] font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-wider flex items-center gap-1"><Trophy className="w-3 h-3 text-emerald-600 dark:text-emerald-400" /> Bài học Win hàng đầu</span>
+                <div className="flex flex-col gap-2.5 max-h-[220px] overflow-y-auto pr-1 custom-scrollbar text-[12px] text-foreground font-bold leading-relaxed">
+                  {topWinReasons.length === 0 ? (<span className="text-muted-foreground text-xs italic font-medium py-4 text-center block">Đang tổng hợp dữ liệu...</span>) : (
+                    topWinReasons.map((reason, i) => (<div key={i} className="flex gap-2 p-2.5 bg-card rounded-xl border border-border hover:bg-muted transition-colors"><span className="text-emerald-600 dark:text-emerald-400 font-black shrink-0">✓</span><span className="flex-1 font-semibold text-foreground">{reason}</span></div>))
                   )}
                 </div>
               </div>
-              <div className="bg-[#341b1b]/60 border border-rose-500/20 rounded-xl p-3.5 flex flex-col gap-2">
-                <span className="text-[10px] font-black uppercase text-rose-400 tracking-wider flex items-center gap-1"><XCircle className="w-3 h-3 text-rose-400" /> Điểm Fail cần khắc phục</span>
-                <div className="flex flex-col gap-2.5 max-h-[220px] overflow-y-auto pr-1 custom-scrollbar text-[10px] text-slate-300 font-bold leading-relaxed">
-                  {topImprovements.length === 0 ? (<span className="text-slate-500 text-xs italic font-medium py-4 text-center block">Đang tổng hợp dữ liệu...</span>) : (
-                    topImprovements.map((improvement, i) => (<div key={i} className="flex gap-2 p-2.5 bg-[#0c1322]/40 rounded-xl border border-white/[0.01] hover:bg-[#0c1322]/60 transition-colors"><span className="text-rose-400 font-black shrink-0">✗</span><span className="flex-1 font-semibold text-slate-300">{improvement}</span></div>))
+              <div className="bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-xl p-3.5 flex flex-col gap-2">
+                <span className="text-[12px] font-black uppercase text-rose-600 dark:text-rose-400 tracking-wider flex items-center gap-1"><XCircle className="w-3 h-3 text-rose-600 dark:text-rose-400" /> Điểm Fail cần khắc phục</span>
+                <div className="flex flex-col gap-2.5 max-h-[220px] overflow-y-auto pr-1 custom-scrollbar text-[12px] text-foreground font-bold leading-relaxed">
+                  {topImprovements.length === 0 ? (<span className="text-muted-foreground text-xs italic font-medium py-4 text-center block">Đang tổng hợp dữ liệu...</span>) : (
+                    topImprovements.map((improvement, i) => (<div key={i} className="flex gap-2 p-2.5 bg-card rounded-xl border border-border hover:bg-muted transition-colors"><span className="text-rose-600 dark:text-rose-400 font-black shrink-0">✗</span><span className="flex-1 font-semibold text-foreground">{improvement}</span></div>))
                   )}
                 </div>
               </div>
@@ -1378,28 +1378,28 @@ export default function StatisticsTab({
           });
 
           return (
-            <div className="bg-[#0e1626]/50 border border-white/[0.05] rounded-3xl p-6 flex flex-col gap-4 shadow-xl backdrop-blur-xl hover:border-white/[0.08] transition-all duration-300">
-              <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
-                <span className="text-[11px] font-black uppercase text-slate-200 tracking-wider flex items-center gap-1.5">
-                  <TrendingUp className="w-4 h-4 text-emerald-400" /> Báo cáo So sánh chéo các Team (Kỳ hiện tại)
+            <div className="bg-card border border-border rounded-3xl p-6 flex flex-col gap-4 shadow-xl backdrop-blur-xl hover:border-border transition-all duration-300">
+              <div className="flex items-center justify-between border-b border-border pb-3">
+                <span className="text-[13px] font-black uppercase text-foreground tracking-wider flex items-center gap-1.5">
+                  <TrendingUp className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> Báo cáo So sánh chéo các Team (Kỳ hiện tại)
                 </span>
-                <span className="text-[10px] text-slate-400 font-bold">Tổng hợp hiệu năng liên nhóm</span>
+                <span className="text-[12px] text-muted-foreground font-bold">Tổng hợp hiệu năng liên nhóm</span>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* View Comparison Chart */}
                 <div className="flex flex-col gap-3">
-                  <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">So sánh Tổng Lượt Xem</span>
+                  <span className="text-[12px] font-black uppercase text-muted-foreground tracking-wider">So sánh Tổng Lượt Xem</span>
                   <div className="flex flex-col gap-2.5">
                     {crossTeamStats.map((stat) => {
                       const maxViews = Math.max(...crossTeamStats.map(s => s.totalViews), 1);
                       const viewPercentage = (stat.totalViews / maxViews) * 100;
                       return (
                         <div key={stat.teamName} className="flex items-center gap-3">
-                          <span className="w-8 text-[11px] font-black text-slate-300">{stat.teamName}</span>
-                          <div className="flex-1 h-3 bg-slate-950 rounded-lg overflow-hidden border border-white/[0.04] relative flex items-center">
+                          <span className="w-8 text-[13px] font-black text-foreground">{stat.teamName}</span>
+                          <div className="flex-1 h-3 bg-muted rounded-lg overflow-hidden border border-border relative flex items-center">
                             <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg" style={{ width: `${viewPercentage}%` }} />
-                            <span className="absolute right-2 text-[9px] font-black text-white">{formatViewsCompact(stat.totalViews)}</span>
+                            <span className="absolute right-2 text-[11px] font-black text-foreground">{formatViewsCompact(stat.totalViews)}</span>
                           </div>
                         </div>
                       );
@@ -1409,15 +1409,15 @@ export default function StatisticsTab({
 
                 {/* Win Rate Comparison Chart */}
                 <div className="flex flex-col gap-3">
-                  <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">So sánh Tỷ lệ Win Rate</span>
+                  <span className="text-[12px] font-black uppercase text-muted-foreground tracking-wider">So sánh Tỷ lệ Win Rate</span>
                   <div className="flex flex-col gap-2.5">
                     {crossTeamStats.map((stat) => {
                       return (
                         <div key={stat.teamName} className="flex items-center gap-3">
-                          <span className="w-8 text-[11px] font-black text-slate-300">{stat.teamName}</span>
-                          <div className="flex-1 h-3 bg-slate-950 rounded-lg overflow-hidden border border-white/[0.04] relative flex items-center">
+                          <span className="w-8 text-[13px] font-black text-foreground">{stat.teamName}</span>
+                          <div className="flex-1 h-3 bg-muted rounded-lg overflow-hidden border border-border relative flex items-center">
                             <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-600 rounded-lg" style={{ width: `${stat.winRate}%` }} />
-                            <span className="absolute right-2 text-[9px] font-black text-white">{stat.winRate.toFixed(1).replace('.', ',')}% ({stat.totalVids} video)</span>
+                            <span className="absolute right-2 text-[11px] font-black text-foreground">{stat.winRate.toFixed(1).replace('.', ',')}% ({stat.totalVids} video)</span>
                           </div>
                         </div>
                       );
@@ -1427,17 +1427,17 @@ export default function StatisticsTab({
 
                 {/* Average Score Comparison Chart */}
                 <div className="flex flex-col gap-3">
-                  <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">So sánh Điểm Đánh Giá TB</span>
+                  <span className="text-[12px] font-black uppercase text-muted-foreground tracking-wider">So sánh Điểm Đánh Giá TB</span>
                   <div className="flex flex-col gap-2.5">
                     {crossTeamStats.map((stat) => {
                       const maxScore = 10;
                       const scorePercentage = (stat.avgScore / maxScore) * 100;
                       return (
                         <div key={stat.teamName} className="flex items-center gap-3">
-                          <span className="w-8 text-[11px] font-black text-slate-300">{stat.teamName}</span>
-                          <div className="flex-1 h-3 bg-slate-950 rounded-lg overflow-hidden border border-white/[0.04] relative flex items-center">
+                          <span className="w-8 text-[13px] font-black text-foreground">{stat.teamName}</span>
+                          <div className="flex-1 h-3 bg-muted rounded-lg overflow-hidden border border-border relative flex items-center">
                             <div className="h-full bg-gradient-to-r from-purple-500 to-indigo-600 rounded-lg" style={{ width: `${stat.avgScore > 0 ? scorePercentage : 0}%` }} />
-                            <span className="absolute right-2 text-[9px] font-black text-white">
+                            <span className="absolute right-2 text-[11px] font-black text-foreground">
                               {stat.avgScore > 0 ? `${stat.avgScore.toFixed(1)}/10` : 'Chưa chấm'}
                             </span>
                           </div>
@@ -1453,16 +1453,16 @@ export default function StatisticsTab({
 
         {/* Export Progress Toast */}
         {isExporting && (
-          <div className="fixed bottom-6 right-6 z-50 bg-[#0f172a] border border-white/[0.08] p-4.5 rounded-2xl flex items-center gap-4.5 shadow-2xl backdrop-blur-md animate-fade-in w-72">
+          <div className="fixed bottom-6 right-6 z-50 bg-card border border-border p-4.5 rounded-2xl flex items-center gap-4.5 shadow-2xl backdrop-blur-md animate-fade-in w-72">
             <div className="w-10 h-10 shrink-0 rounded-xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center">
               <div className="w-4.5 h-4.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
             </div>
             <div className="flex-1 min-w-0 flex flex-col gap-1">
-              <span className="text-xs font-black text-white uppercase tracking-wider">Đang xuất báo cáo {exportType === 'pdf' ? 'PDF' : 'Excel'}...</span>
-              <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden border border-white/[0.04] mt-0.5">
+              <span className="text-xs font-black text-foreground uppercase tracking-wider">Đang xuất báo cáo {exportType === 'pdf' ? 'PDF' : 'Excel'}...</span>
+              <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden border border-border mt-0.5">
                 <div className="h-full bg-blue-500 rounded-full transition-all duration-150" style={{ width: `${exportProgress}%` }} />
               </div>
-              <span className="text-[9px] text-slate-500 font-bold text-right">{exportProgress}%</span>
+              <span className="text-[11px] text-muted-foreground font-bold text-right">{exportProgress}%</span>
             </div>
           </div>
         )}
@@ -1473,49 +1473,49 @@ export default function StatisticsTab({
           const fails = (baseData.failVideos || []).filter((v: any) => v.editor === selectedEditorDetail.editor);
           return (
             <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-fade-in">
-              <div className="bg-[#0f172a] border border-white/[0.08] rounded-3xl max-w-2xl w-full max-h-[85vh] overflow-y-auto p-6 flex flex-col gap-6 shadow-2xl relative custom-scrollbar">
-                <button onClick={() => setSelectedEditorDetail(null)} className="absolute top-4 right-4 p-1.5 rounded-full bg-slate-800/80 hover:bg-slate-700/85 hover:text-red-400 text-slate-400 transition-all border border-white/[0.04]" title="Đóng cửa sổ"><X className="w-4.5 h-4.5" /></button>
-                <div className="flex items-center gap-4.5 border-b border-white/[0.06] pb-4.5">
-                  <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-500 border border-blue-400 flex items-center justify-center text-white text-xl font-black shadow-lg">{selectedEditorDetail.editor.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}</div>
+              <div className="bg-card border border-border rounded-3xl max-w-2xl w-full max-h-[85vh] overflow-y-auto p-6 flex flex-col gap-6 shadow-2xl relative custom-scrollbar">
+                <button onClick={() => setSelectedEditorDetail(null)} className="absolute top-4 right-4 p-1.5 rounded-full bg-muted hover:bg-accent hover:text-rose-600 dark:hover:text-red-400 text-muted-foreground transition-all border border-border" title="Đóng cửa sổ"><X className="w-4.5 h-4.5" /></button>
+                <div className="flex items-center gap-4.5 border-b border-border pb-4.5">
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-500 border border-blue-400 flex items-center justify-center text-foreground text-xl font-black shadow-lg">{selectedEditorDetail.editor.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}</div>
                   <div className="flex-1 min-w-0">
-                    <span className="text-[9px] font-black uppercase text-blue-400 tracking-wider">Hồ Sơ Editor ({activeTab})</span>
-                    <h2 className="text-xl font-black text-white truncate leading-tight mt-0.5">{selectedEditorDetail.editor}</h2>
+                    <span className="text-[11px] font-black uppercase text-blue-600 dark:text-blue-400 tracking-wider">Hồ Sơ Editor ({activeTab})</span>
+                    <h2 className="text-xl font-black text-foreground truncate leading-tight mt-0.5">{selectedEditorDetail.editor}</h2>
                     <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                      <span className="text-xs font-black text-emerald-400">Tỷ lệ Win: {selectedEditorDetail.winRate}</span>
-                      <span className="text-[10px] text-slate-500 font-bold">•</span>
-                      <span className="text-xs font-bold text-slate-400">{selectedEditorDetail.total} Video đã làm</span>
-                      <span className="text-[10px] text-slate-500 font-bold">•</span>
-                      <span className="text-xs font-bold text-slate-400">Views TB: {selectedEditorDetail.avgViews}</span>
-                      <span className="text-[10px] text-slate-500 font-bold">•</span>
-                      <span className="text-xs font-black text-purple-400">Điểm Đánh giá: {selectedEditorDetail.avgQualityScore}</span>
+                      <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">Tỷ lệ Win: {selectedEditorDetail.winRate}</span>
+                      <span className="text-[12px] text-muted-foreground font-bold">•</span>
+                      <span className="text-xs font-bold text-muted-foreground">{selectedEditorDetail.total} Video đã làm</span>
+                      <span className="text-[12px] text-muted-foreground font-bold">•</span>
+                      <span className="text-xs font-bold text-muted-foreground">Views TB: {selectedEditorDetail.avgViews}</span>
+                      <span className="text-[12px] text-muted-foreground font-bold">•</span>
+                      <span className="text-xs font-black text-purple-600 dark:text-purple-400">Điểm Đánh giá: {selectedEditorDetail.avgQualityScore}</span>
                     </div>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-[#1e293b]/30 border border-white/[0.04] p-3 rounded-2xl text-center shadow"><span className="text-[9px] font-black uppercase text-slate-500 tracking-wider">Video Win</span><p className="text-base font-black text-emerald-400 mt-1">{selectedEditorDetail.win}</p></div>
-                  <div className="bg-[#1e293b]/30 border border-white/[0.04] p-3 rounded-2xl text-center shadow"><span className="text-[9px] font-black uppercase text-slate-500 tracking-wider">Video Fail</span><p className="text-base font-black text-rose-400 mt-1">{selectedEditorDetail.fail}</p></div>
-                  <div className="bg-[#1e293b]/30 border border-white/[0.04] p-3 rounded-2xl text-center shadow"><span className="text-[9px] font-black uppercase text-slate-500 tracking-wider">Lượt xem TB</span><p className="text-base font-black text-blue-400 mt-1">{selectedEditorDetail.avgViews}</p></div>
-                  <div className="bg-[#1e293b]/30 border border-white/[0.04] p-3 rounded-2xl text-center shadow"><span className="text-[9px] font-black uppercase text-slate-500 tracking-wider">Điểm Đánh giá</span><p className="text-base font-black text-purple-400 mt-1">{selectedEditorDetail.avgQualityScore}</p></div>
+                  <div className="bg-muted border border-border p-3 rounded-2xl text-center shadow"><span className="text-[11px] font-black uppercase text-muted-foreground tracking-wider">Video Win</span><p className="text-base font-black text-emerald-600 dark:text-emerald-400 mt-1">{selectedEditorDetail.win}</p></div>
+                  <div className="bg-muted border border-border p-3 rounded-2xl text-center shadow"><span className="text-[11px] font-black uppercase text-muted-foreground tracking-wider">Video Fail</span><p className="text-base font-black text-rose-600 dark:text-rose-400 mt-1">{selectedEditorDetail.fail}</p></div>
+                  <div className="bg-muted border border-border p-3 rounded-2xl text-center shadow"><span className="text-[11px] font-black uppercase text-muted-foreground tracking-wider">Lượt xem TB</span><p className="text-base font-black text-blue-600 dark:text-blue-400 mt-1">{selectedEditorDetail.avgViews}</p></div>
+                  <div className="bg-muted border border-border p-3 rounded-2xl text-center shadow"><span className="text-[11px] font-black uppercase text-muted-foreground tracking-wider">Điểm Đánh giá</span><p className="text-base font-black text-purple-600 dark:text-purple-400 mt-1">{selectedEditorDetail.avgQualityScore}</p></div>
                 </div>
                 <div className="flex flex-col gap-3">
-                  <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5 border-b border-white/[0.04] pb-1.5"><Trophy className="w-3.5 h-3.5 text-amber-400" /> Các Video Win Nổi Bật ({wins.length})</span>
+                  <span className="text-[12px] font-black uppercase text-muted-foreground tracking-wider flex items-center gap-1.5 border-b border-border pb-1.5"><Trophy className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" /> Các Video Win Nổi Bật ({wins.length})</span>
                   <div className="flex flex-col gap-2 max-h-[160px] overflow-y-auto pr-1 custom-scrollbar">
-                    {wins.length === 0 ? (<span className="text-slate-600 text-xs italic font-medium">Chưa ghi nhận video win nào trong danh sách</span>) : (
-                      wins.map((w: any) => (<div key={w.id} className="p-3 bg-[#072419]/35 border border-emerald-500/10 rounded-xl flex flex-col gap-1"><div className="flex items-center justify-between"><span className="text-xs font-black text-white">{w.label} - {w.views}</span><span className="text-[9.5px] font-black text-emerald-400 uppercase tracking-widest bg-emerald-500/10 px-2 py-0.5 rounded-full">{w.platform}</span></div><p className="text-[10.5px] text-slate-300 font-semibold mt-0.5 leading-relaxed">{w.content}</p><p className="text-[10px] text-emerald-400/90 font-medium italic mt-1 bg-emerald-500/5 p-2 rounded-lg border border-emerald-500/5"><strong>Lý do win:</strong> {w.analysis}</p></div>))
+                    {wins.length === 0 ? (<span className="text-muted-foreground text-xs italic font-medium">Chưa ghi nhận video win nào trong danh sách</span>) : (
+                      wins.map((w: any) => (<div key={w.id} className="p-3 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/10 rounded-xl flex flex-col gap-1"><div className="flex items-center justify-between"><span className="text-xs font-black text-foreground">{w.label} - {w.views}</span><span className="text-[11.5px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest bg-emerald-100 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full">{w.platform}</span></div><p className="text-[12.5px] text-foreground font-semibold mt-0.5 leading-relaxed">{w.content}</p><p className="text-[12px] text-emerald-600 dark:text-emerald-400/90 font-medium italic mt-1 bg-emerald-500/5 p-2 rounded-lg border border-emerald-500/5"><strong>Lý do win:</strong> {w.analysis}</p></div>))
                     )}
                   </div>
                 </div>
                 <div className="flex flex-col gap-3">
-                  <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5 border-b border-white/[0.04] pb-1.5"><XCircle className="w-3.5 h-3.5 text-rose-400" /> Các Video Fail cần khắc phục ({fails.length})</span>
+                  <span className="text-[12px] font-black uppercase text-muted-foreground tracking-wider flex items-center gap-1.5 border-b border-border pb-1.5"><XCircle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" /> Các Video Fail cần khắc phục ({fails.length})</span>
                   <div className="flex flex-col gap-2 max-h-[160px] overflow-y-auto pr-1 custom-scrollbar">
-                    {fails.length === 0 ? (<span className="text-slate-600 text-xs italic font-medium">Không có video fail nào trong danh sách</span>) : (
-                      fails.map((f: any) => (<div key={f.id} className="p-3 bg-[#240d0d]/35 border border-rose-500/10 rounded-xl flex flex-col gap-1"><div className="flex items-center justify-between"><span className="text-xs font-black text-white">{f.label} - {f.views}</span><span className="text-[9.5px] font-black text-rose-400 uppercase tracking-widest bg-rose-500/10 px-2 py-0.5 rounded-full">{f.platform}</span></div><p className="text-[10.5px] text-slate-300 font-semibold mt-0.5 leading-relaxed">{f.content}</p><p className="text-[10px] text-rose-400/90 font-medium italic mt-1 bg-rose-500/5 p-2 rounded-lg border border-rose-500/5"><strong>Điểm yếu:</strong> {f.failReason}</p></div>))
+                    {fails.length === 0 ? (<span className="text-muted-foreground text-xs italic font-medium">Không có video fail nào trong danh sách</span>) : (
+                      fails.map((f: any) => (<div key={f.id} className="p-3 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/10 rounded-xl flex flex-col gap-1"><div className="flex items-center justify-between"><span className="text-xs font-black text-foreground">{f.label} - {f.views}</span><span className="text-[11.5px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-widest bg-rose-100 dark:bg-rose-500/10 px-2 py-0.5 rounded-full">{f.platform}</span></div><p className="text-[12.5px] text-foreground font-semibold mt-0.5 leading-relaxed">{f.content}</p><p className="text-[12px] text-rose-600 dark:text-rose-400/90 font-medium italic mt-1 bg-rose-500/5 p-2 rounded-lg border border-rose-500/5"><strong>Điểm yếu:</strong> {f.failReason}</p></div>))
                     )}
                   </div>
                 </div>
-                <div className="bg-purple-950/20 border border-purple-500/15 p-4 rounded-2xl flex flex-col gap-1.5 mt-1">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-purple-400 flex items-center gap-1"><MessageSquare className="w-3.5 h-3.5" /> Lời khuyên & Định hướng từ Leader</span>
-                  <p className="text-xs leading-relaxed text-slate-300 font-medium italic">&quot;{selectedEditorDetail.editor} có thế mạnh lớn về {wins[0] ? 'phát triển concept hình ảnh' : 'dựng nhịp điệu nhanh'}. Cần chú ý hoàn thiện các lỗi nhỏ về {fails[0] ? 'âm thanh nền hoặc captions' : 'hook giữ chân 3 giây đầu'} để tỷ lệ win tăng trưởng mạnh mẽ trong tuần tiếp theo.&quot;</p>
+                <div className="bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-500/15 p-4 rounded-2xl flex flex-col gap-1.5 mt-1">
+                  <span className="text-[12px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400 flex items-center gap-1"><MessageSquare className="w-3.5 h-3.5" /> Lời khuyên & Định hướng từ Leader</span>
+                  <p className="text-xs leading-relaxed text-foreground font-medium italic">&quot;{selectedEditorDetail.editor} có thế mạnh lớn về {wins[0] ? 'phát triển concept hình ảnh' : 'dựng nhịp điệu nhanh'}. Cần chú ý hoàn thiện các lỗi nhỏ về {fails[0] ? 'âm thanh nền hoặc captions' : 'hook giữ chân 3 giây đầu'} để tỷ lệ win tăng trưởng mạnh mẽ trong tuần tiếp theo.&quot;</p>
                 </div>
               </div>
             </div>

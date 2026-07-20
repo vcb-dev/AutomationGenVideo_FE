@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { ShoppingBag, Plus, Search, X, ImageIcon, Edit2, Trash2, Upload } from 'lucide-react'
@@ -8,9 +8,11 @@ import { cn, driveImageUrl } from '@/lib/utils'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
+import { Pagination, PAGE_SIZE } from '@/components/task-auto/Pagination'
+import { HeaderFilterDropdown } from '@/components/task-auto/HeaderFilterDropdown'
 
 import type { TeamProduct } from '@/types/task-auto'
-import { getTeamProducts, getTeams, removeTeamProduct, pushTeamProductToGlobal, getTeamSources, pushTeamSourceToGlobal } from '@/lib/api/task-auto'
+import { getTeamProducts, getTeams, removeTeamProduct, pushTeamProductToGlobal, getTeamSources, pushTeamSourceToGlobal, getProductLines, getProductClassifications } from '@/lib/api/task-auto'
 import { AddProductModal } from './products/AddProductModal'
 import { ProductViewModal } from '@/components/task-auto/ProductViewModal'
 import { TeamProductFormModal } from './products/TeamProductFormModal'
@@ -41,6 +43,9 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
   const [editingProduct, setEditingProduct] = useState<TeamProduct | null>(null)
   const [viewProduct, setViewProduct] = useState<TeamProduct | null>(null)
   const [search, setSearch] = useState('')
+  const [productLineFilter, setProductLineFilter] = useState('')
+  const [classificationFilter, setClassificationFilter] = useState('')
+  const [page, setPage] = useState(1)
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null)
   const [deletingProductName, setDeletingProductName] = useState('')
   const [pushingProduct, setPushingProduct] = useState<TeamProduct | null>(null)
@@ -66,11 +71,32 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
     ? [{ value: '', label: 'Tất cả đội nhóm' }, ...(teams ?? []).map(t => ({ value: t.id, label: t.name }))]
     : myTeams.map(t => ({ value: t.id, label: t.name }))
 
-  const { data: teamProducts, isLoading } = useQuery({
-    queryKey: ['task-auto', 'team-products', selectedTeamId, brandType, month],
-    queryFn: () => getTeamProducts(selectedTeamId, brandType, month),
+  const { data: page1Data, isLoading } = useQuery({
+    queryKey: ['task-auto', 'team-products', selectedTeamId, brandType, month, search, productLineFilter, classificationFilter, page],
+    queryFn: () => getTeamProducts(selectedTeamId, brandType, month, {
+      page, limit: PAGE_SIZE, search: search || undefined,
+      product_line_id: productLineFilter || undefined, classification_id: classificationFilter || undefined,
+    }),
     enabled: !!selectedTeamId,
   })
+  const teamProducts = page1Data?.data ?? []
+  const total = page1Data?.total ?? 0
+
+  // Danh sách SKU đầy đủ trong kho team (không phân trang) — chỉ dùng để loại sản phẩm đã có
+  // ra khỏi danh sách "chọn từ kho tổng" trong AddProductModal, không dùng để hiển thị bảng.
+  const { data: allTeamProducts } = useQuery({
+    queryKey: ['task-auto', 'team-products-all-skus', selectedTeamId, brandType],
+    queryFn: () => getTeamProducts(selectedTeamId, brandType),
+    enabled: !!selectedTeamId && showAdd,
+  })
+
+  // Danh sách dòng SP/phân loại toàn hệ thống — dùng làm option cho dropdown lọc (không kèm
+  // số đếm theo kho team nữa vì bảng chính giờ đã phân trang server, không còn toàn bộ dữ liệu
+  // trong bộ nhớ để đếm).
+  const { data: allProductLines } = useQuery({ queryKey: ['task-auto', 'product-lines'], queryFn: getProductLines })
+  const { data: allClassifications } = useQuery({ queryKey: ['task-auto', 'product-classifications'], queryFn: getProductClassifications })
+  const productLineOptions = (allProductLines ?? []).map(l => ({ value: l.id, label: l.name })).sort((a, b) => a.label.localeCompare(b.label, 'vi'))
+  const classificationOptions = (allClassifications ?? []).map(c => ({ value: c.id, label: c.name })).sort((a, b) => a.label.localeCompare(b.label, 'vi'))
 
   const removeMut = useMutation({
     mutationFn: (productId: string) => removeTeamProduct(selectedTeamId, productId),
@@ -103,15 +129,9 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Đẩy ra kho tổng thất bại'),
   })
 
-  const existingSkus = (teamProducts ?? []).map(tp => tp.sku ?? tp.source_editor_product?.sku ?? '').filter(Boolean)
+  const existingSkus = (allTeamProducts ?? []).map(tp => tp.sku ?? tp.source_editor_product?.sku ?? '').filter(Boolean)
 
-  const filtered = (teamProducts ?? []).filter(tp => {
-    if (!search) return true
-    const q = search.toLowerCase()
-    const effectiveName = tp.name ?? tp.source_editor_product?.name ?? ''
-    const effectiveSku = tp.sku ?? tp.source_editor_product?.sku ?? ''
-    return effectiveName.toLowerCase().includes(q) || effectiveSku.toLowerCase().includes(q)
-  })
+  useEffect(() => { setPage(1) }, [selectedTeamId, brandType, month, search, productLineFilter, classificationFilter])
 
   return (
     <div className="space-y-5">
@@ -157,9 +177,9 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
             className="px-3 py-3.5 border border-gray-200 rounded-xl text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
           />
 
-          {selectedTeamId && teamProducts && (
+          {selectedTeamId && page1Data && (
             <span className="text-sm text-slate-400 font-medium whitespace-nowrap">
-              {filtered.length} sản phẩm
+              {total} sản phẩm
             </span>
           )}
 
@@ -185,7 +205,22 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
                 <tr className="bg-slate-50 border-b-2 border-gray-200">
                   <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">SKU</th>
                   <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Sản phẩm</th>
-                  <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Dòng SP</th>
+                  <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">
+                    <HeaderFilterDropdown
+                      label="Dòng SP"
+                      value={productLineFilter}
+                      onChange={setProductLineFilter}
+                      options={productLineOptions}
+                    />
+                  </th>
+                  <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">
+                    <HeaderFilterDropdown
+                      label="Phân loại"
+                      value={classificationFilter}
+                      onChange={setClassificationFilter}
+                      options={classificationOptions}
+                    />
+                  </th>
                   <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Thị trường</th>
                   <th className="text-right px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Giá bán</th>
                   <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Trạng thái</th>
@@ -198,7 +233,7 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
                 {/* Loading skeleton */}
                 {isLoading && Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i}>
-                    {Array.from({ length: 9 }).map((_, j) => (
+                    {Array.from({ length: 10 }).map((_, j) => (
                       <td key={j} className="px-5 py-4">
                         <div className="h-4 bg-gray-100 rounded animate-pulse" />
                       </td>
@@ -207,10 +242,10 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
                 ))}
 
                 {/* Empty states */}
-                {!isLoading && filtered.length === 0 && (
+                {!isLoading && teamProducts.length === 0 && (
                   <tr>
-                    <td colSpan={9}>
-                      {teamProducts?.length === 0 ? (
+                    <td colSpan={10}>
+                      {total === 0 && !search && !productLineFilter && !classificationFilter ? (
                         <div className="flex flex-col items-center justify-center py-14 gap-3">
                           <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center">
                             <ShoppingBag className="w-7 h-7 text-indigo-300" />
@@ -238,7 +273,7 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
                 )}
 
                 {/* Rows */}
-                {!isLoading && filtered.map((tp: TeamProduct) => {
+                {!isLoading && teamProducts.map((tp: TeamProduct) => {
                   const ep = tp.source_editor_product
                   const tpName = tp.name ?? ep?.name ?? '—'
                   const tpSku = tp.sku ?? ep?.sku ?? null
@@ -295,6 +330,14 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
                       <td className="px-5 py-4 whitespace-nowrap">
                         {tp.product_line?.name
                           ? <span className="text-sm font-medium text-slate-700">{tp.product_line.name}</span>
+                          : <span className="text-slate-300 text-sm">—</span>
+                        }
+                      </td>
+
+                      {/* Phân loại */}
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        {tp.classification?.name
+                          ? <span className="text-sm font-medium text-slate-700">{tp.classification.name}</span>
                           : <span className="text-slate-300 text-sm">—</span>
                         }
                       </td>
@@ -392,6 +435,7 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
               </tbody>
             </table>
           </div>
+          <Pagination page={page} pageSize={PAGE_SIZE} totalItems={total} onPageChange={setPage} />
         </div>
       )}
 

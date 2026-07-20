@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import { useQuery } from '@tanstack/react-query'
+import toast from 'react-hot-toast'
 import {
-  Package, X, Star, Trash2, Download,
+  Package, X, Star, Trash2, Download, Timer,
   ChevronLeft, ChevronRight, Edit2, ZoomIn, Database, ExternalLink,
   SendHorizontal, Globe,
 } from 'lucide-react'
@@ -24,8 +25,10 @@ export interface ProductViewItem {
   price?: string | number | null
   price_segment?: string | null
   priority_score?: number
+  cooldown_days?: number | null
   material?: { id: string; name: string } | null
   product_line?: { id: string; name: string } | null
+  classification?: { id: string; name: string } | null
   is_active?: boolean
   added_by?: { id: string; full_name: string } | null
   added_at?: string
@@ -36,19 +39,24 @@ export interface ProductViewItem {
   source_editor_product?: {
     sku: string | null; name: string | null; image_url?: string | null; image_urls?: string[]
     price?: string | number | null; price_segment?: string | null
-    market?: string | null; priority_score?: number
+    market?: string | null; priority_score?: number; cooldown_days?: number | null
     material?: { id: string; name: string } | null; product_line?: { id: string; name: string } | null
+    classification?: { id: string; name: string } | null
     material_id?: string | null; product_line_id?: string | null
   } | null
   source_team_product_id?: string | null
   source_team_product?: {
     sku: string | null; name: string | null; image_url?: string | null; image_urls?: string[]
     price?: string | number | null; price_segment?: string | null; market?: string | null; priority_score?: number
+    cooldown_days?: number | null
     material?: { id: string; name: string } | null; product_line?: { id: string; name: string } | null
+    classification?: { id: string; name: string } | null
     source_editor_product?: {
       sku: string | null; name: string | null; image_url?: string | null; image_urls?: string[]
       price?: string | number | null; price_segment?: string | null; market?: string | null; priority_score?: number
+      cooldown_days?: number | null
       material?: { id: string; name: string } | null; product_line?: { id: string; name: string } | null
+      classification?: { id: string; name: string } | null
     } | null
   } | null
 }
@@ -98,6 +106,7 @@ export function ProductViewModal({
   const itemPrice = item.price ?? ep?.price ?? tp?.price ?? tp_ep?.price ?? null
   const itemPriceSegment = item.price_segment ?? ep?.price_segment ?? tp?.price_segment ?? tp_ep?.price_segment ?? null
   const itemPrioScore = item.priority_score ?? ep?.priority_score ?? tp?.priority_score ?? tp_ep?.priority_score ?? 0
+  const itemCooldownDays = item.cooldown_days ?? ep?.cooldown_days ?? tp?.cooldown_days ?? tp_ep?.cooldown_days ?? null
   const imageUrls = item.image_urls?.length ? item.image_urls
     : ep?.image_urls?.length ? ep.image_urls
     : tp?.image_urls?.length ? tp.image_urls
@@ -105,6 +114,7 @@ export function ProductViewModal({
   const imageUrl = item.image_url ?? ep?.image_url ?? tp?.image_url ?? tp_ep?.image_url ?? null
   const itemMaterial = item.material ?? ep?.material ?? tp?.material ?? tp_ep?.material ?? null
   const itemProductLine = item.product_line ?? ep?.product_line ?? tp?.product_line ?? tp_ep?.product_line ?? null
+  const itemClassification = item.classification ?? ep?.classification ?? tp?.classification ?? tp_ep?.classification ?? null
 
   const images = imageUrls.length ? imageUrls : imageUrl ? [imageUrl] : []
   const markets = (itemMarket ?? '').split(',').map(m => m.trim()).filter(Boolean)
@@ -143,12 +153,24 @@ export function ProductViewModal({
   const loadingSrc = loadingGlobalSrc || loadingTeamSrc || loadingEditorSrc || loadingGlobalForTeam
 
   const downloadImage = async (url: string, name: string) => {
+    const toastId = toast.loading('Đang tải ảnh...')
     try {
-      const res = await fetch(url, { mode: 'cors' })
+      const proxyUrl = `/api/capture-image?url=${encodeURIComponent(url)}`
+      const res = await fetch(proxyUrl)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const blob = await res.blob()
-      const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: name })
-      document.body.appendChild(a); a.click(); document.body.removeChild(a)
-    } catch { window.open(url, '_blank') }
+      const objectUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = objectUrl
+      a.download = name
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(objectUrl)
+      toast.success('Đã tải ảnh thành công', { id: toastId })
+    } catch {
+      toast.error('Không thể tải ảnh', { id: toastId })
+    }
   }
 
   if (!open) return null
@@ -276,7 +298,7 @@ export function ProductViewModal({
                       : <p className="text-base text-slate-300 italic">Chưa có giá</p>}
                   </div>
 
-                  {(itemProductLine || itemMaterial || itemPriceSegment || item.brand_type || prioScore > 0) && (
+                  {(itemProductLine || itemMaterial || itemClassification || itemPriceSegment || item.brand_type || prioScore > 0 || itemCooldownDays != null) && (
                     <div>
                       <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Thông tin</p>
                       <div className="space-y-0">
@@ -298,6 +320,12 @@ export function ProductViewModal({
                             <span className="text-base font-semibold text-slate-800">{itemMaterial.name}</span>
                           </div>
                         )}
+                        {itemClassification && (
+                          <div className="flex items-center justify-between py-3 border-b border-slate-50">
+                            <span className="text-base text-slate-500">Phân loại</span>
+                            <span className="text-base font-semibold text-slate-800">{itemClassification.name}</span>
+                          </div>
+                        )}
                         {itemPriceSegment && (
                           <div className="flex items-center justify-between py-3 border-b border-slate-50">
                             <span className="text-base text-slate-500">Phân khúc giá</span>
@@ -305,10 +333,18 @@ export function ProductViewModal({
                           </div>
                         )}
                         {prioScore > 0 && (
-                          <div className="flex items-center justify-between py-3">
+                          <div className={cn('flex items-center justify-between py-3', itemCooldownDays != null ? 'border-b border-slate-50' : '')}>
                             <span className="text-base text-slate-500">Điểm ưu tiên</span>
                             <span className="flex items-center gap-2 text-base font-bold text-amber-600">
                               <Star className="w-5 h-5 fill-amber-400 text-amber-400" /> {prioScore}
+                            </span>
+                          </div>
+                        )}
+                        {itemCooldownDays != null && (
+                          <div className="flex items-center justify-between py-3">
+                            <span className="text-base text-slate-500">Cooldown</span>
+                            <span className="flex items-center gap-2 text-base font-bold text-indigo-600">
+                              <Timer className="w-5 h-5" /> {itemCooldownDays} ngày
                             </span>
                           </div>
                         )}

@@ -84,7 +84,7 @@ export default function CaseStudyTable({
 
 
   return (
-    <div className="flex flex-col rounded-xl overflow-hidden border border-purple-500/20 shadow-lg shadow-purple-950/10">
+    <div className="flex flex-col rounded-xl overflow-hidden border border-purple-200 dark:border-purple-500/20 shadow-lg shadow-purple-950/10">
       <style dangerouslySetInnerHTML={{
         __html: `
         .editable-placeholder:empty::before {
@@ -97,19 +97,19 @@ export default function CaseStudyTable({
       `}} />
       <div
         onClick={onToggle}
-        className="bg-[#1e1b4b] px-4 py-3 flex items-center justify-between border-b border-purple-500/20 cursor-pointer select-none hover:bg-[#2e2a72] transition-colors"
+        className="bg-purple-50 dark:bg-purple-500/10 px-4 py-3 flex items-center justify-between border-b border-purple-200 dark:border-purple-500/20 cursor-pointer select-none hover:bg-purple-100 dark:hover:bg-purple-500/20 transition-colors"
       >
-        <span className="text-purple-300 font-black tracking-wider text-sm uppercase flex items-center gap-2">
-          <Lightbulb className="w-4 h-4 text-purple-400" /> Case Study hay bên ngoài
+        <span className="text-purple-700 dark:text-purple-400 font-black tracking-wider text-sm uppercase flex items-center gap-2">
+          <Lightbulb className="w-4 h-4 text-purple-700 dark:text-purple-400" /> Case Study hay bên ngoài
         </span>
-        <ChevronDown className={`w-4 h-4 text-purple-400 transition-transform duration-200 ${isCollapsed ? '-rotate-90' : ''}`} />
+        <ChevronDown className={`w-4 h-4 text-purple-700 dark:text-purple-400 transition-transform duration-200 ${isCollapsed ? '-rotate-90' : ''}`} />
       </div>
 
       {!isCollapsed && (
-        <div className={`bg-[#0c1322] p-6 overflow-x-auto overflow-y-hidden transition-all duration-200 ${getBottomPaddingClass()}`}>
+        <div className={`bg-card p-6 overflow-x-auto overflow-y-hidden transition-all duration-200 ${getBottomPaddingClass()}`}>
           <table className="w-full table-fixed text-left border-collapse min-w-[1100px]">
             <thead>
-              <tr className="border-b border-white/[0.08] text-slate-400 text-[10px] uppercase tracking-wider font-bold bg-white/[0.02]">
+              <tr className="border-b border-border text-muted-foreground text-[12px] uppercase tracking-wider font-bold bg-muted/40">
                 <th className="py-3 px-4 w-12 text-center">#</th>
                 <th className="py-3 px-4 w-16">TEAM</th>
                 <th className="py-3 px-4 w-28">EDITOR</th>
@@ -127,22 +127,22 @@ export default function CaseStudyTable({
                 const isMock = video.title === 'Data point';
                 const isSaving = typeof video.dbId === 'string' && video.dbId.startsWith('temp-');
                 return (
-                  <tr key={idx} className={`hover:bg-white/[0.02] transition-colors ${isSaving ? 'opacity-70' : ''}`}>
-                    <td className="py-3.5 px-4 text-center text-slate-500 font-bold text-xs">{idx + 1}</td>
-                    <td className="py-3.5 px-4 text-slate-300 font-semibold text-xs">
+                  <tr key={idx} className={`hover:bg-accent transition-colors ${isSaving ? 'opacity-70' : ''}`}>
+                    <td className="py-3.5 px-4 text-center text-muted-foreground font-bold text-xs">{idx + 1}</td>
+                    <td className="py-3.5 px-4 text-muted-foreground font-semibold text-xs">
                       {isMock ? 'Data point' : 'Bên ngoài'}
                     </td>
                     <td
                       contentEditable={!isMock}
                       suppressContentEditableWarning
                       onBlur={(e) => onUpdateRow(idx, 'channel', e.currentTarget.textContent || '')}
-                      className="py-3.5 px-4 text-slate-300 font-medium text-xs outline-none focus:bg-white/[0.04] cursor-text break-words whitespace-normal"
+                      className="py-3.5 px-4 text-muted-foreground font-medium text-xs outline-none focus:bg-accent cursor-text break-words whitespace-normal"
                     >
                       {video.channel}
                     </td>
-                     <td className="py-2 px-3 max-w-[120px] focus-within:bg-white/[0.04] truncate">
+                     <td className="py-2 px-3 max-w-[120px] focus-within:bg-accent truncate">
                        {isMock ? (
-                         <span className="text-slate-500 text-xs">-</span>
+                         <span className="text-muted-foreground text-xs">-</span>
                        ) : (
                          <LinkInput
                            value={video.videoUrl || ''}
@@ -181,7 +181,7 @@ export default function CaseStudyTable({
                         dataPlaceholder="Case Study mới"
                         onSave={(val) => onUpdateRow(idx, 'title', val)}
                         disabled={isMock}
-                        className="text-slate-300 text-xs leading-relaxed"
+                        className="text-muted-foreground text-xs leading-relaxed"
                       />
                     </td>
                     <td className="py-3 px-4">
@@ -191,7 +191,7 @@ export default function CaseStudyTable({
                         dataPlaceholder="Nhấp đúp để nhập bài học..."
                         onSave={(val) => onUpdateRow(idx, 'takeaway', val)}
                         disabled={isMock}
-                        className="text-slate-300 text-xs leading-relaxed"
+                        className="text-muted-foreground text-xs leading-relaxed"
                       />
                     </td>
                     <td
@@ -204,7 +204,7 @@ export default function CaseStudyTable({
                         onUpdateRow(idx, 'views', formatted);
                         e.currentTarget.textContent = formatted;
                       }}
-                      className="py-3.5 px-4 text-right font-bold text-xs text-purple-400 outline-none focus:bg-white/[0.04] cursor-text"
+                      className="py-3.5 px-4 text-right font-bold text-xs text-purple-700 dark:text-purple-400 outline-none focus:bg-accent cursor-text"
                     >
                       {isMock ? '-' : formatDotViews(video.views)}
                     </td>
@@ -225,10 +225,10 @@ export default function CaseStudyTable({
             </tbody>
           </table>
 
-          <div className="mt-4 pt-3 border-t border-white/[0.04] flex justify-start">
+          <div className="mt-4 pt-3 border-t border-border flex justify-start">
             <button
               onClick={onAddRow}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-white/[0.06] hover:bg-white/[0.12] text-slate-300 hover:text-white rounded-lg text-xs font-bold transition shadow"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-muted hover:bg-accent text-muted-foreground hover:text-foreground rounded-lg text-xs font-bold transition shadow"
             >
               <Plus className="w-3.5 h-3.5" /> Thêm dòng mới
             </button>

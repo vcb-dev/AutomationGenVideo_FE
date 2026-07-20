@@ -105,6 +105,14 @@ function getContentTitle(c: any): string {
     || 'Unknown'
 }
 
+function getContentCode(c: any): string | undefined {
+  return c.code
+    || c.source_editor_content?.code
+    || c.source_team_content?.code
+    || c.source_team_content?.source_editor_content?.code
+    || undefined
+}
+
 function getContentLine(c: any): string | undefined {
   if (!c) return undefined
   return c.content_line?.name
@@ -228,7 +236,9 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
 
   const teamContents: Content[] = (teamContentsRaw ?? [])
     .map(tc => tc as unknown as Content)
-    .filter(c => !contentSearch || getContentTitle(c).toLowerCase().includes(contentSearch.toLowerCase()))
+    .filter(c => !contentSearch ||
+      getContentTitle(c).toLowerCase().includes(contentSearch.toLowerCase()) ||
+      getContentCode(c)?.toLowerCase().includes(contentSearch.toLowerCase()))
 
   const contents: Content[] =
     contentScope === 'personal' ? (personalContentsData?.data ?? []) :
@@ -399,14 +409,14 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
             items={contents.map(c => ({
               value: c.id,
               label: getContentTitle(c),
-              sublabel: getContentLine(c),
+              sublabel: getContentCode(c),
             }))}
             searchValue={contentSearch}
             onSearchChange={setContentSearch}
             loading={loadingContents}
             placeholder={`Tìm trong ${scopeLabel[contentScope]}...`}
             clearLabel="-- Không chọn --"
-            searchPlaceholder="Tìm theo tiêu đề..."
+            searchPlaceholder="Tìm theo mã hoặc tiêu đề..."
             createLabel="Tạo content mới..."
             onCreateClick={() => setShowContentModal(true)}
             filterSlot={<ScopeSwitch value={contentScope} onChange={setContentScope} hasTeam={!!activeTeamForWarehouse} />}
@@ -451,7 +461,7 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
             <div className="flex flex-wrap gap-2 pl-1">
               <span className="text-xs text-slate-400 self-center">Source kèm:</span>
               {productSources.map(s => (
-                <a key={s.id} href={s.link} target="_blank" rel="noopener noreferrer"
+                <a key={s.id} href={s.link ?? undefined} target="_blank" rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-medium rounded-full transition-colors">
                   {s.name}
                 </a>

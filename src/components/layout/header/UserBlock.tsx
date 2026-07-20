@@ -1,13 +1,5 @@
-import { User, UserRole } from "@/types/auth";
-
-const ROLE_LABELS: Record<UserRole, string> = {
-    [UserRole.ADMIN]: "Quản trị viên",
-    [UserRole.MANAGER]: "Quản lý",
-    [UserRole.LEADER]: "Trưởng nhóm",
-    [UserRole.MEMBER]: "Thành viên",
-    [UserRole.EDITOR]: "Editor",
-    [UserRole.CONTENT]: "Content",
-};
+import { User } from "@/types/auth";
+import { useRoleLabels } from "./use-role-labels";
 
 interface UserBlockProps {
     user: User;
@@ -16,7 +8,8 @@ interface UserBlockProps {
 }
 
 export default function UserBlock({ user, userInitial, className = "" }: UserBlockProps) {
-    const roleLabel = user?.roles?.[0] ? (ROLE_LABELS[user.roles[0]] ?? user.roles[0]) : "";
+    const roleLabels = useRoleLabels();
+    const roleLabel = user?.roles?.[0] ? (roleLabels[user.roles[0]] ?? user.roles[0]) : "";
 
     return (
         <div className={`flex items-center gap-2.5 ${className}`}>

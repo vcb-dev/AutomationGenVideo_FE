@@ -10,17 +10,23 @@ import { useAuthStore } from '@/store/auth-store';
 import { getDashboardPathForRoles } from '@/lib/post-login-redirect';
 import { motion } from 'framer-motion';
 import { Loader2, Mail, Lock, ArrowRight } from 'lucide-react';
+import { useLang, type SocialT } from '@/contexts/SocialLanguageContext';
+import { useMemo } from 'react';
 
-const loginSchema = z.object({
-  email: z.string().email('Email không hợp lệ'),
-  password: z.string().min(8, 'Mật khẩu phải có ít nhất 8 ký tự'),
-});
+const buildLoginSchema = (t: SocialT['login']) =>
+  z.object({
+    email: z.string().email(t.emailInvalid),
+    password: z.string().min(8, t.passwordMin),
+  });
 
-type LoginFormData = z.infer<typeof loginSchema>;
+type LoginFormData = z.infer<ReturnType<typeof buildLoginSchema>>;
 
 export default function LoginClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { t } = useLang();
+  const tl = t.login;
+  const loginSchema = useMemo(() => buildLoginSchema(tl), [tl]);
   const { login, error, clearError } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -83,7 +89,7 @@ export default function LoginClient() {
             <Image src="/logo-vcb.png" alt="VCB" className="w-full h-full object-cover" width={64} height={64} unoptimized />
           </div>
           <h2 className="text-2xl font-bold text-white tracking-tight">Viễn Chí Bảo</h2>
-          <p className="text-slate-400 text-sm mt-1">Video Intelligence Platform</p>
+          <p className="text-slate-400 text-sm mt-1">{tl.brandTagline}</p>
         </motion.div>
 
         {/* Glass Card */}
@@ -96,8 +102,8 @@ export default function LoginClient() {
           <div className="bg-slate-900/60 backdrop-blur-xl border border-slate-800 rounded-3xl p-8 shadow-2xl">
 
             <div className="mb-8 text-center">
-              <h1 className="text-xl font-semibold text-white mb-2">Đăng nhập tài khoản</h1>
-              <p className="text-slate-400 text-sm">Nhập thông tin của bạn để truy cập hệ thống</p>
+              <h1 className="text-xl font-semibold text-white mb-2">{tl.title}</h1>
+              <p className="text-slate-400 text-sm">{tl.subtitle}</p>
             </div>
 
             {error && (
@@ -114,7 +120,7 @@ export default function LoginClient() {
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
 
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-300 ml-1">Email</label>
+                <label className="text-xs font-medium text-slate-300 ml-1">{tl.emailLabel}</label>
                 <div className="relative group">
                   <Mail className="absolute left-4 top-3.5 w-5 h-5 text-slate-500 group-focus-within:text-blue-500 transition-colors" />
                   <input
@@ -128,10 +134,7 @@ export default function LoginClient() {
               </div>
 
               <div className="space-y-1.5">
-                <div className="flex justify-between items-center ml-1 pr-1">
-                  <label className="text-xs font-medium text-slate-300">Mật khẩu</label>
-                  <a href="#" className="text-xs text-blue-400 hover:text-blue-300 transition-colors">Quên mật khẩu?</a>
-                </div>
+                <label className="text-xs font-medium text-slate-300 ml-1">{tl.passwordLabel}</label>
                 <div className="relative group">
                   <Lock className="absolute left-4 top-3.5 w-5 h-5 text-slate-500 group-focus-within:text-blue-500 transition-colors" />
                   <input
@@ -152,13 +155,13 @@ export default function LoginClient() {
                 {isLoading ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
-                  <>Đăng nhập <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" /></>
+                  <>{tl.submit} <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" /></>
                 )}
               </button>
 
               <div className="relative py-4">
                 <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-800" /></div>
-                <div className="relative flex justify-center text-xs uppercase"><span className="bg-[#0f192d] px-2 text-slate-500">Hoặc</span></div>
+                <div className="relative flex justify-center text-xs uppercase"><span className="bg-[#0f192d] px-2 text-slate-500">{tl.or}</span></div>
               </div>
 
               <button
@@ -175,7 +178,7 @@ export default function LoginClient() {
                   <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.84z" />
                   <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
                 </svg>
-                Tiếp tục với Google
+                {tl.continueWithGoogle}
               </button>
 
             </form>
@@ -183,7 +186,7 @@ export default function LoginClient() {
 
           <div className="mt-8 text-center">
             <p className="text-slate-500 text-sm">
-              Chưa có tài khoản? Liên hệ Leader/Admin để được cấp quyền truy cập.
+              {tl.noAccount}
             </p>
           </div>
         </motion.div>

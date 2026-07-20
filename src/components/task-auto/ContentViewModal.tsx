@@ -41,6 +41,7 @@ const CATALOG_COLORS: Record<string, string> = {
 
 export interface ContentViewItem {
   id: string
+  code?: string | null
   title?: string | null
   brand_type?: string | null
   market?: string | null
@@ -50,27 +51,31 @@ export interface ContentViewItem {
   voice_url?: string | null
   file_content_url?: string | null
   content_line?: { name: string } | null
+  classification?: { name: string } | null
   added_by?: { full_name: string } | null
   added_at?: string
   created_at?: string
   source_editor_content_id?: string | null
   source_editor_content?: {
-    title?: string | null; body?: string | null; script?: string | null
+    code?: string | null; title?: string | null; body?: string | null; script?: string | null
     voice_url?: string | null; file_content_url?: string | null
     market?: string | null; status?: string | null
     content_line?: { name: string } | null
+    classification?: { name: string } | null
   } | null
   source_team_content_id?: string | null
   source_team_content?: {
-    title?: string | null; body?: string | null; script?: string | null
+    code?: string | null; title?: string | null; body?: string | null; script?: string | null
     voice_url?: string | null; file_content_url?: string | null
     market?: string | null; status?: string | null
     content_line?: { name: string } | null
+    classification?: { name: string } | null
     source_editor_content?: {
-      title?: string | null; body?: string | null; script?: string | null
+      code?: string | null; title?: string | null; body?: string | null; script?: string | null
       voice_url?: string | null; file_content_url?: string | null
       market?: string | null; status?: string | null
       content_line?: { name: string } | null
+      classification?: { name: string } | null
     } | null
   } | null
 }
@@ -102,6 +107,7 @@ export function ContentViewModal({
   const ec = item.source_editor_content
   const tc = item.source_team_content
   const tc_ec = tc?.source_editor_content
+  const itemCode = item.code ?? ec?.code ?? tc?.code ?? tc_ec?.code ?? null
   const itemTitle = item.title ?? ec?.title ?? tc?.title ?? tc_ec?.title ?? null
   const itemMarket = item.market ?? ec?.market ?? tc?.market ?? tc_ec?.market ?? null
   const itemStatus = item.status ?? ec?.status ?? tc?.status ?? tc_ec?.status ?? null
@@ -110,6 +116,7 @@ export function ContentViewModal({
   const itemVoiceUrl = item.voice_url ?? ec?.voice_url ?? tc?.voice_url ?? tc_ec?.voice_url ?? null
   const itemFileContentUrl = item.file_content_url ?? ec?.file_content_url ?? tc?.file_content_url ?? tc_ec?.file_content_url ?? null
   const itemContentLine = item.content_line ?? ec?.content_line ?? tc?.content_line ?? tc_ec?.content_line ?? null
+  const itemClassification = item.classification ?? ec?.classification ?? tc?.classification ?? tc_ec?.classification ?? null
 
   const markets = (itemMarket ?? '').split(',').map(m => m.trim()).filter(Boolean)
   const voicePreviewSrc = drivePreviewUrl(itemVoiceUrl)
@@ -149,6 +156,11 @@ export function ContentViewModal({
                   <h2 className="font-bold text-slate-900 text-xl leading-snug">
                     {itemTitle || <span className="text-slate-400 italic font-normal text-lg">Chưa đặt tên</span>}
                   </h2>
+                  {itemCode && (
+                    <span className="px-2.5 py-1 rounded-full text-xs font-mono font-semibold bg-slate-100 text-slate-600 shrink-0">
+                      {itemCode}
+                    </span>
+                  )}
                   {itemStatus && (
                     <span className={cn('px-2.5 py-1 rounded-full text-xs font-semibold shrink-0', STATUS_COLORS[itemStatus] ?? 'bg-slate-100 text-slate-500')}>
                       {STATUS_LABELS[itemStatus] ?? itemStatus}
@@ -189,6 +201,11 @@ export function ContentViewModal({
                   {itemContentLine && (
                     <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-violet-100 text-violet-700">
                       {itemContentLine.name}
+                    </span>
+                  )}
+                  {itemClassification && (
+                    <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-fuchsia-100 text-fuchsia-700">
+                      {itemClassification.name}
                     </span>
                   )}
                   <span className={cn('px-2 py-0.5 rounded-md text-xs font-semibold', CATALOG_COLORS[catalogType])}>

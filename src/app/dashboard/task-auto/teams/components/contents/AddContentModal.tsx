@@ -7,7 +7,7 @@ import { FileText, Search, Check, Loader2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { addTeamContent, getContents } from '@/lib/api/task-auto'
-import type { BrandType } from '@/types/task-auto'
+import type { BrandType, Content } from '@/types/task-auto'
 
 interface Props {
   open: boolean
@@ -32,6 +32,18 @@ export function AddContentModal({ open, teamId, existingContentIds, onClose, onS
   })
 
   const available = (contentsData?.data ?? []).filter(c => !existingContentIds.includes(c.id))
+
+  // Content được đẩy lên kho tổng từ kho team/cá nhân có title/tuyến nội dung rỗng ở bản ghi gốc —
+  // dữ liệu thật nằm ở source_team_content (và xuyên tiếp source_editor_content).
+  const resolveContent = (c: Content) => {
+    const tc = c.source_team_content
+    const tc_ec = tc?.source_editor_content
+    return {
+      code: c.code || tc?.code || tc_ec?.code || '',
+      title: c.title || tc?.title || tc_ec?.title || '',
+      contentLine: c.content_line ?? tc?.content_line ?? tc_ec?.content_line ?? null,
+    }
+  }
 
   const toggleId = (id: string) =>
     setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
@@ -120,7 +132,7 @@ export function AddContentModal({ open, teamId, existingContentIds, onClose, onS
           type="text"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Tìm tiêu đề content..."
+          placeholder="Tìm mã hoặc tiêu đề content..."
           className="w-full pl-9 pr-9 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
         />
         {search && (
@@ -140,6 +152,7 @@ export function AddContentModal({ open, teamId, existingContentIds, onClose, onS
         ) : (
           available.map(c => {
             const selected = selectedIds.has(c.id)
+            const r = resolveContent(c)
             return (
               <button
                 key={c.id}
@@ -160,10 +173,11 @@ export function AddContentModal({ open, teamId, existingContentIds, onClose, onS
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-slate-800 text-sm truncate">
-                    {c.title || <span className="text-slate-400 italic font-normal">Chưa đặt tên</span>}
+                    {r.title || <span className="text-slate-400 italic font-normal">Chưa đặt tên</span>}
                   </p>
+                  <p className="text-xs text-slate-400 truncate">Mã: {r.code || '—'}</p>
                   <p className="text-xs text-slate-400 truncate">
-                    {c.content_line?.name ?? 'Chưa có tuyến nội dung'}
+                    {r.contentLine?.name ?? 'Chưa có tuyến nội dung'}
                   </p>
                 </div>
               </button>

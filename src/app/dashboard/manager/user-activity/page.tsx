@@ -25,6 +25,20 @@ import { KpiCardsSkeleton, PageLoadingFallback } from "./components/loading/Acti
 
 const normalize = (str: any) => (str || "").toString().toLowerCase().trim().replace(/\s+/g, "");
 
+// Chuẩn hoá tên team giống hệt `normalizeTeamKey` phía BE (lark.service.ts): bỏ dấu tiếng Việt
+// VÀ bỏ khoảng trắng/gạch ngang. `normalize()` ở trên chỉ bỏ khoảng trắng nên các biến thể như
+// "Global- Thái Lan 1" (users.team) vs "Global Thái Lan 1" (lark_kpi.team) không khớp nhau,
+// khiến toàn bộ card team đó bị lọc rớt ở FE dù BE đã trả về đúng dữ liệu.
+const normTeam = (str: any) =>
+    (str || "")
+        .toString()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/\p{Diacritic}/gu, "")
+        .replace(/đ/g, "d")
+        .trim()
+        .replace(/[\s-]+/g, "");
+
 type ActiveTab =
     | "dashboard"
     | "performance"
@@ -245,22 +259,20 @@ const UserActivityPageContent = () => {
     }, [allKnownTeams]);
 
     // "Global Thái Lan" (tên cũ, không số) được coi là alias cho cả hai sub-team mới.
-    // Bao gồm đủ các variant tên (có/không có dấu gạch ngang, khoảng trắng khác nhau)
+    // normTeam() đã tự bỏ dấu gạch ngang/khoảng trắng nên không cần liệt kê các biến thể gạch ngang nữa.
     const THAI_LAN_ALIASES: Record<string, string[]> = {
-        [normalize("Global- Thái Lan 1")]:  [normalize("Global Thái Lan")],  // "global-tháilan1"
-        [normalize("Global- Thái Lan 2")]:  [normalize("Global Thái Lan")],  // "global-tháilan2"
-        [normalize("Global Thái Lan 1")]:   [normalize("Global Thái Lan")],  // "globaltháilan1"
-        [normalize("Global Thái Lan 2")]:   [normalize("Global Thái Lan")],  // "globaltháilan2"
+        [normTeam("Global Thái Lan 1")]: [normTeam("Global Thái Lan")],
+        [normTeam("Global Thái Lan 2")]: [normTeam("Global Thái Lan")],
     };
 
     const matchTeam = React.useCallback(
         (teamName: string | null | undefined): boolean => {
             if (activeTeam === "All") return true;
             const raw = teamName || "Khác";
-            const parts = raw.includes(",") ? raw.split(",").map((p) => normalize(p.trim())) : [normalize(raw)];
-            const safeActive = normalize(activeTeam);
-            if (activeTeam === "All Global") return parts.some((p) => globalTeams.some((t) => normalize(t) === p));
-            if (activeTeam === "All VN") return parts.some((p) => vnTeams.some((t) => normalize(t) === p));
+            const parts = raw.includes(",") ? raw.split(",").map((p) => normTeam(p.trim())) : [normTeam(raw)];
+            const safeActive = normTeam(activeTeam);
+            if (activeTeam === "All Global") return parts.some((p) => globalTeams.some((t) => normTeam(t) === p));
+            if (activeTeam === "All VN") return parts.some((p) => vnTeams.some((t) => normTeam(t) === p));
             // Khi filter theo "Global- Thái Lan 1/2", cũng match record có tên cũ "Global Thái Lan"
             const aliases = THAI_LAN_ALIASES[safeActive] ?? [];
             return parts.includes(safeActive) || parts.some((p) => aliases.includes(p));
@@ -366,8 +378,8 @@ const UserActivityPageContent = () => {
         const uniqueKeys = new Set();
         return reportOutstandings.filter((r) => {
             const isMyReport = user?.email && r.email && normalize(r.email) === normalize(user.email);
-            const userTeamParts = (userTeam || "").split(",").map((p: string) => normalize(p.trim())).filter(Boolean);
-            const reportTeamParts = (r.team || "").split(",").map((p: string) => normalize(p.trim())).filter(Boolean);
+            const userTeamParts = (userTeam || "").split(",").map((p: string) => normTeam(p.trim())).filter(Boolean);
+            const reportTeamParts = (r.team || "").split(",").map((p: string) => normTeam(p.trim())).filter(Boolean);
             const isMyTeam = userTeamParts.length > 0 && reportTeamParts.some((rp: string) => userTeamParts.includes(rp));
 
             if (!isAdminUser && !isMyTeam && !isMyReport) return false;
@@ -378,7 +390,7 @@ const UserActivityPageContent = () => {
             const isAdminHandled = statusText.includes("admin đã duyệt") || statusText.includes("admin từ chối");
 
             if (isAdminUser) {
-                const hasNoTeam = !r.team || r.team.trim() === "" || normalize(r.team) === "khac";
+                const hasNoTeam = !r.team || r.team.trim() === "" || normTeam(r.team) === "khac";
                 if (!isLeaderHandled && !isLegacyHandled && !isAdminHandled && !hasNoTeam) return false;
             }
 

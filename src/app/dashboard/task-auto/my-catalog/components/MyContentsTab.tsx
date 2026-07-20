@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {
@@ -9,18 +9,20 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
-import { CustomSelect } from '@/components/task-auto/DarkInput'
+import { CustomSelect, CreatableSelect } from '@/components/task-auto/DarkInput'
 import { ContentStatusBadge } from '@/components/task-auto/StatusBadge'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
+import { HeaderFilterDropdown } from '@/components/task-auto/HeaderFilterDropdown'
 import {
-  parseMarkets, MarketPicker, VoicePicker,
+  parseMarkets, MarketPicker, VoicePicker, ContentFilePicker,
 } from '@/components/task-auto/ContentFormModal'
+import type { VoicePickerHandle } from '@/components/task-auto/ContentFormModal'
 import { DarkInput, DarkTextarea } from '@/components/task-auto/DarkInput'
 import {
   getContents, getTeamContents,
   getEditorContents, createEditorContent, updateEditorContent, deleteEditorContent, pushEditorContentToTeam,
-  getContentLines, getTeams, getMyPushRequests,
+  getContentLines, getContentClassifications, createContentClassification, getTeams, getMyPushRequests,
 } from '@/lib/api/task-auto'
 import { Content, TeamContent, ContentUsageStatus } from '@/types/task-auto'
 import { ContentViewModal } from '@/components/task-auto/ContentViewModal'
@@ -161,8 +163,44 @@ function ImportModal({
     ? (globalData?.data ?? [])
     : (teamData ?? [])
 
+  // Content được đẩy lên kho tổng/kho team từ kho khác có title/body rỗng ở bản ghi gốc —
+  // dữ liệu thật nằm ở source_team_content (kho tổng) hoặc source_editor_content (kho team).
+  const resolveImportItem = (c: Content | TeamContent) => {
+    if (scope === 'global') {
+      const g = c as Content
+      const tc = g.source_team_content
+      const tc_ec = tc?.source_editor_content
+      return {
+        code: g.code || tc?.code || tc_ec?.code || '',
+        title: g.title || tc?.title || tc_ec?.title || '',
+        body: g.body ?? tc?.body ?? tc_ec?.body ?? null,
+        script: g.script ?? tc?.script ?? tc_ec?.script ?? null,
+        fileContentUrl: g.file_content_url ?? tc?.file_content_url ?? tc_ec?.file_content_url ?? null,
+        voiceUrl: g.voice_url ?? tc?.voice_url ?? tc_ec?.voice_url ?? null,
+        contentLineId: g.content_line_id ?? tc?.content_line?.id ?? tc_ec?.content_line?.id ?? null,
+        contentLine: g.content_line ?? tc?.content_line ?? tc_ec?.content_line ?? null,
+        classificationId: g.classification_id ?? tc?.classification?.id ?? tc_ec?.classification?.id ?? null,
+        market: g.market ?? tc?.market ?? tc_ec?.market ?? 'VIETNAM',
+      }
+    }
+    const t = c as TeamContent
+    const ec = t.source_editor_content
+    return {
+      code: t.code || ec?.code || '',
+      title: t.title || ec?.title || '',
+      body: t.body ?? ec?.body ?? null,
+      script: t.script ?? ec?.script ?? null,
+      fileContentUrl: t.file_content_url ?? ec?.file_content_url ?? null,
+      voiceUrl: t.voice_url ?? ec?.voice_url ?? null,
+      contentLineId: t.content_line_id ?? ec?.content_line_id ?? null,
+      contentLine: t.content_line ?? ec?.content_line ?? null,
+      classificationId: t.classification_id ?? ec?.classification_id ?? null,
+      market: t.market ?? ec?.market ?? 'VIETNAM',
+    }
+  }
+
   const available = rawItems.filter(c => {
-    const title = c.title?.trim().toLowerCase() ?? ''
+    const title = resolveImportItem(c).title.trim().toLowerCase()
     if (myTitleSet.has(title)) return false
     if (scope === 'team' && search) return title.includes(search.toLowerCase())
     return true
@@ -183,16 +221,18 @@ function ImportModal({
           const sourceId = isTeamContent
             ? (c as TeamContent).source_content_id ?? undefined
             : c.id
+          const r = resolveImportItem(c)
           return createEditorContent(userId, {
             ...(sourceId ? { source_content_id: sourceId } : {}),
             brand_type: brandType,
-            title: c.title ?? undefined,
-            body: c.body ?? undefined,
-            script: c.script ?? undefined,
-            file_content_url: c.file_content_url ?? undefined,
-            voice_url: c.voice_url ?? undefined,
-            content_line_id: (c as any).content_line_id ?? undefined,
-            market: (c.market ?? 'VIETNAM') as any,
+            title: r.title || undefined,
+            body: r.body ?? undefined,
+            script: r.script ?? undefined,
+            file_content_url: r.fileContentUrl ?? undefined,
+            voice_url: r.voiceUrl ?? undefined,
+            content_line_id: r.contentLineId ?? undefined,
+            classification_id: r.classificationId ?? undefined,
+            market: r.market as any,
           } as any)
         })
       )
@@ -286,6 +326,7 @@ function ImportModal({
           )}
           {!isLoading && !loadingMyContents && available.map(c => {
             const selected = selectedIds.has(c.id)
+            const r = resolveImportItem(c)
             return (
               <button
                 key={c.id}
@@ -304,11 +345,12 @@ function ImportModal({
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-slate-800 text-sm truncate">
-                    {c.title || <span className="text-slate-400 italic font-normal">Chưa đặt tên</span>}
+                    {r.title || <span className="text-slate-400 italic font-normal">Chưa đặt tên</span>}
                   </p>
+                  <p className="text-xs text-slate-400 truncate">Mã: {r.code || '—'}</p>
                   <div className="flex items-center gap-2 mt-0.5">
-                    {parseMarkets(c.market).map(m => <MarketBadge key={m} market={m} />)}
-                    {c.content_line?.name && <span className="text-xs text-slate-400">{c.content_line.name}</span>}
+                    {parseMarkets(r.market).map(m => <MarketBadge key={m} market={m} />)}
+                    {r.contentLine?.name && <span className="text-xs text-slate-400">{r.contentLine.name}</span>}
                   </div>
                 </div>
               </button>
@@ -341,25 +383,31 @@ function PersonalContentModal({
   const isEdit = !!editing
   const brandType: 'DO_DA' | 'TRANG_SUC' = (editing?.brand_type as 'DO_DA' | 'TRANG_SUC') ?? defaultBrandType ?? 'TRANG_SUC'
   const [form, setForm] = useState<Partial<Content>>({
+    code: editing?.code ?? '',
     title: editing?.title ?? '',
     body: editing?.body ?? '',
     script: editing?.script ?? '',
     file_content_url: editing?.file_content_url ?? '',
     voice_url: editing?.voice_url ?? '',
     content_line_id: editing?.content_line_id ?? '',
+    classification_id: editing?.classification_id ?? '',
   })
   const [market, setMarket] = useState<string>(editing?.market ?? defaultMarket)
+  const voicePickerRef = useRef<VoicePickerHandle>(null)
 
   const { data: contentLines } = useQuery({ queryKey: ['task-auto', 'content-lines'], queryFn: getContentLines })
+  const { data: contentClassifications } = useQuery({ queryKey: ['task-auto', 'content-classifications'], queryFn: getContentClassifications })
 
   const createMut = useMutation({
-    mutationFn: () => createEditorContent(userId, {
+    mutationFn: async () => createEditorContent(userId, {
+      code: form.code?.trim() || null,
       title: form.title,
       body: form.body,
       script: form.script,
       file_content_url: form.file_content_url,
-      voice_url: form.voice_url,
+      voice_url: await voicePickerRef.current!.resolvePending(form.voice_url ?? ''),
       content_line_id: form.content_line_id || null,
+      classification_id: form.classification_id || null,
       brand_type: brandType,
       market: market as any,
     } as any),
@@ -368,17 +416,19 @@ function PersonalContentModal({
       toast.success('Đã thêm content')
       onSuccess()
     },
-    onError: () => toast.error('Không thể thêm content'),
+    onError: (e: any) => toast.error(e?.response?.data?.message || 'Không thể thêm content'),
   })
 
   const updateMut = useMutation({
-    mutationFn: () => updateEditorContent(userId, editing!.id, {
+    mutationFn: async () => updateEditorContent(userId, editing!.id, {
+      code: form.code?.trim() || null,
       title: form.title,
       body: form.body,
       script: form.script,
       file_content_url: form.file_content_url,
-      voice_url: form.voice_url,
+      voice_url: await voicePickerRef.current!.resolvePending(form.voice_url ?? ''),
       content_line_id: form.content_line_id || null,
+      classification_id: form.classification_id || null,
       market: market as any,
     } as any),
     onSuccess: () => {
@@ -386,7 +436,7 @@ function PersonalContentModal({
       toast.success('Đã cập nhật content')
       onSuccess()
     },
-    onError: () => toast.error('Không thể cập nhật content'),
+    onError: (e: any) => toast.error(e?.response?.data?.message || 'Không thể cập nhật content'),
   })
 
   const saving = createMut.isPending || updateMut.isPending
@@ -416,19 +466,39 @@ function PersonalContentModal({
           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
             Thông tin chính
           </p>
-          <DarkInput
-            label="Tiêu đề content"
-            placeholder="Nhập tiêu đề..."
-            value={form.title ?? ''}
-            onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-          />
-          <div className="w-1/2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <DarkInput
+              label="Mã content"
+              placeholder="VD: CT-101"
+              value={form.code ?? ''}
+              onChange={e => setForm(f => ({ ...f, code: e.target.value }))}
+            />
+            <DarkInput
+              label="Tiêu đề content"
+              placeholder="Nhập tiêu đề..."
+              value={form.title ?? ''}
+              onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+            />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <CustomSelect
               label="Tuyến nội dung"
               value={form.content_line_id ?? ''}
               onChange={v => setForm(f => ({ ...f, content_line_id: v }))}
               options={[{ value: '', label: '-- Không chọn --' }, ...(contentLines?.map(l => ({ value: l.id, label: l.name })) ?? [])]}
               searchable
+            />
+            <CreatableSelect
+              label="Phân loại nội dung"
+              value={form.classification_id ?? ''}
+              onChange={v => setForm(f => ({ ...f, classification_id: v }))}
+              options={contentClassifications?.map(c => ({ value: c.id, label: c.name })) ?? []}
+              createLabel="Thêm phân loại nội dung"
+              onCreate={async (name) => {
+                const created = await createContentClassification(name)
+                qc.setQueryData<typeof contentClassifications>(['task-auto', 'content-classifications'], old => [...(old ?? []), created])
+                return { id: created.id, label: created.name }
+              }}
             />
           </div>
           <MarketPicker label="Thị trường" value={market} onChange={setMarket} />
@@ -445,18 +515,16 @@ function PersonalContentModal({
             value={form.body ?? ''}
             onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
           />
-          <DarkInput
-            label="URL file content"
-            placeholder="https://drive.google.com/..."
+          <ContentFilePicker
             value={form.file_content_url ?? ''}
-            onChange={e => setForm(f => ({ ...f, file_content_url: e.target.value }))}
+            onChange={url => setForm(f => ({ ...f, file_content_url: url }))}
           />
         </div>
         <div className="space-y-4">
           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
             File đính kèm
           </p>
-          <VoicePicker value={form.voice_url ?? ''} onChange={url => setForm(f => ({ ...f, voice_url: url }))} />
+          <VoicePicker ref={voicePickerRef} value={form.voice_url ?? ''} onChange={url => setForm(f => ({ ...f, voice_url: url }))} />
         </div>
       </div>
     </DarkModal>
@@ -471,6 +539,8 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM' }: Pro
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<ContentUsageStatus | ''>('')
+  const [contentLineFilter, setContentLineFilter] = useState('')
+  const [classificationFilter, setClassificationFilter] = useState('')
   const [month, setMonth] = useState('')
   const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
@@ -480,13 +550,18 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM' }: Pro
   const [pushItem, setPushItem] = useState<Content | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
+  const { data: contentLines } = useQuery({ queryKey: ['task-auto', 'content-lines'], queryFn: getContentLines })
+  const { data: contentClassifications } = useQuery({ queryKey: ['task-auto', 'content-classifications'], queryFn: getContentClassifications })
+
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'my-contents', userId, brandType, teamMarket, search, statusFilter, month, page],
+    queryKey: ['task-auto', 'my-contents', userId, brandType, teamMarket, search, statusFilter, contentLineFilter, classificationFilter, month, page],
     queryFn: () => getEditorContents(userId, {
       brand_type: brandType,
       market: teamMarket,
       search: search || undefined,
       status: statusFilter || undefined,
+      content_line_id: contentLineFilter || undefined,
+      classification_id: classificationFilter || undefined,
       month: month || undefined,
       page, limit: 20,
     }),
@@ -517,7 +592,7 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM' }: Pro
             <input
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1) }}
-              placeholder="Tìm tiêu đề content..."
+              placeholder="Tìm mã, tiêu đề content..."
               className="w-full pl-12 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-base text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
             />
           </div>
@@ -566,8 +641,24 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM' }: Pro
           <table className="w-full">
             <thead>
               <tr className="bg-slate-50 border-b-2 border-gray-200">
-                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide w-[40%]">Tiêu đề</th>
-                <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Tuyến ND</th>
+                <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Mã</th>
+                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide w-[35%]">Tiêu đề</th>
+                <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">
+                  <HeaderFilterDropdown
+                    label="Tuyến ND"
+                    value={contentLineFilter}
+                    onChange={v => { setContentLineFilter(v); setPage(1) }}
+                    options={(contentLines ?? []).map(l => ({ value: l.id, label: l.name }))}
+                  />
+                </th>
+                <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">
+                  <HeaderFilterDropdown
+                    label="Phân loại"
+                    value={classificationFilter}
+                    onChange={v => { setClassificationFilter(v); setPage(1) }}
+                    options={(contentClassifications ?? []).map(c => ({ value: c.id, label: c.name }))}
+                  />
+                </th>
                 <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Thị trường</th>
                 <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Trạng thái</th>
                 {/* <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Người thêm</th> */}
@@ -576,12 +667,17 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM' }: Pro
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {isLoading && <LoadingRows cols={7} />}
+              {isLoading && <LoadingRows cols={9} />}
               {!isLoading && !data?.data?.length && (
-                <tr><td colSpan={7}><EmptyState icon={FileText} title="Chưa có content cá nhân nào" /></td></tr>
+                <tr><td colSpan={9}><EmptyState icon={FileText} title="Chưa có content cá nhân nào" /></td></tr>
               )}
               {data?.data.map(c => (
                 <tr key={c.id} className="hover:bg-indigo-50/20 transition-colors group cursor-pointer" onClick={() => setDetailItem(c)}>
+                  <td className="px-4 py-4 whitespace-nowrap">
+                    <span className="inline-block bg-slate-100 text-slate-600 font-mono text-xs font-semibold px-2.5 py-1 rounded-lg">
+                      {c.code || <span className="text-slate-300">—</span>}
+                    </span>
+                  </td>
                   <td className="px-5 py-4 max-w-0">
                     <span className="text-base font-semibold text-slate-800 truncate block hover:text-indigo-600 transition-colors" title={c.title ?? ''}>
                       {c.title || <span className="text-slate-400 italic font-normal text-sm">Chưa đặt tên</span>}
@@ -590,6 +686,11 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM' }: Pro
                   <td className="px-4 py-4 whitespace-nowrap">
                     {c.content_line?.name
                       ? <span className="text-sm font-medium text-slate-700">{c.content_line.name}</span>
+                      : <span className="text-slate-300 text-sm">—</span>}
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap">
+                    {c.classification?.name
+                      ? <span className="text-sm font-medium text-slate-700">{c.classification.name}</span>
                       : <span className="text-slate-300 text-sm">—</span>}
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap">

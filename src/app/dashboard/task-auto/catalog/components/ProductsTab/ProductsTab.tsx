@@ -3,22 +3,21 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Search, Plus, Edit2, Trash2, Loader2, Package, ChevronLeft, ChevronRight, ImageIcon } from 'lucide-react'
+import { Search, Plus, Edit2, Trash2, Package, ChevronLeft, ChevronRight, ImageIcon } from 'lucide-react'
 import { cn, driveImageUrl } from '@/lib/utils'
-import { DarkModal } from '@/components/task-auto/DarkModal'
-import { DarkInput, CustomSelect, CreatableSelect } from '@/components/task-auto/DarkInput'
 import { EmptyState } from '@/components/task-auto/EmptyState'
+import { HeaderFilterDropdown } from '@/components/task-auto/HeaderFilterDropdown'
 import {
-  getProducts, createProduct, updateProduct, deleteProduct,
+  getProducts, deleteProduct,
   getProductLines, createProductLine, deleteProductLine,
   getMaterials, createMaterial, deleteMaterial,
-  createSource,
+  getProductClassifications, createProductClassification, deleteProductClassification,
 } from '@/lib/api/task-auto'
 import { useAuthStore } from '@/store/auth-store'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
-import { parseMarkets, formatPrice, defaultSource } from './product-utils'
-import type { SourceDraft } from './product-utils'
-import { MarketBadge, LoadingRows, MiniList, MarketPicker, PriceInput, MultiImagePicker, SourceForm } from './ProductFormFields'
+import { parseMarkets, formatPrice } from './product-utils'
+import { MarketBadge, LoadingRows, MiniList } from './ProductFormFields'
+import { ProductFormModal } from '@/components/task-auto/ProductFormModal'
 import { ProductViewModal } from '@/components/task-auto/ProductViewModal'
 import { Product } from '@/types/task-auto'
 
@@ -30,6 +29,7 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
   const canDelete = user?.roles?.some((r: string) => ['ADMIN', 'MANAGER'].includes(r)) ?? false
   const [search, setSearch] = useState('')
   const [productLineFilter, setProductLineFilter] = useState('')
+  const [classificationFilter, setClassificationFilter] = useState('')
   const [activeFilter, setActiveFilter] = useState<'all' | 'true' | 'false'>('all')
   const [page, setPage] = useState(1)
   const [modal, setModal] = useState<null | 'create' | 'edit'>(null)
@@ -37,21 +37,17 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
   const [viewProduct, setViewProduct] = useState<Product | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [showCatalogPanel, setShowCatalogPanel] = useState(false)
-  const [form, setForm] = useState<Partial<Product> & { image_urls: string[] }>({
-    sku: '', name: '', image_urls: [], price: '',
-    price_segment: '', priority_score: 0, material_id: '', product_line_id: '', is_active: true,
-  })
-  const [markets, setMarkets] = useState<string[]>(['VIETNAM'])
-  const [sourceDraft, setSourceDraft] = useState<SourceDraft>(defaultSource)
 
   const { data: productLines } = useQuery({ queryKey: ['task-auto', 'product-lines'], queryFn: () => getProductLines() })
   const { data: materials } = useQuery({ queryKey: ['task-auto', 'materials', brandType], queryFn: () => getMaterials(brandType) })
+  const { data: productClassifications } = useQuery({ queryKey: ['task-auto', 'product-classifications'], queryFn: () => getProductClassifications() })
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'products', brandType, search, productLineFilter, activeFilter, month, page],
+    queryKey: ['task-auto', 'products', brandType, search, productLineFilter, classificationFilter, activeFilter, month, page],
     queryFn: () => getProducts({
       brand_type: brandType,
       search: search || undefined,
       product_line_id: productLineFilter || undefined,
+      classification_id: classificationFilter || undefined,
       is_active: activeFilter === 'all' ? undefined : activeFilter === 'true',
       month: month || undefined,
       page, limit: 10,
@@ -59,38 +55,6 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
   })
 
   const refresh = () => qc.refetchQueries({ queryKey: ['task-auto', 'products'] })
-
-  const createMut = useMutation({
-    mutationFn: async (body: Partial<Product>) => {
-      const product = await createProduct(body)
-      if (sourceDraft.enabled && sourceDraft.name && sourceDraft.link) {
-        await createSource({
-          type: sourceDraft.type, name: sourceDraft.name, link: sourceDraft.link,
-          code: sourceDraft.code || undefined, product_id: product.id, is_active: true,
-        } as any).catch(() => null)
-        qc.invalidateQueries({ queryKey: ['task-auto', 'sources'] })
-      }
-      return product
-    },
-    onSuccess: async () => { await refresh(); toast.success('Đã thêm sản phẩm'); setModal(null) },
-    onError: (e: any) => toast.error(e?.response?.data?.message || 'Không thể thêm sản phẩm'),
-  })
-
-  const updateMut = useMutation({
-    mutationFn: async ({ id, body }: { id: string; body: Partial<Product> }) => {
-      const product = await updateProduct(id, body)
-      if (sourceDraft.enabled && sourceDraft.name && sourceDraft.link) {
-        await createSource({
-          type: sourceDraft.type, name: sourceDraft.name, link: sourceDraft.link,
-          code: sourceDraft.code || undefined, product_id: id, is_active: true,
-        } as any).catch(() => null)
-        qc.invalidateQueries({ queryKey: ['task-auto', 'sources'] })
-      }
-      return product
-    },
-    onSuccess: async () => { await refresh(); toast.success('Đã cập nhật sản phẩm'); setModal(null) },
-    onError: (e: any) => toast.error(e?.response?.data?.message || 'Không thể cập nhật sản phẩm'),
-  })
 
   const createLineMut = useMutation({
     mutationFn: ({ name }: { name: string }) => createProductLine(name),
@@ -112,43 +76,26 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
     onSuccess: () => qc.invalidateQueries({ queryKey: ['task-auto', 'materials'] }),
     onError: () => toast.error('Không thể xóa chất liệu'),
   })
+  const createClassificationMut = useMutation({
+    mutationFn: ({ name }: { name: string }) => createProductClassification(name),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['task-auto', 'product-classifications'] }),
+    onError: () => toast.error('Không thể thêm phân loại sản phẩm'),
+  })
+  const deleteClassificationMut = useMutation({
+    mutationFn: deleteProductClassification,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['task-auto', 'product-classifications'] }),
+    onError: () => toast.error('Không thể xóa phân loại sản phẩm'),
+  })
 
   const openCreate = () => {
-    setForm({ sku: '', name: '', image_urls: [], price: '', price_segment: '', priority_score: 0, material_id: '', product_line_id: '', is_active: true })
-    setMarkets(['VIETNAM'])
-    setSourceDraft(defaultSource)
     setEditing(null)
     setModal('create')
   }
 
   const openEdit = (p: Product) => {
-    const image_urls = p.image_urls?.length ? p.image_urls : (p.image_url ? [p.image_url] : [])
-    setForm({ ...p, image_urls })
-    setMarkets(parseMarkets(p.market))
-    setSourceDraft(defaultSource)
     setEditing(p)
     setViewProduct(null)
     setModal('edit')
-  }
-
-  const handleSubmit = () => {
-    if (!form.sku || !form.name) return toast.error('SKU và tên là bắt buộc')
-    if (markets.length === 0) return toast.error('Chọn ít nhất một thị trường')
-    if (sourceDraft.enabled && (!sourceDraft.name || !sourceDraft.link)) return toast.error('Source cần có tên và link')
-    const baseBody = {
-      name: form.name,
-      brand_type: brandType,
-      image_urls: form.image_urls,
-      price: form.price || undefined,
-      market: markets.join(','),
-      price_segment: form.price_segment || undefined,
-      priority_score: form.priority_score,
-      material_id: form.material_id || null,
-      product_line_id: form.product_line_id || null,
-      is_active: form.is_active,
-    }
-    if (modal === 'create') createMut.mutate({ sku: form.sku, ...baseBody })
-    else if (editing) updateMut.mutate({ id: editing.id, body: baseBody })
   }
 
   const deleteMut = useMutation({
@@ -161,7 +108,6 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
     },
   })
 
-  const saving = createMut.isPending || updateMut.isPending
   const total = data?.total ?? 0
 
   return (
@@ -179,16 +125,6 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
               className="w-full pl-12 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-base text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
             />
           </div>
-          <CustomSelect
-            value={productLineFilter}
-            onChange={v => { setProductLineFilter(v); setPage(1) }}
-            options={[
-              { value: '', label: 'Tất cả dòng SP' },
-              ...(productLines?.map(l => ({ value: l.id, label: l.name })) ?? []),
-            ]}
-            className="min-w-[180px]"
-            searchable
-          />
           {/* <CustomSelect
             value={activeFilter}
             onChange={v => { setActiveFilter(v as 'all' | 'true' | 'false'); setPage(1) }}
@@ -232,8 +168,23 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
               <tr className="bg-slate-50 border-b-2 border-gray-200">
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">SKU</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Sản phẩm</th>
-                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Dòng SP</th>
+                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">
+                  <HeaderFilterDropdown
+                    label="Dòng SP"
+                    value={productLineFilter}
+                    onChange={v => { setProductLineFilter(v); setPage(1) }}
+                    options={(productLines ?? []).map(l => ({ value: l.id, label: l.name }))}
+                  />
+                </th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Chất liệu</th>
+                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">
+                  <HeaderFilterDropdown
+                    label="Phân loại"
+                    value={classificationFilter}
+                    onChange={v => { setClassificationFilter(v); setPage(1) }}
+                    options={(productClassifications ?? []).map(c => ({ value: c.id, label: c.name }))}
+                  />
+                </th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Thị trường</th>
                 <th className="text-right px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Giá bán</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Trạng thái</th>
@@ -243,11 +194,11 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {isLoading && <LoadingRows cols={10} />}
+              {isLoading && <LoadingRows cols={11} />}
 
               {!isLoading && (!data?.data || data.data.length === 0) && (
                 <tr>
-                  <td colSpan={10}>
+                  <td colSpan={11}>
                     <EmptyState icon={Package} title="Không có sản phẩm nào" />
                   </td>
                 </tr>
@@ -263,6 +214,7 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
                 const rMarket = p.market || tp?.market || tp_ep?.market || null
                 const rProductLine = p.product_line ?? tp?.product_line ?? tp_ep?.product_line ?? null
                 const rMaterial = p.material ?? tp?.material ?? tp_ep?.material ?? null
+                const rClassification = p.classification ?? tp?.classification ?? tp_ep?.classification ?? null
                 const rImages = p.image_urls?.length ? p.image_urls : tp?.image_urls?.length ? tp.image_urls : tp_ep?.image_urls?.length ? tp_ep.image_urls : []
                 const rImageUrl = p.image_url ?? tp?.image_url ?? tp_ep?.image_url ?? null
                 const thumb = rImages[0] ?? rImageUrl
@@ -297,6 +249,12 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
                     <td className="px-5 py-4 whitespace-nowrap">
                       {rMaterial?.name
                         ? <span className="text-sm text-slate-600">{rMaterial.name}</span>
+                        : <span className="text-slate-300 text-sm">—</span>
+                      }
+                    </td>
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      {rClassification?.name
+                        ? <span className="text-sm text-slate-600">{rClassification.name}</span>
                         : <span className="text-slate-300 text-sm">—</span>
                       }
                     </td>
@@ -409,9 +367,9 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
               <Package className="w-4 h-4 text-indigo-600" />
             </span>
             <span className="text-left">
-              <span className="block text-sm font-bold text-slate-800">Dòng sản phẩm &amp; Chất liệu</span>
+              <span className="block text-sm font-bold text-slate-800">Dòng sản phẩm, Chất liệu &amp; Phân loại</span>
               <span className="block text-xs text-slate-400 mt-0.5">
-                {(productLines?.length ?? 0)} dòng sản phẩm · {(materials?.length ?? 0)} chất liệu
+                {(productLines?.length ?? 0)} dòng sản phẩm · {(materials?.length ?? 0)} chất liệu · {(productClassifications?.length ?? 0)} phân loại
               </span>
             </span>
           </span>
@@ -421,7 +379,7 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
           )} />
         </button>
         {showCatalogPanel && (
-          <div className="border-t border-gray-100 p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="border-t border-gray-100 p-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
             <MiniList
               title="Dòng sản phẩm"
               items={productLines ?? []}
@@ -438,156 +396,29 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
               onDelete={id => deleteMatMut.mutate(id)}
               color="teal"
             />
+            <MiniList
+              title="Phân loại sản phẩm"
+              items={productClassifications ?? []}
+              addLabel="Nhập tên phân loại..."
+              onAdd={name => createClassificationMut.mutateAsync({ name })}
+              onDelete={id => deleteClassificationMut.mutate(id)}
+              color="indigo"
+            />
           </div>
         )}
       </div>
 
       {/* Create / Edit modal */}
-      <DarkModal
-        open={!!modal}
-        onClose={() => setModal(null)}
-        title={modal === 'create' ? 'Thêm sản phẩm mới' : 'Chỉnh sửa sản phẩm'}
-        size="xl"
-        footer={
-          <>
-            <button onClick={() => setModal(null)} className="bg-gray-100 hover:bg-gray-200 text-slate-800 rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors">
-              Hủy
-            </button>
-            <button onClick={handleSubmit} disabled={saving || markets.length === 0}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors disabled:opacity-60">
-              {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              {modal === 'create' ? 'Thêm mới' : 'Lưu thay đổi'}
-            </button>
-          </>
-        }
-      >
-        <div className="space-y-6">
-
-          {/* Thông tin cơ bản */}
-          <div className="space-y-4">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
-              Thông tin cơ bản
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <DarkInput
-                label="SKU *"
-                placeholder="VD: NM101"
-                value={form.sku ?? ''}
-                onChange={e => setForm(f => ({ ...f, sku: e.target.value }))}
-              />
-              <MarketPicker label="Thị trường" value={markets} onChange={setMarkets} />
-            </div>
-            <DarkInput
-              label="Tên sản phẩm *"
-              placeholder="Nhập tên sản phẩm đầy đủ..."
-              value={form.name ?? ''}
-              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-            />
-          </div>
-
-          {/* Phân loại & Giá */}
-          <div className="space-y-4">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
-              Phân loại & Giá
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <CreatableSelect
-                label="Dòng sản phẩm"
-                value={form.product_line_id ?? ''}
-                onChange={v => setForm(f => ({ ...f, product_line_id: v }))}
-                options={productLines?.map(l => ({ value: l.id, label: l.name })) ?? []}
-                createLabel="Thêm dòng sản phẩm"
-                onCreate={async (name) => {
-                  const created = await createProductLine(name)
-                  qc.setQueryData<typeof productLines>(
-                    ['task-auto', 'product-lines'],
-                    old => [...(old ?? []), created]
-                  )
-                  return { id: created.id, label: created.name }
-                }}
-              />
-              <CreatableSelect
-                label="Chất liệu"
-                value={form.material_id ?? ''}
-                onChange={v => setForm(f => ({ ...f, material_id: v }))}
-                options={materials?.map(m => ({ value: m.id, label: m.name })) ?? []}
-                createLabel="Thêm chất liệu"
-                onCreate={async (name) => {
-                  const created = await createMaterial(name, brandType)
-                  qc.setQueryData<typeof materials>(
-                    ['task-auto', 'materials', brandType],
-                    old => [...(old ?? []), created]
-                  )
-                  return { id: created.id, label: created.name }
-                }}
-              />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <PriceInput
-                label="Giá bán (₫)"
-                value={form.price ?? ''}
-                onChange={v => setForm(f => ({ ...f, price: v }))}
-              />
-              <DarkInput
-                label="Phân khúc giá"
-                placeholder="VD: MID, HIGH"
-                value={form.price_segment ?? ''}
-                onChange={e => setForm(f => ({ ...f, price_segment: e.target.value }))}
-              />
-              <DarkInput
-                label="Điểm ưu tiên"
-                type="number"
-                placeholder="0"
-                value={form.priority_score ?? 0}
-                onChange={e => setForm(f => ({ ...f, priority_score: Number(e.target.value) }))}
-                min={0}
-              />
-            </div>
-          </div>
-
-          {/* Hình ảnh */}
-          <div className="space-y-4">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
-              Hình ảnh sản phẩm
-            </p>
-            <MultiImagePicker
-              values={form.image_urls ?? []}
-              onChange={urls => setForm(f => ({ ...f, image_urls: urls }))}
-            />
-          </div>
-
-          {/* Trạng thái */}
-          <div className="space-y-3">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
-              Trạng thái
-            </p>
-            <div className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3 border border-gray-200">
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" checked={form.is_active ?? true}
-                  onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))}
-                  className="sr-only peer" />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-indigo-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5" />
-              </label>
-              <div>
-                <p className="text-sm font-semibold text-slate-800">
-                  {form.is_active ? 'Đang hoạt động' : 'Không hoạt động'}
-                </p>
-                <p className="text-xs text-slate-500">
-                  {form.is_active ? 'Sản phẩm hiển thị và có thể dùng trong task' : 'Sản phẩm bị ẩn khỏi danh sách'}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Source */}
-          <div className="space-y-3">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
-              Source đi kèm <span className="text-gray-300 font-normal normal-case tracking-normal">(tuỳ chọn)</span>
-            </p>
-            <SourceForm value={sourceDraft} onChange={setSourceDraft} />
-          </div>
-        </div>
-      </DarkModal>
+      {modal && (
+        <ProductFormModal
+          open
+          editing={editing}
+          defaultBrandType={brandType}
+          lockBrandType
+          onClose={() => setModal(null)}
+          onSuccess={() => { refresh(); setModal(null) }}
+        />
+      )}
 
       {viewProduct && (
         <ProductViewModal

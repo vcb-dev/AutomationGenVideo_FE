@@ -2,15 +2,19 @@ import Image from "next/image";
 import React, { useEffect, useRef, useState } from 'react';
 import { Activity, ImagePlus, X, Loader2 } from 'lucide-react';
 
+/** /lark/* yêu cầu đăng nhập (JwtAuthGuard) — phải gắn token cho fetch thủ công. */
+function getAuthHeaders(): Record<string, string> {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 export const TRAFFIC_PLATFORMS = [
     { id: 'fb', label: 'Traffic FB' },
     { id: 'ig', label: 'Traffic IG' },
     { id: 'tiktok', label: 'Traffic Tiktok' },
     { id: 'yt', label: 'Traffic YT' },
     { id: 'thread', label: 'Traffic Thread' },
-    { id: 'lemon8', label: 'Traffic Lemon 8' },
     { id: 'zalo', label: 'Traffic Zalo' },
-    { id: 'twitter', label: 'Traffic Twitter' },
 ];
 
 export interface TrafficData {
@@ -19,9 +23,7 @@ export interface TrafficData {
     tiktok: string;
     yt: string;
     thread: string;
-    lemon8: string;
     zalo: string;
-    twitter: string;
 }
 
 export const initialTrafficData = (): TrafficData => ({
@@ -30,9 +32,7 @@ export const initialTrafficData = (): TrafficData => ({
     tiktok: '',
     yt: '',
     thread: '',
-    lemon8: '',
     zalo: '',
-    twitter: '',
 });
 
 export const initialTrafficChannels = (): TrafficData => ({
@@ -41,9 +41,7 @@ export const initialTrafficChannels = (): TrafficData => ({
     tiktok: '',
     yt: '',
     thread: '',
-    lemon8: '',
     zalo: '',
-    twitter: '',
 });
 
 interface TrafficEntry {
@@ -189,9 +187,7 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
             'tiktok': ['tiktok', 'tt'],
             'yt': ['yt', 'youtube'],
             'thread': ['thread', 'threads'],
-            'lemon8': ['lemon8', 'lemon 8'],
             'zalo': ['zalo', 'zalo oa', 'zalo video'],
-            'twitter': ['twitter', 'twitter x', 'x']
         };
         const targets = platformMap[platformId] || [platformId.toLowerCase()];
         return targets.some(target => {
@@ -217,6 +213,7 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
 
             const res = await fetch(`${beBaseUrl}/lark/upload-evidence`, {
                 method: 'POST',
+                headers: getAuthHeaders(),
                 body: formData,
             });
 

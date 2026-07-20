@@ -43,6 +43,7 @@ export interface SocialPost {
   thumb_url?: string;
   retry_count?: number;
   next_retry_at?: string;
+  task_id?: string;
   created_at: string;
   result?: SocialPostResult;
   account?: { name: string; username?: string; avatar_url?: string; platform: SocialPlatform };
@@ -245,7 +246,8 @@ export const socialApi = {
 
   schedule: {
     list: () => apiClient.get<SocialPost[]>('/social/schedule').then((r) => r.data),
-    create: (data: { accountId: string; message: string; mediaUrls?: string[]; pageId?: string; scheduledAt: string; privacy?: string; thumbUrl?: string }) =>
+    listByTask: (taskId: string) => apiClient.get<SocialPost[]>(`/social/schedule/by-task/${taskId}`).then((r) => r.data),
+    create: (data: { accountId: string; message: string; mediaUrls?: string[]; pageId?: string; scheduledAt: string; privacy?: string; thumbUrl?: string; taskId?: string }) =>
       apiClient.post('/social/schedule', data).then((r) => r.data),
     update: (id: string, data: { message?: string; scheduledAt?: string }) =>
       apiClient.put(`/social/schedule/${id}`, data).then((r) => r.data),
@@ -286,8 +288,8 @@ export const socialApi = {
   },
 
   library: {
-    list: (page = 1, limit = 20): Promise<{ items: MediaLibraryItem[]; total: number; pages: number }> =>
-      apiClient.get(`/social/library?page=${page}&limit=${limit}`).then((r) => r.data),
+    list: (page = 1, limit = 20, date?: string): Promise<{ items: MediaLibraryItem[]; total: number; pages: number }> =>
+      apiClient.get(`/social/library?page=${page}&limit=${limit}${date ? `&date=${date}` : ''}`).then((r) => r.data),
     stats: (): Promise<{ count: number; totalBytes: number; totalMB: number }> =>
       apiClient.get('/social/library/stats').then((r) => r.data),
     remove: (id: string) => apiClient.delete(`/social/library/${id}`).then((r) => r.data),
@@ -325,6 +327,22 @@ export const socialApi = {
       apiClient.post('/social/hashtag/suggest', { message, platform }).then((r) => r.data),
   },
 };
+
+/** Lấy URL bài đã đăng từ result trả về bởi platform publisher */
+export function getPostUrl(result?: SocialPostResult | Record<string, unknown> | null, platform?: string): string | null {
+  if (!result) return null;
+  if (typeof result.url === 'string' && result.url) return result.url;
+  if (typeof result.videoId === 'string') return `https://youtube.com/watch?v=${result.videoId}`;
+  // Fallback: construct URL from postId (covers old Facebook posts without url field)
+  if (typeof result.postId === 'string' && result.postId) {
+    if (!platform || platform === 'FACEBOOK') return `https://www.facebook.com/${result.postId}`;
+  }
+  // TikTok: videoId stored after backend fix
+  if (typeof result.tiktokVideoId === 'string' && result.tiktokVideoId) {
+    return `https://www.tiktok.com/video/${result.tiktokVideoId}`;
+  }
+  return null;
+}
 
 export const PLATFORM_META: Record<SocialPlatform, { label: string; color: string; emoji: string }> = {
   FACEBOOK:  { label: 'Facebook',   color: 'bg-blue-600',   emoji: '👤' },

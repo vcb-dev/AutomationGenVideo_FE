@@ -235,12 +235,12 @@ export default function PresentationTab({
 
     return (
       <div className="flex flex-col gap-2 relative mt-4 group w-full">
-        <div className="flex justify-between items-center text-xs font-semibold text-gray-400">
+        <div className="flex justify-between items-center text-xs font-semibold text-muted-foreground">
           <span>{label}</span>
-          <span className="text-gray-200">{value.toFixed(1)}</span>
+          <span className="text-foreground">{value.toFixed(1)}</span>
         </div>
         <div className="px-2.5 w-full relative">
-          <div className="relative w-full h-2.5 rounded-full bg-white/10 backdrop-blur-md border border-white/5 flex items-center cursor-pointer select-none">
+          <div className="relative w-full h-2.5 rounded-full bg-muted backdrop-blur-md border border-border flex items-center cursor-pointer select-none">
             <div
               className={`absolute left-0 top-0 h-full rounded-full bg-gradient-to-r ${activeBarColor}`}
               style={{ width: `${percentage}%` }}
@@ -253,7 +253,7 @@ export default function PresentationTab({
                 return (
                   <div
                     key={i}
-                    className={`w-1 h-1 rounded-full transition-colors duration-150 ${isActive ? 'bg-white/80' : 'bg-white/20'
+                    className={`w-1 h-1 rounded-full transition-colors duration-150 ${isActive ? 'bg-foreground/70' : 'bg-foreground/20'
                       }`}
                     style={{ left: `calc(${dotPercentage}% - 2px)`, position: 'absolute' }}
                   />
@@ -277,7 +277,7 @@ export default function PresentationTab({
               }}
             />
             <div
-              className={`absolute bottom-6 transform -translate-x-1/2 px-2 py-0.5 rounded text-[10px] font-bold text-white shadow-md pointer-events-none transition-all duration-75 opacity-0 group-hover:opacity-100 group-active:opacity-100 z-40 ${tooltipColor}`}
+              className={`absolute bottom-6 transform -translate-x-1/2 px-2 py-0.5 rounded text-[12px] font-bold text-white shadow-md pointer-events-none transition-all duration-75 opacity-0 group-hover:opacity-100 group-active:opacity-100 z-40 ${tooltipColor}`}
               style={{ left: `${percentage}%` }}
             >
               {value.toFixed(1)}
@@ -285,7 +285,7 @@ export default function PresentationTab({
             </div>
           </div>
         </div>
-        <div className="flex justify-between text-[9px] text-gray-500 font-semibold px-3 mt-0.5">
+        <div className="flex justify-between text-[11px] text-muted-foreground font-semibold px-3 mt-0.5">
           <span>1.0 (Tệ)</span>
           <span>10.0 (Xuất sắc)</span>
         </div>
@@ -330,20 +330,20 @@ export default function PresentationTab({
     const p = (platform || 'TikTok').toLowerCase();
     if (p.includes('reels') || p.includes('instagram')) {
       return (
-        <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-pink-500/10 border border-pink-500/30 text-pink-400">
+        <span className="px-2 py-0.5 rounded text-[12px] font-black uppercase tracking-wider bg-pink-500/10 border border-pink-500/30 text-pink-400">
           Instagram Reels
         </span>
       );
     }
     if (p.includes('shorts') || p.includes('youtube')) {
       return (
-        <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-red-500/10 border border-red-500/30 text-red-400">
+        <span className="px-2 py-0.5 rounded text-[12px] font-black uppercase tracking-wider bg-red-500/10 border border-red-500/30 text-red-400">
           YouTube Shorts
         </span>
       );
     }
     return (
-      <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
+      <span className="px-2 py-0.5 rounded text-[12px] font-black uppercase tracking-wider bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
         TikTok
       </span>
     );
@@ -365,76 +365,76 @@ export default function PresentationTab({
       {/* Team Statistics Overview Summary */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
         {/* Team name card */}
-        <div className="flex items-center gap-3 bg-[#0c1322] border border-blue-500/20 px-4 py-3.5 rounded-2xl shadow-[0_0_20px_rgba(59,130,246,0.07)] relative overflow-hidden">
+        <div className="flex items-center gap-3 bg-card border border-blue-200 dark:border-blue-500/20 px-4 py-3.5 rounded-2xl shadow-[0_0_20px_rgba(59,130,246,0.07)] relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-blue-500/[0.04] to-transparent pointer-events-none" />
           <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse shadow-md shadow-blue-500/50 shrink-0" />
-          <span className="text-base font-black uppercase text-slate-100 tracking-wider truncate">
+          <span className="text-base font-black uppercase text-foreground tracking-wider truncate">
             {baseData.teamName || `Team ${activeTab}`}
           </span>
         </div>
 
         {/* Tổng Content Win */}
-        <div className="bg-[#0c1322] border border-amber-500/20 rounded-2xl p-3.5 flex flex-col gap-2 shadow-[0_0_18px_rgba(245,158,11,0.07)] relative overflow-hidden group hover:scale-[1.02] transition-all duration-300">
+        <div className="bg-card border border-amber-200 dark:border-amber-500/20 rounded-2xl p-3.5 flex flex-col gap-2 shadow-[0_0_18px_rgba(245,158,11,0.07)] relative overflow-hidden group hover:scale-[1.02] transition-all duration-300">
           <div className="absolute inset-0 bg-gradient-to-br from-amber-500/[0.04] to-transparent pointer-events-none" />
           <div className="flex items-center justify-between">
-            <span className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest">Tổng Content Win</span>
+            <span className="text-[11px] font-extrabold text-muted-foreground uppercase tracking-widest">Tổng Content Win</span>
             <div className="w-7 h-7 rounded-xl bg-amber-500/15 border border-amber-500/25 flex items-center justify-center">
-              <Trophy className="w-3.5 h-3.5 text-amber-400" />
+              <Trophy className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
             </div>
           </div>
-          <span className="text-2xl font-black text-white leading-none">
-            {totalWinVideosSum}<span className="text-slate-500 text-base font-bold">/{totalVideosSum}</span>
+          <span className="text-2xl font-black text-foreground leading-none">
+            {totalWinVideosSum}<span className="text-muted-foreground text-base font-bold">/{totalVideosSum}</span>
           </span>
-          <div className="h-1 w-full bg-white/[0.04] rounded-full overflow-hidden">
+          <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
             <div className="h-full bg-amber-500 rounded-full transition-all duration-700" style={{ width: `${totalVideosSum > 0 ? (totalWinVideosSum / totalVideosSum) * 100 : 0}%` }} />
           </div>
         </div>
 
         {/* Content mới win */}
-        <div className="bg-[#0c1322] border border-emerald-500/20 rounded-2xl p-3.5 flex flex-col gap-2 shadow-[0_0_18px_rgba(16,185,129,0.07)] relative overflow-hidden group hover:scale-[1.02] transition-all duration-300">
+        <div className="bg-card border border-emerald-200 dark:border-emerald-500/20 rounded-2xl p-3.5 flex flex-col gap-2 shadow-[0_0_18px_rgba(16,185,129,0.07)] relative overflow-hidden group hover:scale-[1.02] transition-all duration-300">
           <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/[0.04] to-transparent pointer-events-none" />
           <div className="flex items-center justify-between">
-            <span className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest">Content Mới Win</span>
+            <span className="text-[11px] font-extrabold text-muted-foreground uppercase tracking-widest">Content Mới Win</span>
             <div className="w-7 h-7 rounded-xl bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center">
-              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+              <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             </div>
           </div>
-          <span className="text-2xl font-black text-white leading-none">
-            {newWinSum}<span className="text-slate-500 text-base font-bold">/{newTotalSum}</span>
+          <span className="text-2xl font-black text-foreground leading-none">
+            {newWinSum}<span className="text-muted-foreground text-base font-bold">/{newTotalSum}</span>
           </span>
-          <div className="h-1 w-full bg-white/[0.04] rounded-full overflow-hidden">
+          <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
             <div className="h-full bg-emerald-500 rounded-full transition-all duration-700" style={{ width: `${newTotalSum > 0 ? (newWinSum / newTotalSum) * 100 : 0}%` }} />
           </div>
         </div>
 
         {/* Tỷ lệ win */}
-        <div className="bg-[#0c1322] border border-cyan-500/20 rounded-2xl p-3.5 flex flex-col gap-2 shadow-[0_0_18px_rgba(6,182,212,0.08)] relative overflow-hidden group hover:scale-[1.02] transition-all duration-300">
+        <div className="bg-card border border-cyan-200 dark:border-cyan-500/20 rounded-2xl p-3.5 flex flex-col gap-2 shadow-[0_0_18px_rgba(6,182,212,0.08)] relative overflow-hidden group hover:scale-[1.02] transition-all duration-300">
           <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/[0.05] to-transparent pointer-events-none" />
           <div className="flex items-center justify-between">
-            <span className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest">Tỷ lệ Win Mới</span>
+            <span className="text-[11px] font-extrabold text-muted-foreground uppercase tracking-widest">Tỷ lệ Win Mới</span>
             <div className="w-7 h-7 rounded-xl bg-cyan-500/15 border border-cyan-500/25 flex items-center justify-center">
-              <TrendingUp className="w-3.5 h-3.5 text-cyan-400" />
+              <TrendingUp className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
             </div>
           </div>
-          <span className="text-2xl font-black text-cyan-400 leading-none">
+          <span className="text-2xl font-black text-cyan-600 dark:text-cyan-400 leading-none">
             {newRateFormatted}
           </span>
-          <div className="h-1 w-full bg-white/[0.04] rounded-full overflow-hidden">
+          <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
             <div className="h-full bg-cyan-500 rounded-full transition-all duration-700" style={{ width: `${newRatePct}%` }} />
           </div>
         </div>
       </div>
 
       {/* Top Team & Presentation Tab Navigation Bar */}
-      <div className="flex flex-col xl:flex-row gap-4 justify-between items-start xl:items-center bg-[#131d31] border border-white/[0.06] p-4 rounded-2xl shadow-lg">
+      <div className="flex flex-col xl:flex-row gap-4 justify-between items-start xl:items-center bg-card border border-border p-4 rounded-2xl shadow-lg">
         <div className="flex flex-wrap gap-2 w-full xl:w-auto">
           {[
-            { id: 'win', label: 'Content Win Mới', count: (baseData.videos || []).length, icon: Trophy, color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
-            { id: 'fail', label: 'Content Fail', count: (baseData.failVideos || []).length, icon: XCircle, color: 'text-rose-400 bg-rose-500/10 border-rose-500/20' },
-            { id: 'case', label: 'Case Study', count: (baseData.caseStudies || []).length, icon: Lightbulb, color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
-            { id: 'editorPerf', label: 'Số video content win của cá nhân trong team', count: (baseData.editorPerformance || []).length, icon: Award, color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20' },
+            { id: 'win', label: 'Content Win Mới', count: (baseData.videos || []).length, icon: Trophy, color: 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
+            { id: 'fail', label: 'Content Fail', count: (baseData.failVideos || []).length, icon: XCircle, color: 'text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/20' },
+            { id: 'case', label: 'Case Study', count: (baseData.caseStudies || []).length, icon: Lightbulb, color: 'text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20' },
+            { id: 'editorPerf', label: 'Số video content win của cá nhân trong team', count: (baseData.editorPerformance || []).length, icon: Award, color: 'text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 border-indigo-500/20' },
 
-            { id: 'newWin', label: 'Content mới win của cá nhân trong team/số video đã làm', count: (baseData.editorPerformance || []).length, icon: CheckCircle, color: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20' }
+            { id: 'newWin', label: 'Content mới win của cá nhân trong team/số video đã làm', count: (baseData.editorPerformance || []).length, icon: CheckCircle, color: 'text-cyan-600 dark:text-cyan-400 bg-cyan-500/10 border-cyan-500/20' }
 
           ].map((menuItem) => {
             const isActive = presentationMenu === menuItem.id;
@@ -448,13 +448,13 @@ export default function PresentationTab({
                   setIsPlayingVideo(false);
                 }}
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-xs font-extrabold transition-all duration-200 ${isActive
-                  ? 'bg-[#1e293b] text-white border-blue-500 shadow-lg shadow-blue-950/50 scale-100'
-                  : 'bg-white/[0.02] text-slate-400 border-white/[0.04] hover:bg-white/[0.05] hover:text-slate-200'
+                  ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500 shadow-lg shadow-blue-950/50 scale-100'
+                  : 'bg-muted text-muted-foreground border-border hover:bg-accent hover:text-foreground'
                   }`}
               >
-                <Icon className={`w-4 h-4 ${isActive ? 'text-blue-400' : menuItem.color.split(' ')[0]}`} />
+                <Icon className={`w-4 h-4 ${isActive ? 'text-blue-600 dark:text-blue-400' : menuItem.color.split(' ')[0]}`} />
                 <span>{menuItem.label}</span>
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold ${isActive ? 'bg-blue-500/20 text-blue-300' : 'bg-white/[0.05] text-slate-500'}`}>
+                <span className={`text-[12px] px-1.5 py-0.5 rounded-md font-bold ${isActive ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' : 'bg-muted text-muted-foreground'}`}>
                   {menuItem.count}
                 </span>
               </button>
@@ -462,7 +462,7 @@ export default function PresentationTab({
           })}
         </div>
 
-        <div className="flex bg-[#0c1322] border border-white/[0.06] p-1 rounded-xl shadow-inner w-full xl:w-auto xl:max-w-xs self-stretch xl:self-auto justify-between xl:justify-start gap-1">
+        <div className="flex bg-card border border-border p-1 rounded-xl shadow-inner w-full xl:w-auto xl:max-w-xs self-stretch xl:self-auto justify-between xl:justify-start gap-1">
           {Object.keys(teamsData).map((tab) => (
             <button
               key={tab}
@@ -472,8 +472,8 @@ export default function PresentationTab({
                 setIsPlayingVideo(false);
               }}
               className={`flex-1 px-4 py-2 text-xs font-bold rounded-lg transition-all duration-200 ${activeTab === tab
-                ? 'bg-[#bfdbfe] text-[#1e3a8a] shadow-md'
-                : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
+                ? 'bg-primary text-primary-foreground shadow-md'
+                : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                 }`}
             >
               {tab}
@@ -485,20 +485,20 @@ export default function PresentationTab({
       {/* 3-Column Interactive Presentation Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch lg:flex-1 lg:min-h-0">
         {/* Column 1: Left Slides List Sidebar */}
-        <div className="lg:col-span-3 bg-[#131d31]/80 border border-white/[0.06] rounded-2xl p-4 flex flex-col justify-between shadow-xl lg:h-[calc(100vh-420px)] lg:min-h-[350px] h-[680px]">
+        <div className="lg:col-span-3 bg-card border border-border rounded-2xl p-4 flex flex-col justify-between shadow-xl lg:h-[calc(100vh-420px)] lg:min-h-[350px] h-[680px]">
           <div className="flex flex-col gap-4 flex-1 min-h-0">
-            <div className="flex items-center justify-between border-b border-white/[0.06] pb-3 shrink-0">
-              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
-                <ListTodo className="w-3.5 h-3.5 text-blue-400" /> Danh sách Slide
+            <div className="flex items-center justify-between border-b border-border pb-3 shrink-0">
+              <span className="text-[12px] font-black uppercase text-muted-foreground tracking-wider flex items-center gap-1.5">
+                <ListTodo className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" /> Danh sách Slide
               </span>
-              <span className="text-[10px] font-black text-slate-400 bg-white/[0.04] px-2 py-0.5 rounded-full">
+              <span className="text-[12px] font-black text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
                 {slidesList.length} slide
               </span>
             </div>
 
             <div className="flex flex-col gap-2 flex-1 overflow-y-auto pr-1 custom-scrollbar">
               {slidesList.length === 0 ? (
-                <div className="text-center py-10 text-slate-500 text-xs font-medium">
+                <div className="text-center py-10 text-muted-foreground text-xs font-medium">
                   Chưa có slide nào
                 </div>
               ) : (
@@ -527,30 +527,30 @@ export default function PresentationTab({
                         setIsPlayingVideo(false);
                       }}
                       className={`flex gap-2.5 p-2.5 rounded-xl cursor-pointer border transition-all duration-200 group select-none relative overflow-hidden flex-shrink-0 ${isCurrent
-                        ? 'bg-gradient-to-r from-blue-950/60 to-[#1a2540]/60 border-blue-500/60 shadow-md shadow-blue-950/30'
-                        : 'bg-white/[0.015] hover:bg-white/[0.04] border-white/[0.04] hover:border-white/[0.08]'
+                        ? 'bg-blue-50 dark:bg-gradient-to-r dark:from-blue-950/60 dark:to-[#1a2540]/60 border-blue-500/60 shadow-md shadow-blue-950/30'
+                        : 'bg-transparent hover:bg-accent border-border hover:border-border'
                         }`}
                     >
                       {/* Slide number badge */}
-                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5 ${isCurrent ? 'bg-blue-500 text-white' : 'bg-white/[0.06] text-slate-500'
+                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[12px] font-black shrink-0 mt-0.5 ${isCurrent ? 'bg-blue-500 text-white' : 'bg-muted text-muted-foreground'
                         }`}>
                         {String(index + 1).padStart(2, '0')}
                       </div>
 
                       {/* Content */}
                       <div className="flex-1 flex flex-col gap-1 min-w-0">
-                        <span className={`text-[11px] font-bold leading-tight line-clamp-2 ${isCurrent ? 'text-white font-extrabold' : 'text-slate-300 group-hover:text-slate-100'
+                        <span className={`text-[13px] font-bold leading-tight line-clamp-2 ${isCurrent ? 'text-foreground font-extrabold' : 'text-muted-foreground group-hover:text-foreground'
                           }`}>
                           {slideTitle}
                         </span>
                         <div className="flex items-center justify-between gap-1 mt-0.5">
-                          <span className="flex items-center gap-1 text-[9px] text-slate-500 font-semibold truncate">
+                          <span className="flex items-center gap-1 text-[11px] text-muted-foreground font-semibold truncate">
                             <User className="w-2.5 h-2.5 shrink-0" />
                             <span className="truncate">{slideSubLeft}</span>
                           </span>
-                          <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-md shrink-0 ${isCurrent
-                            ? 'bg-blue-500/20 text-blue-300'
-                            : 'bg-white/[0.05] text-slate-400'
+                          <span className={`text-[11px] font-extrabold px-1.5 py-0.5 rounded-md shrink-0 ${isCurrent
+                            ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300'
+                            : 'bg-muted text-muted-foreground'
                             }`}>
                             {slideSubRight}
                           </span>
@@ -570,19 +570,19 @@ export default function PresentationTab({
 
           <button
             onClick={() => addSlide(presentationMenu)}
-            className="mt-4 w-full flex items-center justify-center gap-2 py-3 bg-white/[0.03] hover:bg-blue-600 hover:text-white border border-white/[0.06] hover:border-blue-500 text-slate-300 rounded-xl text-xs font-black transition-all duration-200 shadow-md group shrink-0"
+            className="mt-4 w-full flex items-center justify-center gap-2 py-3 bg-muted hover:bg-blue-600 hover:text-white border border-border hover:border-blue-500 text-muted-foreground rounded-xl text-xs font-black transition-all duration-200 shadow-md group shrink-0"
           >
-            <Plus className="w-4 h-4 text-blue-400 group-hover:text-white transition-colors" />
+            <Plus className="w-4 h-4 text-blue-600 dark:text-blue-400 group-hover:text-white transition-colors" />
             Thêm slide mới
           </button>
         </div>
 
         {/* Column 2: Center Main Slide Stage */}
         <div className="lg:col-span-5 flex flex-col gap-4 lg:h-[calc(100vh-420px)] lg:min-h-[350px] h-[680px]">
-          <div className="bg-[#131d31] border border-white/[0.06] rounded-2xl p-4 flex items-center justify-between shadow-lg shrink-0">
+          <div className="bg-card border border-border rounded-2xl p-4 flex items-center justify-between shadow-lg shrink-0">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
-              <span className="text-[11px] font-black uppercase tracking-wider text-slate-300">
+              <span className="text-[13px] font-black uppercase tracking-wider text-muted-foreground">
                 Slide {slidesList.length > 0 ? validSlideIndex + 1 : 0} / {slidesList.length}
               </span>
             </div>
@@ -597,7 +597,7 @@ export default function PresentationTab({
               <button
                 onClick={() => deleteSlide(presentationMenu, validSlideIndex)}
                 disabled={!selectedSlide}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-950/40 hover:bg-red-500/20 disabled:opacity-40 text-red-400 hover:text-white border border-red-500/20 rounded-lg text-xs font-black transition-all duration-150"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 dark:bg-red-950/40 hover:bg-rose-100 dark:hover:bg-red-500/20 disabled:opacity-40 text-rose-600 dark:text-red-400 hover:text-rose-700 dark:hover:text-foreground border border-rose-200 dark:border-red-500/20 rounded-lg text-xs font-black transition-all duration-150"
                 title="Xóa slide hiện tại"
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -606,7 +606,7 @@ export default function PresentationTab({
           </div>
 
           {selectedSlide ? (
-            <div className="flex-1 bg-[#131d31]/50 border border-white/[0.06] rounded-2xl p-4 flex flex-col gap-4 shadow-xl relative overflow-hidden overflow-y-auto custom-scrollbar">
+            <div className="flex-1 bg-card border border-border rounded-2xl p-4 flex flex-col gap-4 shadow-xl relative overflow-hidden overflow-y-auto custom-scrollbar">
               <div className="absolute inset-0 bg-radial-gradient from-blue-900/[0.03] to-transparent pointer-events-none" />
 
               {(presentationMenu === 'editorPerf' || presentationMenu === 'newWin') ? (
@@ -615,7 +615,7 @@ export default function PresentationTab({
 
                   {/* Left: Beautiful circular progress ring (SVG) */}
 
-                  <div className="w-full md:w-56 bg-[#090e18] border border-white/[0.08] rounded-2xl flex flex-col items-center justify-center p-6 shrink-0 shadow-inner min-h-[220px]">
+                  <div className="w-full md:w-56 bg-muted border border-border rounded-2xl flex flex-col items-center justify-center p-6 shrink-0 shadow-inner min-h-[220px]">
 
                     {(() => {
 
@@ -637,7 +637,7 @@ export default function PresentationTab({
 
                       let progressColor = 'stroke-rose-500';
 
-                      let bgColor = 'bg-rose-500/10 text-rose-400';
+                      let bgColor = 'bg-rose-500/10 text-rose-600 dark:text-rose-400';
 
                       let statusText = 'Cần cải thiện';
 
@@ -645,7 +645,7 @@ export default function PresentationTab({
 
                         progressColor = 'stroke-emerald-500';
 
-                        bgColor = 'bg-emerald-500/10 text-emerald-400';
+                        bgColor = 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400';
 
                         statusText = 'Xuất sắc';
 
@@ -653,7 +653,7 @@ export default function PresentationTab({
 
                         progressColor = 'stroke-blue-500';
 
-                        bgColor = 'bg-blue-500/10 text-blue-400';
+                        bgColor = 'bg-blue-500/10 text-blue-600 dark:text-blue-400';
 
                         statusText = 'Tốt / Đạt chỉ tiêu';
 
@@ -669,7 +669,7 @@ export default function PresentationTab({
 
                             <svg className="w-full h-full transform -rotate-90" viewBox="0 0 140 140">
 
-                              <circle cx="70" cy="70" r={radius} className="stroke-white/[0.04]" strokeWidth="10" fill="transparent" />
+                              <circle cx="70" cy="70" r={radius} className="stroke-muted" strokeWidth="10" fill="transparent" />
 
                               <circle cx="70" cy="70" r={radius} className={`transition-all duration-500 ease-out ${progressColor}`} strokeWidth="10" fill="transparent" strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} strokeLinecap="round" />
 
@@ -677,15 +677,15 @@ export default function PresentationTab({
 
                             <div className="absolute flex flex-col items-center justify-center">
 
-                              <span className="text-xl font-black text-white">{rate.toFixed(1).replace('.', ',')}%</span>
+                              <span className="text-xl font-black text-foreground">{rate.toFixed(1).replace('.', ',')}%</span>
 
-                              <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mt-0.5">Win Rate</span>
+                              <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mt-0.5">Win Rate</span>
 
                             </div>
 
                           </div>
 
-                          <span className={`mt-4 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider ${bgColor} border border-white/5 shadow-sm`}>
+                          <span className={`mt-4 px-3 py-1.5 rounded-full text-[12px] font-black uppercase tracking-wider ${bgColor} border border-border shadow-sm`}>
 
                             {statusText}
 
@@ -704,9 +704,9 @@ export default function PresentationTab({
                   <div className="flex-1 flex flex-col gap-5 justify-center">
 
                     <div className="flex flex-col">
-                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-2 flex items-center gap-1.5">
+                      <label className="text-[12px] font-black uppercase text-muted-foreground tracking-wider mb-2 flex items-center gap-1.5">
 
-                        <User className="w-3.5 h-3.5 text-blue-400" /> Tên Editor
+                        <User className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" /> Tên Editor
 
                       </label>
                       <input
@@ -715,7 +715,7 @@ export default function PresentationTab({
 
                         onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, 'editor', e.target.value)}
 
-                        className="bg-[#0c1322] border border-white/[0.06] focus:border-blue-500 outline-none rounded-xl p-3 text-xs text-white placeholder-slate-500 font-bold transition-all"
+                        className="bg-muted border border-border focus:border-blue-500 dark:focus:border-blue-400 outline-none rounded-xl p-3 text-xs text-foreground placeholder:text-muted-foreground font-bold transition-all"
 
                         placeholder="Nhập tên Editor..."
 
@@ -725,9 +725,9 @@ export default function PresentationTab({
                     <div className="grid grid-cols-2 gap-4">
 
                       <div className="flex flex-col">
-                        <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1.5 flex items-center gap-1">
+                        <label className="text-[11px] font-black uppercase text-muted-foreground tracking-wider mb-1.5 flex items-center gap-1">
 
-                          <Video className="w-3 h-3 text-blue-400" /> Tổng video đã làm
+                          <Video className="w-3 h-3 text-blue-600 dark:text-blue-400" /> Tổng video đã làm
 
                         </label>
 
@@ -741,15 +741,15 @@ export default function PresentationTab({
 
                           onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, 'totalVideos', e.target.value)}
 
-                          className="bg-[#0c1322] border border-white/[0.06] focus:border-blue-500 outline-none rounded-lg px-3 py-2 text-xs text-white font-bold transition-all"
+                          className="bg-muted border border-border focus:border-blue-500 dark:focus:border-blue-400 outline-none rounded-lg px-3 py-2 text-xs text-foreground font-bold transition-all"
 
                         />
 
                       </div>
                       <div className="flex flex-col">
-                        <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1.5 flex items-center gap-1">
+                        <label className="text-[11px] font-black uppercase text-muted-foreground tracking-wider mb-1.5 flex items-center gap-1">
 
-                          <Trophy className="w-3 h-3 text-emerald-400" /> Video đạt content win
+                          <Trophy className="w-3 h-3 text-emerald-600 dark:text-emerald-400" /> Video đạt content win
 
                         </label>
 
@@ -763,7 +763,7 @@ export default function PresentationTab({
 
                           onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, 'winVideos', e.target.value)}
 
-                          className="bg-[#0c1322] border border-white/[0.06] focus:border-blue-500 outline-none rounded-lg px-3 py-2 text-xs text-white font-bold transition-all"
+                          className="bg-muted border border-border focus:border-blue-500 dark:focus:border-blue-400 outline-none rounded-lg px-3 py-2 text-xs text-foreground font-bold transition-all"
 
                         />
 
@@ -772,24 +772,24 @@ export default function PresentationTab({
 
 
 
-                    <div className="grid grid-cols-2 gap-4 border-t border-white/[0.04] pt-4">
+                    <div className="grid grid-cols-2 gap-4 border-t border-border pt-4">
 
-                      <div className="flex flex-col bg-[#0c1322]/50 border border-white/[0.03] rounded-lg p-2.5">
+                      <div className="flex flex-col bg-muted border border-border rounded-lg p-2.5">
 
-                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Video Thất bại (Fail)</span>
+                        <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Video Thất bại (Fail)</span>
 
-                        <span className="text-sm font-black text-rose-400 mt-1">
+                        <span className="text-sm font-black text-rose-600 dark:text-rose-400 mt-1">
 
                           {Math.max(0, (selectedSlide.totalVideos || 0) - (selectedSlide.winVideos || 0))}
 
                         </span>
 
                       </div>
-                      <div className="flex flex-col bg-[#0c1322]/50 border border-white/[0.03] rounded-lg p-2.5">
+                      <div className="flex flex-col bg-muted border border-border rounded-lg p-2.5">
 
-                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Hiệu suất chung</span>
+                        <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Hiệu suất chung</span>
 
-                        <span className="text-sm font-black text-emerald-400 mt-1">
+                        <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 mt-1">
 
                           {selectedSlide.totalVideos > 0
 
@@ -815,7 +815,7 @@ export default function PresentationTab({
                   {/* Left: Video Mockup Player */}
                   <div
                     onClick={handlePlayerClick}
-                    className="w-full md:w-[160px] bg-[#090e18] border border-white/[0.08] rounded-xl flex flex-col justify-between overflow-hidden relative group shrink-0 min-h-[180px] md:h-[220px] cursor-pointer hover:border-white/[0.15] transition-all duration-300 select-none"
+                    className="w-full md:w-[160px] bg-muted border border-border rounded-xl flex flex-col justify-between overflow-hidden relative group shrink-0 min-h-[180px] md:h-[220px] cursor-pointer hover:border-border transition-all duration-300 select-none"
                   >
                     <img
                       src={getSlideUnsplashImage(selectedSlide)}
@@ -827,8 +827,8 @@ export default function PresentationTab({
                   {/* Right: Info Fields & Editing */}
                   <div className="flex-1 flex flex-col gap-3">
                     <div className="flex flex-col">
-                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1 flex items-center gap-1">
-                        <FileText className="w-3.5 h-3.5 text-blue-400" />
+                      <label className="text-[12px] font-black uppercase text-muted-foreground tracking-wider mb-1 flex items-center gap-1">
+                        <FileText className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                         {presentationMenu === 'action' ? 'Nội dung công việc' : (presentationMenu === 'case' ? 'Tiêu đề Case Study' : 'Nội dung video / Kịch bản')}
                       </label>
 
@@ -837,7 +837,7 @@ export default function PresentationTab({
                           type="text"
                           value={presentationMenu === 'action' ? (selectedSlide.title || '') : (selectedSlide.title || '')}
                           onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, 'title', e.target.value)}
-                          className="bg-[#0c1322] border border-white/[0.06] focus:border-blue-500 outline-none rounded-xl p-2.5 text-xs text-white placeholder-slate-500 font-medium transition-all"
+                          className="bg-muted border border-border focus:border-blue-500 dark:focus:border-blue-400 outline-none rounded-xl p-2.5 text-xs text-foreground placeholder:text-muted-foreground font-medium transition-all"
                           placeholder={presentationMenu === 'action' ? 'Nhập tiêu đề hành động...' : 'Nhập tiêu đề case study...'}
                         />
                       ) : (
@@ -850,7 +850,7 @@ export default function PresentationTab({
                             e.target.style.height = 'auto';
                             e.target.style.height = `${e.target.scrollHeight}px`;
                           }}
-                          className="bg-[#0c1322] border border-white/[0.06] focus:border-blue-500 outline-none rounded-xl p-2.5 text-xs text-white placeholder-slate-500 font-medium leading-relaxed resize-none transition-all"
+                          className="bg-muted border border-border focus:border-blue-500 dark:focus:border-blue-400 outline-none rounded-xl p-2.5 text-xs text-foreground placeholder:text-muted-foreground font-medium leading-relaxed resize-none transition-all"
                           placeholder="Nhập nội dung/kịch bản video..."
                           style={{ overflowY: 'hidden' }}
                         />
@@ -860,8 +860,8 @@ export default function PresentationTab({
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       {/* Editor / Assignee */}
                       <div className="flex flex-col">
-                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1 flex items-center gap-1">
-                          <User className="w-3 h-3 text-blue-400" />
+                        <label className="text-[12px] font-black uppercase text-muted-foreground tracking-wider mb-1 flex items-center gap-1">
+                          <User className="w-3 h-3 text-blue-600 dark:text-blue-400" />
                           {presentationMenu === 'action' ? 'Người làm' : 'Editor'}
                         </label>
                         <input
@@ -869,14 +869,14 @@ export default function PresentationTab({
                           value={presentationMenu === 'action' ? (selectedSlide.assignee || '') : (selectedSlide.editor || '')}
                           onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, presentationMenu === 'action' ? 'assignee' : 'editor', e.target.value)}
                           readOnly={presentationMenu !== 'action'}
-                          className={`bg-[#0c1322] border border-white/[0.06] outline-none rounded-lg px-2 py-1.5 text-xs text-white transition-all font-semibold ${presentationMenu !== 'action' ? 'opacity-80 cursor-default text-slate-300' : 'focus:border-blue-500'}`}
+                          className={`bg-muted border border-border outline-none rounded-lg px-2 py-1.5 text-xs text-foreground transition-all font-semibold ${presentationMenu !== 'action' ? 'opacity-80 cursor-default text-muted-foreground' : 'focus:border-blue-500 dark:focus:border-blue-400'}`}
                         />
                       </div>
 
                       {/* Views / Deadline */}
                       <div className="flex flex-col">
-                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1 flex items-center gap-1">
-                          <Calendar className="w-3 h-3 text-blue-400" />
+                        <label className="text-[12px] font-black uppercase text-muted-foreground tracking-wider mb-1 flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-blue-600 dark:text-blue-400" />
                           {presentationMenu === 'action' ? 'Hạn' : 'Lượt xem'}
                         </label>
                         <input
@@ -884,51 +884,51 @@ export default function PresentationTab({
                           value={presentationMenu === 'action' ? (selectedSlide.deadline || '') : formatPresentationViews((selectedSlide.views || '').replace(/\s*views/i, '').trim())}
                           onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, presentationMenu === 'action' ? 'deadline' : 'views', e.target.value)}
                           readOnly={presentationMenu !== 'action'}
-                          className={`bg-[#0c1322] border border-white/[0.06] outline-none rounded-lg px-2 py-1.5 text-xs text-white transition-all font-semibold ${presentationMenu !== 'action' ? 'opacity-80 cursor-default text-slate-300' : 'focus:border-blue-500'}`}
+                          className={`bg-muted border border-border outline-none rounded-lg px-2 py-1.5 text-xs text-foreground transition-all font-semibold ${presentationMenu !== 'action' ? 'opacity-80 cursor-default text-muted-foreground' : 'focus:border-blue-500 dark:focus:border-blue-400'}`}
                         />
                       </div>
 
                       {/* Platform / Channel / priority */}
                       <div className="flex flex-col">
-                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1">
+                        <label className="text-[12px] font-black uppercase text-muted-foreground tracking-wider mb-1">
                           {presentationMenu === 'action' ? 'Độ ưu tiên' : (presentationMenu === 'case' ? 'Kênh' : (presentationMenu === 'clone' ? 'Kênh clone' : 'Nền tảng'))}
                         </label>
                         {presentationMenu === 'action' ? (
                           <select
                             value={selectedSlide.priority || 'Trung bình'}
                             onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, 'priority', e.target.value)}
-                            className="bg-[#0c1322] border border-white/[0.06] focus:border-blue-500 outline-none rounded-lg px-2 py-1.5 text-xs text-white font-semibold transition-all"
+                            className="bg-muted border border-border focus:border-blue-500 dark:focus:border-blue-400 outline-none rounded-lg px-2 py-1.5 text-xs text-foreground font-semibold transition-all"
                           >
                             <option value="Cao">Cao</option>
                             <option value="Trung bình">Trung bình</option>
                             <option value="Thấp">Thấp</option>
                           </select>
                         ) : presentationMenu === 'case' ? (
-                          <input type="text" value={selectedSlide.channel || ''} readOnly className="bg-[#0c1322] border border-white/[0.06] outline-none rounded-lg px-2 py-1.5 text-xs text-slate-300 transition-all font-semibold opacity-80 cursor-default" />
+                          <input type="text" value={selectedSlide.channel || ''} readOnly className="bg-muted border border-border outline-none rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition-all font-semibold opacity-80 cursor-default" />
                         ) : presentationMenu === 'clone' ? (
-                          <input type="text" value={selectedSlide.targetChannel || ''} readOnly className="bg-[#0c1322] border border-white/[0.06] outline-none rounded-lg px-2 py-1.5 text-xs text-slate-300 transition-all font-semibold opacity-80 cursor-default" />
+                          <input type="text" value={selectedSlide.targetChannel || ''} readOnly className="bg-muted border border-border outline-none rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition-all font-semibold opacity-80 cursor-default" />
                         ) : (
-                          <input type="text" value={selectedSlide.platform || 'TikTok'} readOnly className="bg-[#0c1322] border border-white/[0.06] outline-none rounded-lg px-2 py-1.5 text-xs text-slate-300 transition-all font-semibold opacity-80 cursor-default" />
+                          <input type="text" value={selectedSlide.platform || 'TikTok'} readOnly className="bg-muted border border-border outline-none rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition-all font-semibold opacity-80 cursor-default" />
                         )}
                       </div>
 
                       {/* Date / Status */}
                       <div className="flex flex-col">
-                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1">
+                        <label className="text-[12px] font-black uppercase text-muted-foreground tracking-wider mb-1">
                           {presentationMenu === 'action' ? 'Trạng thái' : 'Ngày đăng'}
                         </label>
                         {presentationMenu === 'action' ? (
                           <select
                             value={selectedSlide.status || 'Chưa bắt đầu'}
                             onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, 'status', e.target.value)}
-                            className="bg-[#0c1322] border border-white/[0.06] focus:border-blue-500 outline-none rounded-lg px-2 py-1.5 text-xs text-white font-semibold transition-all"
+                            className="bg-muted border border-border focus:border-blue-500 dark:focus:border-blue-400 outline-none rounded-lg px-2 py-1.5 text-xs text-foreground font-semibold transition-all"
                           >
                             <option value="Chưa bắt đầu">Chưa bắt đầu</option>
                             <option value="Đang tiến hành">Đang tiến hành</option>
                             <option value="Hoàn thành">Hoàn thành</option>
                           </select>
                         ) : (
-                          <input type="text" value={selectedSlide.postDate || ''} readOnly className="bg-[#0c1322] border border-white/[0.06] outline-none rounded-lg px-2 py-1.5 text-xs text-slate-300 transition-all font-semibold opacity-80 cursor-default" />
+                          <input type="text" value={selectedSlide.postDate || ''} readOnly className="bg-muted border border-border outline-none rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition-all font-semibold opacity-80 cursor-default" />
                         )}
                       </div>
                     </div>
@@ -940,7 +940,7 @@ export default function PresentationTab({
               {/* Vote & Score buttons */}
               {presentationMenu !== 'action' && presentationMenu !== 'editorPerf' && presentationMenu !== 'newWin' && (
 
-                <div className="flex gap-3 border-t border-white/[0.06] pt-3 items-center">
+                <div className="flex gap-3 border-t border-border pt-3 items-center">
                   <button
                     onClick={() => {
                       const isVoted = selectedSlide.isVoted === 'true';
@@ -948,10 +948,10 @@ export default function PresentationTab({
                     }}
                     className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border text-xs font-black transition-all duration-200 ${selectedSlide.isVoted === 'true'
                       ? 'bg-rose-600/90 hover:bg-rose-500 text-white border-rose-500 shadow-md shadow-rose-950/20 scale-[1.01]'
-                      : 'bg-white/[0.02] text-slate-400 border-white/[0.04] hover:bg-white/[0.05] hover:text-slate-200'
+                      : 'bg-muted text-muted-foreground border-border hover:bg-accent hover:text-foreground'
                       }`}
                   >
-                    <Heart className={`w-3.5 h-3.5 transition-transform ${selectedSlide.isVoted === 'true' ? 'fill-current scale-110 text-white' : 'text-slate-500'}`} />
+                    <Heart className={`w-3.5 h-3.5 transition-transform ${selectedSlide.isVoted === 'true' ? 'fill-current scale-110 text-white' : 'text-muted-foreground'}`} />
                     <span>{selectedSlide.isVoted === 'true' ? 'Đã Vote' : 'Vote'}</span>
                   </button>
                   <button
@@ -967,24 +967,24 @@ export default function PresentationTab({
               )}
 
               {/* Notes Field */}
-              <div className="border-t border-white/[0.06] pt-3 flex flex-col">
-                <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1 flex items-center gap-1">
-                  <FileText className="w-3.5 h-3.5 text-blue-400" /> Ghi chú định hướng nội bộ
+              <div className="border-t border-border pt-3 flex flex-col">
+                <label className="text-[12px] font-black uppercase text-muted-foreground tracking-wider mb-1 flex items-center gap-1">
+                  <FileText className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" /> Ghi chú định hướng nội bộ
                 </label>
                 <textarea
                   rows={2}
                   value={selectedSlide.notes || ''}
                   onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, 'notes', e.target.value)}
-                  className="bg-[#0c1322] border border-white/[0.06] focus:border-blue-500 outline-none rounded-xl p-2.5 text-xs text-white placeholder-slate-500 font-medium leading-relaxed resize-none transition-all"
+                  className="bg-muted border border-border focus:border-blue-500 dark:focus:border-blue-400 outline-none rounded-xl p-2.5 text-xs text-foreground placeholder:text-muted-foreground font-medium leading-relaxed resize-none transition-all"
                   placeholder="Nhập ghi chú định hướng chiến dịch..."
                 />
               </div>
             </div>
           ) : (
-            <div className="bg-[#131d31]/30 border border-white/[0.06] rounded-2xl p-10 flex flex-col items-center justify-center h-[400px] text-center shadow-xl flex-1">
-              <Presentation className="w-12 h-12 text-slate-600 mb-4 animate-bounce" />
-              <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest">Không có slide</h3>
-              <p className="text-xs text-slate-500 mt-2 max-w-xs leading-relaxed">
+            <div className="bg-card border border-border rounded-2xl p-10 flex flex-col items-center justify-center h-[400px] text-center shadow-xl flex-1">
+              <Presentation className="w-12 h-12 text-muted-foreground mb-4 animate-bounce" />
+              <h3 className="text-sm font-black text-muted-foreground uppercase tracking-widest">Không có slide</h3>
+              <p className="text-xs text-muted-foreground mt-2 max-w-xs leading-relaxed">
                 Hãy chọn danh mục khác hoặc click vào nút &quot;Thêm slide mới&quot; ở cột bên trái để tạo slide thuyết trình!
               </p>
             </div>
@@ -994,15 +994,15 @@ export default function PresentationTab({
         {/* Column 3: Right Analysis Cards Panel */}
         <div className="lg:col-span-4 flex flex-col gap-3 lg:h-[calc(100vh-420px)] lg:min-h-[350px] h-[680px]">
           {/* Panel header */}
-          <div className="bg-[#0c1322] border border-purple-500/20 rounded-2xl px-4 py-3 flex items-center justify-between shadow-[0_0_18px_rgba(168,85,247,0.07)] shrink-0 relative overflow-hidden">
+          <div className="bg-card border border-purple-200 dark:border-purple-500/20 rounded-2xl px-4 py-3 flex items-center justify-between shadow-[0_0_18px_rgba(168,85,247,0.07)] shrink-0 relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-r from-purple-500/[0.04] to-transparent pointer-events-none" />
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-xl bg-purple-500/15 border border-purple-500/25 flex items-center justify-center">
-                <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
               </div>
-              <span className="text-[11px] font-black uppercase text-slate-200 tracking-wider">Phân tích & Đánh giá</span>
+              <span className="text-[13px] font-black uppercase text-foreground tracking-wider">Phân tích & Đánh giá</span>
             </div>
-            <span className="text-[9px] font-extrabold text-purple-400/70 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
+            <span className="text-[11px] font-extrabold text-purple-600/70 dark:text-purple-400/70 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
               AI Review
             </span>
           </div>
@@ -1011,14 +1011,14 @@ export default function PresentationTab({
             <div className="flex-1 overflow-y-auto flex flex-col gap-3 pr-1 custom-scrollbar">
               {/* Review chéo Widget */}
               {(presentationMenu === 'win' || presentationMenu === 'fail') && selectedSlide && (
-                <div className="bg-[#0c1322] border border-white/[0.08] backdrop-blur-md rounded-2xl p-4 shadow-xl flex flex-col gap-3 overflow-hidden">
+                <div className="bg-card border border-border backdrop-blur-md rounded-2xl p-4 shadow-xl flex flex-col gap-3 overflow-hidden">
                   {/* Widget Header */}
-                  <div className="flex items-center justify-between border-b border-white/[0.06] pb-2">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-purple-400 flex items-center gap-1">
+                  <div className="flex items-center justify-between border-b border-border pb-2">
+                    <span className="text-[12px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400 flex items-center gap-1">
                       <Award className="w-3.5 h-3.5" /> XEM CHÉO (ĐÁNH GIÁ VIDEO)
                     </span>
                     {((selectedSlide as any).scores || []).length > 0 && (
-                      <span className="bg-purple-500/20 text-purple-300 text-[9px] px-2 py-0.5 rounded-full font-black border border-purple-500/30">
+                      <span className="bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 text-[11px] px-2 py-0.5 rounded-full font-black border border-purple-300 dark:border-purple-500/30">
                         {((selectedSlide as any).scores || []).length} Đánh giá
                       </span>
                     )}
@@ -1027,33 +1027,33 @@ export default function PresentationTab({
                   {/* History List */}
                   <div className="flex flex-col gap-2.5 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
                     {((selectedSlide as any).scores || []).length === 0 ? (
-                      <div className="text-center py-6 text-xs text-slate-500 font-semibold">
+                      <div className="text-center py-6 text-xs text-muted-foreground font-semibold">
                         Chưa có ai đánh giá video này.
                       </div>
                     ) : (
                       ((selectedSlide as any).scores || []).map((s: any, idx: number) => {
                         const badge = getScoreBadge(s.score_total);
                         return (
-                          <div key={idx} className="bg-white/[0.02] border border-white/[0.05] p-3 rounded-xl flex flex-col gap-2 hover:bg-white/[0.04] transition-all">
+                          <div key={idx} className="bg-muted/40 border border-border p-3 rounded-xl flex flex-col gap-2 hover:bg-accent transition-all">
                             <div className="flex justify-between items-center">
                               <div className="flex flex-col gap-1">
-                                <span className="text-xs font-black text-white">{s.scored_by?.full_name || 'Thành viên'}</span>
-                                <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded border inline-block w-fit ${badge.colorClass}`}>
+                                <span className="text-xs font-black text-foreground">{s.scored_by?.full_name || 'Thành viên'}</span>
+                                <span className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded border inline-block w-fit ${badge.colorClass}`}>
                                   {badge.text}
                                 </span>
                               </div>
                               <div className="text-right">
-                                <span className="text-[8px] font-extrabold text-purple-400 block uppercase tracking-widest mb-0.5">Đánh giá</span>
+                                <span className="text-[10px] font-extrabold text-purple-600 dark:text-purple-400 block uppercase tracking-widest mb-0.5">Đánh giá</span>
                                 <div className="flex items-baseline justify-end gap-0.5">
-                                  <span className="text-base font-black text-white">{s.score_total?.toFixed(1)}</span>
-                                  <span className="text-[10px] font-bold text-slate-500">/10</span>
+                                  <span className="text-base font-black text-foreground">{s.score_total?.toFixed(1)}</span>
+                                  <span className="text-[12px] font-bold text-muted-foreground">/10</span>
                                 </div>
                               </div>
                             </div>
 
                             {s.comment && (
-                              <div className="text-[10px] text-slate-300 bg-white/[0.01] border border-white/[0.03] p-2.5 rounded-lg italic leading-relaxed">
-                                <span className="font-bold not-italic text-slate-500 block text-[8px] uppercase tracking-wider mb-1">Ý kiến góp ý</span>
+                              <div className="text-[12px] text-muted-foreground bg-muted/40 border border-border p-2.5 rounded-lg italic leading-relaxed">
+                                <span className="font-bold not-italic text-muted-foreground block text-[10px] uppercase tracking-wider mb-1">Ý kiến góp ý</span>
                                 &ldquo;{s.comment}&rdquo;
                               </div>
                             )}
@@ -1074,8 +1074,8 @@ export default function PresentationTab({
                 let bgGlow = 'bg-emerald-500/[0.025]';
                 let borderColor = 'border-emerald-500/15';
                 let iconBg = 'bg-emerald-500/15 border-emerald-500/25';
-                let iconColor = 'text-emerald-400';
-                let labelColor = 'text-emerald-300';
+                let iconColor = 'text-emerald-600 dark:text-emerald-400';
+                let labelColor = 'text-emerald-700 dark:text-emerald-300';
                 let icon = Trophy;
 
                 if (isPerf) {
@@ -1085,25 +1085,25 @@ export default function PresentationTab({
                   bgGlow = isNew ? 'bg-emerald-500/[0.025]' : 'bg-blue-500/[0.025]';
                   borderColor = isNew ? 'border-emerald-500/15' : 'border-blue-500/15';
                   iconBg = isNew ? 'bg-emerald-500/15 border-emerald-500/25' : 'bg-blue-500/15 border-blue-500/25';
-                  iconColor = isNew ? 'text-emerald-400' : 'text-blue-400';
-                  labelColor = isNew ? 'text-emerald-300' : 'text-blue-300';
+                  iconColor = isNew ? 'text-emerald-600 dark:text-emerald-400' : 'text-blue-600 dark:text-blue-400';
+                  labelColor = isNew ? 'text-emerald-700 dark:text-emerald-300' : 'text-blue-700 dark:text-blue-300';
                   icon = Award;
                 } else if (presentationMenu === 'fail') {
                   field = 'failReason';
                   accentColor = 'border-l-rose-500'; bgGlow = 'bg-rose-500/[0.025]'; borderColor = 'border-rose-500/15';
-                  iconBg = 'bg-rose-500/15 border-rose-500/25'; iconColor = 'text-rose-400'; labelColor = 'text-rose-300'; icon = XCircle;
+                  iconBg = 'bg-rose-500/15 border-rose-500/25'; iconColor = 'text-rose-600 dark:text-rose-400'; labelColor = 'text-rose-700 dark:text-rose-300'; icon = XCircle;
                 } else if (presentationMenu === 'case') {
                   field = 'takeaway';
                   accentColor = 'border-l-amber-500'; bgGlow = 'bg-amber-500/[0.025]'; borderColor = 'border-amber-500/15';
-                  iconBg = 'bg-amber-500/15 border-amber-500/25'; iconColor = 'text-amber-400'; labelColor = 'text-amber-300'; icon = BookOpen;
+                  iconBg = 'bg-amber-500/15 border-amber-500/25'; iconColor = 'text-amber-600 dark:text-amber-400'; labelColor = 'text-amber-700 dark:text-amber-300'; icon = BookOpen;
                 } else if (presentationMenu === 'clone') {
                   field = 'analysis';
                   accentColor = 'border-l-indigo-500'; bgGlow = 'bg-indigo-500/[0.025]'; borderColor = 'border-indigo-500/15';
-                  iconBg = 'bg-indigo-500/15 border-indigo-500/25'; iconColor = 'text-indigo-400'; labelColor = 'text-indigo-300'; icon = Copy;
+                  iconBg = 'bg-indigo-500/15 border-indigo-500/25'; iconColor = 'text-indigo-600 dark:text-indigo-400'; labelColor = 'text-indigo-700 dark:text-indigo-300'; icon = Copy;
                 } else if (presentationMenu === 'action') {
                   field = 'description';
                   accentColor = 'border-l-cyan-500'; bgGlow = 'bg-cyan-500/[0.025]'; borderColor = 'border-cyan-500/15';
-                  iconBg = 'bg-cyan-500/15 border-cyan-500/25'; iconColor = 'text-cyan-400'; labelColor = 'text-cyan-300'; icon = ListTodo;
+                  iconBg = 'bg-cyan-500/15 border-cyan-500/25'; iconColor = 'text-cyan-600 dark:text-cyan-400'; labelColor = 'text-cyan-700 dark:text-cyan-300'; icon = ListTodo;
                 }
 
                 const CustomIcon = icon;
@@ -1116,14 +1116,14 @@ export default function PresentationTab({
                       <div className={`w-7 h-7 rounded-lg border flex items-center justify-center shrink-0 ${iconBg}`}>
                         <CustomIcon className={`w-3.5 h-3.5 ${iconColor}`} />
                       </div>
-                      <span className={`text-[10px] font-black uppercase tracking-widest ${labelColor}`}>{title}</span>
+                      <span className={`text-[12px] font-black uppercase tracking-widest ${labelColor}`}>{title}</span>
                     </div>
-                    <div className="h-px w-full bg-white/[0.04]" />
+                    <div className="h-px w-full bg-border" />
                     <textarea
                       rows={4}
                       value={value}
                       onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, field, e.target.value)}
-                      className="bg-transparent border-0 outline-none text-xs leading-relaxed text-slate-300 placeholder-slate-600 resize-none font-medium w-full min-h-[100px] overflow-y-auto custom-scrollbar"
+                      className="bg-transparent border-0 outline-none text-xs leading-relaxed text-muted-foreground placeholder:text-muted-foreground resize-none font-medium w-full min-h-[100px] overflow-y-auto custom-scrollbar"
                       placeholder={isPerf ? "Nhập đánh giá điểm mạnh, điểm yếu của Editor..." : "Nhập nội dung đánh giá phân tích..."}
                     />
                   </div>
@@ -1143,16 +1143,16 @@ export default function PresentationTab({
                     <div className="absolute inset-0 bg-gradient-to-br from-white/[0.01] to-transparent pointer-events-none" />
                     <div className="flex items-center gap-2">
                       <div className="w-7 h-7 rounded-lg border bg-sky-500/15 border-sky-500/25 flex items-center justify-center shrink-0">
-                        <Icon className="w-3.5 h-3.5 text-sky-400" />
+                        <Icon className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
                       </div>
-                      <span className="text-[10px] font-black uppercase tracking-widest text-sky-300">{title}</span>
+                      <span className="text-[12px] font-black uppercase tracking-widest text-sky-700 dark:text-sky-300">{title}</span>
                     </div>
-                    <div className="h-px w-full bg-white/[0.04]" />
+                    <div className="h-px w-full bg-border" />
                     <textarea
                       rows={4}
                       value={selectedSlide[field] || ''}
                       onChange={(e) => updateSlideField(presentationMenu, validSlideIndex, field, e.target.value)}
-                      className="bg-transparent border-0 outline-none text-xs leading-relaxed text-slate-300 placeholder-slate-600 resize-none font-medium w-full min-h-[100px] overflow-y-auto custom-scrollbar"
+                      className="bg-transparent border-0 outline-none text-xs leading-relaxed text-muted-foreground placeholder:text-muted-foreground resize-none font-medium w-full min-h-[100px] overflow-y-auto custom-scrollbar"
                       placeholder={isAction ? "Ghi chú thêm..." : isPerf ? "Nhập định hướng cải thiện chỉ số cho Editor..." : "Nhập hướng cải tiến mới..."}
                     />
                   </div>
@@ -1160,9 +1160,9 @@ export default function PresentationTab({
               })()}
             </div>
           ) : (
-            <div className="border border-white/[0.04] bg-white/[0.01] rounded-2xl p-8 text-center flex-1 flex flex-col items-center justify-center gap-3">
-              <Sparkles className="w-8 h-8 text-slate-600" />
-              <span className="text-slate-600 text-xs font-semibold">Chưa có slide để hiển thị phân tích</span>
+            <div className="border border-border bg-muted/30 rounded-2xl p-8 text-center flex-1 flex flex-col items-center justify-center gap-3">
+              <Sparkles className="w-8 h-8 text-muted-foreground" />
+              <span className="text-muted-foreground text-xs font-semibold">Chưa có slide để hiển thị phân tích</span>
             </div>
           )}
         </div>
@@ -1275,7 +1275,7 @@ export default function PresentationTab({
                   <h1 className="text-xl font-black tracking-wider bg-gradient-to-r from-white via-blue-100 to-indigo-200 bg-clip-text text-transparent uppercase leading-none">
                     {titles[presentationMenu] || 'PRESENTATION SLIDE'}
                   </h1>
-                  <span className="text-[11px] text-slate-400 font-extrabold mt-1.5 tracking-wide uppercase">
+                  <span className="text-[13px] text-slate-400 font-extrabold mt-1.5 tracking-wide uppercase">
                     {descs[presentationMenu] || 'Báo cáo thống kê hiệu suất của team'}
                   </span>
                 </div>
@@ -1283,7 +1283,7 @@ export default function PresentationTab({
               <div className="flex items-center gap-6">
                 {/* Stepper Progress Bar matching the image */}
                 <div className="flex flex-col items-end gap-1.5">
-                  <span className="text-[10px] font-black tracking-widest text-[#5B75A6] uppercase">
+                  <span className="text-[12px] font-black tracking-widest text-[#5B75A6] uppercase">
                     SLIDE {validSlideIndex + 1} / {slidesList.length}
                   </span>
                   <div className="relative flex items-center h-2 w-36 mt-0.5">
@@ -1384,11 +1384,11 @@ export default function PresentationTab({
                                 </svg>
                                 <div className="absolute flex flex-col items-center justify-center">
                                   <span className="text-xl font-black text-white">{rate.toFixed(1).replace('.', ',')}%</span>
-                                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mt-0.5">Win Rate</span>
+                                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mt-0.5">Win Rate</span>
                                 </div>
                               </div>
                               <h3 className="text-base font-black text-white mt-4">{selectedSlide.editor}</h3>
-                              <span className={`mt-2 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${bgColor} border border-white/5`}>
+                              <span className={`mt-2 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider ${bgColor} border border-white/5`}>
                                 {statusText}
                               </span>
                             </>
@@ -1410,7 +1410,7 @@ export default function PresentationTab({
                         </div>
 
                         {/* Time duration overlay bottom-center */}
-                        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-[#090E18]/80 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10 text-[10px] font-extrabold tracking-wider text-slate-200">
+                        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-[#090E18]/80 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10 text-[12px] font-extrabold tracking-wider text-slate-200">
                           00:59
                         </div>
                       </div>
@@ -1418,10 +1418,10 @@ export default function PresentationTab({
                       <div className="w-full bg-[#090F1C]/80 border border-white/[0.08] backdrop-blur-md rounded-2xl p-5 shadow-xl flex flex-col justify-between h-full min-h-[160px] ml-6 z-10">
                         <div className="flex items-center gap-2 mb-2">
                           <Target className="w-4 h-4 text-cyan-400" />
-                          <span className="text-[9px] font-black uppercase tracking-wider text-cyan-400 bg-cyan-400/10 px-2.5 py-0.5 rounded-full">ACTION ITEM</span>
+                          <span className="text-[11px] font-black uppercase tracking-wider text-cyan-400 bg-cyan-400/10 px-2.5 py-0.5 rounded-full">ACTION ITEM</span>
                         </div>
                         <h2 className="text-lg font-black text-white leading-snug tracking-tight">{selectedSlide.title}</h2>
-                        <div className="flex gap-4 mt-4 text-[10px] text-slate-400 border-t border-white/[0.06] pt-3 font-bold">
+                        <div className="flex gap-4 mt-4 text-[12px] text-slate-400 border-t border-white/[0.06] pt-3 font-bold">
                           <div className="flex flex-col gap-0.5">
                             <span>Người làm:</span>
                             <span className="text-white font-black">{selectedSlide.assignee}</span>
@@ -1448,7 +1448,7 @@ export default function PresentationTab({
                     <div className="relative z-10 flex-1 flex flex-col justify-between">
                       <div>
                         {/* Title badge with icon */}
-                        <div className="flex items-center gap-1.5 text-blue-400 font-extrabold tracking-wider text-[10px] uppercase mb-4">
+                        <div className="flex items-center gap-1.5 text-blue-400 font-extrabold tracking-wider text-[12px] uppercase mb-4">
                           <FileText className="w-3.5 h-3.5 text-blue-400" />
                           {presentationMenu === 'action'
                             ? 'MÔ TẢ CÔNG VIỆC'
@@ -1462,15 +1462,15 @@ export default function PresentationTab({
                         {isPerf ? (
                           <div className="grid grid-cols-3 gap-4 py-2 text-center mt-3">
                             <div className="flex flex-col bg-[#090F1C]/80 border border-white/[0.04] p-4 rounded-xl shadow-md">
-                              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tổng video</span>
+                              <span className="text-[12px] font-black text-slate-500 uppercase tracking-widest">Tổng video</span>
                               <span className="text-xl font-black text-white mt-1.5">{selectedSlide.totalVideos}</span>
                             </div>
                             <div className="flex flex-col bg-emerald-500/[0.02] border border-emerald-500/10 p-4 rounded-xl shadow-md">
-                              <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Số video Win</span>
+                              <span className="text-[12px] font-black text-emerald-400 uppercase tracking-widest">Số video Win</span>
                               <span className="text-xl font-black text-emerald-400 mt-1.5">{selectedSlide.winVideos}</span>
                             </div>
                             <div className="flex flex-col bg-rose-500/[0.02] border border-rose-500/10 p-4 rounded-xl shadow-md">
-                              <span className="text-[10px] font-black text-rose-400 uppercase tracking-widest">Số Fail</span>
+                              <span className="text-[12px] font-black text-rose-400 uppercase tracking-widest">Số Fail</span>
                               <span className="text-xl font-black text-rose-400 mt-1.5">
                                 {Math.max(0, (selectedSlide.totalVideos || 0) - (selectedSlide.winVideos || 0))}
                               </span>
@@ -1527,7 +1527,7 @@ export default function PresentationTab({
                       <Eye className="w-6 h-6" />
                     </div>
                     <div>
-                      <div className="text-[11px] text-slate-400 uppercase tracking-widest font-black mb-1">LƯỢT XEM (VIEWS)</div>
+                      <div className="text-[13px] text-slate-400 uppercase tracking-widest font-black mb-1">LƯỢT XEM (VIEWS)</div>
                       <div className="text-lg font-black text-white">
                         {isPerf ? selectedSlide.totalVideos + ' video' : formatPresentationViews(selectedSlide.views || '0')}
                       </div>
@@ -1540,13 +1540,13 @@ export default function PresentationTab({
                       <Heart className={`w-6 h-6 ${selectedSlide.isVoted === 'true' ? 'fill-rose-500' : ''}`} />
                     </div>
                     <div>
-                      <div className="text-[11px] text-slate-400 uppercase tracking-widest font-black mb-1">VOTE</div>
+                      <div className="text-[13px] text-slate-400 uppercase tracking-widest font-black mb-1">VOTE</div>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-lg font-black text-white">
                           {isPerf ? selectedSlide.winVideos + ' win' : (selectedSlide.isVoted === 'true' ? '24' : '23')}
                         </span>
                         {selectedSlide.isVoted === 'true' && (
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-500/10 border border-rose-500/20 text-rose-400">ĐÃ VOTE</span>
+                          <span className="px-2.5 py-0.5 rounded-full text-[12px] font-black bg-rose-500/10 border border-rose-500/20 text-rose-400">ĐÃ VOTE</span>
                         )}
                       </div>
                     </div>
@@ -1558,7 +1558,7 @@ export default function PresentationTab({
                       <Award className="w-6 h-6" />
                     </div>
                     <div>
-                      <div className="text-[11px] text-slate-400 uppercase tracking-widest font-black mb-1">ĐIỂM TRUNG BÌNH</div>
+                      <div className="text-[13px] text-slate-400 uppercase tracking-widest font-black mb-1">ĐIỂM TRUNG BÌNH</div>
                       <div className="mt-1 flex items-baseline gap-0.5">
                         {(() => {
                           const scoresList = (selectedSlide as any).scores || [];
@@ -1583,7 +1583,7 @@ export default function PresentationTab({
                       <Calendar className="w-6 h-6" />
                     </div>
                     <div>
-                      <div className="text-[11px] text-slate-400 uppercase tracking-widest font-black mb-1">NGÀY ĐĂNG</div>
+                      <div className="text-[13px] text-slate-400 uppercase tracking-widest font-black mb-1">NGÀY ĐĂNG</div>
                       <div className="text-lg font-black text-white">
                         {presentationMenu === 'action' ? selectedSlide.deadline : selectedSlide.postDate || '10/06/2026'}
                       </div>
@@ -1726,20 +1726,20 @@ export default function PresentationTab({
       {/* Scoring Modal */}
       {isScoreModalOpen && selectedSlide && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-[2000] flex items-center justify-center p-4">
-          <div className="bg-[#0c1322] border border-white/[0.08] rounded-2xl p-6 w-full max-w-md shadow-2xl flex flex-col gap-4 relative animate-fade-in text-white">
+          <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-md shadow-2xl flex flex-col gap-4 relative animate-fade-in text-foreground">
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
+            <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-2">
-                <Award className="w-5 h-5 text-purple-400" />
-                <span className="text-sm font-black uppercase tracking-wider text-slate-200">
+                <Award className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                <span className="text-sm font-black uppercase tracking-wider text-foreground">
                   Chấm điểm Video
                 </span>
               </div>
               <button
                 onClick={() => setIsScoreModalOpen(false)}
-                className="p-1 hover:bg-white/[0.05] rounded-full transition-colors"
+                className="p-1 hover:bg-accent rounded-full transition-colors"
               >
-                <X className="w-5 h-5 text-slate-400 hover:text-white" />
+                <X className="w-5 h-5 text-muted-foreground hover:text-foreground" />
               </button>
             </div>
 
@@ -1754,29 +1754,29 @@ export default function PresentationTab({
                 const { text, colorClass } = getGpaAndBadge();
                 return (
                   <div className={`flex flex-col gap-1.5 p-2 rounded-xl border transition-all text-center ${colorClass}`}>
-                    <span className="text-[10px] font-extrabold tracking-wider uppercase">{text}</span>
+                    <span className="text-[12px] font-extrabold tracking-wider uppercase">{text}</span>
                   </div>
                 );
               })()}
 
               {/* Nhận xét comment area */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-slate-400 uppercase">Nhận xét / Góp ý</label>
+                <label className="text-[12px] font-bold text-muted-foreground uppercase">Nhận xét / Góp ý</label>
                 <textarea
                   rows={3}
                   value={scoreComment}
                   onChange={(e) => setScoreComment(e.target.value)}
                   placeholder="Nhập nhận xét của bạn về video..."
-                  className="w-full bg-white/[0.04] border border-white/[0.08] focus:border-purple-500/50 rounded-xl p-3 text-xs text-white placeholder-slate-500 outline-none transition-all resize-none leading-relaxed"
+                  className="w-full bg-muted border border-border focus:border-purple-500/50 rounded-xl p-3 text-xs text-foreground placeholder:text-muted-foreground outline-none transition-all resize-none leading-relaxed"
                 />
               </div>
             </div>
 
             {/* Action buttons */}
-            <div className="flex gap-3 border-t border-white/[0.06] pt-4 mt-1">
+            <div className="flex gap-3 border-t border-border pt-4 mt-1">
               <button
                 onClick={() => setIsScoreModalOpen(false)}
-                className="flex-1 py-2.5 rounded-xl border border-white/[0.08] hover:bg-white/[0.05] text-slate-300 text-xs font-black tracking-wider uppercase transition-all"
+                className="flex-1 py-2.5 rounded-xl border border-border hover:bg-accent text-muted-foreground text-xs font-black tracking-wider uppercase transition-all"
               >
                 Hủy
               </button>

@@ -5,6 +5,8 @@ import './globals.css';
 import { Toaster } from 'react-hot-toast';
 import AuthHydration from '@/components/AuthHydration';
 import QueryProvider from '@/components/QueryProvider';
+import { ThemeProvider } from '@/contexts/ThemeContext';
+import { LanguageProvider } from '@/contexts/SocialLanguageContext';
 
 const roboto = Roboto({
   subsets: ['latin', 'vietnamese'],
@@ -27,7 +29,11 @@ export default function RootLayout({
     <html lang="vi">
       <body className={`${roboto.variable} font-sans antialiased`}>
         <AuthHydration />
-        <QueryProvider>{children}</QueryProvider>
+        <ThemeProvider>
+          <LanguageProvider>
+            <QueryProvider>{children}</QueryProvider>
+          </LanguageProvider>
+        </ThemeProvider>
         <Toaster
           position="top-right" 
           toastOptions={{

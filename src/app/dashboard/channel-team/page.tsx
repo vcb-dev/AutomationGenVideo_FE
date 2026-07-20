@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Search, Plus, X, Loader2, Link as LinkIcon, Hash,
+  Search, Plus, X, Loader2, Link as LinkIcon,
   Facebook, Instagram, Music2, Youtube, Globe,
   Pencil, Trash2, ExternalLink, Building2,
   ChevronDown, Tag, SlidersHorizontal,
@@ -27,16 +27,19 @@ interface Channel {
 
 interface ChannelFormData {
   name: string; platform: string;
-  channel_id: string;
   link_channel: string; status: string;
   owner_id: string;
 }
 
-interface TeamMember { id: string; full_name: string; email: string }
+interface OwnerOption {
+  id: string;
+  full_name: string;
+  email: string;
+  team?: string | null;
+}
 
 const EMPTY_FORM: ChannelFormData = {
   name: '', platform: 'facebook',
-  channel_id: '',
   link_channel: '', status: 'đang hoạt động',
   owner_id: '',
 };
@@ -75,7 +78,12 @@ export default function InternalChannelsPage() {
   const { token, user } = useAuthStore();
   const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
   const isLeader = (user as any)?.roles?.includes(UserRole.LEADER);
+  const isAdmin = (user as any)?.roles?.includes(UserRole.ADMIN);
+  const isManager = (user as any)?.roles?.includes(UserRole.MANAGER);
+  // ADMIN/MANAGER có toàn quyền sửa/xóa kênh, không giới hạn team (khớp quyền BE)
+  const canManage = isLeader || isAdmin || isManager;
   const userTeam = (user as any)?.team ?? null;
+  const userId = (user as any)?.id ?? null;
 
   const [channels,      setChannels]      = useState<Channel[]>([]);
   const [loading,       setLoading]       = useState(true);
@@ -89,7 +97,7 @@ export default function InternalChannelsPage() {
   const [saving,        setSaving]        = useState(false);
   const [deleteTarget,  setDeleteTarget]  = useState<Channel | null>(null);
   const [deleting,      setDeleting]      = useState(false);
-  const [teamMembers,   setTeamMembers]   = useState<TeamMember[]>([]);
+  const [teamMembers,   setTeamMembers]   = useState<OwnerOption[]>([]);
 
   const statusDropRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -119,8 +127,16 @@ export default function InternalChannelsPage() {
 
   useEffect(() => { fetchChannels(); }, [fetchChannels]);
 
+  // Chủ kênh (owner) cũng được sửa/xóa kênh của chính mình dù không phải LEADER (khớp quyền BE)
+  const isOwnChannel = (ch: Channel) => !!userId && ch.owner?.id === userId;
+  const canManageChannel = (ch: Channel) => canManage || isOwnChannel(ch);
+  // Có cần hiển thị cột "Thao tác" không: LEADER/ADMIN/MANAGER luôn có, hoặc user sở hữu ít nhất 1 kênh
+  const showActionsCol = canManage || channels.some(isOwnChannel);
+
+  // Danh sách member để chọn chủ kênh (owner) khi sửa — LEADER chỉ thấy team mình,
+  // ADMIN/MANAGER thấy toàn bộ user (BE tự lọc theo role gọi API).
   useEffect(() => {
-    if (!isLeader) return;
+    if (!showActionsCol) return;
     (async () => {
       try {
         const res = await fetch(`${apiUrl}/users/team-members`, {
@@ -128,13 +144,9 @@ export default function InternalChannelsPage() {
         });
         if (!res.ok) return;
         setTeamMembers(await res.json());
-      } catch { /* danh sách owner không tải được, giữ nguyên rỗng */ }
+      } catch { /* không chặn UI nếu tải danh sách member thất bại */ }
     })();
-  }, [apiUrl, token, isLeader]);
-
-  const ownerOptions: TeamMember[] = user
-    ? [{ id: user.id, full_name: `${user.full_name} (Bạn)`, email: user.email }, ...teamMembers]
-    : teamMembers;
+  }, [apiUrl, token, showActionsCol]);
 
   // ─── FILTER LOGIC ───
   const filtered = channels.filter(c => {
@@ -157,12 +169,24 @@ export default function InternalChannelsPage() {
   const openEdit   = (ch: Channel) => {
     setEditTarget(ch);
     setForm({ name: ch.name, platform: ch.platform ?? 'facebook',
-      channel_id: ch.channel_id ?? '',
       link_channel: ch.link_channel ?? '', status: ch.status ?? 'đang hoạt động',
       owner_id: ch.owner?.id ?? '' });
     setShowModal(true);
   };
   const closeModal = () => { if (saving) return; setShowModal(false); setEditTarget(null); };
+
+  // Owner khả dụng để gán = member cùng team với kênh; luôn giữ owner hiện tại trong danh sách
+  // dù họ không (còn) khớp filter, để không làm mất lựa chọn đang hiển thị.
+  const ownerOptions: OwnerOption[] = (() => {
+    if (!editTarget) return [];
+    const teamName = editTarget.team?.name?.toLowerCase();
+    const base = teamMembers.filter(m => !teamName || m.team?.toLowerCase() === teamName);
+    const current = editTarget.owner;
+    if (current && !base.some(m => m.id === current.id)) {
+      return [{ id: current.id, full_name: current.full_name, email: current.email }, ...base];
+    }
+    return base;
+  })();
 
   const clearAllFilters = () => { setSearch(''); setPlatFilter('all'); setStatusFilter('all'); };
   const hasFilter = search || platFilter !== 'all' || statusFilter !== 'all';
@@ -172,8 +196,12 @@ export default function InternalChannelsPage() {
     setSaving(true);
     try {
       const isEdit = !!editTarget;
+      // owner_id chỉ có ý nghĩa khi sửa (create luôn tự gán owner = người tạo ở BE);
+      // để trống nghĩa là "không đổi chủ kênh".
       const { owner_id, ...rest } = form;
-      const body = isEdit ? { ...rest, owner_id: owner_id || null } : rest;
+      const body: Record<string, string> = isEdit && owner_id
+        ? { ...rest, owner_id }
+        : rest;
       const res = await fetch(
         isEdit ? `${apiUrl}/channels/${editTarget!.id}` : `${apiUrl}/channels`,
         { method: isEdit ? 'PATCH' : 'POST',
@@ -320,7 +348,7 @@ export default function InternalChannelsPage() {
 
             {/* Column headers */}
             <div className={`grid px-7 py-4 border-b border-slate-100 bg-slate-50
-              ${isLeader
+              ${showActionsCol
                 ? 'grid-cols-[2fr_1fr_1fr_1fr_88px]'
                 : 'grid-cols-[2fr_1fr_1fr_1fr]'} gap-6`}>
               <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Tên kênh</span>
@@ -384,7 +412,7 @@ export default function InternalChannelsPage() {
                   )}
                 </AnimatePresence>
               </div>
-              {isLeader && <span className="text-xs font-black text-slate-400 uppercase tracking-widest text-right">Thao tác</span>}
+              {showActionsCol && <span className="text-xs font-black text-slate-400 uppercase tracking-widest text-right">Thao tác</span>}
             </div>
 
             {/* No results */}
@@ -408,7 +436,7 @@ export default function InternalChannelsPage() {
                       initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                       transition={{ delay: idx * 0.02 }}
                       className={`grid px-7 py-5 items-center hover:bg-slate-50/80 transition-colors group
-                        ${isLeader
+                        ${showActionsCol
                           ? 'grid-cols-[2fr_1fr_1fr_1fr_88px]'
                           : 'grid-cols-[2fr_1fr_1fr_1fr]'} gap-6`}>
 
@@ -454,18 +482,22 @@ export default function InternalChannelsPage() {
                       </div>
 
                       {/* Actions */}
-                      {isLeader && (
+                      {showActionsCol && (
                         <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => openEdit(ch)}
-                            className="p-2.5 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
-                            title="Sửa kênh">
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => setDeleteTarget(ch)}
-                            className="p-2.5 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
-                            title="Xóa kênh">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {canManageChannel(ch) && (
+                            <>
+                              <button onClick={() => openEdit(ch)}
+                                className="p-2.5 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
+                                title="Sửa kênh">
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button onClick={() => setDeleteTarget(ch)}
+                                className="p-2.5 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
+                                title="Xóa kênh">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
                         </div>
                       )}
                     </motion.div>
@@ -563,37 +595,6 @@ export default function InternalChannelsPage() {
                   </div>
                 </div>
 
-                {editTarget && (
-                  <div>
-                    <label className={labelCls}>Owner</label>
-                    <div className="relative">
-                      <select value={form.owner_id}
-                        onChange={e => setForm(f => ({ ...f, owner_id: e.target.value }))}
-                        className={`${inputCls} appearance-none pr-10 cursor-pointer`}>
-                        <option value="">— Chưa gán —</option>
-                        {editTarget?.owner && !ownerOptions.some(m => m.id === editTarget.owner!.id) && (
-                          <option value={editTarget.owner.id}>{editTarget.owner.full_name}</option>
-                        )}
-                        {ownerOptions.map(m => (
-                          <option key={m.id} value={m.id}>{m.full_name}</option>
-                        ))}
-                      </select>
-                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  <label className={labelCls}>ID kênh</label>
-                  <div className="relative">
-                    <Hash className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
-                    <input value={form.channel_id}
-                      onChange={e => setForm(f => ({ ...f, channel_id: e.target.value }))}
-                      placeholder="ID kênh trên platform, ví dụ: UCxxxxxxxx"
-                      className={`${inputCls} pl-11`} />
-                  </div>
-                </div>
-
                 <div>
                   <label className={labelCls}>Link kênh</label>
                   <div className="relative">
@@ -604,6 +605,25 @@ export default function InternalChannelsPage() {
                       className={`${inputCls} pl-11`} />
                   </div>
                 </div>
+
+                {editTarget && (
+                  <div>
+                    <label className={labelCls}>Chủ kênh (Owner)</label>
+                    <div className="relative">
+                      <select value={form.owner_id}
+                        onChange={e => setForm(f => ({ ...f, owner_id: e.target.value }))}
+                        className={`${inputCls} appearance-none pr-10 cursor-pointer`}>
+                        <option value="">-- Không đổi --</option>
+                        {ownerOptions.map(m => (
+                          <option key={m.id} value={m.id}>
+                            {m.full_name}{m.email ? ` (${m.email})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="px-8 pb-8 pt-2 flex gap-4">

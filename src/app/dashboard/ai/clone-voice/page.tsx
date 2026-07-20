@@ -4,89 +4,57 @@ import { useState, useRef, useEffect } from 'react';
 import {
     Mic,
     AudioLines,
-    Zap,
     Volume2,
     Globe,
-    Play,
     Download,
     Upload,
     Trash2,
     ChevronDown,
-    Sliders,
     Wand2,
-    Palette,
     RefreshCw,
     FolderOpen,
     Check,
+    CreditCard,
+    ExternalLink,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-/* ─────────────────────────── Types ─────────────────────────── */
-type VoiceMode = 'female-fast' | 'male-fast' | 'custom' | 'design';
-
-interface VoiceModeConfig {
-    id: VoiceMode;
-    label: string;
-    sublabel: string;
-    icon: React.ElementType;
-    activeColor: string;
-    activeBg: string;
-    activeBorder: string;
-    activeText: string;
-}
-
 /* ────────────────────────── Constants ──────────────────────── */
-const VOICE_MODES: VoiceModeConfig[] = [
-    {
-        id: 'female-fast',
-        label: 'Giọng nữ (nhanh)',
-        sublabel: 'Free, không cần GPU',
-        icon: Zap,
-        activeColor: 'text-violet-600',
-        activeBg: 'bg-violet-50',
-        activeBorder: 'border-violet-400',
-        activeText: 'text-violet-700',
-    },
-    {
-        id: 'male-fast',
-        label: 'Giọng nam (nhanh)',
-        sublabel: 'Free, không cần GPU',
-        icon: Zap,
-        activeColor: 'text-indigo-600',
-        activeBg: 'bg-indigo-50',
-        activeBorder: 'border-indigo-400',
-        activeText: 'text-indigo-700',
-    },
-    {
-        id: 'custom',
-        label: 'Giọng tùy chọn',
-        sublabel: 'Clone (cần GPU)',
-        icon: Mic,
-        activeColor: 'text-cyan-600',
-        activeBg: 'bg-cyan-50',
-        activeBorder: 'border-cyan-400',
-        activeText: 'text-cyan-700',
-    },
-    {
-        id: 'design',
-        label: 'Thiết kế giọng',
-        sublabel: 'Tạo giọng tùy chỉnh',
-        icon: Palette,
-        activeColor: 'text-pink-600',
-        activeBg: 'bg-pink-50',
-        activeBorder: 'border-pink-400',
-        activeText: 'text-pink-700',
-    },
-];
-
 const LANGUAGES = [
     'Tiếng Việt', 'English', '日本語', '한국어', '中文 (简体)',
     'Español', 'Français', 'Deutsch', 'Português', 'ภาษาไทย',
 ];
 
+// Maps UI language labels to the `language_boost` value Minimax's TTS API expects.
+const LANGUAGE_TO_MINIMAX: Record<string, string> = {
+    'Tiếng Việt': 'Vietnamese',
+    'English': 'English',
+    '日本語': 'Japanese',
+    '한국어': 'Korean',
+    '中文 (简体)': 'Chinese',
+    'Español': 'Spanish',
+    'Français': 'French',
+    'Deutsch': 'German',
+    'Português': 'Portuguese',
+    'ภาษาไทย': 'Thai',
+};
+
+// Trang nạp tiền / gia hạn gói của MiniMax (mở tab mới, cần đăng nhập tài khoản MiniMax công ty)
+const MINIMAX_RECHARGE_URL = 'https://www.minimax.io/platform/user-center/payment/recharge';
+
+// Đơn giá mặc định khi BE chưa cấu hình env MINIMAX_VND_PER_1K_CHARS:
+// gói 250.000đ / 500.000 ký tự → 500đ mỗi 1.000 ký tự. BE trả giá khác 0 thì dùng giá BE.
+const DEFAULT_VND_PER_1K_CHARS = 500;
+
 // Helper to get API URL
 const getApiUrl = () => {
     return (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
+};
+
+// Helper to build auth header (voice endpoints require a logged-in user)
+const getAuthHeaders = (): Record<string, string> => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+    return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
 /* ────────────────────────── Sub-components ─────────────────── */
@@ -104,8 +72,21 @@ function SelectDropdown({
     label: string;
 }) {
     const [open, setOpen] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!open) return;
+        const handleClickOutside = (e: MouseEvent) => {
+            if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+                setOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [open]);
+
     return (
-        <div className="relative">
+        <div className="relative" ref={containerRef}>
             <p className="text-xs text-gray-500 mb-1.5 font-medium">{label}</p>
             <button
                 onClick={() => setOpen(!open)}
@@ -135,56 +116,8 @@ function SelectDropdown({
     );
 }
 
-function SliderControl({
-    label,
-    value,
-    min,
-    max,
-    step,
-    unit,
-    onChange,
-}: {
-    label: string;
-    value: number;
-    min: number;
-    max: number;
-    step: number;
-    unit: string;
-    onChange: (v: number) => void;
-}) {
-    const pct = ((value - min) / (max - min)) * 100;
-    return (
-        <div className="space-y-2">
-            <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-500 font-medium">{label}</span>
-                <span className="text-xs font-semibold text-violet-600">{value}{unit}</span>
-            </div>
-            <div className="relative h-1.5 bg-gray-200 rounded-full">
-                <div
-                    className="absolute inset-y-0 left-0 bg-gradient-to-r from-violet-500 to-indigo-500 rounded-full"
-                    style={{ width: `${pct}%` }}
-                />
-                <input
-                    type="range"
-                    min={min}
-                    max={max}
-                    step={step}
-                    value={value}
-                    onChange={(e) => onChange(Number(e.target.value))}
-                    className="absolute inset-0 w-full opacity-0 cursor-pointer h-full"
-                />
-                <div
-                    className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-white border-2 border-violet-500 shadow-md shadow-violet-200 pointer-events-none"
-                    style={{ left: `calc(${pct}% - 7px)` }}
-                />
-            </div>
-        </div>
-    );
-}
-
-/* ── Right panel contextual section ── */
+/* ── Right panel: cloned voice directory + upload ── */
 function VoiceContextPanel({
-    mode,
     voices,
     selectedVoiceId,
     onSelectVoiceId,
@@ -198,11 +131,8 @@ function VoiceContextPanel({
     onCloneGenderChange,
     isCloning,
     onCloneSubmit,
-    designPrompt,
-    onDesignPromptChange,
     onRefreshVoices,
 }: {
-    mode: VoiceMode;
     voices: any[];
     selectedVoiceId: string;
     onSelectVoiceId: (id: string) => void;
@@ -216,35 +146,14 @@ function VoiceContextPanel({
     onCloneGenderChange: (g: 'male' | 'female') => void;
     isCloning: boolean;
     onCloneSubmit: () => void;
-    designPrompt: string;
-    onDesignPromptChange: (v: string) => void;
     onRefreshVoices: () => void;
 }) {
-    if (mode === 'design') {
-        return (
-            <div className="mt-4 pt-4 border-t border-gray-100 space-y-3">
-                <div>
-                    <p className="text-xs text-gray-600 font-medium mb-1.5">Mô tả giọng (tiếng Anh)</p>
-                    <input
-                        type="text"
-                        value={designPrompt}
-                        onChange={(e) => onDesignPromptChange(e.target.value)}
-                        placeholder="female, calm, vietnamese accent"
-                        className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-700 placeholder-gray-400 shadow-sm
-                            focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 transition-all duration-200"
-                    />
-                    <p className="text-[11px] text-gray-400 mt-1.5">gender, age, pitch, accent, style...</p>
-                </div>
-            </div>
-        );
-    }
+    // Chỉ voice Minimax dùng được với endpoint TTS này — voice clone của provider
+    // khác (vd HeyGen) nếu hiển thị ở đây sẽ bị BE trả 400 khi generate.
+    const clonedVoices = voices.filter(v => v.is_cloned && (v.provider ?? 'minimax') === 'minimax');
 
-    if (mode === 'custom') {
-        // Filter cloned voices (e.g. minimax provider or HeyGen custom ones)
-        const clonedVoices = voices.filter(v => v.is_cloned);
-
-        return (
-            <div className="mt-4 pt-4 border-t border-gray-100 space-y-4">
+    return (
+        <div className="mt-4 pt-4 border-t border-gray-100 space-y-4">
                 {/* Directory header */}
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-xs text-gray-500">
@@ -278,7 +187,7 @@ function VoiceContextPanel({
                                         <Mic className={`w-3.5 h-3.5 flex-shrink-0 ${isSelected ? 'text-cyan-600' : 'text-gray-400'}`} />
                                         <div className="truncate">
                                             <p className="text-xs font-semibold leading-tight truncate">{voice.name}</p>
-                                            <p className="text-[10px] text-gray-400 mt-0.5 capitalize leading-none">{voice.gender} · {voice.provider}</p>
+                                            <p className="text-[10px] text-gray-400 mt-0.5 capitalize leading-none">{voice.gender ?? '—'} · {voice.provider ?? '—'}</p>
                                         </div>
                                     </div>
                                     {isSelected && <Check className="w-3.5 h-3.5 text-cyan-600 flex-shrink-0" />}
@@ -340,6 +249,14 @@ function VoiceContextPanel({
                     {/* Upload zone */}
                     <div
                         onClick={() => !isCloning && fileInputRef.current?.click()}
+                        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                        onDrop={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (isCloning) return;
+                            const dropped = e.dataTransfer.files?.[0];
+                            if (dropped) onFileChange(dropped);
+                        }}
                         className={`flex flex-col items-center justify-center gap-2.5 py-6 rounded-xl border-2 border-dashed cursor-pointer transition-all duration-200
                             ${cloneFile
                                 ? 'border-cyan-300 bg-cyan-50'
@@ -412,49 +329,58 @@ function VoiceContextPanel({
                 </div>
             </div>
         );
-    }
-
-    return null;
 }
 
 /* ─────────────────────────── Page ──────────────────────────── */
 export default function CloneVoicePage() {
-    const [selectedMode, setSelectedMode] = useState<VoiceMode>('female-fast');
     const [voices, setVoices] = useState<any[]>([]);
     const [selectedVoiceId, setSelectedVoiceId] = useState<string>('3f7bd9c515cb40cead3a233461c713ca'); // default HuyK
     const [text, setText] = useState('');
     const [translateLang, setTranslateLang] = useState('Tiếng Việt');
     const [ttsLang, setTtsLang] = useState('Tiếng Việt');
-    const [speed, setSpeed] = useState(1.0);
-    const [pitch, setPitch] = useState(0);
-    const [volume, setVolume] = useState(100);
     const [isGenerating, setIsGenerating] = useState(false);
     const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
-    
+    // Link riêng cho nút tải về (proxy BE + ?download=1 → server trả Content-Disposition
+    // attachment). Thuộc tính download của <a> bị trình duyệt bỏ qua với link cross-origin
+    // nên không dựa vào nó được.
+    const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+    // Tên file tải về, dạng "<tên giọng>_<ngày>_<giờ phút>.mp3" — BE nhận qua ?filename=
+    const [downloadName, setDownloadName] = useState<string | null>(null);
+    // Đơn giá VND / 1000 ký tự (BE trả kèm trong /ai/voice/list; 0 = chưa cấu hình → ẩn phần tiền)
+    const [vndPer1kChars, setVndPer1kChars] = useState(0);
+
+    const [isTranslating, setIsTranslating] = useState(false);
+
     // Cloning states
     const [cloneFile, setCloneFile] = useState<File | null>(null);
     const [cloneVoiceName, setCloneVoiceName] = useState('');
     const [cloneGender, setCloneGender] = useState<'male' | 'female'>('female');
     const [isCloning, setIsCloning] = useState(false);
-    const [designPrompt, setDesignPrompt] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
     const charCount = text.length;
     const maxChars = 5000;
+    // MiniMax tính phí theo ký tự ("điểm âm thanh") — ước tính tiền cho đoạn text hiện tại.
+    // BE chưa cấu hình giá thì dùng giá mặc định để ô tiền luôn hiển thị.
+    const effectiveVndPer1k = vndPer1kChars > 0 ? vndPer1kChars : DEFAULT_VND_PER_1K_CHARS;
+    const estimatedCostVnd = Math.round((charCount / 1000) * effectiveVndPer1k);
 
     // Fetch voices on mount
     const fetchVoices = async () => {
         try {
-            const res = await fetch(`${getApiUrl()}/ai/voice/list`);
+            const res = await fetch(`${getApiUrl()}/ai/voice/list`, {
+                headers: getAuthHeaders(),
+            });
             if (!res.ok) throw new Error('Không thể lấy danh sách giọng nói');
             const data = await res.json();
             if (data.success && data.voices) {
                 setVoices(data.voices);
-                
-                // If in custom mode, select the first cloned voice if current selected isn't cloned
-                const cloned = data.voices.filter((v: any) => v.is_cloned);
-                if (selectedMode === 'custom' && cloned.length > 0) {
+                setVndPer1kChars(Number(data.pricing?.vnd_per_1k_chars) || 0);
+
+                // Select the first cloned voice if the current selection isn't a cloned voice
+                const cloned = data.voices.filter((v: any) => v.is_cloned && (v.provider ?? 'minimax') === 'minimax');
+                if (cloned.length > 0) {
                     const exists = cloned.some((v: any) => v.voice_id === selectedVoiceId);
                     if (!exists) {
                         setSelectedVoiceId(cloned[0].voice_id);
@@ -469,17 +395,55 @@ export default function CloneVoicePage() {
 
     useEffect(() => {
         fetchVoices();
-    }, [selectedMode]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
-    // Handle voice cloning
+    const MAX_CLONE_FILE_SIZE = 20 * 1024 * 1024; // 20MB, matches UI copy + BE limit
+
+    const handleFileSelect = (f: File | null) => {
+        if (!f) {
+            setCloneFile(null);
+            return;
+        }
+        if (!f.type.startsWith('audio/')) {
+            toast.error('Vui lòng chọn file audio (MP3, WAV...)');
+            return;
+        }
+        if (f.size > MAX_CLONE_FILE_SIZE) {
+            toast.error('File audio vượt quá 20MB');
+            return;
+        }
+        setCloneFile(f);
+    };
+
+    const clearCloneFile = () => {
+        setCloneFile(null);
+        // Reset the native input value too, otherwise re-selecting the same file
+        // afterwards doesn't fire a change event.
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+
+    // Handle voice cloning. Chạy nền + poll trạng thái thay vì 1 request chờ trực
+    // tiếp — mạng tới Minimax có thể chập chờn vài phút, request đồng bộ dễ bị
+    // BE/trình duyệt tự timeout dù cuối cùng Minimax vẫn xử lý xong.
     const handleCloneSubmit = async () => {
         if (!cloneFile || !cloneVoiceName.trim()) {
             toast.error('Vui lòng điền tên giọng và chọn file audio mẫu');
             return;
         }
 
+        // Chặn sớm clone trùng tên (server cũng chặn) — mỗi lần clone đều tính phí
+        // MiniMax và tạo voice_id mới, trùng tên gần như luôn là thao tác nhầm.
+        const dupe = voices.find(
+            (v) => v.is_cloned && (v.name || '').trim().toLowerCase() === cloneVoiceName.trim().toLowerCase(),
+        );
+        if (dupe) {
+            toast.error(`Đã có giọng clone tên "${dupe.name}". Đặt tên khác hoặc xoá giọng cũ trước khi clone lại (mỗi lần clone đều tính phí).`);
+            return;
+        }
+
         setIsCloning(true);
-        const loadingToast = toast.loading('Đang upload và clone giọng nói bằng Minimax...');
+        const loadingToast = toast.loading('Đang tải audio lên...');
 
         try {
             const formData = new FormData();
@@ -487,34 +451,102 @@ export default function CloneVoicePage() {
             formData.append('voice_name', cloneVoiceName);
             formData.append('gender', cloneGender);
 
-            const res = await fetch(`${getApiUrl()}/ai/voice/clone`, {
+            const startRes = await fetch(`${getApiUrl()}/ai/voice/clone/start`, {
                 method: 'POST',
+                headers: getAuthHeaders(),
                 body: formData,
             });
 
-            if (!res.ok) {
-                const errData = await res.json();
-                throw new Error(errData.error || 'Lỗi khi clone giọng nói');
+            if (!startRes.ok) {
+                // BE Nest trả { message }, AI service (Django) trả { error } — đọc cả hai
+                const errMessage = await startRes.json().then((d) => d.error || d.message).catch(() => null);
+                throw new Error(errMessage || 'Lỗi khi bắt đầu clone giọng nói');
             }
 
-            const data = await res.json();
-            if (data.success && data.voice) {
-                toast.success(`Đã clone giọng "${data.voice.name}" thành công!`, { id: loadingToast });
-                setCloneFile(null);
-                setCloneVoiceName('');
-                
-                // Update selected voice to the new voice
-                setSelectedVoiceId(data.voice.voice_id);
-                // Refresh list
-                await fetchVoices();
-            } else {
-                throw new Error(data.error || 'Clone thất bại');
+            const startData = await startRes.json();
+            const jobId = startData.job_id;
+            if (!jobId) {
+                throw new Error('Không nhận được job_id từ server');
+            }
+
+            // Poll trạng thái — mạng xấu có thể khiến job mất vài phút mới xong.
+            const POLL_INTERVAL_MS = 4000;
+            const MAX_POLL_MS = 10 * 60 * 1000; // 10 phút
+            const startedAt = Date.now();
+
+            // eslint-disable-next-line no-constant-condition
+            while (true) {
+                await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+
+                const statusRes = await fetch(`${getApiUrl()}/ai/voice/clone/status/${jobId}`, {
+                    headers: getAuthHeaders(),
+                });
+                if (!statusRes.ok) {
+                    throw new Error('Không thể kiểm tra trạng thái clone');
+                }
+                const statusData = await statusRes.json();
+
+                if (statusData.status === 'completed') {
+                    toast.success(`Đã clone giọng "${statusData.voice?.name}" thành công!`, { id: loadingToast });
+                    clearCloneFile();
+                    setCloneVoiceName('');
+                    if (statusData.voice?.voice_id) setSelectedVoiceId(statusData.voice.voice_id);
+                    await fetchVoices();
+                    break;
+                }
+                if (statusData.status === 'error') {
+                    throw new Error(statusData.message || 'Clone thất bại');
+                }
+                if (Date.now() - startedAt > MAX_POLL_MS) {
+                    throw new Error('Clone đang mất nhiều thời gian hơn dự kiến — mạng tới Minimax có thể đang chập chờn. Vui lòng thử lại sau.');
+                }
+                toast.loading(statusData.message || 'Đang xử lý...', { id: loadingToast });
             }
         } catch (error: any) {
             console.error('Clone error:', error);
             toast.error(error.message || 'Lỗi khi clone giọng nói', { id: loadingToast });
         } finally {
             setIsCloning(false);
+        }
+    };
+
+    // Dịch nội dung textarea sang `translateLang`, ghi đè lại text — dùng chung
+    // AI dịch kịch bản video (BE proxy voice/translate-text → translateVideoScript).
+    const handleTranslate = async () => {
+        if (!text.trim()) {
+            toast.error('Vui lòng nhập văn bản cần dịch');
+            return;
+        }
+
+        setIsTranslating(true);
+        const translatingToast = toast.loading(`Đang dịch sang ${translateLang}...`);
+
+        try {
+            const res = await fetch(`${getApiUrl()}/ai/voice/translate-text`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...getAuthHeaders(),
+                },
+                body: JSON.stringify({ text, language: translateLang }),
+            });
+
+            if (!res.ok) {
+                const errMessage = await res.json().then((d) => d.error || d.message).catch(() => null);
+                throw new Error(errMessage || 'Không thể dịch văn bản');
+            }
+
+            const data = await res.json();
+            if (!data.content) {
+                throw new Error('Dịch thất bại: AI không trả về nội dung');
+            }
+            setText(data.content.slice(0, maxChars));
+            toast.success(`Đã dịch sang ${translateLang}!`, { id: translatingToast });
+        } catch (error: any) {
+            console.error('Translate error:', error);
+            toast.error(error.message || 'Lỗi khi dịch văn bản', { id: translatingToast });
+        } finally {
+            setIsTranslating(false);
         }
     };
 
@@ -525,49 +557,69 @@ export default function CloneVoicePage() {
             return;
         }
 
+        const usable = voices.some(
+            (v) => v.voice_id === selectedVoiceId && v.is_cloned && (v.provider ?? 'minimax') === 'minimax',
+        );
+        if (!usable) {
+            toast.error('Vui lòng chọn một giọng đã clone (Minimax) trong danh sách, hoặc clone giọng mới trước.');
+            return;
+        }
+
         setIsGenerating(true);
         const generatingToast = toast.loading('Đang chuyển văn bản thành giọng nói...');
-
-        // Map system modes to Minimax system voice IDs or use selected cloned voice
-        let activeVoiceId = selectedVoiceId;
-        if (selectedMode === 'female-fast') {
-            activeVoiceId = 'female-tianmei'; // Standard Minimax system female
-        } else if (selectedMode === 'male-fast') {
-            activeVoiceId = 'male-qn-qingse'; // Standard Minimax system male
-        } else if (selectedMode === 'design') {
-            activeVoiceId = 'female-yujie'; // Standard designed voice fallback
-        }
 
         try {
             const res = await fetch(`${getApiUrl()}/ai/voice/tts`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    ...getAuthHeaders(),
                 },
                 body: JSON.stringify({
                     text,
-                    voice_id: activeVoiceId,
-                    speed,
-                    pitch,
-                    volume,
+                    voice_id: selectedVoiceId,
+                    speed: 1.0,
+                    pitch: 0,
+                    volume: 100,
+                    language: LANGUAGE_TO_MINIMAX[ttsLang],
                 }),
             });
 
             if (!res.ok) {
-                const errData = await res.json();
-                throw new Error(errData.error || 'Không thể tạo giọng nói');
+                const errMessage = await res.json().then((d) => d.error || d.message).catch(() => null);
+                throw new Error(errMessage || 'Không thể tạo giọng nói');
             }
 
             const data = await res.json();
             if (data.success && data.audio_url) {
-                setGeneratedUrl(data.audio_url);
+                // Có audio_file_id (đã upload Drive) → phát + tải qua proxy stream của BE.
+                // Link Drive uc?export=download không stream chuẩn cho <audio> (player
+                // hiện 00:00) và tải về hay lỗi; link gốc chỉ giữ làm fallback.
+                // Drive chưa cấu hình → BE trả audio_file_name, phát/tải qua proxy
+                // stream thẳng từ AI (link /media/... gốc chết trên production).
+                const proxyUrl = data.audio_file_id
+                    ? `${getApiUrl()}/ai/voice/tts/audio/${data.audio_file_id}`
+                    : data.audio_file_name
+                        ? `${getApiUrl()}/ai/voice/tts/stream/${data.audio_file_name}`
+                        : null;
+
+                // Tên file tải về: "<tên giọng>_<ngày>_<giờ phút>.mp3", bỏ ký tự cấm trong tên file
+                const voiceName = (voices.find((v) => v.voice_id === selectedVoiceId)?.name || 'voice')
+                    .replace(/[\/\\:*?"<>|]+/g, ' ')
+                    .trim();
+                const now = new Date();
+                const pad = (n: number) => String(n).padStart(2, '0');
+                const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+                const fileName = `${voiceName}_${stamp}.mp3`;
+
+                setGeneratedUrl(proxyUrl ?? data.audio_url);
+                setDownloadUrl(
+                    proxyUrl
+                        ? `${proxyUrl}?download=1&filename=${encodeURIComponent(fileName)}`
+                        : data.audio_url,
+                );
+                setDownloadName(fileName);
                 toast.success('Đã tạo giọng nói thành công!', { id: generatingToast });
-                
-                // Play audio automatically
-                if (audioRef.current) {
-                    audioRef.current.src = data.audio_url;
-                    audioRef.current.play().catch(() => {});
-                }
             } else {
                 throw new Error(data.error || 'Tạo giọng nói thất bại');
             }
@@ -579,13 +631,8 @@ export default function CloneVoicePage() {
         }
     };
 
-    const selectedModeConfig = VOICE_MODES.find((m) => m.id === selectedMode)!;
-
     return (
         <div className="min-h-screen bg-gray-50 -m-6">
-            {/* Hidden audio element for autoplay */}
-            <audio ref={audioRef} className="hidden" />
-
             {/* Main content */}
             <div className="max-w-7xl mx-auto px-6 py-8">
                 <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6">
@@ -595,13 +642,25 @@ export default function CloneVoicePage() {
                         <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
                             {/* Card header */}
                             <div className="flex items-center gap-3 mb-5">
-                                <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center">
+                                <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center flex-shrink-0">
                                     <Mic className="w-5 h-5 text-violet-600" />
                                 </div>
-                                <div>
+                                <div className="min-w-0">
                                     <h2 className="font-semibold text-gray-800">Text to Speech (Minimax AI)</h2>
                                     <p className="text-xs text-gray-500">Nhập văn bản, chọn ngôn ngữ và tạo giọng nói tự nhiên</p>
                                 </div>
+                                {/* Hết token / hết hạn gói MiniMax → nạp tiền hoặc gia hạn ngay tại đây */}
+                                <a
+                                    href={MINIMAX_RECHARGE_URL}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    title="Mở trang nạp tiền / gia hạn gói MiniMax (cần đăng nhập tài khoản MiniMax của công ty)"
+                                    className="ml-auto flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold hover:bg-amber-100 transition-colors whitespace-nowrap flex-shrink-0"
+                                >
+                                    <CreditCard className="w-3.5 h-3.5" />
+                                    Nạp tiền / Gia hạn MiniMax
+                                    <ExternalLink className="w-3 h-3 opacity-60" />
+                                </a>
                             </div>
 
                             {/* Textarea */}
@@ -616,8 +675,14 @@ export default function CloneVoicePage() {
                                     className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3.5 text-sm text-gray-700 placeholder-gray-400 resize-none shadow-sm
                                         focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 transition-all duration-200"
                                 />
-                                <div className="absolute bottom-3 right-3 text-xs text-gray-400">
-                                    {charCount} / {maxChars} ký tự
+                                <div className="absolute bottom-3 right-3 flex items-center gap-2 text-xs">
+                                    <span
+                                        className="px-2 py-0.5 rounded-md bg-green-50 border border-green-200 text-green-700 font-semibold cursor-help"
+                                        title={`Đơn giá ${effectiveVndPer1k.toLocaleString('vi-VN')}đ / 1.000 ký tự${vndPer1kChars > 0 ? '' : ' (giá mặc định gói 250.000đ/500.000 ký tự — chỉnh qua env MINIMAX_VND_PER_1K_CHARS của BE)'}`}
+                                    >
+                                        💰 ≈ {estimatedCostVnd.toLocaleString('vi-VN')}đ
+                                    </span>
+                                    <span className="text-gray-400">{charCount} / {maxChars} ký tự</span>
                                 </div>
                             </div>
 
@@ -640,23 +705,24 @@ export default function CloneVoicePage() {
                                             onChange={setTtsLang}
                                         />
                                     </div>
-                                    <button className="mb-0.5 px-3.5 py-2.5 bg-violet-50 border border-violet-200 hover:bg-violet-100 rounded-xl text-xs text-violet-600 font-medium transition-all duration-150 flex items-center gap-1.5 whitespace-nowrap shadow-sm">
-                                        <Globe className="w-3.5 h-3.5" />
+                                    <button
+                                        onClick={handleTranslate}
+                                        disabled={isTranslating || !text.trim()}
+                                        className={`mb-0.5 px-3.5 py-2.5 border rounded-xl text-xs font-medium transition-all duration-150 flex items-center gap-1.5 whitespace-nowrap shadow-sm
+                                            ${isTranslating || !text.trim()
+                                                ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
+                                                : 'bg-violet-50 border-violet-200 hover:bg-violet-100 text-violet-600'}`}
+                                    >
+                                        {isTranslating ? (
+                                            <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                                            </svg>
+                                        ) : (
+                                            <Globe className="w-3.5 h-3.5" />
+                                        )}
                                         Dịch kịch bản
                                     </button>
-                                </div>
-                            </div>
-
-                            {/* Sliders */}
-                            <div className="mt-5 p-4 bg-gray-50 border border-gray-100 rounded-xl">
-                                <div className="flex items-center gap-2 mb-4">
-                                    <Sliders className="w-3.5 h-3.5 text-gray-400" />
-                                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Tùy chọn giọng nói</span>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-                                    <SliderControl label="Tốc độ" value={speed} min={0.5} max={2.0} step={0.1} unit="x" onChange={setSpeed} />
-                                    <SliderControl label="Cao độ" value={pitch} min={-10} max={10} step={1} unit="" onChange={setPitch} />
-                                    <SliderControl label="Âm lượng" value={volume} min={0} max={100} step={5} unit="%" onChange={setVolume} />
                                 </div>
                             </div>
 
@@ -696,34 +762,27 @@ export default function CloneVoicePage() {
                                             </div>
                                             <div>
                                                 <p className="text-xs font-semibold text-gray-800">Giọng nói đã tạo</p>
-                                                <p className="text-[11px] text-gray-500">output_voice.mp3</p>
+                                                <p className="text-[11px] text-gray-500">{downloadName ?? 'minimax_voice.mp3'}</p>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <button 
-                                                onClick={() => {
-                                                    if (audioRef.current) {
-                                                        audioRef.current.src = generatedUrl;
-                                                        audioRef.current.play().catch(() => {});
-                                                    }
-                                                }}
-                                                className="w-8 h-8 rounded-lg bg-violet-100 hover:bg-violet-200 flex items-center justify-center transition-colors"
-                                                title="Nghe lại"
-                                            >
-                                                <Play className="w-3.5 h-3.5 text-violet-600" />
-                                            </button>
-                                            <a 
-                                                href={generatedUrl} 
-                                                download="minimax_voice.mp3"
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="w-8 h-8 rounded-lg bg-violet-100 hover:bg-violet-200 flex items-center justify-center transition-colors"
-                                                title="Tải xuống"
-                                            >
-                                                <Download className="w-3.5 h-3.5 text-violet-600" />
-                                            </a>
-                                        </div>
+                                        <a
+                                            href={downloadUrl ?? generatedUrl}
+                                            download={downloadName ?? 'minimax_voice.mp3'}
+                                            rel="noreferrer"
+                                            className="w-8 h-8 rounded-lg bg-violet-100 hover:bg-violet-200 flex items-center justify-center transition-colors"
+                                            title="Tải xuống"
+                                        >
+                                            <Download className="w-3.5 h-3.5 text-violet-600" />
+                                        </a>
                                     </div>
+                                    {/* Player nghe trực tiếp trên web — không cần tải về */}
+                                    <audio
+                                        ref={audioRef}
+                                        src={generatedUrl}
+                                        controls
+                                        autoPlay
+                                        className="w-full mt-3 h-10"
+                                    />
                                 </div>
                             )}
                         </div>
@@ -735,61 +794,24 @@ export default function CloneVoicePage() {
                             {/* Section header */}
                             <div className="flex items-center gap-2 mb-4">
                                 <Mic className="w-4 h-4 text-gray-400" />
-                                <span className="text-sm font-semibold text-gray-700">Chế độ giọng</span>
+                                <span className="text-sm font-semibold text-gray-700">Giọng đã clone</span>
                             </div>
 
-                            {/* 2×2 mode grid */}
-                            <div className="grid grid-cols-2 gap-2.5">
-                                {VOICE_MODES.map((mode) => {
-                                    const Icon = mode.icon;
-                                    const active = selectedMode === mode.id;
-                                    return (
-                                        <button
-                                            key={mode.id}
-                                            id={`voice-mode-${mode.id}`}
-                                            onClick={() => setSelectedMode(mode.id)}
-                                            className={`flex flex-col items-center justify-center gap-2 p-4 rounded-xl border text-center transition-all duration-200
-                                                ${active
-                                                    ? `${mode.activeBg} ${mode.activeBorder} shadow-sm`
-                                                    : 'bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300'}`}
-                                        >
-                                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${active ? mode.activeBg : 'bg-gray-100'}`}>
-                                                <Icon
-                                                    className={active ? mode.activeColor : 'text-gray-400'}
-                                                    style={{ width: '18px', height: '18px' }}
-                                                />
-                                            </div>
-                                            <div>
-                                                <p className={`text-xs font-semibold leading-tight ${active ? mode.activeText : 'text-gray-600'}`}>
-                                                    {mode.label}
-                                                </p>
-                                                <p className={`text-[11px] mt-0.5 leading-tight ${active ? 'text-gray-500' : 'text-gray-400'}`}>
-                                                    {mode.sublabel}
-                                                </p>
-                                            </div>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-
-                            {/* Contextual panel */}
+                            {/* Cloned voice panel */}
                             <VoiceContextPanel
-                                mode={selectedMode}
                                 voices={voices}
                                 selectedVoiceId={selectedVoiceId}
                                 onSelectVoiceId={setSelectedVoiceId}
                                 cloneFile={cloneFile}
                                 fileInputRef={fileInputRef}
-                                onFileChange={setCloneFile}
-                                onFileClear={() => setCloneFile(null)}
+                                onFileChange={handleFileSelect}
+                                onFileClear={clearCloneFile}
                                 cloneVoiceName={cloneVoiceName}
                                 onCloneVoiceNameChange={setCloneVoiceName}
                                 cloneGender={cloneGender}
                                 onCloneGenderChange={setCloneGender}
                                 isCloning={isCloning}
                                 onCloneSubmit={handleCloneSubmit}
-                                designPrompt={designPrompt}
-                                onDesignPromptChange={setDesignPrompt}
                                 onRefreshVoices={fetchVoices}
                             />
                         </div>

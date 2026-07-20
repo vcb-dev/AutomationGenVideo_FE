@@ -1,13 +1,13 @@
 'use client'
 
 import {
-  Users, Target, ArrowRight, Video, FileText, Package,
-  BarChart3, Award, XCircle,
+  Users, Target, Video, FileText, Package,
+  BarChart3, Award, XCircle, CheckCircle2, Send, Activity,
 } from 'lucide-react'
-import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { StatusBar } from './StatusBar'
 import { KpiProgress } from './KpiProgress'
+import { DashboardCard, MetricStat } from './DashboardUI'
 
 function formatMonth(yyyymm: string) {
   const [y, m] = yyyymm.split('-')
@@ -61,47 +61,32 @@ function TeamPerformanceSummary({ tasks, members }: { tasks: any; members: any[]
   const activeMembers  = members.filter(m => (m.in_progress + m.submitted + (m.pending ?? 0)) > 0).length
 
   return (
-    <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-slate-50 flex items-center gap-3">
-        <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
-          <BarChart3 className="w-4 h-4 text-blue-600" />
-        </div>
-        <h2 className="text-sm font-bold text-slate-900">Hiệu suất Team</h2>
-        <span className="text-xs text-slate-400 ml-auto">Tổng toàn thời gian</span>
+    <DashboardCard
+      icon={BarChart3} iconColor="text-blue-600" iconBg="bg-blue-50"
+      title="Hiệu suất Team"
+      right={<span className="text-xs font-medium text-slate-400">Tổng toàn thời gian</span>}
+    >
+      <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y divide-slate-100 sm:divide-y-0">
+        <MetricStat
+          icon={CheckCircle2} label="Tỷ lệ hoàn thành" value={`${completionRate}%`}
+          sub={`${approved}/${total} task`}
+          tone={completionRate >= 70 ? 'emerald' : completionRate >= 40 ? 'amber' : 'red'}
+        />
+        <MetricStat
+          icon={Send} label="Chờ duyệt" value={submitted} sub="task đã nộp"
+          tone="violet" active={submitted > 0}
+        />
+        <MetricStat
+          icon={XCircle} label="Bị từ chối" value={rejected} sub="cần xử lý lại"
+          tone="red" active={rejected > 0}
+        />
+        <MetricStat
+          icon={Activity} label="Đang hoạt động" value={activeMembers} sub={`/ ${members.length} thành viên`}
+          tone="indigo"
+        />
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-slate-100">
-        <div className="px-4 py-4 text-center">
-          <p className="text-xs font-semibold text-slate-400 mb-1">Tỷ lệ hoàn thành</p>
-          <p className={cn('text-2xl font-black',
-            completionRate >= 70 ? 'text-emerald-600' : completionRate >= 40 ? 'text-amber-500' : 'text-red-500',
-          )}>
-            {completionRate}%
-          </p>
-          <p className="text-xs text-slate-400 mt-0.5">{approved}/{total} task</p>
-        </div>
-        <div className="px-4 py-4 text-center">
-          <p className="text-xs font-semibold text-slate-400 mb-1">Chờ duyệt</p>
-          <p className={cn('text-2xl font-black', submitted > 0 ? 'text-violet-600' : 'text-slate-300')}>
-            {submitted}
-          </p>
-          <p className="text-xs text-slate-400 mt-0.5">task đã nộp</p>
-        </div>
-        <div className="px-4 py-4 text-center">
-          <p className="text-xs font-semibold text-slate-400 mb-1">Bị từ chối</p>
-          <p className={cn('text-2xl font-black', rejected > 0 ? 'text-red-500' : 'text-slate-300')}>
-            {rejected}
-          </p>
-          <p className="text-xs text-slate-400 mt-0.5">cần xử lý lại</p>
-        </div>
-        <div className="px-4 py-4 text-center">
-          <p className="text-xs font-semibold text-slate-400 mb-1">Đang hoạt động</p>
-          <p className="text-2xl font-black text-indigo-600">{activeMembers}</p>
-          <p className="text-xs text-slate-400 mt-0.5">/ {members.length} thành viên</p>
-        </div>
-      </div>
-
-      <div className="px-5 pb-3">
+      <div className="px-5 pb-4 pt-1">
         <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
           <div
             className={cn('h-full rounded-full transition-all duration-700',
@@ -111,7 +96,7 @@ function TeamPerformanceSummary({ tasks, members }: { tasks: any; members: any[]
           />
         </div>
       </div>
-    </div>
+    </DashboardCard>
   )
 }
 
@@ -163,19 +148,11 @@ export function TeamDashboard({ d }: { d: any }) {
       <div className={cn('grid grid-cols-1 gap-4', kpi ? 'lg:grid-cols-2' : '')}>
 
         {/* Donut chart phân bố */}
-        <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-50">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-slate-50 flex items-center justify-center">
-                <BarChart3 className="w-4 h-4 text-slate-500" />
-              </div>
-              <h2 className="text-sm font-bold text-slate-900">Phân bố trạng thái</h2>
-            </div>
-            <Link href="/dashboard/task-auto/tasks"
-              className="text-xs text-indigo-600 font-semibold flex items-center gap-1 hover:text-indigo-500">
-              Xem tất cả <ArrowRight className="w-3 h-3" />
-            </Link>
-          </div>
+        <DashboardCard
+          icon={BarChart3} iconColor="text-slate-500" iconBg="bg-slate-100"
+          title="Phân bố trạng thái"
+          action={{ href: '/dashboard/task-auto/tasks', label: 'Xem tất cả' }}
+        >
           <div className="px-5 py-4">
             <StatusBar tasks={tasks} />
           </div>
@@ -188,24 +165,15 @@ export function TeamDashboard({ d }: { d: any }) {
               </span>
             </div>
           )}
-        </div>
+        </DashboardCard>
 
         {/* KPI Card */}
         {kpi && (
-          <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-50">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center">
-                  <Target className="w-4 h-4 text-indigo-600" />
-                </div>
-                <h2 className="text-sm font-bold text-slate-900">KPI Team — {formatMonth(kpi.month)}</h2>
-              </div>
-              <Link href="/dashboard/task-auto/kpi"
-                className="text-xs text-indigo-600 font-semibold flex items-center gap-1 hover:text-indigo-500">
-                Xem KPI <ArrowRight className="w-3 h-3" />
-              </Link>
-            </div>
-
+          <DashboardCard
+            icon={Target} iconColor="text-indigo-600" iconBg="bg-indigo-50"
+            title={`KPI Team — ${formatMonth(kpi.month)}`}
+            action={{ href: '/dashboard/task-auto/kpi', label: 'Xem KPI' }}
+          >
             <div className="px-5 py-4 space-y-4">
               {/* Progress circle */}
               <div className="p-4 bg-gradient-to-br from-indigo-50 to-slate-50 rounded-xl border border-indigo-100/60 space-y-3">
@@ -241,36 +209,27 @@ export function TeamDashboard({ d }: { d: any }) {
                 </div>
               </div>
             </div>
-          </div>
+          </DashboardCard>
         )}
       </div>
 
       {/* ── Member table ── */}
-      <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-50">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center">
-              <Users className="w-4 h-4 text-indigo-600" />
-            </div>
-            <h2 className="text-sm font-bold text-slate-900">Thành viên ({members.length})</h2>
-          </div>
-          <Link href="/dashboard/task-auto/teams"
-            className="text-xs text-indigo-600 font-semibold hover:text-indigo-500 flex items-center gap-1">
-            Quản lý <ArrowRight className="w-3 h-3" />
-          </Link>
-        </div>
-
+      <DashboardCard
+        icon={Users} iconColor="text-indigo-600" iconBg="bg-indigo-50"
+        title={`Thành viên (${members.length})`}
+        action={{ href: '/dashboard/task-auto/teams', label: 'Quản lý' }}
+      >
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50/80 border-b border-slate-100">
-                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500">Thành viên</th>
-                <th className="text-center px-3 py-3 text-xs font-semibold text-slate-400">Chờ</th>
-                <th className="text-center px-3 py-3 text-xs font-semibold text-amber-500">Đang làm</th>
-                <th className="text-center px-3 py-3 text-xs font-semibold text-violet-500">Đã nộp</th>
-                <th className="text-center px-3 py-3 text-xs font-semibold text-emerald-600">Đã duyệt</th>
-                <th className="text-center px-3 py-3 text-xs font-semibold text-red-400">Từ chối</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-indigo-500 min-w-[140px]">KPI tháng</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Thành viên</th>
+                <th className="text-center px-3 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Chờ</th>
+                <th className="text-center px-3 py-3 text-xs font-semibold text-amber-500 uppercase tracking-wide">Đang làm</th>
+                <th className="text-center px-3 py-3 text-xs font-semibold text-violet-500 uppercase tracking-wide">Đã nộp</th>
+                <th className="text-center px-3 py-3 text-xs font-semibold text-emerald-600 uppercase tracking-wide">Đã duyệt</th>
+                <th className="text-center px-3 py-3 text-xs font-semibold text-red-400 uppercase tracking-wide">Từ chối</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-indigo-500 uppercase tracking-wide min-w-[140px]">KPI tháng</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -296,39 +255,39 @@ export function TeamDashboard({ d }: { d: any }) {
                     )}
                   >
                     {/* Name */}
-                    <td className="px-5 py-3">
+                    <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-sm">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-sm ring-2 ring-white">
                           {m.full_name?.[0]?.toUpperCase() ?? '?'}
                         </div>
-                        <div>
-                          <p className="font-semibold text-slate-800 text-sm leading-none">{m.full_name}</p>
-                          <p className="text-xs text-slate-400 mt-0.5">{m.email}</p>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-slate-800 text-sm leading-none truncate">{m.full_name}</p>
+                          <p className="text-xs text-slate-400 mt-1 truncate">{m.email}</p>
                         </div>
                       </div>
                     </td>
                     {/* Pending */}
-                    <td className="px-3 py-3 text-center">
+                    <td className="px-3 py-3.5 text-center">
                       <CountBadge value={m.pending ?? 0} color="text-slate-600" bg="bg-slate-100" />
                     </td>
                     {/* In progress */}
-                    <td className="px-3 py-3 text-center">
+                    <td className="px-3 py-3.5 text-center">
                       <CountBadge value={m.in_progress} color="text-amber-700" bg="bg-amber-100" />
                     </td>
                     {/* Submitted */}
-                    <td className="px-3 py-3 text-center">
+                    <td className="px-3 py-3.5 text-center">
                       <CountBadge value={m.submitted} color="text-violet-700" bg="bg-violet-100" />
                     </td>
                     {/* Approved */}
-                    <td className="px-3 py-3 text-center">
+                    <td className="px-3 py-3.5 text-center">
                       <CountBadge value={m.approved} color="text-emerald-700" bg="bg-emerald-100" />
                     </td>
                     {/* Rejected */}
-                    <td className="px-3 py-3 text-center">
+                    <td className="px-3 py-3.5 text-center">
                       <CountBadge value={rejected} color="text-red-600" bg="bg-red-100" />
                     </td>
                     {/* KPI progress */}
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3.5">
                       <MemberKpiCell approved={m.approved} kpiTarget={m.kpi_target} />
                     </td>
                   </tr>
@@ -346,7 +305,7 @@ export function TeamDashboard({ d }: { d: any }) {
             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-white border border-slate-100 inline-block" /> Đang tốt (≥70%)</span>
           </div>
         )}
-      </div>
+      </DashboardCard>
 
     </div>
   )

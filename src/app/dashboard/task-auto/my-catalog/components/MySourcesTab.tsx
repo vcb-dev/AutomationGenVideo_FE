@@ -12,6 +12,7 @@ import { DarkModal } from '@/components/task-auto/DarkModal'
 import { DarkInput, CustomSelect, ProductSearchSelect } from '@/components/task-auto/DarkInput'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
+import { HeaderFilterDropdown } from '@/components/task-auto/HeaderFilterDropdown'
 import {
   getSources,
   getEditorSources, createEditorSource, updateEditorSource, deleteEditorSource, pushEditorSourceToTeam,
@@ -21,6 +22,7 @@ import {
 import { Source, TeamSource, SOURCE_TYPE_LABELS, SourceType } from '@/types/task-auto'
 import { SOURCE_TYPE_COLORS } from '../../catalog/components/ProductsTab/product-utils'
 import { SourceViewModal } from '@/components/task-auto/SourceViewModal'
+import { NasLinkCell } from '@/components/task-auto/NasLinkCell'
 
 const SOURCE_TYPES = Object.keys(SOURCE_TYPE_LABELS) as SourceType[]
 
@@ -328,7 +330,7 @@ function SourceFormModal({
   })
 
   const createMut = useMutation({
-    mutationFn: () => createEditorSource(userId, { type: form.type!, name: form.name!, link: form.link!, nas_link: form.nas_link || null, code: form.code || null, editor_product_id: form.editor_product_id || null, is_active: form.is_active, brand_type: brandType } as any),
+    mutationFn: () => createEditorSource(userId, { type: form.type!, name: form.name!, link: form.link || null, nas_link: form.nas_link, code: form.code || null, editor_product_id: form.editor_product_id || null, is_active: form.is_active, brand_type: brandType } as any),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['task-auto', 'my-sources'] })
       toast.success('Đã thêm source')
@@ -338,7 +340,7 @@ function SourceFormModal({
   })
 
   const updateMut = useMutation({
-    mutationFn: () => updateEditorSource(userId, editing!.id, { name: form.name, link: form.link, nas_link: form.nas_link || null, code: form.code || null, editor_product_id: form.editor_product_id || null, is_active: form.is_active } as any),
+    mutationFn: () => updateEditorSource(userId, editing!.id, { name: form.name, link: form.link || null, nas_link: form.nas_link, code: form.code || null, editor_product_id: form.editor_product_id || null, is_active: form.is_active } as any),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['task-auto', 'my-sources'] })
       toast.success('Đã cập nhật source')
@@ -350,7 +352,7 @@ function SourceFormModal({
   const saving = createMut.isPending || updateMut.isPending
 
   const handleSubmit = () => {
-    if (!form.name?.trim() || !form.link?.trim()) return toast.error('Tên và link là bắt buộc')
+    if (!form.name?.trim() || !form.nas_link?.trim()) return toast.error('Tên và Link ổ NAS là bắt buộc')
     isEdit ? updateMut.mutate() : createMut.mutate()
   }
 
@@ -396,16 +398,16 @@ function SourceFormModal({
             onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
           />
           <DarkInput
-            label="Link *"
-            placeholder="https://..."
-            value={form.link ?? ''}
-            onChange={e => setForm(f => ({ ...f, link: e.target.value }))}
-          />
-          <DarkInput
-            label="Link ổ NAS"
-            placeholder="\\nas\... hoặc smb://... (tuỳ chọn)"
+            label="Link ổ NAS *"
+            placeholder="\\nas\... hoặc smb://..."
             value={form.nas_link ?? ''}
             onChange={e => setForm(f => ({ ...f, nas_link: e.target.value }))}
+          />
+          <DarkInput
+            label="Link"
+            placeholder="https://... (tuỳ chọn)"
+            value={form.link ?? ''}
+            onChange={e => setForm(f => ({ ...f, link: e.target.value }))}
           />
         </div>
 
@@ -491,12 +493,6 @@ export function MySourcesTab({ userId, brandType }: Props) {
               className="w-full pl-12 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-base text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
             />
           </div>
-          <CustomSelect
-            value={typeFilter}
-            onChange={v => { setTypeFilter(v as SourceType | ''); setPage(1) }}
-            options={[{ value: '', label: 'Tất cả loại' }, ...SOURCE_TYPES.map(t => ({ value: t, label: SOURCE_TYPE_LABELS[t] }))]}
-            className="min-w-[180px]"
-          />
           <input
             type="month"
             value={month}
@@ -531,8 +527,16 @@ export function MySourcesTab({ userId, brandType }: Props) {
             <thead>
               <tr className="bg-slate-50 border-b-2 border-gray-200">
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Tên source</th>
-                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Loại</th>
+                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">
+                  <HeaderFilterDropdown
+                    label="Loại"
+                    value={typeFilter}
+                    onChange={v => { setTypeFilter(v as SourceType | ''); setPage(1) }}
+                    options={SOURCE_TYPES.map(t => ({ value: t, label: SOURCE_TYPE_LABELS[t] }))}
+                  />
+                </th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Code</th>
+                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Link ổ NAS</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Sản phẩm</th>
                 {/* <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Người thêm</th> */}
                 <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Ngày thêm</th>
@@ -541,20 +545,27 @@ export function MySourcesTab({ userId, brandType }: Props) {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {isLoading && <LoadingRows cols={8} />}
+              {isLoading && <LoadingRows cols={9} />}
               {!isLoading && !data?.data?.length && (
-                <tr><td colSpan={8}><EmptyState icon={Radio} title="Chưa có source cá nhân nào" /></td></tr>
+                <tr><td colSpan={9}><EmptyState icon={Radio} title="Chưa có source cá nhân nào" /></td></tr>
               )}
               {data?.data.map(s => (
                 <tr key={s.id} onClick={() => setViewSource(s)} className="hover:bg-indigo-50/20 transition-colors group cursor-pointer">
                   <td className="px-5 py-4">
-                    <a href={s.link} target="_blank" rel="noreferrer"
-                      className="flex items-center gap-1.5 group/link"
-                      onClick={e => e.stopPropagation()}
-                    >
-                      <p className="text-base font-semibold text-slate-800 truncate max-w-[200px] group-hover/link:text-indigo-600 transition-colors">{s.name}</p>
-                      <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover/link:text-indigo-500 shrink-0" />
-                    </a>
+                    {s.link ? (
+                      <a href={s.link} target="_blank" rel="noreferrer"
+                        className="flex items-center gap-1.5 group/link"
+                        onClick={e => e.stopPropagation()}
+                      >
+                        <p className="text-base font-semibold text-slate-800 truncate max-w-[200px] group-hover/link:text-indigo-600 transition-colors">{s.name}</p>
+                        <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover/link:text-indigo-500 shrink-0" />
+                      </a>
+                    ) : (
+                      <p className="text-base font-semibold text-slate-800 truncate max-w-[200px]">{s.name}</p>
+                    )}
+                  </td>
+                  <td className="px-5 py-4 max-w-[220px]" onClick={e => e.stopPropagation()}>
+                    <NasLinkCell value={s.nas_link} />
                   </td>
                   <td className="px-5 py-4 whitespace-nowrap">
                     <span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold', SOURCE_TYPE_COLORS[s.type])}>

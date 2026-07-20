@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<title>VCB Video Downloader</title>
+<style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body {
+        width: 320px;
+        margin: 0;
+        font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+        color: #1f2937;
+        background: #fff;
+    }
+    header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 14px 16px 10px;
+        border-bottom: 1px solid #f0f0f2;
+    }
+    header img { width: 22px; height: 22px; border-radius: 6px; }
+    header h1 { font-size: 14px; margin: 0; font-weight: 700; }
+    main { padding: 14px 16px; }
+    .primary-btn {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 10px;
+        background: #7c3aed;
+        color: #fff;
+        border: none;
+        border-radius: 10px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+    }
+    .primary-btn:hover { background: #6d28d9; }
+    .primary-btn:disabled { opacity: .5; cursor: default; }
+    .row { display: flex; gap: 6px; margin-top: 10px; }
+    .seg-btn {
+        flex: 1;
+        padding: 7px 4px;
+        border: 1px solid #e5e7eb;
+        background: #fff;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        color: #4b5563;
+        cursor: pointer;
+    }
+    .seg-btn.active { border-color: #7c3aed; background: #f5f3ff; color: #6d28d9; }
+    .section-title {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #9ca3af;
+        margin: 16px 0 6px;
+        font-weight: 700;
+    }
+    .toggle-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 7px 0;
+        font-size: 12.5px;
+        color: #374151;
+    }
+    .switch { position: relative; width: 34px; height: 20px; flex: none; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+        position: absolute; inset: 0; background: #d1d5db; border-radius: 999px;
+        transition: background .15s ease; cursor: pointer;
+    }
+    .slider::before {
+        content: ""; position: absolute; width: 16px; height: 16px; left: 2px; top: 2px;
+        background: #fff; border-radius: 50%; transition: transform .15s ease;
+    }
+    input:checked + .slider { background: #7c3aed; }
+    input:checked + .slider::before { transform: translateX(14px); }
+    #videoList { max-height: 168px; overflow-y: auto; margin-top: 4px; }
+    .video-item {
+        display: flex; align-items: center; gap: 8px; padding: 6px 4px;
+        border-radius: 8px; font-size: 11.5px;
+    }
+    .video-item:hover { background: #f9fafb; }
+    .video-item .thumb {
+        width: 40px; height: 26px; border-radius: 4px; object-fit: cover;
+        background: #e5e7eb; flex: none;
+    }
+    .video-item .url { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #6b7280; }
+    .video-item button {
+        flex: none; border: none; background: #ede9fe; color: #6d28d9; font-size: 11px;
+        font-weight: 700; padding: 4px 8px; border-radius: 6px; cursor: pointer;
+    }
+    .video-item button:hover { background: #ddd6fe; }
+    .empty-hint { font-size: 11.5px; color: #9ca3af; padding: 6px 2px; }
+    .list-header { display: flex; align-items: center; justify-content: space-between; margin: 16px 0 4px; }
+    .list-header .section-title { margin: 0; }
+    #downloadAll {
+        border: none; background: #ede9fe; color: #6d28d9; font-size: 11px; font-weight: 700;
+        padding: 4px 9px; border-radius: 6px; cursor: pointer; display: none;
+    }
+    #downloadAll:hover { background: #ddd6fe; }
+    footer {
+        border-top: 1px solid #f0f0f2;
+        padding: 10px 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 11px;
+        color: #9ca3af;
+    }
+    footer a { color: #7c3aed; text-decoration: none; font-weight: 600; cursor: pointer; }
+    footer a:hover { text-decoration: underline; }
+    #status { font-size: 11px; margin-top: 8px; min-height: 14px; color: #16a34a; }
+</style>
+</head>
+<body>
+    <header>
+        <img src="icon48.png" alt="" />
+        <h1>VCB Video Downloader</h1>
+    </header>
+    <main>
+        <button class="primary-btn" id="downloadCurrent">⬇ Tải video ở tab này</button>
+
+        <div class="row">
+            <button class="seg-btn" id="fmtMp4" data-format="mp4">Video MP4</button>
+            <button class="seg-btn" id="fmtMp3" data-format="mp3">Âm thanh MP3</button>
+        </div>
+        <div class="row">
+            <button class="seg-btn" id="qBest" data-quality="best">Tốt nhất</button>
+            <button class="seg-btn" id="q1080" data-quality="1080">1080p</button>
+            <button class="seg-btn" id="q720" data-quality="720">720p</button>
+        </div>
+        <div id="status"></div>
+
+        <div class="list-header">
+            <div class="section-title">Video phát hiện trên trang</div>
+            <button type="button" id="downloadAll">Tải tất cả</button>
+        </div>
+        <div id="videoList"><div class="empty-hint">Đang quét...</div></div>
+
+        <div class="section-title">Cài đặt nhanh</div>
+        <div class="toggle-row">
+            <span>Hiện icon khi rê chuột vào video</span>
+            <label class="switch"><input type="checkbox" id="hoverToggle" /><span class="slider"></span></label>
+        </div>
+        <div class="toggle-row">
+            <span>Tự động tải, bỏ qua bước xác nhận</span>
+            <label class="switch"><input type="checkbox" id="autoToggle" /><span class="slider"></span></label>
+        </div>
+        <div class="toggle-row">
+            <span id="siteToggleLabel">Tắt icon trên trang này</span>
+            <label class="switch"><input type="checkbox" id="siteToggle" /><span class="slider"></span></label>
+        </div>
+    </main>
+    <footer>
+        <span id="appBaseLabel">—</span>
+        <a id="openOptions">Cài đặt nâng cao</a>
+    </footer>
+    <script src="popup.js"></script>
+</body>
+</html>

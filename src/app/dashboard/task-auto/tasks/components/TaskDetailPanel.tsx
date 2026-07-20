@@ -23,6 +23,7 @@ import { SourcesSection } from './detail/SourcesSection'
 import { ProductSection } from './detail/ProductSection'
 import { VideoPreviewOverlay } from './detail/VideoPreviewOverlay'
 import { VideoScriptSection } from './detail/VideoScriptSection'
+import { TaskSchedulePostModal } from './detail/TaskSchedulePostModal'
 import type { Source, TeamSource } from '@/types/task-auto'
 
 type CatalogScope = 'personal' | 'global' | 'team'
@@ -76,6 +77,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
   const [showReject, setShowReject]         = useState(false)
   const [showResubmit, setShowResubmit]     = useState(false)
   const [showVideoPreview, setShowVideoPreview] = useState(false)
+  const [showSchedule, setShowSchedule]     = useState(false)
   const [editMode, setEditMode]             = useState(false)
   const [editForm, setEditForm] = useState({
     product_id: '',
@@ -99,20 +101,22 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
     refetchOnWindowFocus: true,
   })
 
-  // ✅ Query từ bất kỳ content ID nào available
-  const contentIdToQuery = task?.content_id ?? task?.editor_content_id ?? task?.team_content_id
+  // ✅ Chỉ query full content khi có content_id toàn cục (endpoint /task-auto/contents/:id
+  // chỉ tìm trong bảng content global). editor_content/team_content đã được include sẵn trong
+  // `task` và được resolve qua fallback chain bên dưới.
   const { data: fullContent } = useQuery({
-    queryKey: ['task-auto', 'content', contentIdToQuery],
-    queryFn: () => getContent(contentIdToQuery!),
-    enabled: !!contentIdToQuery,
+    queryKey: ['task-auto', 'content', task?.content_id],
+    queryFn: () => getContent(task!.content_id!),
+    enabled: !!task?.content_id,
   })
 
-  // ✅ Query từ bất kỳ product ID nào available
-  const productIdToQuery = task?.product_id ?? task?.editor_product_id ?? task?.team_product_id
+  // ✅ Chỉ query full product khi có product_id toàn cục (endpoint /task-auto/products/:id
+  // chỉ tìm trong bảng `products`). editor_product/team_product đã được include sẵn trong
+  // `task` và được resolve qua fallback chain bên dưới (teamProductResolved/globalProductResolved).
   const { data: fullProduct } = useQuery({
-    queryKey: ['task-auto', 'product', productIdToQuery],
-    queryFn: () => getProduct(productIdToQuery!),
-    enabled: !!productIdToQuery,
+    queryKey: ['task-auto', 'product', task?.product_id],
+    queryFn: () => getProduct(task!.product_id!),
+    enabled: !!task?.product_id,
   })
 
   const { data: productSourcesData } = useQuery({
@@ -257,22 +261,26 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
   const allContentItems = useMemo(() => {
     if (contentScope === 'global') {
       return (editContentsData?.data ?? []).map(c => ({
-        value: `global:${c.id}`, label: c.title || c.id, sublabel: c.content_line?.name ?? undefined,
+        value: `global:${c.id}`, label: c.title || c.id, sublabel: c.code ?? undefined,
       }))
     }
     if (contentScope === 'personal') {
       return (editEditorContentsData?.data ?? []).map(c => ({
-        value: `editor:${c.id}`, label: c.title || c.id, sublabel: c.content_line?.name ?? undefined,
+        value: `editor:${c.id}`, label: c.title || c.id, sublabel: c.code ?? undefined,
       }))
     }
     // team
     const q = contentSearch.toLowerCase()
     return (editTeamContentsData ?? [])
-      .filter(c => !q || (c.title ?? c.source_editor_content?.title ?? '').toLowerCase().includes(q))
+      .filter(c => {
+        const t = c.title ?? c.source_editor_content?.title ?? ''
+        const code = c.code ?? c.source_editor_content?.code ?? ''
+        return !q || t.toLowerCase().includes(q) || code.toLowerCase().includes(q)
+      })
       .map(c => ({
         value: `team:${c.id}`,
         label: c.title ?? c.source_editor_content?.title ?? c.id,
-        sublabel: c.content_line?.name ?? c.source_editor_content?.content_line?.name ?? undefined,
+        sublabel: c.code ?? c.source_editor_content?.code ?? undefined,
       }))
   }, [editContentsData, editEditorContentsData, editTeamContentsData, contentSearch, contentScope])
 
@@ -402,6 +410,11 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
     ?? task?.team_content?.title ?? tc_ec?.title
     ?? task?.content?.title ?? g_tc?.title ?? g_tc_ec?.title
 
+  const contentCode   = fullContent?.code
+    ?? task?.editor_content?.code
+    ?? task?.team_content?.code ?? tc_ec?.code
+    ?? task?.content?.code ?? g_tc?.code ?? g_tc_ec?.code
+
   const contentMarket = fullContent?.market
     ?? task?.editor_content?.market
     ?? task?.team_content?.market ?? tc_ec?.market
@@ -501,6 +514,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
 
   const isDriveUrl   = task?.result_url?.includes('drive.google.com')
   const isLegacyPath = task?.result_url?.startsWith('/task-auto/tasks/')
+  const canSchedulePost = task?.status === 'APPROVED' && !!isDriveUrl && (isAssignee || canApproveReject)
 
   return (
     <>
@@ -513,6 +527,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
             task={task}
             editMode={editMode}
             contentTitle={contentTitle}
+            contentCode={contentCode}
             productName={productName}
             productSku={productSku}
             onToggleEdit={() => setEditMode(v => !v)}
@@ -690,6 +705,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                   </div>
 
                   <VideoScriptSection
+                    taskId={task.id}
                     fileUrl={fileUrl}
                     scriptText={scriptText}
                     contentTitle={contentTitle}
@@ -725,6 +741,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
               canApproveReject={canApproveReject}
               canCancel={canCancel}
               canStart={!!canStart}
+              canSchedulePost={!!canSchedulePost}
               isPendingStart={startMut.isPending}
               isPendingApprove={approveMut.isPending}
               isPendingCancel={cancelMut.isPending}
@@ -738,6 +755,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
               onReject={() => setShowReject(true)}
               onCancel={() => cancelMut.mutate()}
               onResubmit={() => setShowResubmit(true)}
+              onSchedulePost={() => setShowSchedule(true)}
             />
           )}
         </div>
@@ -754,6 +772,15 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
       )}
       {showVideoPreview && task?.result_url && (
         <VideoPreviewOverlay resultUrl={task.result_url} onClose={() => setShowVideoPreview(false)} />
+      )}
+      {showSchedule && task && (
+        <TaskSchedulePostModal
+          taskId={task.id}
+          resultUrl={task.result_url!}
+          defaultMessage={contentTitle ?? ''}
+          currentUserId={currentUserId}
+          onClose={() => setShowSchedule(false)}
+        />
       )}
     </>
   )

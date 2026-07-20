@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {
@@ -14,11 +14,13 @@ import { EmptyState } from '@/components/task-auto/EmptyState'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { DarkInput, CustomSelect } from '@/components/task-auto/DarkInput'
+import { Pagination, PAGE_SIZE } from '@/components/task-auto/Pagination'
 import { ContentFormModal } from '@/components/task-auto/ContentFormModal'
 import { TeamProductFormModal } from './products/TeamProductFormModal'
 import {
   getTeams,
-  getTeamWarehouse, addTeamWarehouse, removeTeamWarehouse, pushTeamToMonth,
+  getTeamWarehouse, addTeamWarehouse, addTeamWarehouseProducts, updateTeamProductWarehouseQuantity,
+  removeTeamWarehouse, pushTeamToMonth,
   getTeamProducts, getTeamContents, getTeamSources,
   addTeamContent, addTeamSource,
   type WarehouseCatalogType,
@@ -57,6 +59,7 @@ function PickItemsModal({
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [quantities, setQuantities] = useState<Record<string, number>>({})
 
   const { data: teamProducts } = useQuery({
     queryKey: ['task-auto', 'team-products', teamId],
@@ -86,16 +89,21 @@ function PickItemsModal({
     const q = search.toLowerCase()
     return notIn.filter((item: any) => {
       const name = item.name ?? item.title ?? ''
-      return name.toLowerCase().includes(q) || (item.sku ?? '').toLowerCase().includes(q)
+      const code = item.sku ?? item.code ?? ''
+      return name.toLowerCase().includes(q) || code.toLowerCase().includes(q)
     })
   }, [allItems, warehouseIds, search])
 
   const addMut = useMutation({
-    mutationFn: () => addTeamWarehouse(teamId, subTab as WarehouseCatalogType, month, [...selected]),
+    mutationFn: () =>
+      subTab === 'products'
+        ? addTeamWarehouseProducts(teamId, month, [...selected].map(id => ({ id, target_quantity: quantities[id] ?? 1 })))
+        : addTeamWarehouse(teamId, subTab as WarehouseCatalogType, month, [...selected]),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['task-auto', 'warehouse', 'team', teamId, month] })
       toast.success(`Đã thêm ${selected.size} mục vào kho ${month}`)
       setSelected(new Set())
+      setQuantities({})
       onAdded()
       onClose()
     },
@@ -131,7 +139,19 @@ function PickItemsModal({
             <label key={item.id} className="flex items-center gap-3 px-6 py-3 hover:bg-gray-50 cursor-pointer">
               <input type="checkbox" className="w-4 h-4 accent-indigo-600" checked={selected.has(item.id)} onChange={() => toggle(item.id)} />
               <span className="text-sm text-slate-700 flex-1">{item.name ?? item.title ?? item.sku ?? item.id}</span>
-              {item.sku && <span className="text-xs text-slate-400">{item.sku}</span>}
+              {(item.sku || item.code) && <span className="text-xs text-slate-400">{item.sku || item.code}</span>}
+              {subTab === 'products' && selected.has(item.id) && (
+                <span className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                  <span className="text-xs text-slate-400">SL video</span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={quantities[item.id] ?? 1}
+                    onChange={e => setQuantities(q => ({ ...q, [item.id]: Math.max(1, Number(e.target.value) || 1) }))}
+                    className="w-14 text-right text-sm font-semibold text-slate-800 bg-white border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                </span>
+              )}
             </label>
           ))}
         </div>
@@ -160,6 +180,24 @@ function PickItemsModal({
   )
 }
 
+// ── Product quantity cell (target_quantity — số video cần cho SP trong tháng) ──
+
+function ProductQuantityCell({ value, onSave }: { value: number; onSave: (v: number) => void }) {
+  const [draft, setDraft] = useState(value)
+  useEffect(() => setDraft(value), [value])
+
+  return (
+    <input
+      type="number"
+      min={1}
+      value={draft}
+      onChange={e => setDraft(Math.max(1, Number(e.target.value) || 1))}
+      onBlur={() => { if (draft !== value) onSave(draft) }}
+      className="w-16 text-right text-sm font-semibold text-slate-800 bg-transparent border border-transparent hover:border-gray-200 focus:border-indigo-400 focus:bg-white rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-400 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+    />
+  )
+}
+
 // ── Source create modal ───────────────────────────────────────────────────────
 
 function SourceCreateModal({
@@ -172,18 +210,18 @@ function SourceCreateModal({
   month: string
 }) {
   const qc = useQueryClient()
-  const [form, setForm] = useState({ name: '', type: 'PRODUCT_STOCK', link: '' })
+  const [form, setForm] = useState({ name: '', type: 'PRODUCT_STOCK', link: '', nas_link: '' })
 
   const mut = useMutation({
     mutationFn: async () => {
-      const src = await addTeamSource(teamId, { name: form.name.trim(), brand_type: brandType, type: form.type, link: form.link.trim() || undefined })
+      const src = await addTeamSource(teamId, { name: form.name.trim(), brand_type: brandType, type: form.type, link: form.link.trim() || undefined, nas_link: form.nas_link.trim() })
       await addTeamWarehouse(teamId, 'sources', month, [src.id])
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['task-auto', 'warehouse', 'team', teamId, month] })
       qc.invalidateQueries({ queryKey: ['task-auto', 'team-sources', teamId] })
       toast.success(`Đã tạo source và thêm vào kho ${month}`)
-      setForm({ name: '', type: 'PRODUCT_STOCK', link: '' })
+      setForm({ name: '', type: 'PRODUCT_STOCK', link: '', nas_link: '' })
       onClose()
     },
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Lỗi tạo source'),
@@ -200,7 +238,7 @@ function SourceCreateModal({
           <button onClick={onClose} className="bg-gray-100 hover:bg-gray-200 text-slate-800 rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors">Huỷ</button>
           <button
             onClick={() => mut.mutate()}
-            disabled={!form.name.trim() || !form.type || mut.isPending}
+            disabled={!form.name.trim() || !form.type || !form.nas_link.trim() || mut.isPending}
             className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors disabled:opacity-60"
           >
             {mut.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -217,7 +255,8 @@ function SourceCreateModal({
           options={Object.entries(SOURCE_TYPE_LABELS).map(([k, v]) => ({ value: k, label: v }))}
         />
         <DarkInput label="Tên source *" placeholder="Tên nguồn tài liệu..." value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-        <DarkInput label="Link" placeholder="https://..." value={form.link} onChange={e => setForm(f => ({ ...f, link: e.target.value }))} />
+        <DarkInput label="Link ổ NAS *" placeholder="\\nas\... hoặc smb://..." value={form.nas_link} onChange={e => setForm(f => ({ ...f, nas_link: e.target.value }))} />
+        <DarkInput label="Link" placeholder="https://... (tuỳ chọn)" value={form.link} onChange={e => setForm(f => ({ ...f, link: e.target.value }))} />
       </div>
     </DarkModal>
   )
@@ -243,6 +282,7 @@ export function TeamWarehouseTab({
   const qc = useQueryClient()
   const [month, setMonth] = useState(currentMonth())
   const [subTab, setSubTab] = useState<SubTab>('products')
+  const [page, setPage] = useState(1)
   const [showPickModal, setShowPickModal] = useState(false)
   const [createWhat, setCreateWhat] = useState<'product' | 'content' | 'source' | null>(null)
   const [confirmPush, setConfirmPush] = useState(false)
@@ -280,6 +320,9 @@ export function TeamWarehouseTab({
 
   const warehouseIds = useMemo(() => new Set(warehouseItems.map((i: any) => i.id)), [warehouseItems])
 
+  useEffect(() => { setPage(1) }, [selectedTeamId, month, subTab])
+  const paginatedItems = warehouseItems.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
   const removeMut = useMutation({
     mutationFn: (id: string) => removeTeamWarehouse(selectedTeamId, subTab as WarehouseCatalogType, month, [id]),
     onSuccess: () => {
@@ -297,6 +340,16 @@ export function TeamWarehouseTab({
       setConfirmPush(false)
     },
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Lỗi copy kho'),
+  })
+
+  const updateQuantityMut = useMutation({
+    mutationFn: (item: { id: string; target_quantity: number }) =>
+      updateTeamProductWarehouseQuantity(selectedTeamId, month, [item]),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['task-auto', 'warehouse', 'team', selectedTeamId, month] })
+      toast.success('Đã cập nhật số lượng video')
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message || 'Lỗi cập nhật số lượng'),
   })
 
   const addProductToWarehouse = async (teamProduct?: TeamProduct) => {
@@ -408,36 +461,55 @@ export function TeamWarehouseTab({
             description='Nhấn "Thêm vào kho" hoặc "Copy từ tháng trước" để bắt đầu'
           />
         ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-100">
-              <tr>
-                <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                  {subTab === 'products' ? 'Tên sản phẩm' : subTab === 'contents' ? 'Tiêu đề' : 'Tên source'}
-                </th>
-                <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                  {subTab === 'products' ? 'SKU' : subTab === 'contents' ? 'Loại content' : 'Loại'}
-                </th>
-                <th className="px-5 py-3 w-16"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {warehouseItems.map((item: any) => (
-                <tr key={item.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-5 py-3.5 font-medium text-slate-800">{labelOf(item)}</td>
-                  <td className="px-5 py-3.5 text-slate-500">{subOf(item)}</td>
-                  <td className="px-5 py-3.5 text-right">
-                    <button
-                      onClick={() => removeMut.mutate(item.id)}
-                      disabled={removeMut.isPending}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
+          <>
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-100">
+                <tr>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                    {subTab === 'products' ? 'Tên sản phẩm' : subTab === 'contents' ? 'Tiêu đề' : 'Tên source'}
+                  </th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                    {subTab === 'products' ? 'SKU' : subTab === 'contents' ? 'Loại content' : 'Loại'}
+                  </th>
+                  {subTab === 'products' && (
+                    <th className="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide w-28">SL video</th>
+                  )}
+                  <th className="px-5 py-3 w-16"></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {paginatedItems.map((item: any) => (
+                  <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-5 py-3.5 font-medium text-slate-800">
+                      {labelOf(item)}
+                      {subTab === 'contents' && (item.code || item.source_editor_content?.code) && (
+                        <span className="ml-2 text-xs font-mono font-normal text-slate-400">{item.code || item.source_editor_content?.code}</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3.5 text-slate-500">{subOf(item)}</td>
+                    {subTab === 'products' && (
+                      <td className="px-5 py-3.5 text-right">
+                        <ProductQuantityCell
+                          value={item.warehouses?.[0]?.target_quantity ?? 1}
+                          onSave={v => updateQuantityMut.mutate({ id: item.id, target_quantity: v })}
+                        />
+                      </td>
+                    )}
+                    <td className="px-5 py-3.5 text-right">
+                      <button
+                        onClick={() => removeMut.mutate(item.id)}
+                        disabled={removeMut.isPending}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <Pagination page={page} totalItems={warehouseItems.length} onPageChange={setPage} />
+          </>
         )}
       </div>
 

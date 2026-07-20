@@ -23,14 +23,11 @@ import {
     Languages,
     BookOpen,
     Zap,
-    Package,
     Radio,
     FolderOpen,
-    Mic,
-    ExternalLink,
-    Wrench,
     AudioLines,
     Wand2,
+    DownloadCloud,
 } from "lucide-react";
 import { NavMenu } from "./types";
 
@@ -52,7 +49,7 @@ export function useNavMenus(
                     "/dashboard/hieu-suat",
                     "/dashboard/admin",
                     "/dashboard/leader",
-                    "/dashboard/channels",
+                    "/dashboard/channel-team",
                 ],
                 sections: [
                     {
@@ -297,7 +294,8 @@ export function useNavMenus(
                     "/dashboard/channel-analysis",
                     "/dashboard/video-library",
                     "/dashboard/content/generate",
-                    "/dashboard/channels",
+                    "/dashboard/internalChannels",
+                    "/dashboard/externalChannels",
                 ],
                 sections: [
                     {
@@ -316,7 +314,18 @@ export function useNavMenus(
                                 icon: BarChart3,
                                 description: "Phân tích sâu dữ liệu kênh",
                             },
-
+                            {
+                                label: "Kênh nội bộ",
+                                href: "/dashboard/internalChannels",
+                                icon: BookOpen,
+                                description: "Danh sách kênh MXH của team",
+                            },
+                            {
+                                label: "Khám phá kênh",
+                                href: "/dashboard/externalChannels",
+                                icon: BookOpen,
+                                description: "Khám phá kênh MXH bên ngoài",
+                            },
                         ],
                     },
                     ...(isManagement
@@ -429,6 +438,7 @@ export function useNavMenus(
                     "/dashboard/ai/clone-voice",
                     "/dashboard/ai/overview",
                     "/dashboard/ai/content-transform",
+                    "/dashboard/tools/video-downloader",
                 ] as string[],
                 sections: [
                     {
@@ -458,6 +468,18 @@ export function useNavMenus(
                                 href: "/dashboard/ai/content-transform",
                                 icon: Wand2,
                                 description: "Rewrite kịch bản thô theo phong cách các nhân vật",
+                            },
+                        ],
+                    },
+                    {
+                        section: "CÔNG CỤ TẢI VIDEO",
+                        color: "violet" as const,
+                        items: [
+                            {
+                                label: "Tải video MXH",
+                                href: "/dashboard/tools/video-downloader",
+                                icon: DownloadCloud,
+                                description: "Tải MP4/MP3 từ YouTube, TikTok, Facebook... kèm Chrome extension",
                             },
                         ],
                     },

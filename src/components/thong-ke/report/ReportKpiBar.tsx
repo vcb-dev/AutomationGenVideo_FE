@@ -93,7 +93,7 @@ export default function ReportKpiBar({ teamsData, activeTab, filterMode, selecte
       value: `${stats.winRate.toFixed(1).replace('.', ',')}%`,
       sub: stats.winRate >= 30 ? 'Vượt chỉ tiêu' : stats.winRate >= 15 ? 'Đạt chỉ tiêu' : 'Dưới chỉ tiêu',
       icon: BarChart2,
-      iconCls: stats.winRate >= 30 ? 'bg-amber-500/15 border-amber-500/25 text-amber-400' : 'bg-slate-500/10 border-slate-500/20 text-slate-400',
+      iconCls: stats.winRate >= 30 ? 'bg-amber-500/15 border-amber-500/25 text-amber-400' : 'bg-slate-500/10 border-slate-500/20 text-muted-foreground',
       border: stats.winRate >= 30 ? 'border-amber-500/20' : 'border-slate-500/15',
       glow: stats.winRate >= 30 ? 'shadow-[0_0_18px_rgba(245,158,11,0.09)]' : '',
       trend: (stats.winRate >= 30 ? 'up' : stats.winRate < 15 ? 'down' : null) as string | null,
@@ -125,32 +125,32 @@ export default function ReportKpiBar({ teamsData, activeTab, filterMode, selecte
         return (
           <div
             key={card.id}
-            className={`relative bg-[#0c1322] border ${card.border} rounded-2xl p-4 flex flex-col gap-2 transition-all duration-300 hover:scale-[1.02] hover:-translate-y-0.5 overflow-hidden group ${card.glow}`}
+            className={`relative bg-card border ${card.border} rounded-2xl p-4 flex flex-col gap-2 transition-all duration-300 hover:scale-[1.02] hover:-translate-y-0.5 overflow-hidden group ${card.glow}`}
           >
-            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-br from-white/[0.015] to-transparent pointer-events-none rounded-2xl" />
+            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-br from-foreground/[0.02] to-transparent pointer-events-none rounded-2xl" />
             <div className="flex items-center justify-between">
               <div className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 ${card.iconCls}`}>
                 <Icon className="w-4 h-4" />
               </div>
               {card.trend === 'up' && (
-                <span className="flex items-center gap-0.5 text-[9px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-full">
+                <span className="flex items-center gap-0.5 text-[11px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-full">
                   <TrendingUp className="w-2.5 h-2.5" />
                   Tốt
                 </span>
               )}
               {card.trend === 'down' && (
-                <span className="flex items-center gap-0.5 text-[9px] font-black text-rose-400 bg-rose-500/10 border border-rose-500/20 px-1.5 py-0.5 rounded-full">
+                <span className="flex items-center gap-0.5 text-[11px] font-black text-rose-400 bg-rose-500/10 border border-rose-500/20 px-1.5 py-0.5 rounded-full">
                   <TrendingDown className="w-2.5 h-2.5" />
                   Yếu
                 </span>
               )}
             </div>
             <div>
-              <div className="text-xl font-black text-white leading-none tracking-tight">{card.value}</div>
-              <div className="text-[9px] font-extrabold text-slate-500 uppercase tracking-wider mt-0.5">{card.label}</div>
+              <div className="text-xl font-black text-foreground leading-none tracking-tight">{card.value}</div>
+              <div className="text-[11px] font-extrabold text-muted-foreground uppercase tracking-wider mt-0.5">{card.label}</div>
             </div>
-            <div className="text-[10px] text-slate-400 font-semibold leading-snug">{card.sub}</div>
-            <div className="h-1 w-full bg-white/[0.04] rounded-full overflow-hidden mt-auto">
+            <div className="text-[12px] text-muted-foreground font-semibold leading-snug">{card.sub}</div>
+            <div className="h-1 w-full bg-muted rounded-full overflow-hidden mt-auto">
               <div
                 className={`h-full ${card.bar} rounded-full transition-all duration-700`}
                 style={{ width: `${card.barPct}%` }}

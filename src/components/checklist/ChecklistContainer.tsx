@@ -28,6 +28,12 @@ function isPastDailyDeadline(): boolean {
     return false;
 }
 
+/** Các route /lark/* giờ yêu cầu đăng nhập (JwtAuthGuard) — phải gắn token cho mọi fetch thủ công. */
+function getAuthHeaders(): Record<string, string> {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 const ChecklistDatePicker = ({ value, onChange }: { value: string, onChange: (val: string) => void }) => {
     const [isOpen, setIsOpen] = useState(false);
     const date = new Date(value);
@@ -239,7 +245,7 @@ const ChecklistContainer = ({
                     ? `${base}/lark/user-permission?email=${encodeURIComponent(user.email)}`
                     : `${base}/api/lark/user-permission?email=${encodeURIComponent(user.email)}`;
 
-                const response = await fetch(url);
+                const response = await fetch(url, { headers: getAuthHeaders() });
                 if (response.ok) {
                     const data = await response.json();
                     if (data && data.role) {
@@ -277,7 +283,7 @@ const ChecklistContainer = ({
                 const beBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
                 const url = `${beBaseUrl}/lark/user-report-details?email=${encodeURIComponent(user.email)}&date=${reportDate}&_t=${Date.now()}`;
 
-                const response = await fetch(url, { cache: 'no-store' });
+                const response = await fetch(url, { cache: 'no-store', headers: getAuthHeaders() });
                 if (response.ok) {
                     const data = await response.json();
                     
@@ -331,7 +337,7 @@ const ChecklistContainer = ({
                             const newChannels = initialTrafficChannels();
                             const newEvidences: Record<string, { url: string; name: string; token: string }[]> = {};
 
-                            const platforms = ['fb', 'ig', 'tiktok', 'yt', 'thread', 'lemon8', 'zalo', 'twitter'];
+                            const platforms = ['fb', 'ig', 'tiktok', 'yt', 'thread', 'zalo'];
 
                             // Check for evidence_files fallback for older/synced records
                             let sharedEvidences: any[] = [];
@@ -443,7 +449,7 @@ const ChecklistContainer = ({
             const newEvidences: Record<string, { url: string; name: string; token: string }[]> = {};
             const newEntries: Record<string, any[]> = {};
 
-            const platforms = ['fb', 'ig', 'tiktok', 'yt', 'thread', 'lemon8', 'zalo', 'twitter'];
+            const platforms = ['fb', 'ig', 'tiktok', 'yt', 'thread', 'zalo'];
             
             teamRecords.forEach(rec => {
                 platforms.forEach(p => {
@@ -617,7 +623,7 @@ const ChecklistContainer = ({
 
             // #region agent log
             if (typeof window !== 'undefined') {
-                const platforms = ['fb', 'ig', 'tiktok', 'yt', 'thread', 'lemon8', 'zalo', 'twitter'];
+                const platforms = ['fb', 'ig', 'tiktok', 'yt', 'thread', 'zalo'];
                 const evidenceCounts = platforms.reduce((acc: any, k) => {
                     acc[k] = (platformEvidences?.[k] || []).length;
                     return acc;
@@ -715,7 +721,7 @@ const ChecklistContainer = ({
                 const url = `${beBaseUrl}/lark/checklist-report`;
                 const response = await fetch(url, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
                     body: JSON.stringify(fullPayload),
                 });
                 const data = await response.json().catch(() => ({}));
@@ -738,7 +744,7 @@ const ChecklistContainer = ({
                 const beBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
                 const trafficRes = await fetch(`${beBaseUrl}/lark/traffic-report`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
                     body: JSON.stringify({
                         email: user.email,
                         name: user.full_name,
@@ -753,7 +759,8 @@ const ChecklistContainer = ({
                                     ...entry,
                                     evidences: (entry.evidences || []).map((ev: any) => ({
                                         url: ev.url,
-                                        name: ev.name
+                                        name: ev.name,
+                                        token: ev.token
                                     }))
                                 }));
                                 return acc;

@@ -1,0 +1,50 @@
+{
+    "manifest_version": 3,
+    "name": "VCB Video Downloader",
+    "version": "2.3.4",
+    "description": "Rê chuột vào video trên bất kỳ trang nào (YouTube, TikTok, Facebook, Instagram...) để hiện nút tải nhanh qua hệ thống VCB.",
+    "action": {
+        "default_title": "VCB Video Downloader",
+        "default_popup": "popup.html",
+        "default_icon": {
+            "16": "icon16.png",
+            "48": "icon48.png",
+            "128": "icon128.png"
+        }
+    },
+    "background": {
+        "service_worker": "background.js"
+    },
+    "content_scripts": [
+        {
+            "matches": ["http://*/*", "https://*/*"],
+            "js": ["content.js"],
+            "all_frames": true,
+            "match_about_blank": false,
+            "run_at": "document_idle"
+        }
+    ],
+    "options_ui": {
+        "page": "options.html",
+        "open_in_tab": true
+    },
+    "permissions": [
+        "storage",
+        "contextMenus",
+        "activeTab",
+        "scripting",
+        "notifications",
+        "webRequest",
+        "webNavigation",
+        "downloads"
+    ],
+    "host_permissions": [
+        "http://*/*",
+        "https://*/*"
+    ],
+    "icons": {
+        "16": "icon16.png",
+        "48": "icon48.png",
+        "128": "icon128.png"
+    }
+}

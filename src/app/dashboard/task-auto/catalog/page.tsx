@@ -5,7 +5,7 @@ import { Package, FileText, Radio, Archive } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth-store'
-import { getTeams } from '@/lib/api/task-auto'
+import { getTeams, isPrivilegedSourceTeamMember } from '@/lib/api/task-auto'
 import { UserRole } from '@/types/auth'
 import { ProductsTab } from './components/ProductsTab/ProductsTab'
 import { ContentsTab } from './components/ContentsTab'
@@ -41,9 +41,7 @@ export default function CatalogPage() {
     queryFn: getTeams,
   })
 
-  const isScaleData = !isAdminOrManager && !!(teams?.find(
-    t => t.name === 'Scale Data' && t.members?.some((m: any) => m.user_id === user?.id)
-  ))
+  const isScaleData = !isAdminOrManager && isPrivilegedSourceTeamMember(teams, user?.id)
 
   // Auto-derive brand from user's team for non-admin/manager
   useEffect(() => {

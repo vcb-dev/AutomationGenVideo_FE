@@ -6,15 +6,15 @@ import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth-store'
 import { MembersTab } from './components/MembersTab'
+import { CreateTeamModal } from './components/CreateTeamModal'
 import { TeamProductsTab } from './components/TeamProductsTab'
 import { TeamContentsTab } from './components/TeamContentsTab'
 import { TeamSourcesTab } from './components/TeamSourcesTab'
 import { TeamWarehouseTab } from './components/TeamWarehouseTab'
 import { TeamStatsTab } from './components/TeamStatsTab'
 import { TeamPushRequestsTab } from './components/TeamPushRequestsTab'
-import { TeamFormModal } from './components/TeamModals'
 import { UserRole } from '@/types/auth'
-import { getTeams, getUsers } from '@/lib/api/task-auto'
+import { getTeams, isPrivilegedSourceTeamMember } from '@/lib/api/task-auto'
 import type { BrandType } from '@/types/task-auto'
 
 type TabId = 'members' | 'products' | 'contents' | 'sources' | 'warehouse' | 'stats' | 'push-requests'
@@ -53,12 +53,6 @@ export default function TeamsPage() {
     queryFn: getTeams,
   })
 
-  const { data: leaderOptions } = useQuery({
-    queryKey: ['task-auto', 'users', 'LEADER'],
-    queryFn: () => getUsers('LEADER'),
-    enabled: isAdminOrManager,
-  })
-
   // Auto-select own team for non-admin/manager
   useEffect(() => {
     if (!isAdminOrManager && user?.id && teams && !selectedTeamId) {
@@ -76,9 +70,12 @@ export default function TeamsPage() {
   const scaleDataTeam = teams?.find(t => t.name === 'Scale Data')
   const scaleDataTeamId = scaleDataTeam?.id ?? ''
   const isScaleDataMember = isAdminOrManager || !!(scaleDataTeam?.members?.some((m: any) => m.user_id === user?.id))
+  // Quyền quản lý source xuyên team: Scale Data hoặc MEDIA (khớp BE ScaleDataSourceGuard/assertCanManageSource)
+  const canManageAnyTeamSources = isAdminOrManager || isPrivilegedSourceTeamMember(teams, user?.id)
 
-  // Tab "Thống kê" hiển thị với mọi Scale Data member — luôn dùng Scale Data team ID
-  const showStatsTab = isScaleDataMember && !!scaleDataTeamId
+  // Tab "Thống kê" hiển thị với mọi Scale Data member (xem thống kê source, luôn dùng Scale Data team ID)
+  // hoặc leader (xem thống kê content đã đẩy được duyệt của team mình quản lý)
+  const showStatsTab = (isScaleDataMember && !!scaleDataTeamId) || isLeader
   // Tab "Chờ duyệt" cho leader/admin/manager — duyệt yêu cầu đẩy kho cá nhân → kho team
   const showPushRequestsTab = canManage
   const visibleTabs = [
@@ -169,13 +166,13 @@ export default function TeamsPage() {
       {activeTab === 'sources' && (
         <TeamSourcesTab
           isAdminOrManager={isAdminOrManager}
-          isScaleData={isScaleDataMember}
+          isScaleData={canManageAnyTeamSources}
           userId={user?.id}
-          brandType={isScaleDataMember && !isAdminOrManager
+          brandType={canManageAnyTeamSources && !isAdminOrManager
             ? (teams?.find(t => t.id === sourceTeamId)?.brand_type ?? brand)
             : brand}
-          selectedTeamId={isScaleDataMember && !isAdminOrManager ? sourceTeamId : selectedTeamId}
-          setSelectedTeamId={isScaleDataMember && !isAdminOrManager ? setSourceTeamId : setSelectedTeamId}
+          selectedTeamId={canManageAnyTeamSources && !isAdminOrManager ? sourceTeamId : selectedTeamId}
+          setSelectedTeamId={canManageAnyTeamSources && !isAdminOrManager ? setSourceTeamId : setSelectedTeamId}
           month={month}
           setMonth={setMonth}
         />
@@ -201,17 +198,20 @@ export default function TeamsPage() {
       )}
 
       {activeTab === 'stats' && showStatsTab && (
-        <TeamStatsTab teamId={scaleDataTeamId} />
-      )}
-
-      {isAdminOrManager && (
-        <TeamFormModal
-          open={createTeamOpen}
-          users={(leaderOptions ?? []).filter(u => u.is_active !== false)}
-          onClose={() => setCreateTeamOpen(false)}
-          onSuccess={() => setCreateTeamOpen(false)}
+        <TeamStatsTab
+          teamId={scaleDataTeamId}
+          isAdminOrManager={isAdminOrManager}
+          userId={user?.id}
+          showSourceStats={isScaleDataMember}
         />
       )}
+
+      <CreateTeamModal
+        open={createTeamOpen}
+        onClose={() => setCreateTeamOpen(false)}
+        onSuccess={team => setSelectedTeamId(team.id)}
+      />
+
     </div>
   )
 }

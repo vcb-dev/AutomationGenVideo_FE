@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Settings, LogOut, Menu, X, Video } from "lucide-react";
+import { Settings, LogOut, Menu, X, Video, Sun, Moon } from "lucide-react";
 import { UserRole } from "@/types/auth";
 import { HeaderProps } from "./types";
 import { useNavMenus } from "./use-nav-menus";
@@ -13,9 +13,11 @@ import NavDropdown from "./NavDropdown";
 import MobileDrawer from "./MobileDrawer";
 import NotificationBell from "@/components/social/NotificationBell";
 import { useSocialLang } from "@/contexts/SocialLanguageContext";
+import { useTheme } from "@/contexts/ThemeContext";
 
 export default function HeaderInner({ user, onLogout, allowedMenuIds }: HeaderProps) {
-    const { lang, setLang } = useSocialLang();
+    const { lang, setLang, t } = useSocialLang();
+    const { theme, toggleTheme } = useTheme();
     const pathname = usePathname() || "";
     const searchParams = useSearchParams();
     const currentTab = searchParams?.get("tab");
@@ -180,7 +182,7 @@ export default function HeaderInner({ user, onLogout, allowedMenuIds }: HeaderPr
                                 ${pathname.startsWith("/dashboard/thong-ke") ? "text-white bg-white/[0.08]" : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.05]"}
                             `}
                         >
-                            Báo cáo content
+                            {t.nav.contentReport}
                             {pathname.startsWith("/dashboard/thong-ke") && (
                                 <span className="absolute bottom-0 left-2 right-2 h-[2px] rounded-full bg-blue-500" />
                             )}
@@ -197,7 +199,7 @@ export default function HeaderInner({ user, onLogout, allowedMenuIds }: HeaderPr
                         {(allowedMenuIds.includes("settings") || isManagerOrAdmin) && (
                             <Link
                                 href="/dashboard/manager/checklist-settings"
-                                title="Cài đặt hệ thống"
+                                title={t.nav.systemSettings}
                                 className="hidden lg:flex w-8 h-8 items-center justify-center rounded-md text-slate-500 hover:text-slate-200 hover:bg-white/[0.07] transition-colors duration-150"
                             >
                                 <Settings className="w-4 h-4" />
@@ -222,6 +224,16 @@ export default function HeaderInner({ user, onLogout, allowedMenuIds }: HeaderPr
                             </div>
                         </div>
 
+                        {/* Theme toggle */}
+                        <button
+                            onClick={toggleTheme}
+                            title={theme === 'dark' ? t.nav.themeToLight : t.nav.themeToDark}
+                            aria-label="Toggle Dark Mode"
+                            className="hidden lg:flex w-8 h-8 items-center justify-center rounded-md text-slate-500 hover:text-slate-200 hover:bg-white/[0.07] transition-colors duration-150"
+                        >
+                            {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                        </button>
+
                         {/* Notification Bell */}
                         <div className="hidden lg:flex items-center">
                             <NotificationBell />
@@ -237,7 +249,7 @@ export default function HeaderInner({ user, onLogout, allowedMenuIds }: HeaderPr
                         {/* Logout */}
                         <button
                             onClick={onLogout}
-                            title="Đăng xuất"
+                            title={t.nav.logout}
                             className={`w-8 h-8 flex items-center justify-center rounded-md text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors duration-150 ml-1 ${mobileMenuOpen ? "hidden lg:flex" : "flex"}`}
                         >
                             <LogOut className="w-4 h-4" />

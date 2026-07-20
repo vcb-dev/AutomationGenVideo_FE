@@ -1,17 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { FileText, Plus, Search, X, BookOpen, Mic, Globe, Trash2, Edit2, Loader2 } from 'lucide-react'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
+import { Pagination, PAGE_SIZE } from '@/components/task-auto/Pagination'
+import { HeaderFilterDropdown } from '@/components/task-auto/HeaderFilterDropdown'
 import { ContentFormModal, parseMarkets } from '@/components/task-auto/ContentFormModal'
-import { ContentStatusBadge } from '@/components/task-auto/StatusBadge'
 import {
   getTeams, getTeamContents, addTeamContent, removeTeamContent,
-  pushTeamContentToGlobal,
+  pushTeamContentToGlobal, getContentLines, getContentClassifications,
 } from '@/lib/api/task-auto'
 import type { Content, TeamContent } from '@/types/task-auto'
 import { AddContentModal } from './contents/AddContentModal'
@@ -34,6 +35,9 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
   const [showCreate, setShowCreate] = useState(false)
   const [editingContent, setEditingContent] = useState<TeamContent | null>(null)
   const [search, setSearch] = useState('')
+  const [contentLineFilter, setContentLineFilter] = useState('')
+  const [classificationFilter, setClassificationFilter] = useState('')
+  const [page, setPage] = useState(1)
 
   const { data: teams } = useQuery({
     queryKey: ['task-auto', 'teams'],
@@ -55,11 +59,32 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
     ? [{ value: '', label: 'Tất cả đội nhóm' }, ...(teams ?? []).map(t => ({ value: t.id, label: t.name }))]
     : myTeams.map(t => ({ value: t.id, label: t.name }))
 
-  const { data: teamContents, isLoading } = useQuery({
-    queryKey: ['task-auto', 'team-contents', selectedTeamId, brandType, month],
-    queryFn: () => getTeamContents(selectedTeamId, brandType, month),
+  const { data: page1Data, isLoading } = useQuery({
+    queryKey: ['task-auto', 'team-contents', selectedTeamId, brandType, month, search, contentLineFilter, classificationFilter, teamMarket, page],
+    queryFn: () => getTeamContents(selectedTeamId, brandType, month, {
+      page, limit: PAGE_SIZE, search: search || undefined,
+      content_line_id: contentLineFilter || undefined, classification_id: classificationFilter || undefined,
+      market: teamMarket,
+    }),
     enabled: !!selectedTeamId,
   })
+  const teamContents = page1Data?.data ?? []
+  const total = page1Data?.total ?? 0
+
+  // Danh sách đầy đủ (không phân trang) — chỉ dùng để loại content đã có ra khỏi danh sách
+  // "chọn từ kho tổng" trong AddContentModal, không dùng để hiển thị bảng.
+  const { data: allTeamContents } = useQuery({
+    queryKey: ['task-auto', 'team-contents-all-ids', selectedTeamId, brandType],
+    queryFn: () => getTeamContents(selectedTeamId, brandType),
+    enabled: !!selectedTeamId && showAdd,
+  })
+
+  // Danh sách dòng content/phân loại toàn hệ thống — dùng làm option cho dropdown lọc (không
+  // kèm số đếm theo kho team nữa vì bảng chính giờ đã phân trang server).
+  const { data: allContentLines } = useQuery({ queryKey: ['task-auto', 'content-lines'], queryFn: getContentLines })
+  const { data: allClassifications } = useQuery({ queryKey: ['task-auto', 'content-classifications'], queryFn: getContentClassifications })
+  const contentLineOptions = (allContentLines ?? []).map(l => ({ value: l.id, label: l.name })).sort((a, b) => a.label.localeCompare(b.label, 'vi'))
+  const classificationOptions = (allClassifications ?? []).map(c => ({ value: c.id, label: c.name })).sort((a, b) => a.label.localeCompare(b.label, 'vi'))
 
   const removeMut = useMutation({
     mutationFn: (contentId: string) => removeTeamContent(selectedTeamId, contentId),
@@ -82,22 +107,12 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Đẩy ra kho tổng thất bại'),
   })
 
-  const existingContentIds = (teamContents ?? []).map(tc => tc.id)
+  const existingContentIds = (allTeamContents ?? []).map(tc => tc.id)
   const [selectedContent, setSelectedContent] = useState<TeamContent | null>(null)
   const [removingContent, setRemovingContent] = useState<TeamContent | null>(null)
   const [pushingContent, setPushingContent] = useState<TeamContent | null>(null)
 
-  const filtered = (teamContents ?? []).filter(tc => {
-    const effectiveMarket = tc.market ?? tc.source_editor_content?.market ?? null
-    if (effectiveMarket && effectiveMarket !== teamMarket) return false
-    if (!search) return true
-    const q = search.toLowerCase()
-    const effectiveTitle = tc.title ?? tc.source_editor_content?.title ?? ''
-    return (
-      effectiveTitle.toLowerCase().includes(q) ||
-      tc?.content_line?.name?.toLowerCase().includes(q)
-    )
-  })
+  useEffect(() => { setPage(1) }, [selectedTeamId, brandType, month, search, contentLineFilter, classificationFilter])
 
   return (
     <div className="space-y-5">
@@ -143,9 +158,9 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
             className="px-3 py-3.5 border border-gray-200 rounded-xl text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
           />
 
-          {selectedTeamId && teamContents && (
+          {selectedTeamId && page1Data && (
             <span className="text-sm text-slate-400 font-medium whitespace-nowrap">
-              {filtered.length} content
+              {total} content
             </span>
           )}
 
@@ -177,10 +192,25 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
             <table className="w-full">
               <thead>
                 <tr className="bg-slate-50 border-b-2 border-gray-200">
-                  <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide w-[32%]">Tiêu đề</th>
-                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[15%]">Tuyến ND</th>
+                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[10%]">Mã</th>
+                  <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide w-[25%]">Tiêu đề</th>
+                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[15%]">
+                    <HeaderFilterDropdown
+                      label="Tuyến ND"
+                      value={contentLineFilter}
+                      onChange={setContentLineFilter}
+                      options={contentLineOptions}
+                    />
+                  </th>
+                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[12%]">
+                    <HeaderFilterDropdown
+                      label="Phân loại"
+                      value={classificationFilter}
+                      onChange={setClassificationFilter}
+                      options={classificationOptions}
+                    />
+                  </th>
                   <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[10%]">Thị trường</th>
-                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[13%]">Trạng thái</th>
                   <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[9%]">File</th>
                   <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[13%]">Người thêm</th>
                   <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Ngày thêm</th>
@@ -190,7 +220,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
               <tbody className="divide-y divide-gray-100">
                 {isLoading && Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i}>
-                    {Array.from({ length: 8 }).map((_, j) => (
+                    {Array.from({ length: 9 }).map((_, j) => (
                       <td key={j} className="px-5 py-4">
                         <div className="h-4 bg-gray-100 rounded animate-pulse" />
                       </td>
@@ -198,10 +228,10 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
                   </tr>
                 ))}
 
-                {!isLoading && filtered.length === 0 && (
+                {!isLoading && teamContents.length === 0 && (
                   <tr>
-                    <td colSpan={8}>
-                      {teamContents?.length === 0 ? (
+                    <td colSpan={9}>
+                      {total === 0 && !search && !contentLineFilter && !classificationFilter ? (
                         <div className="flex flex-col items-center justify-center py-14 gap-3">
                           <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center">
                             <FileText className="w-7 h-7 text-indigo-300" />
@@ -232,11 +262,11 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
                   </tr>
                 )}
 
-                {!isLoading && filtered.map((tc: TeamContent) => {
+                {!isLoading && teamContents.map((tc: TeamContent) => {
                   const ec = tc.source_editor_content
+                  const code = tc.code ?? ec?.code ?? null
                   const title = tc.title ?? ec?.title ?? null
                   const market = tc.market ?? ec?.market ?? null
-                  const status = tc.status ?? ec?.status ?? null
                   const voiceUrl = tc.voice_url ?? ec?.voice_url ?? null
                   const fileContentUrl = tc.file_content_url ?? ec?.file_content_url ?? null
                   const markets = parseMarkets(market)
@@ -246,6 +276,13 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
                       onClick={() => setSelectedContent(tc)}
                       className="hover:bg-indigo-50/20 transition-colors group cursor-pointer"
                     >
+                      {/* Mã content */}
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <span className="inline-block bg-slate-100 text-slate-600 font-mono text-xs font-semibold px-2.5 py-1 rounded-lg">
+                          {code || <span className="text-slate-300">—</span>}
+                        </span>
+                      </td>
+
                       {/* Tiêu đề */}
                       <td className="px-5 py-4 max-w-0">
                         <span className="text-base font-semibold text-slate-800 truncate block" title={title ?? ''}>
@@ -264,6 +301,14 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
                         }
                       </td>
 
+                      {/* Phân loại */}
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        {(tc.classification?.name ?? ec?.classification?.name)
+                          ? <span className="text-sm font-medium text-slate-700">{tc.classification?.name ?? ec?.classification?.name}</span>
+                          : <span className="text-slate-300 text-sm">—</span>
+                        }
+                      </td>
+
                       {/* Thị trường */}
                       <td className="px-4 py-4 whitespace-nowrap">
                         <div className="flex flex-wrap gap-1">
@@ -276,11 +321,6 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
                             : <span className="text-slate-300 text-sm">—</span>
                           }
                         </div>
-                      </td>
-
-                      {/* Trạng thái */}
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        <ContentStatusBadge status={status as any} />
                       </td>
 
                       {/* Voice / File */}
@@ -354,6 +394,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
               </tbody>
             </table>
           </div>
+          <Pagination page={page} pageSize={PAGE_SIZE} totalItems={total} onPageChange={setPage} />
         </div>
       )}
 
@@ -397,6 +438,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
         open={showCreate || !!editingContent}
         editing={editingContent as unknown as Content}
         userId={userId}
+        teamId={selectedTeamId}
         brandType={brandType}
         initialMarket={teamMarket}
         onClose={() => { setShowCreate(false); setEditingContent(null) }}
@@ -410,12 +452,14 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
               await addTeamContent(selectedTeamId, {
                 brand_type: content.brand_type,
                 market: content.market,
+                code: content.code,
                 title: content.title,
                 body: content.body,
                 script: content.script,
                 file_content_url: content.file_content_url,
                 voice_url: content.voice_url,
                 content_line_id: content.content_line_id,
+                classification_id: content.classification_id,
               })
               qc.invalidateQueries({ queryKey: ['task-auto', 'team-contents', selectedTeamId, brandType] })
             } catch (e: any) {

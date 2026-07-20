@@ -2,18 +2,11 @@
 
 import Image from "next/image";
 import { useState, useEffect, useRef } from 'react';
-import { Search, Plus, TrendingUp, Eye, Heart, Users, ArrowRight, X, Loader2, Video, RotateCcw, Instagram as InstagramIcon, MessageCircle, Share2, Link as LinkIcon, BarChart3, Camera, DownloadCloud } from 'lucide-react';
+import { Search, Plus, TrendingUp, Eye, Heart, Users, ArrowRight, X, Loader2, Video, RotateCcw, Instagram as InstagramIcon, MessageCircle, Share2, Link as LinkIcon, BarChart3, Camera } from 'lucide-react';
 import { ChannelCardSkeletonGrid } from '@/components/channels/ChannelCardSkeleton';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { syncFromLarkAssignmentIfStale } from '@/lib/sync-lark-tracked-channels';
-import {
-  subscribeGlobalHrSync,
-  runGlobalHrSync,
-  isGlobalHrSyncBusy,
-  waitUntilGlobalHrIdle,
-} from '@/lib/global-hr-sync';
 import { enrichTrackedChannelApify, enrichStaleChannelsIfNeeded } from '@/lib/enrich-tracked-channel-apify';
 import ChannelsPlatformSwitcher from '@/components/channels/ChannelsPlatformSwitcher';
 
@@ -52,12 +45,8 @@ export default function InstagramChannelsPage() {
   const [refreshingIds, setRefreshingIds] = useState<Set<string>>(new Set());
   const [searchChannelQuery, setSearchChannelQuery] = useState('');
   const [loadingChannelId, setLoadingChannelId] = useState<string | null>(null);
-  const [hrSyncing, setHrSyncing] = useState(false);
-  const [longSyncHint, setLongSyncHint] = useState(false);
-  const [globalHrBusy, setGlobalHrBusy] = useState(false);
   // Track only channels NEWLY imported in this session — only these show spinner
   const [newlyImportedUsernames, setNewlyImportedUsernames] = useState<Set<string>>(new Set());
-  const bgRefreshRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bgRefreshZeroRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadInstagramChannels = async (): Promise<ChannelProfile[]> => {
     const token = localStorage.getItem('auth_token');
@@ -80,155 +69,93 @@ export default function InstagramChannelsPage() {
   };
 
   useEffect(() => {
-    return subscribeGlobalHrSync((busy) => {
-      setGlobalHrBusy(busy);
-      if (!busy) {
-        loadInstagramChannels().then(setChannels);
-      }
-    });
-  }, []);
-
-  useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoadingInitial(true);
       try {
-        if (isGlobalHrSyncBusy()) {
-          setLongSyncHint(true);
-          await waitUntilGlobalHrIdle();
-          if (cancelled) return;
-          setChannels(await loadInstagramChannels());
-          setLongSyncHint(false);
-          return;
-        }
-
         // BƯỚC 1: Hiện data cũ ngay để user thấy kết quả ngay lập tức
         const existingList = await loadInstagramChannels();
         if (cancelled) return;
         setChannels(existingList);
         setLoadingInitial(false);
 
-        // BƯỚC 2: Sync Lark nền
-        const r = await syncFromLarkAssignmentIfStale();
-        if (cancelled) return;
+        // BƯỚC 2: Auto-enrich các kênh cũ nhưng có data bị 0
+        // Sử dụng Polling để duy trì spinner nếu chưa lấy xong
+        const zeroStatsCh = existingList.filter((c: any) => !c.total_followers && !c.total_likes && !c.total_videos);
+        if (zeroStatsCh.length > 0) {
+          const historyMapStr = sessionStorage.getItem('auto_0stats_run_map') || '{}';
+          let historyMap: Record<string, number> = {};
+          try {
+            historyMap = JSON.parse(historyMapStr);
+          } catch (e) {
+            console.error('Error parsing auto_0stats_run_map:', e);
+          }
+          const now = Date.now();
 
-        if (r && r.imported > 0) {
-          const updatedList = await loadInstagramChannels();
-          if (cancelled) return;
+          const toRun: any[] = [];
+          const idsToSpin: string[] = [];
 
-          const existingUsernames = new Set(existingList.map((c) => c.username));
-          const newUsernames = new Set(
-            updatedList
-              .filter((c) => !existingUsernames.has(c.username))
-              .map((c) => c.username)
-          );
+          zeroStatsCh.forEach((c: any) => {
+            const lastRun = historyMap[c.username];
+            if (!lastRun || now - lastRun > 5 * 60 * 1000) {
+              toRun.push(c);
+              idsToSpin.push(c.username);
+              historyMap[c.username] = now;
+            } else {
+              idsToSpin.push(c.username);
+            }
+          });
 
-          setChannels(updatedList);
-          if (newUsernames.size > 0) {
-            setNewlyImportedUsernames(newUsernames);
-            toast.success(`Đã thêm ${r.imported} kênh từ HR (Lark) — đang lấy số liệu...`, { duration: 5000 });
+          if (idsToSpin.length > 0) {
+            setNewlyImportedUsernames(prev => new Set([...Array.from(prev), ...idsToSpin]));
+            sessionStorage.setItem('auto_0stats_run_map', JSON.stringify(historyMap));
 
-            let tries = 0;
-            const pollNewChannels = async () => {
-              if (cancelled || tries >= 20) {
-                setNewlyImportedUsernames(new Set());
+            let pollTries = 0;
+            let currentSpinIds = [...idsToSpin];
+            const pollZeroChannels = async () => {
+              if (cancelled || pollTries >= 40) {
+                setNewlyImportedUsernames(prev => {
+                  const ns = new Set(prev);
+                  currentSpinIds.forEach(u => ns.delete(u));
+                  return ns;
+                });
                 return;
               }
-              tries++;
-              await new Promise((res) => setTimeout(res, 15000));
+              pollTries++;
+              await new Promise((res) => setTimeout(res, 10000));
               if (cancelled) return;
+
               const latest = await loadInstagramChannels();
-              if (!cancelled) setChannels(latest);
-              const stillPending = latest.filter(
-                (c) => newUsernames.has(c.username) && !c.total_followers && !c.total_likes && !c.total_videos
-              );
-              if (!cancelled && stillPending.length > 0) {
-                bgRefreshRef.current = setTimeout(pollNewChannels, 0);
-              } else {
-                setNewlyImportedUsernames(new Set());
+              if (cancelled) return;
+              setChannels(latest);
+
+              const stillPending = latest.filter((c: any) => currentSpinIds.includes(c.username) && !c.total_followers && !c.total_likes && !c.total_videos);
+              if (stillPending.length < currentSpinIds.length) {
+                const pendingIds = stillPending.map((c: any) => c.username);
+                const finishedIds = currentSpinIds.filter(u => !pendingIds.includes(u));
+                currentSpinIds = pendingIds;
+
+                setNewlyImportedUsernames(prev => {
+                  const ns = new Set(prev);
+                  finishedIds.forEach(u => ns.delete(u));
+                  return ns;
+                });
+              }
+
+              if (currentSpinIds.length > 0 && !cancelled) {
+                bgRefreshZeroRef.current = setTimeout(pollZeroChannels, 0) as any;
               }
             };
-            pollNewChannels();
+            pollZeroChannels();
           }
-        } else {
-          // BƯỚC 3: Auto-enrich các kênh cũ nhưng có data bị 0
-          // Sử dụng Polling để duy trì spinner nếu chưa lấy xong
-          const zeroStatsCh = existingList.filter((c: any) => !c.total_followers && !c.total_likes && !c.total_videos);
-          if (zeroStatsCh.length > 0) {
-            const historyMapStr = sessionStorage.getItem('auto_0stats_run_map') || '{}';
-            let historyMap: Record<string, number> = {};
-            try {
-              historyMap = JSON.parse(historyMapStr);
-            } catch (e) {
-              console.error('Error parsing auto_0stats_run_map:', e);
-            }
-            const now = Date.now();
-            
-            const toRun: any[] = [];
-            const idsToSpin: string[] = [];
-            
-            zeroStatsCh.forEach((c: any) => {
-              const lastRun = historyMap[c.username];
-              if (!lastRun || now - lastRun > 5 * 60 * 1000) { 
-                toRun.push(c);
-                idsToSpin.push(c.username);
-                historyMap[c.username] = now;
-              } else {
-                idsToSpin.push(c.username);
-              }
+
+          if (toRun.length > 0 && !cancelled) {
+            toast.success(`Hệ thống đang phục hồi lấy số liệu cho ${toRun.length} kênh bị trắng...`, { duration: 5000 });
+            toRun.forEach((c: any, idx: number) => {
+              setTimeout(() => {
+                if (!cancelled && c.id) enrichTrackedChannelApify(c.id).catch(() => {});
+              }, idx * 10000);
             });
-
-            if (idsToSpin.length > 0) {
-              setNewlyImportedUsernames(prev => new Set([...Array.from(prev), ...idsToSpin]));
-              sessionStorage.setItem('auto_0stats_run_map', JSON.stringify(historyMap));
-
-              let pollTries = 0;
-              let currentSpinIds = [...idsToSpin];
-              const pollZeroChannels = async () => {
-                if (cancelled || pollTries >= 40) { 
-                  setNewlyImportedUsernames(prev => {
-                    const ns = new Set(prev);
-                    currentSpinIds.forEach(u => ns.delete(u));
-                    return ns;
-                  });
-                  return;
-                }
-                pollTries++;
-                await new Promise((res) => setTimeout(res, 10000));
-                if (cancelled) return;
-                
-                const latest = await loadInstagramChannels();
-                if (cancelled) return;
-                setChannels(latest);
-                
-                const stillPending = latest.filter((c: any) => currentSpinIds.includes(c.username) && !c.total_followers && !c.total_likes && !c.total_videos);
-                if (stillPending.length < currentSpinIds.length) {
-                  const pendingIds = stillPending.map((c: any) => c.username);
-                  const finishedIds = currentSpinIds.filter(u => !pendingIds.includes(u));
-                  currentSpinIds = pendingIds;
-                  
-                  setNewlyImportedUsernames(prev => {
-                    const ns = new Set(prev);
-                    finishedIds.forEach(u => ns.delete(u));
-                    return ns;
-                  });
-                }
-                
-                if (currentSpinIds.length > 0 && !cancelled) {
-                  bgRefreshZeroRef.current = setTimeout(pollZeroChannels, 0) as any;
-                }
-              };
-              pollZeroChannels();
-            }
-
-            if (toRun.length > 0 && !cancelled) {
-              toast.success(`Hệ thống đang phục hồi lấy số liệu cho ${toRun.length} kênh bị trắng...`, { duration: 5000 });
-              toRun.forEach((c: any, idx: number) => {
-                setTimeout(() => {
-                  if (!cancelled && c.id) enrichTrackedChannelApify(c.id).catch(() => {});
-                }, idx * 10000);
-              });
-            }
           }
         }
       } catch {
@@ -239,7 +166,6 @@ export default function InstagramChannelsPage() {
     })();
     return () => {
       cancelled = true;
-      if (bgRefreshRef.current) clearTimeout(bgRefreshRef.current);
       if (bgRefreshZeroRef.current) clearTimeout(bgRefreshZeroRef.current);
     };
   }, []);
@@ -517,34 +443,6 @@ export default function InstagramChannelsPage() {
 
             <div className="flex flex-wrap items-center gap-2">
               <button
-                type="button"
-                disabled={hrSyncing || loadingInitial || globalHrBusy}
-                onClick={async () => {
-                  setHrSyncing(true);
-                  setLongSyncHint(true);
-                  try {
-                    const r = await runGlobalHrSync('INSTAGRAM', loadInstagramChannels);
-                    setChannels(await loadInstagramChannels());
-                    if (r.imported > 0) {
-                      toast.success(
-                        `Đồng bộ ${r.imported} kênh (ưu tiên Instagram) — Apify đã cập nhật`,
-                        { duration: 5000 },
-                      );
-                    } else toast.success('Đã kiểm tra — không có kênh mới từ HR');
-                  } catch (e: any) {
-                    toast.error(e?.message || 'Đồng bộ HR thất bại');
-                  } finally {
-                    setLongSyncHint(false);
-                    setHrSyncing(false);
-                  }
-                }}
-                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold transition-all shadow-md disabled:opacity-60"
-                title="Kênh được phân công trên Lark"
-              >
-                {hrSyncing ? <Loader2 className="w-5 h-5 animate-spin" /> : <DownloadCloud className="w-5 h-5" />}
-                <span className="hidden sm:inline">Đồng bộ HR</span>
-              </button>
-              <button
                 onClick={() => setShowAddModal(true)}
                 className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-xl font-semibold transition-all shadow-lg shadow-pink-600/30 active:scale-95"
               >
@@ -561,14 +459,6 @@ export default function InstagramChannelsPage() {
 
       {/* Content */}
       <div className="container mx-auto px-4 max-w-7xl pt-8">
-
-        {/* Long sync hint banner */}
-        {longSyncHint && (
-          <div className="flex items-center gap-3 mb-6 px-5 py-3 bg-amber-50 border border-amber-200 rounded-2xl text-amber-800 text-sm font-medium">
-            <Loader2 className="w-4 h-4 animate-spin flex-shrink-0 text-amber-600" />
-            <span>Đang đồng bộ dữ liệu từ HR (Lark) — có thể mất vài phút, vui lòng chờ...</span>
-          </div>
-        )}
 
         {/* Skeleton cards khi chưa có kênh nào */}
         {loadingInitial && channels.length === 0 && (
