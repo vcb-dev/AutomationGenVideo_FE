@@ -278,12 +278,12 @@ export default function ContentTransformPage() {
 
   return (
     <div className="text-[#1b1b1d] bg-[#fcf8fb] lg:h-[calc(100vh-64px)] flex flex-col min-h-0 overflow-hidden">
-      <main className="p-3 md:p-6 flex-1 flex flex-col min-h-0 overflow-y-auto lg:overflow-hidden">
+      <main className="px-3 pt-1.5 pb-3 md:px-6 md:pt-2 md:pb-4 flex-1 flex flex-col min-h-0 overflow-y-auto lg:overflow-hidden">
         <div className="max-w-7xl w-full mx-auto flex-1 flex flex-col min-h-0">
           
           {/* Header & Tabs */}
           <div className="flex-none mb-2 2xl:mb-3">
-            <header className="mb-2">
+            <header className="mb-1.5">
               <h1 className="text-xl md:text-2xl 2xl:text-3xl font-bold text-[#1b1b1d] tracking-tight">Chuyển đổi nội dung</h1>
               <p className="text-[#464554] text-xs">Biến ý tưởng thô thành kịch bản chuyên nghiệp với trợ lý AI đa nhân vật.</p>
             </header>
