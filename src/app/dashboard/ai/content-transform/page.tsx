@@ -278,7 +278,7 @@ export default function ContentTransformPage() {
 
   return (
     <div className="text-[#1b1b1d] bg-[#fcf8fb] min-h-screen">
-      <main className="pt-24 px-4 md:px-16 pb-32">
+      <main className="pt-24 px-4 md:px-16 pb-44 md:pb-52">
         <div className="max-w-7xl mx-auto">
           <header className="mb-8">
             <h1 className="text-3xl md:text-4xl font-bold text-[#1b1b1d] mb-2 tracking-tight">Chuyển đổi nội dung</h1>
@@ -549,7 +549,7 @@ export default function ContentTransformPage() {
 
               {/* Right Column: Step 3 Preview */}
               <div className="lg:col-span-5">
-                <section className="sticky top-24 bg-white border border-[#c7c4d7] p-6 rounded-2xl h-[calc(100vh-160px)] flex flex-col shadow-sm">
+                <section className="lg:sticky lg:top-24 bg-white border border-[#c7c4d7] p-6 rounded-2xl min-h-[480px] lg:h-[calc(100vh-210px)] flex flex-col shadow-sm">
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center space-x-4">
                       <span className="w-8 h-8 rounded-full bg-[#4441cc] text-white flex items-center justify-center font-bold text-sm">3</span>
@@ -569,7 +569,7 @@ export default function ContentTransformPage() {
                   
                   <div className="flex-grow flex flex-col justify-center">
                     {outputText ? (
-                      <div className="flex-1 bg-[#f6f3f5] p-5 rounded-2xl border border-[#c7c4d7] shadow-inner overflow-y-auto max-h-[calc(100vh-280px)] text-sm text-[#1b1b1d] leading-relaxed whitespace-pre-wrap select-text custom-scrollbar">
+                      <div className="flex-1 bg-[#f6f3f5] p-5 rounded-2xl border border-[#c7c4d7] shadow-inner overflow-y-auto max-h-[calc(100vh-320px)] text-sm text-[#1b1b1d] leading-relaxed whitespace-pre-wrap select-text custom-scrollbar">
                         {outputText}
                       </div>
                     ) : (
@@ -821,11 +821,11 @@ export default function ContentTransformPage() {
 
       {/* Floating Footer Action (Step 3 Submit) */}
       {activeTab === 'transform' && (
-        <div className="fixed bottom-0 left-0 right-0 p-8 bg-[#fcf8fb]/80 backdrop-blur-md border-t border-[#c7c4d7] z-40 flex justify-center shadow-lg">
+        <div className="fixed bottom-0 left-0 right-0 py-4 px-4 md:px-16 bg-[#fcf8fb]/90 backdrop-blur-md border-t border-[#c7c4d7] z-40 flex justify-center shadow-lg">
           <button
             onClick={handleTransform}
             disabled={isGenerating || !inputText.trim() || !selectedCharacterId}
-            className="max-w-7xl w-full bg-[#4441cc] text-white py-4 px-12 rounded-2xl font-bold text-sm flex items-center justify-center space-x-2 shadow-lg shadow-[#4441cc]/20 hover:scale-[1.02] active:scale-[0.99] transition-all transform duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="max-w-7xl w-full bg-[#4441cc] text-white py-3.5 px-8 rounded-2xl font-bold text-sm flex items-center justify-center space-x-2 shadow-lg shadow-[#4441cc]/20 hover:scale-[1.01] active:scale-[0.99] transition-all transform duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isGenerating ? (
               <>
