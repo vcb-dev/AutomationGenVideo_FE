@@ -533,9 +533,9 @@ function PersonalContentModal({
 
 // ── Main tab ──────────────────────────────────────────────────────────────────
 
-interface Props { userId: string; brandType: 'DO_DA' | 'TRANG_SUC'; teamMarket?: string }
+interface Props { userId: string; brandType: 'DO_DA' | 'TRANG_SUC'; teamMarket?: string; readOnly?: boolean }
 
-export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM' }: Props) {
+export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM', readOnly = false }: Props) {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<ContentUsageStatus | ''>('')
@@ -614,18 +614,22 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM' }: Pro
             onChange={e => { setMonth(e.target.value); setPage(1) }}
             className="px-3 py-3.5 border border-gray-200 rounded-xl text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
           />
-          <button
-            onClick={() => setShowImport(true)}
-            className="bg-white border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 rounded-xl px-4 py-3.5 text-base font-semibold flex items-center gap-2 transition-colors shrink-0"
-          >
-            <Download className="w-4 h-4" /> Lấy từ kho
-          </button>
-          <button
-            onClick={openCreate}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-5 py-3.5 text-base font-semibold flex items-center gap-2 transition-colors shrink-0"
-          >
-            <Plus className="w-5 h-5" /> Thêm content
-          </button>
+          {!readOnly && (
+            <>
+              <button
+                onClick={() => setShowImport(true)}
+                className="bg-white border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 rounded-xl px-4 py-3.5 text-base font-semibold flex items-center gap-2 transition-colors shrink-0"
+              >
+                <Download className="w-4 h-4" /> Lấy từ kho
+              </button>
+              <button
+                onClick={openCreate}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-5 py-3.5 text-base font-semibold flex items-center gap-2 transition-colors shrink-0"
+              >
+                <Plus className="w-5 h-5" /> Thêm content
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -713,36 +717,42 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM' }: Pro
                   </td>
                   <td className="px-4 py-4 text-right" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1">
-                      {pendingContentIds.has(c.id) ? (
-                        <span className="text-[10px] font-bold uppercase px-2 py-1 rounded-full bg-amber-100 text-amber-700 whitespace-nowrap" title="Đang chờ leader duyệt vào kho team">
-                          Chờ duyệt
-                        </span>
+                      {readOnly ? (
+                        <span className="text-slate-300 text-xs">—</span>
                       ) : (
-                        <button
-                          onClick={() => setPushItem(c)}
-                          title="Đẩy sang kho team"
-                          className="p-2 rounded-xl text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
-                        >
-                          <SendHorizontal className="w-4 h-4" />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => openEdit(c)}
-                        className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-100 transition-colors"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      {c.status !== 'IN_TASK' ? (
-                        <button
-                          onClick={() => setDeletingId(c.id)}
-                          className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      ) : (
-                        <button disabled title="Đang dùng trong task" className="p-2 rounded-xl text-slate-200 cursor-not-allowed">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <>
+                          {pendingContentIds.has(c.id) ? (
+                            <span className="text-[10px] font-bold uppercase px-2 py-1 rounded-full bg-amber-100 text-amber-700 whitespace-nowrap" title="Đang chờ leader duyệt vào kho team">
+                              Chờ duyệt
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => setPushItem(c)}
+                              title="Đẩy sang kho team"
+                              className="p-2 rounded-xl text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                            >
+                              <SendHorizontal className="w-4 h-4" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => openEdit(c)}
+                            className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-100 transition-colors"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          {c.status !== 'IN_TASK' ? (
+                            <button
+                              onClick={() => setDeletingId(c.id)}
+                              className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          ) : (
+                            <button disabled title="Đang dùng trong task" className="p-2 rounded-xl text-slate-200 cursor-not-allowed">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </>
                       )}
                     </div>
                   </td>
@@ -790,9 +800,9 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM' }: Pro
           open
           item={detailItem as any}
           catalogType="editor"
-          canEdit
-          canDelete={detailItem.status !== 'IN_TASK'}
-          canPushToTeam
+          canEdit={!readOnly}
+          canDelete={!readOnly && detailItem.status !== 'IN_TASK'}
+          canPushToTeam={!readOnly}
           onClose={() => setDetailItem(null)}
           onEdit={() => { openEdit(detailItem); setDetailItem(null) }}
           onDelete={() => { setDeletingId(detailItem.id); setDetailItem(null) }}

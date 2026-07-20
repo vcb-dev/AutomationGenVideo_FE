@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Package, FileText, Radio, BookUser, Archive } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { Package, FileText, Radio, BookUser, Archive, Eye } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth-store'
 import { getTeams } from '@/lib/api/task-auto'
+import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { UserRole } from '@/types/auth'
 import { MyProductsTab } from './components/MyProductsTab'
 import { MyContentsTab } from './components/MyContentsTab'
@@ -31,15 +32,16 @@ export default function MyCatalogPage() {
   const { user } = useAuthStore()
   const roles: UserRole[] = user?.roles ?? []
   const isAdminOrManager = roles.includes(UserRole.ADMIN) || roles.includes(UserRole.MANAGER)
+  const isLeader = roles.includes(UserRole.LEADER)
 
   const [brand, setBrand]           = useState<BrandType>('TRANG_SUC')
   const [teamMarket, setTeamMarket] = useState<TeamMarket>('VIETNAM')
   const [activeTab, setActiveTab]   = useState<TabId>('products')
+  const [viewUserId, setViewUserId] = useState('') // '' = xem kho của chính mình
 
   const { data: teams } = useQuery({
     queryKey: ['task-auto', 'teams'],
     queryFn: getTeams,
-    enabled: !isAdminOrManager,
   })
 
   // Auto-derive brand + market from user's team for non-admin/manager
@@ -52,7 +54,42 @@ export default function MyCatalogPage() {
     if (myTeam?.market) setTeamMarket(myTeam.market)
   }, [isAdminOrManager, user?.id, teams])
 
-  if (!user) return null
+  // Danh sách thành viên mà mình có quyền xem kho cá nhân (ngoài chính mình):
+  // - ADMIN/MANAGER: mọi thành viên + leader của mọi team.
+  // - LEADER: chỉ thành viên + leader (nếu khác mình) của (các) team mình đang lãnh đạo.
+  // - MEMBER/EDITOR thường: không có quyền xem kho người khác.
+  const viewableMembers = useMemo(() => {
+    if (!teams || !user?.id) return []
+    const relevantTeams = isAdminOrManager
+      ? teams
+      : isLeader
+        ? teams.filter(t => t.leader_id === user.id)
+        : []
+    if (relevantTeams.length === 0) return []
+
+    const map = new Map<string, { user_id: string; full_name: string; email: string; teamName: string }>()
+    for (const t of relevantTeams) {
+      if (t.leader && t.leader.id !== user.id && !map.has(t.leader.id)) {
+        map.set(t.leader.id, { user_id: t.leader.id, full_name: t.leader.full_name, email: t.leader.email, teamName: t.name })
+      }
+      for (const m of t.members ?? []) {
+        if (m.user_id === user.id || map.has(m.user_id)) continue
+        map.set(m.user_id, {
+          user_id: m.user_id,
+          full_name: m.user?.full_name ?? m.user_id,
+          email: m.user?.email ?? '',
+          teamName: t.name,
+        })
+      }
+    }
+    return [...map.values()].sort((a, b) => a.full_name.localeCompare(b.full_name))
+  }, [teams, user?.id, isAdminOrManager, isLeader])
+
+  const selectedMember = viewableMembers.find(m => m.user_id === viewUserId)
+  const targetUserId = viewUserId || user?.id
+  const readOnly = !!viewUserId
+
+  if (!user || !targetUserId) return null
 
   const currentBrand = BRANDS.find(b => b.key === brand)!
 
@@ -62,18 +99,46 @@ export default function MyCatalogPage() {
         <div className="flex items-center gap-3">
           <BookUser className="w-8 h-8 text-indigo-600" />
           <div>
-            <h1 className="text-3xl font-black text-slate-900">Kho cá nhân</h1>
+            <h1 className="text-3xl font-black text-slate-900">
+              {readOnly ? `Kho cá nhân của ${selectedMember?.full_name ?? 'thành viên'}` : 'Kho cá nhân'}
+            </h1>
             <p className="text-slate-500 text-base mt-0.5">
-              Danh mục riêng của bạn — sản phẩm, content và source bạn tự thêm
+              {readOnly
+                ? 'Bạn đang xem ở chế độ chỉ đọc — không thể thêm/sửa/xóa mục trong kho này'
+                : 'Danh mục riêng của bạn — sản phẩm, content và source bạn tự thêm'}
             </p>
           </div>
         </div>
       </div>
 
-      <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-5 py-3 text-indigo-700 text-sm">
-        Những mục trong kho cá nhân chỉ mình bạn quản lý. Bạn có thể{' '}
-        <strong>đẩy sang kho team</strong> để chia sẻ với cả đội.
-      </div>
+      {/* Chọn xem kho của chính mình hoặc của thành viên khác (leader/admin/manager) */}
+      {viewableMembers.length > 0 && (
+        <div className="flex items-center gap-3">
+          <CustomSelect
+            label="Xem kho của"
+            value={viewUserId}
+            onChange={setViewUserId}
+            options={[
+              { value: '', label: 'Tôi (kho của bạn)' },
+              ...viewableMembers.map(m => ({ value: m.user_id, label: `${m.full_name} — ${m.teamName}` })),
+            ]}
+            searchable
+            className="min-w-[280px]"
+          />
+        </div>
+      )}
+
+      {readOnly ? (
+        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-5 py-3 text-amber-700 text-sm">
+          <Eye className="w-4 h-4 shrink-0" />
+          Chế độ chỉ xem (leader/admin) — không thể chỉnh sửa kho cá nhân của thành viên khác.
+        </div>
+      ) : (
+        <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-5 py-3 text-indigo-700 text-sm">
+          Những mục trong kho cá nhân chỉ mình bạn quản lý. Bạn có thể{' '}
+          <strong>đẩy sang kho team</strong> để chia sẻ với cả đội.
+        </div>
+      )}
 
       {/* Tab bar + Brand indicator */}
       <div className="border-b border-gray-200 flex items-center justify-between">
@@ -128,12 +193,12 @@ export default function MyCatalogPage() {
         </div>
       </div>
 
-      {/* Tab content — key={brand} resets state khi đổi nhóm */}
+      {/* Tab content — key resets state khi đổi nhóm hoặc đổi người đang xem */}
       <div>
-        {activeTab === 'products'  && <MyProductsTab  key={brand} userId={user.id} brandType={brand} />}
-        {activeTab === 'contents'  && <MyContentsTab  key={brand} userId={user.id} brandType={brand} teamMarket={teamMarket} />}
-        {activeTab === 'sources'   && <MySourcesTab   key={brand} userId={user.id} brandType={brand} />}
-        {activeTab === 'warehouse' && <MyWarehouseTab key={brand} userId={user.id} brandType={brand} teamMarket={teamMarket} />}
+        {activeTab === 'products'  && <MyProductsTab  key={`${brand}-${targetUserId}`} userId={targetUserId} brandType={brand} readOnly={readOnly} />}
+        {activeTab === 'contents'  && <MyContentsTab  key={`${brand}-${targetUserId}`} userId={targetUserId} brandType={brand} teamMarket={teamMarket} readOnly={readOnly} />}
+        {activeTab === 'sources'   && <MySourcesTab   key={`${brand}-${targetUserId}`} userId={targetUserId} brandType={brand} readOnly={readOnly} />}
+        {activeTab === 'warehouse' && <MyWarehouseTab key={`${brand}-${targetUserId}`} userId={targetUserId} brandType={brand} teamMarket={teamMarket} readOnly={readOnly} />}
       </div>
     </div>
   )

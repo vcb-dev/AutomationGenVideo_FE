@@ -7,7 +7,7 @@ import toast from 'react-hot-toast'
 import { Loader2, XCircle, CheckCircle2, Play, ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
-  getTask, approveTask, cancelTask, getSources, getTeamSources,
+  getTask, approveTask, deleteTask, getSources, getTeamSources,
   getProduct, getContent, startTask,
   updateTask, getProducts, getContents, getTeam, getApprovals,
   getEditorProducts, getEditorContents, getTeamProducts, getTeamContents,
@@ -349,7 +349,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
 
   const isAssignee       = task?.assignee_id === currentUserId
   const canApproveReject = userRoles.some(r => ['ADMIN', 'MANAGER', 'LEADER'].includes(r))
-  const canCancel        = userRoles.some(r => ['ADMIN', 'MANAGER'].includes(r))
+  const canDelete        = userRoles.some(r => ['ADMIN', 'MANAGER', 'LEADER'].includes(r))
   const canAssign        = userRoles.some(r => ['ADMIN', 'MANAGER', 'LEADER'].includes(r))
   const canStart         = task?.status === 'ASSIGNED' && isAssignee
 
@@ -390,14 +390,15 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
     },
     onError: () => toast.error('Thao tác thất bại'),
   })
-  const cancelMut = useMutation({
-    mutationFn: () => cancelTask(taskId),
+  const deleteMut = useMutation({
+    mutationFn: () => deleteTask(taskId),
     onSuccess: () => {
-      toast.success('Đã huỷ task')
+      toast.success('Đã xoá task')
       qc.invalidateQueries({ queryKey: ['task-auto', 'tasks'] })
-      qc.invalidateQueries({ queryKey: ['task-auto', 'task', taskId] })
+      qc.removeQueries({ queryKey: ['task-auto', 'task', taskId] })
+      onClose()
     },
-    onError: () => toast.error('Huỷ task thất bại'),
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Xoá task thất bại'),
   })
 
   // ✅ Content fallback chain: fullContent → editor → team (own→FK) → global (own→team FK→editor FK)
@@ -739,12 +740,12 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
               editMode={editMode}
               isAssignee={isAssignee}
               canApproveReject={canApproveReject}
-              canCancel={canCancel}
+              canDelete={canDelete}
               canStart={!!canStart}
               canSchedulePost={!!canSchedulePost}
               isPendingStart={startMut.isPending}
               isPendingApprove={approveMut.isPending}
-              isPendingCancel={cancelMut.isPending}
+              isPendingDelete={deleteMut.isPending}
               isPendingUpdate={updateMut.isPending}
               onClose={onClose}
               onCancelEdit={() => { setEditMode(false); setProductSearch(''); setContentSearch('') }}
@@ -753,7 +754,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
               onSubmit={() => setShowSubmit(true)}
               onApprove={() => approveMut.mutate()}
               onReject={() => setShowReject(true)}
-              onCancel={() => cancelMut.mutate()}
+              onDelete={() => deleteMut.mutate()}
               onResubmit={() => setShowResubmit(true)}
               onSchedulePost={() => setShowSchedule(true)}
             />
