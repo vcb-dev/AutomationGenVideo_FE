@@ -277,16 +277,15 @@ export default function ContentTransformPage() {
   };
 
   return (
-    <div className="text-[#1b1b1d] bg-[#fcf8fb] lg:h-[calc(100vh-64px)] flex flex-col min-h-0 overflow-hidden">
-      <main className="px-3 pt-1.5 pb-3 md:px-6 md:pt-2 md:pb-4 flex-1 flex flex-col min-h-0 overflow-y-auto lg:overflow-hidden">
-        <div className="max-w-7xl w-full mx-auto flex-1 flex flex-col min-h-0">
-          
-          {/* Header & Tabs */}
-          <div className="flex-none mb-2 2xl:mb-3">
-            <header className="mb-1.5">
-              <h1 className="text-xl md:text-2xl 2xl:text-3xl font-bold text-[#1b1b1d] tracking-tight">Chuyển đổi nội dung</h1>
-              <p className="text-[#464554] text-xs">Biến ý tưởng thô thành kịch bản chuyên nghiệp với trợ lý AI đa nhân vật.</p>
-            </header>
+    <div className="text-[#1b1b1d] bg-[#fcf8fb] h-[calc(100vh-112px)] flex flex-col min-h-0 overflow-hidden">
+      <div className="max-w-7xl w-full mx-auto flex-1 flex flex-col min-h-0">
+        
+        {/* Header & Tabs */}
+        <div className="flex-none mb-2 2xl:mb-3">
+          <header className="mb-1.5">
+            <h1 className="text-xl md:text-2xl 2xl:text-3xl font-bold text-[#1b1b1d] tracking-tight">Chuyển đổi nội dung</h1>
+            <p className="text-[#464554] text-xs">Biến ý tưởng thô thành kịch bản chuyên nghiệp với trợ lý AI đa nhân vật.</p>
+          </header>
 
             {/* Horizontal Tab Navigation */}
             <div className="flex items-center space-x-6 2xl:space-x-8 border-b border-[#c7c4d7]">
@@ -838,30 +837,6 @@ export default function ContentTransformPage() {
             )
           )}
         </div>
-      </main>
-
-      {/* Floating Footer Action (Step 3 Submit) */}
-      {activeTab === 'transform' && (
-        <div className="fixed bottom-0 left-0 right-0 p-8 bg-[#fcf8fb]/80 backdrop-blur-md border-t border-[#c7c4d7] z-40 flex justify-center shadow-lg">
-          <button
-            onClick={handleTransform}
-            disabled={isGenerating || !inputText.trim() || !selectedCharacterId}
-            className="max-w-7xl w-full bg-[#4441cc] text-white py-4 px-12 rounded-2xl font-bold text-sm flex items-center justify-center space-x-2 shadow-lg shadow-[#4441cc]/20 hover:scale-[1.02] active:scale-[0.99] transition-all transform duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isGenerating ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span>Đang xử lý kịch bản AI...</span>
-              </>
-            ) : (
-              <>
-                <Zap className="w-5 h-5" />
-                <span>Chuyển đổi nội dung</span>
-              </>
-            )}
-          </button>
-        </div>
-      )}
 
       {/* History Detail Modal (Popup drawer) */}
       {selectedItem && (
