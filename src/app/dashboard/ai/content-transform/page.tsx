@@ -277,21 +277,21 @@ export default function ContentTransformPage() {
   };
 
   return (
-    <div className="text-[#1b1b1d] bg-[#fcf8fb] lg:h-[calc(100vh-64px)] flex flex-col overflow-hidden">
-      <main className="pt-20 px-4 md:px-10 pb-3 flex-1 flex flex-col min-h-0 overflow-y-auto lg:overflow-hidden">
-        <div className="max-w-7xl w-full mx-auto flex-1 flex flex-col min-h-0">
-          <header className="mb-3">
-            <h1 className="text-2xl md:text-3xl font-bold text-[#1b1b1d] mb-1 tracking-tight">Chuyển đổi nội dung</h1>
-            <p className="text-[#464554] text-xs">Biến ý tưởng thô thành kịch bản chuyên nghiệp với trợ lý AI đa nhân vật.</p>
+    <div className="text-[#1b1b1d] bg-[#fcf8fb] min-h-screen">
+      <main className="pt-24 px-4 md:px-16 pb-32">
+        <div className="max-w-7xl mx-auto">
+          <header className="mb-8">
+            <h1 className="text-3xl md:text-4xl font-bold text-[#1b1b1d] mb-2 tracking-tight">Chuyển đổi nội dung</h1>
+            <p className="text-[#464554] text-sm">Biến ý tưởng thô thành kịch bản chuyên nghiệp với trợ lý AI đa nhân vật.</p>
           </header>
 
           {/* Horizontal Tab Navigation */}
-          <div className="flex items-center space-x-8 border-b border-[#c7c4d7] mb-3">
+          <div className="flex items-center space-x-8 border-b border-[#c7c4d7] mb-8">
             <button
               onClick={() => setActiveTab('transform')}
               className={`py-2 px-1 text-sm font-semibold transition-all focus:outline-none ${activeTab === 'transform'
-                  ? 'border-b-2 border-[#4441cc] text-[#4441cc]'
-                  : 'text-[#464554] hover:text-[#4441cc]'
+                ? 'border-b-2 border-[#4441cc] text-[#4441cc]'
+                : 'text-[#464554] hover:text-[#4441cc]'
                 }`}
             >
               Chuyển đổi content
@@ -302,8 +302,8 @@ export default function ContentTransformPage() {
                 setHistoryPage(1);
               }}
               className={`py-2 px-1 text-sm font-semibold transition-all focus:outline-none ${activeTab === 'history'
-                  ? 'border-b-2 border-[#4441cc] text-[#4441cc]'
-                  : 'text-[#464554] hover:text-[#4441cc]'
+                ? 'border-b-2 border-[#4441cc] text-[#4441cc]'
+                : 'text-[#464554] hover:text-[#4441cc]'
                 }`}
             >
               Lịch sử
@@ -314,8 +314,8 @@ export default function ContentTransformPage() {
                 setMemberHistoryPage(1);
               }}
               className={`py-2 px-1 text-sm font-semibold transition-all focus:outline-none ${activeTab === 'team'
-                  ? 'border-b-2 border-[#4441cc] text-[#4441cc]'
-                  : 'text-[#464554] hover:text-[#4441cc]'
+                ? 'border-b-2 border-[#4441cc] text-[#4441cc]'
+                : 'text-[#464554] hover:text-[#4441cc]'
                 }`}
             >
               Thống kê
@@ -340,8 +340,8 @@ export default function ContentTransformPage() {
                     <button
                       onClick={() => { setInputMode('text'); setSelectedFile(null); }}
                       className={`flex items-center space-x-2 px-6 py-2 rounded-lg font-semibold text-sm transition-all ${inputMode === 'text'
-                          ? 'bg-white text-[#4441cc] shadow-sm'
-                          : 'text-[#464554] hover:text-[#4441cc]'
+                        ? 'bg-white text-[#4441cc] shadow-sm'
+                        : 'text-[#464554] hover:text-[#4441cc]'
                         }`}
                     >
                       <FileText className="w-5 h-5" />
@@ -350,8 +350,8 @@ export default function ContentTransformPage() {
                     <button
                       onClick={() => { setInputMode('video'); setSelectedFile(null); }}
                       className={`flex items-center space-x-2 px-6 py-2 rounded-lg font-semibold text-sm transition-all ${inputMode === 'video'
-                          ? 'bg-white text-[#4441cc] shadow-sm'
-                          : 'text-[#464554] hover:text-[#4441cc]'
+                        ? 'bg-white text-[#4441cc] shadow-sm'
+                        : 'text-[#464554] hover:text-[#4441cc]'
                         }`}
                     >
                       <Video className="w-5 h-5" />
@@ -360,8 +360,8 @@ export default function ContentTransformPage() {
                     <button
                       onClick={() => { setInputMode('audio'); setSelectedFile(null); }}
                       className={`flex items-center space-x-2 px-6 py-2 rounded-lg font-semibold text-sm transition-all ${inputMode === 'audio'
-                          ? 'bg-white text-[#4441cc] shadow-sm'
-                          : 'text-[#464554] hover:text-[#4441cc]'
+                        ? 'bg-white text-[#4441cc] shadow-sm'
+                        : 'text-[#464554] hover:text-[#4441cc]'
                         }`}
                     >
                       <Mic className="w-5 h-5" />
@@ -453,8 +453,8 @@ export default function ContentTransformPage() {
                           key={char.id}
                           onClick={() => setSelectedCharacterId(char.id)}
                           className={`group relative p-6 border-2 rounded-2xl cursor-pointer transition-all ${isSelected
-                              ? 'border-[#4441cc] bg-[#5e5ce6]/5'
-                              : 'border-[#c7c4d7] bg-white hover:border-[#4441cc]'
+                            ? 'border-[#4441cc] bg-[#5e5ce6]/5'
+                            : 'border-[#c7c4d7] bg-white hover:border-[#4441cc]'
                             }`}
                         >
                           <div className="flex items-center space-x-4 mb-4">
