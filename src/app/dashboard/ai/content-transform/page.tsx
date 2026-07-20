@@ -277,309 +277,337 @@ export default function ContentTransformPage() {
   };
 
   return (
-    <div className="text-[#1b1b1d] bg-[#fcf8fb] min-h-screen">
-      <main className="pt-24 px-4 md:px-16 pb-32">
-        <div className="max-w-7xl mx-auto">
-          <header className="mb-8">
-            <h1 className="text-3xl md:text-4xl font-bold text-[#1b1b1d] mb-2 tracking-tight">Chuyển đổi nội dung</h1>
-            <p className="text-[#464554] text-sm">Biến ý tưởng thô thành kịch bản chuyên nghiệp với trợ lý AI đa nhân vật.</p>
-          </header>
+    <div className="text-[#1b1b1d] bg-[#fcf8fb] lg:h-[calc(100vh-64px)] flex flex-col min-h-0 overflow-hidden">
+      <main className="p-3 md:p-6 flex-1 flex flex-col min-h-0 overflow-y-auto lg:overflow-hidden">
+        <div className="max-w-7xl w-full mx-auto flex-1 flex flex-col min-h-0">
+          
+          {/* Header & Tabs */}
+          <div className="flex-none mb-2 2xl:mb-3">
+            <header className="mb-2">
+              <h1 className="text-xl md:text-2xl 2xl:text-3xl font-bold text-[#1b1b1d] tracking-tight">Chuyển đổi nội dung</h1>
+              <p className="text-[#464554] text-xs">Biến ý tưởng thô thành kịch bản chuyên nghiệp với trợ lý AI đa nhân vật.</p>
+            </header>
 
-          {/* Horizontal Tab Navigation */}
-          <div className="flex items-center space-x-8 border-b border-[#c7c4d7] mb-8">
-            <button
-              onClick={() => setActiveTab('transform')}
-              className={`py-2 px-1 text-sm font-semibold transition-all focus:outline-none ${activeTab === 'transform'
-                ? 'border-b-2 border-[#4441cc] text-[#4441cc]'
-                : 'text-[#464554] hover:text-[#4441cc]'
-                }`}
-            >
-              Chuyển đổi content
-            </button>
-            <button
-              onClick={() => {
-                setActiveTab('history');
-                setHistoryPage(1);
-              }}
-              className={`py-2 px-1 text-sm font-semibold transition-all focus:outline-none ${activeTab === 'history'
-                ? 'border-b-2 border-[#4441cc] text-[#4441cc]'
-                : 'text-[#464554] hover:text-[#4441cc]'
-                }`}
-            >
-              Lịch sử
-            </button>
-            <button
-              onClick={() => {
-                setActiveTab('team');
-                setMemberHistoryPage(1);
-              }}
-              className={`py-2 px-1 text-sm font-semibold transition-all focus:outline-none ${activeTab === 'team'
-                ? 'border-b-2 border-[#4441cc] text-[#4441cc]'
-                : 'text-[#464554] hover:text-[#4441cc]'
-                }`}
-            >
-              Thống kê
-            </button>
+            {/* Horizontal Tab Navigation */}
+            <div className="flex items-center space-x-6 2xl:space-x-8 border-b border-[#c7c4d7]">
+              <button
+                onClick={() => setActiveTab('transform')}
+                className={`py-1.5 2xl:py-2 px-1 text-xs 2xl:text-sm font-semibold transition-all focus:outline-none ${activeTab === 'transform'
+                  ? 'border-b-2 border-[#4441cc] text-[#4441cc]'
+                  : 'text-[#464554] hover:text-[#4441cc]'
+                  }`}
+              >
+                Chuyển đổi content
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('history');
+                  setHistoryPage(1);
+                }}
+                className={`py-1.5 2xl:py-2 px-1 text-xs 2xl:text-sm font-semibold transition-all focus:outline-none ${activeTab === 'history'
+                  ? 'border-b-2 border-[#4441cc] text-[#4441cc]'
+                  : 'text-[#464554] hover:text-[#4441cc]'
+                  }`}
+              >
+                Lịch sử
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('team');
+                  setMemberHistoryPage(1);
+                }}
+                className={`py-1.5 2xl:py-2 px-1 text-xs 2xl:text-sm font-semibold transition-all focus:outline-none ${activeTab === 'team'
+                  ? 'border-b-2 border-[#4441cc] text-[#4441cc]'
+                  : 'text-[#464554] hover:text-[#4441cc]'
+                  }`}
+              >
+                Thống kê
+              </button>
+            </div>
           </div>
 
           {/* Main Transformation Content */}
           {activeTab === 'transform' && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* Left Column: Step 1 & 2 */}
-              <div className="lg:col-span-7 space-y-6">
+            <div className="flex-1 flex flex-col min-h-0 space-y-2 2xl:space-y-3">
+              
+              {/* 2-Column Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 2xl:gap-5 flex-1 min-h-0 overflow-y-auto lg:overflow-hidden">
+                
+                {/* Left Column: Step 1 & Step 2 */}
+                <div className="lg:col-span-7 flex flex-col min-h-0 space-y-2.5 2xl:space-y-4">
 
-                {/* Step 1: Input Section */}
-                <section className="bg-white border border-[#c7c4d7] p-6 rounded-2xl shadow-sm">
-                  <div className="flex items-center space-x-4 mb-6">
-                    <span className="w-8 h-8 rounded-full bg-[#4441cc] text-white flex items-center justify-center font-bold text-sm">1</span>
-                    <h2 className="text-xl md:text-2xl font-bold text-[#1b1b1d]">Nhập kịch bản thô</h2>
-                  </div>
+                  {/* Step 1: Input Section */}
+                  <section className="bg-white border border-[#c7c4d7] p-3.5 2xl:p-5 rounded-xl 2xl:rounded-2xl shadow-sm flex-none">
+                    <div className="flex items-center justify-between mb-2.5 2xl:mb-3">
+                      <div className="flex items-center space-x-2.5">
+                        <span className="w-6 h-6 2xl:w-7 2xl:h-7 rounded-full bg-[#4441cc] text-white flex items-center justify-center font-bold text-[11px] 2xl:text-xs">1</span>
+                        <h2 className="text-base 2xl:text-lg font-bold text-[#1b1b1d]">Nhập kịch bản thô</h2>
+                      </div>
 
-                  {/* Tab System */}
-                  <div className="flex p-1 bg-[#f6f3f5] rounded-xl mb-6 w-fit">
-                    <button
-                      onClick={() => { setInputMode('text'); setSelectedFile(null); }}
-                      className={`flex items-center space-x-2 px-6 py-2 rounded-lg font-semibold text-sm transition-all ${inputMode === 'text'
-                        ? 'bg-white text-[#4441cc] shadow-sm'
-                        : 'text-[#464554] hover:text-[#4441cc]'
-                        }`}
-                    >
-                      <FileText className="w-5 h-5" />
-                      <span>Văn bản</span>
-                    </button>
-                    <button
-                      onClick={() => { setInputMode('video'); setSelectedFile(null); }}
-                      className={`flex items-center space-x-2 px-6 py-2 rounded-lg font-semibold text-sm transition-all ${inputMode === 'video'
-                        ? 'bg-white text-[#4441cc] shadow-sm'
-                        : 'text-[#464554] hover:text-[#4441cc]'
-                        }`}
-                    >
-                      <Video className="w-5 h-5" />
-                      <span>Video</span>
-                    </button>
-                    <button
-                      onClick={() => { setInputMode('audio'); setSelectedFile(null); }}
-                      className={`flex items-center space-x-2 px-6 py-2 rounded-lg font-semibold text-sm transition-all ${inputMode === 'audio'
-                        ? 'bg-white text-[#4441cc] shadow-sm'
-                        : 'text-[#464554] hover:text-[#4441cc]'
-                        }`}
-                    >
-                      <Mic className="w-5 h-5" />
-                      <span>Giọng nói</span>
-                    </button>
-                  </div>
-
-                  {/* File Upload Section for Video & Audio Modes */}
-                  {inputMode !== 'text' && (
-                    <div className="mb-6 p-6 border-2 border-dashed border-[#c7c4d7] hover:border-[#4441cc] rounded-xl flex flex-col items-center justify-center bg-[#fcf8fb] transition-all relative">
-                      <input
-                        type="file"
-                        id="file-upload"
-                        accept={inputMode === 'video' ? 'video/*' : 'audio/*'}
-                        onChange={(e) => {
-                          const file = e.target.files?.[0] || null;
-                          setSelectedFile(file);
-                        }}
-                        className="hidden"
-                      />
-                      <label
-                        htmlFor="file-upload"
-                        className="cursor-pointer flex flex-col items-center text-[#464554] w-full text-center"
-                      >
-                        <Upload className="w-10 h-10 text-[#4441cc] mb-2 animate-bounce" style={{ animationDuration: '3s' }} />
-                        <span className="font-semibold text-sm">
-                          {selectedFile ? selectedFile.name : `Nhấp để chọn file ${inputMode === 'video' ? 'video' : 'âm thanh'}`}
-                        </span>
-                        <span className="text-xs text-[#464554]/60 mt-1">
-                          {inputMode === 'video'
-                            ? 'Hỗ trợ MP4, MOV, AVI, MKV, WEBM (Tối đa 200MB, 10 phút)'
-                            : 'Hỗ trợ MP3, WAV, M4A, AAC, OGG, FLAC (Tối đa 200MB, 10 phút)'}
-                        </span>
-                      </label>
-                      {selectedFile && (
+                      {/* Tab System */}
+                      <div className="flex p-0.5 bg-[#f6f3f5] rounded-lg 2xl:rounded-xl w-fit">
                         <button
-                          onClick={handleTranscribe}
-                          disabled={isTranscribing}
-                          className="mt-4 px-6 py-2 bg-[#4441cc] hover:bg-[#4441cc]/90 text-white rounded-lg font-semibold text-sm flex items-center space-x-2 transition-all disabled:opacity-50"
+                          onClick={() => { setInputMode('text'); setSelectedFile(null); }}
+                          className={`flex items-center space-x-1.5 px-3 py-1 2xl:px-4 2xl:py-1.5 rounded-md 2xl:rounded-lg font-semibold text-[11px] 2xl:text-xs transition-all ${inputMode === 'text'
+                            ? 'bg-white text-[#4441cc] shadow-sm'
+                            : 'text-[#464554] hover:text-[#4441cc]'
+                            }`}
                         >
-                          {isTranscribing ? (
-                            <>
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                              <span>Đang nghe nội dung...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Wand2 className="w-4 h-4" />
-                              <span>Chuyển thành văn bản</span>
-                            </>
-                          )}
+                          <FileText className="w-3.5 h-3.5 2xl:w-4 2xl:h-4" />
+                          <span>Văn bản</span>
+                        </button>
+                        <button
+                          onClick={() => { setInputMode('video'); setSelectedFile(null); }}
+                          className={`flex items-center space-x-1.5 px-3 py-1 2xl:px-4 2xl:py-1.5 rounded-md 2xl:rounded-lg font-semibold text-[11px] 2xl:text-xs transition-all ${inputMode === 'video'
+                            ? 'bg-white text-[#4441cc] shadow-sm'
+                            : 'text-[#464554] hover:text-[#4441cc]'
+                            }`}
+                        >
+                          <Video className="w-3.5 h-3.5 2xl:w-4 2xl:h-4" />
+                          <span>Video</span>
+                        </button>
+                        <button
+                          onClick={() => { setInputMode('audio'); setSelectedFile(null); }}
+                          className={`flex items-center space-x-1.5 px-3 py-1 2xl:px-4 2xl:py-1.5 rounded-md 2xl:rounded-lg font-semibold text-[11px] 2xl:text-xs transition-all ${inputMode === 'audio'
+                            ? 'bg-white text-[#4441cc] shadow-sm'
+                            : 'text-[#464554] hover:text-[#4441cc]'
+                            }`}
+                        >
+                          <Mic className="w-3.5 h-3.5 2xl:w-4 2xl:h-4" />
+                          <span>Giọng nói</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* File Upload Section */}
+                    {inputMode !== 'text' && (
+                      <div className="mb-2.5 p-3 border-2 border-dashed border-[#c7c4d7] hover:border-[#4441cc] rounded-xl flex flex-col items-center justify-center bg-[#fcf8fb] transition-all relative">
+                        <input
+                          type="file"
+                          id="file-upload"
+                          accept={inputMode === 'video' ? 'video/*' : 'audio/*'}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0] || null;
+                            setSelectedFile(file);
+                          }}
+                          className="hidden"
+                        />
+                        <label
+                          htmlFor="file-upload"
+                          className="cursor-pointer flex flex-col items-center text-[#464554] w-full text-center"
+                        >
+                          <Upload className="w-6 h-6 text-[#4441cc] mb-1 animate-bounce" style={{ animationDuration: '3s' }} />
+                          <span className="font-semibold text-xs">
+                            {selectedFile ? selectedFile.name : `Nhấp để chọn file ${inputMode === 'video' ? 'video' : 'âm thanh'}`}
+                          </span>
+                          <span className="text-[10px] text-[#464554]/60 mt-0.5">
+                            {inputMode === 'video'
+                              ? 'Hỗ trợ MP4, MOV, AVI, MKV, WEBM (Tối đa 200MB)'
+                              : 'Hỗ trợ MP3, WAV, M4A, AAC, OGG, FLAC (Tối đa 200MB)'}
+                          </span>
+                        </label>
+                        {selectedFile && (
+                          <button
+                            onClick={handleTranscribe}
+                            disabled={isTranscribing}
+                            className="mt-2 px-4 py-1 bg-[#4441cc] hover:bg-[#4441cc]/90 text-white rounded-lg font-semibold text-xs flex items-center space-x-1.5 transition-all disabled:opacity-50"
+                          >
+                            {isTranscribing ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                <span>Đang nghe...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Wand2 className="w-3.5 h-3.5" />
+                                <span>Chuyển thành văn bản</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Textarea Container */}
+                    <div className="relative">
+                      <textarea
+                        value={inputText}
+                        onChange={(e) => setInputText(e.target.value.slice(0, 2000))}
+                        placeholder={
+                          inputMode === 'text'
+                            ? "Dán hoặc gõ kịch bản thô của bạn vào đây. Ví dụ: nội dung giới thiệu sản phẩm, ý tưởng video, ghi chú nhanh..."
+                            : "Văn bản nhận diện từ file video/âm thanh sẽ hiển thị tại đây. Bạn có thể tự do chỉnh sửa trước khi tiến hành chuyển đổi."
+                        }
+                        className="w-full h-18 sm:h-22 2xl:h-32 p-3 2xl:p-4 rounded-xl bg-white border border-[#c7c4d7] focus:border-[#4441cc] focus:ring-2 focus:ring-[#4441cc]/10 transition-all text-xs 2xl:text-sm text-[#1b1b1d] placeholder-[#464554]/60 outline-none custom-scrollbar resize-none"
+                      />
+                      <div className="flex justify-between mt-0.5 px-1 text-[10px] 2xl:text-[11px] text-[#464554]">
+                        <span>Hỗ trợ tiếng Việt có dấu</span>
+                        <span>{inputText.length} ký tự</span>
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* Step 2: Character Selection */}
+                  <section className="bg-white border border-[#c7c4d7] p-3.5 2xl:p-5 rounded-xl 2xl:rounded-2xl shadow-sm flex-1 flex flex-col min-h-0">
+                    <div className="flex items-center space-x-2.5 mb-2.5 2xl:mb-3 flex-none">
+                      <span className="w-6 h-6 2xl:w-7 2xl:h-7 rounded-full bg-[#4441cc] text-white flex items-center justify-center font-bold text-[11px] 2xl:text-xs">2</span>
+                      <h2 className="text-base 2xl:text-lg font-bold text-[#1b1b1d]">Chọn nhân vật</h2>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar min-h-0">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 2xl:gap-3.5">
+                        {characters.map((char) => {
+                          const isSelected = selectedCharacterId === char.id;
+                          return (
+                            <div
+                              key={char.id}
+                              onClick={() => setSelectedCharacterId(char.id)}
+                              className={`group relative p-2.5 2xl:p-4 border-2 rounded-xl cursor-pointer transition-all ${isSelected
+                                ? 'border-[#4441cc] bg-[#5e5ce6]/5'
+                                : 'border-[#c7c4d7] bg-white hover:border-[#4441cc]'
+                                }`}
+                            >
+                              <div className="flex items-center space-x-2.5 mb-1.5 2xl:mb-2">
+                                <div className="w-8 h-8 2xl:w-10 2xl:h-10 rounded-full overflow-hidden border-2 border-[#eae7ea] group-hover:border-[#4441cc]/20 flex-shrink-0">
+                                  {char.avatar_url ? (
+                                    <img src={char.avatar_url} alt={char.name} className="w-full h-full object-cover" />
+                                  ) : (
+                                    <div className="w-full h-full bg-[#eae7ea] text-[#464554] font-bold text-[10px] 2xl:text-xs flex items-center justify-center">
+                                      {getInitials(char.name)}
+                                    </div>
+                                  )}
+                                </div>
+                                <div>
+                                  <h3 className="font-semibold text-xs 2xl:text-sm text-[#1b1b1d]">{char.name}</h3>
+                                  <p className="text-[9px] 2xl:text-[10px] text-[#464554]">Năng lượng • Viral</p>
+                                </div>
+                              </div>
+                              <p className="text-[10px] 2xl:text-[11px] text-[#464554] line-clamp-2 mb-2 2xl:mb-3 leading-snug">
+                                {char.description}
+                              </p>
+                              <div className="flex flex-wrap gap-1">
+                                <span className="px-1.5 py-0.5 rounded-full bg-[#b4b9fd]/30 text-[#424883] text-[8px] 2xl:text-[9px] font-bold">Năng động</span>
+                                <span className="px-1.5 py-0.5 rounded-full bg-[#b4b9fd]/30 text-[#424883] text-[8px] 2xl:text-[9px] font-bold">Hài hước</span>
+                              </div>
+                              <div className={`absolute top-2 right-2 transition-opacity duration-200 ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                                }`}>
+                                <Check className="w-3.5 h-3.5 2xl:w-4 2xl:h-4 text-[#4441cc]" />
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {/* Dummy character placeholder 2: Chị Nhạn */}
+                        <div className="group relative p-2.5 2xl:p-4 border-2 rounded-xl cursor-pointer transition-all border-[#c7c4d7] bg-white">
+                          <div className="flex items-center space-x-2.5 mb-1.5 2xl:mb-2">
+                            <div className="w-8 h-8 2xl:w-10 2xl:h-10 rounded-full overflow-hidden border-2 border-[#4441cc]/20 flex-shrink-0">
+                              <img alt="Chị Nhạn" className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB1AaFdELtmwmgSb9uG2HcI1kMeuO63zvWNv-iQABmVHTbhky6sSwyVm5CAbwTxbeNJnaqA-EPbRrrQ_afofat9cYl2_JWKkLv_yEXQWIVPDaCFXpKYYlR7rHwZRy0w5013Wqlg7QKfXTOEFGekhB8ouDvCJELFlhRnnTV83YPSv9N0lgYckco8d9lad6gYhJaNJYg8eqW3KxyuAfcfJdU8XqaXP-brWhZDROyeLhACyCnbmMRM1Fsjxg" />
+                            </div>
+                            <div>
+                              <h3 className="font-semibold text-xs 2xl:text-sm text-[#1b1b1d]">Chị Nhạn</h3>
+                              <p className="text-[9px] 2xl:text-[10px] text-[#464554]">Kể chuyện • Cảm xúc</p>
+                            </div>
+                          </div>
+                          <p className="text-[10px] 2xl:text-[11px] text-[#464554] line-clamp-2 mb-2 2xl:mb-3 leading-snug">
+                            Ấm áp, gần gũi, kể chuyện có mở đầu – cao trào – kết, nhiều cảm xúc.
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            <span className="px-1.5 py-0.5 rounded-full bg-[#b4b9fd]/30 text-[#424883] text-[8px] 2xl:text-[9px] font-bold">Ấm áp</span>
+                            <span className="px-1.5 py-0.5 rounded-full bg-[#b4b9fd]/30 text-[#424883] text-[8px] 2xl:text-[9px] font-bold">Tâm tình</span>
+                          </div>
+                        </div>
+
+                        {/* Dummy character placeholder 3: Chung Bùi */}
+                        <div className="group relative p-2.5 2xl:p-4 border-2 rounded-xl hover:border-[#4441cc] cursor-pointer transition-all border-[#c7c4d7] bg-white">
+                          <div className="flex items-center space-x-2.5 mb-1.5 2xl:mb-2">
+                            <div className="w-8 h-8 2xl:w-10 2xl:h-10 rounded-full overflow-hidden border-2 border-[#eae7ea] group-hover:border-[#4441cc]/20 flex-shrink-0">
+                              <img alt="Chung Bùi" className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDHfh4UZaE23hQqzJ_k7SX2OpO5ZyN7FjWZFxF2dCcQtnXCMh70phb13ssXLkvxpCzp-zwc878zMCg6squudM-883Plz4J-H4C36CN0SaBykbO_NqLLjbT5ecajfh3pAA2AaW34IE3SJIYEvZw_EcCAZyF-H-Ft70B0DSb1IBE7EwaF20ObfclfI_Gr_gXtZzm4Yy7G-txyh_j8t3_yQg8XF6hY8PfG-O9UQY5ndVzaueSBrM4RyRPIbw" />
+                            </div>
+                            <div>
+                              <h3 className="font-semibold text-xs 2xl:text-sm text-[#1b1b1d]">Chung Bùi</h3>
+                              <p className="text-[9px] 2xl:text-[10px] text-[#464554]">Chuyên sâu • Phân tích</p>
+                            </div>
+                          </div>
+                          <p className="text-[10px] 2xl:text-[11px] text-[#464554] line-clamp-2 mb-2 2xl:mb-3 leading-snug">
+                            Mạch lạc, dẫn chứng số liệu, chia luận điểm rõ ràng, giọng chuyên gia.
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            <span className="px-1.5 py-0.5 rounded-full bg-[#5e5ce6] text-white text-[8px] 2xl:text-[9px] font-bold">Chuyên nghiệp</span>
+                            <span className="px-1.5 py-0.5 rounded-full bg-[#5e5ce6] text-white text-[8px] 2xl:text-[9px] font-bold">Logic</span>
+                          </div>
+                        </div>
+
+                      </div>
+                    </div>
+                  </section>
+
+                </div>
+
+                {/* Right Column: Step 3 Preview */}
+                <div className="lg:col-span-5 flex flex-col min-h-0">
+                  <section className="bg-white border border-[#c7c4d7] p-3.5 2xl:p-5 rounded-xl 2xl:rounded-2xl flex-1 flex flex-col min-h-0 shadow-sm">
+                    <div className="flex items-center justify-between mb-2.5 2xl:mb-3 flex-none">
+                      <div className="flex items-center space-x-2.5">
+                        <span className="w-6 h-6 2xl:w-7 2xl:h-7 rounded-full bg-[#4441cc] text-white flex items-center justify-center font-bold text-[11px] 2xl:text-xs">3</span>
+                        <h2 className="text-base 2xl:text-lg font-bold text-[#1b1b1d]">Kết quả chuyển đổi</h2>
+                      </div>
+                      {outputText && (
+                        <button
+                          onClick={copyToClipboard}
+                          className="p-1.5 rounded-lg bg-white hover:bg-[#f6f3f5] border border-[#c7c4d7] text-[#464554] hover:text-[#1b1b1d] transition-colors flex items-center gap-1 text-[11px] 2xl:text-xs font-semibold"
+                          title="Copy kịch bản"
+                        >
+                          {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                          {copied ? 'Đã copy' : 'Copy'}
                         </button>
                       )}
                     </div>
+
+                    <div className="flex-1 flex flex-col min-h-0">
+                      {outputText ? (
+                        <div className="flex-1 bg-[#f6f3f5] p-3 2xl:p-4 rounded-xl border border-[#c7c4d7] shadow-inner overflow-y-auto text-[11px] 2xl:text-xs text-[#1b1b1d] leading-relaxed whitespace-pre-wrap select-text custom-scrollbar">
+                          {outputText}
+                        </div>
+                      ) : (
+                        <div className="flex-1 bg-[#f6f3f5] rounded-xl border-2 border-dashed border-[#c7c4d7] flex flex-col items-center justify-center p-4 2xl:p-6 text-center space-y-2 2xl:space-y-4">
+                          <div className="w-10 h-10 2xl:w-14 2xl:h-14 rounded-full bg-white flex items-center justify-center text-[#5e5ce6] shadow-sm">
+                            <Sparkles className="w-6 h-6 2xl:w-8 2xl:h-8" />
+                          </div>
+                          <div className="max-w-xs">
+                            <h4 className="text-sm 2xl:text-base font-bold text-[#1b1b1d] mb-0.5">Sẵn sàng biến đổi</h4>
+                            <p className="text-[11px] 2xl:text-xs text-[#464554]">
+                              Nhập kịch bản và chọn nhân vật, sau đó nhấn <strong className="text-[#4441cc]">Chuyển đổi</strong> để xem trước nội dung tại đây.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                </div>
+
+              </div>
+
+              {/* Bottom Action Button Bar */}
+              <div className="flex-none pt-1.5 2xl:pt-2 pb-0.5 flex justify-center">
+                <button
+                  onClick={handleTransform}
+                  disabled={isGenerating || !inputText.trim() || !selectedCharacterId}
+                  className="max-w-7xl w-full bg-[#4441cc] text-white py-2.5 2xl:py-3.5 px-6 2xl:px-8 rounded-xl font-bold text-xs 2xl:text-sm flex items-center justify-center space-x-2 shadow-md shadow-[#4441cc]/20 hover:bg-[#4441cc]/95 active:scale-[0.99] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 2xl:w-4 2xl:h-4 animate-spin" />
+                      <span>Đang xử lý kịch bản AI...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-3.5 h-3.5 2xl:w-4 2xl:h-4" />
+                      <span>Chuyển đổi nội dung</span>
+                    </>
                   )}
-
-                  {/* Textarea Container */}
-                  <div className="relative">
-                    <textarea
-                      value={inputText}
-                      onChange={(e) => setInputText(e.target.value.slice(0, 2000))}
-                      placeholder={
-                        inputMode === 'text'
-                          ? "Dán hoặc gõ kịch bản thô của bạn vào đây. Ví dụ: nội dung giới thiệu sản phẩm, ý tưởng video, ghi chú nhanh..."
-                          : "Văn bản nhận diện từ file video/âm thanh sẽ hiển thị tại đây. Bạn có thể tự do chỉnh sửa trước khi tiến hành chuyển đổi."
-                      }
-                      className="w-full h-48 p-6 rounded-xl bg-white border border-[#c7c4d7] focus:border-[#4441cc] focus:ring-4 focus:ring-[#4441cc]/5 transition-all text-base text-[#1b1b1d] placeholder-[#464554]/60 outline-none custom-scrollbar resize-none"
-                    />
-                    <div className="flex justify-between mt-2 px-1 text-xs text-[#464554]">
-                      <span>Hỗ trợ tiếng Việt có dấu</span>
-                      <span>{inputText.length} ký tự</span>
-                    </div>
-                  </div>
-                </section>
-
-                {/* Step 2: Character Selection */}
-                <section className="bg-white border border-[#c7c4d7] p-6 rounded-2xl shadow-sm">
-                  <div className="flex items-center space-x-4 mb-6">
-                    <span className="w-8 h-8 rounded-full bg-[#4441cc] text-white flex items-center justify-center font-bold text-sm">2</span>
-                    <h2 className="text-xl md:text-2xl font-bold text-[#1b1b1d]">Chọn nhân vật</h2>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {/* Render active characters from backend */}
-                    {characters.map((char) => {
-                      const isSelected = selectedCharacterId === char.id;
-                      return (
-                        <div
-                          key={char.id}
-                          onClick={() => setSelectedCharacterId(char.id)}
-                          className={`group relative p-6 border-2 rounded-2xl cursor-pointer transition-all ${isSelected
-                            ? 'border-[#4441cc] bg-[#5e5ce6]/5'
-                            : 'border-[#c7c4d7] bg-white hover:border-[#4441cc]'
-                            }`}
-                        >
-                          <div className="flex items-center space-x-4 mb-4">
-                            <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-[#eae7ea] group-hover:border-[#4441cc]/20">
-                              {char.avatar_url ? (
-                                <img src={char.avatar_url} alt={char.name} className="w-full h-full object-cover" />
-                              ) : (
-                                <div className="w-full h-full bg-[#eae7ea] text-[#464554] font-bold text-sm flex items-center justify-center">
-                                  {getInitials(char.name)}
-                                </div>
-                              )}
-                            </div>
-                            <div>
-                              <h3 className="font-semibold text-sm text-[#1b1b1d]">{char.name}</h3>
-                              <p className="text-[11px] text-[#464554]">Năng lượng • Viral</p>
-                            </div>
-                          </div>
-                          <p className="text-xs text-[#464554] line-clamp-3 mb-6 leading-relaxed">
-                            {char.description}
-                          </p>
-                          <div className="flex flex-wrap gap-1">
-                            <span className="px-2 py-0.5 rounded-full bg-[#b4b9fd]/30 text-[#424883] text-[10px] font-bold">Năng động</span>
-                            <span className="px-2 py-0.5 rounded-full bg-[#b4b9fd]/30 text-[#424883] text-[10px] font-bold">Hài hước</span>
-                            <span className="px-2 py-0.5 rounded-full bg-[#b4b9fd]/30 text-[#424883] text-[10px] font-bold">Trending</span>
-                          </div>
-                          <div className={`absolute top-2 right-2 transition-opacity duration-200 ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                            }`}>
-                            <Check className="w-5 h-5 text-[#4441cc]" />
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {/* Dummy character placeholder 2: Chị Nhạn (mockup exact copy) */}
-                    <div className="group relative p-6 border-2 rounded-2xl cursor-pointer transition-all border-[#c7c4d7] bg-white">
-                      <div className="flex items-center space-x-4 mb-4">
-                        <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-[#4441cc]/20">
-                          <img alt="Chị Nhạn" className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB1AaFdELtmwmgSb9uG2HcI1kMeuO63zvWNv-iQABmVHTbhky6sSwyVm5CAbwTxbeNJnaqA-EPbRrrQ_afofat9cYl2_JWKkLv_yEXQWIVPDaCFXpKYYlR7rHwZRy0w5013Wqlg7QKfXTOEFGekhB8ouDvCJELFlhRnnTV83YPSv9N0lgYckco8d9lad6gYhJaNJYg8eqW3KxyuAfcfJdU8XqaXP-brWhZDROyeLhACyCnbmMRM1Fsjxg" />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-sm text-[#1b1b1d]">Chị Nhạn</h3>
-                          <p className="text-[11px] text-[#464554]">Kể chuyện • Cảm xúc</p>
-                        </div>
-                      </div>
-                      <p className="text-xs text-[#464554] line-clamp-3 mb-6 leading-relaxed">
-                        Ấm áp, gần gũi, kể chuyện có mở đầu – cao trào – kết, nhiều cảm xúc.
-                      </p>
-                      <div className="flex flex-wrap gap-1">
-                        <span className="px-2 py-0.5 rounded-full bg-[#b4b9fd]/30 text-[#424883] text-[10px] font-bold">Ấm áp</span>
-                        <span className="px-2 py-0.5 rounded-full bg-[#b4b9fd]/30 text-[#424883] text-[10px] font-bold">Tâm tình</span>
-                        <span className="px-2 py-0.5 rounded-full bg-[#b4b9fd]/30 text-[#424883] text-[10px] font-bold">Truyền cảm</span>
-                      </div>
-                      <div className="absolute top-2 right-2 opacity-0">
-                        <Check className="w-5 h-5 text-[#4441cc]" />
-                      </div>
-                    </div>
-
-                    {/* Dummy character placeholder 3: Chung Bùi (mockup exact copy) */}
-                    <div className="group relative p-6 border-2 rounded-2xl hover:border-[#4441cc] cursor-pointer transition-all border-[#c7c4d7] bg-white">
-                      <div className="flex items-center space-x-4 mb-4">
-                        <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-[#eae7ea] group-hover:border-[#4441cc]/20">
-                          <img alt="Chung Bùi" className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDHfh4UZaE23hQqzJ_k7SX2OpO5ZyN7FjWZFxF2dCcQtnXCMh70phb13ssXLkvxpCzp-zwc878zMCg6squudM-883Plz4J-H4C36CN0SaBykbO_NqLLjbT5ecajfh3pAA2AaW34IE3SJIYEvZw_EcCAZyF-H-Ft70B0DSb1IBE7EwaF20ObfclfI_Gr_gXtZzm4Yy7G-txyh_j8t3_yQg8XF6hY8PfG-O9UQY5ndVzaueSBrM4RyRPIbw" />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-sm text-[#1b1b1d]">Chung Bùi</h3>
-                          <p className="text-[11px] text-[#464554]">Chuyên sâu • Phân tích</p>
-                        </div>
-                      </div>
-                      <p className="text-xs text-[#464554] line-clamp-3 mb-6 leading-relaxed">
-                        Mạch lạc, dẫn chứng số liệu, chia luận điểm rõ ràng, giọng chuyên gia.
-                      </p>
-                      <div className="flex flex-wrap gap-1">
-                        <span className="px-2 py-0.5 rounded-full bg-[#5e5ce6] text-white text-[10px] font-bold">Chuyên nghiệp</span>
-                        <span className="px-2 py-0.5 rounded-full bg-[#5e5ce6] text-white text-[10px] font-bold">Logic</span>
-                        <span className="px-2 py-0.5 rounded-full bg-[#5e5ce6] text-white text-[10px] font-bold">Uy tín</span>
-                      </div>
-                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                        <Check className="w-5 h-5 text-[#4441cc]" />
-                      </div>
-                    </div>
-                  </div>
-                </section>
+                </button>
               </div>
 
-              {/* Right Column: Step 3 Preview */}
-              <div className="lg:col-span-5">
-                <section className="sticky top-24 bg-white border border-[#c7c4d7] p-6 rounded-2xl h-[calc(100vh-160px)] flex flex-col shadow-sm">
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center space-x-4">
-                      <span className="w-8 h-8 rounded-full bg-[#4441cc] text-white flex items-center justify-center font-bold text-sm">3</span>
-                      <h2 className="text-xl md:text-2xl font-bold text-[#1b1b1d]">Kết quả chuyển đổi</h2>
-                    </div>
-                    {outputText && (
-                      <button
-                        onClick={copyToClipboard}
-                        className="p-2 rounded-lg bg-white hover:bg-[#f6f3f5] border border-[#c7c4d7] text-[#464554] hover:text-[#1b1b1d] transition-colors flex items-center gap-1.5 text-xs font-semibold"
-                        title="Copy kịch bản"
-                      >
-                        {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                        {copied ? 'Đã copy' : 'Copy'}
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="flex-grow flex flex-col justify-center">
-                    {outputText ? (
-                      <div className="flex-1 bg-[#f6f3f5] p-5 rounded-2xl border border-[#c7c4d7] shadow-inner overflow-y-auto max-h-[calc(100vh-280px)] text-sm text-[#1b1b1d] leading-relaxed whitespace-pre-wrap select-text custom-scrollbar">
-                        {outputText}
-                      </div>
-                    ) : (
-                      <div className="flex-grow bg-[#f6f3f5] rounded-xl border-2 border-dashed border-[#c7c4d7] flex flex-col items-center justify-center p-12 text-center space-y-6">
-                        <div className="w-20 h-20 rounded-full bg-white flex items-center justify-center text-[#5e5ce6] shadow-sm">
-                          <Sparkles className="w-12 h-12" />
-                        </div>
-                        <div className="max-w-xs">
-                          <h4 className="text-xl font-bold text-[#1b1b1d] mb-2">Sẵn sàng biến đổi</h4>
-                          <p className="text-sm text-[#464554]">
-                            Nhập kịch bản và chọn nhân vật, sau đó nhấn <strong className="text-[#4441cc]">Chuyển đổi</strong> để xem trước nội dung tại đây.
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </section>
-              </div>
             </div>
           )}
 
