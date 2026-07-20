@@ -336,9 +336,9 @@ export default function ContentTransformPage() {
                 {/* Left Column: Step 1 & Step 2 */}
                 <div className="lg:col-span-7 flex flex-col min-h-0 space-y-2.5 2xl:space-y-4">
 
-                  {/* Step 1: Input Section (Flex-1 to take all remaining vertical space in Left Column) */}
-                  <section className="bg-white border border-[#c7c4d7] p-3 2xl:p-4 rounded-xl 2xl:rounded-2xl shadow-sm flex-1 flex flex-col min-h-0">
-                    <div className="flex items-center justify-between mb-2 2xl:mb-2.5 flex-none">
+                  {/* Step 1: Input Section (Comfortably sized flex-none section with spacious textarea) */}
+                  <section className="bg-white border border-[#c7c4d7] p-3 2xl:p-4 rounded-xl 2xl:rounded-2xl shadow-sm flex-none">
+                    <div className="flex items-center justify-between mb-2 flex-none">
                       <div className="flex items-center space-x-2">
                         <span className="w-5 h-5 2xl:w-6 2xl:h-6 rounded-full bg-[#4441cc] text-white flex items-center justify-center font-bold text-[10px] 2xl:text-xs">1</span>
                         <h2 className="text-sm 2xl:text-base font-bold text-[#1b1b1d]">Nhập kịch bản thô</h2>
@@ -428,8 +428,8 @@ export default function ContentTransformPage() {
                       </div>
                     )}
 
-                    {/* Textarea Container (Expands to fill 100% remaining vertical space in Step 1) */}
-                    <div className="flex-1 flex flex-col min-h-0 relative">
+                    {/* Textarea Container */}
+                    <div className="relative">
                       <textarea
                         value={inputText}
                         onChange={(e) => setInputText(e.target.value.slice(0, 2000))}
@@ -438,7 +438,7 @@ export default function ContentTransformPage() {
                             ? "Dán hoặc gõ kịch bản thô của bạn vào đây. Ví dụ: nội dung giới thiệu sản phẩm, ý tưởng video, ghi chú nhanh..."
                             : "Văn bản nhận diện từ file video/âm thanh sẽ hiển thị tại đây. Bạn có thể tự do chỉnh sửa trước khi tiến hành chuyển đổi."
                         }
-                        className="w-full flex-1 min-h-[60px] p-2.5 2xl:p-3.5 rounded-xl bg-white border border-[#c7c4d7] focus:border-[#4441cc] focus:ring-2 focus:ring-[#4441cc]/10 transition-all text-xs 2xl:text-sm text-[#1b1b1d] placeholder-[#464554]/60 outline-none custom-scrollbar resize-none"
+                        className="w-full h-22 sm:h-26 2xl:h-36 p-2.5 2xl:p-3.5 rounded-xl bg-white border border-[#c7c4d7] focus:border-[#4441cc] focus:ring-2 focus:ring-[#4441cc]/10 transition-all text-xs 2xl:text-sm text-[#1b1b1d] placeholder-[#464554]/60 outline-none custom-scrollbar resize-none"
                       />
                       <div className="flex justify-between mt-0.5 flex-none px-1 text-[9px] 2xl:text-[10px] text-[#464554]">
                         <span>Hỗ trợ tiếng Việt có dấu</span>
@@ -447,95 +447,100 @@ export default function ContentTransformPage() {
                     </div>
                   </section>
 
-                  {/* Step 2: Character Selection (Hugs content tightly at bottom of Left Column, flex-none) */}
-                  <section className="bg-white border border-[#c7c4d7] p-2.5 2xl:p-4 rounded-xl 2xl:rounded-2xl shadow-sm flex-none h-fit">
+                  {/* Step 2: Character Selection (Expanded height to display 100% full card content and all tags) */}
+                  <section className="bg-white border border-[#c7c4d7] p-3 2xl:p-4 rounded-xl 2xl:rounded-2xl shadow-sm flex-1 flex flex-col min-h-0">
                     <div className="flex items-center space-x-2 mb-2 flex-none">
                       <span className="w-5 h-5 2xl:w-6 2xl:h-6 rounded-full bg-[#4441cc] text-white flex items-center justify-center font-bold text-[10px] 2xl:text-xs">2</span>
                       <h2 className="text-sm 2xl:text-base font-bold text-[#1b1b1d]">Chọn nhân vật</h2>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 2xl:gap-3">
-                      {characters.map((char) => {
-                        const isSelected = selectedCharacterId === char.id;
-                        return (
-                          <div
-                            key={char.id}
-                            onClick={() => setSelectedCharacterId(char.id)}
-                            className={`group relative p-2 2xl:p-3 border-2 rounded-xl cursor-pointer transition-all ${isSelected
-                              ? 'border-[#4441cc] bg-[#5e5ce6]/5'
-                              : 'border-[#c7c4d7] bg-white hover:border-[#4441cc]'
-                              }`}
-                          >
-                            <div className="flex items-center space-x-2 mb-1">
-                              <div className="w-7 h-7 2xl:w-8 2xl:h-8 rounded-full overflow-hidden border-2 border-[#eae7ea] group-hover:border-[#4441cc]/20 flex-shrink-0">
-                                {char.avatar_url ? (
-                                  <img src={char.avatar_url} alt={char.name} className="w-full h-full object-cover" />
-                                ) : (
-                                  <div className="w-full h-full bg-[#eae7ea] text-[#464554] font-bold text-[9px] 2xl:text-xs flex items-center justify-center">
-                                    {getInitials(char.name)}
-                                  </div>
-                                )}
+                    <div className="flex-1 overflow-y-auto pr-0.5 custom-scrollbar min-h-0">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 2xl:gap-3.5">
+                        {characters.map((char) => {
+                          const isSelected = selectedCharacterId === char.id;
+                          return (
+                            <div
+                              key={char.id}
+                              onClick={() => setSelectedCharacterId(char.id)}
+                              className={`group relative p-2.5 2xl:p-3.5 border-2 rounded-xl cursor-pointer transition-all ${isSelected
+                                ? 'border-[#4441cc] bg-[#5e5ce6]/5'
+                                : 'border-[#c7c4d7] bg-white hover:border-[#4441cc]'
+                                }`}
+                            >
+                              <div className="flex items-center space-x-2 mb-1.5">
+                                <div className="w-8 h-8 2xl:w-9 2xl:h-9 rounded-full overflow-hidden border-2 border-[#eae7ea] group-hover:border-[#4441cc]/20 flex-shrink-0">
+                                  {char.avatar_url ? (
+                                    <img src={char.avatar_url} alt={char.name} className="w-full h-full object-cover" />
+                                  ) : (
+                                    <div className="w-full h-full bg-[#eae7ea] text-[#464554] font-bold text-[10px] 2xl:text-xs flex items-center justify-center">
+                                      {getInitials(char.name)}
+                                    </div>
+                                  )}
+                                </div>
+                                <div>
+                                  <h3 className="font-semibold text-xs 2xl:text-sm text-[#1b1b1d]">{char.name}</h3>
+                                  <p className="text-[9px] 2xl:text-[10px] text-[#464554]">Năng lượng • Viral</p>
+                                </div>
                               </div>
-                              <div>
-                                <h3 className="font-semibold text-[11px] 2xl:text-xs text-[#1b1b1d]">{char.name}</h3>
-                                <p className="text-[8px] 2xl:text-[9px] text-[#464554]">Năng lượng • Viral</p>
+                              <p className="text-[10px] 2xl:text-[11px] text-[#464554] mb-2 leading-relaxed">
+                                {char.description}
+                              </p>
+                              <div className="flex flex-wrap gap-1">
+                                <span className="px-2 py-0.5 rounded-full bg-[#b4b9fd]/30 text-[#424883] text-[9px] 2xl:text-[10px] font-bold">Năng động</span>
+                                <span className="px-2 py-0.5 rounded-full bg-[#b4b9fd]/30 text-[#424883] text-[9px] 2xl:text-[10px] font-bold">Hài hước</span>
+                                <span className="px-2 py-0.5 rounded-full bg-[#b4b9fd]/30 text-[#424883] text-[9px] 2xl:text-[10px] font-bold">Trending</span>
+                              </div>
+                              <div className={`absolute top-2 right-2 transition-opacity duration-200 ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                                }`}>
+                                <Check className="w-3.5 h-3.5 2xl:w-4 2xl:h-4 text-[#4441cc]" />
                               </div>
                             </div>
-                            <p className="text-[9px] 2xl:text-[10px] text-[#464554] line-clamp-1 mb-1.5 leading-tight">
-                              {char.description}
-                            </p>
-                            <div className="flex flex-wrap gap-1">
-                              <span className="px-1.5 py-0.5 rounded-full bg-[#b4b9fd]/30 text-[#424883] text-[8px] font-bold">Năng động</span>
-                              <span className="px-1.5 py-0.5 rounded-full bg-[#b4b9fd]/30 text-[#424883] text-[8px] font-bold">Hài hước</span>
+                          );
+                        })}
+
+                        {/* Dummy character placeholder 2: Chị Nhạn */}
+                        <div className="group relative p-2.5 2xl:p-3.5 border-2 rounded-xl cursor-pointer transition-all border-[#c7c4d7] bg-white">
+                          <div className="flex items-center space-x-2 mb-1.5">
+                            <div className="w-8 h-8 2xl:w-9 2xl:h-9 rounded-full overflow-hidden border-2 border-[#4441cc]/20 flex-shrink-0">
+                              <img alt="Chị Nhạn" className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB1AaFdELtmwmgSb9uG2HcI1kMeuO63zvWNv-iQABmVHTbhky6sSwyVm5CAbwTxbeNJnaqA-EPbRrrQ_afofat9cYl2_JWKkLv_yEXQWIVPDaCFXpKYYlR7rHwZRy0w5013Wqlg7QKfXTOEFGekhB8ouDvCJELFlhRnnTV83YPSv9N0lgYckco8d9lad6gYhJaNJYg8eqW3KxyuAfcfJdU8XqaXP-brWhZDROyeLhACyCnbmMRM1Fsjxg" />
                             </div>
-                            <div className={`absolute top-1.5 right-1.5 transition-opacity duration-200 ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                              }`}>
-                              <Check className="w-3.5 h-3.5 text-[#4441cc]" />
+                            <div>
+                              <h3 className="font-semibold text-xs 2xl:text-sm text-[#1b1b1d]">Chị Nhạn</h3>
+                              <p className="text-[9px] 2xl:text-[10px] text-[#464554]">Kể chuyện • Cảm xúc</p>
                             </div>
                           </div>
-                        );
-                      })}
+                          <p className="text-[10px] 2xl:text-[11px] text-[#464554] mb-2 leading-relaxed">
+                            Ấm áp, gần gũi, kể chuyện có mở đầu – cao trào – kết, nhiều cảm xúc.
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            <span className="px-2 py-0.5 rounded-full bg-[#b4b9fd]/30 text-[#424883] text-[9px] 2xl:text-[10px] font-bold">Ấm áp</span>
+                            <span className="px-2 py-0.5 rounded-full bg-[#b4b9fd]/30 text-[#424883] text-[9px] 2xl:text-[10px] font-bold">Tâm tình</span>
+                            <span className="px-2 py-0.5 rounded-full bg-[#b4b9fd]/30 text-[#424883] text-[9px] 2xl:text-[10px] font-bold">Truyền cảm</span>
+                          </div>
+                        </div>
 
-                      {/* Dummy character placeholder 2: Chị Nhạn */}
-                      <div className="group relative p-2 2xl:p-3 border-2 rounded-xl cursor-pointer transition-all border-[#c7c4d7] bg-white">
-                        <div className="flex items-center space-x-2 mb-1">
-                          <div className="w-7 h-7 2xl:w-8 2xl:h-8 rounded-full overflow-hidden border-2 border-[#4441cc]/20 flex-shrink-0">
-                            <img alt="Chị Nhạn" className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB1AaFdELtmwmgSb9uG2HcI1kMeuO63zvWNv-iQABmVHTbhky6sSwyVm5CAbwTxbeNJnaqA-EPbRrrQ_afofat9cYl2_JWKkLv_yEXQWIVPDaCFXpKYYlR7rHwZRy0w5013Wqlg7QKfXTOEFGekhB8ouDvCJELFlhRnnTV83YPSv9N0lgYckco8d9lad6gYhJaNJYg8eqW3KxyuAfcfJdU8XqaXP-brWhZDROyeLhACyCnbmMRM1Fsjxg" />
+                        {/* Dummy character placeholder 3: Chung Bùi */}
+                        <div className="group relative p-2.5 2xl:p-3.5 border-2 rounded-xl hover:border-[#4441cc] cursor-pointer transition-all border-[#c7c4d7] bg-white">
+                          <div className="flex items-center space-x-2 mb-1.5">
+                            <div className="w-8 h-8 2xl:w-9 2xl:h-9 rounded-full overflow-hidden border-2 border-[#eae7ea] group-hover:border-[#4441cc]/20 flex-shrink-0">
+                              <img alt="Chung Bùi" className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDHfh4UZaE23hQqzJ_k7SX2OpO5ZyN7FjWZFxF2dCcQtnXCMh70phb13ssXLkvxpCzp-zwc878zMCg6squudM-883Plz4J-H4C36CN0SaBykbO_NqLLjbT5ecajfh3pAA2AaW34IE3SJIYEvZw_EcCAZyF-H-Ft70B0DSb1IBE7EwaF20ObfclfI_Gr_gXtZzm4Yy7G-txyh_j8t3_yQg8XF6hY8PfG-O9UQY5ndVzaueSBrM4RyRPIbw" />
+                            </div>
+                            <div>
+                              <h3 className="font-semibold text-xs 2xl:text-sm text-[#1b1b1d]">Chung Bùi</h3>
+                              <p className="text-[9px] 2xl:text-[10px] text-[#464554]">Chuyên sâu • Phân tích</p>
+                            </div>
                           </div>
-                          <div>
-                            <h3 className="font-semibold text-[11px] 2xl:text-xs text-[#1b1b1d]">Chị Nhạn</h3>
-                            <p className="text-[8px] 2xl:text-[9px] text-[#464554]">Kể chuyện • Cảm xúc</p>
+                          <p className="text-[10px] 2xl:text-[11px] text-[#464554] mb-2 leading-relaxed">
+                            Mạch lạc, dẫn chứng số liệu, chia luận điểm rõ ràng, giọng chuyên gia.
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            <span className="px-2 py-0.5 rounded-full bg-[#5e5ce6] text-white text-[9px] 2xl:text-[10px] font-bold">Chuyên nghiệp</span>
+                            <span className="px-2 py-0.5 rounded-full bg-[#5e5ce6] text-white text-[9px] 2xl:text-[10px] font-bold">Logic</span>
+                            <span className="px-2 py-0.5 rounded-full bg-[#5e5ce6] text-white text-[9px] 2xl:text-[10px] font-bold">Uy tín</span>
                           </div>
                         </div>
-                        <p className="text-[9px] 2xl:text-[10px] text-[#464554] line-clamp-1 mb-1.5 leading-tight">
-                          Ấm áp, gần gũi, kể chuyện có cảm xúc.
-                        </p>
-                        <div className="flex flex-wrap gap-1">
-                          <span className="px-1.5 py-0.5 rounded-full bg-[#b4b9fd]/30 text-[#424883] text-[8px] font-bold">Ấm áp</span>
-                          <span className="px-1.5 py-0.5 rounded-full bg-[#b4b9fd]/30 text-[#424883] text-[8px] font-bold">Tâm tình</span>
-                        </div>
+
                       </div>
-
-                      {/* Dummy character placeholder 3: Chung Bùi */}
-                      <div className="group relative p-2 2xl:p-3 border-2 rounded-xl hover:border-[#4441cc] cursor-pointer transition-all border-[#c7c4d7] bg-white">
-                        <div className="flex items-center space-x-2 mb-1">
-                          <div className="w-7 h-7 2xl:w-8 2xl:h-8 rounded-full overflow-hidden border-2 border-[#eae7ea] group-hover:border-[#4441cc]/20 flex-shrink-0">
-                            <img alt="Chung Bùi" className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDHfh4UZaE23hQqzJ_k7SX2OpO5ZyN7FjWZFxF2dCcQtnXCMh70phb13ssXLkvxpCzp-zwc878zMCg6squudM-883Plz4J-H4C36CN0SaBykbO_NqLLjbT5ecajfh3pAA2AaW34IE3SJIYEvZw_EcCAZyF-H-Ft70B0DSb1IBE7EwaF20ObfclfI_Gr_gXtZzm4Yy7G-txyh_j8t3_yQg8XF6hY8PfG-O9UQY5ndVzaueSBrM4RyRPIbw" />
-                          </div>
-                          <div>
-                            <h3 className="font-semibold text-[11px] 2xl:text-xs text-[#1b1b1d]">Chung Bùi</h3>
-                            <p className="text-[8px] 2xl:text-[9px] text-[#464554]">Chuyên sâu • Phân tích</p>
-                          </div>
-                        </div>
-                        <p className="text-[9px] 2xl:text-[10px] text-[#464554] line-clamp-1 mb-1.5 leading-tight">
-                          Mạch lạc, dẫn chứng số liệu rõ ràng.
-                        </p>
-                        <div className="flex flex-wrap gap-1">
-                          <span className="px-1.5 py-0.5 rounded-full bg-[#5e5ce6] text-white text-[8px] font-bold">Chuyên nghiệp</span>
-                          <span className="px-1.5 py-0.5 rounded-full bg-[#5e5ce6] text-white text-[8px] font-bold">Logic</span>
-                        </div>
-                      </div>
-
                     </div>
                   </section>
 
