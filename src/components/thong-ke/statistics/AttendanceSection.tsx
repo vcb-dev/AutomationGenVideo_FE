@@ -1,16 +1,19 @@
 'use client';
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { Users, CheckCircle2, XCircle, Clock, Calendar, ChevronDown, Loader2 } from 'lucide-react';
+import { Users, CheckCircle2, XCircle, Clock, Calendar, ChevronDown, Loader2, Save, X } from 'lucide-react';
 import { MeetingSession, AttendanceStatus, AttendanceRecord, MeetingSessionResponse } from '../types';
 import { apiClient } from '../../../lib/api-client';
+import CustomDropdown from '../../ui/CustomDropdown';
 
 interface AttendanceSectionProps {
   periodsList: any[];
+  teamsList: string[];
   teamMembers: string[];         // Danh sách tên thành viên team
-  activeTeam: string;            // K1 – K4
+  activeTeam: string;            // K1 – K5
   currentUserId?: string;        // ID của user đang đăng nhập (từ auth context)
   currentUserName?: string;      // Tên user đang đăng nhập
   currentUserRoles?: string[];   // Quyền của user đang đăng nhập
+  authUserTeam?: string | null;  // Team string của user từ auth store
   showToast?: (message: string, type?: 'success' | 'error') => void;
 }
 
@@ -18,16 +21,16 @@ interface AttendanceSectionProps {
 // Badge config
 // ─────────────────────────────────────────────
 const STATUS_CONFIG: Record<AttendanceStatus, { label: string; color: string; bg: string; border: string; icon: React.ReactNode }> = {
-  PRESENT:  { label: 'Có mặt',    color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-500/10', border: 'border-emerald-200 dark:border-emerald-500/25', icon: <CheckCircle2 className="w-3 h-3" /> },
-  LATE:     { label: 'Đi trễ',    color: 'text-amber-600 dark:text-amber-400',   bg: 'bg-amber-50 dark:bg-amber-500/10',   border: 'border-amber-200 dark:border-amber-500/25',   icon: <Clock className="w-3 h-3" /> },
-  ABSENT:   { label: 'Vắng',      color: 'text-rose-600 dark:text-rose-400',    bg: 'bg-rose-50 dark:bg-rose-500/10',    border: 'border-rose-200 dark:border-rose-500/25',    icon: <XCircle className="w-3 h-3" /> },
-  ON_LEAVE: { label: 'Nghỉ phép', color: 'text-sky-600 dark:text-sky-400',     bg: 'bg-sky-50 dark:bg-sky-500/10',     border: 'border-sky-200 dark:border-sky-500/25',     icon: <Calendar className="w-3 h-3" /> },
+  PRESENT: { label: 'Có mặt', color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/25', icon: <CheckCircle2 className="w-3 h-3" /> },
+  LATE: { label: 'Đi trễ', color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/25', icon: <Clock className="w-3 h-3" /> },
+  ABSENT: { label: 'Vắng', color: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/25', icon: <XCircle className="w-3 h-3" /> },
+  ON_LEAVE: { label: 'Nghỉ phép', color: 'text-sky-400', bg: 'bg-sky-500/10', border: 'border-sky-500/25', icon: <Calendar className="w-3 h-3" /> },
 };
 
 function StatusBadge({ status }: { status: AttendanceStatus }) {
   const cfg = STATUS_CONFIG[status];
   return (
-    <span className={`inline-flex items-center gap-1 text-[11px] font-black px-1.5 py-0.5 rounded-full border ${cfg.color} ${cfg.bg} ${cfg.border}`}>
+    <span className={`inline-flex items-center gap-1 text-[9px] font-black px-1.5 py-0.5 rounded-full border ${cfg.color} ${cfg.bg} ${cfg.border}`}>
       {cfg.icon}
       {cfg.label}
     </span>
@@ -59,7 +62,7 @@ function SelfCheckInModal({
     await onSubmit(selectedStatus, note.trim() || undefined);
   };
 
-  const statusOptions: AttendanceStatus[] = ['PRESENT', 'LATE', 'ABSENT', 'ON_LEAVE'];
+  const statusOptions: AttendanceStatus[] = ['PRESENT', 'ABSENT'];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -67,14 +70,14 @@ function SelfCheckInModal({
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative bg-card border border-border rounded-3xl p-6 w-full max-w-sm shadow-2xl flex flex-col gap-5">
+      <div className="relative bg-[#0e1626] border border-white/[0.08] rounded-3xl p-6 w-full max-w-sm shadow-2xl flex flex-col gap-5">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-blue-500/10 border border-blue-500/30 rounded-2xl text-blue-600 dark:text-blue-400">
+          <div className="p-2.5 bg-blue-500/10 border border-blue-500/30 rounded-2xl text-blue-400">
             <CheckCircle2 className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-black text-foreground">Điểm danh của tôi</h3>
-            <p className="text-[12px] text-muted-foreground font-bold mt-0.5">Chọn trạng thái tham dự buổi họp</p>
+            <h3 className="text-sm font-black text-white">Điểm danh của tôi</h3>
+            <p className="text-[10px] text-slate-400 font-bold mt-0.5">Chọn trạng thái tham dự buổi họp</p>
           </div>
         </div>
 
@@ -87,14 +90,13 @@ function SelfCheckInModal({
               <button
                 key={s}
                 onClick={() => { setSelectedStatus(s); setError(''); }}
-                className={`flex items-center gap-2 p-3 rounded-2xl border text-left transition-all duration-200 ${
-                  isSelected
+                className={`flex items-center gap-2 p-3 rounded-2xl border text-left transition-all duration-200 ${isSelected
                     ? `${cfg.bg} ${cfg.border} ${cfg.color} shadow-sm scale-[1.02]`
-                    : 'bg-muted border-border text-muted-foreground hover:bg-accent hover:text-foreground'
-                }`}
+                    : 'bg-white/[0.02] border-white/[0.06] text-slate-400 hover:bg-white/[0.04] hover:text-white'
+                  }`}
               >
                 <span className={`shrink-0 ${isSelected ? cfg.color : ''}`}>{cfg.icon}</span>
-                <span className="text-[13px] font-black">{cfg.label}</span>
+                <span className="text-[11px] font-black">{cfg.label}</span>
               </button>
             );
           })}
@@ -102,31 +104,31 @@ function SelfCheckInModal({
 
         {/* Note input */}
         <div className="flex flex-col gap-1.5">
-          <label className="text-[12px] font-black text-muted-foreground uppercase tracking-wider">
-            Ghi chú{selectedStatus === 'ON_LEAVE' && <span className="text-rose-600 dark:text-rose-400 ml-1">*bắt buộc</span>}
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+            Ghi chú{selectedStatus === 'ON_LEAVE' && <span className="text-rose-400 ml-1">*bắt buộc</span>}
           </label>
           <textarea
             value={note}
             onChange={(e) => { setNote(e.target.value); setError(''); }}
             placeholder={selectedStatus === 'ON_LEAVE' ? 'Nhập lý do nghỉ phép...' : 'Ghi chú thêm (không bắt buộc)'}
             rows={2}
-            className="bg-muted border border-border focus:border-blue-500 rounded-xl px-3 py-2 text-[13px] text-foreground outline-none resize-none placeholder:text-muted-foreground transition-colors"
+            className="bg-slate-950/60 border border-white/[0.08] focus:border-blue-500 rounded-xl px-3 py-2 text-[11px] text-white outline-none resize-none placeholder-slate-500 transition-colors"
           />
-          {error && <p className="text-[12px] text-rose-600 dark:text-rose-400 font-bold">{error}</p>}
+          {error && <p className="text-[10px] text-rose-400 font-bold">{error}</p>}
         </div>
 
         {/* Actions */}
         <div className="flex gap-2.5">
           <button
             onClick={onClose}
-            className="flex-1 py-2.5 text-[13px] font-black text-muted-foreground hover:text-foreground bg-muted hover:bg-accent border border-border rounded-xl transition-all"
+            className="flex-1 py-2.5 text-[11px] font-black text-slate-400 hover:text-white bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.07] rounded-xl transition-all"
           >
             Hủy
           </button>
           <button
             onClick={handleSubmit}
             disabled={loading}
-            className="flex-1 py-2.5 text-[13px] font-black text-white bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-xl transition-all flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(37,99,235,0.3)]"
+            className="flex-1 py-2.5 text-[11px] font-black text-white bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-xl transition-all flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(37,99,235,0.3)]"
           >
             {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
             Xác nhận
@@ -143,23 +145,23 @@ function SelfCheckInModal({
 function MemberRow({ record, isCurrentUser }: { record: AttendanceRecord; isCurrentUser: boolean }) {
   const initials = record.user.full_name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
   return (
-    <div className={`flex items-center gap-2.5 py-2 px-3 rounded-xl transition-all duration-200 ${isCurrentUser ? 'bg-blue-500/[0.05] border border-blue-500/15' : 'hover:bg-accent'}`}>
+    <div className={`flex items-center gap-2.5 py-2 px-3 rounded-xl transition-all duration-200 ${isCurrentUser ? 'bg-blue-500/[0.05] border border-blue-500/15' : 'hover:bg-white/[0.02]'}`}>
       {/* Avatar */}
       {record.user.image_url ? (
         <img src={record.user.image_url} alt={record.user.full_name} className="w-7 h-7 rounded-full object-cover shrink-0 ring-1 ring-white/10" />
       ) : (
-        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-slate-600 to-slate-800 border border-border flex items-center justify-center text-[11px] font-black text-foreground shrink-0">
+        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-slate-600 to-slate-800 border border-white/10 flex items-center justify-center text-[9px] font-black text-slate-300 shrink-0">
           {initials}
         </div>
       )}
 
       {/* Name */}
       <div className="flex-1 min-w-0">
-        <p className={`text-[13px] font-black truncate ${isCurrentUser ? 'text-blue-300' : 'text-foreground'}`}>
-          {record.user.full_name}{isCurrentUser && <span className="text-[11px] text-blue-600 dark:text-blue-400 font-bold ml-1">(bạn)</span>}
+        <p className={`text-[11px] font-black truncate ${isCurrentUser ? 'text-blue-300' : 'text-slate-200'}`}>
+          {record.user.full_name}{isCurrentUser && <span className="text-[9px] text-blue-400 font-bold ml-1">(bạn)</span>}
         </p>
         {record.note && (
-          <p className="text-[11px] text-muted-foreground font-bold truncate mt-0.5">{record.note}</p>
+          <p className="text-[9px] text-slate-500 font-bold truncate mt-0.5">{record.note}</p>
         )}
       </div>
 
@@ -200,7 +202,7 @@ function CreateSessionModal({
       return;
     }
     setError('');
-    
+
     const dateObj = new Date(scheduledAtDate);
     if (isNaN(dateObj.getTime())) {
       setError('Thời gian không hợp lệ');
@@ -213,61 +215,61 @@ function CreateSessionModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-card border border-border rounded-3xl p-6 w-full max-w-sm shadow-2xl flex flex-col gap-4 text-left">
+      <div className="relative bg-[#0e1626] border border-white/[0.08] rounded-3xl p-6 w-full max-w-sm shadow-2xl flex flex-col gap-4 text-left">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-indigo-500/10 border border-indigo-500/30 rounded-2xl text-indigo-600 dark:text-indigo-400">
+          <div className="p-2.5 bg-indigo-500/10 border border-indigo-500/30 rounded-2xl text-indigo-400">
             <Calendar className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-black text-foreground">Khởi tạo buổi họp</h3>
-            <p className="text-[12px] text-muted-foreground font-bold mt-0.5">Tạo buổi họp tuần cho Team {activeTeam}</p>
+            <h3 className="text-sm font-black text-white">Khởi tạo buổi họp</h3>
+            <p className="text-[10px] text-slate-400 font-bold mt-0.5">Tạo buổi họp tuần cho Team {activeTeam}</p>
           </div>
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label className="text-[12px] font-black text-muted-foreground uppercase tracking-wider">Tiêu đề buổi họp</label>
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Tiêu đề buổi họp</label>
           <input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="bg-muted border border-border focus:border-blue-500 rounded-xl px-3 py-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground transition-colors"
+            className="bg-slate-950/60 border border-white/[0.08] focus:border-blue-500 rounded-xl px-3 py-2 text-[11px] text-white outline-none placeholder-slate-500 transition-colors"
           />
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label className="text-[12px] font-black text-muted-foreground uppercase tracking-wider">Thời gian họp (ngày & giờ)</label>
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Thời gian họp (ngày & giờ)</label>
           <input
             type="datetime-local"
             value={scheduledAtDate}
             onChange={(e) => setScheduledAtDate(e.target.value)}
-            className="bg-muted border border-border focus:border-blue-500 rounded-xl px-3 py-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground transition-colors [color-scheme:light] dark:[color-scheme:dark]"
+            className="bg-slate-950/60 border border-white/[0.08] focus:border-blue-500 rounded-xl px-3 py-2 text-[11px] text-white outline-none placeholder-slate-500 transition-colors [color-scheme:dark]"
           />
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label className="text-[12px] font-black text-muted-foreground uppercase tracking-wider">Ghi chú cuộc họp</label>
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Ghi chú cuộc họp</label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Nội dung, tài liệu chuẩn bị..."
             rows={2}
-            className="bg-muted border border-border focus:border-blue-500 rounded-xl px-3 py-2 text-[13px] text-foreground outline-none resize-none placeholder:text-muted-foreground transition-colors"
+            className="bg-slate-950/60 border border-white/[0.08] focus:border-blue-500 rounded-xl px-3 py-2 text-[11px] text-white outline-none resize-none placeholder-slate-500 transition-colors"
           />
         </div>
 
-        {error && <p className="text-[12px] text-rose-600 dark:text-rose-400 font-bold">{error}</p>}
+        {error && <p className="text-[10px] text-rose-400 font-bold">{error}</p>}
 
         <div className="flex gap-2.5 mt-2">
           <button
             onClick={onClose}
-            className="flex-1 py-2.5 text-[13px] font-black text-muted-foreground hover:text-foreground bg-muted hover:bg-accent border border-border rounded-xl transition-all"
+            className="flex-1 py-2.5 text-[11px] font-black text-slate-400 hover:text-white bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.07] rounded-xl transition-all"
           >
             Hủy
           </button>
           <button
             onClick={handleSubmit}
             disabled={loading}
-            className="flex-1 py-2.5 text-[13px] font-black text-foreground bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 rounded-xl transition-all flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(37,99,235,0.3)]"
+            className="flex-1 py-2.5 text-[11px] font-black text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 rounded-xl transition-all flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(37,99,235,0.3)]"
           >
             {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
             Khởi tạo
@@ -279,6 +281,111 @@ function CreateSessionModal({
 }
 
 // ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// Custom Member Status Dropdown for Bulk Update
+// ─────────────────────────────────────────────
+function MemberStatusDropdown({
+  value,
+  onChange,
+  onOpenChange,
+  openUpward = false
+}: {
+  value: AttendanceStatus;
+  onChange: (val: AttendanceStatus) => void;
+  onOpenChange?: (open: boolean) => void;
+  openUpward?: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const toggleOpen = (open: boolean) => {
+    setIsOpen(open);
+    onOpenChange?.(open);
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        toggleOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const options: { value: AttendanceStatus; label: string; dotColor: string; textColor: string; bg: string; border: string }[] = [
+    { 
+      value: 'PRESENT', 
+      label: 'Có mặt', 
+      dotColor: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]', 
+      textColor: 'text-emerald-400', 
+      bg: 'bg-emerald-500/10', 
+      border: 'border-emerald-500/20' 
+    },
+    { 
+      value: 'ABSENT', 
+      label: 'Vắng', 
+      dotColor: 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]', 
+      textColor: 'text-rose-400', 
+      bg: 'bg-rose-500/10', 
+      border: 'border-rose-500/20' 
+    }
+  ];
+
+  const current = options.find(o => o.value === value) || options[0];
+
+  return (
+    <div className="relative w-28 shrink-0" ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => toggleOpen(!isOpen)}
+        className={`w-full flex items-center justify-between h-8 px-3 rounded-xl border transition-all duration-300 text-[10px] font-black cursor-pointer select-none shadow-sm ${
+          value === 'PRESENT'
+            ? 'bg-emerald-950/10 border-emerald-500/30 text-emerald-400 hover:border-emerald-500/50'
+            : 'bg-rose-950/10 border-rose-500/30 text-rose-400 hover:border-rose-500/50'
+        }`}
+      >
+        <div className="flex items-center gap-2">
+          <span className={`w-2 h-2 rounded-full ${current.dotColor}`} />
+          <span>{current.label}</span>
+        </div>
+        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-300 shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className={`absolute right-0 w-full rounded-xl border border-white/[0.08] bg-[#0e1626] shadow-2xl backdrop-blur-xl p-1 z-50 ${openUpward ? 'bottom-full mb-1.5' : 'mt-1.5'}`}>
+          <div className="flex flex-col gap-0.5">
+            {options.map((opt) => {
+              const isSelected = opt.value === value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    onChange(opt.value);
+                    toggleOpen(false);
+                  }}
+                  className={`flex items-center justify-between w-full px-3 py-2 rounded-lg text-[10px] font-bold text-left transition-all duration-150 cursor-pointer select-none border ${
+                    isSelected
+                      ? `${opt.bg} ${opt.border} ${opt.textColor} font-black shadow-sm`
+                      : 'border-transparent text-slate-400 hover:bg-white/[0.03] hover:text-white hover:border-white/[0.05]'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className={`w-1.5 h-1.5 rounded-full ${opt.dotColor}`} />
+                    <span>{opt.label}</span>
+                  </div>
+                  {isSelected && <span className="text-[10px] font-black leading-none">✓</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Bulk Update Modal (for Manager/Leader/Admin)
 // ─────────────────────────────────────────────
 function BulkUpdateModal({
@@ -307,6 +414,15 @@ function BulkUpdateModal({
   });
 
   const [error, setError] = useState('');
+  const [openDropdownUserId, setOpenDropdownUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const originalStyle = window.getComputedStyle(document.body).overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalStyle;
+    };
+  }, []);
 
   const handleStatusChange = (userId: string, status: AttendanceStatus) => {
     setRecords(prev => ({
@@ -315,16 +431,6 @@ function BulkUpdateModal({
         ...prev[userId],
         status,
         note: status === 'ON_LEAVE' ? prev[userId].note : ''
-      }
-    }));
-  };
-
-  const handleNoteChange = (userId: string, note: string) => {
-    setRecords(prev => ({
-      ...prev,
-      [userId]: {
-        ...prev[userId],
-        note
       }
     }));
   };
@@ -357,83 +463,78 @@ function BulkUpdateModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-card border border-border rounded-3xl p-6 w-full max-w-lg shadow-2xl flex flex-col max-h-[85vh] text-left gap-4">
-        <div className="flex items-center justify-between border-b border-border pb-3">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-lg animate-in fade-in duration-300" onClick={onClose} />
+      <div className="relative bg-[#0c1222]/50 border border-white/[0.06] rounded-[24px] p-6 w-full max-w-lg shadow-2xl flex flex-col max-h-[85vh] text-left gap-4 backdrop-blur-3xl ring-1 ring-white/[0.05] shadow-[0_10px_50px_rgba(0,0,0,0.5)] animate-in zoom-in-95 duration-200">
+        <div className="flex items-center justify-between border-b border-white/[0.05] pb-3">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-blue-500/10 border border-blue-500/30 rounded-2xl text-blue-600 dark:text-blue-400">
-              <Users className="w-5 h-5" />
+            <div className="p-2 bg-blue-500/10 border border-blue-500/30 rounded-xl text-blue-400">
+              <Users className="w-4.5 h-4.5" />
             </div>
             <div>
-              <h3 className="text-sm font-black text-foreground">Điểm danh nhanh cả nhóm</h3>
-              <p className="text-[12px] text-muted-foreground font-bold mt-0.5">Cập nhật hàng loạt trạng thái của team</p>
+              <h3 className="text-sm font-black text-white">Điểm danh nhanh cả nhóm</h3>
+              <p className="text-[10px] text-slate-400 font-bold mt-0.5">Cập nhật trạng thái hiện tại của các thành viên</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 transition-colors">
             <XCircle className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-3 min-h-[200px]">
-          {teamMembers.map(member => {
+        <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-3 min-h-[200px] custom-scrollbar">
+          {teamMembers.map((member, index) => {
             const state = records[member.id] || { status: 'PRESENT', note: '' };
+            const isDropdownOpen = openDropdownUserId === member.id;
+            const openUpward = index >= teamMembers.length - 2 && teamMembers.length > 2;
+            const statusGlowClass = state.status === 'PRESENT'
+              ? 'bg-[#0a0f1e]/80 border-emerald-500/50 ring-1 ring-emerald-500/30 shadow-[0_0_24px_rgba(16,185,129,0.3)] scale-[1.01]'
+              : 'bg-[#0a0f1e]/80 border-rose-500/50 ring-1 ring-rose-500/30 shadow-[0_0_24px_rgba(244,63,94,0.3)] scale-[1.01]';
+
             return (
-              <div key={member.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 bg-muted/40 border border-border rounded-2xl">
-                <div className="flex items-center gap-2.5 min-w-[140px]">
+              <div 
+                key={member.id} 
+                className={`flex items-center justify-between gap-4 py-3 px-4 rounded-2xl border transition-all duration-300 relative ${
+                  isDropdownOpen
+                    ? `${statusGlowClass} z-20`
+                    : 'z-10 bg-[#0a0f1e]/20 border-white/[0.05] hover:bg-[#0a0f1e]/40 hover:border-white/[0.1] shadow-sm'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
                   {member.image_url ? (
-                    <img src={member.image_url} alt={member.full_name} className="w-7 h-7 rounded-full object-cover border border-border" />
+                    <img src={member.image_url} alt={member.full_name} className="w-10 h-10 rounded-full object-cover border border-white/10 shadow-sm" />
                   ) : (
-                    <div className="w-7 h-7 rounded-full bg-slate-700 border border-border flex items-center justify-center text-[12px] font-bold text-foreground">
-                      {member.full_name.slice(0, 2).toUpperCase()}
+                    <div className="w-10 h-10 rounded-full bg-slate-800 border border-white/10 flex items-center justify-center text-xs font-black text-slate-300 shrink-0 shadow-sm">
+                      {member.full_name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
                     </div>
                   )}
-                  <span className="text-[13px] font-black text-foreground truncate">{member.full_name}</span>
+                  <span className="text-[12.5px] font-black text-slate-200 truncate">{member.full_name}</span>
                 </div>
 
-                <div className="flex flex-1 items-center gap-2">
-                  <select
-                    value={state.status}
-                    onChange={(e) => handleStatusChange(member.id, e.target.value as AttendanceStatus)}
-                    className="bg-muted border border-border focus:border-blue-500 rounded-xl px-2 py-1.5 text-[12px] text-foreground outline-none w-28 cursor-pointer select-none font-bold"
-                  >
-                    <option value="PRESENT">Có mặt</option>
-                    <option value="LATE">Đi trễ</option>
-                    <option value="ABSENT">Vắng</option>
-                    <option value="ON_LEAVE">Nghỉ phép</option>
-                  </select>
-
-                  <input
-                    type="text"
-                    value={state.note}
-                    onChange={(e) => handleNoteChange(member.id, e.target.value)}
-                    placeholder={state.status === 'ON_LEAVE' ? 'Lý do xin nghỉ...' : 'Ghi chú (không bắt buộc)...'}
-                    className={`flex-1 bg-muted border rounded-xl px-3 py-1.5 text-[12px] text-foreground outline-none placeholder:text-muted-foreground transition-colors ${
-                      state.status === 'ON_LEAVE' 
-                        ? 'border-sky-500/50 focus:border-sky-500' 
-                        : 'border-border focus:border-blue-500'
-                    }`}
-                  />
-                </div>
+                <MemberStatusDropdown
+                  value={state.status}
+                  onChange={(val) => handleStatusChange(member.id, val)}
+                  onOpenChange={(open) => setOpenDropdownUserId(open ? member.id : null)}
+                  openUpward={openUpward}
+                />
               </div>
             );
           })}
         </div>
 
-        {error && <p className="text-[12px] text-rose-600 dark:text-rose-400 font-bold">{error}</p>}
+        {error && <p className="text-[10px] text-rose-400 font-bold">{error}</p>}
 
-        <div className="flex gap-2.5 border-t border-border pt-4">
+        <div className="flex gap-2.5 border-t border-white/[0.05] pt-4">
           <button
             onClick={onClose}
-            className="flex-1 py-2.5 text-[13px] font-black text-muted-foreground hover:text-foreground bg-muted hover:bg-accent border border-border rounded-xl transition-all"
+            className="flex-1 py-2.5 text-[11px] font-black text-slate-400 hover:text-white bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.07] rounded-xl transition-all"
           >
             Hủy
           </button>
           <button
             onClick={handleSubmit}
             disabled={loading}
-            className="flex-1 py-2.5 text-[13px] font-black text-foreground bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 rounded-xl transition-all flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(37,99,235,0.3)]"
+            className="flex-1 py-2.5 text-[11px] font-black text-white bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 disabled:opacity-50 rounded-xl transition-all flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(37,99,235,0.5),0_0_40px_rgba(124,58,237,0.25)] hover:shadow-[0_4px_25px_rgba(37,99,235,0.6),0_0_50px_rgba(124,58,237,0.35)]"
           >
-            {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
             Lưu thay đổi
           </button>
         </div>
@@ -447,11 +548,13 @@ function BulkUpdateModal({
 // ─────────────────────────────────────────────
 export default function AttendanceSection({
   periodsList,
+  teamsList = [],
   teamMembers,
   activeTeam,
   currentUserId,
   currentUserName,
   currentUserRoles,
+  authUserTeam,
   showToast,
 }: AttendanceSectionProps) {
   const [showModal, setShowModal] = useState(false);
@@ -474,15 +577,45 @@ export default function AttendanceSection({
     showToastRef.current = showToast;
   }, [showToast]);
 
-  // 2. Filter periods List for WEEK periods
+  // 1.5. Calculate allowedTeams based on roles and authUserTeam
+  const allowedTeams = useMemo(() => {
+    const roles = currentUserRoles || [];
+    if (roles.includes('ADMIN')) {
+      return teamsList;
+    }
+    if (!authUserTeam) return [];
+    const parsedUserTeams = authUserTeam
+      .split(',')
+      .map((t) => {
+        let trimmed = t.trim();
+        if (trimmed.toLowerCase().startsWith('team ')) {
+          trimmed = trimmed.substring(5).trim();
+        }
+        return trimmed.toLowerCase();
+      })
+      .filter((t) => t.length > 0);
+
+    return teamsList.filter((t) => parsedUserTeams.includes(t.toLowerCase()));
+  }, [teamsList, currentUserRoles, authUserTeam]);
+
+  // 2. Local team state & sync from parent prop (without double-fetch)
+  const [prevActiveTeam, setPrevActiveTeam] = useState(activeTeam);
+  const [localTeam, setLocalTeam] = useState(activeTeam);
+
+  if (activeTeam !== prevActiveTeam) {
+    setPrevActiveTeam(activeTeam);
+    setLocalTeam(activeTeam);
+  }
+
+  // 3. Filter periods List for WEEK periods
   const weekPeriods = useMemo(() => {
     return (periodsList || []).filter((p) => p.type === 'WEEK');
   }, [periodsList]);
 
-  // 3. Local selectedPeriod state
+  // 4. Local selectedPeriod state
   const [selectedPeriod, setSelectedPeriod] = useState<any>(null);
 
-  // 4. Initialize selectedPeriod based on the current date
+  // 5. Initialize selectedPeriod based on the current date
   useEffect(() => {
     if (weekPeriods.length === 0) return;
     const now = new Date();
@@ -500,20 +633,21 @@ export default function AttendanceSection({
     setSelectedPeriod(initialPeriod || null);
   }, [weekPeriods]);
 
-  // 5. Local sessionData, loading, error states
+  // 6. Local sessionData, loading, error states
   const [sessionData, setSessionData] = useState<MeetingSessionResponse | null>(null);
   const [loadingSession, setLoadingSession] = useState(false);
 
-  // 6. Fetch meeting session based on activeTeam and selectedPeriod
+  // 7. Fetch meeting session based on localTeam and selectedPeriod
   const fetchSession = useCallback(async () => {
-    if (!activeTeam || !selectedPeriod?.id) {
+    if (!localTeam || !selectedPeriod?.id) {
       setSessionData(null);
       return;
     }
     setLoadingSession(true);
+    setSessionData(null); // Clear previous team's data instantly to avoid content flash
     try {
       const res = await apiClient.get(
-        `/content-report/meetings?team=${activeTeam}&periodId=${selectedPeriod.id}`
+        `/content-report/meetings?team=${localTeam}&periodId=${selectedPeriod.id}`
       );
       setSessionData(res.data || null);
     } catch (err) {
@@ -522,19 +656,19 @@ export default function AttendanceSection({
     } finally {
       setLoadingSession(false);
     }
-  }, [activeTeam, selectedPeriod]);
+  }, [localTeam, selectedPeriod]);
 
   useEffect(() => {
     fetchSession();
   }, [fetchSession]);
 
-  // 7. Internal event handlers
+  // 8. Internal event handlers
   const handleCreateSession = async (scheduledAt: string, title?: string, notes?: string) => {
-    if (!activeTeam || !selectedPeriod?.id) return;
+    if (!localTeam || !selectedPeriod?.id) return;
     setCreateLoading(true);
     try {
       await apiClient.post(`/content-report/meetings`, {
-        team: activeTeam,
+        team: localTeam,
         period_id: selectedPeriod.id,
         scheduled_at: scheduledAt,
         title,
@@ -648,7 +782,7 @@ export default function AttendanceSection({
     });
 
     const recordedUserIds = new Set(attendances.map((r) => r.user_id));
-    
+
     let unrecorded: string[] = [];
     if (dbMembers.length > 0) {
       unrecorded = dbMembers
@@ -691,18 +825,18 @@ export default function AttendanceSection({
   // ── Hiển thị loading buổi họp ──
   if (loadingSession) {
     return (
-      <div className="bg-card border border-border rounded-3xl p-6 flex flex-col gap-3 shadow-xl backdrop-blur-xl hover:border-border transition-all duration-300 animate-pulse">
-        <div className="flex items-center gap-2 border-b border-border pb-3">
-          <div className="p-2 bg-slate-700/30 border border-border rounded-xl text-muted-foreground">
+      <div className="bg-[#0e1626]/50 border border-white/[0.05] rounded-3xl p-6 flex flex-col gap-3 shadow-xl backdrop-blur-xl hover:border-white/[0.08] transition-all duration-300 animate-pulse">
+        <div className="flex items-center gap-2 border-b border-white/[0.05] pb-3">
+          <div className="p-2 bg-slate-700/30 border border-white/[0.06] rounded-xl text-slate-400">
             <Users className="w-4 h-4" />
           </div>
-          <span className="text-[13px] font-black uppercase text-foreground tracking-wider">
-            Thống Kê Điểm Danh — Team {activeTeam}
+          <span className="text-[11px] font-black uppercase text-slate-200 tracking-wider">
+            Thống Kê Điểm Danh — Team {localTeam}
           </span>
         </div>
         <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
           <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-          <p className="text-[12px] text-muted-foreground font-bold">Đang tải thông tin buổi họp...</p>
+          <p className="text-[10px] text-slate-500 font-bold">Đang tải thông tin buổi họp...</p>
         </div>
       </div>
     );
@@ -717,46 +851,56 @@ export default function AttendanceSection({
             onClose={() => setShowCreateModal(false)}
             onSubmit={handleCreateSession}
             loading={createLoading}
-            activeTeam={activeTeam}
+            activeTeam={localTeam}
           />
         )}
-        <div className="bg-card border border-border rounded-3xl p-6 flex flex-col gap-3 shadow-xl backdrop-blur-xl hover:border-border transition-all duration-300">
-          <div className="flex items-center justify-between border-b border-border pb-3 gap-3">
+        <div className="relative z-30 bg-[#0e1626]/50 border border-white/[0.05] rounded-3xl p-6 flex flex-col gap-3 shadow-xl backdrop-blur-xl hover:border-white/[0.08] transition-all duration-300">
+          <div className="flex items-center justify-between border-b border-white/[0.05] pb-3 gap-3">
             <div className="flex items-center gap-2">
-              <div className="p-2 bg-slate-700/30 border border-border rounded-xl text-muted-foreground">
+              <div className="p-2 bg-slate-700/30 border border-white/[0.06] rounded-xl text-slate-400">
                 <Users className="w-4 h-4" />
               </div>
-              <span className="text-[13px] font-black uppercase text-foreground tracking-wider">
-                Thống Kê Điểm Danh — Team {activeTeam}
+              <span className="text-[11px] font-black uppercase text-slate-200 tracking-wider">
+                Thống Kê Điểm Danh — Team {localTeam}
               </span>
             </div>
 
-            {/* Local Period Selector for AttendanceSection */}
-            {weekPeriods.length > 0 && (
-              <select
-                value={selectedPeriod?.id || ''}
-                onChange={(e) => {
-                  const found = weekPeriods.find((p) => p.id === e.target.value);
-                  if (found) setSelectedPeriod(found);
-                }}
-                className="bg-muted border border-border rounded-xl px-2.5 py-1.5 text-[12px] text-foreground outline-none font-bold cursor-pointer"
-              >
-                {weekPeriods.map((p) => (
-                  <option key={p.id} value={p.id}>{p.label}</option>
-                ))}
-              </select>
-            )}
+            {/* Local Team and Period Selectors */}
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Local Team Selector */}
+              {allowedTeams.length > 1 && (
+                <CustomDropdown
+                  value={localTeam}
+                  onChange={(val) => setLocalTeam(val)}
+                  options={allowedTeams.map((t) => ({ value: t, label: `Team ${t}` }))}
+                  labelPrefix="Xem team:"
+                />
+              )}
+
+              {/* Local Period Selector for AttendanceSection */}
+              {weekPeriods.length > 0 && (
+                <CustomDropdown
+                  value={selectedPeriod?.id || ''}
+                  onChange={(val) => {
+                    const found = weekPeriods.find((p) => p.id === val);
+                    if (found) setSelectedPeriod(found);
+                  }}
+                  options={weekPeriods.map((p) => ({ value: p.id, label: p.label }))}
+                  labelPrefix="Tuần:"
+                />
+              )}
+            </div>
           </div>
 
           <div className="flex flex-col items-center justify-center py-8 gap-3 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-muted border border-border flex items-center justify-center mb-1">
-              <Calendar className="w-5 h-5 text-muted-foreground" />
+            <div className="w-12 h-12 rounded-2xl bg-slate-800/50 border border-white/[0.05] flex items-center justify-center mb-1">
+              <Calendar className="w-5 h-5 text-slate-500" />
             </div>
             <div>
-              <p className="text-[14px] font-black text-muted-foreground">Chưa có buổi họp nào trong kỳ này</p>
-              <p className="text-[12px] text-muted-foreground font-bold mt-0.5">
-                {isManagement 
-                  ? 'Bấm nút bên dưới để khởi tạo buổi họp và bắt đầu điểm danh' 
+              <p className="text-[12px] font-black text-slate-400">Chưa có buổi họp nào trong kỳ này</p>
+              <p className="text-[10px] text-slate-600 font-bold mt-0.5">
+                {isManagement
+                  ? 'Bấm nút bên dưới để khởi tạo buổi họp và bắt đầu điểm danh'
                   : 'Manager/Leader cần tạo buổi họp trước khi điểm danh'
                 }
               </p>
@@ -764,7 +908,7 @@ export default function AttendanceSection({
             {isManagement && (
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="mt-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-foreground text-[13px] font-black px-5 py-2.5 rounded-xl transition-all duration-200 shadow-[0_4px_14px_rgba(37,99,235,0.3)] hover:scale-[1.02]"
+                className="mt-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-[11px] font-black px-5 py-2.5 rounded-xl transition-all duration-200 shadow-[0_4px_14px_rgba(37,99,235,0.3)] hover:scale-[1.02]"
               >
                 Khởi tạo buổi họp
               </button>
@@ -783,56 +927,59 @@ export default function AttendanceSection({
 
   return (
     <>
-      {showModal && (
-        <SelfCheckInModal
-          onClose={() => setShowModal(false)}
-          onSubmit={handleSelfCheckIn}
-          loading={checkInLoading}
-        />
-      )}
 
-      <div className="bg-card border border-border rounded-3xl p-6 flex flex-col gap-5 shadow-xl backdrop-blur-xl hover:border-border transition-all duration-300">
+      <div className="relative z-30 bg-[#0e1626]/50 border border-white/[0.05] rounded-3xl p-6 flex flex-col gap-5 shadow-xl backdrop-blur-xl hover:border-white/[0.08] transition-all duration-300">
 
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/[0.05] pb-4">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-indigo-500/10 border border-indigo-500/30 rounded-xl text-indigo-600 dark:text-indigo-400">
+            <div className="p-2 bg-indigo-500/10 border border-indigo-500/30 rounded-xl text-indigo-400">
               <Users className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-[13px] font-black uppercase text-foreground tracking-wider">
-                Điểm Danh Buổi Họp — {activeTeam}
+              <span className="text-[11px] font-black uppercase text-slate-200 tracking-wider">
+                Điểm Danh Buổi Họp — {localTeam}
               </span>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <Clock className="w-3 h-3 text-muted-foreground" />
-                <span className="text-[12px] text-muted-foreground font-bold">{formattedTime}</span>
+                <Clock className="w-3 h-3 text-slate-500" />
+                <span className="text-[10px] text-slate-500 font-bold">{formattedTime}</span>
               </div>
             </div>
           </div>
 
-          {/* Self check-in & Bulk & Finalize buttons + Local Week Selector */}
+          {/* Self check-in & Bulk & Finalize buttons + Local Week/Team Selectors */}
           <div className="flex flex-wrap items-center gap-2.5">
+            {/* Local Team Selector */}
+            {allowedTeams.length > 1 && (
+              <CustomDropdown
+                value={localTeam}
+                onChange={(val) => setLocalTeam(val)}
+                options={allowedTeams.map((t) => ({ value: t, label: `Team ${t}` }))}
+                labelPrefix="Xem team:"
+                className="mr-1"
+              />
+            )}
+
+            {/* Local Week Selector */}
             {weekPeriods.length > 0 && (
-              <select
+              <CustomDropdown
                 value={selectedPeriod?.id || ''}
-                onChange={(e) => {
-                  const found = weekPeriods.find((p) => p.id === e.target.value);
+                onChange={(val) => {
+                  const found = weekPeriods.find((p) => p.id === val);
                   if (found) setSelectedPeriod(found);
                 }}
-                className="bg-muted border border-border rounded-xl px-2.5 py-1.5 text-[12px] text-foreground outline-none font-bold cursor-pointer"
-              >
-                {weekPeriods.map((p) => (
-                  <option key={p.id} value={p.id}>{p.label}</option>
-                ))}
-              </select>
+                options={weekPeriods.map((p) => ({ value: p.id, label: p.label }))}
+                labelPrefix="Tuần:"
+                className="mr-2"
+              />
             )}
 
             {!session.is_finalized && isManagement && dbMembers.length > 0 && (
               <button
                 onClick={() => setShowBulkModal(true)}
-                className="flex items-center gap-1.5 px-4 py-2 bg-muted border border-border hover:border-blue-500 dark:hover:border-blue-400 rounded-xl text-[13px] font-black text-muted-foreground hover:text-foreground transition-all shadow-sm"
+                className="flex items-center gap-1.5 px-4 py-2 bg-[#1e293b]/60 border border-white/[0.08] hover:border-blue-500 rounded-xl text-[11px] font-black text-slate-300 hover:text-white transition-all shadow-sm"
               >
-                <Users className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                <Users className="w-3.5 h-3.5 text-blue-400" />
                 Cập nhật cả nhóm
               </button>
             )}
@@ -841,30 +988,12 @@ export default function AttendanceSection({
               <button
                 onClick={handleFinalize}
                 disabled={finalizeLoading}
-                className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-foreground rounded-xl text-[13px] font-black transition-all duration-200 shadow-[0_4px_14px_rgba(16,185,129,0.3)] hover:scale-[1.02] disabled:opacity-50"
+                className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-[11px] font-black transition-all duration-200 shadow-[0_4px_14px_rgba(16,185,129,0.3)] hover:scale-[1.02] disabled:opacity-50"
               >
                 {finalizeLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Chốt buổi họp'}
               </button>
             )}
 
-            <button
-              onClick={() => setShowModal(true)}
-              disabled={session.is_finalized || checkInLoading}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-black transition-all duration-200 shadow-sm ${
-                session.is_finalized
-                  ? 'bg-muted border border-border text-muted-foreground cursor-not-allowed'
-                  : myRecord
-                  ? 'bg-muted border border-border text-foreground hover:bg-accent'
-                  : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-[0_4px_14px_rgba(37,99,235,0.3)] hover:shadow-[0_4px_18px_rgba(37,99,235,0.4)] hover:scale-[1.02]'
-              }`}
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              {session.is_finalized
-                ? 'Đã chốt điểm danh'
-                : myRecord
-                ? `Đã điểm danh (${STATUS_CONFIG[myRecord.status].label})`
-                : 'Điểm danh của tôi'}
-            </button>
           </div>
         </div>
 
@@ -872,12 +1001,12 @@ export default function AttendanceSection({
         {session.is_finalized && (
           <div className="bg-amber-500/[0.03] border border-amber-500/15 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-amber-500/10 rounded-xl text-amber-600 dark:text-amber-400">
+              <div className="p-2 bg-amber-500/10 rounded-xl text-amber-400">
                 <Users className="w-4 h-4" />
               </div>
               <div>
-                <p className="text-[12px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-wider">ĐÃ CHỐT ĐIỂM DANH</p>
-                <p className="text-[12px] text-muted-foreground font-bold mt-0.5">
+                <p className="text-[10px] font-black text-amber-400 uppercase tracking-wider">ĐÃ CHỐT ĐIỂM DANH</p>
+                <p className="text-[10px] text-slate-400 font-bold mt-0.5">
                   Được chốt lúc{' '}
                   {new Date(session.finalized_at!).toLocaleString('vi-VN', {
                     hour: '2-digit',
@@ -894,7 +1023,7 @@ export default function AttendanceSection({
               <button
                 onClick={handleReopen}
                 disabled={reopenLoading}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/10 border border-rose-500/20 hover:border-rose-500 rounded-xl text-[12px] font-black text-rose-600 dark:text-rose-400 hover:text-foreground transition-all disabled:opacity-50"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/10 border border-rose-500/20 hover:border-rose-500 rounded-xl text-[10px] font-black text-rose-400 hover:text-white transition-all disabled:opacity-50"
               >
                 {reopenLoading && <Loader2 className="w-3 h-3 animate-spin" />}
                 Mở lại buổi họp
@@ -907,30 +1036,30 @@ export default function AttendanceSection({
         <div className="grid grid-cols-3 gap-3">
           {/* Tổng có mặt */}
           <div className="bg-emerald-500/[0.05] border border-emerald-500/15 rounded-2xl p-3.5 flex flex-col gap-1 text-center">
-            <span className="text-xl font-black text-emerald-600 dark:text-emerald-400">{presentCount}</span>
-            <span className="text-[11px] font-black text-emerald-500/80 uppercase tracking-wider">Có mặt</span>
+            <span className="text-xl font-black text-emerald-400">{presentCount}</span>
+            <span className="text-[9px] font-black text-emerald-500/80 uppercase tracking-wider">Có mặt</span>
           </div>
 
           {/* Vắng */}
           <div className="bg-rose-500/[0.05] border border-rose-500/15 rounded-2xl p-3.5 flex flex-col gap-1 text-center">
-            <span className="text-xl font-black text-rose-600 dark:text-rose-400">{absentRecords.length}</span>
-            <span className="text-[11px] font-black text-rose-500/80 uppercase tracking-wider">Vắng</span>
+            <span className="text-xl font-black text-rose-400">{absentRecords.length}</span>
+            <span className="text-[9px] font-black text-rose-500/80 uppercase tracking-wider">Vắng</span>
           </div>
 
           {/* Tỷ lệ */}
           <div className="bg-indigo-500/[0.05] border border-indigo-500/15 rounded-2xl p-3.5 flex flex-col gap-1 text-center">
-            <span className="text-xl font-black text-indigo-600 dark:text-indigo-400">{attendanceRate.toFixed(0)}%</span>
-            <span className="text-[11px] font-black text-indigo-500/80 uppercase tracking-wider">Tỷ lệ</span>
+            <span className="text-xl font-black text-indigo-400">{attendanceRate.toFixed(0)}%</span>
+            <span className="text-[9px] font-black text-indigo-500/80 uppercase tracking-wider">Tỷ lệ</span>
           </div>
         </div>
 
         {/* Progress bar */}
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-[12px] font-black text-muted-foreground uppercase tracking-wider">Tỷ lệ có mặt</span>
-            <span className="text-[12px] font-bold text-muted-foreground">{presentCount}/{totalTeam} thành viên</span>
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Tỷ lệ có mặt</span>
+            <span className="text-[10px] font-bold text-slate-400">{presentCount}/{totalTeam} thành viên</span>
           </div>
-          <div className="w-full h-2 bg-muted rounded-full overflow-hidden border border-border">
+          <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-white/[0.04]">
             <div
               className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-700"
               style={{ width: `${Math.min(attendanceRate, 100)}%` }}
@@ -941,17 +1070,17 @@ export default function AttendanceSection({
         {/* Two-column attendance lists */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* CÓ MẶT */}
-          <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/10 rounded-2xl p-4 flex flex-col gap-2">
-            <div className="flex items-center justify-between border-b border-border pb-2 mb-1">
-              <span className="text-[12px] font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-wider flex items-center gap-1.5">
+          <div className="bg-[#0b111e]/40 border border-emerald-500/10 rounded-2xl p-4 flex flex-col gap-2">
+            <div className="flex items-center justify-between border-b border-white/[0.04] pb-2 mb-1">
+              <span className="text-[10px] font-black uppercase text-emerald-400 tracking-wider flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 Có mặt ({presentCount})
               </span>
             </div>
             {presentRecords.length === 0 ? (
-              <p className="text-[12px] text-muted-foreground font-bold text-center py-3">Chưa có ai điểm danh</p>
+              <p className="text-[10px] text-slate-600 font-bold text-center py-3">Chưa có ai điểm danh</p>
             ) : (
-              <div className="flex flex-col gap-0.5 max-h-60 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-white/10">
+              <div className="flex flex-col gap-0.5 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
                 {presentRecords.map((r) => (
                   <MemberRow key={r.id} record={r} isCurrentUser={currentUserId === r.user_id} />
                 ))}
@@ -960,16 +1089,16 @@ export default function AttendanceSection({
           </div>
 
           {/* VẮNG MẶT */}
-          <div className="bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/10 rounded-2xl p-4 flex flex-col gap-2">
-            <div className="flex items-center justify-between border-b border-border pb-2 mb-1">
-              <span className="text-[12px] font-black uppercase text-rose-600 dark:text-rose-400 tracking-wider flex items-center gap-1.5">
+          <div className="bg-[#0b111e]/40 border border-rose-500/10 rounded-2xl p-4 flex flex-col gap-2">
+            <div className="flex items-center justify-between border-b border-white/[0.04] pb-2 mb-1">
+              <span className="text-[10px] font-black uppercase text-rose-400 tracking-wider flex items-center gap-1.5">
                 <XCircle className="w-3.5 h-3.5" />
                 Vắng / Chưa điểm danh ({absentRecords.length + unrecordedMembers.length})
               </span>
               {unrecordedMembers.length > 0 && (
                 <button
                   onClick={() => setShowAbsentList(!showAbsentList)}
-                  className="text-[11px] text-muted-foreground hover:text-foreground font-black flex items-center gap-0.5 transition-colors"
+                  className="text-[9px] text-slate-500 hover:text-slate-300 font-black flex items-center gap-0.5 transition-colors"
                 >
                   {showAbsentList ? 'Ẩn' : 'Xem thêm'}
                   <ChevronDown className={`w-2.5 h-2.5 transition-transform ${showAbsentList ? 'rotate-180' : ''}`} />
@@ -988,26 +1117,26 @@ export default function AttendanceSection({
 
             {/* Unrecorded members (chưa điểm danh gì cả) */}
             {showAbsentList && unrecordedMembers.length > 0 && (
-              <div className="flex flex-col gap-0.5 border-t border-border pt-2 mt-1">
-                <p className="text-[11px] text-muted-foreground font-black uppercase tracking-wider mb-1">Chưa điểm danh:</p>
+              <div className="flex flex-col gap-0.5 border-t border-white/[0.04] pt-2 mt-1">
+                <p className="text-[9px] text-slate-600 font-black uppercase tracking-wider mb-1">Chưa điểm danh:</p>
                 {unrecordedMembers.map((name) => (
-                  <div key={name} className="flex items-center gap-2.5 py-1.5 px-3 rounded-xl hover:bg-accent transition-colors">
-                    <div className="w-7 h-7 rounded-full bg-muted border border-border flex items-center justify-center text-[11px] font-black text-muted-foreground shrink-0">
+                  <div key={name} className="flex items-center gap-2.5 py-1.5 px-3 rounded-xl hover:bg-white/[0.02] transition-colors">
+                    <div className="w-7 h-7 rounded-full bg-slate-800/50 border border-white/[0.06] flex items-center justify-center text-[9px] font-black text-slate-500 shrink-0">
                       {name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
                     </div>
-                    <span className="text-[13px] font-bold text-muted-foreground flex-1 truncate">{name}</span>
-                    <span className="text-[11px] font-black text-muted-foreground bg-muted border border-border px-1.5 py-0.5 rounded-full">Chưa điểm</span>
+                    <span className="text-[11px] font-bold text-slate-500 flex-1 truncate">{name}</span>
+                    <span className="text-[9px] font-black text-slate-600 bg-slate-800/50 border border-white/[0.05] px-1.5 py-0.5 rounded-full">Chưa điểm</span>
                   </div>
                 ))}
               </div>
             )}
 
             {absentRecords.length === 0 && !showAbsentList && unrecordedMembers.length === 0 && (
-              <p className="text-[12px] text-muted-foreground font-bold text-center py-3">Không có ai vắng mặt 🎉</p>
+              <p className="text-[10px] text-slate-600 font-bold text-center py-3">Không có ai vắng mặt 🎉</p>
             )}
 
             {absentRecords.length === 0 && !showAbsentList && unrecordedMembers.length > 0 && (
-              <p className="text-[12px] text-muted-foreground font-bold text-center py-3">
+              <p className="text-[10px] text-slate-600 font-bold text-center py-3">
                 {unrecordedMembers.length} thành viên chưa điểm danh
               </p>
             )}
@@ -1016,9 +1145,9 @@ export default function AttendanceSection({
 
         {/* Session notes */}
         {session?.notes && (
-          <div className="bg-muted border border-border rounded-2xl p-3.5 flex gap-2.5">
-            <div className="text-muted-foreground shrink-0 mt-0.5">📋</div>
-            <p className="text-[12px] text-muted-foreground font-bold leading-relaxed">{session.notes}</p>
+          <div className="bg-slate-900/30 border border-white/[0.05] rounded-2xl p-3.5 flex gap-2.5">
+            <div className="text-slate-500 shrink-0 mt-0.5">📋</div>
+            <p className="text-[10px] text-slate-400 font-bold leading-relaxed">{session.notes}</p>
           </div>
         )}
       </div>

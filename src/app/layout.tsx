@@ -1,10 +1,11 @@
 import React, { ReactNode } from 'react';
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Roboto } from 'next/font/google';
 import './globals.css';
 import { Toaster } from 'react-hot-toast';
 import AuthHydration from '@/components/AuthHydration';
 import QueryProvider from '@/components/QueryProvider';
+import InstallPwaPrompt from '@/components/InstallPwaPrompt';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { LanguageProvider } from '@/contexts/SocialLanguageContext';
 
@@ -18,6 +19,19 @@ const roboto = Roboto({
 export const metadata: Metadata = {
   title: 'Video Production System',
   description: 'Automated video production management system',
+  icons: {
+    icon: '/icons/icon-192.png',
+    apple: '/icons/icon-192.png',
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'VCB Task',
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#2563eb',
 };
 
 export default function RootLayout({
@@ -47,6 +61,7 @@ export default function RootLayout({
             }
           }}
         />
+        <InstallPwaPrompt />
       </body>
     </html>
   );

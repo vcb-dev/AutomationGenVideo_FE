@@ -680,3 +680,14 @@ export const markTaskNotificationRead = (id: string) =>
 
 export const markAllTaskNotificationsRead = () =>
   apiClient.post<{ updated: number }>('/task-auto/notifications/read-all').then(r => r.data)
+
+// ── Web Push ─────────────────────────────────────────────────────────────
+
+export const getPushPublicKey = () =>
+  apiClient.get<{ publicKey: string | null }>('/task-auto/notifications/push/public-key').then(r => r.data)
+
+export const subscribePush = (sub: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
+  apiClient.post('/task-auto/notifications/push/subscribe', sub).then(r => r.data)
+
+export const unsubscribePush = (endpoint: string) =>
+  apiClient.post('/task-auto/notifications/push/unsubscribe', { endpoint }).then(r => r.data)

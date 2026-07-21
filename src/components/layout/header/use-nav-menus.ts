@@ -437,6 +437,7 @@ export function useNavMenus(
                 activePathPrefixes: [
                     "/dashboard/ai/clone-voice",
                     "/dashboard/ai/overview",
+                    "/dashboard/ai/content-transform",
                     "/dashboard/tools/video-downloader",
                 ] as string[],
                 sections: [
@@ -455,6 +456,18 @@ export function useNavMenus(
                                 href: "/dashboard/ai/clone-voice",
                                 icon: AudioLines,
                                 description: "Clone & tạo giọng nói AI từ văn bản, dịch kịch bản",
+                            },
+                        ],
+                    },
+                    {
+                        section: "NỘI DUNG AI",
+                        color: "indigo" as const,
+                        items: [
+                            {
+                                label: "Chuyển đổi content",
+                                href: "/dashboard/ai/content-transform",
+                                icon: Wand2,
+                                description: "Rewrite kịch bản thô theo phong cách các nhân vật",
                             },
                         ],
                     },

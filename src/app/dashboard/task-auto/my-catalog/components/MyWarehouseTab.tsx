@@ -265,10 +265,12 @@ export function MyWarehouseTab({
   userId,
   brandType,
   teamMarket,
+  readOnly = false,
 }: {
   userId: string
   brandType: BrandType
   teamMarket?: string
+  readOnly?: boolean
 }) {
   const qc = useQueryClient()
   const [month, setMonth] = useState(currentMonth())
@@ -361,22 +363,24 @@ export function MyWarehouseTab({
             {isLoading ? '...' : `${warehouseItems.length} mục trong kho`}
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setConfirmPush(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 text-sm text-slate-600 hover:bg-gray-50 transition-colors"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Copy từ {prev}
-          </button>
-          <button
-            onClick={() => setShowPickModal(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Thêm vào kho
-          </button>
-        </div>
+        {!readOnly && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setConfirmPush(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 text-sm text-slate-600 hover:bg-gray-50 transition-colors"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Copy từ {prev}
+            </button>
+            <button
+              onClick={() => setShowPickModal(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Thêm vào kho
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Sub-tabs */}
@@ -424,7 +428,7 @@ export function MyWarehouseTab({
                 {subTab === 'products' && (
                   <th className="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide w-28">SL video</th>
                 )}
-                <th className="px-5 py-3 w-16"></th>
+                {!readOnly && <th className="px-5 py-3 w-16"></th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -439,21 +443,27 @@ export function MyWarehouseTab({
                   <td className="px-5 py-3.5 text-slate-500">{subOf(item)}</td>
                   {subTab === 'products' && (
                     <td className="px-5 py-3.5 text-right">
-                      <ProductQuantityCell
-                        value={item.warehouses?.[0]?.target_quantity ?? 1}
-                        onSave={v => updateQuantityMut.mutate({ id: item.id, target_quantity: v })}
-                      />
+                      {readOnly ? (
+                        <span className="text-slate-500 font-semibold">{item.warehouses?.[0]?.target_quantity ?? 1}</span>
+                      ) : (
+                        <ProductQuantityCell
+                          value={item.warehouses?.[0]?.target_quantity ?? 1}
+                          onSave={v => updateQuantityMut.mutate({ id: item.id, target_quantity: v })}
+                        />
+                      )}
                     </td>
                   )}
-                  <td className="px-5 py-3.5 text-right">
-                    <button
-                      onClick={() => removeMut.mutate(item.id)}
-                      disabled={removeMut.isPending}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
+                  {!readOnly && (
+                    <td className="px-5 py-3.5 text-right">
+                      <button
+                        onClick={() => removeMut.mutate(item.id)}
+                        disabled={removeMut.isPending}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

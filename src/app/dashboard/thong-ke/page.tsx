@@ -65,6 +65,38 @@ function StatisticsDashboard() {
   // Current user (from auth store, for attendance)
   const authUser = useAuthStore((state) => state.user);
 
+  // Synchronize initial activeTab based on user's first allowed team
+  useEffect(() => {
+    if (!authUser || teamsList.length === 0) return;
+
+    const roles = (authUser.roles || []) as string[];
+    if (roles.includes('ADMIN') || roles.includes('MANAGER')) return; // Keep default team for ADMIN and MANAGER
+
+    const authUserTeam = authUser.team;
+    if (!authUserTeam) return;
+
+    // Parse user's teams
+    const parsedUserTeams = authUserTeam
+      .split(',')
+      .map((t: string) => {
+        let trimmed = t.trim();
+        if (trimmed.toLowerCase().startsWith('team ')) {
+          trimmed = trimmed.substring(5).trim();
+        }
+        return trimmed.toLowerCase();
+      })
+      .filter((t: string) => t.length > 0);
+
+    // Find the first matching team in teamsList
+    const firstAllowedTeam = teamsList.find((t) =>
+      parsedUserTeams.includes(t.toLowerCase())
+    );
+
+    if (firstAllowedTeam) {
+      setActiveTab(firstAllowedTeam);
+    }
+  }, [authUser, teamsList]);
+
   const showToast = (message: string, type: 'error' | 'success' = 'error') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 5000);
@@ -1039,6 +1071,7 @@ function StatisticsDashboard() {
           currentUserId={authUser?.id}
           currentUserName={authUser?.full_name}
           currentUserRoles={authUser?.roles}
+          authUserTeam={authUser?.team}
           showToast={showToast}
         />
       )}
