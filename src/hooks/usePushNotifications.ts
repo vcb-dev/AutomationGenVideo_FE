@@ -40,7 +40,7 @@ export function usePushNotifications() {
       .register('/sw.js')
       .then((reg) => reg.pushManager.getSubscription())
       .then((sub) => setSubscribed(!!sub))
-      .catch(() => {})
+      .catch((err) => console.error('[push] service worker registration failed:', err))
   }, [supported])
 
   const doSubscribe = useCallback(async (): Promise<PushSubscription> => {

@@ -57,21 +57,25 @@ function PickItemsModal({
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
-  const { data: productsData } = useQuery({
+  const { data: productsData, isLoading: loadingProducts } = useQuery({
     queryKey: ['task-auto', 'products', brandType, 'all-for-warehouse'],
     queryFn: () => getProducts({ brand_type: brandType, limit: 200 }),
     enabled: open && type === 'products',
   })
-  const { data: contentsData } = useQuery({
+  const { data: contentsData, isLoading: loadingContents } = useQuery({
     queryKey: ['task-auto', 'contents', brandType, 'all-for-warehouse'],
     queryFn: () => getContents({ brand_type: brandType, limit: 200 }),
     enabled: open && type === 'contents',
   })
-  const { data: sourcesData } = useQuery({
+  const { data: sourcesData, isLoading: loadingSources } = useQuery({
     queryKey: ['task-auto', 'sources', brandType, 'all-for-warehouse'],
     queryFn: () => getSources({ brand_type: brandType, limit: 200 }),
     enabled: open && type === 'sources',
   })
+  const loadingItems =
+    type === 'products' ? loadingProducts :
+    type === 'contents' ? loadingContents :
+    loadingSources
 
   const allItems = useMemo(() => {
     if (type === 'products') return (productsData?.data ?? []) as Array<Product | Content | Source>
@@ -138,8 +142,12 @@ function PickItemsModal({
           </div>
         </div>
         <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
-          {filtered.length === 0 && <div className="py-10 text-center text-slate-400 text-sm">Không có mục nào</div>}
-          {filtered.map(item => (
+          {loadingItems ? (
+            <div className="py-10 flex justify-center"><Loader2 className="w-6 h-6 text-indigo-400 animate-spin" /></div>
+          ) : filtered.length === 0 ? (
+            <div className="py-10 text-center text-slate-400 text-sm">Không có mục nào</div>
+          ) : null}
+          {!loadingItems && filtered.map(item => (
             <label key={item.id} className="flex items-center gap-3 px-6 py-3 hover:bg-gray-50 cursor-pointer">
               <input type="checkbox" className="w-4 h-4 accent-indigo-600" checked={selected.has(item.id)} onChange={() => toggle(item.id)} />
               <span className="text-sm text-slate-700 flex-1">{labelOf(item)}</span>

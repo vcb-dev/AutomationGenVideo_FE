@@ -354,16 +354,17 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
   const canStart         = task?.status === 'ASSIGNED' && isAssignee
 
   const assignEnabled = editMode && canAssign && task?.status === 'PENDING'
-  const { data: taskTeam } = useQuery({
+  const { data: taskTeam, isLoading: loadingTaskTeam } = useQuery({
     queryKey: ['task-auto', 'team', task?.team_id],
     queryFn: () => getTeam(task!.team_id!),
     enabled: assignEnabled && !!task?.team_id,
   })
-  const { data: approvedEditors } = useQuery({
+  const { data: approvedEditors, isLoading: loadingApprovedEditors } = useQuery({
     queryKey: ['task-auto', 'approvals', 'APPROVED'],
     queryFn: () => getApprovals('APPROVED'),
     enabled: assignEnabled,
   })
+  const loadingEditorUsers = loadingTaskTeam || loadingApprovedEditors
   const editorUsers = useMemo(() => {
     if (!taskTeam?.members || !approvedEditors) return []
     const approvedIds = new Set(approvedEditors.map(a => a.user_id))
@@ -727,6 +728,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                       value: editForm.assignee_id,
                       onChange: v => setEditForm(f => ({ ...f, assignee_id: v })),
                       options: editorUsers ?? [],
+                      loading: loadingEditorUsers,
                     } : undefined}
                   />
                 </div>

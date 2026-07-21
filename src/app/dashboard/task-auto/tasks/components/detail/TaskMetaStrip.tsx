@@ -9,6 +9,7 @@ interface AssigneeEditProps {
   value: string
   onChange: (id: string) => void
   options: UserBasic[]
+  loading?: boolean
 }
 
 export function TaskMetaStrip({ task, assigneeEdit }: { task: Task; assigneeEdit?: AssigneeEditProps }) {
@@ -26,6 +27,7 @@ export function TaskMetaStrip({ task, assigneeEdit }: { task: Task; assigneeEdit
               value={assigneeEdit.value}
               onChange={assigneeEdit.onChange}
               compact
+              loading={assigneeEdit.loading}
               options={[
                 { value: '', label: '— Chưa giao —' },
                 ...assigneeEdit.options.map(u => ({ value: u.id, label: u.full_name })),

@@ -62,9 +62,10 @@ export interface CustomSelectProps {
   searchable?: boolean
   compact?: boolean
   className?: string
+  loading?: boolean
 }
 
-export function CustomSelect({ label, value, onChange, options, searchable, compact, className }: CustomSelectProps) {
+export function CustomSelect({ label, value, onChange, options, searchable, compact, className, loading }: CustomSelectProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -125,7 +126,10 @@ export function CustomSelect({ label, value, onChange, options, searchable, comp
         <span className={selected ? 'text-slate-800' : 'text-slate-400'}>
           {selected?.label ?? '—'}
         </span>
-        <ChevronDown className={cn('w-4 h-4 text-slate-400 shrink-0 transition-transform', open && 'rotate-180')} />
+        {loading
+          ? <Loader2 className="w-4 h-4 text-slate-400 shrink-0 animate-spin" />
+          : <ChevronDown className={cn('w-4 h-4 text-slate-400 shrink-0 transition-transform', open && 'rotate-180')} />
+        }
       </button>
 
       {open && createPortal(
@@ -155,7 +159,11 @@ export function CustomSelect({ label, value, onChange, options, searchable, comp
             </div>
           )}
           <ul className="max-h-52 overflow-y-auto py-1">
-            {filtered.length === 0 ? (
+            {loading ? (
+              <li className="px-4 py-3 text-sm text-slate-400 flex items-center gap-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Đang tải...
+              </li>
+            ) : filtered.length === 0 ? (
               <li className="px-4 py-3 text-sm text-slate-400 italic">Không có kết quả</li>
             ) : (
               filtered.map(o => (
@@ -533,6 +541,7 @@ interface CreatableSelectProps {
   clearLabel?: string
   createLabel?: string
   onCreate: (name: string) => Promise<{ id: string; label: string }>
+  loading?: boolean
 }
 
 export function CreatableSelect({
@@ -541,6 +550,7 @@ export function CreatableSelect({
   clearLabel = '-- Không chọn --',
   createLabel = 'Thêm mới',
   onCreate,
+  loading,
 }: CreatableSelectProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -628,7 +638,10 @@ export function CreatableSelect({
               <X className="w-3.5 h-3.5" />
             </span>
           )}
-          <ChevronDown className={cn('w-4 h-4 text-slate-400 transition-transform', open && 'rotate-180')} />
+          {loading
+            ? <Loader2 className="w-4 h-4 text-slate-400 animate-spin" />
+            : <ChevronDown className={cn('w-4 h-4 text-slate-400 transition-transform', open && 'rotate-180')} />
+          }
         </div>
       </button>
 
@@ -665,7 +678,11 @@ export function CreatableSelect({
                 {clearLabel}
               </button>
             </li>
-            {filtered.length === 0 && !canQuickCreate ? (
+            {loading ? (
+              <li className="px-4 py-3 text-sm text-slate-400 flex items-center gap-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Đang tải...
+              </li>
+            ) : filtered.length === 0 && !canQuickCreate ? (
               <li className="px-4 py-3 text-sm text-slate-400 italic">
                 {search ? 'Không tìm thấy' : 'Chưa có dữ liệu'}
               </li>
