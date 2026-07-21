@@ -172,7 +172,7 @@ export default function ChannelsPage() {
     };
   }, [loadAccounts, refreshAfterOAuth]);
 
-  const handleConnect = async (platform: SocialPlatform) => {
+  const handleConnect = async (platform: SocialPlatform, igMode?: 'direct') => {
     setConnecting(platform);
     const snapshotIds = new Set(accounts.filter(a => a.platform === platform).map(a => a.id));
     accountCountBeforeConnect.current = accounts.length;
@@ -180,7 +180,7 @@ export default function ChannelsPage() {
     const popup = window.open('', `oauth-${platform}`, 'width=620,height=720,left=200,top=80');
 
     try {
-      const { url } = await socialApi.oauth.getUrl(platform);
+      const { url } = await socialApi.oauth.getUrl(platform, igMode ? { igMode } : undefined);
 
       if (!popup) {
         toast.error(tRef.current.popupBlocked);
@@ -409,7 +409,7 @@ export default function ChannelsPage() {
                   <div className="md:ml-auto mt-2 md:mt-0 flex gap-2 flex-wrap">
                     {/* Instagram: không có nút login — tự động lấy từ FB */}
                     {platform === 'INSTAGRAM' && displayAccts.length === 0 && (
-                      <div className="flex gap-2 items-center">
+                      <div className="flex gap-2 items-center flex-wrap">
                         <span className="text-sm text-blue-500 italic">{t.autoFromFB}</span>
                         <button
                           onClick={() => handleConnect('INSTAGRAM')}
@@ -419,10 +419,18 @@ export default function ChannelsPage() {
                           {connecting === 'INSTAGRAM' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : '+'}
                           {connecting === 'INSTAGRAM' ? t.connecting : t.connectInstagram}
                         </button>
+                        <button
+                          onClick={() => handleConnect('INSTAGRAM', 'direct')}
+                          disabled={connecting === 'INSTAGRAM'}
+                          className="flex items-center gap-1 px-3 py-2 text-sm font-semibold text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-xl transition-colors disabled:opacity-60"
+                        >
+                          {connecting === 'INSTAGRAM' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : '+'}
+                          {connecting === 'INSTAGRAM' ? t.connecting : t.connectInstagramDirect}
+                        </button>
                       </div>
                     )}
                     {platform === 'INSTAGRAM' && displayAccts.length > 0 && (
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap">
                         <button
                           onClick={() => handleConnect('INSTAGRAM')}
                           disabled={connecting === 'INSTAGRAM'}
@@ -430,6 +438,14 @@ export default function ChannelsPage() {
                         >
                           {connecting === 'INSTAGRAM' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : '+'}
                           {connecting === 'INSTAGRAM' ? t.connecting : t.addInstagram}
+                        </button>
+                        <button
+                          onClick={() => handleConnect('INSTAGRAM', 'direct')}
+                          disabled={connecting === 'INSTAGRAM'}
+                          className="flex items-center gap-1 px-3 py-2 text-sm font-semibold text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-xl transition-colors disabled:opacity-60"
+                        >
+                          {connecting === 'INSTAGRAM' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : '+'}
+                          {connecting === 'INSTAGRAM' ? t.connecting : t.connectInstagramDirect}
                         </button>
                         <button
                           onClick={() => setIgCollapsed((v) => !v)}

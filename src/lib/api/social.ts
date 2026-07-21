@@ -225,8 +225,11 @@ export const socialApi = {
   },
 
   oauth: {
-    getUrl: (platform: SocialPlatform) =>
-      apiClient.get<{ url: string }>(`/social/oauth/${platform.toLowerCase()}/url`).then((r) => r.data),
+    // igMode='direct' (chỉ Instagram): dùng Instagram Login trực tiếp, không cần FB Page
+    getUrl: (platform: SocialPlatform, opts?: { igMode?: 'direct' }) =>
+      apiClient.get<{ url: string }>(`/social/oauth/${platform.toLowerCase()}/url`, {
+        params: opts?.igMode ? { igMode: opts.igMode } : undefined,
+      }).then((r) => r.data),
     connectViaToken: (platform: SocialPlatform, data: { access_token: string; refresh_token?: string; page_id?: string }) =>
       apiClient.post(`/social/oauth/${platform.toLowerCase()}/token`, data).then((r) => r.data),
   },
