@@ -52,17 +52,17 @@ export function ProductFormModal({ open, editing, userId, title, defaultBrandTyp
     queryFn: getAutoAssignSettings,
     enabled: open,
   })
-  const { data: productLines } = useQuery({
+  const { data: productLines, isLoading: loadingProductLines } = useQuery({
     queryKey: ['task-auto', 'product-lines'],
     queryFn: () => getProductLines(),
     enabled: open,
   })
-  const { data: materials } = useQuery({
+  const { data: materials, isLoading: loadingMaterials } = useQuery({
     queryKey: ['task-auto', 'materials', brandType],
     queryFn: () => getMaterials(brandType),
     enabled: open,
   })
-  const { data: productClassifications } = useQuery({
+  const { data: productClassifications, isLoading: loadingProductClassifications } = useQuery({
     queryKey: ['task-auto', 'product-classifications'],
     queryFn: () => getProductClassifications(),
     enabled: open,
@@ -208,6 +208,7 @@ export function ProductFormModal({ open, editing, userId, title, defaultBrandTyp
               onChange={v => setForm(f => ({ ...f, product_line_id: v }))}
               options={productLines?.map(l => ({ value: l.id, label: l.name })) ?? []}
               createLabel="Thêm dòng sản phẩm"
+              loading={loadingProductLines}
               onCreate={async (name) => {
                 const created = await createProductLine(name)
                 qc.setQueryData<typeof productLines>(['task-auto', 'product-lines'], old => [...(old ?? []), created])
@@ -220,6 +221,7 @@ export function ProductFormModal({ open, editing, userId, title, defaultBrandTyp
               onChange={v => setForm(f => ({ ...f, material_id: v }))}
               options={materials?.map(m => ({ value: m.id, label: m.name })) ?? []}
               createLabel="Thêm chất liệu"
+              loading={loadingMaterials}
               onCreate={async (name) => {
                 const created = await createMaterial(name, brandType)
                 qc.setQueryData<typeof materials>(['task-auto', 'materials', brandType], old => [...(old ?? []), created])
@@ -232,6 +234,7 @@ export function ProductFormModal({ open, editing, userId, title, defaultBrandTyp
               onChange={v => setForm(f => ({ ...f, classification_id: v }))}
               options={productClassifications?.map(c => ({ value: c.id, label: c.name })) ?? []}
               createLabel="Thêm phân loại sản phẩm"
+              loading={loadingProductClassifications}
               onCreate={async (name) => {
                 const created = await createProductClassification(name)
                 qc.setQueryData<typeof productClassifications>(['task-auto', 'product-classifications'], old => [...(old ?? []), created])

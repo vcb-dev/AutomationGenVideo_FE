@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Crown, Users, PenLine, Pencil, Check, X } from 'lucide-react'
+import { Crown, Users, PenLine, Pencil, Check, X, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
 import { EmptyState } from '@/components/task-auto/EmptyState'
@@ -249,6 +249,7 @@ export function MembersTab({ canManage, isAdminOrManager, userId, selectedTeamId
             {members.map(member => {
               const isLeader = member.user_id === selectedTeam?.leader_id
               const isEditor = approvedEditorIds.has(member.user_id)
+              const isTogglingThis = editorMut.isPending && editorMut.variables?.memberId === member.user_id
 
               return (
                 <div key={member.id} className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors">
@@ -287,13 +288,16 @@ export function MembersTab({ canManage, isAdminOrManager, userId, selectedTeamId
                       disabled={editorMut.isPending}
                       title={isEditor ? 'Thu hồi quyền Editor' : 'Gán làm Editor'}
                       className={cn(
-                        'p-1.5 rounded-lg transition-colors flex-shrink-0 text-xs font-semibold flex items-center gap-1',
+                        'p-1.5 rounded-lg transition-colors flex-shrink-0 text-xs font-semibold flex items-center gap-1 disabled:opacity-60',
                         isEditor
                           ? 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
                           : 'bg-gray-100 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600'
                       )}
                     >
-                      <PenLine className="w-3.5 h-3.5" />
+                      {isTogglingThis
+                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        : <PenLine className="w-3.5 h-3.5" />
+                      }
                       {isEditor ? 'Editor' : 'Gán Editor'}
                     </button>
                   )}
