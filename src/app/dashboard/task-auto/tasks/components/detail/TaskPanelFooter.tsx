@@ -1,6 +1,6 @@
 'use client'
 
-import { Loader2, Play, Upload, CheckCircle2, XCircle, RotateCcw, Ban, Check, CalendarClock } from 'lucide-react'
+import { Loader2, Play, Upload, CheckCircle2, XCircle, RotateCcw, Trash2, Check, CalendarClock } from 'lucide-react'
 import type { Task } from '@/types/task-auto'
 
 interface Props {
@@ -8,12 +8,12 @@ interface Props {
   editMode: boolean
   isAssignee: boolean
   canApproveReject: boolean
-  canCancel: boolean
+  canDelete: boolean
   canStart: boolean
   canSchedulePost: boolean
   isPendingStart: boolean
   isPendingApprove: boolean
-  isPendingCancel: boolean
+  isPendingDelete: boolean
   isPendingUpdate: boolean
   onClose: () => void
   onCancelEdit: () => void
@@ -22,17 +22,17 @@ interface Props {
   onSubmit: () => void
   onApprove: () => void
   onReject: () => void
-  onCancel: () => void
+  onDelete: () => void
   onResubmit: () => void
   onSchedulePost: () => void
 }
 
 export function TaskPanelFooter({
   task, editMode,
-  isAssignee, canApproveReject, canCancel, canStart, canSchedulePost,
-  isPendingStart, isPendingApprove, isPendingCancel, isPendingUpdate,
+  isAssignee, canApproveReject, canDelete, canStart, canSchedulePost,
+  isPendingStart, isPendingApprove, isPendingDelete, isPendingUpdate,
   onClose, onCancelEdit, onSaveEdit,
-  onStart, onSubmit, onApprove, onReject, onCancel, onResubmit, onSchedulePost,
+  onStart, onSubmit, onApprove, onReject, onDelete, onResubmit, onSchedulePost,
 }: Props) {
   return (
     <div className="flex items-center justify-between gap-3 px-6 py-4 bg-white border-t border-gray-200 shrink-0">
@@ -100,13 +100,13 @@ export function TaskPanelFooter({
                 <CalendarClock className="w-4 h-4" /> Lên lịch đăng bài
               </button>
             )}
-            {!['APPROVED', 'REJECTED', 'CANCELLED'].includes(task.status) && canCancel && (
+            {!['APPROVED', 'IN_PROGRESS'].includes(task.status) && canDelete && (
               <button
-                onClick={() => { if (confirm('Bạn có chắc muốn huỷ task này?')) onCancel() }}
-                disabled={isPendingCancel}
+                onClick={() => { if (confirm('Bạn có chắc muốn xoá task này? Hành động này không thể hoàn tác.')) onDelete() }}
+                disabled={isPendingDelete}
                 className="border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-60 rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors">
-                {isPendingCancel ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ban className="w-4 h-4" />}
-                Huỷ task
+                {isPendingDelete ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                Xoá task
               </button>
             )}
           </div>
