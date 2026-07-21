@@ -164,7 +164,8 @@ export default function NotificationBell() {
         if (ok) toast.success(t.pushEnabled);
         else toast.error(t.pushPermissionDenied);
       }
-    } catch {
+    } catch (err) {
+      console.error('[push] toggle failed:', err);
       toast.error(t.pushToggleFailed);
     }
   };

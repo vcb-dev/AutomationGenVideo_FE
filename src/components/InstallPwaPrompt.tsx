@@ -8,7 +8,9 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
-const DISMISSED_KEY = 'pwa_install_dismissed';
+// Module-scoped flag: survives tab switches / in-app navigation (same JS
+// execution), but resets automatically on a real page reload.
+let dismissedThisLoad = false;
 
 export default function InstallPwaPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -16,7 +18,7 @@ export default function InstallPwaPrompt() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (sessionStorage.getItem(DISMISSED_KEY)) return;
+    if (dismissedThisLoad) return;
 
     const onBeforeInstall = (e: Event) => {
       e.preventDefault();
@@ -38,7 +40,7 @@ export default function InstallPwaPrompt() {
 
   const dismiss = () => {
     setVisible(false);
-    sessionStorage.setItem(DISMISSED_KEY, '1');
+    dismissedThisLoad = true;
   };
 
   const install = async () => {
