@@ -350,7 +350,7 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
     },
   })
 
-  const canSubmit = !!form.content_id && !!form.product_id && !!form.team_id && !mutation.isPending
+  const canSubmit = !!form.content_id && !!form.team_id && !mutation.isPending
 
   const scopeLabel: Record<Scope, string> = { personal: 'cá nhân', global: 'kho tổng', team: 'kho team' }
 
@@ -435,7 +435,7 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
         <div className="space-y-3">
           <SectionHeader label="Sản phẩm" />
           <ServerSearchSelect
-            label="Sản phẩm *"
+            label="Sản phẩm"
             value={form.product_id}
             onChange={v => {
                 const scopedProduct = products.find(p => (p.source_product_id ?? p.id) === v)

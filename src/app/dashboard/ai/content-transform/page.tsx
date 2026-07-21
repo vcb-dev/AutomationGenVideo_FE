@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
 import {
@@ -80,6 +80,11 @@ export default function ContentTransformPage() {
   // History states
   const [historyItems, setHistoryItems] = useState<TransformHistoryItem[]>([]);
   const [historyTotal, setHistoryTotal] = useState<number>(0);
+  // Đếm tăng dần để nhận biết response nào là request mới nhất — chặn race condition
+  // khi bấm đổi trang nhanh khiến response cũ về sau response mới, ghi đè sai dữ liệu.
+  const personalHistoryRequestId = useRef(0);
+  const memberHistoryRequestId = useRef(0);
+
   const [historyPage, setHistoryPage] = useState<number>(1);
   const [historyLimit] = useState<number>(10);
   const [historyTotalPages, setHistoryTotalPages] = useState<number>(1);
@@ -116,18 +121,21 @@ export default function ContentTransformPage() {
 
   // 2. Fetch personal history
   const fetchPersonalHistory = useCallback(async (page: number) => {
+    const requestId = ++personalHistoryRequestId.current;
     setIsHistoryLoading(true);
     try {
       const res = await apiClient.get('/content-transform/history', {
         params: { page, limit: historyLimit },
       });
+      if (requestId !== personalHistoryRequestId.current) return; // request cũ hơn đã bị request sau ghi đè, bỏ qua
       setHistoryItems(res.data.items || []);
       setHistoryTotal(res.data.total || 0);
       setHistoryTotalPages(res.data.totalPages || 1);
     } catch (err: any) {
+      if (requestId !== personalHistoryRequestId.current) return;
       toast.error('Lỗi khi tải lịch sử chuyển đổi');
     } finally {
-      setIsHistoryLoading(false);
+      if (requestId === personalHistoryRequestId.current) setIsHistoryLoading(false);
     }
   }, [historyLimit]);
 
@@ -150,21 +158,24 @@ export default function ContentTransformPage() {
   // 4. Fetch selected member's history
   const fetchMemberHistory = useCallback(async (memberId: string, page: number) => {
     if (!memberId) return;
+    const requestId = ++memberHistoryRequestId.current;
     setIsMemberHistoryLoading(true);
     try {
       const res = await apiClient.get(`/content-transform/history/member/${memberId}`, {
         params: { page, limit: historyLimit },
       });
+      if (requestId !== memberHistoryRequestId.current) return; // request cũ hơn đã bị request sau ghi đè, bỏ qua
       setMemberHistoryItems(res.data.items || []);
       setMemberHistoryTotal(res.data.total || 0);
       setMemberHistoryTotalPages(res.data.totalPages || 1);
     } catch (err: any) {
+      if (requestId !== memberHistoryRequestId.current) return;
       toast.error('Không có quyền xem lịch sử của thành viên này');
       setMemberHistoryItems([]);
       setMemberHistoryTotal(0);
       setMemberHistoryTotalPages(1);
     } finally {
-      setIsMemberHistoryLoading(false);
+      if (requestId === memberHistoryRequestId.current) setIsMemberHistoryLoading(false);
     }
   }, [historyLimit]);
 
@@ -496,8 +507,8 @@ export default function ContentTransformPage() {
                         );
                       })}
 
-                      {/* Dummy character placeholder 2: Chị Nhạn */}
-                      <div className="group relative p-2.5 2xl:p-3.5 border-2 rounded-xl cursor-pointer transition-all border-[#c7c4d7] bg-white">
+                      {/* Nhân vật chưa có trong hệ thống — hiển thị tham khảo, không bấm chọn được nên KHÔNG dùng cursor-pointer/hover (tránh trông như bấm được mà không có phản hồi gì) */}
+                      <div className="group relative p-2.5 2xl:p-3.5 border-2 rounded-xl transition-all border-[#c7c4d7] bg-white opacity-60">
                         <div className="flex items-center space-x-2 mb-1.5">
                           <div className="w-8 h-8 2xl:w-9 2xl:h-9 rounded-full overflow-hidden border-2 border-[#4441cc]/20 flex-shrink-0">
                             <img alt="Chị Nhạn" className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB1AaFdELtmwmgSb9uG2HcI1kMeuO63zvWNv-iQABmVHTbhky6sSwyVm5CAbwTxbeNJnaqA-EPbRrrQ_afofat9cYl2_JWKkLv_yEXQWIVPDaCFXpKYYlR7rHwZRy0w5013Wqlg7QKfXTOEFGekhB8ouDvCJELFlhRnnTV83YPSv9N0lgYckco8d9lad6gYhJaNJYg8eqW3KxyuAfcfJdU8XqaXP-brWhZDROyeLhACyCnbmMRM1Fsjxg" />
@@ -517,8 +528,8 @@ export default function ContentTransformPage() {
                         </div>
                       </div>
 
-                      {/* Dummy character placeholder 3: Chung Bùi */}
-                      <div className="group relative p-2.5 2xl:p-3.5 border-2 rounded-xl hover:border-[#4441cc] cursor-pointer transition-all border-[#c7c4d7] bg-white">
+                      {/* Nhân vật chưa có trong hệ thống — hiển thị tham khảo, không bấm chọn được */}
+                      <div className="group relative p-2.5 2xl:p-3.5 border-2 rounded-xl transition-all border-[#c7c4d7] bg-white opacity-60">
                         <div className="flex items-center space-x-2 mb-1.5">
                           <div className="w-8 h-8 2xl:w-9 2xl:h-9 rounded-full overflow-hidden border-2 border-[#eae7ea] group-hover:border-[#4441cc]/20 flex-shrink-0">
                             <img alt="Chung Bùi" className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDHfh4UZaE23hQqzJ_k7SX2OpO5ZyN7FjWZFxF2dCcQtnXCMh70phb13ssXLkvxpCzp-zwc878zMCg6squudM-883Plz4J-H4C36CN0SaBykbO_NqLLjbT5ecajfh3pAA2AaW34IE3SJIYEvZw_EcCAZyF-H-Ft70B0DSb1IBE7EwaF20ObfclfI_Gr_gXtZzm4Yy7G-txyh_j8t3_yQg8XF6hY8PfG-O9UQY5ndVzaueSBrM4RyRPIbw" />
@@ -648,9 +659,9 @@ export default function ContentTransformPage() {
                             <td className="py-4 px-4 font-semibold text-[#1b1b1d]">
                               <div className="flex items-center gap-2">
                                 <span className="w-6 h-6 rounded-md bg-[#5e5ce6]/5 text-[#4441cc] border border-[#5e5ce6]/10 text-[10px] font-bold flex items-center justify-center flex-shrink-0">
-                                  {item.character.name[0]}
+                                  {item.character?.name?.[0] || '?'}
                                 </span>
-                                {item.character.name}
+                                {item.character?.name || 'Không rõ'}
                               </div>
                             </td>
                             <td className="py-4 px-4 max-w-xs truncate">{item.input_text}</td>
@@ -850,10 +861,10 @@ export default function ContentTransformPage() {
             <div className="flex items-center justify-between pb-4 border-b border-[#eae7ea]">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-[#5e5ce6]/10 text-[#4441cc] flex items-center justify-center font-bold">
-                  {selectedItem.character.name[0]}
+                  {selectedItem.character?.name?.[0] || '?'}
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-[#1b1b1d]">Chi tiết kịch bản — {selectedItem.character.name}</h3>
+                  <h3 className="text-base font-bold text-[#1b1b1d]">Chi tiết kịch bản — {selectedItem.character?.name || 'Không rõ'}</h3>
                   <div className="flex items-center gap-3 text-[11px] text-[#464554] mt-1">
                     <span className="flex items-center gap-1">
                       <Calendar className="w-3.5 h-3.5" />

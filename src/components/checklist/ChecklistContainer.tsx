@@ -5,7 +5,7 @@ import ChecklistSection, { CHECKLIST_ITEMS } from './ChecklistSection';
 import DetailSection, { DETAIL_ITEMS } from './DetailSection';
 import LeaderEvaluationSection, { LEADER_QUESTIONS } from './LeaderEvaluationSection';
 import TrafficReportSection, { TrafficData, initialTrafficData, initialTrafficChannels } from './TrafficReportSection';
-import { Send, AlertCircle, Calendar, ChevronDown, Check, ChevronLeft, ChevronRight, Layers } from 'lucide-react';
+import { Send, AlertCircle, Calendar, ChevronDown, Check, ChevronLeft, ChevronRight, Layers, Pencil } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
@@ -958,7 +958,7 @@ const ChecklistContainer = ({
 
             {/* Nút submit — Luôn hiện */}
             {!(showOnlyTraffic && availableChannels.length === 0) && (
-                <div className="flex justify-center pt-8 border-t border-gray-100">
+                <div className="flex justify-center items-center gap-3 pt-8 border-t border-gray-100">
                     <button
                         type="button"
                         onClick={handleSubmit}
@@ -966,11 +966,27 @@ const ChecklistContainer = ({
                         className="flex items-center gap-2 bg-[#dbeafe] text-blue-600 px-8 py-4 rounded-full font-bold uppercase tracking-wider hover:bg-blue-200 transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                         <Send className="w-4 h-4" />
-                        {loading ? 'Đang gửi...' : 
-                         (isReadOnly || reportedTeams.includes(selectedTeam)) ? 
-                         (reportDate < localCalendarYMD() ? 'CHỈ XEM (NGÀY ĐÃ QUA)' : `ĐÃ BÁO CÁO XONG ${selectedTeam || ''}`) : 
+                        {loading ? 'Đang gửi...' :
+                         (isReadOnly || reportedTeams.includes(selectedTeam)) ?
+                         (reportDate < localCalendarYMD() ? 'CHỈ XEM (NGÀY ĐÃ QUA)' : `ĐÃ BÁO CÁO XONG ${selectedTeam || ''}`) :
                          'GỬI BÁO CÁO'}
                     </button>
+                    {/* Cho phép tự sửa & nộp lại báo cáo hôm nay (không áp dụng cho ngày quá khứ —
+                        vẫn giữ nguyên chỉ-xem để không sửa lại lịch sử cũ). Bấm xong form mở khoá,
+                        gửi lại sẽ UPDATE bản ghi cũ (backend đã upsert theo email/tên, không tạo trùng). */}
+                    {!loading && isReadOnly && reportDate >= localCalendarYMD() && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setIsReadOnly(false);
+                                setReportedTeams(prev => prev.filter(t => t !== selectedTeam));
+                            }}
+                            className="flex items-center gap-2 bg-amber-50 text-amber-700 px-6 py-4 rounded-full font-bold uppercase tracking-wider hover:bg-amber-100 transition-all shadow-sm border-2 border-amber-200"
+                        >
+                            <Pencil className="w-4 h-4" />
+                            Sửa báo cáo
+                        </button>
+                    )}
                 </div>
             )}
         </div>

@@ -313,23 +313,43 @@ function MemberStatusDropdown({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const options: { value: AttendanceStatus; label: string; dotColor: string; textColor: string; bg: string; border: string }[] = [
-    { 
-      value: 'PRESENT', 
-      label: 'Có mặt', 
-      dotColor: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]', 
-      textColor: 'text-emerald-400', 
-      bg: 'bg-emerald-500/10', 
-      border: 'border-emerald-500/20' 
+  const options: { value: AttendanceStatus; label: string; dotColor: string; textColor: string; bg: string; border: string; buttonClass: string }[] = [
+    {
+      value: 'PRESENT',
+      label: 'Có mặt',
+      dotColor: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]',
+      textColor: 'text-emerald-400',
+      bg: 'bg-emerald-500/10',
+      border: 'border-emerald-500/20',
+      buttonClass: 'bg-emerald-950/10 border-emerald-500/30 text-emerald-400 hover:border-emerald-500/50',
     },
-    { 
-      value: 'ABSENT', 
-      label: 'Vắng', 
-      dotColor: 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]', 
-      textColor: 'text-rose-400', 
-      bg: 'bg-rose-500/10', 
-      border: 'border-rose-500/20' 
-    }
+    {
+      value: 'LATE',
+      label: 'Đi trễ',
+      dotColor: 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]',
+      textColor: 'text-amber-400',
+      bg: 'bg-amber-500/10',
+      border: 'border-amber-500/20',
+      buttonClass: 'bg-amber-950/10 border-amber-500/30 text-amber-400 hover:border-amber-500/50',
+    },
+    {
+      value: 'ABSENT',
+      label: 'Vắng',
+      dotColor: 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]',
+      textColor: 'text-rose-400',
+      bg: 'bg-rose-500/10',
+      border: 'border-rose-500/20',
+      buttonClass: 'bg-rose-950/10 border-rose-500/30 text-rose-400 hover:border-rose-500/50',
+    },
+    {
+      value: 'ON_LEAVE',
+      label: 'Nghỉ phép',
+      dotColor: 'bg-sky-500 shadow-[0_0_8px_rgba(14,165,233,0.6)]',
+      textColor: 'text-sky-400',
+      bg: 'bg-sky-500/10',
+      border: 'border-sky-500/20',
+      buttonClass: 'bg-sky-950/10 border-sky-500/30 text-sky-400 hover:border-sky-500/50',
+    },
   ];
 
   const current = options.find(o => o.value === value) || options[0];
@@ -339,11 +359,7 @@ function MemberStatusDropdown({
       <button
         type="button"
         onClick={() => toggleOpen(!isOpen)}
-        className={`w-full flex items-center justify-between h-8 px-3 rounded-xl border transition-all duration-300 text-[10px] font-black cursor-pointer select-none shadow-sm ${
-          value === 'PRESENT'
-            ? 'bg-emerald-950/10 border-emerald-500/30 text-emerald-400 hover:border-emerald-500/50'
-            : 'bg-rose-950/10 border-rose-500/30 text-rose-400 hover:border-rose-500/50'
-        }`}
+        className={`w-full flex items-center justify-between h-8 px-3 rounded-xl border transition-all duration-300 text-[10px] font-black cursor-pointer select-none shadow-sm ${current.buttonClass}`}
       >
         <div className="flex items-center gap-2">
           <span className={`w-2 h-2 rounded-full ${current.dotColor}`} />
