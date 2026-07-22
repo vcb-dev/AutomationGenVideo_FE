@@ -405,7 +405,7 @@ export default function ChannelsPage() {
                         className="flex items-center gap-1 px-3 py-2 text-white text-sm font-semibold rounded-xl transition-all disabled:opacity-60 shadow-sm hover:shadow-md active:scale-95"
                         style={{ backgroundColor: meta.color }}
                       >
-                        {connecting === 'INSTAGRAM' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : '+'}
+                        {connecting === 'INSTAGRAM' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : meta.icon}
                         {connecting === 'INSTAGRAM' ? t.connecting : t.connectInstagram}
                       </button>
                     )}
@@ -417,7 +417,7 @@ export default function ChannelsPage() {
                           className="flex items-center gap-1 px-3 py-2 text-white text-sm font-semibold rounded-xl transition-all disabled:opacity-60 shadow-sm hover:shadow-md active:scale-95"
                           style={{ backgroundColor: meta.color }}
                         >
-                          {connecting === 'INSTAGRAM' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : '+'}
+                          {connecting === 'INSTAGRAM' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : meta.icon}
                           {connecting === 'INSTAGRAM' ? t.connecting : t.addInstagram}
                         </button>
                         <button
