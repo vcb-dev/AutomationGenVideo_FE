@@ -1,7 +1,7 @@
 import apiClient from '../api-client';
 import { withUploadQueue } from '../upload-queue';
 
-export type SocialPlatform = 'FACEBOOK' | 'INSTAGRAM' | 'TIKTOK' | 'THREADS' | 'YOUTUBE' | 'ZALO';
+export type SocialPlatform = 'FACEBOOK' | 'INSTAGRAM' | 'THREADS' | 'YOUTUBE';
 
 export interface SocialAccount {
   id: string;
@@ -340,18 +340,12 @@ export function getPostUrl(result?: SocialPostResult | Record<string, unknown> |
   if (typeof result.postId === 'string' && result.postId) {
     if (!platform || platform === 'FACEBOOK') return `https://www.facebook.com/${result.postId}`;
   }
-  // TikTok: videoId stored after backend fix
-  if (typeof result.tiktokVideoId === 'string' && result.tiktokVideoId) {
-    return `https://www.tiktok.com/video/${result.tiktokVideoId}`;
-  }
   return null;
 }
 
 export const PLATFORM_META: Record<SocialPlatform, { label: string; color: string; emoji: string }> = {
   FACEBOOK:  { label: 'Facebook',   color: 'bg-blue-600',   emoji: '👤' },
   INSTAGRAM: { label: 'Instagram',  color: 'bg-pink-500',   emoji: '📷' },
-  TIKTOK:    { label: 'TikTok',     color: 'bg-black',      emoji: '🎵' },
   THREADS:   { label: 'Threads',    color: 'bg-gray-800',   emoji: '🧵' },
   YOUTUBE:   { label: 'YouTube',    color: 'bg-red-600',    emoji: '▶️' },
-  ZALO:      { label: 'Zalo OA',    color: 'bg-sky-500',    emoji: '💬' },
 };

@@ -210,7 +210,7 @@ export default function BulkSchedulePage() {
           <p className="text-sm font-bold text-blue-800 mb-2">📌 {t.bulk.instructions}</p>
           <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-blue-700">
             {[
-              ['platform', 'FACEBOOK, INSTAGRAM, TIKTOK, YOUTUBE, THREADS, ZALO'],
+              ['platform', 'FACEBOOK, INSTAGRAM, YOUTUBE, THREADS'],
               ['account_name', t.bulk.colAccountName],
               ['content', t.bulk.colContent],
               ['hashtags', t.bulk.colHashtags],

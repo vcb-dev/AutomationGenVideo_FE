@@ -170,21 +170,18 @@ export default function ComposePage() {
   const { addTask, updateTask, tasks } = useTaskStore();
 
   // Limits
-  const PLATFORM_LIMITS: Record<string, number> = { 
-    THREADS: 500, 
-    FACEBOOK: 63206, 
-    INSTAGRAM: 2200, 
-    TIKTOK: 2200, 
-    YOUTUBE: 5000 
+  const PLATFORM_LIMITS: Record<string, number> = {
+    THREADS: 500,
+    FACEBOOK: 63206,
+    INSTAGRAM: 2200,
+    YOUTUBE: 5000
   };
 
   const PLATFORM_SUPPORT = {
     FACEBOOK: { text: true,  image: true,  video_vertical: true, video_horizontal: true },
     THREADS:  { text: true,  image: true,  video_vertical: true, video_horizontal: true },
     INSTAGRAM:{ text: false, image: true,  video_vertical: true, video_horizontal: false },
-    TIKTOK:   { text: false, image: false, video_vertical: true, video_horizontal: false },
     YOUTUBE:  { text: false, image: false, video_vertical: true, video_horizontal: true },
-    ZALO:     { text: true,  image: false, video_vertical: true, video_horizontal: true },
   };
 
   // --- ACTIONS ---
@@ -1350,15 +1347,6 @@ export default function ComposePage() {
                   icon: (
                     <svg className="w-3.5 h-3.5 fill-white" viewBox="0 0 24 24">
                       <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.132 15.344c-.754.754-1.802 1.156-2.956 1.132-1.328-.027-2.454-.576-3.18-1.554-.645-.87-1.025-2.072-.754-3.414.281-1.385 1.054-2.401 2.193-2.88 1.01-.424 2.19-.286 3.125.367.625.434 1.077 1.066 1.258 1.758h.044c.055-.429.071-.857.049-1.286-.066-1.332-.733-2.522-1.884-3.351-1.228-.885-2.731-1.306-4.226-1.187-1.879.149-3.57 1.031-4.759 2.483C4.912 8.878 4.316 10.74 4.372 12.656c.112 3.842 3.14 6.942 6.981 7.142.923.048 1.841-.097 2.709-.431.547-.211.968-.588 1.218-1.09.208-.415.228-.87.054-1.312l-.028-.066zm-5.071-5.185c-.636.267-1.066.834-1.219 1.597-.134.664-.002 1.295.353 1.777.348.472.905.748 1.564.779.613.028 1.2-.178 1.572-.551.467-.468.653-1.173.524-1.99-.071-.444-.27-.852-.577-1.18-.328-.352-.771-.532-1.257-.532-.321-.001-.643.033-.96.1z"/>
-                    </svg>
-                  )
-                },
-                { 
-                  id: 'TIKTOK', 
-                  color: 'bg-black', 
-                  icon: (
-                    <svg className="w-3.5 h-3.5 fill-white" viewBox="0 0 24 24">
-                      <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.06-2.89-.54-4.11-1.32-.76-.5-1.41-1.13-1.92-1.87v7.54c.03 2.12-.51 4.34-2 5.92-1.58 1.67-4.01 2.5-6.24 2.17-2.31-.34-4.52-2.1-5.14-4.41C-.71 14.15-.09 10.22 2.21 8.21c1.83-1.61 4.49-1.96 6.8-1.12.01 1.43-.01 2.85 0 4.28-1.47-.46-3.15-.22-4.33.72-1.14.92-1.5 2.53-1.01 3.93.45 1.26 1.77 2.15 3.1 2.13 1.48-.02 2.76-1.11 2.94-2.58.05-1.14.01-6.19.01-15.55z"/>
                     </svg>
                   )
                 }

@@ -63,10 +63,8 @@ const T = {
     loginLabel: {
       FACEBOOK: 'Đăng nhập với Facebook',
       INSTAGRAM: 'Kết nối Instagram',
-      TIKTOK: 'Đăng nhập với TikTok',
       THREADS: 'Đăng nhập với Threads',
       YOUTUBE: 'Đăng nhập với YouTube',
-      ZALO: 'Đăng nhập với Zalo',
     },
     dateLocale: 'vi',
     // ── NotificationBell ───────────────────────────────────────────────────
@@ -136,7 +134,7 @@ const T = {
       addVideoHintTab: 'Đăng bài',
       addVideoHintSuffix: 'trước',
       thumbnailTitle: 'Ảnh bìa video',
-      thumbnailDesc: 'Chọn frame từ video hoặc upload ảnh tùy chỉnh. Dùng cho YouTube, TikTok, Facebook video.',
+      thumbnailDesc: 'Chọn frame từ video hoặc upload ảnh tùy chỉnh. Dùng cho YouTube, Facebook video.',
       thumbnailAlt: 'Ảnh bìa',
       thumbnailSelected: 'Ảnh bìa đã chọn',
       thumbnailNotChosen: 'Chưa chọn',
@@ -720,7 +718,7 @@ const T = {
       hrDesc: 'Thêm, sửa, xóa nhân sự trong team',
 
       connectAccounts: 'Kết nối tài khoản',
-      connectAccountsDesc: 'Kết nối Facebook, Instagram, TikTok, Threads, YouTube, Zalo',
+      connectAccountsDesc: 'Kết nối Facebook, Instagram, Threads, YouTube',
       compose: 'Soạn & đăng bài',
       composeDesc: 'Tạo và đăng bài lên nhiều nền tảng',
       schedule: 'Lịch đăng',
@@ -840,10 +838,8 @@ const T = {
     loginLabel: {
       FACEBOOK: 'Login with Facebook',
       INSTAGRAM: 'Connect Instagram',
-      TIKTOK: 'Login with TikTok',
       THREADS: 'Login with Threads',
       YOUTUBE: 'Login with YouTube',
-      ZALO: 'Login with Zalo',
     },
     dateLocale: 'en-US',
     notifTitle: '🔔 Post Notifications',
@@ -910,7 +906,7 @@ const T = {
       addVideoHintTab: 'Publish',
       addVideoHintSuffix: 'tab first',
       thumbnailTitle: 'Video Thumbnail',
-      thumbnailDesc: 'Pick a frame from the video or upload a custom image. Used for YouTube, TikTok, Facebook video.',
+      thumbnailDesc: 'Pick a frame from the video or upload a custom image. Used for YouTube, Facebook video.',
       thumbnailAlt: 'Thumbnail',
       thumbnailSelected: 'Thumbnail selected',
       thumbnailNotChosen: 'Not chosen',
@@ -1494,7 +1490,7 @@ const T = {
       hrDesc: 'Add, edit, and remove team members',
 
       connectAccounts: 'Connect Accounts',
-      connectAccountsDesc: 'Connect Facebook, Instagram, TikTok, Threads, YouTube, Zalo',
+      connectAccountsDesc: 'Connect Facebook, Instagram, Threads, YouTube',
       compose: 'Compose & Publish',
       composeDesc: 'Create and publish posts to multiple platforms',
       schedule: 'Post Schedule',
