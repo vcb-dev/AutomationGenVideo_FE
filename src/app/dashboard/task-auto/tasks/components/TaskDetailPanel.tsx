@@ -24,6 +24,7 @@ import { ProductSection } from './detail/ProductSection'
 import { VideoPreviewOverlay } from './detail/VideoPreviewOverlay'
 import { VideoScriptSection } from './detail/VideoScriptSection'
 import { TaskSchedulePostModal } from './detail/TaskSchedulePostModal'
+import { PublishedLinksSection } from './detail/PublishedLinksSection'
 import type { Source, TeamSource } from '@/types/task-auto'
 
 type CatalogScope = 'personal' | 'global' | 'team'
@@ -731,6 +732,14 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                       loading: loadingEditorUsers,
                     } : undefined}
                   />
+
+                  {task.status === 'APPROVED' && (
+                    <PublishedLinksSection
+                      taskId={task.id}
+                      publishedLinks={task.published_links}
+                      canEdit={isAssignee || canApproveReject}
+                    />
+                  )}
                 </div>
               </div>
             )}

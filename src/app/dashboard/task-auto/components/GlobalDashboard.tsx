@@ -3,11 +3,11 @@
 import { PieChart, Pie, Tooltip, ResponsiveContainer } from 'recharts'
 import {
   ListTodo, Clock, AlertTriangle, CheckCircle2, XCircle, Send,
-  CalendarCheck2, FileText, Users, UserCheck, BarChart3, UserPlus, ArrowRight,
+  CalendarCheck2, Users, UserCheck, BarChart3, UserPlus, ArrowRight,
 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
-import { DashboardCard, MetricStat } from './DashboardUI'
+import { DashboardCard, MetricStat, PeriodBadge } from './DashboardUI'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -16,7 +16,6 @@ interface GlobalData {
   today_deadline:    number
   overdue:           number
   monthly_completed: number
-  contents:          { available: number; in_task: number; used: number; archived: number }
   editors:           { total: number; approved: number; pending_approval: number }
 }
 
@@ -26,7 +25,6 @@ export function buildGlobal(d: any): GlobalData {
     today_deadline:    d.today_deadline    ?? 0,
     overdue:           d.overdue           ?? 0,
     monthly_completed: d.monthly_completed ?? 0,
-    contents:          d.contents          ?? { available: 0, in_task: 0, used: 0, archived: 0 },
     editors:           d.editors           ?? { total: 0, approved: 0, pending_approval: 0 },
   }
 }
@@ -57,11 +55,12 @@ function TaskTooltip({ active, payload }: any) {
 
 // ─── System Performance Summary ───────────────────────────────────────────────
 
-function SystemPerformanceSummary({ tasks, today_deadline, overdue, monthly_completed }: {
+function SystemPerformanceSummary({ tasks, today_deadline, overdue, monthly_completed, periodLabel }: {
   tasks: GlobalData['tasks']
   today_deadline: number
   overdue: number
   monthly_completed: number
+  periodLabel: string
 }) {
   const total          = tasks.total ?? 0
   const cancelled      = tasks.cancelled ?? 0
@@ -76,7 +75,7 @@ function SystemPerformanceSummary({ tasks, today_deadline, overdue, monthly_comp
     <DashboardCard
       icon={BarChart3} iconColor="text-blue-600" iconBg="bg-blue-50"
       title="Hiệu suất hệ thống"
-      right={<span className="text-xs font-medium text-slate-400">Tổng toàn thời gian</span>}
+      right={<PeriodBadge label={periodLabel} />}
     >
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 divide-x divide-y divide-slate-100 sm:divide-y-0">
         <MetricStat
@@ -97,7 +96,7 @@ function SystemPerformanceSummary({ tasks, today_deadline, overdue, monthly_comp
           tone="violet" active={submitted > 0}
         />
         <MetricStat
-          icon={CalendarCheck2} label="Hoàn thành tháng" value={monthly_completed} sub="task đã duyệt"
+          icon={CalendarCheck2} label="Hoàn thành trong kỳ" value={monthly_completed} sub="task đã duyệt"
           tone="emerald"
         />
         <MetricStat
@@ -116,54 +115,6 @@ function SystemPerformanceSummary({ tasks, today_deadline, overdue, monthly_comp
             style={{ width: `${completionRate}%` }}
           />
         </div>
-      </div>
-    </DashboardCard>
-  )
-}
-
-// ─── Content Inventory Card ───────────────────────────────────────────────────
-
-function ContentInventoryCard({ contents }: { contents: GlobalData['contents'] }) {
-  const total = (contents.available + contents.in_task + contents.used + contents.archived) || 1
-
-  const rows = [
-    { label: 'Sẵn sàng',    value: contents.available, color: 'bg-emerald-500', text: 'text-emerald-700' },
-    { label: 'Đang dùng',   value: contents.in_task,   color: 'bg-amber-400',   text: 'text-amber-700' },
-    { label: 'Đã dùng',     value: contents.used,      color: 'bg-blue-400',    text: 'text-blue-700' },
-    { label: 'Lưu trữ',     value: contents.archived,  color: 'bg-slate-300',   text: 'text-slate-500' },
-  ]
-
-  return (
-    <DashboardCard
-      icon={FileText} iconColor="text-emerald-600" iconBg="bg-emerald-50"
-      title="Kho nội dung" subtitle="Content scripts"
-      right={<span className="text-2xl font-black text-slate-700 tracking-tight">{total - contents.archived}</span>}
-      className="flex flex-col"
-    >
-      <div className="px-5 py-4 space-y-3 flex-1">
-        {rows.map(r => {
-          const pct = Math.round((r.value / total) * 100)
-          return (
-            <div key={r.label}>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-slate-500">{r.label}</span>
-                <span className={cn('text-sm font-bold tabular-nums', r.text)}>{r.value}</span>
-              </div>
-              <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                <div className={cn('h-full rounded-full transition-all duration-500', r.color)}
-                  style={{ width: `${pct}%` }} />
-              </div>
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Availability highlight */}
-      <div className="mx-4 mb-4 flex items-center justify-between bg-emerald-50 rounded-xl px-4 py-2.5">
-        <span className="text-xs font-semibold text-emerald-700">Tỷ lệ có sẵn</span>
-        <span className="text-base font-black text-emerald-600 tracking-tight">
-          {Math.round((contents.available / total) * 100)}%
-        </span>
       </div>
     </DashboardCard>
   )
@@ -230,7 +181,7 @@ function EditorPipelineCard({ editors }: { editors: GlobalData['editors'] }) {
 
 // ─── GlobalDashboard ──────────────────────────────────────────────────────────
 
-export function GlobalDashboard({ d }: { d: GlobalData }) {
+export function GlobalDashboard({ d, periodLabel }: { d: GlobalData; periodLabel: string }) {
   const tasks = d.tasks
   const total = tasks.total || 1
 
@@ -253,25 +204,27 @@ export function GlobalDashboard({ d }: { d: GlobalData }) {
         today_deadline={d.today_deadline}
         overdue={d.overdue}
         monthly_completed={d.monthly_completed}
+        periodLabel={periodLabel}
       />
 
-      {/* ── 3-col: Task donut | Content | Editor ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      {/* ── 2-col: Task donut | Editor ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
         {/* Task distribution */}
         <DashboardCard
           icon={ListTodo} iconColor="text-indigo-600" iconBg="bg-indigo-50"
           title="Phân bố task"
           action={{ href: '/dashboard/task-auto/tasks', label: 'Xem tất cả' }}
+          className="flex flex-col"
         >
-          <div className="p-5">
+          <div className="p-5 flex-1 flex flex-col">
             {taskChartData.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 text-slate-400">
+              <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
                 <ListTodo className="w-8 h-8 mb-2 opacity-20" />
                 <p className="text-sm">Chưa có task nào</p>
               </div>
             ) : (
-              <div className="flex flex-col items-center gap-5">
+              <div className="flex-1 flex flex-col items-center gap-5">
                 {/* Donut */}
                 <div className="relative w-44 h-44 shrink-0">
                   <ResponsiveContainer width="100%" height="100%">
@@ -316,31 +269,28 @@ export function GlobalDashboard({ d }: { d: GlobalData }) {
                     )
                   })}
                 </div>
-
-                {/* Urgent alerts */}
-                {(d.overdue > 0 || d.today_deadline > 0) && (
-                  <div className="w-full space-y-1.5">
-                    {d.overdue > 0 && (
-                      <div className="flex items-center gap-2 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
-                        <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
-                        <span className="text-xs text-red-600 font-semibold">{d.overdue} task đang quá hạn</span>
-                      </div>
-                    )}
-                    {d.today_deadline > 0 && (
-                      <div className="flex items-center gap-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
-                        <Clock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                        <span className="text-xs text-amber-700 font-semibold">{d.today_deadline} task đến hạn hôm nay</span>
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
             )}
           </div>
-        </DashboardCard>
 
-        {/* Content inventory */}
-        <ContentInventoryCard contents={d.contents} />
+          {/* Urgent alerts — pinned footer band, mirrors EditorPipelineCard's action band */}
+          {taskChartData.length > 0 && (d.overdue > 0 || d.today_deadline > 0) && (
+            <div className="mx-4 mb-4 space-y-1.5">
+              {d.overdue > 0 && (
+                <div className="flex items-center gap-2 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
+                  <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                  <span className="text-xs text-red-600 font-semibold">{d.overdue} task đang quá hạn</span>
+                </div>
+              )}
+              {d.today_deadline > 0 && (
+                <div className="flex items-center gap-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                  <Clock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                  <span className="text-xs text-amber-700 font-semibold">{d.today_deadline} task đến hạn hôm nay</span>
+                </div>
+              )}
+            </div>
+          )}
+        </DashboardCard>
 
         {/* Editor pipeline */}
         <EditorPipelineCard editors={d.editors} />

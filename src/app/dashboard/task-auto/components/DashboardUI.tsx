@@ -54,6 +54,13 @@ export function DashboardCard({
   )
 }
 
+// ─── PeriodBadge ──────────────────────────────────────────────────────────────
+// Shows the currently-applied date-filter period on a DashboardCard's `right` slot.
+
+export function PeriodBadge({ label }: { label: string }) {
+  return <span className="text-xs font-medium text-slate-400">{label}</span>
+}
+
 // ─── MetricStat ───────────────────────────────────────────────────────────────
 // Compact icon + value cell used inside performance-summary strips.
 
