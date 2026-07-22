@@ -673,7 +673,7 @@ export const getTeamMonthlyPushStats = (teamId: string, month?: string) =>
 
 // ── Notifications ────────────────────────────────────────────────────────────
 
-export const getTaskNotifications = (q: { unread_only?: boolean; page?: number; limit?: number } = {}) =>
+export const getTaskNotifications = (q: { unread_only?: boolean; type?: string; page?: number; limit?: number } = {}) =>
   apiClient.get<PaginatedResult<Notification>>(`/task-auto/notifications${qs(q as any)}`).then(r => r.data)
 
 export const getTaskNotificationUnreadCount = () =>
