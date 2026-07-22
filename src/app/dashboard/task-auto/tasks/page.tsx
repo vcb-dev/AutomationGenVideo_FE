@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth-store'
 
 import { TaskStatsBar } from './components/TaskStatsBar'
+import { WarehouseEmptyBanner } from './components/WarehouseEmptyBanner'
 import { TaskFilters } from './components/TaskFilters'
 import { TasksTable } from './components/TasksTable'
 import { SubmittedVideosGrid } from './components/SubmittedVideosGrid'
@@ -229,6 +230,8 @@ export default function TasksPage() {
       </div>
 
       {/* <TaskStatsBar tasks={tasks} /> */}
+
+      {isMineView && <WarehouseEmptyBanner enabled={isMineView} />}
 
       {activeTab === 'table' ? (
         <TasksTable

@@ -587,12 +587,25 @@ export interface AutoAssignSetting {
 
 // ── Notifications ───────────────────────────────
 
+/** meta của Notification type=AUTO_ASSIGN_EMPTY_WAREHOUSE — xem warehouse-empty-notice.ts (BE) */
+export interface EmptyWarehouseNoticeMeta {
+  videosNeededToday: number
+  productKpi: {
+    planned: number
+    pushedThisMonth: number
+    remaining: number
+    pendingProducts?: { id: string; name: string }[]
+  } | null
+  contentLines: { id: string; name: string; count: number }[]
+}
+
 export interface Notification {
   id: string
   user_id: string
   type: string
   title: string
   body: string | null
+  meta?: EmptyWarehouseNoticeMeta | null
   task_id: string | null
   is_read: boolean
   created_at: string
