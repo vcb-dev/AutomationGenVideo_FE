@@ -434,6 +434,13 @@ export interface TeamSource {
 
 // ── Tasks ────────────────────────────────────────
 
+export interface PublishedLink {
+  id: string
+  /** Tên nền tảng tự do; "FACEBOOK"/"TIKTOK"/"INSTAGRAM"/"YOUTUBE" được nhận icon thương hiệu, còn lại dùng icon mặc định */
+  platform: string
+  url: string
+}
+
 export interface Task {
   id: string
   team_id: string
@@ -467,6 +474,7 @@ export interface Task {
   task_type: TaskTypeValue
   run_id: string | null
   result_url: string | null
+  published_links?: PublishedLink[] | null
   submitted_at: string | null
   reviewed_by_id: string | null
   reviewed_at: string | null

@@ -28,6 +28,7 @@ import type {
   TeamContent,
   TeamPushRequest,
   Notification,
+  PublishedLink,
 } from '@/types/task-auto'
 
 function qs(params: Record<string, string | number | boolean | undefined | null>): string {
@@ -63,6 +64,9 @@ export const approveTask = (id: string) =>
 
 export const rejectTask = (id: string, reason: string) =>
   apiClient.post<Task>(`/task-auto/tasks/${id}/review`, { action: 'REJECTED', reject_reason: reason }).then(r => r.data)
+
+export const updateTaskPublishedLinks = (id: string, links: PublishedLink[]) =>
+  apiClient.patch<Task>(`/task-auto/tasks/${id}/published-links`, { links }).then(r => r.data)
 
 export const startTask = (id: string) =>
   apiClient.put<Task>(`/task-auto/tasks/${id}`, { status: 'IN_PROGRESS' }).then(r => r.data)
@@ -262,12 +266,12 @@ export type TaskAutoDashboard = {
   today_deadline?: number
   overdue?: number
   monthly_completed?: number
-  contents?: { available: number; in_task: number; used: number; archived: number }
   editors?: { total: number; approved: number; pending_approval: number }
   team?: { id: string; name: string; member_count: number } | null
   members?: Array<{
     user_id: string; full_name: string; email: string
     pending: number; in_progress: number; submitted: number; approved: number
+    kpi_completed: number
     kpi_target: number; kpi_video_win: number; kpi_content_new: number; kpi_product_planned: number
   }>
   kpi?: {

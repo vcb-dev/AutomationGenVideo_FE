@@ -7,7 +7,7 @@ import {
 import { cn } from '@/lib/utils'
 import { StatusBar } from './StatusBar'
 import { KpiProgress } from './KpiProgress'
-import { DashboardCard, MetricStat } from './DashboardUI'
+import { DashboardCard, MetricStat, PeriodBadge } from './DashboardUI'
 
 function formatMonth(yyyymm: string) {
   const [y, m] = yyyymm.split('-')
@@ -52,7 +52,7 @@ function MonthPacingHint({ completed, target }: { completed: number; target: num
 
 // ─── Team Performance Summary ────────────────────────────────────────────────
 
-function TeamPerformanceSummary({ tasks, members }: { tasks: any; members: any[] }) {
+function TeamPerformanceSummary({ tasks, members, periodLabel }: { tasks: any; members: any[]; periodLabel: string }) {
   const total    = tasks.total ?? 0
   const approved = tasks.approved ?? 0
   const rejected = tasks.rejected ?? 0
@@ -64,7 +64,7 @@ function TeamPerformanceSummary({ tasks, members }: { tasks: any; members: any[]
     <DashboardCard
       icon={BarChart3} iconColor="text-blue-600" iconBg="bg-blue-50"
       title="Hiệu suất Team"
-      right={<span className="text-xs font-medium text-slate-400">Tổng toàn thời gian</span>}
+      right={<PeriodBadge label={periodLabel} />}
     >
       <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y divide-slate-100 sm:divide-y-0">
         <MetricStat
@@ -133,7 +133,7 @@ function CountBadge({ value, color, bg }: { value: number; color: string; bg: st
 
 // ─── TeamDashboard ────────────────────────────────────────────────────────────
 
-export function TeamDashboard({ d }: { d: any }) {
+export function TeamDashboard({ d, periodLabel }: { d: any; periodLabel: string }) {
   const tasks: any    = d.tasks ?? { total: 0 }
   const members: any[] = d.members ?? []
   const kpi = d.kpi
@@ -142,7 +142,7 @@ export function TeamDashboard({ d }: { d: any }) {
     <div className="space-y-5">
 
       {/* ── Team Performance ── */}
-      <TeamPerformanceSummary tasks={tasks} members={members} />
+      <TeamPerformanceSummary tasks={tasks} members={members} periodLabel={periodLabel} />
 
       {/* ── Status distribution + KPI ── */}
       <div className={cn('grid grid-cols-1 gap-4', kpi ? 'lg:grid-cols-2' : '')}>
@@ -152,8 +152,9 @@ export function TeamDashboard({ d }: { d: any }) {
           icon={BarChart3} iconColor="text-slate-500" iconBg="bg-slate-100"
           title="Phân bố trạng thái"
           action={{ href: '/dashboard/task-auto/tasks', label: 'Xem tất cả' }}
+          className="flex flex-col"
         >
-          <div className="px-5 py-4">
+          <div className="px-5 py-4 flex-1">
             <StatusBar tasks={tasks} />
           </div>
           {/* Rejected warning */}
@@ -241,7 +242,7 @@ export function TeamDashboard({ d }: { d: any }) {
                   </td>
                 </tr>
               ) : members.map((m: any) => {
-                const kpiPct    = m.kpi_target > 0 ? (m.approved / m.kpi_target) * 100 : 100
+                const kpiPct    = m.kpi_target > 0 ? (m.kpi_completed / m.kpi_target) * 100 : 100
                 const isBehind  = m.kpi_target > 0 && kpiPct < 40
                 const isWarning = m.kpi_target > 0 && kpiPct >= 40 && kpiPct < 70
                 const rejected  = m.rejected ?? 0
@@ -288,7 +289,7 @@ export function TeamDashboard({ d }: { d: any }) {
                     </td>
                     {/* KPI progress */}
                     <td className="px-4 py-3.5">
-                      <MemberKpiCell approved={m.approved} kpiTarget={m.kpi_target} />
+                      <MemberKpiCell approved={m.kpi_completed} kpiTarget={m.kpi_target} />
                     </td>
                   </tr>
                 )

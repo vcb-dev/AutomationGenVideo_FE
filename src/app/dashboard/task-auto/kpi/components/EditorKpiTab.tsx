@@ -77,19 +77,16 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
     ? new Set(myTeams.flatMap(t => t.members?.map(m => m.user_id) ?? []))
     : null
 
-  // Team đang chọn (teamFilter đã được sync từ selectedTeamId prop qua useEffect)
-  const effectiveTeam = teamFilter ? teams?.find(t => t.id === teamFilter) : undefined
-  const effectiveTeamMemberIds = new Set(effectiveTeam?.members?.map(m => m.user_id) ?? [])
-
+  // Editor selectable trong modal luôn khoanh theo nhóm đang chọn NGAY TRONG MODAL (form.team_id),
+  // không phải theo bộ lọc ngoài toolbar — vì admin/leader nhiều team có thể đổi nhóm bên trong modal.
+  const formTeamMemberIds = new Set(
+    teams?.find(t => t.id === form.team_id)?.members?.map(m => m.user_id) ?? [],
+  )
 
   const allApproved = approvedEditors ?? []
-  const selectableEditors = isLeader
-    ? allApproved.filter(a =>
-        teamFilter
-          ? effectiveTeamMemberIds.has(a.user_id)       // team cụ thể đang chọn
-          : allMyTeamMemberIds?.has(a.user_id) ?? false  // tất cả team của mình
-      )
-    : allApproved
+  const selectableEditors = form.team_id
+    ? allApproved.filter(a => formTeamMemberIds.has(a.user_id))
+    : []
 
   const upsertMut = useMutation({
     mutationFn: (body: KpiFormState & { allocations: any[] }) =>
@@ -315,9 +312,11 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
               searchValue={editorSearch}
               onSearchChange={setEditorSearch}
               placeholder={
-                selectableEditors.length === 0
-                  ? (isLeader ? 'Chưa có editor trong team' : 'Chưa có editor được phê duyệt')
-                  : '-- Chọn editor --'
+                !form.team_id
+                  ? 'Chọn nhóm trước'
+                  : selectableEditors.length === 0
+                    ? 'Chưa có editor trong nhóm này'
+                    : '-- Chọn editor --'
               }
               searchPlaceholder="Tìm tên hoặc email..."
               clearLabel="-- Bỏ chọn --"
@@ -335,7 +334,7 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
             <CustomSelect
               label="Nhóm *"
               value={form.team_id ?? ''}
-              onChange={v => setForm(f => ({ ...f, team_id: v }))}
+              onChange={v => setForm(f => ({ ...f, team_id: v, user_id: '' }))}
               options={[
                 { value: '', label: '-- Chọn nhóm --' },
                 ...(teams?.map(t => ({ value: t.id, label: t.name })) ?? []),
@@ -346,7 +345,7 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
             <CustomSelect
               label="Nhóm *"
               value={form.team_id ?? ''}
-              onChange={v => setForm(f => ({ ...f, team_id: v }))}
+              onChange={v => setForm(f => ({ ...f, team_id: v, user_id: '' }))}
               options={[
                 { value: '', label: '-- Chọn nhóm --' },
                 ...myTeams.map(t => ({ value: t.id, label: t.name })),
