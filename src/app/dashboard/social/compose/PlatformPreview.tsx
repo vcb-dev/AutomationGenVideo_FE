@@ -29,7 +29,7 @@ function MediaGrid({ urls, platform, mediaThumbs }: { urls: string[]; platform: 
     </div>
   );
 
-  const isVertical = platform === 'TIKTOK' || platform === 'YOUTUBE';
+  const isVertical = platform === 'YOUTUBE';
   const isVideo = (url: string) => /\.mp4(\?|$)/i.test(url) || url.includes('drive.google.com');
 
   if (urls.length === 1) {
@@ -161,46 +161,6 @@ function InstagramPreview({ message, mediaUrls, accountName, accountAvatar, medi
   );
 }
 
-// ── TikTok Preview ────────────────────────────────────────────────────────────
-function TikTokPreview({ message, mediaUrls, accountName }: Props) {
-  const { t } = useSocialLang();
-  return (
-    <div className="bg-black rounded-2xl overflow-hidden shadow-sm max-w-[240px] mx-auto aspect-[9/16] relative flex items-end">
-      {mediaUrls.length > 0 ? (
-        <video src={mediaUrls[0]} className="absolute inset-0 w-full h-full object-cover" muted loop />
-      ) : (
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-800 to-slate-900 flex items-center justify-center">
-          <span className="text-5xl">🎵</span>
-        </div>
-      )}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-
-      {/* Right sidebar */}
-      <div className="absolute right-2 bottom-20 flex flex-col items-center gap-4 text-white">
-        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-pink-500 to-red-500 flex items-center justify-center text-sm font-bold border-2 border-white">
-          {accountName?.[0] || 'V'}
-        </div>
-        {[['❤️', '0'], ['💬', '0'], ['↗', '0']].map(([icon, count]) => (
-          <div key={icon} className="flex flex-col items-center">
-            <span className="text-xl">{icon}</span>
-            <span className="text-[9px] font-bold">{count}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* Bottom info */}
-      <div className="relative z-10 p-3 pb-4 w-full">
-        <p className="text-white text-xs font-bold mb-1">@{accountName?.toLowerCase().replace(/\s+/g, '') || 'vienchibao'}</p>
-        {message && <p className="text-white text-[11px] leading-relaxed line-clamp-2">{truncate(message, 100)}</p>}
-        <div className="flex items-center gap-1.5 mt-2">
-          <div className="w-4 h-4 rounded-full bg-slate-600 animate-spin" style={{ animationDuration: '3s' }} />
-          <p className="text-white/80 text-[10px]">{t.platformPreview.originalAudio} · {accountName || 'Viện Chí Bảo'}</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── YouTube Preview ───────────────────────────────────────────────────────────
 function YouTubePreview({ message, mediaUrls, accountName, accountAvatar }: Props) {
   const { t } = useSocialLang();
@@ -263,40 +223,13 @@ function ThreadsPreview({ message, mediaUrls, accountName, mediaThumbs }: Props)
   );
 }
 
-// ── Zalo Preview ──────────────────────────────────────────────────────────────
-function ZaloPreview({ message, mediaUrls, accountName, mediaThumbs }: Props) {
-  const { t } = useSocialLang();
-  return (
-    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm max-w-[380px] mx-auto">
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-100">
-        <div className="w-10 h-10 rounded-full bg-sky-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-          {accountName?.[0] || 'V'}
-        </div>
-        <div>
-          <p className="text-sm font-bold text-slate-900">{accountName || 'Viện Chí Bảo OA'}</p>
-          <p className="text-[10px] text-sky-500 font-semibold">Official Account</p>
-        </div>
-      </div>
-      {mediaUrls.length > 0 && <MediaGrid urls={mediaUrls} platform="ZALO" mediaThumbs={mediaThumbs} />}
-      {message && <p className="px-4 py-3 text-sm text-slate-800 leading-relaxed">{truncate(message, 300)}</p>}
-      <div className="px-4 py-2 border-t border-slate-100 flex gap-3">
-        <button className="text-xs font-semibold text-sky-600 hover:underline">{t.platformPreview.like}</button>
-        <button className="text-xs font-semibold text-slate-500 hover:underline">{t.platformPreview.comment}</button>
-        <button className="text-xs font-semibold text-slate-500 hover:underline">{t.platformPreview.share}</button>
-      </div>
-    </div>
-  );
-}
-
 // ── Main export ───────────────────────────────────────────────────────────────
 export default function PlatformPreview(props: Props) {
   switch (props.platform) {
     case 'FACEBOOK':  return <FacebookPreview  {...props} />;
     case 'INSTAGRAM': return <InstagramPreview {...props} />;
-    case 'TIKTOK':    return <TikTokPreview    {...props} />;
     case 'YOUTUBE':   return <YouTubePreview   {...props} />;
     case 'THREADS':   return <ThreadsPreview   {...props} />;
-    case 'ZALO':      return <ZaloPreview      {...props} />;
     default:          return <FacebookPreview  {...props} />;
   }
 }
