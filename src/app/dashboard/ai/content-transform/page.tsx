@@ -9,8 +9,6 @@ import {
   Check,
   History,
   Users,
-  ChevronRight,
-  ChevronLeft,
   Loader2,
   Eye,
   Calendar,
@@ -24,6 +22,8 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import apiClient from '@/lib/api-client';
+import { NumberedPagination } from '@/components/ui/NumberedPagination';
+import { MemberDropdown } from '@/components/ui/MemberDropdown';
 
 interface Character {
   id: string;
@@ -624,7 +624,7 @@ export default function ContentTransformPage() {
 
           {/* History Section (Tab 2) */}
           {activeTab === 'history' && (
-            <div className="bg-white rounded-3xl p-6 border border-[#c7c4d7] shadow-sm space-y-6">
+            <div className="flex-1 min-h-0 overflow-y-auto bg-white rounded-3xl p-5 border border-[#c7c4d7] shadow-sm space-y-4">
               <div className="flex justify-between items-center">
                 <h2 className="text-lg font-bold text-[#1b1b1d] flex items-center gap-2">
                   <History className="w-5 h-5 text-[#4441cc]" />
@@ -641,22 +641,22 @@ export default function ContentTransformPage() {
                   <p className="text-xs text-[#464554] mt-2">Đang tải lịch sử...</p>
                 </div>
               ) : historyItems.length > 0 ? (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                       <thead>
                         <tr className="border-b border-[#eae7ea] text-xs font-bold text-[#464554] uppercase tracking-wider">
-                          <th className="py-3.5 px-4">Nhân vật</th>
-                          <th className="py-3.5 px-4">Nội dung thô (Input)</th>
-                          <th className="py-3.5 px-4">Kết quả (Output)</th>
-                          <th className="py-3.5 px-4">Thời gian tạo</th>
-                          <th className="py-3.5 px-4 text-right">Chi tiết</th>
+                          <th className="py-2.5 px-4">Nhân vật</th>
+                          <th className="py-2.5 px-4">Nội dung thô (Input)</th>
+                          <th className="py-2.5 px-4">Kết quả (Output)</th>
+                          <th className="py-2.5 px-4">Thời gian tạo</th>
+                          <th className="py-2.5 px-4 text-right">Chi tiết</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#eae7ea]/50 text-sm text-[#464554]">
                         {historyItems.map((item) => (
                           <tr key={item.id} className="hover:bg-[#f6f3f5] transition-colors">
-                            <td className="py-4 px-4 font-semibold text-[#1b1b1d]">
+                            <td className="py-2.5 px-4 font-semibold text-[#1b1b1d]">
                               <div className="flex items-center gap-2">
                                 <span className="w-6 h-6 rounded-md bg-[#5e5ce6]/5 text-[#4441cc] border border-[#5e5ce6]/10 text-[10px] font-bold flex items-center justify-center flex-shrink-0">
                                   {item.character?.name?.[0] || '?'}
@@ -664,14 +664,14 @@ export default function ContentTransformPage() {
                                 {item.character?.name || 'Không rõ'}
                               </div>
                             </td>
-                            <td className="py-4 px-4 max-w-xs truncate">{item.input_text}</td>
-                            <td className="py-4 px-4 max-w-xs truncate text-[#464554]">
+                            <td className="py-2.5 px-4 max-w-xs truncate">{item.input_text}</td>
+                            <td className="py-2.5 px-4 max-w-xs truncate text-[#464554]">
                               {item.output_text || <span className="text-xs text-red-500 font-bold">Lỗi</span>}
                             </td>
-                            <td className="py-4 px-4 text-xs text-[#464554]/80">
+                            <td className="py-2.5 px-4 text-xs text-[#464554]/80">
                               {new Date(item.created_at).toLocaleString('vi-VN')}
                             </td>
-                            <td className="py-4 px-4 text-right">
+                            <td className="py-2.5 px-4 text-right">
                               <button
                                 onClick={() => setSelectedItem(item)}
                                 className="p-1.5 rounded-lg hover:bg-[#eae7ea] text-[#4441cc] transition-colors"
@@ -687,26 +687,8 @@ export default function ContentTransformPage() {
 
                   {/* Pagination */}
                   {historyTotalPages > 1 && (
-                    <div className="flex justify-between items-center pt-4 border-t border-[#eae7ea]">
-                      <button
-                        disabled={historyPage === 1}
-                        onClick={() => setHistoryPage((p) => p - 1)}
-                        className="flex items-center gap-1 px-3.5 py-2 border border-[#c7c4d7] rounded-xl text-xs font-semibold text-[#464554] hover:bg-[#f6f3f5] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                      >
-                        <ChevronLeft className="w-4 h-4" />
-                        Trang trước
-                      </button>
-                      <span className="text-xs text-[#464554] font-medium">
-                        Trang {historyPage} / {historyTotalPages}
-                      </span>
-                      <button
-                        disabled={historyPage === historyTotalPages}
-                        onClick={() => setHistoryPage((p) => p + 1)}
-                        className="flex items-center gap-1 px-3.5 py-2 border border-[#c7c4d7] rounded-xl text-xs font-semibold text-[#464554] hover:bg-[#f6f3f5] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                      >
-                        Trang sau
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
+                    <div className="pt-3 border-t border-[#eae7ea]">
+                      <NumberedPagination page={historyPage} totalPages={historyTotalPages} onPageChange={setHistoryPage} />
                     </div>
                   )}
                 </div>
@@ -725,55 +707,56 @@ export default function ContentTransformPage() {
           {/* Statistics / Team Section (Tab 3) */}
           {activeTab === 'team' && (
             isPrivileged ? (
-              <div className="bg-white border border-[#c7c4d7] rounded-3xl p-6 shadow-sm space-y-6">
-                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+              <div className="flex-1 min-h-0 overflow-y-auto bg-white border border-[#c7c4d7] rounded-3xl p-5 shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-4">
                   <h2 className="text-lg font-bold text-[#1b1b1d] flex items-center gap-2">
                     <Users className="w-5 h-5 text-[#4441cc]" />
                     Lịch sử của thành viên đội nhóm
                   </h2>
 
                   {/* Member selector */}
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-[#464554] font-semibold whitespace-nowrap">Chọn thành viên:</span>
-                    <select
-                      value={selectedMemberId}
-                      onChange={(e) => {
-                        setSelectedMemberId(e.target.value);
-                        setMemberHistoryPage(1);
-                      }}
-                      className="bg-white border border-[#c7c4d7] rounded-xl px-3.5 py-2 text-xs font-semibold text-[#1b1b1d] focus:outline-none focus:border-[#4441cc] transition-colors shadow-sm cursor-pointer"
-                    >
-                      {teamMembers.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.full_name}
-                        </option>
-                      ))}
-                    </select>
+                  <div className="flex flex-col items-end gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-[#464554] font-semibold whitespace-nowrap">Chọn thành viên:</span>
+                      <MemberDropdown
+                        members={teamMembers}
+                        value={selectedMemberId}
+                        onChange={(id) => {
+                          setSelectedMemberId(id);
+                          setMemberHistoryPage(1);
+                        }}
+                      />
+                    </div>
+                    {selectedMemberId && (
+                      <span className="text-xs bg-[#5e5ce6]/5 text-[#4441cc] border border-[#5e5ce6]/10 px-3 py-1 rounded-full font-semibold">
+                        Tổng số bản ghi: {memberHistoryTotal}
+                      </span>
+                    )}
                   </div>
                 </div>
 
                 {isMemberHistoryLoading ? (
-                  <div className="py-20 text-center">
-                    <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#4441cc]" />
-                    <p className="text-xs text-[#464554] mt-2">Đang tải lịch sử thành viên...</p>
+                  <div className="flex flex-col items-center justify-center gap-3 py-16 rounded-2xl border border-dashed border-[#c7c4d7] bg-[#fcf8fb]">
+                    <Loader2 className="w-8 h-8 animate-spin text-[#4441cc]" />
+                    <p className="text-xs text-[#464554] font-medium">Đang tải lịch sử thành viên...</p>
                   </div>
                 ) : memberHistoryItems.length > 0 ? (
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     <div className="overflow-x-auto">
                       <table className="w-full text-left border-collapse">
                         <thead>
                           <tr className="border-b border-[#eae7ea] text-xs font-bold text-[#464554] uppercase tracking-wider">
-                            <th className="py-3.5 px-4">Nhân vật</th>
-                            <th className="py-3.5 px-4">Nội dung thô (Input)</th>
-                            <th className="py-3.5 px-4">Kết quả (Output)</th>
-                            <th className="py-3.5 px-4">Thời gian tạo</th>
-                            <th className="py-3.5 px-4 text-right">Chi tiết</th>
+                            <th className="py-2.5 px-4">Nhân vật</th>
+                            <th className="py-2.5 px-4">Nội dung thô (Input)</th>
+                            <th className="py-2.5 px-4">Kết quả (Output)</th>
+                            <th className="py-2.5 px-4">Thời gian tạo</th>
+                            <th className="py-2.5 px-4 text-right">Chi tiết</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[#eae7ea]/50 text-sm text-[#464554]">
                           {memberHistoryItems.map((item) => (
                             <tr key={item.id} className="hover:bg-[#f6f3f5] transition-colors">
-                              <td className="py-4 px-4 font-semibold text-[#1b1b1d]">
+                              <td className="py-2.5 px-4 font-semibold text-[#1b1b1d]">
                                 <div className="flex items-center gap-2">
                                   <span className="w-6 h-6 rounded-md bg-[#5e5ce6]/5 text-[#4441cc] border border-[#5e5ce6]/10 text-[10px] font-bold flex items-center justify-center flex-shrink-0">
                                     {item.character.name[0]}
@@ -781,14 +764,14 @@ export default function ContentTransformPage() {
                                   {item.character.name}
                                 </div>
                               </td>
-                              <td className="py-4 px-4 max-w-xs truncate">{item.input_text}</td>
-                              <td className="py-4 px-4 max-w-xs truncate text-[#464554]">
+                              <td className="py-2.5 px-4 max-w-xs truncate">{item.input_text}</td>
+                              <td className="py-2.5 px-4 max-w-xs truncate text-[#464554]">
                                 {item.output_text || <span className="text-xs text-red-500 font-bold">Lỗi</span>}
                               </td>
-                              <td className="py-4 px-4 text-xs text-[#464554]/80">
+                              <td className="py-2.5 px-4 text-xs text-[#464554]/80">
                                 {new Date(item.created_at).toLocaleString('vi-VN')}
                               </td>
-                              <td className="py-4 px-4 text-right">
+                              <td className="py-2.5 px-4 text-right">
                                 <button
                                   onClick={() => setSelectedItem(item)}
                                   className="p-1.5 rounded-lg hover:bg-[#eae7ea] text-[#4441cc] transition-colors"
@@ -804,33 +787,15 @@ export default function ContentTransformPage() {
 
                     {/* Pagination */}
                     {memberHistoryTotalPages > 1 && (
-                      <div className="flex justify-between items-center pt-4 border-t border-[#eae7ea]">
-                        <button
-                          disabled={memberHistoryPage === 1}
-                          onClick={() => setMemberHistoryPage((p) => p - 1)}
-                          className="flex items-center gap-1 px-3.5 py-2 border border-[#c7c4d7] rounded-xl text-xs font-semibold text-[#464554] hover:bg-[#f6f3f5] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                        >
-                          <ChevronLeft className="w-4 h-4" />
-                          Trang trước
-                        </button>
-                        <span className="text-xs text-[#464554] font-medium">
-                          Trang {memberHistoryPage} / {memberHistoryTotalPages}
-                        </span>
-                        <button
-                          disabled={memberHistoryPage === memberHistoryTotalPages}
-                          onClick={() => setMemberHistoryPage((p) => p + 1)}
-                          className="flex items-center gap-1 px-3.5 py-2 border border-[#c7c4d7] rounded-xl text-xs font-semibold text-[#464554] hover:bg-[#f6f3f5] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                        >
-                          Trang sau
-                          <ChevronRight className="w-4 h-4" />
-                        </button>
+                      <div className="pt-3 border-t border-[#eae7ea]">
+                        <NumberedPagination page={memberHistoryPage} totalPages={memberHistoryTotalPages} onPageChange={setMemberHistoryPage} />
                       </div>
                     )}
                   </div>
                 ) : (
-                  <div className="text-center py-20 text-[#464554] space-y-2">
+                  <div className="flex flex-col items-center justify-center text-center py-16 rounded-2xl border border-dashed border-[#c7c4d7] bg-[#fcf8fb] text-[#464554] space-y-2">
                     <Users className="w-10 h-10 mx-auto text-[#464554]/50" />
-                    <p className="text-sm font-semibold">Thành viên này chưa có lịch sử</p>
+                    <p className="text-sm font-semibold text-[#1b1b1d]">Thành viên này chưa có lịch sử</p>
                     <p className="text-xs max-w-xs mx-auto text-[#464554]/75">
                       Lịch sử chuyển đổi kịch bản của thành viên được chọn sẽ hiển thị ở đây sau khi họ thực hiện thao tác.
                     </p>
