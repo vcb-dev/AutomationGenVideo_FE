@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Bell, BellOff, BellRing, CheckCircle, XCircle, Clock, X, RotateCcw, ExternalLink,
-  ClipboardList, Upload, Inbox,
+  ClipboardList, Upload, Inbox, PackageX,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { socialApi, PLATFORM_META, SocialPlatform } from '@/lib/api/social';
@@ -41,6 +41,7 @@ const TASK_NOTIF_META: Record<string, { icon: typeof ClipboardList; color: strin
   TASK_APPROVED: { icon: CheckCircle, color: 'bg-emerald-500' },
   TASK_REJECTED: { icon: XCircle, color: 'bg-red-500' },
   TEAM_PUSH_REQUEST: { icon: Inbox, color: 'bg-amber-500' },
+  AUTO_ASSIGN_EMPTY_WAREHOUSE: { icon: PackageX, color: 'bg-amber-500' },
 };
 
 export default function NotificationBell() {
