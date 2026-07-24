@@ -1,255 +1,118 @@
 "use client";
 
-import {
-  AlertTriangle,
-  Check,
-  ClipboardList,
-  Download,
-  Globe,
-  MapPin,
-  Pencil,
-  Target,
-} from "lucide-react";
-import { useMemo, useState } from "react";
-import { cn } from "@/lib/utils";
+import { ClipboardList, MapPin, Target } from "lucide-react";
+import { useMemo } from "react";
+import { A5NotAvailable } from "../shared/A5NotAvailable";
 import { DashboardFilters } from "../shared/DashboardFilters";
-import { TEAM_REGION_OPTIONS } from "./admin-team-perf-data";
 import { useAdminOverviewFilters } from "./AdminOverviewFiltersContext";
-
-function calendarMonthKey(d = new Date()) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
 
 function formatMonthVi(ym: string) {
   const [y, m] = ym.split("-");
-  return { label: `tháng ${Number(m)}/${y}`, mNum: Number(m), yNum: Number(y) };
+  return `tháng ${Number(m)}/${y}`;
 }
 
-type A5Vals = [number, number, number, number, number];
-
-const initialTargets: { vn: A5Vals; global: A5Vals } = {
-  vn: [90, 75, 75, 45, 15],
-  global: [60, 50, 50, 30, 10],
-};
+function monthRangeFromKey(ym: string) {
+  const [y, m] = ym.split("-").map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  return { from: `${ym}-01`, to: `${ym}-${String(lastDay).padStart(2, "0")}` };
+}
 
 export function AdminKpiTab() {
   const f = useAdminOverviewFilters();
-  const [kpiMonth, setKpiMonth] = useState(calendarMonthKey);
-  const [targets, setTargets] = useState(initialTargets);
-
-  const isCurrentMonth = kpiMonth === calendarMonthKey();
+  // Tab "Tổng quan" dùng date-range, tab này dùng month-picker — cả 2 cùng ghi vào 1 context dùng
+  // chung (AdminOverviewFiltersProvider bọc cả 2 tab). Suy ra thẳng từ f.dateFrom thay vì giữ state
+  // cục bộ riêng để tránh lệch hiển thị khi đổi ngày ở tab kia rồi quay lại tab này.
+  const kpiMonth = f.dateFrom.slice(0, 7);
   const monthLabel = useMemo(() => formatMonthVi(kpiMonth), [kpiMonth]);
 
-  const setCell = (team: "vn" | "global", idx: number, raw: string) => {
-    const n = Math.max(0, Math.floor(Number.parseInt(raw, 10) || 0));
-    setTargets((t) => ({
-      ...t,
-      [team]: t[team].map((v, i) => (i === idx ? n : v)) as A5Vals,
-    }));
+  // Đổi tháng ở đây phải lọc lại đúng dữ liệu (không chỉ đổi chữ).
+  const onMonthChange = (ym: string) => {
+    const range = monthRangeFromKey(ym);
+    f.setDateRange(range.from, range.to);
   };
-
-  const sum = (a: A5Vals) => a.reduce((s, x) => s + x, 0);
-  const colTotals = [0, 1, 2, 3, 4].map(
-    (i) => targets.vn[i] + targets.global[i],
-  ) as A5Vals;
-
-  const tierText = ["text-a1", "text-a2", "text-a3", "text-a4", "text-a5"] as const;
-
-  const inputClass = (tierIdx: number) =>
-    cn(
-      "w-[3.25rem] rounded border py-1 text-center text-sm font-bold outline-none tabular-nums",
-      tierText[tierIdx],
-      isCurrentMonth
-        ? "border-gray-200 bg-white focus:border-indigo-400"
-        : "cursor-not-allowed border-transparent bg-gray-100 text-gray-800",
-    );
 
   return (
     <div>
       <div className="mb-4 rounded-xl border border-indigo-200 bg-indigo-50 p-4">
         <div className="flex items-center gap-2 text-base font-bold text-indigo-900">
           <ClipboardList className="h-5 w-5 shrink-0 text-indigo-700" aria-hidden />
-          Admin giao KPI {monthLabel.label} cho từng Team
+          Admin giao KPI {monthLabel} cho từng Team
         </div>
         <div className="mt-1 text-sm text-indigo-700">
           Phân bổ tổng video theo mô hình 5A → Leader sẽ chia nhỏ cho từng thành viên theo ngày
         </div>
       </div>
 
+      <A5NotAvailable note="Chưa hỗ trợ nhập/lưu chỉ tiêu KPI theo mô hình 5A (A1-A5) — hệ thống hiện không có bảng lưu chỉ tiêu theo tier này. Bảng dưới đây chỉ hiển thị roster team thật (tên, leader, số người) để tham khảo." />
+
       <DashboardFilters
         accent="indigo"
-        className="mb-4"
+        className="mb-4 mt-4"
         showPlatformChannelFallback={false}
-        monthPicker={{ value: kpiMonth, onChange: setKpiMonth }}
+        monthPicker={{ value: kpiMonth, onChange: onMonthChange }}
         adminTeamRegion={{
-          teamRegionId: f.teamRegionId,
-          onTeamRegionIdChange: f.setTeamRegionId,
-          options: TEAM_REGION_OPTIONS,
+          teamRegionId: f.teamFilter,
+          onTeamRegionIdChange: f.setTeamFilter,
+          options: f.teamOptions,
         }}
       />
-
-      {!isCurrentMonth ? (
-        <p className="mb-3 text-xs text-gray-500">
-          Tháng đã chọn không phải tháng hiện tại — chỉ tiêu KPI chỉ xem, không chỉnh được.
-        </p>
-      ) : null}
 
       <div className="mb-4 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
         <div className="mb-4 flex items-center gap-2 text-base font-bold">
           <Target className="h-5 w-5 shrink-0 text-gray-600" aria-hidden />
-          Phân bổ KPI video {monthLabel.label} theo Team
+          Team &amp; Leader
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] text-sm">
+          <table className="w-full min-w-[560px] text-sm">
             <thead>
               <tr className="border-b-2 border-gray-200">
                 <th className="pb-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">TEAM</th>
-                <th className="pb-2 text-center text-xs font-bold text-a1">A1</th>
-                <th className="pb-2 text-center text-xs font-bold text-a2">A2</th>
-                <th className="pb-2 text-center text-xs font-bold text-a3">A3</th>
-                <th className="pb-2 text-center text-xs font-bold text-a4">A4</th>
-                <th className="pb-2 text-center text-xs font-bold text-a5">A5</th>
-                <th className="pb-2 text-center text-xs font-bold text-gray-700">TỔNG</th>
-                <th className="pb-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">ĐÃ ĐẠT</th>
-                <th className="pb-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">TIẾN ĐỘ</th>
-                <th className="pb-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">TRẠNG THÁI</th>
+                <th className="pb-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">LEADER</th>
+                <th className="pb-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">SỐ NGƯỜI</th>
+                <th className="pb-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">VIDEO (kỳ đã chọn)</th>
+                <th className="pb-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">CHỈ TIÊU A1-A5</th>
               </tr>
             </thead>
             <tbody>
-              <tr className="border-b border-gray-50 bg-amber-50/30">
-                <td className="py-3">
-                  <div className="flex items-center gap-2 font-semibold">
-                    <MapPin className="h-4 w-4 shrink-0 text-gray-500" aria-hidden />
-                    Nội dung VN
-                  </div>
-                  <div className="text-xs text-gray-500">Leader: Trần Thị B · 5 người</div>
-                </td>
-                {[0, 1, 2, 3, 4].map((i) => (
-                  <td key={i} className="text-center">
-                    <input
-                      type="number"
-                      min={0}
-                      inputMode="numeric"
-                      readOnly={!isCurrentMonth}
-                      value={targets.vn[i]}
-                      onChange={(e) => setCell("vn", i, e.target.value)}
-                      className={inputClass(i)}
-                    />
-                    <div className="mt-0.5 text-xs text-gray-500">
-                      {i === 0 ? "đạt 72" : i === 1 ? "đạt 57" : i === 2 ? "đạt 37" : i === 3 ? "đạt 26" : "đạt 16"}
-                      {i === 2 ? (
-                        <AlertTriangle className="ml-0.5 inline h-3.5 w-3.5 text-red-500" aria-hidden />
-                      ) : null}
-                      {i === 4 ? (
-                        <Check className="ml-0.5 inline h-3.5 w-3.5 text-emerald-600" aria-hidden />
-                      ) : null}
-                    </div>
+              {f.isLoading ? (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-gray-400">
+                    Đang tải dữ liệu…
                   </td>
-                ))}
-                <td className="text-center font-bold">{sum(targets.vn)}</td>
-                <td className="text-center font-semibold">208</td>
-                <td className="text-center">
-                  <div className="flex items-center justify-center gap-1">
-                    <div className="h-2 w-20 overflow-hidden rounded-full bg-gray-100">
-                      <div className="h-full w-[69%] rounded-full bg-amber-400" />
-                    </div>
-                    69%
-                  </div>
-                </td>
-                <td className="text-right text-sm font-semibold text-amber-600">
-                  <span className="inline-flex items-center justify-end gap-1">
-                    <span className="h-2 w-2 rounded-full bg-amber-500" aria-hidden />
-                    Đang thực hiện
-                  </span>
-                </td>
-              </tr>
-              <tr className="border-b border-gray-50">
-                <td className="py-3">
-                  <div className="flex items-center gap-2 font-semibold">
-                    <Globe className="h-4 w-4 shrink-0 text-gray-500" aria-hidden />
-                    Toàn cầu
-                  </div>
-                  <div className="text-xs text-gray-500">Leader: Phạm D · 3 người</div>
-                </td>
-                {[0, 1, 2, 3, 4].map((i) => (
-                  <td key={i} className="text-center">
-                    <input
-                      type="number"
-                      min={0}
-                      inputMode="numeric"
-                      readOnly={!isCurrentMonth}
-                      value={targets.global[i]}
-                      onChange={(e) => setCell("global", i, e.target.value)}
-                      className={inputClass(i)}
-                    />
-                    <div className="mt-0.5 text-xs text-gray-500">
-                      {i === 0 ? "đạt 37" : i === 1 ? "đạt 30" : i === 2 ? "đạt 20" : i === 3 ? "đạt 14" : "đạt 8"}
-                      {i === 2 ? (
-                        <AlertTriangle className="ml-0.5 inline h-3.5 w-3.5 text-red-500" aria-hidden />
-                      ) : null}
-                    </div>
+                </tr>
+              ) : f.teams.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-gray-500">
+                    Không có team khớp bộ lọc.
                   </td>
-                ))}
-                <td className="text-center font-bold">{sum(targets.global)}</td>
-                <td className="text-center font-semibold">109</td>
-                <td className="text-center">
-                  <div className="flex items-center justify-center gap-1">
-                    <div className="h-2 w-20 overflow-hidden rounded-full bg-gray-100">
-                      <div className="h-full w-[55%] rounded-full bg-red-400" />
-                    </div>
-                    55%
-                  </div>
-                </td>
-                <td className="text-right text-sm font-semibold text-red-500">
-                  <span className="inline-flex items-center justify-end gap-1">
-                    <span className="h-2 w-2 rounded-full bg-red-500" aria-hidden />
-                    Chậm tiến độ
-                  </span>
-                </td>
-              </tr>
-              <tr className="bg-blue-50 font-bold">
-                <td className="py-2.5">TỔNG CÔNG TY</td>
-                {colTotals.map((v, i) => (
-                  <td key={i} className={cn("text-center", tierText[i])}>
-                    {v}
-                  </td>
-                ))}
-                <td className="text-center">{sum(targets.vn) + sum(targets.global)}</td>
-                <td className="text-center">317</td>
-                <td className="text-center">
-                  <div className="flex items-center justify-center gap-1">
-                    <div className="h-2 w-20 overflow-hidden rounded-full bg-gray-200">
-                      <div className="h-full w-[63%] rounded-full bg-amber-400" />
-                    </div>
-                    63%
-                  </div>
-                </td>
-                <td />
-              </tr>
+                </tr>
+              ) : (
+                f.teams.map((t) => (
+                  <tr key={t.id} className="border-b border-gray-50">
+                    <td className="py-3">
+                      <div className="flex items-center gap-2 font-semibold">
+                        <MapPin className="h-4 w-4 shrink-0 text-gray-500" aria-hidden />
+                        {t.name}
+                      </div>
+                    </td>
+                    <td className="text-left text-gray-600">{t.leaderName ?? "—"}</td>
+                    <td className="text-center">{t.staffCount}</td>
+                    <td className="text-center font-semibold">{t.videoCount}</td>
+                    <td className="text-right text-gray-400">—</td>
+                  </tr>
+                ))
+              )}
+              {f.teams.length > 0 ? (
+                <tr className="bg-blue-50 font-bold">
+                  <td className="py-2.5">TỔNG CÔNG TY</td>
+                  <td />
+                  <td className="text-center">{f.teamTotals.staffCount}</td>
+                  <td className="text-center">{f.teamTotals.videoCount}</td>
+                  <td className="text-right text-gray-400">—</td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
-        </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button
-            type="button"
-            disabled={!isCurrentMonth}
-            className={cn(
-              "inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white",
-              isCurrentMonth
-                ? "bg-indigo-600 hover:bg-indigo-700"
-                : "cursor-not-allowed bg-gray-300 text-gray-500",
-            )}
-          >
-            <Pencil className="h-4 w-4 shrink-0" aria-hidden />
-            Chỉnh KPI Team
-          </button>
-          <button
-            type="button"
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600"
-          >
-            <Download className="h-4 w-4 shrink-0" aria-hidden />
-            Xuất báo cáo
-          </button>
         </div>
       </div>
     </div>

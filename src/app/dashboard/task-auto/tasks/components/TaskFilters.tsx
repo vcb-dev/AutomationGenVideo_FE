@@ -25,12 +25,16 @@ function todayString() {
 
 type TaskTypeFilter = 'auto' | 'manual' | ''
 
+interface AssigneeOption { id: string; name: string }
+
 interface Props {
   statusFilter: TaskStatus | ''
   teamFilter: string
   searchFilter: string
   deadlineDateFilter: string
   taskTypeFilter: TaskTypeFilter
+  assigneeFilter: string
+  assigneeOptions: AssigneeOption[]
   teams: Team[]
   canCreate: boolean
   isMember?: boolean
@@ -41,6 +45,7 @@ interface Props {
   onSearchChange: (v: string) => void
   onDeadlineDateChange: (v: string) => void
   onTaskTypeChange: (v: TaskTypeFilter) => void
+  onAssigneeChange: (v: string) => void
   onCreateClick: () => void
 }
 
@@ -50,6 +55,8 @@ export function TaskFilters({
   searchFilter,
   deadlineDateFilter,
   taskTypeFilter,
+  assigneeFilter,
+  assigneeOptions,
   teams,
   canCreate,
   isMember = false,
@@ -60,6 +67,7 @@ export function TaskFilters({
   onSearchChange,
   onDeadlineDateChange,
   onTaskTypeChange,
+  onAssigneeChange,
   onCreateClick,
 }: Props) {
   const isToday = deadlineDateFilter === todayString()
@@ -108,6 +116,21 @@ export function TaskFilters({
             ...teams.map(t => ({ value: t.id, label: t.name })),
           ]}
           className="min-w-[155px]"
+          searchable
+          compact
+        />
+      )}
+
+      {/* Người làm — ẩn ở view "của tôi" vì assignee đã khóa cứng về chính user đó */}
+      {!isMember && assigneeOptions.length > 0 && (
+        <CustomSelect
+          value={assigneeFilter}
+          onChange={onAssigneeChange}
+          options={[
+            { value: '', label: 'Tất cả người làm' },
+            ...assigneeOptions.map(a => ({ value: a.id, label: a.name })),
+          ]}
+          className="min-w-[165px]"
           searchable
           compact
         />

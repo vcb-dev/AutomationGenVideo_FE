@@ -140,6 +140,9 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
   // brandType derive từ team đang chọn (hoặc team duy nhất của user)
   const selectedTeam = teams.find(t => t.id === form.team_id)
   const brandType: BrandType = selectedTeam?.brand_type ?? lockedTeam?.brand_type ?? 'DO_DA'
+  // market của người tạo — lấy từ team đang chọn (hoặc team duy nhất của user), dùng làm mặc định
+  // khi tạo content mới ngay trong modal này, thay vì luôn mặc định Việt Nam.
+  const creatorMarket = selectedTeam?.market ?? lockedTeam?.market ?? 'VIETNAM'
   // team dùng để load kho team (kho team của team đang chọn, không phải myTeams[0])
   const activeTeamForWarehouse = selectedTeam ?? lockedTeam
 
@@ -612,6 +615,7 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
         open
         userId={userId}
         brandType={brandType}
+        initialMarket={creatorMarket}
         onClose={() => setShowContentModal(false)}
         onSuccess={(content: Content) => {
           qc.invalidateQueries({ queryKey: ['task-auto', 'create-contents-personal'] })
@@ -628,6 +632,7 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
         open
         userId={userId}
         defaultBrandType={brandType}
+        initialMarket={creatorMarket}
         onClose={() => setShowProductModal(false)}
         onSuccess={(product: Product) => {
           qc.invalidateQueries({ queryKey: ['task-auto', 'create-products-personal'] })

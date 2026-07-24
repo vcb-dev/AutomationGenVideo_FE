@@ -19,6 +19,7 @@ import VideoFramePicker from './VideoFramePicker';
 import { useTaskStore } from '@/store/taskStore';
 import toast from 'react-hot-toast';
 import { useSocialLang } from '@/contexts/SocialLanguageContext';
+import { isPlatformModeSupported } from '@/lib/social/platform-support';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -177,13 +178,6 @@ export default function ComposePage() {
     YOUTUBE: 5000
   };
 
-  const PLATFORM_SUPPORT = {
-    FACEBOOK: { text: true,  image: true,  video_vertical: true, video_horizontal: true },
-    THREADS:  { text: true,  image: true,  video_vertical: true, video_horizontal: true },
-    INSTAGRAM:{ text: false, image: true,  video_vertical: true, video_horizontal: false },
-    YOUTUBE:  { text: false, image: false, video_vertical: true, video_horizontal: true },
-  };
-
   // --- ACTIONS ---
 
   const addHashtag = (raw: string) => {
@@ -260,13 +254,12 @@ export default function ComposePage() {
     }
   }, []);
 
-  // Filter accounts based on SEARCH and POST MODE
-  const filteredAccounts = accounts.filter(a => {
-    const matchesSearch = a.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const platformKey = (a.platform || '').toUpperCase();
-    const isSupported = (PLATFORM_SUPPORT as any)[platformKey]?.[postMode] ?? true;
-    return matchesSearch && isSupported;
-  });
+  // Filter accounts theo SEARCH — không lọc theo post mode ở đây nữa: kênh không hỗ
+  // trợ dạng bài hiện tại vẫn cần hiện ra (dạng disabled) để user thấy đã kết nối,
+  // thay vì biến mất hoàn toàn trông như chưa kết nối (vd Instagram ở mode 'text').
+  const filteredAccounts = accounts.filter(a =>
+    a.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   // Group accounts logically for display
   const platformGroups = filteredAccounts.reduce((acc: Record<string, SocialAccount[]>, a) => {
@@ -901,14 +894,20 @@ export default function ComposePage() {
                           // For now, let's allow selection of anything that isn't a root FB/IG account IF that account is just a profile.
                           const hasChildren = accounts.some(a => a.parent_id === account.id);
                           const isPersonalRoot = !isChild && hasChildren && (account.platform === 'FACEBOOK' || account.platform === 'INSTAGRAM');
-                          
+                          // Kênh có tồn tại/kết nối nhưng platform không hỗ trợ dạng bài đang chọn
+                          // (vd Instagram không đăng được post 'text' thuần) — vẫn hiện, chỉ disable,
+                          // để không trông như "chưa kết nối" khi chỉ là không hợp dạng bài hiện tại.
+                          const isModeUnsupported = !isPlatformModeSupported(account.platform || '', postMode);
+                          const isDisabled = isPersonalRoot || isModeUnsupported;
+
                           return (
-                            <motion.div 
+                            <motion.div
                               variants={itemVariants}
-                              key={account.id} 
-                              onClick={() => !isPersonalRoot && toggleAccount(account.id)} 
-                              whileHover={!isPersonalRoot ? { x: 4, backgroundColor: 'rgba(241, 245, 249, 0.4)' } : {}}
-                              className={`flex items-center gap-3 p-3 rounded-xl transition-all border relative ${isChild ? 'ml-6' : ''} ${isSelected ? 'bg-blue-50/50 border-blue-200 ring-1 ring-blue-100' : 'bg-white border-transparent'} ${isPersonalRoot ? 'opacity-40 grayscale cursor-not-allowed' : 'cursor-pointer'}`}
+                              key={account.id}
+                              onClick={() => !isDisabled && toggleAccount(account.id)}
+                              whileHover={!isDisabled ? { x: 4, backgroundColor: 'rgba(241, 245, 249, 0.4)' } : {}}
+                              title={isModeUnsupported ? t.compose.unsupportedForMode : undefined}
+                              className={`flex items-center gap-3 p-3 rounded-xl transition-all border relative ${isChild ? 'ml-6' : ''} ${isSelected ? 'bg-blue-50/50 border-blue-200 ring-1 ring-blue-100' : 'bg-white border-transparent'} ${isDisabled ? 'opacity-40 grayscale cursor-not-allowed' : 'cursor-pointer'}`}
                             >
                               {/* Visual connector for child accounts */}
                               {isChild && (
@@ -922,7 +921,7 @@ export default function ComposePage() {
                                 {account.avatar_url ? (
                                   <img src={account.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
                                 ) : meta.emoji}
-                                
+
                                 {isChild && (
                                   <div className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border border-white flex items-center justify-center text-[7px] ${meta.color}`}>
                                     {meta.emoji}
@@ -936,15 +935,20 @@ export default function ComposePage() {
                                     {account.platform === 'INSTAGRAM' ? t.compose.igBusiness : t.compose.fanpage}
                                   </div>
                                 )}
+                                {isModeUnsupported && (
+                                  <div className="text-[10px] text-amber-500 font-semibold mt-0.5">
+                                    {t.compose.unsupportedForMode}
+                                  </div>
+                                )}
                                 {account.token_expires_soon && (
                                   <div className="text-[10px] text-amber-500 font-semibold mt-0.5">
                                     {t.compose.tokenExpiresIn(account.token_expires_in_days ?? 0)}
                                   </div>
                                 )}
                               </div>
-                              {!isPersonalRoot && (
-                                <motion.div 
-                                  animate={{ 
+                              {!isDisabled && (
+                                <motion.div
+                                  animate={{
                                     backgroundColor: isSelected ? '#2563eb' : '#ffffff',
                                     borderColor: isSelected ? '#2563eb' : '#cbd5e1',
                                     scale: isSelected ? [1, 1.2, 1] : 1

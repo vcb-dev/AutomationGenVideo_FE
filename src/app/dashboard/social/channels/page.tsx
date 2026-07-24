@@ -63,10 +63,6 @@ export default function ChannelsPage() {
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
-  const [threadsTokenInputOpen, setThreadsTokenInputOpen] = useState(false);
-  const [manualToken, setManualToken] = useState('');
-  const [savingManualToken, setSavingManualToken] = useState(false);
-
   // Keep a ref to t so closures in effects/intervals always get the latest translations
   const tRef = useRef(t);
   tRef.current = t;
@@ -222,25 +218,6 @@ export default function ChannelsPage() {
       toast.error(tRef.current.connectionError);
       setConnecting(null);
       if (popup && !popup.closed) popup.close();
-    }
-  };
-
-  const handleSaveManualToken = async (platform: SocialPlatform) => {
-    if (!manualToken.trim()) {
-      toast.error(t.enterToken);
-      return;
-    }
-    setSavingManualToken(true);
-    try {
-      await socialApi.oauth.connectViaToken(platform, { access_token: manualToken.trim() });
-      toast.success(t.accountConnected);
-      setManualToken('');
-      setThreadsTokenInputOpen(false);
-      await loadAccounts();
-    } catch (err: any) {
-      toast.error(t.connectionErrorWith(err.message || 'Mã token không hợp lệ'));
-    } finally {
-      setSavingManualToken(false);
     }
   };
 
@@ -442,14 +419,6 @@ export default function ChannelsPage() {
                           {connecting === platform ? <RefreshCw className="w-4 h-4 animate-spin" /> : meta.icon}
                           {connecting === platform ? t.connecting : loginLabel}
                         </button>
-                        {platform === 'THREADS' && (
-                          <button
-                            onClick={() => setThreadsTokenInputOpen((v) => !v)}
-                            className="text-xs text-slate-400 hover:text-slate-600 underline transition-colors"
-                          >
-                            {threadsTokenInputOpen ? t.hideTokenForm : t.enterTokenManual}
-                          </button>
-                        )}
                       </div>
                     )}
                     {platform !== 'INSTAGRAM' && displayAccts.length > 0 && (
@@ -463,14 +432,6 @@ export default function ChannelsPage() {
                           {connecting === platform ? <RefreshCw className="w-4 h-4 animate-spin" /> : '＋'}
                           {connecting === platform ? t.connecting : t.addAccount}
                         </button>
-                        {platform === 'THREADS' && (
-                          <button
-                            onClick={() => setThreadsTokenInputOpen((v) => !v)}
-                            className="text-xs text-slate-400 hover:text-slate-600 underline transition-colors"
-                          >
-                            {threadsTokenInputOpen ? t.hideTokenForm : t.enterTokenManual}
-                          </button>
-                        )}
                       </div>
                     )}
                   </div>
@@ -706,58 +667,12 @@ export default function ChannelsPage() {
                   );
                 })}
 
-                {platform === 'THREADS' && displayAccts.length > 0 && threadsTokenInputOpen && (
-                  <div className="mx-8 my-5 p-5 bg-slate-50 border border-slate-100 rounded-2xl">
-                    <p className="text-sm font-bold text-slate-800 mb-2">{t.loadThreadsToken}</p>
-                    <p className="text-xs text-slate-500 mb-4 leading-relaxed">{t.threadsTokenDesc}</p>
-                    <div className="flex gap-2">
-                      <input
-                        type="password"
-                        value={manualToken}
-                        onChange={(e) => setManualToken(e.target.value)}
-                        placeholder={t.tokenPlaceholder}
-                        className="flex-1 px-4 py-2.5 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent text-slate-800 font-mono shadow-sm"
-                      />
-                      <button
-                        onClick={() => handleSaveManualToken('THREADS')}
-                        disabled={savingManualToken}
-                        className="px-5 py-2.5 bg-slate-900 text-white text-sm font-bold rounded-xl hover:bg-slate-800 active:scale-95 transition-all flex items-center gap-2 disabled:opacity-60 flex-shrink-0"
-                      >
-                        {savingManualToken ? <RefreshCw className="w-4 h-4 animate-spin" /> : t.save}
-                      </button>
-                    </div>
-                  </div>
-                )}
-
                 {/* Empty state */}
                 {displayAccts.length === 0 && (
                   <div className="px-8 py-10 text-center text-slate-400">
                     {platform === 'INSTAGRAM'
                       ? t.igAutoNote
                       : t.noAccounts(meta.label, loginLabel)}
-
-                    {platform === 'THREADS' && threadsTokenInputOpen && (
-                      <div className="mt-6 max-w-xl mx-auto p-5 bg-slate-50 border border-slate-100 rounded-2xl">
-                        <p className="text-sm font-bold text-slate-800 mb-2 text-left">{t.loadThreadsToken}</p>
-                        <p className="text-xs text-slate-500 mb-4 text-left leading-relaxed">{t.threadsTokenDesc}</p>
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={manualToken}
-                            onChange={(e) => setManualToken(e.target.value)}
-                            placeholder={t.tokenPlaceholder}
-                            className="flex-1 px-4 py-2.5 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent text-slate-800 font-mono shadow-sm"
-                          />
-                          <button
-                            onClick={() => handleSaveManualToken('THREADS')}
-                            disabled={savingManualToken}
-                            className="px-5 py-2.5 bg-slate-900 text-white text-sm font-bold rounded-xl hover:bg-slate-800 active:scale-95 transition-all flex items-center gap-2 disabled:opacity-60 flex-shrink-0"
-                          >
-                            {savingManualToken ? <RefreshCw className="w-4 h-4 animate-spin" /> : t.save}
-                          </button>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
