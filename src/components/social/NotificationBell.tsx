@@ -42,6 +42,9 @@ const TASK_NOTIF_META: Record<string, { icon: typeof ClipboardList; color: strin
   TASK_REJECTED: { icon: XCircle, color: 'bg-red-500' },
   TEAM_PUSH_REQUEST: { icon: Inbox, color: 'bg-amber-500' },
   AUTO_ASSIGN_EMPTY_WAREHOUSE: { icon: PackageX, color: 'bg-amber-500' },
+  CONTENT_APPROVAL_REQUESTED: { icon: Inbox, color: 'bg-violet-500' },
+  CONTENT_APPROVED: { icon: CheckCircle, color: 'bg-emerald-500' },
+  CONTENT_REJECTED: { icon: XCircle, color: 'bg-red-500' },
 };
 
 export default function NotificationBell() {
