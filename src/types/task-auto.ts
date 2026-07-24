@@ -219,6 +219,20 @@ export interface EditorKpiAllocation {
 
 // ── Team Push Request (duyệt đẩy kho cá nhân → kho team) ──
 
+export interface TaskContentApproval {
+  id: string
+  task_id: string
+  status: ApprovalStatus
+  content: string
+  requested_by_id: string
+  reviewed_by_id: string | null
+  reviewed_at: string | null
+  reject_reason: string | null
+  created_at: string
+  requested_by?: UserBasic
+  reviewed_by?: UserBasic | null
+}
+
 export interface TeamPushRequest {
   id: string
   team_id: string
