@@ -27,6 +27,7 @@ import type {
   TeamProduct,
   TeamContent,
   TeamPushRequest,
+  TaskContentApproval,
   Notification,
   PublishedLink,
 } from '@/types/task-auto'
@@ -134,6 +135,17 @@ export const translateTaskVideoScript = (taskId: string, market?: string | null)
   apiClient
     .post<{ script: VideoScript }>(`/task-auto/tasks/${taskId}/video-script/translate`, { market })
     .then(r => r.data.script)
+
+// ── Content Approval (duyệt content mới trước khi làm task) ─────────────────
+
+export const getTaskContentApproval = (taskId: string) =>
+  apiClient.get<TaskContentApproval | null>(`/task-auto/tasks/${taskId}/content-approval`).then(r => r.data)
+
+export const requestTaskContentApproval = (taskId: string) =>
+  apiClient.post<TaskContentApproval>(`/task-auto/tasks/${taskId}/content-approval`, {}).then(r => r.data)
+
+export const reviewTaskContentApproval = (approvalId: string, action: 'APPROVED' | 'REJECTED', reject_reason?: string) =>
+  apiClient.post<TaskContentApproval>(`/task-auto/content-approvals/${approvalId}/review`, { action, reject_reason }).then(r => r.data)
 
 // ── Teams ─────────────────────────────────────────────────────────────────────
 

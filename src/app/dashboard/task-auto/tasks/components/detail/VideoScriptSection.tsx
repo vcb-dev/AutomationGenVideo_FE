@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Sparkles, Loader2, Copy, Check, Languages, Save, X } from 'lucide-react'
+import { Sparkles, Loader2, Copy, Check, Languages, Save, X, Send, Clock, CheckCircle2, XCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Section } from './Section'
 import {
@@ -9,8 +9,12 @@ import {
   generateTaskVideoScript,
   updateTaskVideoScript,
   translateTaskVideoScript,
+  getTaskContentApproval,
+  requestTaskContentApproval,
+  reviewTaskContentApproval,
   type VideoScript,
 } from '@/lib/api/task-auto'
+import type { TaskContentApproval } from '@/types/task-auto'
 
 function arraysEqual(a: string[], b: string[]) {
   return a.length === b.length && a.every((v, i) => v === b[i])
@@ -32,6 +36,8 @@ function isForeignMarket(market?: string | null): boolean {
 
 export interface VideoScriptSectionProps {
   taskId: string
+  isAssignee?: boolean
+  canApproveReject?: boolean
   fileUrl?: string | null
   scriptText?: string | null
   contentTitle?: string | null
@@ -61,6 +67,13 @@ export function VideoScriptSection(props: VideoScriptSectionProps) {
   const [editedTranslationHashtags, setEditedTranslationHashtags] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [translating, setTranslating] = useState(false)
+
+  // Yêu cầu duyệt content (editor gửi → leader/admin/manager duyệt) — xem tasks.controller.ts content-approval
+  const [approval, setApproval] = useState<TaskContentApproval | null>(null)
+  const [requestingApproval, setRequestingApproval] = useState(false)
+  const [reviewing, setReviewing] = useState<'APPROVED' | 'REJECTED' | null>(null)
+  const [showRejectInput, setShowRejectInput] = useState(false)
+  const [rejectReason, setRejectReason] = useState('')
 
   const contentTextareaRef = useRef<HTMLTextAreaElement | null>(null)
   const translationTextareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -93,6 +106,45 @@ export function VideoScriptSection(props: VideoScriptSectionProps) {
       .catch(() => {})
     return () => { cancelled = true }
   }, [props.taskId])
+
+  useEffect(() => {
+    let cancelled = false
+    getTaskContentApproval(props.taskId)
+      .then(current => { if (!cancelled) setApproval(current) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [props.taskId])
+
+  async function handleRequestApproval() {
+    setRequestingApproval(true)
+    setError(null)
+    try {
+      const result = await requestTaskContentApproval(props.taskId)
+      setApproval(result)
+    } catch (e: any) {
+      setError(e.response?.data?.message ?? e.message ?? 'Không thể gửi yêu cầu duyệt')
+    } finally {
+      setRequestingApproval(false)
+    }
+  }
+
+  async function handleReview(action: 'APPROVED' | 'REJECTED') {
+    if (!approval) return
+    setReviewing(action)
+    setError(null)
+    try {
+      const result = await reviewTaskContentApproval(
+        approval.id, action, action === 'REJECTED' ? rejectReason.trim() || undefined : undefined,
+      )
+      setApproval(result)
+      setShowRejectInput(false)
+      setRejectReason('')
+    } catch (e: any) {
+      setError(e.response?.data?.message ?? e.message ?? 'Thao tác thất bại')
+    } finally {
+      setReviewing(null)
+    }
+  }
 
   async function generate(force = false) {
     setLoading(true)
@@ -209,7 +261,7 @@ export function VideoScriptSection(props: VideoScriptSectionProps) {
       bgColor="bg-violet-50"
       iconColor="text-violet-600"
     >
-      <div className="p-4 space-y-3">
+      <div className="p-5 space-y-4">
         {/* Toolbar */}
         <div className="flex items-center gap-2">
           {!canGenerate && (
@@ -245,45 +297,131 @@ export function VideoScriptSection(props: VideoScriptSectionProps) {
 
         {/* Content sau chỉnh sửa — luôn hiển thị để gõ tay, không cần chờ sinh AI trước */}
         {!loading && (
-          <div className="space-y-3">
+          <div className="space-y-4">
+
+            {/* Trạng thái duyệt content — banner riêng, nổi bật theo màu trạng thái, tách khỏi khối soạn content bên dưới */}
+            {approval?.status === 'PENDING' && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start justify-between gap-3 flex-wrap">
+                <div className="flex gap-3">
+                  <Clock className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Đang chờ duyệt</p>
+                    <p className="text-sm text-amber-800 mt-0.5">Yêu cầu duyệt content đã được gửi, đang chờ leader xác nhận.</p>
+                  </div>
+                </div>
+                {props.canApproveReject && !showRejectInput && (
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleReview('APPROVED')}
+                      disabled={!!reviewing}
+                      className="flex items-center gap-1.5 text-sm font-semibold px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white transition-colors"
+                    >
+                      {reviewing === 'APPROVED' ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                      Duyệt
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowRejectInput(true)}
+                      disabled={!!reviewing}
+                      className="flex items-center gap-1.5 text-sm font-semibold px-3.5 py-2 rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                    >
+                      <XCircle className="w-4 h-4" /> Từ chối
+                    </button>
+                  </div>
+                )}
+                {props.canApproveReject && showRejectInput && (
+                  <div className="flex items-center gap-2 w-full pt-1">
+                    <input
+                      type="text"
+                      autoFocus
+                      value={rejectReason}
+                      onChange={e => setRejectReason(e.target.value)}
+                      placeholder="Lý do từ chối (tuỳ chọn)..."
+                      className="flex-1 text-sm bg-white border border-red-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-300"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleReview('REJECTED')}
+                      disabled={!!reviewing}
+                      className="flex items-center gap-1.5 text-sm font-semibold px-3.5 py-2 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white transition-colors shrink-0"
+                    >
+                      {reviewing === 'REJECTED' && <Loader2 className="w-4 h-4 animate-spin" />} Xác nhận từ chối
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setShowRejectInput(false); setRejectReason('') }}
+                      className="text-sm font-semibold px-3.5 py-2 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors shrink-0"
+                    >
+                      Huỷ
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {approval?.status === 'APPROVED' && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 flex gap-3">
+                <CheckCircle2 className="w-5 h-5 text-emerald-500 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-xs font-bold text-emerald-700 uppercase tracking-wide">Đã duyệt</p>
+                  <p className="text-sm text-emerald-800 mt-0.5">
+                    Content đã được{approval.reviewed_by?.full_name ? ` ${approval.reviewed_by.full_name}` : ''} duyệt
+                    {approval.reviewed_at ? ` · ${new Date(approval.reviewed_at).toLocaleDateString('vi-VN')}` : ''}.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {approval?.status === 'REJECTED' && (
+              <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-start justify-between gap-3 flex-wrap">
+                <div className="flex gap-3">
+                  <XCircle className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs font-bold text-red-700 uppercase tracking-wide">Content bị từ chối</p>
+                    <p className="text-sm text-red-800 mt-0.5">{approval.reject_reason || 'Không có lý do cụ thể.'}</p>
+                  </div>
+                </div>
+                {props.isAssignee && (
+                  <button
+                    type="button"
+                    onClick={handleRequestApproval}
+                    disabled={requestingApproval || dirty || !editedContent.trim()}
+                    title={dirty ? 'Lưu content trước khi gửi lại' : undefined}
+                    className="flex items-center gap-1.5 text-sm font-semibold px-3.5 py-2 rounded-lg bg-red-600 hover:bg-red-700 disabled:bg-gray-200 disabled:text-gray-400 text-white transition-colors shrink-0"
+                  >
+                    {requestingApproval
+                      ? <><Loader2 className="w-4 h-4 animate-spin" /> Đang gửi...</>
+                      : <><Send className="w-4 h-4" /> Gửi lại yêu cầu duyệt</>
+                    }
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Content + Hashtags (editable) */}
-            <div className="bg-violet-50 border border-violet-200 rounded-xl px-4 py-4 space-y-3">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="bg-white border border-gray-200 rounded-xl px-4 py-4 space-y-3">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div className="flex items-center gap-2">
-                  <p className="text-xs font-bold text-violet-400 uppercase tracking-widest">
+                  <p className="text-xs font-bold text-violet-500 uppercase tracking-widest">
                     Content
                   </p>
                   {contentDirty && (
-                    <span className="text-[11px] font-semibold text-amber-600">Chưa lưu</span>
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Chưa lưu
+                    </span>
                   )}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={handleSave}
-                    disabled={!dirty || saving}
-                    className={cn(
-                      'flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors',
-                      dirty && !saving
-                        ? 'bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700'
-                        : 'bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed',
-                    )}
-                  >
-                    {saving
-                      ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Đang lưu...</>
-                      : <><Save className="w-3.5 h-3.5" /> Lưu</>
-                    }
-                  </button>
                   {(editedContent || editedHashtags.length > 0) && (
                     <button
                       type="button"
                       onClick={copyContent}
                       className={cn(
-                        'flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors',
+                        'flex items-center gap-1.5 text-sm font-medium px-3.5 py-2 rounded-lg border transition-colors',
                         copiedContent
                           ? 'bg-green-50 border-green-200 text-green-700'
-                          : 'bg-white/70 border-violet-200 text-violet-600 hover:bg-white',
+                          : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50',
                       )}
                     >
                       {copiedContent ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
@@ -295,7 +433,7 @@ export function VideoScriptSection(props: VideoScriptSectionProps) {
                     onClick={() => generate(!!script)}
                     disabled={!canGenerate || loading}
                     className={cn(
-                      'flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors',
+                      'flex items-center gap-1.5 text-sm font-semibold px-3.5 py-2 rounded-lg transition-colors',
                       canGenerate && !loading
                         ? 'bg-violet-600 hover:bg-violet-700 text-white'
                         : 'bg-gray-100 text-gray-400 cursor-not-allowed',
@@ -306,23 +444,39 @@ export function VideoScriptSection(props: VideoScriptSectionProps) {
                       : <><Sparkles className="w-3.5 h-3.5" /> {script ? 'Sinh lại' : 'Sinh content AI'}</>
                     }
                   </button>
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={!dirty || saving}
+                    className={cn(
+                      'flex items-center gap-1.5 text-sm font-semibold px-3.5 py-2 rounded-lg transition-colors',
+                      dirty && !saving
+                        ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                        : 'bg-gray-100 text-gray-400 cursor-not-allowed',
+                    )}
+                  >
+                    {saving
+                      ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Đang lưu...</>
+                      : <><Save className="w-3.5 h-3.5" /> Lưu</>
+                    }
+                  </button>
                 </div>
               </div>
               <textarea
                 ref={contentTextareaRef}
                 value={editedContent}
                 onChange={e => setEditedContent(e.target.value)}
-                rows={3}
+                rows={5}
                 placeholder="Gõ content tại đây, hoặc bấm 'Sinh content AI' để AI viết giúp..."
-                className="w-full text-sm text-violet-900 leading-relaxed whitespace-pre-line bg-white/70 border border-violet-200 rounded-lg px-3 py-2 resize-none overflow-hidden focus:outline-none focus:ring-2 focus:ring-violet-300"
+                className="w-full min-h-[120px] text-sm text-gray-800 leading-relaxed whitespace-pre-line bg-gray-50 border border-gray-200 rounded-lg px-3.5 py-3 resize-none overflow-hidden focus:outline-none focus:ring-2 focus:ring-violet-300 focus:border-violet-300"
               />
               {editedHashtags.length > 0 && (
-                <div className="flex items-center flex-wrap gap-2">
-                  <span className="text-[11px] font-bold text-violet-400 uppercase tracking-widest shrink-0">Hashtag gợi ý</span>
+                <div className="flex items-center flex-wrap gap-2 pt-1">
+                  <span className="text-[11px] font-bold text-violet-500 uppercase tracking-widest shrink-0">Hashtag gợi ý</span>
                   {editedHashtags.map((tag, i) => (
                     <span
                       key={`${tag}-${i}`}
-                      className="flex items-center gap-1 text-sm font-medium text-violet-700 bg-white border border-violet-200 pl-3 pr-1.5 py-1 rounded-full"
+                      className="flex items-center gap-1 text-sm font-medium text-violet-700 bg-violet-50 border border-violet-200 pl-3 pr-1.5 py-1 rounded-full"
                     >
                       {tag}
                       <button
@@ -337,6 +491,25 @@ export function VideoScriptSection(props: VideoScriptSectionProps) {
                 </div>
               )}
             </div>
+
+            {/* Editor chưa từng gửi duyệt lần nào — mời gửi ngay dưới khối content */}
+            {!approval && props.isAssignee && (
+              <div className="flex items-center justify-between gap-3 flex-wrap bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
+                <p className="text-sm text-gray-500">Content này chưa được gửi duyệt.</p>
+                <button
+                  type="button"
+                  onClick={handleRequestApproval}
+                  disabled={requestingApproval || dirty || !editedContent.trim()}
+                  title={dirty ? 'Lưu content trước khi gửi duyệt' : !editedContent.trim() ? 'Cần có content trước khi gửi duyệt' : undefined}
+                  className="flex items-center gap-1.5 text-sm font-semibold px-3.5 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 disabled:bg-gray-200 disabled:text-gray-400 text-white transition-colors shrink-0"
+                >
+                  {requestingApproval
+                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Đang gửi...</>
+                    : <><Send className="w-4 h-4" /> Gửi yêu cầu duyệt content</>
+                  }
+                </button>
+              </div>
+            )}
 
             {/* Thị trường nước ngoài nhưng chưa từng dịch lần nào — cho bấm "Dịch" để AI tự xác định ngôn ngữ */}
             {foreignMarket && !script?.translation && (
