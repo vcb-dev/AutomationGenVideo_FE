@@ -207,14 +207,14 @@ export function TeamPushRequestsTab({ isAdminOrManager, userId, selectedTeamId, 
                             disabled={approve.isPending}
                             onClick={() => approve.mutate(r.id)}
                             title="Duyệt"
-                            className="p-2 rounded-xl text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-50"
+                            className="p-2.5 rounded-xl text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-50"
                           >
                             <Check className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => setRejecting(r)}
                             title="Từ chối"
-                            className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                            className="p-2.5 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
                           >
                             <X className="w-4 h-4" />
                           </button>

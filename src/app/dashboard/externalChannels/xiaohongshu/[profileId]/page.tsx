@@ -6,13 +6,16 @@ import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft, Heart, ChatCircle, BookmarkSimple, Timer,
   VideoCamera, ArrowsClockwise, CircleNotch, FilmReel,
-  SealCheck, Bookmarks,
+  SealCheck, Bookmarks, PaperPlaneTilt,
 } from '@phosphor-icons/react';
 import toast from 'react-hot-toast';
 
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService, XiaohongshuVideo } from '@/services/scraperService';
 import { useScrapingStore } from '@/store/scraping-store';
+import { UserRole } from '@/types/auth';
+import { videoLibraryService } from '@/services/videoLibraryService';
+import LookalikeSection from '../../components/LookalikeSection';
 
 function formatNum(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -41,14 +44,38 @@ function relativeTime(dateStr: string): string {
 }
 
 function VideoCard({ video }: { video: XiaohongshuVideo }) {
+  const { token } = useAuthStore();
+  const proposeMutation = useMutation({
+    mutationFn: () => {
+      if (!token) throw new Error('No token');
+      return videoLibraryService.proposeVideo(token, {
+        video_id: video.note_id,
+        platform: 'xiaohongshu',
+        title: video.title?.slice(0, 200) || '',
+        description: video.description || '',
+        video_url: video.url,
+        author_username: video.author_id || '',
+        author_name: video.author_name || '',
+        thumbnail_url: video.thumbnail_url || undefined,
+        likes_count: video.liked_count,
+        comments_count: video.comments_count,
+        shares_count: video.shared_count,
+        hashtags: video.keywords,
+        source: 'SCRAPED',
+      });
+    },
+    onSuccess: () => toast.success('Đã gửi đề xuất, chờ duyệt.'),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   return (
-    <a
-      href={video.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg hover:scale-[1.01] transition-all duration-200 flex flex-col"
-    >
-      <div className="relative aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[320px]">
+    <div className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg hover:scale-[1.01] transition-all duration-200 flex flex-col">
+      <a
+        href={video.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="relative block aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[320px]"
+      >
         {video.thumbnail_url ? (
           <img src={video.thumbnail_url} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" loading="lazy" />
         ) : (
@@ -68,19 +95,34 @@ function VideoCard({ video }: { video: XiaohongshuVideo }) {
             {formatDuration(video.duration_seconds)}
           </div>
         )}
-      </div>
+      </a>
       <div className="p-3 flex flex-col gap-1.5 flex-1">
         <p className="text-xs text-foreground line-clamp-2 leading-relaxed">
           {video.title || video.description || <span className="text-slate-400 italic">Không có mô tả</span>}
         </p>
-        <p className="text-xs text-slate-400 dark:text-slate-500 mt-auto">{relativeTime(video.date_posted)}</p>
+        <div className="flex items-center justify-between gap-2 mt-auto">
+          <p className="text-xs text-slate-400 dark:text-slate-500">{relativeTime(video.date_posted)}</p>
+          <button
+            onClick={() => proposeMutation.mutate()}
+            disabled={proposeMutation.isPending || proposeMutation.isSuccess}
+            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-primary border border-primary/30 rounded-md hover:bg-primary/10 disabled:opacity-50 transition-colors flex-shrink-0"
+          >
+            {proposeMutation.isPending ? (
+              <CircleNotch size={12} weight="bold" className="animate-spin" />
+            ) : (
+              <PaperPlaneTilt size={12} weight="bold" />
+            )}
+            {proposeMutation.isSuccess ? 'Đã đề xuất' : 'Đề xuất'}
+          </button>
+        </div>
       </div>
-    </a>
+    </div>
   );
 }
 
 export default function XhsProfileDetailPage() {
-  const { token } = useAuthStore();
+  const { token, user } = useAuthStore();
+  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
   const router = useRouter();
   const queryClient = useQueryClient();
   const { profileId } = useParams<{ profileId: string }>();
@@ -273,14 +315,16 @@ export default function XhsProfileDetailPage() {
 
           {/* Action buttons */}
           <div className="flex items-center gap-2 mt-5 flex-wrap">
-            <button
-              onClick={() => scrapeMutation.mutate()}
-              disabled={isProcessing || scrapeMutation.isPending}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-md hover:opacity-90 disabled:opacity-50"
-            >
-              <ArrowsClockwise size={15} className={isProcessing ? 'animate-spin' : ''} />
-              {isProcessing ? 'Đang cào...' : p.is_initial_scraped ? 'Cập nhật' : 'Cào lượt đầu'}
-            </button>
+            {canManageChannels && (
+              <button
+                onClick={() => scrapeMutation.mutate()}
+                disabled={isProcessing || scrapeMutation.isPending}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-md hover:opacity-90 disabled:opacity-50"
+              >
+                <ArrowsClockwise size={15} className={isProcessing ? 'animate-spin' : ''} />
+                {isProcessing ? 'Đang cào...' : p.is_initial_scraped ? 'Cập nhật' : 'Cào lượt đầu'}
+              </button>
+            )}
 
             <button
               onClick={() => toggleMutation.mutate({ is_bookmarked: !p.is_bookmarked })}
@@ -295,18 +339,20 @@ export default function XhsProfileDetailPage() {
               {p.is_bookmarked ? 'Đã lưu' : 'Lưu'}
             </button>
 
-            <button
-              onClick={() => toggleMutation.mutate({ is_tracked: !p.is_tracked })}
-              disabled={toggleMutation.isPending}
-              className={`flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-md transition-colors ${
-                p.is_tracked
-                  ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-700'
-                  : 'hover:bg-slate-50 dark:hover:bg-slate-800'
-              }`}
-            >
-              <Timer size={15} weight={p.is_tracked ? 'fill' : 'regular'} />
-              {p.is_tracked ? 'Đang theo dõi' : 'Theo dõi'}
-            </button>
+            {canManageChannels && (
+              <button
+                onClick={() => toggleMutation.mutate({ is_tracked: !p.is_tracked })}
+                disabled={toggleMutation.isPending}
+                className={`flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-md transition-colors ${
+                  p.is_tracked
+                    ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-700'
+                    : 'hover:bg-slate-50 dark:hover:bg-slate-800'
+                }`}
+              >
+                <Timer size={15} weight={p.is_tracked ? 'fill' : 'regular'} />
+                {p.is_tracked ? 'Kênh chú ý' : 'Đánh dấu kênh chú ý'}
+              </button>
+            )}
 
             <a
               href={`https://www.xiaohongshu.com/user/profile/${p.user_id}`}
@@ -319,6 +365,8 @@ export default function XhsProfileDetailPage() {
           </div>
         </div>
       </div>
+
+      <LookalikeSection platform="xiaohongshu" profileId={id} />
 
       {/* ─── Videos Grid ─────────────────────────────────── */}
       <div>

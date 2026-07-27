@@ -3,13 +3,14 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Crown, Users, PenLine, Pencil, Check, X, Loader2 } from 'lucide-react'
+import { Crown, Users, PenLine, Pencil, Check, X, Loader2, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { CustomSelect } from '@/components/task-auto/DarkInput'
+import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
 import { formatDateTime } from '@/components/task-auto/helpers'
-import { getTeams, getApprovals, setMemberEditorRole, updateTeam } from '@/lib/api/task-auto'
+import { getTeams, getApprovals, setMemberEditorRole, updateTeam, deleteTeam } from '@/lib/api/task-auto'
 import type { BrandType, TeamMarket, TeamMember } from '@/types/task-auto'
 
 const BRANDS: { key: BrandType; label: string; color: string }[] = [
@@ -25,7 +26,7 @@ const MARKETS: { key: TeamMarket; label: string; color: string }[] = [
 ]
 
 const marketBtnClass = (color: string, active: boolean) => cn(
-  'px-3 py-1 rounded-full text-xs font-semibold border-2 transition-all',
+  'px-3 py-2 rounded-full text-xs font-semibold border-2 transition-all',
   active ? {
     emerald: 'bg-emerald-500 border-emerald-500 text-white shadow-sm',
     amber:   'bg-amber-500 border-amber-500 text-white shadow-sm',
@@ -36,17 +37,19 @@ const marketBtnClass = (color: string, active: boolean) => cn(
 
 interface MembersTabProps {
   canManage: boolean
+  isAdmin: boolean
   isAdminOrManager: boolean
   userId?: string
   selectedTeamId: string
   setSelectedTeamId: (id: string) => void
 }
 
-export function MembersTab({ canManage, isAdminOrManager, userId, selectedTeamId, setSelectedTeamId }: MembersTabProps) {
+export function MembersTab({ canManage, isAdmin, isAdminOrManager, userId, selectedTeamId, setSelectedTeamId }: MembersTabProps) {
   const qc = useQueryClient()
   const [editingTeam, setEditingTeam] = useState(false)
   const [pendingBrand, setPendingBrand] = useState<BrandType | null>(null)
   const [pendingMarket, setPendingMarket] = useState<TeamMarket | null>(null)
+  const [deletingTeam, setDeletingTeam] = useState(false)
 
   const { data: teams } = useQuery({
     queryKey: ['task-auto', 'teams'],
@@ -100,6 +103,17 @@ export function MembersTab({ canManage, isAdminOrManager, userId, selectedTeamId
       setPendingMarket(null)
     },
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Thay đổi thất bại'),
+  })
+
+  const deleteMut = useMutation({
+    mutationFn: () => deleteTeam(selectedTeamId),
+    onSuccess: () => {
+      toast.success('Đã xóa team')
+      qc.invalidateQueries({ queryKey: ['task-auto', 'teams'] })
+      setSelectedTeamId('')
+      setDeletingTeam(false)
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message || 'Xóa team thất bại'),
   })
 
   const handleSave = () => {
@@ -158,7 +172,7 @@ export function MembersTab({ canManage, isAdminOrManager, userId, selectedTeamId
                       key={b.key}
                       onClick={() => setPendingBrand(b.key)}
                       className={cn(
-                        'px-3 py-1 rounded-full text-xs font-semibold border-2 transition-all',
+                        'px-3 py-2 rounded-full text-xs font-semibold border-2 transition-all',
                         (pendingBrand ?? brand) === b.key
                           ? b.color === 'amber'
                             ? 'bg-amber-500 border-amber-500 text-white shadow-sm'
@@ -235,6 +249,16 @@ export function MembersTab({ canManage, isAdminOrManager, userId, selectedTeamId
               <span className="bg-amber-50 text-amber-600 text-xs px-2 py-0.5 rounded-full">Leader</span>
             </div>
           )}
+
+          {isAdmin && selectedTeam && (
+            <button
+              onClick={() => setDeletingTeam(true)}
+              title="Xóa team"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -252,7 +276,7 @@ export function MembersTab({ canManage, isAdminOrManager, userId, selectedTeamId
               const isTogglingThis = editorMut.isPending && editorMut.variables?.memberId === member.user_id
 
               return (
-                <div key={member.id} className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors">
+                <div key={member.id} className="flex items-center gap-4 flex-wrap gap-y-2 px-5 py-4 hover:bg-gray-50 transition-colors">
                   <AvatarInitials name={member.user?.full_name} size="md" />
 
                   <div className="flex-1 min-w-0">
@@ -274,39 +298,53 @@ export function MembersTab({ canManage, isAdminOrManager, userId, selectedTeamId
                     <p className="text-xs text-slate-500 mt-0.5">{member.user?.email}</p>
                   </div>
 
-                  <div className="text-right shrink-0">
-                    <p className="text-xs text-slate-500">Tham gia</p>
-                    <p className="text-xs text-slate-400 font-medium">
-                      {formatDateTime(member.joined_at).split(' ')[0]}
-                    </p>
-                  </div>
+                  {/* Trailing group — cho phép xuống dòng riêng trên màn hình hẹp, không phá vỡ cụm avatar+tên */}
+                  <div className="flex items-center gap-4 ml-auto shrink-0">
+                    <div className="text-right shrink-0">
+                      <p className="text-xs text-slate-500">Tham gia</p>
+                      <p className="text-xs text-slate-400 font-medium">
+                        {formatDateTime(member.joined_at).split(' ')[0]}
+                      </p>
+                    </div>
 
-                  {/* Editor toggle */}
-                  {canManage && (
-                    <button
-                      onClick={() => editorMut.mutate({ memberId: member.user_id, isEditor: !isEditor })}
-                      disabled={editorMut.isPending}
-                      title={isEditor ? 'Thu hồi quyền Editor' : 'Gán làm Editor'}
-                      className={cn(
-                        'p-1.5 rounded-lg transition-colors flex-shrink-0 text-xs font-semibold flex items-center gap-1 disabled:opacity-60',
-                        isEditor
-                          ? 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
-                          : 'bg-gray-100 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600'
-                      )}
-                    >
-                      {isTogglingThis
-                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        : <PenLine className="w-3.5 h-3.5" />
-                      }
-                      {isEditor ? 'Editor' : 'Gán Editor'}
-                    </button>
-                  )}
+                    {/* Editor toggle */}
+                    {canManage && (
+                      <button
+                        onClick={() => editorMut.mutate({ memberId: member.user_id, isEditor: !isEditor })}
+                        disabled={editorMut.isPending}
+                        title={isEditor ? 'Thu hồi quyền Editor' : 'Gán làm Editor'}
+                        className={cn(
+                          'p-1.5 rounded-lg transition-colors flex-shrink-0 text-xs font-semibold flex items-center gap-1 disabled:opacity-60',
+                          isEditor
+                            ? 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
+                            : 'bg-gray-100 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600'
+                        )}
+                      >
+                        {isTogglingThis
+                          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          : <PenLine className="w-3.5 h-3.5" />
+                        }
+                        {isEditor ? 'Editor' : 'Gán Editor'}
+                      </button>
+                    )}
+                  </div>
                 </div>
               )
             })}
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={deletingTeam}
+        title="Xóa team"
+        message={`Xóa team "${selectedTeam?.name ?? ''}"? ${members.length > 0 ? `${members.length} thành viên sẽ bị gỡ khỏi team. ` : ''}Nếu team còn task/video/content đang hoạt động, hệ thống sẽ chặn xóa cho tới khi dữ liệu đó được xử lý. Hành động này không thể hoàn tác.`}
+        confirmLabel="Xóa team"
+        danger
+        isLoading={deleteMut.isPending}
+        onConfirm={() => deleteMut.mutate()}
+        onCancel={() => setDeletingTeam(false)}
+      />
     </div>
   )
 }

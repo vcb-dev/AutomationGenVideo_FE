@@ -6,6 +6,7 @@ import { CircleNotch, FilmReel, Warning, Eye, Heart, ChatCircle, FacebookLogo, T
 
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService, ExternalVideo } from '@/services/scraperService';
+import QuickAddChannel from '../components/QuickAddChannel';
 
 function formatNum(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -192,6 +193,8 @@ export default function AllExternalVideosPage() {
 
   return (
     <div className="flex flex-col gap-5">
+      <QuickAddChannel />
+
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-3 bg-card border border-border rounded-xl p-4">
         <input

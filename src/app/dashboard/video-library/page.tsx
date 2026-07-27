@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
+import toast from 'react-hot-toast';
 import {
     Bookmark,
     Users,
@@ -26,13 +27,20 @@ import {
     Film,
     Package,
     CheckCircle,
+    Plus,
+    X,
+    Send,
+    XCircle,
+    UserCircle,
+    Inbox,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
+import { videoLibraryService, ScraperVideoProposal, ProposeVideoPayload } from '@/services/videoLibraryService';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type TabId = 'team' | 'shared' | 'content';
+type TabId = 'team' | 'shared' | 'content' | 'pending';
 
 interface LibraryVideo {
     id: string;
@@ -91,6 +99,8 @@ const PLATFORM_COLOR: Record<string, string> = {
     DOUYIN: 'from-slate-700 to-slate-900',
     XIAOHONGSHU: 'from-red-500 to-rose-600',
     YOUTUBE: 'from-red-600 to-rose-700',
+    KUAISHOU: 'from-orange-500 to-amber-600',
+    BILIBILI: 'from-sky-500 to-blue-600',
 };
 
 const PLATFORM_LABEL: Record<string, string> = {
@@ -100,12 +110,29 @@ const PLATFORM_LABEL: Record<string, string> = {
     DOUYIN: 'Douyin',
     XIAOHONGSHU: 'Xiaohongshu',
     YOUTUBE: 'YouTube',
+    KUAISHOU: 'Kuaishou',
+    BILIBILI: 'Bilibili',
 };
 
 function formatCount(n: number): string {
     if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
     if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
     return n.toString();
+}
+
+const PROPOSAL_PLATFORMS = ['tiktok', 'douyin', 'instagram', 'youtube', 'xiaohongshu', 'kuaishou', 'bilibili', 'facebook'] as const;
+
+function guessPlatformFromUrl(url: string): string {
+    const u = url.toLowerCase();
+    if (u.includes('tiktok.com')) return 'tiktok';
+    if (u.includes('douyin.com')) return 'douyin';
+    if (u.includes('instagram.com')) return 'instagram';
+    if (u.includes('youtube.com') || u.includes('youtu.be')) return 'youtube';
+    if (u.includes('xiaohongshu.com') || u.includes('xhslink.com')) return 'xiaohongshu';
+    if (u.includes('kuaishou.com')) return 'kuaishou';
+    if (u.includes('bilibili.com')) return 'bilibili';
+    if (u.includes('facebook.com') || u.includes('fb.watch')) return 'facebook';
+    return 'tiktok';
 }
 
 // ─── Video Card ────────────────────────────────────────────────────────────────
@@ -393,6 +420,272 @@ function ContentCard({
     );
 }
 
+// ─── Proposal Card (pending approval) ──────────────────────────────────────────
+
+function ProposalCard({
+    proposal,
+    index,
+    onReview,
+}: {
+    proposal: ScraperVideoProposal;
+    index: number;
+    onReview: (id: string, action: 'APPROVED' | 'REJECTED') => void;
+}) {
+    const [busy, setBusy] = useState<'APPROVED' | 'REJECTED' | null>(null);
+
+    const handleReview = async (action: 'APPROVED' | 'REJECTED') => {
+        if (action === 'REJECTED' && !confirm('Từ chối đề xuất này?')) return;
+        setBusy(action);
+        onReview(proposal.id, action);
+    };
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ delay: index * 0.05, duration: 0.3 }}
+            className="group relative bg-white/[0.03] border border-white/[0.07] rounded-2xl overflow-hidden hover:border-white/20 hover:bg-white/[0.06] transition-all duration-300 flex flex-col"
+        >
+            <div className={`relative h-44 bg-gradient-to-br ${PLATFORM_COLOR[proposal.platform.toUpperCase()] ?? 'from-slate-600 to-slate-800'} overflow-hidden flex-shrink-0`}>
+                {proposal.thumbnail_url ? (
+                    <img
+                        src={proposal.thumbnail_url}
+                        alt={proposal.title}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                ) : (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+                        <div className="w-12 h-12 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center">
+                            <Play className="w-5 h-5 text-white ml-0.5" />
+                        </div>
+                    </div>
+                )}
+                <div className="absolute bottom-2 left-2">
+                    <span className="text-white/90 text-[10px] font-bold px-2 py-1 rounded-full bg-black/50 backdrop-blur-sm">
+                        {PLATFORM_LABEL[proposal.platform.toUpperCase()] ?? proposal.platform}
+                    </span>
+                </div>
+                <div className="absolute top-2 right-2">
+                    <span className="text-black text-[10px] font-bold px-2 py-1 rounded-full bg-amber-400/90 backdrop-blur-sm">
+                        {proposal.source === 'MANUAL' ? 'Tự thêm' : 'Từ kênh chú ý'}
+                    </span>
+                </div>
+            </div>
+
+            <div className="p-4 space-y-3 flex flex-col flex-1">
+                <div>
+                    <h3 className="text-white font-semibold text-sm leading-snug line-clamp-2">
+                        {proposal.title || '(Không có tiêu đề)'}
+                    </h3>
+                    {proposal.description && (
+                        <p className="text-slate-500 text-xs mt-1 line-clamp-2">{proposal.description}</p>
+                    )}
+                </div>
+
+                {proposal.notes && (
+                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+                        <p className="text-amber-400 text-xs leading-relaxed">{proposal.notes}</p>
+                    </div>
+                )}
+
+                <div className="flex-1" />
+                <div className="border-t border-white/[0.06]" />
+
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-slate-500 text-xs">
+                        <UserCircle className="w-3.5 h-3.5 text-blue-400" />
+                        <span className="text-slate-400 truncate max-w-[110px]">{proposal.requested_by?.full_name || 'Ẩn danh'}</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-slate-600 text-xs">
+                        <Clock className="w-3 h-3" />
+                        {new Date(proposal.created_at).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                    <button
+                        onClick={() => handleReview('APPROVED')}
+                        disabled={busy !== null}
+                        className="h-9 flex items-center justify-center gap-1.5 rounded-xl font-bold text-[10px] uppercase tracking-widest bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white transition-all duration-200 disabled:opacity-50"
+                    >
+                        {busy === 'APPROVED' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                        Duyệt
+                    </button>
+                    <button
+                        onClick={() => handleReview('REJECTED')}
+                        disabled={busy !== null}
+                        className="h-9 flex items-center justify-center gap-1.5 rounded-xl bg-white/[0.03] border border-white/[0.08] hover:border-red-500/40 text-slate-400 hover:text-red-400 text-[10px] font-bold tracking-widest transition-all uppercase disabled:opacity-50"
+                    >
+                        {busy === 'REJECTED' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-3.5 h-3.5" />}
+                        Từ chối
+                    </button>
+                </div>
+
+                <a
+                    href={proposal.video_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="h-9 flex items-center justify-center gap-1.5 rounded-xl bg-slate-900 border border-white/5 hover:border-white/10 text-slate-500 hover:text-white text-[10px] font-bold tracking-widest transition-all uppercase"
+                >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    Xem video gốc
+                </a>
+            </div>
+        </motion.div>
+    );
+}
+
+// ─── Propose Video Modal ────────────────────────────────────────────────────────
+
+function ProposeVideoModal({
+    canReview,
+    onClose,
+    onSubmitted,
+}: {
+    canReview: boolean;
+    onClose: () => void;
+    onSubmitted: () => void;
+}) {
+    const { token } = useAuthStore();
+    const [videoUrl, setVideoUrl] = useState('');
+    const [title, setTitle] = useState('');
+    const [notes, setNotes] = useState('');
+    const [platform, setPlatform] = useState<string>('tiktok');
+    const [platformTouched, setPlatformTouched] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState('');
+
+    const handleUrlChange = (v: string) => {
+        setVideoUrl(v);
+        if (!platformTouched && v.trim()) setPlatform(guessPlatformFromUrl(v));
+    };
+
+    const handleSubmit = async () => {
+        if (!token || !videoUrl.trim()) return;
+        setSubmitting(true);
+        setError('');
+        try {
+            const payload: ProposeVideoPayload = {
+                video_id: videoUrl.trim().slice(0, 255),
+                platform,
+                title: title.trim() || undefined,
+                video_url: videoUrl.trim(),
+                notes: notes.trim() || undefined,
+                source: 'MANUAL',
+            };
+            if (canReview) {
+                await videoLibraryService.addVideoDirectly(token, payload);
+                toast.success('Đã thêm video vào bộ sưu tập.');
+            } else {
+                await videoLibraryService.proposeVideo(token, payload);
+                toast.success('Đã gửi đề xuất, chờ duyệt.');
+            }
+            onSubmitted();
+            onClose();
+        } catch (e) {
+            setError(e instanceof Error ? e.message : 'Có lỗi xảy ra');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    return (
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+            onClick={onClose}
+        >
+            <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full max-w-lg bg-[#0d1017] border border-white/10 rounded-2xl p-6 space-y-4"
+            >
+                <div className="flex items-center justify-between">
+                    <h3 className="text-white font-semibold text-lg">
+                        {canReview ? 'Thêm video vào bộ sưu tập' : 'Đề xuất video đã xem/lưu'}
+                    </h3>
+                    <button onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-white/[0.06] flex items-center justify-center text-slate-500 hover:text-white transition-colors">
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+
+                <div className="space-y-3">
+                    <div>
+                        <label className="text-xs text-slate-500 mb-1.5 block">Link video *</label>
+                        <input
+                            type="text"
+                            value={videoUrl}
+                            onChange={(e) => handleUrlChange(e.target.value)}
+                            placeholder="https://..."
+                            className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/50 transition-all"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="text-xs text-slate-500 mb-1.5 block">Nền tảng</label>
+                        <select
+                            value={platform}
+                            onChange={(e) => { setPlatform(e.target.value); setPlatformTouched(true); }}
+                            className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-blue-500/50 transition-all"
+                        >
+                            {PROPOSAL_PLATFORMS.map((p) => (
+                                <option key={p} value={p} className="bg-[#0d1017]">{PLATFORM_LABEL[p.toUpperCase()] ?? p}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="text-xs text-slate-500 mb-1.5 block">Tiêu đề (tuỳ chọn)</label>
+                        <input
+                            type="text"
+                            value={title}
+                            onChange={(e) => setTitle(e.target.value)}
+                            placeholder="Tiêu đề ngắn gọn..."
+                            className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/50 transition-all"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="text-xs text-slate-500 mb-1.5 block">Ghi chú (tuỳ chọn)</label>
+                        <textarea
+                            value={notes}
+                            onChange={(e) => setNotes(e.target.value)}
+                            placeholder="Vì sao video này đáng chú ý?"
+                            rows={2}
+                            className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500/50 transition-all resize-none"
+                        />
+                    </div>
+                </div>
+
+                {error && <p className="text-red-400 text-xs">{error}</p>}
+
+                <div className="flex items-center gap-3 pt-2">
+                    <button
+                        onClick={onClose}
+                        className="flex-1 h-10 rounded-xl bg-white/[0.04] border border-white/[0.08] text-slate-400 hover:text-white text-sm font-medium transition-colors"
+                    >
+                        Huỷ
+                    </button>
+                    <button
+                        onClick={handleSubmit}
+                        disabled={submitting || !videoUrl.trim()}
+                        className="flex-1 h-10 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-sm font-semibold transition-all disabled:opacity-50"
+                    >
+                        {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                        {canReview ? 'Thêm vào bộ sưu tập' : 'Gửi đề xuất'}
+                    </button>
+                </div>
+            </motion.div>
+        </motion.div>
+    );
+}
+
 // ─── Empty State ───────────────────────────────────────────────────────────────
 
 function EmptyState({ tab }: { tab: TabId }) {
@@ -405,6 +698,8 @@ function EmptyState({ tab }: { tab: TabId }) {
             <div className="w-20 h-20 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center mb-6">
                 {tab === 'content' ? (
                     <FileText className="w-9 h-9 text-slate-600" />
+                ) : tab === 'pending' ? (
+                    <Inbox className="w-9 h-9 text-slate-600" />
                 ) : tab === 'team' ? (
                     <Users className="w-9 h-9 text-slate-600" />
                 ) : (
@@ -412,11 +707,13 @@ function EmptyState({ tab }: { tab: TabId }) {
                 )}
             </div>
             <h3 className="text-white/80 text-xl font-semibold mb-2">
-                {tab === 'content' ? 'Chưa có content nào' : 'Chưa có video nào'}
+                {tab === 'content' ? 'Chưa có content nào' : tab === 'pending' ? 'Không có đề xuất nào chờ duyệt' : 'Chưa có video nào'}
             </h3>
             <p className="text-slate-600 text-sm max-w-sm">
                 {tab === 'content'
                     ? 'Chưa có content nào được duyệt. Hãy Generate Content rồi bấm "Duyệt" để lưu vào đây.'
+                    : tab === 'pending'
+                    ? 'Khi member đề xuất video, chúng sẽ xuất hiện ở đây để bạn duyệt.'
                     : tab === 'team'
                     ? 'Leader chưa thêm video nào vào bộ sưu tập Team.'
                     : 'Manager/Admin chưa thêm video nào vào bộ sưu tập Chung.'}
@@ -430,25 +727,31 @@ function EmptyState({ tab }: { tab: TabId }) {
 function VideoLibraryInner() {
     const searchParams = useSearchParams();
     const router = useRouter();
-    const { user } = useAuthStore();
+    const { user, token } = useAuthStore();
 
     const tabParam = (searchParams?.get('tab') as TabId) || 'team';
     const [activeTab, setActiveTab] = useState<TabId>(tabParam);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterPlatform, setFilterPlatform] = useState<string>('all');
+    const [showProposeModal, setShowProposeModal] = useState(false);
 
     const [teamVideos, setTeamVideos] = useState<LibraryVideo[]>([]);
     const [sharedVideos, setSharedVideos] = useState<LibraryVideo[]>([]);
     const [contentItems, setContentItems] = useState<ApprovedContentItem[]>([]);
+    const [pendingProposals, setPendingProposals] = useState<ScraperVideoProposal[]>([]);
     const [loadingTeam, setLoadingTeam] = useState(true);
     const [loadingShared, setLoadingShared] = useState(true);
     const [loadingContent, setLoadingContent] = useState(true);
+    const [loadingPending, setLoadingPending] = useState(true);
 
     const isManagement = user?.roles?.some((r) =>
         [UserRole.ADMIN, UserRole.MANAGER, UserRole.LEADER].includes(r),
     ) ?? false;
     const isAdminOrManager = user?.roles?.some((r) =>
         [UserRole.ADMIN, UserRole.MANAGER].includes(r),
+    ) ?? false;
+    const canReview = user?.roles?.some((r) =>
+        [UserRole.ADMIN, UserRole.LEADER].includes(r),
     ) ?? false;
 
     const fetchVideos = useCallback(async (type: 'TEAM' | 'SHARED', setter: (v: LibraryVideo[]) => void, setLoading: (b: boolean) => void) => {
@@ -489,11 +792,29 @@ function VideoLibraryInner() {
         }
     }, []);
 
+    const fetchPending = useCallback(async () => {
+        if (!token) return;
+        setLoadingPending(true);
+        try {
+            const data = await videoLibraryService.getPendingProposals(token);
+            setPendingProposals(Array.isArray(data) ? data : []);
+        } catch {
+            // silent
+        } finally {
+            setLoadingPending(false);
+        }
+    }, [token]);
+
     useEffect(() => {
         fetchVideos('TEAM', setTeamVideos, setLoadingTeam);
         fetchVideos('SHARED', setSharedVideos, setLoadingShared);
         fetchContent();
     }, [fetchVideos, fetchContent]);
+
+    useEffect(() => {
+        if (canReview) fetchPending();
+        else setLoadingPending(false);
+    }, [canReview, fetchPending]);
 
     useEffect(() => {
         setActiveTab((searchParams?.get('tab') as TabId) || 'team');
@@ -537,6 +858,20 @@ function VideoLibraryInner() {
         }
     };
 
+    const handleReviewProposal = async (id: string, action: 'APPROVED' | 'REJECTED') => {
+        if (!token) return;
+        try {
+            await videoLibraryService.reviewProposal(token, id, action);
+            setPendingProposals((v) => v.filter((x) => x.id !== id));
+            if (action === 'APPROVED') {
+                fetchVideos('TEAM', setTeamVideos, setLoadingTeam);
+                fetchVideos('SHARED', setSharedVideos, setLoadingShared);
+            }
+        } catch {
+            // silent
+        }
+    };
+
     const activeVideos = activeTab === 'team' ? teamVideos : sharedVideos;
     const filteredVideos = activeVideos.filter((v) => {
         const matchSearch =
@@ -558,13 +893,14 @@ function VideoLibraryInner() {
         );
     });
 
-    const isLoading = activeTab === 'content' ? loadingContent : activeTab === 'team' ? loadingTeam : loadingShared;
+    const isLoading = activeTab === 'content' ? loadingContent : activeTab === 'pending' ? loadingPending : activeTab === 'team' ? loadingTeam : loadingShared;
     const canDeleteCurrent = isAdminOrManager || (activeTab === 'team' && user?.roles?.includes(UserRole.LEADER));
 
     const tabs: { id: TabId; label: string; icon: React.ReactNode; count: number; loading: boolean }[] = [
         { id: 'team', label: 'Team', icon: <Users className="w-4 h-4" />, count: teamVideos.length, loading: loadingTeam },
         { id: 'shared', label: 'Chung', icon: <Globe className="w-4 h-4" />, count: sharedVideos.length, loading: loadingShared },
         { id: 'content', label: 'Content', icon: <FileText className="w-4 h-4" />, count: contentItems.length, loading: loadingContent },
+        ...(canReview ? [{ id: 'pending' as TabId, label: 'Chờ duyệt', icon: <Inbox className="w-4 h-4" />, count: pendingProposals.length, loading: loadingPending }] : []),
     ];
 
     const platforms = ['all', 'TIKTOK', 'INSTAGRAM', 'FACEBOOK', 'DOUYIN', 'XIAOHONGSHU'] as const;
@@ -611,6 +947,13 @@ function VideoLibraryInner() {
                     <p className="text-slate-500 text-base font-medium max-w-xl mx-auto">
                         Video hay được Leader và Manager tuyển chọn — nguồn cảm hứng cho cả team.
                     </p>
+                    <button
+                        onClick={() => setShowProposeModal(true)}
+                        className="inline-flex items-center gap-2 mt-1 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-sm font-semibold shadow-lg shadow-blue-500/20 transition-all"
+                    >
+                        <Plus className="w-4 h-4" />
+                        {canReview ? 'Thêm video vào bộ sưu tập' : 'Đề xuất video đã xem/lưu'}
+                    </button>
                 </motion.div>
 
                 {/* Tab switcher */}
@@ -654,7 +997,7 @@ function VideoLibraryInner() {
                         className="space-y-6"
                     >
                         {/* Stats bar — video tabs */}
-                        {activeTab !== 'content' && !isLoading && activeVideos.length > 0 && (
+                        {(activeTab === 'team' || activeTab === 'shared') && !isLoading && activeVideos.length > 0 && (
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                 {[
                                     { label: 'Tổng video', value: activeVideos.length, icon: <Bookmark className="w-4 h-4 text-blue-400" /> },
@@ -708,7 +1051,7 @@ function VideoLibraryInner() {
                         )}
 
                         {/* Search & Filter */}
-                        {!isLoading && ((activeTab === 'content' && contentItems.length > 0) || (activeTab !== 'content' && activeVideos.length > 0)) && (
+                        {!isLoading && ((activeTab === 'content' && contentItems.length > 0) || ((activeTab === 'team' || activeTab === 'shared') && activeVideos.length > 0)) && (
                             <div className="flex flex-col sm:flex-row gap-3">
                                 <div className="relative flex-1">
                                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600 pointer-events-none" />
@@ -766,7 +1109,7 @@ function VideoLibraryInner() {
                         )}
 
                         {/* Grid / Empty — video tabs */}
-                        {activeTab !== 'content' && !isLoading && (
+                        {(activeTab === 'team' || activeTab === 'shared') && !isLoading && (
                             filteredVideos.length === 0 ? (
                                 <EmptyState tab={activeTab} />
                             ) : (
@@ -779,6 +1122,26 @@ function VideoLibraryInner() {
                                                 index={idx}
                                                 canDelete={canDeleteCurrent ?? false}
                                                 onDelete={(id) => handleDelete(id, activeTab === 'team' ? 'TEAM' : 'SHARED')}
+                                            />
+                                        ))}
+                                    </div>
+                                </AnimatePresence>
+                            )
+                        )}
+
+                        {/* Grid / Empty — pending tab */}
+                        {activeTab === 'pending' && !isLoading && (
+                            pendingProposals.length === 0 ? (
+                                <EmptyState tab="pending" />
+                            ) : (
+                                <AnimatePresence>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+                                        {pendingProposals.map((proposal, idx) => (
+                                            <ProposalCard
+                                                key={proposal.id}
+                                                proposal={proposal}
+                                                index={idx}
+                                                onReview={handleReviewProposal}
                                             />
                                         ))}
                                     </div>
@@ -806,6 +1169,21 @@ function VideoLibraryInner() {
                             )
                         )}
                     </motion.div>
+                </AnimatePresence>
+
+                <AnimatePresence>
+                    {showProposeModal && (
+                        <ProposeVideoModal
+                            canReview={canReview}
+                            onClose={() => setShowProposeModal(false)}
+                            onSubmitted={() => {
+                                if (canReview) {
+                                    fetchVideos('TEAM', setTeamVideos, setLoadingTeam);
+                                    fetchVideos('SHARED', setSharedVideos, setLoadingShared);
+                                }
+                            }}
+                        />
+                    )}
                 </AnimatePresence>
             </div>
         </div>

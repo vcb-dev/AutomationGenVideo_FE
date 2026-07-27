@@ -71,7 +71,7 @@ function InstagramReelCard({ reel }: { reel: InstagramReel }) {
 
 export default function InstagramExternalPage() {
   const { token, user } = useAuthStore();
-  const isAdmin = user?.roles?.includes(UserRole.ADMIN) ?? false;
+  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
   const queryClient = useQueryClient();
   const router = useRouter();
   const { start: startProfileScrapeNotif } = useProfileScrapeNotification('instagram');
@@ -211,8 +211,8 @@ export default function InstagramExternalPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Input username — admin only */}
-      {isAdmin && (
+      {/* Input username — chỉ leader/admin */}
+      {canManageChannels && (
         <div className="bg-card border border-border rounded-xl p-4">
           <div className="flex items-center gap-3">
             <div className="relative flex-1 max-w-xl">
@@ -290,9 +290,9 @@ export default function InstagramExternalPage() {
                   <InstagramProfileCard
                     key={p.id}
                     profile={p}
-                    onScrape={isAdmin ? () => rescrapeMutation.mutate({ id: p.id, username: p.username }) : undefined}
+                    onScrape={canManageChannels ? () => rescrapeMutation.mutate({ id: p.id, username: p.username }) : undefined}
                     onToggleBookmark={() => toggleMutation.mutate({ id: p.id, field: 'is_bookmarked' })}
-                    onToggleTracked={() => toggleMutation.mutate({ id: p.id, field: 'is_tracked' })}
+                    onToggleTracked={canManageChannels ? () => toggleMutation.mutate({ id: p.id, field: 'is_tracked' }) : undefined}
                     onViewDetail={() => router.push(`/dashboard/externalChannels/instagram/${p.id}`)}
                   />
                 ))}

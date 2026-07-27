@@ -109,13 +109,13 @@ export default function TeamsPage() {
       </div>
 
       {/* Tab bar */}
-      <div className="border-b border-gray-200 flex gap-1">
+      <div className="border-b border-gray-200 flex gap-1 overflow-x-auto scrollbar-none">
         {visibleTabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={cn(
-              'flex items-center gap-2 px-6 py-3 text-base transition-all border-b-2 -mb-px',
+              'flex items-center gap-2 px-6 py-3 text-base transition-all border-b-2 -mb-px shrink-0 whitespace-nowrap',
               activeTab === tab.id
                 ? 'border-indigo-600 text-indigo-700 font-semibold'
                 : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-gray-100 rounded-t-xl'
@@ -131,6 +131,7 @@ export default function TeamsPage() {
       {activeTab === 'members' && (
         <MembersTab
           canManage={canManage}
+          isAdmin={isAdmin}
           isAdminOrManager={isAdminOrManager}
           userId={user?.id}
           selectedTeamId={selectedTeamId}

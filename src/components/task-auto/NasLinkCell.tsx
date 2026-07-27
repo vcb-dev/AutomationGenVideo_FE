@@ -22,9 +22,9 @@ export function NasLinkCell({ value, className }: { value?: string | null; class
       <button
         onClick={copy}
         title="Copy link ổ NAS"
-        className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors shrink-0"
+        className="p-2.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors shrink-0"
       >
-        <Copy className="w-3.5 h-3.5" />
+        <Copy className="w-4 h-4" />
       </button>
     </div>
   )

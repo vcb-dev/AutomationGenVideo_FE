@@ -143,7 +143,7 @@ export function AddProductModal({ open, teamId, existingSkus, onClose, onSuccess
               <div className="flex gap-2">
                 {(['DO_DA', 'TRANG_SUC'] as BrandType[]).map(b => (
                   <button key={b} onClick={() => { setBrandType(b); setSelectedIds(new Set()) }}
-                    className={cn('px-4 py-1.5 rounded-full text-xs font-semibold border transition-all',
+                    className={cn('px-4 py-2.5 rounded-full text-xs font-semibold border transition-all',
                       brandType === b ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-slate-500 hover:border-slate-400')}>
                     {b === 'DO_DA' ? 'Đồ da' : 'Trang sức'}
                   </button>

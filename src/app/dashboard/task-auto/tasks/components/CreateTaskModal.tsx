@@ -41,7 +41,7 @@ interface Props {
 
 function SectionHeader({ label, children }: { label: string; children?: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center flex-wrap gap-3 gap-y-2">
       <p className="text-xs font-bold text-slate-400 uppercase tracking-widest shrink-0">{label}</p>
       <div className="flex-1 h-px bg-gray-100" />
       {children}
@@ -476,7 +476,7 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
         {/* ── Phân công ── */}
         <div className="space-y-3">
           <SectionHeader label="Phân công" />
-          <div className={!isMember ? 'grid grid-cols-2 gap-3' : ''}>
+          <div className={!isMember ? 'grid grid-cols-1 sm:grid-cols-2 gap-3' : ''}>
             {lockedTeam ? (
               <div className="space-y-2">
                 <label className="block text-base font-semibold text-slate-700">Đội nhóm *</label>
@@ -555,7 +555,7 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
               ))}
             </div>
           </SectionHeader>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <label className="block text-sm font-semibold text-slate-700">
                 Outro

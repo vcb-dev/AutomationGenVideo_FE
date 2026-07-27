@@ -49,29 +49,29 @@ export function EditorKpiTableRow({ kpi, canEdit, onEdit, onDelete, onViewDetail
       </td>
       <td className="px-5 py-4 text-sm text-slate-500 whitespace-nowrap">{kpi.set_by?.full_name ?? '-'}</td>
       <td className="px-4 py-4 whitespace-nowrap" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-end gap-1">
+        <div className="flex items-center justify-end gap-1.5">
           <button
             onClick={e => { e.stopPropagation(); onViewDetail(kpi) }}
-            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+            className="p-2.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
             title="Xem chi tiết"
           >
-            <Eye className="w-3.5 h-3.5" />
+            <Eye className="w-4 h-4" />
           </button>
           {canEdit && (
             <>
               <button
                 onClick={e => { e.stopPropagation(); onEdit(kpi) }}
-                className="p-1.5 rounded-lg hover:bg-indigo-50 text-indigo-500 transition-colors"
+                className="p-2.5 rounded-lg hover:bg-indigo-50 text-indigo-500 transition-colors"
                 title="Sửa KPI"
               >
-                <Edit2 className="w-3.5 h-3.5" />
+                <Edit2 className="w-4 h-4" />
               </button>
               <button
                 onClick={e => { e.stopPropagation(); onDelete(kpi.id) }}
-                className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 transition-colors"
+                className="p-2.5 rounded-lg hover:bg-red-50 text-red-400 transition-colors"
                 title="Xóa KPI"
               >
-                <Trash2 className="w-3.5 h-3.5" />
+                <Trash2 className="w-4 h-4" />
               </button>
             </>
           )}

@@ -21,7 +21,7 @@ const PAGE_SIZE_PROFILES = 12;
 
 export default function TiktokExternalPage() {
   const { token, user } = useAuthStore();
-  const isAdmin = user?.roles?.includes(UserRole.ADMIN) ?? false;
+  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
   const queryClient = useQueryClient();
   const router = useRouter();
   const { addNotification, updateNotification } = useScrapingStore();
@@ -295,61 +295,63 @@ export default function TiktokExternalPage() {
       {/* ─── Videos Tab ──────────────────────────────────── */}
       {activeTab === 'videos' && (
         <>
-          {/* Search bar */}
-          <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="relative flex-1 max-w-lg">
-                <Sparkle size={16} weight="duotone" className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-500" />
+          {/* Search bar — chỉ leader/admin được cào kênh mới */}
+          {canManageChannels && (
+            <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="relative flex-1 max-w-lg">
+                  <Sparkle size={16} weight="duotone" className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-500" />
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={keyword}
+                    onChange={e => setKeyword(e.target.value)}
+                    onFocus={handleInputFocus}
+                    onKeyDown={e => { if (e.key === 'Enter') { setShowSuggestions(false); searchMutation.mutate(); } }}
+                    placeholder="Nhập keyword để tìm video TikTok..."
+                    className="w-full pl-10 pr-3 py-2.5 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  />
+                  {showSuggestions && (
+                    <div ref={dropdownRef} className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-slate-900 border border-border rounded-lg shadow-xl z-[60] overflow-hidden">
+                      {suggestions.map(s => (
+                        <button
+                          key={s.keyword}
+                          onClick={() => { setKeyword(s.keyword); setShowSuggestions(false); inputRef.current?.focus(); }}
+                          className="w-full px-4 py-2.5 text-left text-sm text-foreground hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-between transition-colors"
+                        >
+                          <span>{s.keyword}</span>
+                          <span className="text-xs text-slate-400">{s.count} video</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <input
-                  ref={inputRef}
-                  type="text"
-                  value={keyword}
-                  onChange={e => setKeyword(e.target.value)}
-                  onFocus={handleInputFocus}
-                  onKeyDown={e => { if (e.key === 'Enter') { setShowSuggestions(false); searchMutation.mutate(); } }}
-                  placeholder="Nhập keyword để tìm video TikTok..."
-                  className="w-full pl-10 pr-3 py-2.5 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  type="number"
+                  value={numPosts}
+                  onChange={e => setNumPosts(e.target.value)}
+                  placeholder="Số lượng"
+                  min={1}
+                  max={200}
+                  className="w-24 px-3 py-2.5 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  title="Số video tối đa (1-200)"
                 />
-                {showSuggestions && (
-                  <div ref={dropdownRef} className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-slate-900 border border-border rounded-lg shadow-xl z-[60] overflow-hidden">
-                    {suggestions.map(s => (
-                      <button
-                        key={s.keyword}
-                        onClick={() => { setKeyword(s.keyword); setShowSuggestions(false); inputRef.current?.focus(); }}
-                        className="w-full px-4 py-2.5 text-left text-sm text-foreground hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-between transition-colors"
-                      >
-                        <span>{s.keyword}</span>
-                        <span className="text-xs text-slate-400">{s.count} video</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <button
+                  onClick={() => searchMutation.mutate()}
+                  disabled={searchMutation.isPending || !keyword.trim()}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground text-sm font-bold rounded-md hover:opacity-90 disabled:opacity-50 whitespace-nowrap shadow-sm hover:shadow-md transition-all"
+                >
+                  {searchMutation.isPending ? (
+                    <CircleNotch size={16} weight="bold" className="animate-spin" />
+                  ) : (
+                    <MagnifyingGlassPlus size={16} weight="bold" />
+                  )}
+                  {searchMutation.isPending ? 'Đang tìm...' : 'Tìm kiếm'}
+                </button>
               </div>
-              <input
-                type="number"
-                value={numPosts}
-                onChange={e => setNumPosts(e.target.value)}
-                placeholder="Số lượng"
-                min={1}
-                max={200}
-                className="w-24 px-3 py-2.5 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                title="Số video tối đa (1-200)"
-              />
-              <button
-                onClick={() => searchMutation.mutate()}
-                disabled={searchMutation.isPending || !keyword.trim()}
-                className="flex items-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground text-sm font-bold rounded-md hover:opacity-90 disabled:opacity-50 whitespace-nowrap shadow-sm hover:shadow-md transition-all"
-              >
-                {searchMutation.isPending ? (
-                  <CircleNotch size={16} weight="bold" className="animate-spin" />
-                ) : (
-                  <MagnifyingGlassPlus size={16} weight="bold" />
-                )}
-                {searchMutation.isPending ? 'Đang tìm...' : 'Tìm kiếm'}
-              </button>
-            </div>
 
-          </div>
+            </div>
+          )}
 
           {/* Filter bar */}
           <div className="flex flex-wrap items-center gap-3 border border-border rounded-xl p-4">
@@ -451,8 +453,8 @@ export default function TiktokExternalPage() {
       {/* ─── Profiles Tab ─────────────────────────────────── */}
       {activeTab === 'profiles' && (
         <>
-          {/* Input profile username — admin only */}
-          {isAdmin && (
+          {/* Input profile username — chỉ leader/admin */}
+          {canManageChannels && (
             <div className="bg-card border border-border rounded-xl p-4 space-y-3">
               <div className="flex items-center gap-3">
                 <div className="relative flex-1 max-w-xl">
@@ -534,9 +536,9 @@ export default function TiktokExternalPage() {
                 <TikTokProfileCard
                   key={p.id}
                   profile={p}
-                  onScrape={isAdmin ? () => profileRescrape.mutate({ id: p.id, url: p.url, label: p.nickname || p.username }) : undefined}
+                  onScrape={canManageChannels ? () => profileRescrape.mutate({ id: p.id, url: p.url, label: p.nickname || p.username }) : undefined}
                   onToggleBookmark={() => profileToggleMutation.mutate({ id: p.id, field: 'is_bookmarked' })}
-                  onToggleTracked={() => profileToggleMutation.mutate({ id: p.id, field: 'is_tracked' })}
+                  onToggleTracked={canManageChannels ? () => profileToggleMutation.mutate({ id: p.id, field: 'is_tracked' }) : undefined}
                   onViewDetail={() => router.push(`/dashboard/externalChannels/tiktok/${p.id}`)}
                 />
               ))}

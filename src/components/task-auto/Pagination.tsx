@@ -28,7 +28,7 @@ export function Pagination({ page, pageSize = PAGE_SIZE, totalItems, onPageChang
         <button
           onClick={() => onPageChange(page - 1)}
           disabled={page <= 1}
-          className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+          className="p-2.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
@@ -38,7 +38,7 @@ export function Pagination({ page, pageSize = PAGE_SIZE, totalItems, onPageChang
         <button
           onClick={() => onPageChange(page + 1)}
           disabled={page >= totalPages}
-          className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+          className="p-2.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
         >
           <ChevronRight className="w-4 h-4" />
         </button>

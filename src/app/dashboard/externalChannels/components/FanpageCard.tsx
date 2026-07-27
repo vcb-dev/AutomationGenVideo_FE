@@ -5,9 +5,9 @@ import { ScrapedFanpage } from '@/services/scraperService';
 
 interface FanpageCardProps {
   fanpage: ScrapedFanpage;
-  onScrapeReels: (fp: ScrapedFanpage) => void;
+  onScrapeReels?: (fp: ScrapedFanpage) => void;
   onToggleBookmark: (fp: ScrapedFanpage) => void;
-  onTogglePeriodic: (fp: ScrapedFanpage) => void;
+  onTogglePeriodic?: (fp: ScrapedFanpage) => void;
   onViewDetail: (fp: ScrapedFanpage) => void;
 }
 
@@ -40,7 +40,7 @@ export default function FanpageCard({
           )} */}
           {fp.is_periodic_crawl && (
             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded text-xs font-medium">
-              <Timer size={10} weight="fill" /> Tự động
+              <Timer size={10} weight="fill" /> Kênh chú ý
             </span>
           )}
         </div>
@@ -98,24 +98,26 @@ export default function FanpageCard({
       {/* Action bar */}
       <div className="flex items-center border-t border-border bg-slate-50/50 dark:bg-slate-800/30">
         {/* Primary CTA */}
-        <button
-          onClick={() => onScrapeReels(fp)}
-          disabled={isProcessing}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold transition-colors border-r border-border disabled:opacity-40 ${
-            isProcessing
-              ? 'text-amber-600 bg-amber-50/50 dark:bg-amber-900/10'
-              : fp.is_initial_scraped
-                ? 'text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20'
-                : 'text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'
-          }`}
-        >
-          {isProcessing ? (
-            <CircleNotch size={13} weight="bold" className="animate-spin" />
-          ) : (
-            <ArrowsClockwise size={13} weight="bold" />
-          )}
-          {isProcessing ? 'Đang cào...' : fp.is_initial_scraped ? 'Cào mới' : 'Cào lượt đầu'}
-        </button>
+        {onScrapeReels && (
+          <button
+            onClick={() => onScrapeReels(fp)}
+            disabled={isProcessing}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold transition-colors border-r border-border disabled:opacity-40 ${
+              isProcessing
+                ? 'text-amber-600 bg-amber-50/50 dark:bg-amber-900/10'
+                : fp.is_initial_scraped
+                  ? 'text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                  : 'text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'
+            }`}
+          >
+            {isProcessing ? (
+              <CircleNotch size={13} weight="bold" className="animate-spin" />
+            ) : (
+              <ArrowsClockwise size={13} weight="bold" />
+            )}
+            {isProcessing ? 'Đang cào...' : fp.is_initial_scraped ? 'Cào mới' : 'Cào lượt đầu'}
+          </button>
+        )}
 
         {/* Icon actions with labels */}
         <button
@@ -129,17 +131,19 @@ export default function FanpageCard({
         >
           <BookmarkSimple size={14} weight={fp.is_bookmarked ? 'fill' : 'regular'} />
         </button>
-        <button
-          onClick={() => onTogglePeriodic(fp)}
-          className={`flex items-center gap-1 px-3 py-2.5 text-xs transition-colors border-r border-border ${
-            fp.is_periodic_crawl
-              ? 'text-emerald-500 bg-emerald-50/50 dark:bg-emerald-900/10'
-              : 'text-slate-400 hover:text-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10'
-          }`}
-          title={fp.is_periodic_crawl ? 'Tắt cào định kỳ' : 'Bật cào định kỳ'}
-        >
-          <Timer size={14} weight={fp.is_periodic_crawl ? 'fill' : 'regular'} />
-        </button>
+        {onTogglePeriodic && (
+          <button
+            onClick={() => onTogglePeriodic(fp)}
+            className={`flex items-center gap-1 px-3 py-2.5 text-xs transition-colors border-r border-border ${
+              fp.is_periodic_crawl
+                ? 'text-emerald-500 bg-emerald-50/50 dark:bg-emerald-900/10'
+                : 'text-slate-400 hover:text-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10'
+            }`}
+            title={fp.is_periodic_crawl ? 'Bỏ kênh chú ý' : 'Đánh dấu kênh chú ý'}
+          >
+            <Timer size={14} weight={fp.is_periodic_crawl ? 'fill' : 'regular'} />
+          </button>
+        )}
         <button
           onClick={() => onViewDetail(fp)}
           className="flex items-center gap-1 px-3 py-2.5 text-xs text-slate-400 hover:text-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-colors"

@@ -620,6 +620,24 @@ export interface KeywordSuggestion {
   hits: number;
 }
 
+// Lookalike Creator — shape chung, mỗi platform chỉ điền field định danh của
+// mình (username/channel_id/user_id/sec_user_id/eid), field còn lại undefined.
+export interface LookalikeChannel {
+  id: number;
+  username?: string;
+  nickname?: string;
+  full_name?: string;
+  title?: string;
+  channel_id?: string;
+  user_id?: string;
+  sec_user_id?: string;
+  eid?: string;
+  avatar_url: string;
+  followers_count?: number;
+  subscriber_count?: number;
+  overlap_count: number;
+}
+
 export interface PaginatedFanpages {
   status: string;
   count: number;
@@ -701,6 +719,23 @@ export const scraperService = {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ keyword }),
     });
+  },
+
+  /**
+   * Dịch từ khoá sang tiếng Trung để xem trước, dùng cho các nền tảng Trung Quốc.
+   * BE tự bỏ qua nếu text vốn đã là tiếng Trung (source='already_chinese').
+   */
+  translateKeyword: async (
+    token: string,
+    text: string,
+  ): Promise<{ original: string; translated: string; source: string }> => {
+    const res = await fetch(`${API_URL}/scraper/keywords/translate`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) throw new Error('Không dịch được từ khoá');
+    return res.json();
   },
 
   triggerDiscovery: async (token: string, keyword: string): Promise<{ status: string; message: string }> => {
@@ -795,11 +830,11 @@ export const scraperService = {
 
   // ─── TIKTOK PROFILE ────────────────────────────────────
 
-  tiktokProfileScrape: async (token: string, username: string, isOwned?: boolean): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; profile_id: number }> => {
+  tiktokProfileScrape: async (token: string, username: string, isOwned?: boolean, numOfPosts?: number): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; profile_id: number }> => {
     const res = await fetch(`${API_URL}/scraper/tiktok/profiles/scrape/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, ...(isOwned !== undefined ? { is_owned: isOwned } : {}) }),
+      body: JSON.stringify({ username, ...(isOwned !== undefined ? { is_owned: isOwned } : {}), ...(numOfPosts ? { num_of_posts: numOfPosts } : {}) }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
@@ -847,13 +882,21 @@ export const scraperService = {
     return res.json();
   },
 
+  tiktokLookalikes: async (token: string, profileId: number): Promise<{ lookalikes: LookalikeChannel[] }> => {
+    const res = await fetch(`${API_URL}/scraper/tiktok/profiles/${profileId}/lookalikes/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return { lookalikes: [] };
+    return res.json();
+  },
+
   // ─── INSTAGRAM PROFILE ─────────────────────────────────
 
-  instagramProfileScrape: async (token: string, username: string, isOwned?: boolean): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; profile_id: number }> => {
+  instagramProfileScrape: async (token: string, username: string, isOwned?: boolean, numOfPosts?: number): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; profile_id: number }> => {
     const res = await fetch(`${API_URL}/scraper/instagram/profiles/scrape/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, ...(isOwned !== undefined ? { is_owned: isOwned } : {}) }),
+      body: JSON.stringify({ username, ...(isOwned !== undefined ? { is_owned: isOwned } : {}), ...(numOfPosts ? { num_of_posts: numOfPosts } : {}) }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
@@ -913,13 +956,21 @@ export const scraperService = {
     return res.json();
   },
 
+  instagramLookalikes: async (token: string, profileId: number): Promise<{ lookalikes: LookalikeChannel[] }> => {
+    const res = await fetch(`${API_URL}/scraper/instagram/profiles/${profileId}/lookalikes/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return { lookalikes: [] };
+    return res.json();
+  },
+
   // ─── YOUTUBE ──────────────────────────────────────────
 
-  youtubeChannelScrape: async (token: string, channelId: string, isOwned?: boolean): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; newly_scraped?: boolean; profile_id: number }> => {
+  youtubeChannelScrape: async (token: string, channelId: string, isOwned?: boolean, numOfPosts?: number): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; newly_scraped?: boolean; profile_id: number }> => {
     const res = await fetch(`${API_URL}/scraper/youtube/profiles/scrape/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ channel_id: channelId, ...(isOwned !== undefined ? { is_owned: isOwned } : {}) }),
+      body: JSON.stringify({ channel_id: channelId, ...(isOwned !== undefined ? { is_owned: isOwned } : {}), ...(numOfPosts ? { num_of_posts: numOfPosts } : {}) }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
@@ -978,14 +1029,22 @@ export const scraperService = {
     return res.json();
   },
 
+  youtubeLookalikes: async (token: string, profileId: number): Promise<{ lookalikes: LookalikeChannel[] }> => {
+    const res = await fetch(`${API_URL}/scraper/youtube/profiles/${profileId}/lookalikes/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return { lookalikes: [] };
+    return res.json();
+  },
+
   // ─── KUAISHOU ─────────────────────────────────────────
   // Không có is_owned — Kuaishou chỉ có kênh ngoài (external).
 
-  kuaishouSearch: async (token: string, keyword: string, numOfPosts = 30): Promise<{ message: string; created: number; updated: number }> => {
+  kuaishouSearch: async (token: string, keyword: string, numOfPosts = 30, displayKeyword?: string): Promise<{ message: string; created: number; updated: number }> => {
     const res = await fetch(`${API_URL}/scraper/kuaishou/search/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keyword, num_of_posts: numOfPosts }),
+      body: JSON.stringify({ keyword, num_of_posts: numOfPosts, ...(displayKeyword ? { display_keyword: displayKeyword } : {}) }),
     });
     if (!res.ok) throw new Error('Không thể tìm kiếm');
     return res.json();
@@ -1010,11 +1069,11 @@ export const scraperService = {
     return (await res.json()).suggestions || [];
   },
 
-  kuaishouProfileScrape: async (token: string, eid: string): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; newly_scraped?: boolean; profile_id: number }> => {
+  kuaishouProfileScrape: async (token: string, eid: string, numOfPosts?: number): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; newly_scraped?: boolean; profile_id: number }> => {
     const res = await fetch(`${API_URL}/scraper/kuaishou/profiles/scrape/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ eid }),
+      body: JSON.stringify({ eid, ...(numOfPosts ? { num_of_posts: numOfPosts } : {}) }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
@@ -1062,15 +1121,23 @@ export const scraperService = {
     return res.json();
   },
 
+  kuaishouLookalikes: async (token: string, profileId: number): Promise<{ lookalikes: LookalikeChannel[] }> => {
+    const res = await fetch(`${API_URL}/scraper/kuaishou/profiles/${profileId}/lookalikes/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return { lookalikes: [] };
+    return res.json();
+  },
+
   // ─── BILIBILI ─────────────────────────────────────────
   // Không có is_owned — Bilibili chỉ có kênh ngoài (external). mid là ID duy
   // nhất (numeric), không có vấn đề 2 không gian ID như Kuaishou.
 
-  bilibiliSearch: async (token: string, keyword: string, numOfPosts = 30): Promise<{ message: string; created: number; updated: number }> => {
+  bilibiliSearch: async (token: string, keyword: string, numOfPosts = 30, displayKeyword?: string): Promise<{ message: string; created: number; updated: number }> => {
     const res = await fetch(`${API_URL}/scraper/bilibili/search/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keyword, num_of_posts: numOfPosts }),
+      body: JSON.stringify({ keyword, num_of_posts: numOfPosts, ...(displayKeyword ? { display_keyword: displayKeyword } : {}) }),
     });
     if (!res.ok) throw new Error('Không thể tìm kiếm');
     return res.json();
@@ -1095,11 +1162,11 @@ export const scraperService = {
     return (await res.json()).suggestions || [];
   },
 
-  bilibiliProfileScrape: async (token: string, mid: string): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; newly_scraped?: boolean; profile_id: number }> => {
+  bilibiliProfileScrape: async (token: string, mid: string, numOfPosts?: number): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; newly_scraped?: boolean; profile_id: number }> => {
     const res = await fetch(`${API_URL}/scraper/bilibili/profiles/scrape/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mid }),
+      body: JSON.stringify({ mid, ...(numOfPosts ? { num_of_posts: numOfPosts } : {}) }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
@@ -1178,11 +1245,13 @@ export const scraperService = {
 
   // ─── DOUYIN ────────────────────────────────────────────
 
-  douyinSearch: async (token: string, keyword: string, numOfPosts = 30): Promise<{ message: string; created?: number; updated?: number }> => {
+  // displayKeyword = tiếng Việt user gõ (khi `keyword` là bản dịch tiếng Trung) — BE lưu
+  // bản tiếng Việt vào search_keyword cho dễ đọc ở bộ lọc/gợi ý.
+  douyinSearch: async (token: string, keyword: string, numOfPosts = 30, displayKeyword?: string): Promise<{ message: string; created?: number; updated?: number }> => {
     const res = await fetch(`${API_URL}/scraper/douyin/search/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keyword, num_of_posts: numOfPosts }),
+      body: JSON.stringify({ keyword, num_of_posts: numOfPosts, ...(displayKeyword ? { display_keyword: displayKeyword } : {}) }),
     });
     if (!res.ok) throw new Error('Không thể tìm kiếm Douyin');
     return res.json();
@@ -1208,11 +1277,13 @@ export const scraperService = {
     return (await res.json()).suggestions || [];
   },
 
-  douyinProfileScrape: async (token: string, secUserId: string, numOfPosts = 30, isOwned?: boolean): Promise<{ status: string; message: string; profile_id: number; already_exists?: boolean; newly_scraped?: boolean }> => {
+  // numOfPosts để trống = dùng mặc định của BE (300). Trước đây BE bỏ qua tham số này
+  // nên số truyền vào vô tác dụng; nay BE đã tôn trọng nên KHÔNG đặt mặc định cứng ở FE.
+  douyinProfileScrape: async (token: string, secUserId: string, numOfPosts?: number, isOwned?: boolean): Promise<{ status: string; message: string; profile_id: number; already_exists?: boolean; newly_scraped?: boolean }> => {
     const res = await fetch(`${API_URL}/scraper/douyin/profile/scrape/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sec_user_id: secUserId, num_of_posts: numOfPosts, ...(isOwned !== undefined ? { is_owned: isOwned } : {}) }),
+      body: JSON.stringify({ sec_user_id: secUserId, ...(numOfPosts ? { num_of_posts: numOfPosts } : {}), ...(isOwned !== undefined ? { is_owned: isOwned } : {}) }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
@@ -1259,13 +1330,21 @@ export const scraperService = {
     return res.json();
   },
 
+  douyinLookalikes: async (token: string, profileId: number): Promise<{ lookalikes: LookalikeChannel[] }> => {
+    const res = await fetch(`${API_URL}/scraper/douyin/profiles/${profileId}/lookalikes/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return { lookalikes: [] };
+    return res.json();
+  },
+
   // ─── XIAOHONGSHU ───────────────────────────────────────
 
-  xiaohongshuSearch: async (token: string, keyword: string, numOfPosts = 20): Promise<{ status: string; message: string; created?: number; updated?: number }> => {
+  xiaohongshuSearch: async (token: string, keyword: string, numOfPosts = 20, displayKeyword?: string): Promise<{ status: string; message: string; created?: number; updated?: number }> => {
     const res = await fetch(`${API_URL}/scraper/xiaohongshu/search/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keyword, num_of_posts: numOfPosts }),
+      body: JSON.stringify({ keyword, num_of_posts: numOfPosts, ...(displayKeyword ? { display_keyword: displayKeyword } : {}) }),
     });
     if (!res.ok) throw new Error('Tìm kiếm Xiaohongshu thất bại');
     return res.json();
@@ -1293,11 +1372,12 @@ export const scraperService = {
 
   // ─── XIAOHONGSHU PROFILES ──────────────────────────────
 
-  xhsProfileScrape: async (token: string, userId: string, numOfPosts = 100, isOwned?: boolean): Promise<{ status: string; message: string; profile: XiaohongshuProfile; created: boolean }> => {
+  // numOfPosts để trống = dùng mặc định của BE (300) — xem ghi chú ở douyinProfileScrape.
+  xhsProfileScrape: async (token: string, userId: string, numOfPosts?: number, isOwned?: boolean): Promise<{ status: string; message: string; profile: XiaohongshuProfile; created: boolean }> => {
     const res = await fetch(`${API_URL}/scraper/xiaohongshu/profiles/scrape/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: userId, num_of_posts: numOfPosts, ...(isOwned !== undefined ? { is_owned: isOwned } : {}) }),
+      body: JSON.stringify({ user_id: userId, ...(numOfPosts ? { num_of_posts: numOfPosts } : {}), ...(isOwned !== undefined ? { is_owned: isOwned } : {}) }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -1342,6 +1422,14 @@ export const scraperService = {
       body: JSON.stringify(patch),
     });
     if (!res.ok) throw new Error('Cập nhật thất bại');
+    return res.json();
+  },
+
+  xhsLookalikes: async (token: string, profileId: number): Promise<{ lookalikes: LookalikeChannel[] }> => {
+    const res = await fetch(`${API_URL}/scraper/xiaohongshu/profiles/${profileId}/lookalikes/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return { lookalikes: [] };
     return res.json();
   },
 };

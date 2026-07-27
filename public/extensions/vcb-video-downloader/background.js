@@ -8,6 +8,8 @@ const DEFAULTS = {
     defaultQuality: 'best',
     autoDownload: false,
     hoverIconEnabled: true,
+    // Gợi ý dịch Việt→Trung ở ô tìm kiếm trên các trang TQ (Douyin, Xiaohongshu...).
+    cnTranslateEnabled: true,
     disabledSites: [],
 };
 const CONTEXT_MENU_ID = 'vcb-download-video';
@@ -107,6 +109,36 @@ chrome.runtime.onInstalled.addListener((details) => {
 async function getSettings() {
     const stored = await chrome.storage.sync.get(DEFAULTS);
     return { ...DEFAULTS, ...stored };
+}
+
+// Dịch từ khoá sang tiếng Trung qua chính trang web hệ thống (Next route công khai,
+// không cần đăng nhập) — dùng lại đúng endpoint AI mà web app đang dùng, không tự
+// gọi dịch vụ dịch bên thứ ba từ extension.
+async function translateToChinese(text) {
+    const raw = (text || '').trim();
+    if (!raw) return { ok: false, translated: '' };
+
+    try {
+        const { appBase } = await getSettings();
+        const base = (appBase || DEFAULT_APP_BASE).replace(/\/$/, '');
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 10000);
+        const res = await fetch(`${base}/api/translate-chinese`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: raw }),
+            signal: controller.signal,
+        });
+        clearTimeout(timer);
+        if (!res.ok) return { ok: false, translated: '' };
+        const data = await res.json();
+        const translated = (data?.translated || '').trim();
+        // source='already_chinese' nghĩa là input vốn đã là tiếng Trung → không cần gợi ý.
+        if (!translated || translated === raw) return { ok: false, translated: '' };
+        return { ok: true, translated };
+    } catch {
+        return { ok: false, translated: '' };
+    }
 }
 
 function buildTargetUrl(base, pageUrl, { format, quality, auto }) {
@@ -264,6 +296,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
     if (msg?.type === 'vcb-get-settings') {
         getSettings().then(sendResponse);
+        return true;
+    }
+    if (msg?.type === 'vcb-translate-zh') {
+        // Dịch tiếng Việt → tiếng Trung cho ô tìm kiếm trên các trang TQ (Douyin, Xiaohongshu...).
+        // PHẢI fetch từ đây (service worker có host_permissions) chứ không từ content script:
+        // content script chạy theo origin của trang nên sẽ bị CORS chặn.
+        translateToChinese(msg.text).then(sendResponse);
         return true;
     }
     if (msg?.type === 'vcb-job-notify') {

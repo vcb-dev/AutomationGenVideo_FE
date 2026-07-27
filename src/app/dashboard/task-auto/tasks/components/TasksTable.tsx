@@ -184,7 +184,7 @@ export function TasksTable({
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between px-5 py-4 border-t border-gray-100 bg-gray-50/50">
+        <div className="flex items-center justify-between flex-wrap gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50/50">
           <span className="text-sm text-slate-500">
             Trang <span className="font-semibold text-slate-700">{page}</span> / {totalPages}
             {' '}·{' '}
@@ -198,29 +198,34 @@ export function TasksTable({
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-              const pg = totalPages <= 7
-                ? i + 1
-                : page <= 4
+            <span className="sm:hidden px-2 text-sm font-semibold text-slate-600 whitespace-nowrap">
+              {page} / {totalPages}
+            </span>
+            <div className="hidden sm:flex items-center gap-1">
+              {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                const pg = totalPages <= 7
                   ? i + 1
-                  : page >= totalPages - 3
-                    ? totalPages - 6 + i
-                    : page - 3 + i
-              return (
-                <button
-                  key={pg}
-                  onClick={() => onPageChange(pg)}
-                  className={cn(
-                    'w-9 h-9 rounded-lg text-sm font-semibold transition-colors',
-                    pg === page
-                      ? 'bg-indigo-600 text-white'
-                      : 'hover:bg-gray-200 text-slate-600'
-                  )}
-                >
-                  {pg}
-                </button>
-              )
-            })}
+                  : page <= 4
+                    ? i + 1
+                    : page >= totalPages - 3
+                      ? totalPages - 6 + i
+                      : page - 3 + i
+                return (
+                  <button
+                    key={pg}
+                    onClick={() => onPageChange(pg)}
+                    className={cn(
+                      'w-9 h-9 rounded-lg text-sm font-semibold transition-colors',
+                      pg === page
+                        ? 'bg-indigo-600 text-white'
+                        : 'hover:bg-gray-200 text-slate-600'
+                    )}
+                  >
+                    {pg}
+                  </button>
+                )
+              })}
+            </div>
             <button
               onClick={() => onPageChange(page + 1)}
               disabled={page >= totalPages}
