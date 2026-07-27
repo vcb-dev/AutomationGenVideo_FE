@@ -25,7 +25,7 @@ const MARKETS: { key: TeamMarket; label: string; color: string }[] = [
 ]
 
 const marketBtnClass = (color: string, active: boolean) => cn(
-  'px-3 py-1 rounded-full text-xs font-semibold border-2 transition-all',
+  'px-3 py-2 rounded-full text-xs font-semibold border-2 transition-all',
   active ? {
     emerald: 'bg-emerald-500 border-emerald-500 text-white shadow-sm',
     amber:   'bg-amber-500 border-amber-500 text-white shadow-sm',
@@ -158,7 +158,7 @@ export function MembersTab({ canManage, isAdminOrManager, userId, selectedTeamId
                       key={b.key}
                       onClick={() => setPendingBrand(b.key)}
                       className={cn(
-                        'px-3 py-1 rounded-full text-xs font-semibold border-2 transition-all',
+                        'px-3 py-2 rounded-full text-xs font-semibold border-2 transition-all',
                         (pendingBrand ?? brand) === b.key
                           ? b.color === 'amber'
                             ? 'bg-amber-500 border-amber-500 text-white shadow-sm'
@@ -252,7 +252,7 @@ export function MembersTab({ canManage, isAdminOrManager, userId, selectedTeamId
               const isTogglingThis = editorMut.isPending && editorMut.variables?.memberId === member.user_id
 
               return (
-                <div key={member.id} className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors">
+                <div key={member.id} className="flex items-center gap-4 flex-wrap gap-y-2 px-5 py-4 hover:bg-gray-50 transition-colors">
                   <AvatarInitials name={member.user?.full_name} size="md" />
 
                   <div className="flex-1 min-w-0">
@@ -274,33 +274,36 @@ export function MembersTab({ canManage, isAdminOrManager, userId, selectedTeamId
                     <p className="text-xs text-slate-500 mt-0.5">{member.user?.email}</p>
                   </div>
 
-                  <div className="text-right shrink-0">
-                    <p className="text-xs text-slate-500">Tham gia</p>
-                    <p className="text-xs text-slate-400 font-medium">
-                      {formatDateTime(member.joined_at).split(' ')[0]}
-                    </p>
-                  </div>
+                  {/* Trailing group — cho phép xuống dòng riêng trên màn hình hẹp, không phá vỡ cụm avatar+tên */}
+                  <div className="flex items-center gap-4 ml-auto shrink-0">
+                    <div className="text-right shrink-0">
+                      <p className="text-xs text-slate-500">Tham gia</p>
+                      <p className="text-xs text-slate-400 font-medium">
+                        {formatDateTime(member.joined_at).split(' ')[0]}
+                      </p>
+                    </div>
 
-                  {/* Editor toggle */}
-                  {canManage && (
-                    <button
-                      onClick={() => editorMut.mutate({ memberId: member.user_id, isEditor: !isEditor })}
-                      disabled={editorMut.isPending}
-                      title={isEditor ? 'Thu hồi quyền Editor' : 'Gán làm Editor'}
-                      className={cn(
-                        'p-1.5 rounded-lg transition-colors flex-shrink-0 text-xs font-semibold flex items-center gap-1 disabled:opacity-60',
-                        isEditor
-                          ? 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
-                          : 'bg-gray-100 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600'
-                      )}
-                    >
-                      {isTogglingThis
-                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        : <PenLine className="w-3.5 h-3.5" />
-                      }
-                      {isEditor ? 'Editor' : 'Gán Editor'}
-                    </button>
-                  )}
+                    {/* Editor toggle */}
+                    {canManage && (
+                      <button
+                        onClick={() => editorMut.mutate({ memberId: member.user_id, isEditor: !isEditor })}
+                        disabled={editorMut.isPending}
+                        title={isEditor ? 'Thu hồi quyền Editor' : 'Gán làm Editor'}
+                        className={cn(
+                          'p-1.5 rounded-lg transition-colors flex-shrink-0 text-xs font-semibold flex items-center gap-1 disabled:opacity-60',
+                          isEditor
+                            ? 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
+                            : 'bg-gray-100 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600'
+                        )}
+                      >
+                        {isTogglingThis
+                          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          : <PenLine className="w-3.5 h-3.5" />
+                        }
+                        {isEditor ? 'Editor' : 'Gán Editor'}
+                      </button>
+                    )}
+                  </div>
                 </div>
               )
             })}

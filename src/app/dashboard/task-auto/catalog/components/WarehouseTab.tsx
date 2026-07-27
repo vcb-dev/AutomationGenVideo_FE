@@ -424,6 +424,7 @@ export function WarehouseTab({ brandType, isAdminOrManager = false, isScaleData 
             description='Nhấn "Thêm vào kho" hoặc "Copy từ tháng trước" để bắt đầu'
           />
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
@@ -453,7 +454,7 @@ export function WarehouseTab({ brandType, isAdminOrManager = false, isScaleData 
                       <button
                         onClick={() => removeMut.mutate(item.id)}
                         disabled={removeMut.isPending}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        className="p-2.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                         title="Xoá khỏi kho tháng"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -464,6 +465,7 @@ export function WarehouseTab({ brandType, isAdminOrManager = false, isScaleData 
               )})}
             </tbody>
           </table>
+          </div>
         )}
 
         {/* Pagination */}

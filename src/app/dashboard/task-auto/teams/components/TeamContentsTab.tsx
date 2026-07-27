@@ -363,7 +363,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
                             <button
                               onClick={() => setEditingContent(tc as TeamContent)}
                               title="Chỉnh sửa"
-                              className="p-2 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors"
+                              className="p-2.5 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors"
                             >
                               <Edit2 className="w-4 h-4" />
                             </button>
@@ -372,7 +372,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
                             <button
                               onClick={() => setPushingContent(tc)}
                               title="Đẩy ra kho tổng"
-                              className="p-2 rounded-xl hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition-colors"
+                              className="p-2.5 rounded-xl hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition-colors"
                             >
                               <Globe className="w-4 h-4" />
                             </button>
@@ -381,7 +381,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
                             <button
                               onClick={() => setRemovingContent(tc)}
                               title="Xóa khỏi kho team"
-                              className="p-2 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
+                              className="p-2.5 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>

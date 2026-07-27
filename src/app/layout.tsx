@@ -4,6 +4,7 @@ import { Roboto } from 'next/font/google';
 import './globals.css';
 import { Toaster } from 'react-hot-toast';
 import AuthHydration from '@/components/AuthHydration';
+import ChunkErrorReload from '@/components/ChunkErrorReload';
 import QueryProvider from '@/components/QueryProvider';
 import InstallPwaPrompt from '@/components/InstallPwaPrompt';
 import { ThemeProvider } from '@/contexts/ThemeContext';
@@ -43,6 +44,7 @@ export default function RootLayout({
     <html lang="vi">
       <body className={`${roboto.variable} font-sans antialiased`}>
         <AuthHydration />
+        <ChunkErrorReload />
         <ThemeProvider>
           <LanguageProvider>
             <QueryProvider>{children}</QueryProvider>

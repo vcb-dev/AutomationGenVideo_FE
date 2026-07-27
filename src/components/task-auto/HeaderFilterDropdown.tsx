@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronDown } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
@@ -20,25 +21,51 @@ interface HeaderFilterDropdownProps {
   align?: 'left' | 'right'
 }
 
+const MENU_WIDTH = 224 // w-56
+
 // Dropdown filter gắn ngay trong tiêu đề bảng — cùng UI/UX với filter "Người làm" ở bảng task.
+// Menu render qua portal (position: fixed, tính theo bounding rect của trigger) để không bị
+// clip bởi vùng overflow-x-auto của bảng chứa nó trên mobile.
 export function HeaderFilterDropdown({ label, value, options, onChange, totalCount, align = 'left' }: HeaderFilterDropdownProps) {
   const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState({ top: 0, left: 0, openUp: false })
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+      const t = e.target as Node
+      if (!triggerRef.current?.contains(t) && !menuRef.current?.contains(t)) setOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  function calcPos() {
+    if (!triggerRef.current) return
+    const r = triggerRef.current.getBoundingClientRect()
+    const MENU_H = 320 // max-h-80
+    const spaceBelow = window.innerHeight - r.bottom
+    const openUp = spaceBelow < MENU_H && r.top > MENU_H
+    const left = align === 'right'
+      ? Math.max(8, r.right - MENU_WIDTH)
+      : Math.min(r.left, window.innerWidth - MENU_WIDTH - 8)
+    setPos({ top: openUp ? r.top - 6 : r.bottom + 6, left, openUp })
+  }
+
+  function toggleOpen(e: React.MouseEvent) {
+    e.stopPropagation()
+    calcPos()
+    setOpen(v => !v)
+  }
+
   const activeLabel = value ? (options.find(o => o.value === value)?.label ?? label) : label
 
   return (
-    <div className="relative inline-block" ref={ref}>
+    <div className="relative inline-block">
       <button
-        onClick={e => { e.stopPropagation(); setOpen(v => !v) }}
+        ref={triggerRef}
+        onClick={toggleOpen}
         className={cn(
           'flex items-center gap-1.5 text-sm font-black tracking-wide transition-colors whitespace-nowrap',
           value ? 'text-indigo-600' : 'text-slate-600 hover:text-slate-600',
@@ -48,17 +75,16 @@ export function HeaderFilterDropdown({ label, value, options, onChange, totalCou
         <ChevronDown className={cn('w-3.5 h-3.5 transition-transform shrink-0', open && 'rotate-180')} />
       </button>
 
-      <AnimatePresence>
-        {open && (
+      {open && createPortal(
+        <AnimatePresence>
           <motion.div
+            ref={menuRef}
             initial={{ opacity: 0, y: -6, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.97 }}
             transition={{ duration: 0.12 }}
-            className={cn(
-              'absolute top-full mt-2 w-56 bg-white border border-slate-200 rounded-2xl shadow-xl shadow-slate-200/60 z-30 overflow-hidden py-1.5 max-h-80 overflow-y-auto',
-              align === 'right' ? 'right-0' : 'left-0',
-            )}
+            style={{ position: 'fixed', top: pos.openUp ? undefined : pos.top, bottom: pos.openUp ? window.innerHeight - pos.top : undefined, left: pos.left, width: MENU_WIDTH, zIndex: 9999 }}
+            className="bg-white border border-slate-200 rounded-2xl shadow-xl shadow-slate-200/60 overflow-hidden py-1.5 max-h-80 overflow-y-auto"
           >
             <button
               onClick={() => { onChange(''); setOpen(false) }}
@@ -105,8 +131,9 @@ export function HeaderFilterDropdown({ label, value, options, onChange, totalCou
               )
             })}
           </motion.div>
-        )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body,
+      )}
     </div>
   )
 }

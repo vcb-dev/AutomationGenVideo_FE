@@ -88,29 +88,32 @@ export default function TaskAutoLayout({ children }: { children: React.ReactNode
             {/* Divider */}
             <div className="w-px h-8 bg-gray-200 mr-2 shrink-0 hidden sm:block" />
 
-            {/* Nav links */}
-            <nav className="flex items-center gap-1.5 overflow-x-auto scrollbar-none flex-1">
-              {visibleItems.map((item) => {
-                const isActive = item.exact
-                  ? pathname === item.href
-                  : pathname.startsWith(item.href)
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                      'flex items-center gap-2.5 px-5 py-3 rounded-xl text-base font-medium whitespace-nowrap transition-all duration-150',
-                      isActive
-                        ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200 font-semibold'
-                        : 'text-slate-500 hover:text-slate-900 hover:bg-gray-100'
-                    )}
-                  >
-                    <item.icon className={cn('w-5 h-5 shrink-0', isActive ? 'text-white' : 'text-slate-400')} />
-                    {item.label}
-                  </Link>
-                )
-              })}
-            </nav>
+            {/* Nav links — cuộn ngang trên mobile, fade mép phải gợi ý còn item ẩn */}
+            <div className="relative flex-1 min-w-0">
+              <nav className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+                {visibleItems.map((item) => {
+                  const isActive = item.exact
+                    ? pathname === item.href
+                    : pathname.startsWith(item.href)
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={cn(
+                        'flex items-center gap-2.5 px-5 py-3 rounded-xl text-base font-medium whitespace-nowrap transition-all duration-150 shrink-0',
+                        isActive
+                          ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200 font-semibold'
+                          : 'text-slate-500 hover:text-slate-900 hover:bg-gray-100'
+                      )}
+                    >
+                      <item.icon className={cn('w-5 h-5 shrink-0', isActive ? 'text-white' : 'text-slate-400')} />
+                      {item.label}
+                    </Link>
+                  )
+                })}
+              </nav>
+              <div className="pointer-events-none absolute top-0 right-0 h-full w-8 bg-gradient-to-l from-white to-transparent sm:hidden" />
+            </div>
           </div>
         </div>
       </div>

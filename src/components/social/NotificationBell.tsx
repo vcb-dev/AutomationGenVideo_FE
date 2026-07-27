@@ -19,6 +19,7 @@ import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { useSocialLang } from '@/contexts/SocialLanguageContext';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { useNotificationStream } from '@/hooks/useNotificationStream';
 
 interface Notification {
   id: string;
@@ -85,12 +86,18 @@ export default function NotificationBell() {
     } catch {}
   }, []);
 
+  // Tab "system" (social) chưa có kênh real-time riêng — vẫn poll như cũ.
   useEffect(() => {
     load();
-    loadTasks();
-    const timer = setInterval(() => { load(); loadTasks(); }, POLL_INTERVAL);
+    const timer = setInterval(load, POLL_INTERVAL);
     return () => clearInterval(timer);
-  }, [load, loadTasks]);
+  }, [load]);
+
+  // Tab "task" (task-auto) — load lần đầu, các lần cập nhật sau đó do SSE đẩy.
+  useEffect(() => {
+    loadTasks();
+  }, [loadTasks]);
+  useNotificationStream(loadTasks);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {

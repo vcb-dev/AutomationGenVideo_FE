@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { Plus, Loader2, Users, Video, FileText, Package } from 'lucide-react'
-import { DarkModal, DarkInput, EmptyState, CustomSelect, ServerSearchSelect } from '@/components/task-auto'
+import { DarkModal, DarkInput, EmptyState, CustomSelect, ServerSearchSelect, ConfirmDialog } from '@/components/task-auto'
 import {
   getEditorKpis, createEditorKpi, updateEditorKpi, deleteEditorKpi,
   getApprovals, getTeams,
@@ -225,7 +225,7 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
         {canEdit && (
           <button
             onClick={openCreate}
-            className="ml-auto flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-3 text-base font-semibold transition-colors"
+            className="ml-auto flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors"
           >
             <Plus className="w-5 h-5" /> Thêm KPI Editor
           </button>
@@ -283,14 +283,14 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
           <>
             <button
               onClick={() => setModal(null)}
-              className="bg-gray-100 hover:bg-gray-200 text-slate-700 rounded-xl px-5 py-3 text-base font-semibold transition-colors"
+              className="bg-gray-100 hover:bg-gray-200 text-slate-700 rounded-xl px-5 py-2.5 text-base font-semibold transition-colors"
             >
               Hủy
             </button>
             <button
               onClick={handleSubmit}
               disabled={upsertMut.isPending}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-3 text-base font-semibold flex items-center gap-2 transition-colors disabled:opacity-60"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-2.5 text-base font-semibold flex items-center gap-2 transition-colors disabled:opacity-60"
             >
               {upsertMut.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
               {modal === 'create' ? 'Thêm mới' : 'Lưu thay đổi'}
@@ -299,7 +299,7 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
         }
       >
         <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <ServerSearchSelect
               label="Editor *"
               value={form.user_id}
@@ -456,30 +456,16 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
       </DarkModal>
 
       {/* Xác nhận xóa */}
-      {deletingId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
-            <h3 className="text-lg font-bold text-slate-800">Xóa KPI Editor</h3>
-            <p className="text-sm text-slate-500">KPI này sẽ bị xóa vĩnh viễn. Bạn có chắc không?</p>
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => setDeletingId(null)}
-                className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
-              >
-                Hủy
-              </button>
-              <button
-                disabled={deleteMut.isPending}
-                onClick={() => deleteMut.mutate(deletingId)}
-                className="px-4 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 flex items-center gap-2 disabled:opacity-60"
-              >
-                {deleteMut.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                Xóa
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={!!deletingId}
+        title="Xóa KPI Editor"
+        message="KPI này sẽ bị xóa vĩnh viễn. Bạn có chắc không?"
+        confirmLabel="Xóa"
+        isLoading={deleteMut.isPending}
+        onConfirm={() => deletingId && deleteMut.mutate(deletingId)}
+        onCancel={() => setDeletingId(null)}
+        danger
+      />
 
       {viewingKpi && (
         <EditorKpiDetailModal kpi={viewingKpi} onClose={() => setViewingKpi(null)} />

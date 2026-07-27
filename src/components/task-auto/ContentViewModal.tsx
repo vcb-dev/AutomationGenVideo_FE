@@ -148,7 +148,7 @@ export function ContentViewModal({
           onClick={e => e.stopPropagation()}>
 
           {/* Header */}
-          <div className="px-8 pt-7 pb-5 border-b border-gray-100 shrink-0">
+          <div className="px-5 sm:px-8 pt-7 pb-5 border-b border-gray-100 shrink-0">
             <div className="flex items-start gap-4">
               <div className="flex-1 min-w-0">
                 {/* Title + status */}
@@ -287,7 +287,7 @@ export function ContentViewModal({
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between gap-3 px-8 py-5 border-t border-gray-100 bg-gray-50/50 shrink-0">
+          <div className="flex flex-wrap items-center justify-between gap-3 gap-y-2 px-5 sm:px-8 py-5 border-t border-gray-100 bg-gray-50/50 shrink-0">
             <div className="flex gap-2">
               {canPushToTeam && onPushToTeam && (
                 <button onClick={() => { onPushToTeam(); onClose() }}

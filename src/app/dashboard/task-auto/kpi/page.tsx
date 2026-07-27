@@ -54,10 +54,10 @@ export default function KpiPage() {
         </div>
       )}
 
-      <div className="border-b border-gray-200 flex gap-1">
+      <div className="border-b border-gray-200 flex gap-1 overflow-x-auto scrollbar-none">
         {(['team', 'editor'] as KpiTab[]).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
-            className={cn('flex items-center gap-2 px-6 py-3 text-base font-medium rounded-t-lg transition-colors',
+            className={cn('flex items-center gap-2 px-6 py-3 text-base font-medium rounded-t-lg transition-colors shrink-0 whitespace-nowrap',
               activeTab === tab ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-slate-500 hover:text-slate-800 hover:bg-gray-100')}>
             <Target className="w-4 h-4" />
             {tab === 'team' ? 'KPI Team' : 'KPI Editor'}
