@@ -39,7 +39,7 @@ export function TeamKpiCard({ kpi, canEdit, onEdit }: Props) {
         {canEdit && (
           <button
             onClick={onEdit}
-            className="p-2 rounded-xl hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 transition-colors"
+            className="p-2.5 rounded-xl hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 transition-colors"
             title="Chỉnh sửa"
           >
             <Edit2 className="w-4 h-4" />

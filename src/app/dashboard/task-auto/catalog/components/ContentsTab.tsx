@@ -369,7 +369,7 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
                           <>
                             <button
                               onClick={() => openEdit(c)}
-                              className="p-2 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors"
+                              className="p-2.5 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors"
                               title="Chỉnh sửa"
                             >
                               <Edit2 className="w-4 h-4" />
@@ -378,14 +378,14 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
                               <button
                                 disabled
                                 title="Content đang được dùng trong task chưa duyệt"
-                                className="p-2 rounded-xl text-slate-200 cursor-not-allowed"
+                                className="p-2.5 rounded-xl text-slate-200 cursor-not-allowed"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
                             ) : (
                               <button
                                 onClick={() => setDeletingId(c.id)}
-                                className="p-2 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
+                                className="p-2.5 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
                                 title="Xóa"
                               >
                                 <Trash2 className="w-4 h-4" />

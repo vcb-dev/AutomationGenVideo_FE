@@ -300,7 +300,7 @@ export function TeamDashboard({ d, periodLabel }: { d: any; periodLabel: string 
 
         {/* Legend */}
         {members.length > 0 && (
-          <div className="px-5 py-3 border-t border-slate-50 flex items-center gap-4 text-xs text-slate-400">
+          <div className="px-5 py-3 border-t border-slate-50 flex flex-wrap items-center gap-4 gap-y-2 text-xs text-slate-400">
             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-red-100 inline-block" /> Chậm KPI (&lt;40%)</span>
             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-amber-100 inline-block" /> Cần cố gắng (40–70%)</span>
             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-white border border-slate-100 inline-block" /> Đang tốt (≥70%)</span>

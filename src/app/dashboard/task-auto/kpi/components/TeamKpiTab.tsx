@@ -219,7 +219,7 @@ export function TeamKpiTab({ month, canEdit, userId, isAdminOrManager, selectedT
             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
               Thông tin chung
             </p>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <CustomSelect
                 label="Team *"
                 value={form.team_id}

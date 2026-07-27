@@ -117,7 +117,7 @@ export function PublishedLinksSection({ taskId, publishedLinks, canEdit }: Props
           const meta = getPlatformMeta(link.platform)
           const isEditing = editingId === link.id
           return (
-            <div key={link.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-gray-100 bg-gray-50/60">
+            <div key={link.id} className="flex items-center flex-wrap gap-3 px-3 py-2.5 rounded-xl border border-gray-100 bg-gray-50/60">
               <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: meta.color }}>
                 {meta.icon}
               </div>
@@ -128,7 +128,7 @@ export function PublishedLinksSection({ taskId, publishedLinks, canEdit }: Props
                     value={editPlatform}
                     onChange={e => setEditPlatform(e.target.value)}
                     placeholder="Nền tảng"
-                    className="w-28 shrink-0 border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-semibold focus:ring-2 ring-indigo-500/20 outline-none"
+                    className="w-full sm:w-28 shrink-0 border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-semibold focus:ring-2 ring-indigo-500/20 outline-none"
                   />
                   <input
                     value={editUrl}

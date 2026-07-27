@@ -435,13 +435,13 @@ export function TeamWarehouseTab({
       </div>
 
       {/* Sub-tabs */}
-      <div className="flex gap-1 border-b border-gray-200">
+      <div className="flex gap-1 border-b border-gray-200 overflow-x-auto scrollbar-none">
         {SUB_TABS.map(t => (
           <button
             key={t.key}
             onClick={() => setSubTab(t.key)}
             className={cn(
-              'flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors',
+              'flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors shrink-0 whitespace-nowrap',
               subTab === t.key ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-slate-500 hover:text-slate-800 hover:bg-gray-100',
             )}
           >
@@ -470,6 +470,7 @@ export function TeamWarehouseTab({
           />
         ) : (
           <>
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
@@ -507,7 +508,7 @@ export function TeamWarehouseTab({
                       <button
                         onClick={() => removeMut.mutate(item.id)}
                         disabled={removeMut.isPending}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        className="p-2.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -516,6 +517,7 @@ export function TeamWarehouseTab({
                 ))}
               </tbody>
             </table>
+            </div>
             <Pagination page={page} totalItems={warehouseItems.length} onPageChange={setPage} />
           </>
         )}

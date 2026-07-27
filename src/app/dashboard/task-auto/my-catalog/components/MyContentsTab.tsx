@@ -729,26 +729,26 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM', readO
                             <button
                               onClick={() => setPushItem(c)}
                               title="Đẩy sang kho team"
-                              className="p-2 rounded-xl text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                              className="p-2.5 rounded-xl text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
                             >
                               <SendHorizontal className="w-4 h-4" />
                             </button>
                           )}
                           <button
                             onClick={() => openEdit(c)}
-                            className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-100 transition-colors"
+                            className="p-2.5 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-100 transition-colors"
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
                           {c.status !== 'IN_TASK' ? (
                             <button
                               onClick={() => setDeletingId(c.id)}
-                              className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                              className="p-2.5 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
                           ) : (
-                            <button disabled title="Đang dùng trong task" className="p-2 rounded-xl text-slate-200 cursor-not-allowed">
+                            <button disabled title="Đang dùng trong task" className="p-2.5 rounded-xl text-slate-200 cursor-not-allowed">
                               <Trash2 className="w-4 h-4" />
                             </button>
                           )}
