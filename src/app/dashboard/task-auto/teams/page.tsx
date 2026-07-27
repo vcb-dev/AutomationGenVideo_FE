@@ -131,6 +131,7 @@ export default function TeamsPage() {
       {activeTab === 'members' && (
         <MembersTab
           canManage={canManage}
+          isAdmin={isAdmin}
           isAdminOrManager={isAdminOrManager}
           userId={user?.id}
           selectedTeamId={selectedTeamId}

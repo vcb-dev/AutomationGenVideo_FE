@@ -5,6 +5,8 @@ const DEFAULTS = {
     defaultQuality: 'best',
     autoDownload: false,
     hoverIconEnabled: true,
+    // Gợi ý dịch Việt→Trung ở ô tìm kiếm trên các trang TQ (Douyin, Xiaohongshu...).
+    cnTranslateEnabled: true,
     disabledSites: [],
 };
 
@@ -42,6 +44,7 @@ chrome.storage.sync.get(DEFAULTS, (stored) => {
     state = { ...DEFAULTS, ...stored };
     el('appBase').value = state.appBase;
     el('hoverToggle').checked = state.hoverIconEnabled;
+    el('cnTranslateToggle').checked = state.cnTranslateEnabled;
     el('autoToggle').checked = state.autoDownload;
     applySegUI();
     renderSiteList();
@@ -61,6 +64,7 @@ chrome.storage.sync.get(DEFAULTS, (stored) => {
 });
 
 el('hoverToggle').addEventListener('change', (e) => { state.hoverIconEnabled = e.target.checked; });
+el('cnTranslateToggle').addEventListener('change', (e) => { state.cnTranslateEnabled = e.target.checked; });
 el('autoToggle').addEventListener('change', (e) => { state.autoDownload = e.target.checked; });
 
 el('save').addEventListener('click', () => {
@@ -79,6 +83,7 @@ el('save').addEventListener('click', () => {
             defaultQuality: state.defaultQuality,
             autoDownload: state.autoDownload,
             hoverIconEnabled: state.hoverIconEnabled,
+            cnTranslateEnabled: state.cnTranslateEnabled,
         },
         () => {
             status.style.color = '#16a34a';

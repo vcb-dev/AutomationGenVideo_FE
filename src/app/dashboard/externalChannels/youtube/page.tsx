@@ -69,7 +69,7 @@ function YoutubeShortCard({ short }: { short: YoutubeShortWithProfile }) {
 
 export default function YoutubeExternalPage() {
   const { token, user } = useAuthStore();
-  const isAdmin = user?.roles?.includes(UserRole.ADMIN) ?? false;
+  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
   const queryClient = useQueryClient();
   const router = useRouter();
   const { start: startProfileScrapeNotif } = useProfileScrapeNotification('youtube');
@@ -205,8 +205,8 @@ export default function YoutubeExternalPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Input channel_id — admin only */}
-      {isAdmin && (
+      {/* Input channel_id — chỉ leader/admin */}
+      {canManageChannels && (
         <div className="bg-card border border-border rounded-xl p-4">
           <div className="flex items-center gap-3">
             <div className="relative flex-1 max-w-xl">
@@ -283,9 +283,9 @@ export default function YoutubeExternalPage() {
                   <YoutubeProfileCard
                     key={p.id}
                     profile={p}
-                    onScrape={isAdmin ? () => rescrapeMutation.mutate({ id: p.id, channel_id: p.channel_id }) : undefined}
+                    onScrape={canManageChannels ? () => rescrapeMutation.mutate({ id: p.id, channel_id: p.channel_id }) : undefined}
                     onToggleBookmark={() => toggleMutation.mutate({ id: p.id, field: 'is_bookmarked' })}
-                    onToggleTracked={() => toggleMutation.mutate({ id: p.id, field: 'is_tracked' })}
+                    onToggleTracked={canManageChannels ? () => toggleMutation.mutate({ id: p.id, field: 'is_tracked' }) : undefined}
                     onViewDetail={() => router.push(`/dashboard/externalChannels/youtube/${p.id}`)}
                   />
                 ))}

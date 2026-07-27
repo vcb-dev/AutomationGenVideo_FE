@@ -14,6 +14,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { scraperService, XiaohongshuVideo, XiaohongshuProfile } from '@/services/scraperService';
 import { useScrapingStore } from '@/store/scraping-store';
 import { UserRole } from '@/types/auth';
+import KeywordTranslateHint from '../components/KeywordTranslateHint';
 
 function formatNum(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -96,7 +97,7 @@ function XhsProfileCard({
   profile: XiaohongshuProfile;
   onScrape?: () => void;
   onToggleBookmark: () => void;
-  onToggleTracked: () => void;
+  onToggleTracked?: () => void;
   onViewDetail: () => void;
 }) {
   const isProcessing = p.scraping_status === 'processing';
@@ -115,7 +116,7 @@ function XhsProfileCard({
         <div className="flex items-center gap-1.5 px-3.5 pt-2.5 pb-0">
           {p.is_tracked && (
             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded text-xs font-medium">
-              <Timer size={10} weight="fill" /> Theo dõi
+              <Timer size={10} weight="fill" /> Kênh chú ý
             </span>
           )}
           {isProcessing && (
@@ -200,17 +201,19 @@ function XhsProfileCard({
         >
           <BookmarkSimple size={14} weight={p.is_bookmarked ? 'fill' : 'regular'} />
         </button>
-        <button
-          onClick={onToggleTracked}
-          className={`flex items-center justify-center gap-1 py-2.5 text-xs transition-colors ${onScrape ? 'px-3' : 'flex-1'} ${
-            p.is_tracked
-              ? 'text-emerald-500 bg-emerald-50/50 dark:bg-emerald-900/10'
-              : 'text-slate-400 hover:text-emerald-500 hover:bg-emerald-50/50'
-          }`}
-          title={p.is_tracked ? 'Tắt theo dõi' : 'Bật theo dõi'}
-        >
-          <Timer size={14} weight={p.is_tracked ? 'fill' : 'regular'} />
-        </button>
+        {onToggleTracked && (
+          <button
+            onClick={onToggleTracked}
+            className={`flex items-center justify-center gap-1 py-2.5 text-xs transition-colors ${onScrape ? 'px-3' : 'flex-1'} ${
+              p.is_tracked
+                ? 'text-emerald-500 bg-emerald-50/50 dark:bg-emerald-900/10'
+                : 'text-slate-400 hover:text-emerald-500 hover:bg-emerald-50/50'
+            }`}
+            title={p.is_tracked ? 'Bỏ kênh chú ý' : 'Đánh dấu kênh chú ý'}
+          >
+            <Timer size={14} weight={p.is_tracked ? 'fill' : 'regular'} />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -218,12 +221,15 @@ function XhsProfileCard({
 
 // ─── SEARCH TAB ──────────────────────────────────────────────
 function VideoSearchTab() {
-  const { token } = useAuthStore();
+  const { token, user } = useAuthStore();
+  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
   const queryClient = useQueryClient();
   const { addNotification, updateNotification } = useScrapingStore();
   const notifIdRef = useRef<string | null>(null);
 
   const [keyword, setKeyword] = useState('');
+  // Bản dịch tiếng Trung của `keyword` (do KeywordTranslateHint trả về). Rỗng = không dịch được / đã là tiếng Trung.
+  const [translatedKeyword, setTranslatedKeyword] = useState('');
   const [numPosts, setNumPosts] = useState('20');
   const [suggestions, setSuggestions] = useState<{ keyword: string; count: number }[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -309,7 +315,12 @@ function VideoSearchTab() {
       if (!token) throw new Error('No token');
       const kw = keyword.trim();
       if (!kw) throw new Error('Nhập keyword');
-      return scraperService.xiaohongshuSearch(token, kw, Number(numPosts) || 20);
+      // Có bản dịch tiếng Trung → query bằng tiếng Trung nhưng LƯU tiếng Việt user gõ.
+      const zh = translatedKeyword.trim();
+      const num = Number(numPosts) || 20;
+      return zh
+        ? scraperService.xiaohongshuSearch(token, zh, num, kw)
+        : scraperService.xiaohongshuSearch(token, kw, num);
     },
     onMutate: () => {
       notifIdRef.current = addNotification({
@@ -356,7 +367,8 @@ function VideoSearchTab() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Search bar */}
+      {/* Search bar — chỉ leader/admin được cào kênh mới */}
+      {canManageChannels && (
       <div className="bg-card border border-border rounded-xl p-4 space-y-3">
         <div className="flex items-center gap-3 flex-wrap">
           <div className="relative flex-1 min-w-[220px] max-w-xl" ref={dropdownRef}>
@@ -374,7 +386,7 @@ function VideoSearchTab() {
                 }
               }}
               onKeyDown={e => { if (e.key === 'Enter') handleSearch(); }}
-              placeholder="Nhập keyword tiếng Trung (vd: 美食推荐)"
+              placeholder="Nhập keyword tiếng Việt (tự dịch) hoặc tiếng Trung (vd: 美食推荐)"
               className="w-full px-3 py-2.5 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
             />
             {showSuggestions && suggestions.length > 0 && (
@@ -410,7 +422,10 @@ function VideoSearchTab() {
             {searchMutation.isPending ? 'Đang tìm...' : 'Tìm kiếm'}
           </button>
         </div>
+
+        <KeywordTranslateHint keyword={keyword} onTranslated={setTranslatedKeyword} />
       </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3 border border-border rounded-xl p-4">
@@ -487,7 +502,7 @@ function VideoSearchTab() {
 // ─── PROFILES TAB ────────────────────────────────────────────
 function ProfilesTab() {
   const { token, user } = useAuthStore();
-  const isAdmin = user?.roles?.includes(UserRole.ADMIN) ?? false;
+  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
   const queryClient = useQueryClient();
   const { addNotification, updateNotification } = useScrapingStore();
   const router = useRouter();
@@ -567,8 +582,8 @@ function ProfilesTab() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Add profile — admin only */}
-      {isAdmin && (
+      {/* Add profile — chỉ leader/admin */}
+      {canManageChannels && (
         <div className="bg-card border border-border rounded-xl p-4">
           <p className="text-xs text-slate-500 mb-3">Thêm Xiaohongshu user bằng User ID (chuỗi hex, vd: 61b46d790000000010008153)</p>
           <div className="flex items-center gap-3 flex-wrap">
@@ -623,9 +638,9 @@ function ProfilesTab() {
             <XhsProfileCard
               key={p.id}
               profile={p}
-              onScrape={isAdmin ? () => scrapeMutation.mutate(p.user_id) : undefined}
+              onScrape={canManageChannels ? () => scrapeMutation.mutate(p.user_id) : undefined}
               onToggleBookmark={() => toggleMutation.mutate({ id: p.id, field: 'is_bookmarked', currentValue: p.is_bookmarked })}
-              onToggleTracked={() => toggleMutation.mutate({ id: p.id, field: 'is_tracked', currentValue: p.is_tracked })}
+              onToggleTracked={canManageChannels ? () => toggleMutation.mutate({ id: p.id, field: 'is_tracked', currentValue: p.is_tracked }) : undefined}
               onViewDetail={() => router.push(`/dashboard/externalChannels/xiaohongshu/${p.id}`)}
             />
           ))}

@@ -23,7 +23,7 @@ interface Props {
   channelInfo?: ChannelInfo;
   onScrape?: () => void;
   onToggleBookmark: () => void;
-  onToggleTracked: () => void;
+  onToggleTracked?: () => void;
   onViewDetail: () => void;
 }
 
@@ -44,7 +44,7 @@ export default function InstagramProfileCard({ profile: p, channelInfo, onScrape
         <div className="flex items-center gap-1.5 px-3.5 pt-2.5 pb-0">
           {p.is_tracked && (
             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded text-xs font-medium">
-              <Timer size={10} weight="fill" /> Theo dõi
+              <Timer size={10} weight="fill" /> Kênh chú ý
             </span>
           )}
           {isProcessing && (
@@ -151,17 +151,19 @@ export default function InstagramProfileCard({ profile: p, channelInfo, onScrape
         >
           <BookmarkSimple size={14} weight={p.is_bookmarked ? 'fill' : 'regular'} />
         </button>
-        <button
-          onClick={onToggleTracked}
-          className={`flex items-center justify-center gap-1 py-2.5 text-xs transition-colors ${onScrape ? 'px-3' : 'flex-1'} ${
-            p.is_tracked
-              ? 'text-emerald-500 bg-emerald-50/50 dark:bg-emerald-900/10'
-              : 'text-slate-400 hover:text-emerald-500 hover:bg-emerald-50/50'
-          }`}
-          title={p.is_tracked ? 'Tắt theo dõi' : 'Bật theo dõi'}
-        >
-          <Timer size={14} weight={p.is_tracked ? 'fill' : 'regular'} />
-        </button>
+        {onToggleTracked && (
+          <button
+            onClick={onToggleTracked}
+            className={`flex items-center justify-center gap-1 py-2.5 text-xs transition-colors ${onScrape ? 'px-3' : 'flex-1'} ${
+              p.is_tracked
+                ? 'text-emerald-500 bg-emerald-50/50 dark:bg-emerald-900/10'
+                : 'text-slate-400 hover:text-emerald-500 hover:bg-emerald-50/50'
+            }`}
+            title={p.is_tracked ? 'Bỏ kênh chú ý' : 'Đánh dấu kênh chú ý'}
+          >
+            <Timer size={14} weight={p.is_tracked ? 'fill' : 'regular'} />
+          </button>
+        )}
       </div>
     </div>
   );

@@ -9,6 +9,8 @@
         defaultQuality: 'best',
         autoDownload: false,
         hoverIconEnabled: true,
+        // Gợi ý dịch Việt→Trung ở ô tìm kiếm trên các trang TQ (Douyin, Xiaohongshu...).
+        cnTranslateEnabled: true,
         disabledSites: [],
     };
 
@@ -618,6 +620,189 @@
             return;
         }
     });
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Gợi ý dịch tiếng Việt → tiếng Trung cho ô tìm kiếm trên các trang TQ.
+    // Các nền tảng này chỉ ra kết quả tốt khi tìm bằng tiếng Trung; user gõ tiếng
+    // Việt thì hiện 1 chip nhỏ dưới ô nhập, bấm (hoặc Tab) để thay chữ vào ô.
+    // Cố ý KHÔNG chặn phím Enter — các trang này có JS riêng xử lý submit, chặn
+    // Enter rất dễ làm kẹt ô tìm kiếm của trang.
+    // ═══════════════════════════════════════════════════════════════════════
+    const CN_SEARCH_HOSTS = ['douyin.com', 'xiaohongshu.com', 'rednote.com', 'bilibili.com', 'kuaishou.com'];
+    const isCnSearchSite = CN_SEARCH_HOSTS.some((h) => hostname.includes(h));
+
+    let cnChipEl = null;
+    let cnChipInput = null;
+    let cnChipTranslated = '';
+    let cnDebounceTimer = null;
+    let cnReqId = 0;
+
+    // So sánh code point thay vì regex chứa ký tự CJK nguyên bản: giữ nguồn thuần ASCII
+    // để không hỏng âm thầm nếu file bị lưu/đóng gói sai mã hoá.
+    // Dải U+4E00–U+9FFF = CJK Unified Ideographs.
+    function hasCjk(text) {
+        for (const ch of text) {
+            const code = ch.codePointAt(0) || 0;
+            if (code >= 0x4e00 && code <= 0x9fff) return true;
+        }
+        return false;
+    }
+
+    // Dùng cả thuộc tính DOM lẫn attribute: vài trang gán contenteditable động, và
+    // isContentEditable không phải môi trường nào cũng có.
+    function isEditableHost(el) {
+        return !!el && (el.isContentEditable === true || el.hasAttribute?.('contenteditable'));
+    }
+
+    function readInputValue(el) {
+        if (!el) return '';
+        return isEditableHost(el) ? (el.textContent || '') : (el.value || '');
+    }
+
+    // Các trang này dựng bằng React/Vue: gán thẳng .value sẽ bị framework ghi đè vì
+    // state nội bộ không đổi. Phải gọi native setter rồi bắn 'input' để framework nhận.
+    function setInputValue(el, value) {
+        const tag = el.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA') {
+            // Chọn prototype theo ĐÚNG loại thẻ. Gọi setter của HTMLInputElement lên thẻ
+            // khác (vd div) sẽ ném TypeError và làm chết luôn handler.
+            const proto = tag === 'TEXTAREA'
+                ? window.HTMLTextAreaElement.prototype
+                : window.HTMLInputElement.prototype;
+            const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+            try {
+                if (setter) setter.call(el, value);
+                else el.value = value;
+            } catch {
+                el.value = value;
+            }
+        } else {
+            // contenteditable hoặc bất kỳ thứ gì khác — an toàn nhất là ghi text.
+            el.textContent = value;
+        }
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    function hideCnChip() {
+        if (cnChipEl) {
+            cnChipEl.remove();
+            cnChipEl = null;
+        }
+        cnChipTranslated = '';
+        // Bỏ tham chiếu tới ô nhập, tránh giữ 1 node đã bị gỡ khỏi DOM (các trang này
+        // là SPA, dựng/huỷ DOM liên tục).
+        cnChipInput = null;
+    }
+
+    function applyCnTranslation() {
+        if (!cnChipInput || !cnChipTranslated) return;
+        setInputValue(cnChipInput, cnChipTranslated);
+        cnChipInput.focus();
+        hideCnChip();
+    }
+
+    function showCnChip(input, translated) {
+        hideCnChip();
+        cnChipInput = input;
+        cnChipTranslated = translated;
+
+        const rect = input.getBoundingClientRect();
+        const chip = document.createElement('div');
+        chip.setAttribute('data-vcb-cn-chip', '1');
+        chip.style.cssText = [
+            'position:fixed',
+            `top:${Math.round(rect.bottom + 6)}px`,
+            `left:${Math.round(rect.left)}px`,
+            'z-index:2147483647',
+            'background:#111827',
+            'color:#fff',
+            'font-size:13px',
+            'font-family:system-ui,-apple-system,sans-serif',
+            'padding:7px 11px',
+            'border-radius:8px',
+            'box-shadow:0 4px 14px rgba(0,0,0,.35)',
+            'display:flex',
+            'align-items:center',
+            'gap:8px',
+            'cursor:pointer',
+            'max-width:min(420px,90vw)',
+        ].join(';');
+        // Dựng bằng textContent thay vì innerHTML: bản dịch bắt nguồn từ text người dùng
+        // gõ trên trang lạ, chèn thẳng vào innerHTML là mở đường cho injection.
+        const mkSpan = (text, css) => {
+            const s = document.createElement('span');
+            s.style.cssText = css;
+            s.textContent = text;
+            return s;
+        };
+        chip.appendChild(mkSpan('Tìm bằng tiếng Trung:', 'opacity:.7'));
+        chip.appendChild(mkSpan(translated, 'color:#fbbf24;font-weight:700'));
+        chip.appendChild(mkSpan('bấm / Tab', 'opacity:.55;font-size:11px'));
+        chip.addEventListener('mousedown', (e) => {
+            // mousedown thay vì click: click xảy ra sau blur nên chip đã bị gỡ mất.
+            e.preventDefault();
+            applyCnTranslation();
+        });
+        document.body.appendChild(chip);
+        cnChipEl = chip;
+    }
+
+    function onCnInput(e) {
+        const el = e.target;
+        if (!el || !isTextEntry(el)) return;
+        if (settings.cnTranslateEnabled === false) return;
+
+        const text = readInputValue(el).trim();
+        clearTimeout(cnDebounceTimer);
+
+        // Chỉ gợi ý khi có chữ Latin và CHƯA phải tiếng Trung.
+        if (text.length < 2 || hasCjk(text) || !/[a-zA-ZÀ-ỹ]/.test(text)) {
+            hideCnChip();
+            return;
+        }
+
+        const myReq = ++cnReqId;
+        cnDebounceTimer = setTimeout(() => {
+            sendMessageSafe({ type: 'vcb-translate-zh', text }, (res) => {
+                if (myReq !== cnReqId) return; // đã có lần gõ mới hơn
+                if (chrome.runtime.lastError || !res?.ok || !res.translated) {
+                    hideCnChip();
+                    return;
+                }
+                // Ô có thể đã đổi/đã mất focus trong lúc chờ dịch.
+                if (document.activeElement !== el) return;
+                showCnChip(el, res.translated);
+            });
+        }, 600);
+    }
+
+    function isTextEntry(el) {
+        if (!el || el.disabled || el.readOnly) return false;
+        if (isEditableHost(el)) return true;
+        const tag = el.tagName;
+        if (tag === 'TEXTAREA') return true;
+        if (tag !== 'INPUT') return false;
+        const type = (el.getAttribute('type') || 'text').toLowerCase();
+        return type === 'text' || type === 'search';
+    }
+
+    if (isCnSearchSite) {
+        // Bắt sự kiện ở document (capture) thay vì gắn selector cụ thể từng trang —
+        // markup/class của các trang này đổi liên tục, hardcode selector sẽ hỏng.
+        document.addEventListener('input', onCnInput, true);
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Tab' && cnChipEl && cnChipTranslated) {
+                e.preventDefault();
+                applyCnTranslation();
+            } else if (e.key === 'Escape') {
+                hideCnChip();
+            }
+        }, true);
+        document.addEventListener('focusout', () => setTimeout(hideCnChip, 150), true);
+        window.addEventListener('scroll', hideCnChip, true);
+        window.addEventListener('resize', hideCnChip);
+    }
 
     // --- Load settings ---
     chrome.storage.sync.get(DEFAULTS, (stored) => {

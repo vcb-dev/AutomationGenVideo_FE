@@ -12,6 +12,7 @@ import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import TikTokVideoCard from '../components/TikTokVideoCard';
 import DouyinProfileCard from '../components/DouyinProfileCard';
+import KeywordTranslateHint from '../components/KeywordTranslateHint';
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService, DouyinVideo } from '@/services/scraperService';
 import { useScrapingStore } from '@/store/scraping-store';
@@ -22,7 +23,7 @@ type Tab = 'videos' | 'profiles';
 
 export default function DouyinExternalPage() {
   const { token, user } = useAuthStore();
-  const isAdmin = user?.roles?.includes(UserRole.ADMIN) ?? false;
+  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
   const { addNotification, updateNotification } = useScrapingStore();
   const { start: startProfileScrapeNotif } = useProfileScrapeNotification('douyin');
   const router = useRouter();
@@ -31,6 +32,8 @@ export default function DouyinExternalPage() {
 
   // ─── Search state ─────────────────────────────────────
   const [keyword, setKeyword] = useState('');
+  // Bản dịch tiếng Trung của `keyword` (do KeywordTranslateHint trả về). Rỗng = không dịch được / đã là tiếng Trung.
+  const [translatedKeyword, setTranslatedKeyword] = useState('');
   const [numPosts, setNumPosts] = useState('30');
 
   // ─── Autocomplete ─────────────────────────────────────
@@ -107,7 +110,12 @@ export default function DouyinExternalPage() {
     mutationFn: () => {
       if (!token || !keyword.trim()) throw new Error('Keyword required');
       const num = Math.min(200, Math.max(1, parseInt(numPosts) || 30));
-      return scraperService.douyinSearch(token, keyword.trim(), num);
+      // Có bản dịch tiếng Trung → query bằng tiếng Trung nhưng LƯU tiếng Việt user gõ.
+      const vi = keyword.trim();
+      const zh = translatedKeyword.trim();
+      return zh
+        ? scraperService.douyinSearch(token, zh, num, vi)
+        : scraperService.douyinSearch(token, vi, num);
     },
     onMutate: () => {
       const nId = addNotification({
@@ -306,7 +314,8 @@ export default function DouyinExternalPage() {
       {/* ─── Videos Tab ──────────────────────────────────── */}
       {activeTab === 'videos' && (
         <>
-          {/* Search bar */}
+          {/* Search bar — chỉ leader/admin được cào kênh mới */}
+          {canManageChannels && (
           <div className="bg-card border border-border rounded-xl p-4 space-y-3">
             <div className="flex items-center gap-3">
               <div className="relative flex-1 max-w-lg">
@@ -358,7 +367,9 @@ export default function DouyinExternalPage() {
               </button>
             </div>
 
+            <KeywordTranslateHint keyword={keyword} onTranslated={setTranslatedKeyword} />
           </div>
+          )}
 
           {/* Filter bar */}
           <div className="flex flex-wrap items-center gap-3 border border-border rounded-xl p-4">
@@ -474,8 +485,8 @@ export default function DouyinExternalPage() {
       {/* ─── Profiles Tab ────────────────────────────────── */}
       {activeTab === 'profiles' && (
         <>
-          {/* Input sec_user_id — admin only */}
-          {isAdmin && (
+          {/* Input sec_user_id — chỉ leader/admin */}
+          {canManageChannels && (
             <div className="bg-card border border-border rounded-xl p-4">
               <div className="flex items-center gap-3">
                 <div className="relative flex-1 max-w-xl">
@@ -555,9 +566,9 @@ export default function DouyinExternalPage() {
                 <DouyinProfileCard
                   key={p.id}
                   profile={p}
-                  onScrape={isAdmin ? () => profileRescrape.mutate({ secUserId: p.sec_user_id, label: p.nickname || p.username }) : undefined}
+                  onScrape={canManageChannels ? () => profileRescrape.mutate({ secUserId: p.sec_user_id, label: p.nickname || p.username }) : undefined}
                   onToggleBookmark={() => profileToggleMutation.mutate({ id: p.id, field: 'is_bookmarked' })}
-                  onToggleTracked={() => profileToggleMutation.mutate({ id: p.id, field: 'is_tracked' })}
+                  onToggleTracked={canManageChannels ? () => profileToggleMutation.mutate({ id: p.id, field: 'is_tracked' }) : undefined}
                   onViewDetail={() => router.push(`/dashboard/externalChannels/douyin/${p.id}`)}
                 />
               ))}

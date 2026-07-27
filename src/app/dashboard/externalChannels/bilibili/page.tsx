@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 
 import BilibiliVideoCard from '../components/BilibiliVideoCard';
 import BilibiliProfileCard from '../components/BilibiliProfileCard';
+import KeywordTranslateHint from '../components/KeywordTranslateHint';
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService } from '@/services/scraperService';
 import { useScrapingStore } from '@/store/scraping-store';
@@ -21,7 +22,7 @@ const PAGE_SIZE_PROFILES = 12;
 
 export default function BilibiliExternalPage() {
   const { token, user } = useAuthStore();
-  const isAdmin = user?.roles?.includes(UserRole.ADMIN) ?? false;
+  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
   const queryClient = useQueryClient();
   const router = useRouter();
   const { addNotification, updateNotification } = useScrapingStore();
@@ -47,6 +48,8 @@ export default function BilibiliExternalPage() {
 
   // ─── Search state ─────────────────────────────────────
   const [keyword, setKeyword] = useState('');
+  // Bản dịch tiếng Trung của `keyword` (do KeywordTranslateHint trả về). Rỗng = không dịch được / đã là tiếng Trung.
+  const [translatedKeyword, setTranslatedKeyword] = useState('');
   const [numPosts, setNumPosts] = useState('30');
 
   const [suggestions, setSuggestions] = useState<{ keyword: string; count: number }[]>([]);
@@ -119,7 +122,12 @@ export default function BilibiliExternalPage() {
     mutationFn: () => {
       if (!token || !keyword.trim()) throw new Error('Keyword required');
       const num = Math.min(200, Math.max(1, parseInt(numPosts) || 30));
-      return scraperService.bilibiliSearch(token, keyword.trim(), num);
+      // Có bản dịch tiếng Trung → query bằng tiếng Trung nhưng LƯU tiếng Việt user gõ.
+      const vi = keyword.trim();
+      const zh = translatedKeyword.trim();
+      return zh
+        ? scraperService.bilibiliSearch(token, zh, num, vi)
+        : scraperService.bilibiliSearch(token, vi, num);
     },
     onMutate: () => {
       const nId = addNotification({
@@ -289,7 +297,8 @@ export default function BilibiliExternalPage() {
       {/* ─── Videos Tab ──────────────────────────────────── */}
       {activeTab === 'videos' && (
         <>
-          {/* Search bar */}
+          {/* Search bar — chỉ leader/admin được cào kênh mới */}
+          {canManageChannels && (
           <div className="bg-card border border-border rounded-xl p-4 space-y-3">
             <div className="flex items-center gap-3">
               <div className="relative flex-1 max-w-lg">
@@ -342,7 +351,10 @@ export default function BilibiliExternalPage() {
                 {searchMutation.isPending ? 'Đang tìm...' : 'Tìm kiếm'}
               </button>
             </div>
+
+            <KeywordTranslateHint keyword={keyword} onTranslated={setTranslatedKeyword} />
           </div>
+          )}
 
           {/* Filter bar */}
           <div className="flex flex-wrap items-center gap-3 border border-border rounded-xl p-4">
@@ -439,7 +451,7 @@ export default function BilibiliExternalPage() {
       {/* ─── Profiles Tab ─────────────────────────────────── */}
       {activeTab === 'profiles' && (
         <>
-          {isAdmin && (
+          {canManageChannels && (
             <div className="bg-card border border-border rounded-xl p-4 space-y-3">
               <div className="flex items-center gap-3">
                 <div className="relative flex-1 max-w-xl">
@@ -515,9 +527,9 @@ export default function BilibiliExternalPage() {
                 <BilibiliProfileCard
                   key={p.id}
                   profile={p}
-                  onScrape={isAdmin ? () => profileRescrape.mutate({ id: p.id, mid: p.mid, label: p.nickname || p.mid }) : undefined}
+                  onScrape={canManageChannels ? () => profileRescrape.mutate({ id: p.id, mid: p.mid, label: p.nickname || p.mid }) : undefined}
                   onToggleBookmark={() => profileToggleMutation.mutate({ id: p.id, field: 'is_bookmarked' })}
-                  onToggleTracked={() => profileToggleMutation.mutate({ id: p.id, field: 'is_tracked' })}
+                  onToggleTracked={canManageChannels ? () => profileToggleMutation.mutate({ id: p.id, field: 'is_tracked' }) : undefined}
                   onViewDetail={() => router.push(`/dashboard/externalChannels/bilibili/${p.id}`)}
                 />
               ))}
