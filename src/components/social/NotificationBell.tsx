@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Bell, BellOff, BellRing, CheckCircle, XCircle, Clock, X, RotateCcw, ExternalLink,
-  ClipboardList, Upload, Inbox, PackageX,
+  ClipboardList, Upload, Inbox, PackageX, AlertTriangle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { socialApi, PLATFORM_META, SocialPlatform } from '@/lib/api/social';
@@ -20,6 +20,7 @@ import toast from 'react-hot-toast';
 import { useSocialLang } from '@/contexts/SocialLanguageContext';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useNotificationStream } from '@/hooks/useNotificationStream';
+import { playNotificationSound } from '@/lib/notificationSound';
 
 interface Notification {
   id: string;
@@ -39,6 +40,7 @@ const TASK_NOTIF_META: Record<string, { icon: typeof ClipboardList; color: strin
   TASK_SUBMITTED: { icon: Upload, color: 'bg-violet-500' },
   TASK_APPROVED: { icon: CheckCircle, color: 'bg-emerald-500' },
   TASK_REJECTED: { icon: XCircle, color: 'bg-red-500' },
+  TASK_MISSING_PUBLISHED_LINK: { icon: AlertTriangle, color: 'bg-red-500' },
   TEAM_PUSH_REQUEST: { icon: Inbox, color: 'bg-amber-500' },
   AUTO_ASSIGN_EMPTY_WAREHOUSE: { icon: PackageX, color: 'bg-amber-500' },
   CONTENT_APPROVAL_REQUESTED: { icon: Inbox, color: 'bg-violet-500' },
@@ -88,13 +90,16 @@ export default function NotificationBell() {
   useEffect(() => {
     load();
   }, [load]);
-  useNotificationStream('/social/history/notifications/stream', load);
+  // Tham số thứ 3 chỉ bắn ở đúng sự kiện "có noti mới" (không bắn lúc resync sau
+  // reconnect) — dùng để phát âm thanh nhắc khi tab đang mở (đóng tab thì hệ thống đã
+  // tự phát âm mặc định của OS qua Notification API trong sw.js, không cần custom ở đây).
+  useNotificationStream('/social/history/notifications/stream', load, playNotificationSound);
 
   // Tab "task" (task-auto) — load lần đầu, các lần cập nhật sau đó do SSE đẩy.
   useEffect(() => {
     loadTasks();
   }, [loadTasks]);
-  useNotificationStream('/task-auto/notifications/stream', loadTasks);
+  useNotificationStream('/task-auto/notifications/stream', loadTasks, playNotificationSound);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
