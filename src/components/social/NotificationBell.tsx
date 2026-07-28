@@ -34,8 +34,6 @@ interface Notification {
 
 type BellTab = 'system' | 'task';
 
-const POLL_INTERVAL = 30_000;
-
 const TASK_NOTIF_META: Record<string, { icon: typeof ClipboardList; color: string }> = {
   TASK_ASSIGNED: { icon: ClipboardList, color: 'bg-blue-500' },
   TASK_SUBMITTED: { icon: Upload, color: 'bg-violet-500' },
@@ -86,18 +84,17 @@ export default function NotificationBell() {
     } catch {}
   }, []);
 
-  // Tab "system" (social) chưa có kênh real-time riêng — vẫn poll như cũ.
+  // Tab "system" (social) — load lần đầu, các lần cập nhật sau đó do SSE đẩy.
   useEffect(() => {
     load();
-    const timer = setInterval(load, POLL_INTERVAL);
-    return () => clearInterval(timer);
   }, [load]);
+  useNotificationStream('/social/history/notifications/stream', load);
 
   // Tab "task" (task-auto) — load lần đầu, các lần cập nhật sau đó do SSE đẩy.
   useEffect(() => {
     loadTasks();
   }, [loadTasks]);
-  useNotificationStream(loadTasks);
+  useNotificationStream('/task-auto/notifications/stream', loadTasks);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
