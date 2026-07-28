@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CircleNotch, MagnifyingGlassPlus, UserCircle, FilmReel, CaretDown, CaretUp, Eye, Warning } from '@phosphor-icons/react';
+import { CircleNotch, MagnifyingGlassPlus, UserCircle, FilmReel, CaretDown, CaretUp, Eye, Warning, PaperPlaneTilt } from '@phosphor-icons/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { MagnifyingGlass, X } from '@phosphor-icons/react';
 import { useRouter } from 'next/navigation';
@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 import YoutubeProfileCard from '../components/YoutubeProfileCard';
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService, YoutubeShortWithProfile } from '@/services/scraperService';
+import { videoLibraryService } from '@/services/videoLibraryService';
 import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
 import { UserRole } from '@/types/auth';
 
@@ -24,14 +25,36 @@ function formatNum(n: number): string {
 }
 
 function YoutubeShortCard({ short }: { short: YoutubeShortWithProfile }) {
+  const { token } = useAuthStore();
+  const proposeMutation = useMutation({
+    mutationFn: () => {
+      if (!token) throw new Error('Chưa đăng nhập');
+      return videoLibraryService.proposeVideo(token, {
+        video_id: short.video_id,
+        platform: 'youtube',
+        title: short.title?.slice(0, 200) || '',
+        description: short.title || '',
+        video_url: short.url,
+        author_username: short.profile?.channel_id || '',
+        author_name: short.profile?.title || '',
+        thumbnail_url: short.thumbnail_url || undefined,
+        views_count: short.view_count,
+        hashtags: short.hashtags,
+        source: 'SCRAPED',
+      });
+    },
+    onSuccess: () => toast.success('Đã gửi đề xuất, chờ duyệt.'),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   return (
-    <a
-      href={short.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-md transition-shadow flex flex-col"
-    >
-      <div className="relative aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[280px]">
+    <div className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-md transition-shadow flex flex-col">
+      <a
+        href={short.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="relative block aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[280px]"
+      >
         {short.thumbnail_url ? (
           <img
             src={short.thumbnail_url}
@@ -50,7 +73,7 @@ function YoutubeShortCard({ short }: { short: YoutubeShortWithProfile }) {
             <span className="flex items-center gap-1"><Eye size={12} weight="fill" />{short.view_count_text || formatNum(short.view_count)}</span>
           </div>
         </div>
-      </div>
+      </a>
       <div className="p-3 flex flex-col gap-1.5 flex-1">
         <p className="text-xs text-foreground line-clamp-2 leading-relaxed font-medium">{short.title || <span className="text-slate-400 italic">Không có tiêu đề</span>}</p>
         {short.profile && (
@@ -61,9 +84,23 @@ function YoutubeShortCard({ short }: { short: YoutubeShortWithProfile }) {
             <span className="text-xs text-slate-500 truncate">{short.profile.title}</span>
           </div>
         )}
-        <p className="text-xs text-slate-400">{new Date(short.created_at).toLocaleDateString('vi-VN')}</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-slate-400">{new Date(short.created_at).toLocaleDateString('vi-VN')}</p>
+          <button
+            onClick={() => proposeMutation.mutate()}
+            disabled={proposeMutation.isPending || proposeMutation.isSuccess}
+            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-primary border border-primary/30 rounded-md hover:bg-primary/10 disabled:opacity-50 transition-colors flex-shrink-0"
+          >
+            {proposeMutation.isPending ? (
+              <CircleNotch size={12} weight="bold" className="animate-spin" />
+            ) : (
+              <PaperPlaneTilt size={12} weight="bold" />
+            )}
+            {proposeMutation.isSuccess ? 'Đã đề xuất' : 'Đề xuất'}
+          </button>
+        </div>
       </div>
-    </a>
+    </div>
   );
 }
 

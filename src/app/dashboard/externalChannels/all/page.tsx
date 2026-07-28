@@ -1,11 +1,13 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useInfiniteQuery } from '@tanstack/react-query';
-import { CircleNotch, FilmReel, Warning, Eye, Heart, ChatCircle, FacebookLogo, TiktokLogo, InstagramLogo } from '@phosphor-icons/react';
+import { useInfiniteQuery, useMutation } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
+import { CircleNotch, FilmReel, Warning, Eye, Heart, ChatCircle, FacebookLogo, TiktokLogo, InstagramLogo, PaperPlaneTilt } from '@phosphor-icons/react';
 
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService, ExternalVideo } from '@/services/scraperService';
+import { videoLibraryService } from '@/services/videoLibraryService';
 import QuickAddChannel from '../components/QuickAddChannel';
 
 function formatNum(n: number): string {
@@ -58,15 +60,37 @@ const platformConfig = {
 function AllVideoCard({ video }: { video: ExternalVideo }) {
   const config = platformConfig[video.platform];
   const PlatformIcon = config.icon;
+  const { token } = useAuthStore();
+  const proposeMutation = useMutation({
+    mutationFn: () => {
+      if (!token) throw new Error('Chưa đăng nhập');
+      return videoLibraryService.proposeVideo(token, {
+        video_id: video.post_id,
+        platform: video.platform,
+        title: video.description?.slice(0, 200) || '',
+        description: video.description || '',
+        video_url: video.url,
+        author_username: video.author_username || '',
+        author_name: video.author_name || '',
+        thumbnail_url: video.thumbnail_url || undefined,
+        views_count: video.play_count,
+        likes_count: video.likes_count,
+        comments_count: video.comments_count,
+        source: 'SCRAPED',
+      });
+    },
+    onSuccess: () => toast.success('Đã gửi đề xuất, chờ duyệt.'),
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   return (
-    <a
-      href={video.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg hover:scale-[1.01] transition-all duration-200 flex flex-col"
-    >
-      <div className="relative aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[320px]">
+    <div className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg hover:scale-[1.01] transition-all duration-200 flex flex-col">
+      <a
+        href={video.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="relative block aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[320px]"
+      >
         {video.thumbnail_url ? (
           <img
             src={proxyImg(video.thumbnail_url, video.platform)}
@@ -109,7 +133,7 @@ function AllVideoCard({ video }: { video: ExternalVideo }) {
         <div className={`absolute top-2 left-2 flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium ${config.bg} ${config.color}`}>
           <PlatformIcon size={12} weight="fill" />
         </div>
-      </div>
+      </a>
 
       {/* Body */}
       <div className="p-3 flex flex-col gap-1.5 flex-1">
@@ -130,11 +154,25 @@ function AllVideoCard({ video }: { video: ExternalVideo }) {
           </span>
         </div>
 
-        <p className="text-xs text-slate-400 dark:text-slate-500">
-          {relativeTime(video.date_posted)}
-        </p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-slate-400 dark:text-slate-500">
+            {relativeTime(video.date_posted)}
+          </p>
+          <button
+            onClick={() => proposeMutation.mutate()}
+            disabled={proposeMutation.isPending || proposeMutation.isSuccess}
+            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-primary border border-primary/30 rounded-md hover:bg-primary/10 disabled:opacity-50 transition-colors flex-shrink-0"
+          >
+            {proposeMutation.isPending ? (
+              <CircleNotch size={12} weight="bold" className="animate-spin" />
+            ) : (
+              <PaperPlaneTilt size={12} weight="bold" />
+            )}
+            {proposeMutation.isSuccess ? 'Đã đề xuất' : 'Đề xuất'}
+          </button>
+        </div>
       </div>
-    </a>
+    </div>
   );
 }
 

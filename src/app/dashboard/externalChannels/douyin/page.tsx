@@ -460,7 +460,7 @@ export default function DouyinExternalPage() {
           {allVideos.length > 0 && (
             <>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                {allVideos.map(v => <TikTokVideoCard key={v.post_id} video={mapVideo(v)} />)}
+                {allVideos.map(v => <TikTokVideoCard key={v.post_id} video={mapVideo(v)} platform="douyin" />)}
                 {videosQuery.isFetchingNextPage && Array.from({ length: 6 }).map((_, i) => (
                   <div key={`skel-${i}`} className="bg-card border border-border rounded-lg overflow-hidden animate-pulse">
                     <div className="aspect-[9/16] max-h-[280px] bg-slate-200 dark:bg-slate-700" />

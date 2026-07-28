@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CircleNotch, MagnifyingGlassPlus, UserCircle, FilmReel, CaretDown, CaretUp, Eye, Heart, ChatCircle, Warning } from '@phosphor-icons/react';
+import { CircleNotch, MagnifyingGlassPlus, UserCircle, FilmReel, CaretDown, CaretUp, Eye, Heart, ChatCircle, Warning, PaperPlaneTilt } from '@phosphor-icons/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { MagnifyingGlass, X } from '@phosphor-icons/react';
 import { useRouter } from 'next/navigation';
@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 import InstagramProfileCard from '../components/InstagramProfileCard';
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService, InstagramReel } from '@/services/scraperService';
+import { videoLibraryService } from '@/services/videoLibraryService';
 import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
 import { UserRole } from '@/types/auth';
 
@@ -24,14 +25,37 @@ function formatNum(n: number): string {
 }
 
 function InstagramReelCard({ reel }: { reel: InstagramReel }) {
+  const { token } = useAuthStore();
+  const proposeMutation = useMutation({
+    mutationFn: () => {
+      if (!token) throw new Error('Chưa đăng nhập');
+      return videoLibraryService.proposeVideo(token, {
+        video_id: reel.post_id,
+        platform: 'instagram',
+        title: reel.description?.slice(0, 200) || '',
+        description: reel.description || '',
+        video_url: reel.url,
+        author_username: reel.profile?.username || '',
+        thumbnail_url: reel.thumbnail_drive_url || reel.thumbnail_url || undefined,
+        views_count: reel.play_count,
+        likes_count: reel.likes_count,
+        comments_count: reel.comments_count,
+        hashtags: reel.hashtags,
+        source: 'SCRAPED',
+      });
+    },
+    onSuccess: () => toast.success('Đã gửi đề xuất, chờ duyệt.'),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   return (
-    <a
-      href={reel.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-md transition-shadow flex flex-col"
-    >
-      <div className="relative aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[280px]">
+    <div className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-md transition-shadow flex flex-col">
+      <a
+        href={reel.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="relative block aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[280px]"
+      >
         {reel.thumbnail_url ? (
           <img
             src={reel.thumbnail_url}
@@ -52,7 +76,7 @@ function InstagramReelCard({ reel }: { reel: InstagramReel }) {
             <span className="flex items-center gap-1"><ChatCircle size={12} weight="fill" />{formatNum(reel.comments_count)}</span>
           </div>
         </div>
-      </div>
+      </a>
       <div className="p-3 flex flex-col gap-1.5 flex-1">
         <p className="text-xs text-foreground line-clamp-2 leading-relaxed">{reel.description || <span className="text-slate-400 italic">Không có caption</span>}</p>
         {reel.profile && (
@@ -63,9 +87,23 @@ function InstagramReelCard({ reel }: { reel: InstagramReel }) {
             <span className="text-xs text-slate-500 truncate">@{reel.profile.username}</span>
           </div>
         )}
-        <p className="text-xs text-slate-400">{new Date(reel.date_posted).toLocaleDateString('vi-VN')}</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-slate-400">{new Date(reel.date_posted).toLocaleDateString('vi-VN')}</p>
+          <button
+            onClick={() => proposeMutation.mutate()}
+            disabled={proposeMutation.isPending || proposeMutation.isSuccess}
+            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-primary border border-primary/30 rounded-md hover:bg-primary/10 disabled:opacity-50 transition-colors flex-shrink-0"
+          >
+            {proposeMutation.isPending ? (
+              <CircleNotch size={12} weight="bold" className="animate-spin" />
+            ) : (
+              <PaperPlaneTilt size={12} weight="bold" />
+            )}
+            {proposeMutation.isSuccess ? 'Đã đề xuất' : 'Đề xuất'}
+          </button>
+        </div>
       </div>
-    </a>
+    </div>
   );
 }
 

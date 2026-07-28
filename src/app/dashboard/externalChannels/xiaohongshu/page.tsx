@@ -5,7 +5,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import {
   CircleNotch, FilmReel, MagnifyingGlassPlus, Heart,
   Bookmarks, ChatCircle, User, Plus, Warning,
-  ArrowsClockwise, BookmarkSimple, Timer, SealCheck, VideoCamera,
+  ArrowsClockwise, BookmarkSimple, Timer, SealCheck, VideoCamera, PaperPlaneTilt,
 } from '@phosphor-icons/react';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
@@ -14,6 +14,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { scraperService, XiaohongshuVideo, XiaohongshuProfile } from '@/services/scraperService';
 import { useScrapingStore } from '@/store/scraping-store';
 import { UserRole } from '@/types/auth';
+import { videoLibraryService } from '@/services/videoLibraryService';
 import KeywordTranslateHint from '../components/KeywordTranslateHint';
 
 function formatNum(n: number): string {
@@ -38,14 +39,38 @@ function relativeTime(dateStr: string): string {
 }
 
 function XhsVideoCard({ video }: { video: XiaohongshuVideo }) {
+  const { token } = useAuthStore();
+  const proposeMutation = useMutation({
+    mutationFn: () => {
+      if (!token) throw new Error('Chưa đăng nhập');
+      return videoLibraryService.proposeVideo(token, {
+        video_id: video.note_id,
+        platform: 'xiaohongshu',
+        title: video.title?.slice(0, 200) || '',
+        description: video.description || '',
+        video_url: video.url,
+        author_username: video.author_id || '',
+        author_name: video.author_name || '',
+        thumbnail_url: video.thumbnail_url || undefined,
+        likes_count: video.liked_count,
+        comments_count: video.comments_count,
+        shares_count: video.shared_count,
+        hashtags: video.keywords,
+        source: 'SCRAPED',
+      });
+    },
+    onSuccess: () => toast.success('Đã gửi đề xuất, chờ duyệt.'),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   return (
-    <a
-      href={video.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg hover:scale-[1.01] transition-all duration-200 flex flex-col"
-    >
-      <div className="relative aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[300px]">
+    <div className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg hover:scale-[1.01] transition-all duration-200 flex flex-col">
+      <a
+        href={video.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="relative block aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[300px]"
+      >
         {video.thumbnail_url ? (
           <img
             src={video.thumbnail_url}
@@ -70,7 +95,7 @@ function XhsVideoCard({ video }: { video: XiaohongshuVideo }) {
             {formatDuration(video.duration_seconds)}
           </div>
         )}
-      </div>
+      </a>
       <div className="p-3 flex flex-col gap-1.5 flex-1">
         {video.title && <p className="text-xs font-medium text-foreground line-clamp-1">{video.title}</p>}
         <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">{video.description || '(không có caption)'}</p>
@@ -81,8 +106,20 @@ function XhsVideoCard({ video }: { video: XiaohongshuVideo }) {
           <p className="text-xs text-slate-400 truncate">{video.author_name}</p>
           <p className="text-xs text-slate-400 ml-auto flex-shrink-0">{relativeTime(video.date_posted)}</p>
         </div>
+        <button
+          onClick={() => proposeMutation.mutate()}
+          disabled={proposeMutation.isPending || proposeMutation.isSuccess}
+          className="flex items-center justify-center gap-1 px-2 py-1 text-xs font-medium text-primary border border-primary/30 rounded-md hover:bg-primary/10 disabled:opacity-50 transition-colors"
+        >
+          {proposeMutation.isPending ? (
+            <CircleNotch size={12} weight="bold" className="animate-spin" />
+          ) : (
+            <PaperPlaneTilt size={12} weight="bold" />
+          )}
+          {proposeMutation.isSuccess ? 'Đã đề xuất' : 'Đề xuất'}
+        </button>
       </div>
-    </a>
+    </div>
   );
 }
 
