@@ -11,9 +11,9 @@ export async function GET(request: Request) {
     try {
         // FIX LỖI FONT: Thêm &oe=utf-8 để Google trả về UTF-8 chuẩn
         // Thêm &gl=vn để ưu tiên kết quả tại Việt Nam
-        const googleUrl = `http://suggestqueries.google.com/complete/search?client=firefox&ds=yt&q=${encodeURIComponent(query)}&hl=vi&gl=vn&oe=utf-8`;
+        const googleUrl = `https://suggestqueries.google.com/complete/search?client=firefox&ds=yt&q=${encodeURIComponent(query)}&hl=vi&gl=vn&oe=utf-8`;
 
-        const response = await fetch(googleUrl);
+        const response = await fetch(googleUrl, { signal: AbortSignal.timeout(3000) });
 
         if (!response.ok) {
             throw new Error('Google API Error');

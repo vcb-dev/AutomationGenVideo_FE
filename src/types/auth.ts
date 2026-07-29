@@ -28,15 +28,6 @@ export interface LoginRequest {
   password: string;
 }
 
-export interface RegisterRequest {
-  email: string;
-  password: string;
-  full_name: string;
-  role?: UserRole;
-  roles?: UserRole[];
-  manager_id?: string;
-}
-
 export interface AuthResponse {
   access_token: string;
   token_type: string;

@@ -3,16 +3,23 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   BarChart3, CheckCircle, XCircle, Clock, Send, Calendar,
-  Image as ImageIcon, ChevronDown, ChevronUp, Search,
+  Image as ImageIcon, Search,
   RefreshCw, Copy, RotateCcw, Filter, X, ArrowUpDown,
-  TrendingUp, ChevronLeft, ChevronRight,
+  TrendingUp, ChevronLeft, ChevronRight, Repeat2, Play, ExternalLink,
+  LayoutGrid, List, FileVideo, FileImage, Info,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { socialApi, SocialPost, PLATFORM_META, SocialPlatform } from '@/lib/api/social';
+import { socialApi, SocialPost, HistoryMember, PLATFORM_META, getPostUrl } from '@/lib/api/social';
+// Overlay xem video fullscreen (prev/next) — tái dùng đúng component bên task-auto
+// để card video ở đây trông thống nhất với phần duyệt video.
+import { VideoPreviewOverlay } from '@/app/dashboard/task-auto/tasks/components/detail/VideoPreviewOverlay';
 import Link from 'next/link';
+import { useAuthStore } from '@/store/auth-store';
+import { useSocialLang } from '@/contexts/SocialLanguageContext';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://127.0.0.1:3000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api$/, '') || 'http://127.0.0.1:3000';
 
 function resolveMediaUrl(url: string): string {
   if (!url) return '';
@@ -23,13 +30,28 @@ function resolveMediaUrl(url: string): string {
   return url;
 }
 
+/** Trích xuất Google Drive fileId từ URL */
+function extractDriveFileId(url: string): string | null {
+  if (!url) return null;
+  const ucMatch = url.match(/drive\.google\.com\/uc[^?]*\?.*[?&]id=([a-zA-Z0-9_-]+)/);
+  if (ucMatch) return ucMatch[1];
+  const fileMatch = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (fileMatch) return fileMatch[1];
+  return null;
+}
+
+function isDriveUrl(url: string): boolean {
+  return url.includes('drive.google.com');
+}
+
 function isVideoUrl(url: string): boolean {
-  return /\.(mp4|mov|avi|webm|mkv)(\?|$)/i.test(url);
+  return /\.(mp4|mov|avi|webm|mkv)(\?|$)/i.test(url) || isDriveUrl(url);
 }
 
 
 // Mini bar chart: posts per day for last 14 days
 function ActivityChart({ posts }: { posts: SocialPost[] }) {
+  const { t } = useSocialLang();
   const days = Array.from({ length: 14 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (13 - i));
@@ -60,11 +82,11 @@ function ActivityChart({ posts }: { posts: SocialPost[] }) {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <TrendingUp className="w-4 h-4 text-blue-500" />
-          <span className="text-sm font-bold text-slate-700">Hoạt động 14 ngày qua</span>
+          <span className="text-sm font-bold text-slate-700">{t.history.activityChartTitle}</span>
         </div>
         <div className="flex items-center gap-3 text-[10px] font-bold text-slate-400">
-          <span className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm bg-blue-500" />Tổng</span>
-          <span className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm bg-emerald-400" />Thành công</span>
+          <span className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm bg-blue-500" />{t.history.totalShort}</span>
+          <span className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm bg-emerald-400" />{t.history.success}</span>
         </div>
       </div>
       <div className="flex items-end gap-1 h-20">
@@ -72,7 +94,7 @@ function ActivityChart({ posts }: { posts: SocialPost[] }) {
           <div key={i} className="flex-1 flex flex-col items-center gap-0.5 group relative">
             {/* Tooltip */}
             <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[9px] font-bold px-2 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
-              {c.label}: {c.total} bài
+              {t.history.dayPostsTooltip(c.label, c.total)}
             </div>
             <div className="w-full flex flex-col-reverse gap-px" style={{ height: '72px' }}>
               {/* Success bar */}
@@ -99,16 +121,344 @@ function ActivityChart({ posts }: { posts: SocialPost[] }) {
 }
 
 const PAGE_SIZE = 20;
+// Card 4:5 hiển thị 2-5 cột tuỳ màn hình — 40 chia hết cho 2/4/5 để hàng cuối không lẻ
+const GRID_PAGE_SIZE = 40;
+
+// ── Grid video card (kiểu card duyệt video bên task-auto: thumbnail 4:5 + info đầy đủ) ──
+function GridItem({
+  post, onOpenDetail, onPlay,
+}: {
+  post: SocialPost;
+  onOpenDetail: (p: SocialPost) => void;
+  /** Có video → click card mở overlay xem video; không có → mở modal chi tiết */
+  onPlay?: () => void;
+}) {
+  const { t } = useSocialLang();
+  const [mediaFailed, setMediaFailed] = useState(false);
+  const meta = (PLATFORM_META as any)[post.platform] || PLATFORM_META.FACEBOOK;
+  const firstMedia = post.media_urls?.[0];
+  const isVideo = firstMedia ? isVideoUrl(firstMedia) : false;
+  const isDrive = firstMedia ? isDriveUrl(firstMedia) : false;
+  const driveFileId = isDrive && firstMedia ? extractDriveFileId(firstMedia) : null;
+
+  const thumbSrc = mediaFailed ? null :
+    post.thumb_url ||
+    (driveFileId ? `https://drive.google.com/thumbnail?id=${driveFileId}&sz=w800` : null) ||
+    (!isVideo && firstMedia ? resolveMediaUrl(firstMedia) : null);
+
+  // Video thông thường (non-Drive): dùng URL gốc để browser tự render frame đầu
+  const regularVideoSrc = !mediaFailed && isVideo && !isDrive && firstMedia ? resolveMediaUrl(firstMedia) : null;
+
+  const isOk      = post.status === 'COMPLETED';
+  const isFail    = post.status === 'FAILED';
+  const isPending = post.status === 'PENDING';
+  const statusLabel = isOk ? t.history.statusSuccess : isFail ? t.history.statusFailed : isPending ? t.history.statusPending : t.history.statusCancelled;
+
+  const message = (post.message || '').trim();
+
+  return (
+    <div
+      onClick={() => (onPlay ? onPlay() : onOpenDetail(post))}
+      className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-shadow group cursor-pointer flex flex-col"
+    >
+      {/* ── Thumbnail 4:5 ── */}
+      <div className="aspect-[4/5] bg-slate-100 relative overflow-hidden">
+        {thumbSrc ? (
+          <img
+            src={thumbSrc}
+            alt=""
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            onError={() => setMediaFailed(true)}
+          />
+        ) : regularVideoSrc ? (
+          // Browser tự hiện frame đầu của video khi preload="metadata"
+          <video
+            src={regularVideoSrc}
+            preload="metadata"
+            muted
+            playsInline
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            onError={() => setMediaFailed(true)}
+          />
+        ) : (
+          <div className={`w-full h-full flex flex-col items-center justify-center gap-2 ${meta.color} bg-opacity-80`}>
+            <span className="text-4xl">{meta.emoji}</span>
+            {firstMedia && (isVideo
+              ? <FileVideo className="w-6 h-6 text-white/60" />
+              : <FileImage className="w-6 h-6 text-white/60" />)}
+          </div>
+        )}
+
+        {/* Hover overlay — play button */}
+        {isVideo && (
+          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
+            <div className="w-12 h-12 bg-white/90 rounded-full flex items-center justify-center shadow-lg">
+              <Play className="w-5 h-5 text-slate-800 ml-0.5" />
+            </div>
+          </div>
+        )}
+
+        {/* Status chip */}
+        <span className={`absolute top-2 left-2 text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 shadow-sm ${
+          isOk ? 'bg-emerald-100 text-emerald-700' : isFail ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+        }`}>
+          {isOk ? <CheckCircle className="w-3 h-3" /> : isFail ? <XCircle className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+          {statusLabel}
+        </span>
+
+        {/* Nút xem chi tiết (modal) — click card thì phát video nên cần lối vào riêng */}
+        <button
+          onClick={e => { e.stopPropagation(); onOpenDetail(post); }}
+          title="Xem chi tiết bài đăng"
+          className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition-colors"
+        >
+          <Info className="w-4 h-4" />
+        </button>
+
+        {/* Bottom gradient: nền tảng + số file đính kèm */}
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent px-2.5 pb-2 pt-6 flex items-center justify-between">
+          <span className="text-white text-[11px] font-bold drop-shadow flex items-center gap-1">
+            {meta.emoji} {meta.label}
+          </span>
+          {(post.media_urls?.length ?? 0) > 1 && (
+            <span className="text-white/90 text-[10px] font-bold">📎 {post.media_urls.length}</span>
+          )}
+        </div>
+      </div>
+
+      {/* ── Info ── */}
+      <div className="p-3 flex-1 flex flex-col">
+        <p className="text-[13px] font-semibold text-slate-800 line-clamp-2 min-h-[2.4rem] leading-snug" title={message}>
+          {message || <span className="text-slate-400 italic font-normal">(Không có nội dung)</span>}
+        </p>
+
+        {post.account?.name && (
+          <p className="text-xs text-slate-400 mt-1 truncate">{meta.emoji} {post.account.name}</p>
+        )}
+
+        <div className="flex items-center justify-between mt-2 gap-2 min-h-[1.1rem]">
+          {post.user?.full_name && (
+            <span className="text-xs font-medium text-slate-600 truncate">👤 {post.user.full_name}</span>
+          )}
+          {post.user?.team && (
+            <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full shrink-0 ml-auto">
+              {post.user.team}
+            </span>
+          )}
+        </div>
+
+        <p className="text-[11px] text-slate-400 mt-1.5">
+          {post.source === 'SCHEDULED' ? '🗓' : '⚡'} {new Date(post.created_at).toLocaleString('vi')}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── Post detail modal ───────────────────────────────────────────────────────
+function PostDetailModal({
+  post, onClose, onRetry, onRepost, actionId, canFilter,
+}: {
+  post: SocialPost;
+  onClose: () => void;
+  onRetry: (id: string) => void;
+  onRepost: (p: SocialPost) => void;
+  actionId: string | null;
+  canFilter: boolean;
+}) {
+  const { t } = useSocialLang();
+  const meta = (PLATFORM_META as any)[post.platform] || PLATFORM_META.FACEBOOK;
+  const isOk      = post.status === 'COMPLETED';
+  const isFail    = post.status === 'FAILED';
+  const isPending = post.status === 'PENDING';
+  const hasMedia  = post.media_urls && post.media_urls.length > 0;
+
+  const fullMsg    = post.message || '';
+  const hashtagRegex = /(#\S+)/g;
+  const hashtags   = fullMsg.match(hashtagRegex) || [];
+  const textOnly   = fullMsg.replace(hashtagRegex, '').trim();
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-0 sm:p-4"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ y: 60, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 60, opacity: 0 }}
+          transition={{ type: 'spring', damping: 28, stiffness: 380 }}
+          className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl overflow-hidden max-h-[90vh] flex flex-col"
+          onClick={e => e.stopPropagation()}
+        >
+          {/* Handle */}
+          <div className="flex justify-center pt-3 pb-1 sm:hidden">
+            <div className="w-10 h-1 bg-slate-200 rounded-full" />
+          </div>
+
+          {/* Media */}
+          {hasMedia && (
+            <div className="w-full bg-black max-h-64 overflow-hidden flex-shrink-0">
+              {post.media_urls.slice(0, 1).map((url, i) => {
+                const resolved = resolveMediaUrl(url);
+                const isVid    = isVideoUrl(url);
+                const isDrv    = isDriveUrl(url);
+                const fid      = isDrv ? extractDriveFileId(url) : null;
+                const thumbUrl = (i === 0 && post.thumb_url)
+                  ? post.thumb_url
+                  : fid ? `https://drive.google.com/thumbnail?id=${fid}&sz=w800` : null;
+                const viewUrl  = fid ? `https://drive.google.com/file/d/${fid}/view` : url;
+
+                return isVid ? (
+                  isDrv ? (
+                    <div key={i} className="relative w-full h-64">
+                      {thumbUrl && <img src={thumbUrl} alt="" className="w-full h-full object-contain" />}
+                      <a href={viewUrl} target="_blank" rel="noopener noreferrer"
+                        className="absolute inset-0 flex items-center justify-center bg-black/50 hover:bg-black/40 transition-colors">
+                        <div className="w-14 h-14 bg-white/90 rounded-full flex items-center justify-center shadow-xl">
+                          <Play className="w-6 h-6 text-slate-800 ml-1" />
+                        </div>
+                      </a>
+                    </div>
+                  ) : (
+                    <video key={i} src={resolved} controls preload="metadata"
+                      className="w-full max-h-64 object-contain" />
+                  )
+                ) : (
+                  <img key={i} src={resolved} alt=""
+                    className="w-full max-h-64 object-contain" />
+                );
+              })}
+            </div>
+          )}
+
+          <div className="p-4 overflow-y-auto flex-1">
+            {/* Platform + account + status */}
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              <div className={`w-7 h-7 ${meta.color} rounded-lg flex items-center justify-center text-sm flex-shrink-0 shadow-sm`}>
+                {meta.emoji}
+              </div>
+              <span className="font-bold text-slate-900 text-sm">{meta.label}</span>
+              {post.account && <span className="text-xs text-slate-400">· {post.account.name}</span>}
+              {canFilter && post.user && (
+                <span className="text-[10px] text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100 font-bold">
+                  👤 {post.user.full_name}{post.user.team ? ` · ${post.user.team}` : ''}
+                </span>
+              )}
+              <span className={`ml-auto text-[11px] px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1 ${
+                isOk ? 'bg-emerald-100 text-emerald-700' : isFail ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+              }`}>
+                {isOk ? <CheckCircle className="w-3 h-3" /> : isFail ? <XCircle className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+                {isOk ? t.history.statusSuccess : isFail ? t.history.statusFailed : isPending ? t.history.statusPending : t.history.statusCancelled}
+              </span>
+            </div>
+
+            {/* Text */}
+            {textOnly && (
+              <p className="text-sm text-slate-700 leading-relaxed mb-3 whitespace-pre-line">{textOnly}</p>
+            )}
+
+            {/* Hashtags */}
+            {hashtags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                {hashtags.map((tag, i) => (
+                  <span key={i} className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-medium border border-blue-100">{tag}</span>
+                ))}
+              </div>
+            )}
+
+            {/* Error */}
+            {post.error_msg && post.status !== 'COMPLETED' && (
+              <div className="flex items-start gap-1.5 mb-3 text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                <XCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                <span>{post.error_msg}</span>
+              </div>
+            )}
+
+            {/* Media count */}
+            {hasMedia && post.media_urls.length > 1 && (
+              <div className="text-xs text-slate-400 mb-3">📎 {t.history.attachedFiles(post.media_urls.length)}</div>
+            )}
+
+            {/* Link bài đã đăng */}
+            {isOk && (() => {
+              const postUrl = getPostUrl(post.result as Record<string, unknown> | null);
+              return postUrl ? (
+                <a
+                  href={postUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-3 py-2 mb-3 bg-blue-50 border border-blue-200 text-blue-700 rounded-xl text-xs font-semibold hover:bg-blue-100 transition-colors w-full"
+                >
+                  <ExternalLink className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span className="truncate">{postUrl}</span>
+                </a>
+              ) : null;
+            })()}
+
+            {/* Footer */}
+            <div className="flex items-center gap-2 text-xs text-slate-400 border-t border-slate-100 pt-3 flex-wrap">
+              <span className="flex items-center gap-1 font-medium">
+                {post.source === 'SCHEDULED' ? <Calendar className="w-3 h-3" /> : <Send className="w-3 h-3" />}
+                {post.source === 'SCHEDULED' ? t.history.sourceScheduled : t.history.sourceImmediate}
+              </span>
+              <span className="font-medium">{new Date(post.created_at).toLocaleString('vi')}</span>
+              <div className="ml-auto flex items-center gap-1.5">
+                {post.message && (
+                  <button onClick={() => { navigator.clipboard.writeText(post.message); toast.success(t.history.copiedShort); }}
+                    className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                {isOk && (
+                  <button onClick={() => onRepost(post)}
+                    className="flex items-center gap-1 px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-[11px] font-bold hover:bg-emerald-100 transition-colors">
+                    <Repeat2 className="w-3 h-3" /> {t.history.repost}
+                  </button>
+                )}
+                {isFail && (
+                  <button onClick={() => onRetry(post.id)} disabled={actionId === post.id}
+                    className="flex items-center gap-1 px-2.5 py-1 bg-blue-50 border border-blue-200 text-blue-600 rounded-lg text-[11px] font-bold hover:bg-blue-100 transition-colors disabled:opacity-50">
+                    <RotateCcw className={`w-3 h-3 ${actionId === post.id ? 'animate-spin' : ''}`} />
+                    {t.history.retry}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
 
 export default function HistoryPage() {
-  const [posts, setPosts]         = useState<SocialPost[]>([]);
-  const [stats, setStats]         = useState<any>(null);
-  const [loading, setLoading]     = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [actionId, setActionId]   = useState<string | null>(null);
+  const router = useRouter();
+  const { user } = useAuthStore();
+  const { t } = useSocialLang();
 
-  // Filters
+  // Phân quyền
+  const isAdmin   = user?.roles?.some(r => ['ADMIN', 'MANAGER'].includes(r)) ?? false;
+  const isLeader  = !isAdmin && (user?.roles?.some(r => r === 'LEADER') ?? false);
+  const canFilter = isAdmin || isLeader;
+
+  const [posts, setPosts]       = useState<SocialPost[]>([]);
+  const [stats, setStats]       = useState<any>(null);
+  const [loading, setLoading]   = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [actionId, setActionId] = useState<string | null>(null);
+
+  // Bộ lọc thành viên (chỉ admin/leader)
+  const [members, setMembers]       = useState<HistoryMember[]>([]);
+  const [teams, setTeams]           = useState<string[]>([]);
+  const [teamFilter, setTeamFilter] = useState<string>('all');
+  const [memberFilter, setMemberFilter] = useState<string>('all');
+
+  // Bộ lọc nội dung
   const [search, setSearch]               = useState('');
   const [statusFilter, setStatusFilter]   = useState<'all' | 'COMPLETED' | 'FAILED' | 'PENDING'>('all');
   const [platformFilter, setPlatformFilter] = useState<string>('all');
@@ -117,33 +467,58 @@ export default function HistoryPage() {
   const [dateTo, setDateTo]               = useState('');
   const [showFilters, setShowFilters]     = useState(false);
   const [page, setPage]                   = useState(1);
+  const [viewMode, setViewMode]           = useState<'grid' | 'list'>('grid');
+  const [selectedPost, setSelectedPost]   = useState<SocialPost | null>(null);
+  // Index trong playablePosts (bài có video) đang mở ở overlay xem video; null = đóng
+  const [previewIdx, setPreviewIdx]       = useState<number | null>(null);
 
-  const load = useCallback(async (silent = false) => {
+  // Tải danh sách teams + members (một lần, khi mount)
+  useEffect(() => {
+    if (!canFilter) return;
+    socialApi.history.teams().then(setTeams).catch(() => {});
+    socialApi.history.members().then(setMembers).catch(() => {});
+  }, [canFilter]);
+
+  // Khi đổi team filter → tải lại members theo team đó
+  useEffect(() => {
+    if (!canFilter) return;
+    socialApi.history.members(teamFilter !== 'all' ? teamFilter : undefined)
+      .then(setMembers)
+      .catch(() => {});
+    setMemberFilter('all'); // reset member khi đổi team
+  }, [teamFilter, canFilter]);
+
+  const loadData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     else setRefreshing(true);
     try {
+      const params = {
+        limit: 500,
+        ...(teamFilter !== 'all'   ? { team: teamFilter }         : {}),
+        ...(memberFilter !== 'all' ? { employeeId: memberFilter } : {}),
+      };
       const [data, s] = await Promise.all([
-        socialApi.history.list(200),
-        socialApi.history.stats(),
+        socialApi.history.list(params),
+        socialApi.history.stats({ team: teamFilter !== 'all' ? teamFilter : undefined, employeeId: memberFilter !== 'all' ? memberFilter : undefined }),
       ]);
       setPosts(data);
       setStats(s);
     } catch {
-      toast.error('Không tải được lịch sử');
+      toast.error(t.history.loadFailed);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [teamFilter, memberFilter]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadData(); }, [loadData]);
 
   // All unique platforms in data
   const availablePlatforms = useMemo(() =>
     Array.from(new Set(posts.map(p => p.platform))),
   [posts]);
 
-  // Filtered + sorted list
+  // Filtered + sorted list (lọc client-side)
   const filtered = useMemo(() => {
     let list = [...posts];
 
@@ -153,11 +528,12 @@ export default function HistoryPage() {
       const q = search.toLowerCase();
       list = list.filter(p =>
         p.message?.toLowerCase().includes(q) ||
-        p.account?.name?.toLowerCase().includes(q)
+        p.account?.name?.toLowerCase().includes(q) ||
+        p.user?.full_name?.toLowerCase().includes(q)
       );
     }
-    if (dateFrom) list = list.filter(p => new Date(p.created_at) >= new Date(dateFrom));
-    if (dateTo)   list = list.filter(p => new Date(p.created_at) <= new Date(dateTo + 'T23:59:59'));
+    if (dateFrom) list = list.filter(p => new Date(p.executed_at ?? p.created_at) >= new Date(dateFrom));
+    if (dateTo)   list = list.filter(p => new Date(p.executed_at ?? p.created_at) <= new Date(dateTo + 'T23:59:59.999'));
 
     list.sort((a, b) => {
       const da = new Date(a.created_at).getTime();
@@ -168,68 +544,111 @@ export default function HistoryPage() {
     return list;
   }, [posts, statusFilter, platformFilter, search, dateFrom, dateTo, sortOrder]);
 
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const currentPageSize = viewMode === 'grid' ? GRID_PAGE_SIZE : PAGE_SIZE;
+  const totalPages = Math.ceil(filtered.length / currentPageSize);
+  const paginated  = filtered.slice((page - 1) * currentPageSize, page * currentPageSize);
 
-  // Reset to page 1 when filter changes
-  useEffect(() => { setPage(1); }, [statusFilter, platformFilter, search, dateFrom, dateTo, sortOrder]);
+  // Các bài có video trong trang hiện tại — overlay xem video prev/next chạy trên danh sách này
+  const playablePosts = useMemo(
+    () => paginated.filter(p => {
+      const m = p.media_urls?.[0];
+      return !!m && isVideoUrl(m);
+    }),
+    [paginated],
+  );
+
+  // Reset to page 1 when filter or viewMode changes
+  useEffect(() => { setPage(1); }, [statusFilter, platformFilter, search, dateFrom, dateTo, sortOrder, teamFilter, memberFilter, viewMode]);
+  // Đóng overlay khi đổi trang/filter — index cũ không còn trỏ đúng bài
+  useEffect(() => { setPreviewIdx(null); }, [page, statusFilter, platformFilter, search, dateFrom, dateTo, sortOrder, teamFilter, memberFilter, viewMode]);
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
-    toast.success('Đã copy nội dung');
+    toast.success(t.history.copiedContent);
   };
 
   const handleRetry = async (id: string) => {
     setActionId(id);
     try {
       await socialApi.schedule.retry(id);
-      toast.success('Đã đưa vào hàng chờ đăng lại');
-      await load(true);
+      toast.success(t.history.retryQueued);
+      await loadData(true);
     } catch {
-      toast.error('Retry thất bại');
+      toast.error(t.history.retryFailed);
     } finally {
       setActionId(null);
     }
   };
 
+  const handleRepost = (post: SocialPost) => {
+    // Lưu data vào localStorage để compose page đọc lại
+    localStorage.setItem('compose_prefill', JSON.stringify({
+      message: post.message,
+      mediaUrls: post.media_urls || [],
+      platform: post.platform,
+      // accountId không gửi kèm — user tự chọn kênh đăng lại trên trang compose
+    }));
+    router.push('/dashboard/social/compose');
+    toast.success(t.history.repostOpening);
+  };
+
   const clearFilters = () => {
     setSearch(''); setStatusFilter('all'); setPlatformFilter('all');
     setDateFrom(''); setDateTo(''); setSortOrder('desc');
+    setTeamFilter('all'); setMemberFilter('all');
   };
 
-  const hasActiveFilters = search || statusFilter !== 'all' || platformFilter !== 'all' || dateFrom || dateTo;
+  const hasActiveFilters = search || statusFilter !== 'all' || platformFilter !== 'all' || dateFrom || dateTo
+    || teamFilter !== 'all' || memberFilter !== 'all';
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
 
       {/* ── Header ── */}
       <div className="bg-white border-b border-slate-200">
-        <div className="container mx-auto px-4 max-w-5xl py-6">
-          <div className="flex items-center justify-between mb-5">
+        <div className="w-full px-4 py-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Lịch sử đăng bài</h1>
-              <p className="text-slate-500 text-sm mt-0.5">Theo dõi tất cả các bài đã đăng</p>
+              <h1 className="text-2xl font-bold text-slate-900">{t.history.pageTitle}</h1>
+              <p className="text-slate-500 text-sm mt-0.5">{t.history.pageSubtitle}</p>
             </div>
             <div className="flex items-center gap-2">
               <Link
                 href="/dashboard/social/stats"
                 className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white text-slate-600 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors"
               >
-                <BarChart3 className="w-4 h-4" /> Thống kê
+                <BarChart3 className="w-4 h-4" /> {t.history.statsLink}
               </Link>
+              {/* View mode toggle */}
+              <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-white">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-2 transition-colors ${viewMode === 'grid' ? 'bg-slate-100 text-slate-900' : 'text-slate-400 hover:bg-slate-50'}`}
+                  title={t.history.gridViewTitle}
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`p-2 transition-colors ${viewMode === 'list' ? 'bg-slate-100 text-slate-900' : 'text-slate-400 hover:bg-slate-50'}`}
+                  title={t.history.listViewTitle}
+                >
+                  <List className="w-4 h-4" />
+                </button>
+              </div>
               <button
-                onClick={() => load(true)}
+                onClick={() => loadData(true)}
                 disabled={refreshing}
                 className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white text-slate-600 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors disabled:opacity-50"
               >
                 <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-                Làm mới
+                {t.history.refresh}
               </button>
               <Link
                 href="/dashboard/social/compose"
                 className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition-colors"
               >
-                <Send className="w-4 h-4" /> Đăng bài mới
+                <Send className="w-4 h-4" /> {t.history.newPost}
               </Link>
             </div>
           </div>
@@ -238,10 +657,10 @@ export default function HistoryPage() {
           {stats && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
               {[
-                { label: 'Tổng bài',     value: stats.total,   color: 'text-slate-800',   bg: 'bg-slate-50',   border: 'border-slate-200' },
-                { label: 'Thành công',   value: stats.success, color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' },
-                { label: 'Thất bại',     value: stats.failed,  color: 'text-red-700',     bg: 'bg-red-50',     border: 'border-red-200' },
-                { label: 'Đang chờ',     value: stats.pending, color: 'text-amber-700',   bg: 'bg-amber-50',   border: 'border-amber-200' },
+                { label: t.history.statTotal,   value: stats.total,   color: 'text-slate-800',   bg: 'bg-slate-50',   border: 'border-slate-200' },
+                { label: t.history.statSuccess, value: stats.success, color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+                { label: t.history.statFailed,  value: stats.failed,  color: 'text-red-700',     bg: 'bg-red-50',     border: 'border-red-200' },
+                { label: t.history.statPending, value: stats.pending, color: 'text-amber-700',   bg: 'bg-amber-50',   border: 'border-amber-200' },
               ].map(s => (
                 <div key={s.label} className={`${s.bg} border ${s.border} rounded-xl p-4 text-center`}>
                   <p className={`text-2xl font-black ${s.color}`}>{s.value}</p>
@@ -277,7 +696,7 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 max-w-5xl pt-5 space-y-4">
+      <div className="w-full px-4 pt-5 space-y-4">
 
         {/* Activity chart */}
         {!loading && posts.length > 0 && <ActivityChart posts={posts} />}
@@ -290,7 +709,7 @@ export default function HistoryPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input
                 type="text"
-                placeholder="Tìm kiếm theo nội dung, tên kênh..."
+                placeholder={t.history.searchPlaceholder}
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
@@ -308,20 +727,20 @@ export default function HistoryPage() {
               onChange={e => setStatusFilter(e.target.value as any)}
               className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white"
             >
-              <option value="all">Tất cả trạng thái</option>
-              <option value="COMPLETED">✅ Thành công</option>
-              <option value="FAILED">❌ Thất bại</option>
-              <option value="PENDING">⏳ Đang chờ</option>
+              <option value="all">{t.history.statusAll}</option>
+              <option value="COMPLETED">✅ {t.history.statusSuccess}</option>
+              <option value="FAILED">❌ {t.history.statusFailed}</option>
+              <option value="PENDING">⏳ {t.history.statusPending}</option>
             </select>
 
             {/* Sort */}
             <button
               onClick={() => setSortOrder(s => s === 'desc' ? 'asc' : 'desc')}
               className="flex items-center gap-1.5 px-3 py-2.5 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-              title={sortOrder === 'desc' ? 'Mới nhất trước' : 'Cũ nhất trước'}
+              title={sortOrder === 'desc' ? t.history.sortNewestFirst : t.history.sortOldestFirst}
             >
               <ArrowUpDown className="w-4 h-4" />
-              {sortOrder === 'desc' ? 'Mới nhất' : 'Cũ nhất'}
+              {sortOrder === 'desc' ? t.history.sortNewest : t.history.sortOldest}
             </button>
 
             {/* Advanced filter toggle */}
@@ -333,9 +752,55 @@ export default function HistoryPage() {
                   : 'border-slate-200 text-slate-700 hover:bg-slate-50'
               }`}
             >
-              <Filter className="w-4 h-4" /> Lọc thêm
+              <Filter className="w-4 h-4" /> {t.history.moreFilters}
             </button>
           </div>
+
+          {/* Bộ lọc thành viên — chỉ hiện với admin/leader */}
+          {canFilter && (
+            <div className="flex gap-2 flex-wrap pt-1">
+              {/* Team filter — chỉ admin thấy nhiều team */}
+              {isAdmin && teams.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-bold text-slate-500 whitespace-nowrap">{t.history.teamLabel}</label>
+                  <select
+                    value={teamFilter}
+                    onChange={e => setTeamFilter(e.target.value)}
+                    className="border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 bg-white"
+                  >
+                    <option value="all">{t.history.allTeams}</option>
+                    {teams.map(team => <option key={team} value={team}>{team}</option>)}
+                  </select>
+                </div>
+              )}
+
+              {/* Thành viên */}
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-bold text-slate-500 whitespace-nowrap">{t.history.memberLabel}</label>
+                <select
+                  value={memberFilter}
+                  onChange={e => setMemberFilter(e.target.value)}
+                  className="border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 bg-white max-w-[220px]"
+                >
+                  <option value="all">{t.history.allMembers}</option>
+                  {members.map(m => (
+                    <option key={m.id} value={m.id}>
+                      {m.full_name}{m.team ? ` (${m.team})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {(teamFilter !== 'all' || memberFilter !== 'all') && (
+                <button
+                  onClick={() => { setTeamFilter('all'); setMemberFilter('all'); }}
+                  className="text-xs text-indigo-600 hover:text-indigo-800 font-bold px-2 py-1 border border-indigo-200 rounded-lg bg-indigo-50"
+                >
+                  {t.history.clearMemberFilter}
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Advanced filters */}
           <AnimatePresence>
@@ -348,7 +813,7 @@ export default function HistoryPage() {
               >
                 <div className="flex gap-3 pt-1 flex-wrap">
                   <div className="flex items-center gap-2">
-                    <label className="text-xs font-bold text-slate-500 whitespace-nowrap">Từ ngày:</label>
+                    <label className="text-xs font-bold text-slate-500 whitespace-nowrap">{t.history.dateFromLabel}</label>
                     <input
                       type="date"
                       value={dateFrom}
@@ -357,7 +822,7 @@ export default function HistoryPage() {
                     />
                   </div>
                   <div className="flex items-center gap-2">
-                    <label className="text-xs font-bold text-slate-500 whitespace-nowrap">Đến ngày:</label>
+                    <label className="text-xs font-bold text-slate-500 whitespace-nowrap">{t.history.dateToLabel}</label>
                     <input
                       type="date"
                       value={dateTo}
@@ -366,13 +831,13 @@ export default function HistoryPage() {
                     />
                   </div>
                   <div className="flex items-center gap-2">
-                    <label className="text-xs font-bold text-slate-500">Platform:</label>
+                    <label className="text-xs font-bold text-slate-500">{t.history.platformLabel}</label>
                     <select
                       value={platformFilter}
                       onChange={e => setPlatformFilter(e.target.value)}
                       className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white"
                     >
-                      <option value="all">Tất cả</option>
+                      <option value="all">{t.history.allShort}</option>
                       {availablePlatforms.map(p => {
                         const meta = (PLATFORM_META as any)[p];
                         return <option key={p} value={p}>{meta?.emoji} {meta?.label || p}</option>;
@@ -387,7 +852,7 @@ export default function HistoryPage() {
           {/* Active filter summary */}
           {hasActiveFilters && (
             <div className="flex items-center gap-2 pt-1 flex-wrap">
-              <span className="text-xs text-slate-500 font-medium">Đang lọc:</span>
+              <span className="text-xs text-slate-500 font-medium">{t.history.filteringBy}</span>
               {search && (
                 <span className="flex items-center gap-1 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
                   "{search}" <X onClick={() => setSearch('')} className="w-3 h-3 cursor-pointer hover:text-blue-900" />
@@ -409,43 +874,78 @@ export default function HistoryPage() {
                 </span>
               )}
               <button onClick={clearFilters} className="text-xs text-red-500 hover:text-red-700 font-bold ml-1">
-                Xoá tất cả
+                {t.history.clearAll}
               </button>
               <span className="ml-auto text-xs text-slate-400 font-medium">
-                {filtered.length} / {posts.length} bài
+                {t.history.filteredCount(filtered.length, posts.length)}
               </span>
             </div>
           )}
         </div>
 
-        {/* Post list */}
+        {/* Post list / grid */}
         {loading ? (
-          <div className="space-y-3">
-            {[1, 2, 3, 4, 5].map(i => (
-              <div key={i} className="h-24 bg-white rounded-2xl animate-pulse border border-slate-100" />
-            ))}
-          </div>
+          viewMode === 'grid' ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <div key={i} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                  <div className="aspect-[4/5] bg-slate-100 animate-pulse" />
+                  <div className="p-3 space-y-2">
+                    <div className="h-4 bg-slate-100 rounded animate-pulse w-3/4" />
+                    <div className="h-3 bg-slate-100 rounded animate-pulse w-1/2" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {[1, 2, 3, 4, 5].map(i => (
+                <div key={i} className="h-24 bg-white rounded-2xl animate-pulse border border-slate-100" />
+              ))}
+            </div>
+          )
         ) : paginated.length === 0 ? (
           <div className="text-center py-20">
             <BarChart3 className="w-16 h-16 text-slate-200 mx-auto mb-4" />
             <h3 className="text-lg font-bold text-slate-600 mb-1">
-              {hasActiveFilters ? 'Không tìm thấy bài nào' : 'Chưa có lịch sử đăng bài'}
+              {hasActiveFilters ? t.history.noResultsFound : t.history.noHistoryYet}
             </h3>
             {hasActiveFilters && (
               <button onClick={clearFilters} className="mt-3 text-sm text-blue-600 hover:underline font-medium">
-                Xoá bộ lọc
+                {t.history.clearFilters}
               </button>
             )}
           </div>
+        ) : viewMode === 'grid' ? (
+          /* ── GRID VIEW — card video kiểu task-auto ── */
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
+            {paginated.map(post => {
+              const playableIdx = playablePosts.findIndex(p => p.id === post.id);
+              return (
+                <GridItem
+                  key={post.id}
+                  post={post}
+                  onOpenDetail={setSelectedPost}
+                  onPlay={playableIdx >= 0 ? () => setPreviewIdx(playableIdx) : undefined}
+                />
+              );
+            })}
+          </div>
         ) : (
-          <div className="space-y-3">
+          /* ── LIST VIEW ── */
+          <div className="space-y-4">
             {paginated.map((post, idx) => {
               const meta = (PLATFORM_META as any)[post.platform] || PLATFORM_META.FACEBOOK;
-              const isOk   = post.status === 'COMPLETED';
-              const isFail = post.status === 'FAILED';
+              const isOk      = post.status === 'COMPLETED';
+              const isFail    = post.status === 'FAILED';
               const isPending = post.status === 'PENDING';
-              const isExpanded = expandedId === post.id;
-              const hasMedia = post.media_urls && post.media_urls.length > 0;
+              const hasMedia  = post.media_urls && post.media_urls.length > 0;
+
+              // Tách hashtag ra khỏi message
+              const fullMsg   = post.message || '';
+              const hashtagRegex = /(#\S+)/g;
+              const hashtags  = fullMsg.match(hashtagRegex) || [];
+              const textOnly  = fullMsg.replace(hashtagRegex, '').trim();
 
               return (
                 <motion.div
@@ -455,154 +955,244 @@ export default function HistoryPage() {
                   transition={{ delay: idx * 0.02 }}
                   className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow"
                 >
-                  <div className="p-5">
-                    <div className="flex items-start gap-4">
-                      {/* Platform icon */}
-                      <div className={`w-10 h-10 ${meta.color} rounded-xl flex items-center justify-center text-white text-xl flex-shrink-0 shadow-sm`}>
+                  {/* ── Media (video/ảnh) — hiển thị to luôn ── */}
+                  {hasMedia && (
+                    <div className="w-full bg-black">
+                      {post.media_urls.map((url, i) => {
+                        const resolved = resolveMediaUrl(url);
+                        const isVideo  = isVideoUrl(url);
+                        const isDrive  = isDriveUrl(url);
+                        const driveFileId = isDrive ? extractDriveFileId(url) : null;
+                        const thumbnailUrl = driveFileId
+                          ? `https://drive.google.com/thumbnail?id=${driveFileId}&sz=w1280`
+                          : null;
+                        const driveViewUrl = driveFileId
+                          ? `https://drive.google.com/file/d/${driveFileId}/view`
+                          : url;
+                        // Ảnh bìa tùy chỉnh (do user chọn) ưu tiên hơn auto-thumbnail Drive
+                        const coverUrl = (i === 0 && post.thumb_url) ? post.thumb_url : thumbnailUrl;
+                        return isVideo ? (
+                          isDrive ? (
+                            <div key={i} className="relative w-full" style={{ minHeight: '200px' }}>
+                              {coverUrl && (
+                                <img
+                                  src={coverUrl}
+                                  alt={t.history.videoThumbnailAlt}
+                                  className="w-full max-h-[480px] object-contain"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).style.display = 'none';
+                                  }}
+                                />
+                              )}
+                              <a
+                                href={driveViewUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 hover:bg-black/40 transition-colors group"
+                              >
+                                <div className="w-16 h-16 rounded-full bg-white/90 flex items-center justify-center shadow-xl group-hover:scale-110 transition-transform">
+                                  <Play className="w-7 h-7 text-slate-800 ml-1" />
+                                </div>
+                                <span className="mt-3 text-white text-sm font-semibold flex items-center gap-1.5">
+                                  {t.history.viewVideoOnDrive} <ExternalLink className="w-3.5 h-3.5" />
+                                </span>
+                              </a>
+                            </div>
+                          ) : (
+                          <video
+                            key={i}
+                            src={resolved}
+                            controls
+                            preload="metadata"
+                            className="w-full max-h-[520px] object-contain"
+                            onError={(e) => {
+                              (e.currentTarget.parentElement as HTMLElement).innerHTML =
+                                `<p class="text-xs text-slate-400 p-6 text-center">${t.history.fileNoLongerOnServer}</p>`;
+                            }}
+                          />
+                          )
+                        ) : (
+                          <a key={i} href={resolved} target="_blank" rel="noopener noreferrer">
+                            <img
+                              src={resolved}
+                              alt=""
+                              className="w-full max-h-[520px] object-contain hover:opacity-90 transition-opacity"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).alt = t.history.imageNoLongerOnServer;
+                                (e.target as HTMLImageElement).style.opacity = '0.3';
+                              }}
+                            />
+                          </a>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* ── Nội dung + hashtag + thông tin ── */}
+                  <div className="p-4">
+                    {/* Header: platform + account + status */}
+                    <div className="flex items-center gap-2 mb-3 flex-wrap">
+                      <div className={`w-8 h-8 ${meta.color} rounded-lg flex items-center justify-center text-white text-base flex-shrink-0 shadow-sm`}>
                         {meta.emoji}
                       </div>
+                      <span className="font-bold text-slate-900 text-sm">{meta.label}</span>
+                      {post.account && (
+                        <span className="text-xs text-slate-400 font-medium">· {post.account.name}</span>
+                      )}
+                      {/* Tên thành viên — chỉ hiện với admin/leader */}
+                      {canFilter && post.user && (
+                        <span className="flex items-center gap-1 text-[10px] text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100 font-bold">
+                          👤 {post.user.full_name}{post.user.team ? ` · ${post.user.team}` : ''}
+                        </span>
+                      )}
+                      {hasMedia && (
+                        <span className="flex items-center gap-1 text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100 font-bold">
+                          <ImageIcon className="w-3 h-3" /> {t.history.fileCount(post.media_urls.length)}
+                        </span>
+                      )}
+                      <span className={`ml-auto text-[11px] px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1 ${
+                        isOk      ? 'bg-emerald-100 text-emerald-700' :
+                        isFail    ? 'bg-red-100 text-red-700'         :
+                        isPending ? 'bg-amber-100 text-amber-700'     :
+                                    'bg-slate-100 text-slate-500'
+                      }`}>
+                        {isOk      ? <CheckCircle className="w-3 h-3" /> :
+                         isFail    ? <XCircle className="w-3 h-3" />     :
+                                     <Clock className="w-3 h-3" />}
+                        {isOk ? t.history.statusSuccess : isFail ? t.history.statusFailed : isPending ? t.history.statusPending : t.history.statusCancelled}
+                      </span>
+                    </div>
 
-                      <div className="flex-1 min-w-0">
-                        {/* Top row */}
-                        <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                          <span className="font-bold text-slate-900 text-sm">{meta.label}</span>
-                          {post.account && (
-                            <span className="text-xs text-slate-400 font-medium">· {post.account.name}</span>
-                          )}
-                          {hasMedia && (
-                            <span className="flex items-center gap-1 text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100 font-bold">
-                              <ImageIcon className="w-3 h-3" />
-                              {post.media_urls.length} file
-                            </span>
-                          )}
-                          {/* Status badge */}
-                          <span className={`ml-auto text-[11px] px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1 ${
-                            isOk      ? 'bg-emerald-100 text-emerald-700' :
-                            isFail    ? 'bg-red-100 text-red-700' :
-                            isPending ? 'bg-amber-100 text-amber-700' :
-                                        'bg-slate-100 text-slate-500'
-                          }`}>
-                            {isOk ? <CheckCircle className="w-3 h-3" /> : isFail ? <XCircle className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
-                            {isOk ? 'Thành công' : isFail ? 'Thất bại' : isPending ? 'Đang chờ' : 'Đã huỷ'}
+                    {/* Nội dung text */}
+                    {textOnly && (
+                      <p className="text-sm text-slate-700 leading-relaxed mb-3 whitespace-pre-line">
+                        {textOnly}
+                      </p>
+                    )}
+                    {!textOnly && !hasMedia && (
+                      <p className="text-sm italic text-slate-400 mb-3">{t.history.noContent}</p>
+                    )}
+
+                    {/* Hashtags */}
+                    {hashtags.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mb-3">
+                        {hashtags.map((tag, i) => (
+                          <span key={i} className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-medium border border-blue-100">
+                            {tag}
                           </span>
-                        </div>
+                        ))}
+                      </div>
+                    )}
 
-                        {/* Message preview */}
-                        <p className="text-sm text-slate-700 line-clamp-2 leading-relaxed mb-2">
-                          {post.message || <span className="italic text-slate-400">Không có nội dung</span>}
-                        </p>
+                    {/* Error */}
+                    {post.error_msg && post.status !== 'COMPLETED' && (
+                      <div className="flex items-start gap-1.5 mb-3 text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                        <XCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                        <span>{post.error_msg}</span>
+                      </div>
+                    )}
 
-                        {/* Bottom row: meta info + actions */}
-                        <div className="flex items-center gap-3 text-xs text-slate-400 flex-wrap">
-                          <span className="flex items-center gap-1 font-medium">
-                            {post.source === 'SCHEDULED' ? <Calendar className="w-3 h-3" /> : <Send className="w-3 h-3" />}
-                            {post.source === 'SCHEDULED' ? 'Lên lịch' : 'Đăng ngay'}
-                          </span>
-                          <span className="font-medium">{new Date(post.created_at).toLocaleString('vi')}</span>
+                    {/* Link bài đã đăng */}
+                    {isOk && (() => {
+                      const postUrl = getPostUrl(post.result as Record<string, unknown> | null);
+                      return postUrl ? (
+                        <a
+                          href={postUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 px-3 py-2 mb-3 bg-blue-50 border border-blue-200 text-blue-700 rounded-xl text-xs font-semibold hover:bg-blue-100 transition-colors"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span className="truncate">{postUrl}</span>
+                        </a>
+                      ) : null;
+                    })()}
 
-                          {post.error_msg && (
-                            <span className="text-red-400 truncate max-w-[250px] font-medium" title={post.error_msg}>
-                              ⚠ {post.error_msg.length > 60 ? post.error_msg.slice(0, 60) + '…' : post.error_msg}
-                            </span>
-                          )}
+                    {/* Footer: thời gian + actions */}
+                    <div className="flex items-center gap-3 text-xs text-slate-400 border-t border-slate-100 pt-3 flex-wrap">
+                      <span className="flex items-center gap-1 font-medium">
+                        {post.source === 'SCHEDULED' ? <Calendar className="w-3 h-3" /> : <Send className="w-3 h-3" />}
+                        {post.source === 'SCHEDULED' ? t.history.sourceScheduled : t.history.sourceImmediate}
+                      </span>
+                      <span className="font-medium">{new Date(post.created_at).toLocaleString('vi')}</span>
 
-                          {/* Action buttons */}
-                          <div className="ml-auto flex items-center gap-1">
-                            {/* Copy content */}
-                            {post.message && (
-                              <button
-                                onClick={() => handleCopy(post.message)}
-                                title="Copy nội dung"
-                                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
-                              >
-                                <Copy className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-
-                            {/* Retry failed */}
-                            {isFail && (
-                              <button
-                                onClick={() => handleRetry(post.id)}
-                                disabled={actionId === post.id}
-                                title="Đăng lại"
-                                className="flex items-center gap-1 px-2.5 py-1 bg-blue-50 border border-blue-200 text-blue-600 rounded-lg text-[11px] font-bold hover:bg-blue-100 transition-colors disabled:opacity-50"
-                              >
-                                <RotateCcw className={`w-3 h-3 ${actionId === post.id ? 'animate-spin' : ''}`} />
-                                Thử lại
-                              </button>
-                            )}
-
-                            {/* Expand media */}
-                            {hasMedia && (
-                              <button
-                                onClick={() => setExpandedId(isExpanded ? null : post.id)}
-                                className="flex items-center gap-1 px-2.5 py-1 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-[11px] font-bold hover:bg-slate-100 transition-colors"
-                              >
-                                {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                                {isExpanded ? 'Ẩn' : 'Xem media'}
-                              </button>
-                            )}
-                          </div>
-                        </div>
+                      <div className="ml-auto flex items-center gap-1.5">
+                        {post.message && (
+                          <button
+                            onClick={() => handleCopy(post.message)}
+                            title={t.history.copyContentTitle}
+                            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {isOk && (() => {
+                          const postUrl = getPostUrl(post.result as Record<string, unknown> | null);
+                          return postUrl ? (
+                            <button
+                              onClick={() => { navigator.clipboard.writeText(postUrl); toast.success(t.history.copiedPostLink); }}
+                              title={t.history.copyPostLinkTitle}
+                              className="p-1.5 rounded-lg hover:bg-slate-100 text-blue-400 hover:text-blue-600 transition-colors"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+                          ) : null;
+                        })()}
+                        {isOk && (
+                          <button
+                            onClick={() => handleRepost(post)}
+                            className="flex items-center gap-1 px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-[11px] font-bold hover:bg-emerald-100 transition-colors"
+                          >
+                            <Repeat2 className="w-3 h-3" /> {t.history.repost}
+                          </button>
+                        )}
+                        {isFail && (
+                          <button
+                            onClick={() => handleRetry(post.id)}
+                            disabled={actionId === post.id}
+                            className="flex items-center gap-1 px-2.5 py-1 bg-blue-50 border border-blue-200 text-blue-600 rounded-lg text-[11px] font-bold hover:bg-blue-100 transition-colors disabled:opacity-50"
+                          >
+                            <RotateCcw className={`w-3 h-3 ${actionId === post.id ? 'animate-spin' : ''}`} />
+                            {t.history.retry}
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
-
-                  {/* Media thumbnails */}
-                  <AnimatePresence>
-                    {hasMedia && isExpanded && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="px-5 pb-5 border-t border-slate-100 pt-4">
-                          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
-                            Media đính kèm ({post.media_urls.length})
-                          </p>
-                          <div className="flex flex-col gap-4">
-                            {post.media_urls.map((url, i) => {
-                              const resolved = resolveMediaUrl(url);
-                              const isVideo  = isVideoUrl(url);
-                              return isVideo ? (
-                                <div key={i} className="rounded-xl overflow-hidden bg-black">
-                                  <video
-                                    src={resolved}
-                                    controls
-                                    preload="metadata"
-                                    className="w-full max-h-[480px] object-contain"
-                                    onError={(e) => {
-                                      (e.currentTarget as HTMLVideoElement).poster = '';
-                                      (e.currentTarget.parentElement as HTMLElement).innerHTML =
-                                        '<p class="text-xs text-slate-400 p-4 text-center">File không còn trên server</p>';
-                                    }}
-                                  />
-                                </div>
-                              ) : (
-                                <a key={i} href={resolved} target="_blank" rel="noopener noreferrer">
-                                  <img
-                                    src={resolved}
-                                    alt=""
-                                    className="max-h-[480px] rounded-xl object-contain w-full bg-slate-100 hover:opacity-90 transition-opacity"
-                                    onError={(e) => {
-                                      (e.target as HTMLImageElement).alt = 'Ảnh không còn trên server';
-                                      (e.target as HTMLImageElement).className += ' opacity-30';
-                                    }}
-                                  />
-                                </a>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
                 </motion.div>
               );
             })}
           </div>
         )}
+
+        {/* Detail modal — grid mode */}
+        {selectedPost && (
+          <PostDetailModal
+            post={selectedPost}
+            onClose={() => setSelectedPost(null)}
+            onRetry={handleRetry}
+            onRepost={handleRepost}
+            actionId={actionId}
+            canFilter={canFilter}
+          />
+        )}
+
+        {/* Overlay xem video fullscreen (←/→ chuyển video, Esc đóng) */}
+        {previewIdx !== null && playablePosts[previewIdx] && (() => {
+          const media = playablePosts[previewIdx].media_urls[0];
+          const fid = extractDriveFileId(media);
+          const resultUrl = fid ? `https://drive.google.com/file/d/${fid}/view` : resolveMediaUrl(media);
+          return (
+            <VideoPreviewOverlay
+              resultUrl={resultUrl}
+              onClose={() => setPreviewIdx(null)}
+              onPrev={() => setPreviewIdx(i => (i !== null ? Math.max(0, i - 1) : i))}
+              onNext={() => setPreviewIdx(i => (i !== null ? Math.min(playablePosts.length - 1, i + 1) : i))}
+              hasPrev={previewIdx > 0}
+              hasNext={previewIdx < playablePosts.length - 1}
+            />
+          );
+        })()}
 
         {/* Pagination */}
         {totalPages > 1 && (
@@ -648,7 +1238,7 @@ export default function HistoryPage() {
             </button>
 
             <span className="text-xs text-slate-400 font-medium ml-2">
-              Trang {page}/{totalPages} · {filtered.length} bài
+              {t.history.pageOfTotal(page, totalPages, filtered.length)}
             </span>
           </div>
         )}

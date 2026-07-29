@@ -1,259 +1,161 @@
 "use client";
 
+import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { useAuthStore } from "@/store/auth-store";
+import { UserRole } from "@/types/auth";
 import {
-  createContext,
-  useContext,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
-import type { PlatformId } from "./admin-platform-channel-data";
-import {
-  ADMIN_COMPANY_VIDEO_TOTAL,
-  ADMIN_PLATFORM_CHANNEL_ROWS,
-  PLATFORM_OPTIONS,
-  aggregateA5FromChannelRows,
-  channelOptionsForPlatform,
-  donutSlicesFromA5Acc,
-  filterPlatformChannelRows,
-  formatRevenueKpiLabel,
-  formatTrafficKpiLabel,
-  funnelViewLabelsForTraffic,
-  sumTrafficK,
-  videoTotalsByTeam,
-  weightedVsPrevPct,
-  withTrafficSharePct,
-} from "./admin-platform-channel-data";
-import {
-  ADMIN_TEAM_PERF_ROWS,
-  TEAM_REGION_OPTIONS,
-  type AdminTeamPerfRow,
-  type AdminTeamRegionId,
-  aggregateTeamTotals,
-  filterTeamPerfRows,
-  scaleTeamPerfRowsByVideoScope,
-} from "./admin-team-perf-data";
+  A5_NOT_AVAILABLE_NOTE,
+  formatCompactNumber,
+  formatRevenueVi,
+  formatSyncDateVi,
+  isSyncStale,
+  useDashboard5A,
+  type Dashboard5AChannelRow,
+  type Dashboard5ATeamRow,
+} from "../shared/dashboard5a-api";
 
-function buildGrowthFilterSummary(
-  teamRegionId: AdminTeamRegionId | "all",
-  platformId: PlatformId | "all",
-  channelKey: string | "all",
-  channelSelectOptions: { value: string; label: string }[],
-): string {
-  const teamLabel =
-    TEAM_REGION_OPTIONS.find((o) => o.id === teamRegionId)?.label ?? "Team";
-  const platLabel =
-    PLATFORM_OPTIONS.find((o) => o.id === platformId)?.label ?? "Nền tảng";
-  let channelLabel = "Tất cả kênh";
-  if (channelKey !== "all") {
-    channelLabel =
-      channelSelectOptions.find((o) => o.value === channelKey)?.label ?? channelKey;
-  } else if (platformId !== "all") {
-    channelLabel = "Tất cả kênh trong nền tảng";
-  }
-  return `${teamLabel} · ${platLabel} · ${channelLabel}`;
+function getCurrentMonthRange() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
+  return {
+    from: `${year}-${month}-01`,
+    to: `${year}-${month}-${String(lastDay).padStart(2, "0")}`,
+  };
+}
+
+export interface TeamOption {
+  id: string;
+  label: string;
+}
+
+export interface TeamTotals {
+  staffCount: number;
+  traffic: number;
+  revenue: number;
+  videoCount: number;
+  kpiTarget: number;
+  progressPct: number | null;
 }
 
 export interface AdminOverviewFiltersValue {
-  teamRegionId: AdminTeamRegionId | "all";
-  setTeamRegionId: (v: AdminTeamRegionId | "all") => void;
-  teamPerfRows: AdminTeamPerfRow[];
-  teamPerfTotals: ReturnType<typeof aggregateTeamTotals>;
-  platformId: PlatformId | "all";
-  channelKey: string | "all";
-  setPlatformId: (v: PlatformId | "all") => void;
-  setChannelKey: (v: string | "all") => void;
-  channelSelectOptions: { value: string; label: string }[];
-  /** Kênh đã lọc Team + Nền tảng + Kênh */
-  filteredChannelRows: typeof ADMIN_PLATFORM_CHANNEL_ROWS;
-  platformTableRows: ReturnType<typeof withTrafficSharePct>;
-  donutSlices: ReturnType<typeof donutSlicesFromA5Acc>;
-  growthChartScaleFactor: number;
-  /** Nhãn đồng bộ cho biểu đồ tăng trưởng (Team · nền tảng · kênh) */
-  growthFilterSummary: string;
-  totalVideoFiltered: number;
-  /** KPI & phễu — đồng bộ Team + nền tảng + kênh */
+  /** "all" hoặc tên team thật (Team.name) */
+  teamFilter: string;
+  setTeamFilter: (v: string) => void;
+  /** Danh sách team thật để đổ vào dropdown — nạp động từ API, không hard-code. */
+  teamOptions: TeamOption[];
+
+  dateFrom: string;
+  dateTo: string;
+  setDateRange: (from: string, to: string) => void;
+
+  isLoading: boolean;
+  isError: boolean;
+  /** admin/manager xem toàn công ty; leader chỉ xem team mình (server ép, không tin query param client). */
+  scope: "admin" | "leader";
+
+  teams: Dashboard5ATeamRow[];
+  teamTotals: TeamTotals;
+  channels: Dashboard5AChannelRow[];
+
   kpiTrafficLabel: string;
   kpiRevenueLabel: string;
-  kpiVsPrevPct: number;
-  kpiNewVideosEst: number;
-  funnelViewLabels: string[];
+  videoTotal: number;
+  kpiProgressPct: number | null;
+  /** "Dữ liệu KPI cập nhật đến dd/mm/yyyy" hoặc cảnh báo nếu mốc sync quá cũ / chưa có. */
+  kpiSyncNote: string;
+
+  /** Ghi chú dùng chung cho mọi bảng/biểu đồ dựa trên A1-A5 — hệ thống chưa có dữ liệu thật. */
+  a5Note: string;
 }
 
 const Ctx = createContext<AdminOverviewFiltersValue | null>(null);
 
 export function AdminOverviewFiltersProvider({ children }: { children: ReactNode }) {
-  const [teamRegionId, setTeamRegionId] = useState<AdminTeamRegionId | "all">("all");
-  const [platformId, setPlatformIdState] = useState<PlatformId | "all">("all");
-  const [channelKey, setChannelKeyState] = useState<string | "all">("all");
+  const monthRange = getCurrentMonthRange();
+  const [teamFilter, setTeamFilter] = useState<string>("all");
+  const [dateFrom, setDateFrom] = useState(monthRange.from);
+  const [dateTo, setDateTo] = useState(monthRange.to);
 
-  const setPlatformId = (v: PlatformId | "all") => {
-    setPlatformIdState(v);
-    setChannelKeyState("all");
+  const roles = useAuthStore((s) => s.user?.roles) ?? [];
+  const isAdminRole = roles.includes(UserRole.ADMIN) || roles.includes(UserRole.MANAGER);
+
+  // Query riêng cho dropdown (luôn team=all) — khi teamFilter cũng đang "all" thì trùng cache key
+  // với dataQuery bên dưới, react-query tự gộp, không tốn thêm request. Leader không có dropdown
+  // (server luôn ép về đúng 1 team của họ) nên tắt hẳn query này để khỏi tốn request thừa.
+  const optionsQuery = useDashboard5A(
+    { startDate: dateFrom, endDate: dateTo, team: "all" },
+    { enabled: isAdminRole },
+  );
+  const dataQuery = useDashboard5A({ startDate: dateFrom, endDate: dateTo, team: teamFilter });
+
+  const setDateRange = (from: string, to: string) => {
+    setDateFrom(from);
+    setDateTo(to);
   };
 
-  const setChannelKey = (v: string | "all") => {
-    setChannelKeyState(v);
+  const scope: "admin" | "leader" = dataQuery.data?.scope ?? (isAdminRole ? "admin" : "leader");
+
+  const teamOptions: TeamOption[] = useMemo(() => {
+    const src = optionsQuery.data?.teams ?? [];
+    return [{ id: "all", label: "Tất cả Team" }, ...src.map((t) => ({ id: t.name, label: t.name }))];
+  }, [optionsQuery.data]);
+
+  const teams = dataQuery.data?.teams ?? [];
+
+  const teamTotals: TeamTotals = useMemo(() => {
+    const base = teams.reduce(
+      (acc, t) => ({
+        staffCount: acc.staffCount + t.staffCount,
+        traffic: acc.traffic + t.traffic,
+        revenue: acc.revenue + t.revenue,
+        videoCount: acc.videoCount + t.videoCount,
+        kpiTarget: acc.kpiTarget + t.kpiTarget,
+      }),
+      { staffCount: 0, traffic: 0, revenue: 0, videoCount: 0, kpiTarget: 0 },
+    );
+    return {
+      ...base,
+      progressPct: base.kpiTarget > 0 ? Math.round((base.videoCount / base.kpiTarget) * 100) : null,
+    };
+  }, [teams]);
+
+  const kpi = dataQuery.data?.kpi;
+
+  // Traffic/doanh thu qua Lark KPI thường KHÔNG được điền cho mọi team (đã verify trên DB thật:
+  // phần lớn team chỉ báo cáo completed_month, không báo traffic_month/revenue_month) — hiển thị
+  // "0" trong trường hợp này dễ bị hiểu nhầm là "thật sự bằng 0" thay vì "chưa có dữ liệu".
+  const kpiTrafficLabel = kpi && kpi.totalTraffic > 0 ? formatCompactNumber(kpi.totalTraffic) : "Chưa có dữ liệu";
+  const kpiRevenueLabel = kpi && kpi.totalRevenue > 0 ? formatRevenueVi(kpi.totalRevenue) : "Chưa có dữ liệu";
+
+  const syncDateLabel = formatSyncDateVi(kpi?.lastSyncedAt ?? null);
+  const kpiSyncNote = !syncDateLabel
+    ? "Chưa có lần đồng bộ KPI (Lark) nào."
+    : isSyncStale(kpi?.lastSyncedAt ?? null)
+      ? `⚠ Dữ liệu KPI đồng bộ lần cuối ${syncDateLabel} — có thể đã cũ, job sync có thể đang tạm dừng.`
+      : `Dữ liệu KPI cập nhật đến ${syncDateLabel}.`;
+
+  const value: AdminOverviewFiltersValue = {
+    teamFilter,
+    setTeamFilter,
+    teamOptions,
+    dateFrom,
+    dateTo,
+    setDateRange,
+    isLoading: dataQuery.isLoading,
+    isError: dataQuery.isError,
+    scope,
+    teams,
+    teamTotals,
+    channels: dataQuery.data?.channels ?? [],
+    kpiTrafficLabel,
+    kpiRevenueLabel,
+    videoTotal: kpi?.totalVideos ?? 0,
+    kpiProgressPct: kpi?.progressPct ?? null,
+    kpiSyncNote,
+    a5Note: A5_NOT_AVAILABLE_NOTE,
   };
-
-  const channelSelectOptions = useMemo(
-    () => channelOptionsForPlatform(platformId),
-    [platformId],
-  );
-
-  const filteredChannelRows = useMemo(
-    () =>
-      filterPlatformChannelRows(
-        ADMIN_PLATFORM_CHANNEL_ROWS,
-        teamRegionId,
-        platformId,
-        channelKey,
-      ),
-    [teamRegionId, platformId, channelKey],
-  );
-
-  const platformTableRows = useMemo(
-    () => withTrafficSharePct(filteredChannelRows),
-    [filteredChannelRows],
-  );
-
-  const donutSlices = useMemo(
-    () => donutSlicesFromA5Acc(aggregateA5FromChannelRows(filteredChannelRows)),
-    [filteredChannelRows],
-  );
-
-  const baselineChannelRowsForTeam = useMemo(
-    () =>
-      filterPlatformChannelRows(
-        ADMIN_PLATFORM_CHANNEL_ROWS,
-        teamRegionId,
-        "all",
-        "all",
-      ),
-    [teamRegionId],
-  );
-
-  /** Tỉ lệ video đang xem / video trong cùng phạm vi team (không gồm lọc nền tảng·kênh) */
-  const growthChartScaleFactor = useMemo(() => {
-    const num = filteredChannelRows.reduce((s, r) => s + r.video, 0);
-    const den = baselineChannelRowsForTeam.reduce((s, r) => s + r.video, 0);
-    return den > 0 ? num / den : 0;
-  }, [filteredChannelRows, baselineChannelRowsForTeam]);
-
-  const growthFilterSummary = useMemo(
-    () =>
-      buildGrowthFilterSummary(
-        teamRegionId,
-        platformId,
-        channelKey,
-        channelSelectOptions,
-      ),
-    [teamRegionId, platformId, channelKey, channelSelectOptions],
-  );
-
-  const totalVideoFiltered = useMemo(
-    () => filteredChannelRows.reduce((s, r) => s + r.video, 0),
-    [filteredChannelRows],
-  );
-
-  const trafficKFiltered = useMemo(
-    () => sumTrafficK(filteredChannelRows),
-    [filteredChannelRows],
-  );
-
-  const kpiTrafficLabel = useMemo(
-    () => formatTrafficKpiLabel(trafficKFiltered),
-    [trafficKFiltered],
-  );
-
-  const kpiRevenueLabel = useMemo(
-    () => formatRevenueKpiLabel(trafficKFiltered),
-    [trafficKFiltered],
-  );
-
-  const kpiVsPrevPct = useMemo(
-    () => weightedVsPrevPct(filteredChannelRows),
-    [filteredChannelRows],
-  );
-
-  const kpiNewVideosEst = useMemo(
-    () =>
-      Math.round(
-        (141 * totalVideoFiltered) / Math.max(1, ADMIN_COMPANY_VIDEO_TOTAL),
-      ),
-    [totalVideoFiltered],
-  );
-
-  const funnelViewLabels = useMemo(
-    () => funnelViewLabelsForTraffic(trafficKFiltered),
-    [trafficKFiltered],
-  );
-
-  const videoFullByTeam = useMemo(
-    () => videoTotalsByTeam(baselineChannelRowsForTeam),
-    [baselineChannelRowsForTeam],
-  );
-
-  const videoFilteredByTeam = useMemo(
-    () => videoTotalsByTeam(filteredChannelRows),
-    [filteredChannelRows],
-  );
-
-  const teamPerfRows = useMemo(
-    () =>
-      scaleTeamPerfRowsByVideoScope(
-        filterTeamPerfRows(ADMIN_TEAM_PERF_ROWS, teamRegionId),
-        videoFullByTeam,
-        videoFilteredByTeam,
-      ),
-    [teamRegionId, videoFullByTeam, videoFilteredByTeam],
-  );
-
-  const teamPerfTotals = useMemo(() => aggregateTeamTotals(teamPerfRows), [teamPerfRows]);
-
-  const value = useMemo(
-    () => ({
-      teamRegionId,
-      setTeamRegionId,
-      teamPerfRows,
-      teamPerfTotals,
-      platformId,
-      channelKey,
-      setPlatformId,
-      setChannelKey,
-      channelSelectOptions,
-      filteredChannelRows,
-      platformTableRows,
-      donutSlices,
-      growthChartScaleFactor,
-      growthFilterSummary,
-      totalVideoFiltered,
-      kpiTrafficLabel,
-      kpiRevenueLabel,
-      kpiVsPrevPct,
-      kpiNewVideosEst,
-      funnelViewLabels,
-    }),
-    [
-      teamRegionId,
-      teamPerfRows,
-      teamPerfTotals,
-      platformId,
-      channelKey,
-      channelSelectOptions,
-      filteredChannelRows,
-      platformTableRows,
-      donutSlices,
-      growthChartScaleFactor,
-      growthFilterSummary,
-      totalVideoFiltered,
-      kpiTrafficLabel,
-      kpiRevenueLabel,
-      kpiVsPrevPct,
-      kpiNewVideosEst,
-      funnelViewLabels,
-    ],
-  );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

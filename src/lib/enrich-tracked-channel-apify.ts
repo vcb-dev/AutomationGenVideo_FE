@@ -13,6 +13,7 @@ export async function enrichTrackedChannelApify(
       Authorization: token ? `Bearer ${token}` : '',
       'Content-Type': 'application/json',
     },
+    signal: AbortSignal.timeout(30_000),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -55,6 +56,7 @@ export async function enrichStaleChannelsIfNeeded(): Promise<{
         Authorization: token ? `Bearer ${token}` : '',
         'Content-Type': 'application/json',
       },
+      signal: AbortSignal.timeout(60_000),
     });
     if (!res.ok) return null;
     const data = await res.json();

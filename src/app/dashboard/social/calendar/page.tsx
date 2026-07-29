@@ -9,17 +9,16 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { socialApi, SocialPost, PLATFORM_META, SocialPlatform } from '@/lib/api/social';
 import toast from 'react-hot-toast';
+import { useSocialLang } from '@/contexts/SocialLanguageContext';
 
-const STATUS_CONFIG = {
-  PENDING:   { label: 'Chờ đăng',  color: 'bg-amber-500',   text: 'text-amber-700',   bg: 'bg-amber-50',   border: 'border-amber-200',  icon: Clock },
-  COMPLETED: { label: 'Đã đăng',   color: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200', icon: CheckCircle },
-  FAILED:    { label: 'Thất bại',  color: 'bg-red-500',     text: 'text-red-700',     bg: 'bg-red-50',     border: 'border-red-200',    icon: XCircle },
-  CANCELLED: { label: 'Đã huỷ',   color: 'bg-slate-400',   text: 'text-slate-500',   bg: 'bg-slate-50',   border: 'border-slate-200',  icon: AlertCircle },
-};
-
-const WEEKDAYS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
-const MONTHS = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
-                'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
+function getStatusConfig(t: ReturnType<typeof useSocialLang>['t']) {
+  return {
+    PENDING:   { label: t.calendar.statusPending,   color: 'bg-amber-500',   text: 'text-amber-700',   bg: 'bg-amber-50',   border: 'border-amber-200',  icon: Clock },
+    COMPLETED: { label: t.calendar.statusCompleted,  color: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200', icon: CheckCircle },
+    FAILED:    { label: t.calendar.statusFailed,     color: 'bg-red-500',     text: 'text-red-700',     bg: 'bg-red-50',     border: 'border-red-200',    icon: XCircle },
+    CANCELLED: { label: t.calendar.statusCancelled,  color: 'bg-slate-400',   text: 'text-slate-500',   bg: 'bg-slate-50',   border: 'border-slate-200',  icon: AlertCircle },
+  };
+}
 
 function isSameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() &&
@@ -28,6 +27,10 @@ function isSameDay(a: Date, b: Date) {
 }
 
 export default function CalendarPage() {
+  const { t } = useSocialLang();
+  const STATUS_CONFIG = getStatusConfig(t);
+  const WEEKDAYS = t.calendar.weekdays;
+  const MONTHS = t.calendar.months;
   const today = new Date();
   const [currentMonth, setCurrentMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [posts, setPosts] = useState<SocialPost[]>([]);
@@ -40,7 +43,7 @@ export default function CalendarPage() {
       const data = await socialApi.schedule.list();
       setPosts(data);
     } catch {
-      toast.error('Không tải được lịch đăng');
+      toast.error(t.calendar.failedToLoadSchedule);
     } finally {
       setLoading(false);
     }
@@ -75,15 +78,15 @@ export default function CalendarPage() {
   };
 
   const handleCancel = async (id: string) => {
-    if (!confirm('Huỷ bài này?')) return;
+    if (!confirm(t.calendar.cancelPostConfirm)) return;
     setActionId(id);
     try {
       await socialApi.schedule.cancel(id);
-      toast.success('Đã huỷ');
+      toast.success(t.calendar.cancelled);
       await load();
       // Refresh selected day posts
     } catch {
-      toast.error('Không thể huỷ');
+      toast.error(t.calendar.cancelFailed);
     } finally {
       setActionId(null);
     }
@@ -93,10 +96,10 @@ export default function CalendarPage() {
     setActionId(id);
     try {
       await socialApi.schedule.retry(id);
-      toast.success('Đã đưa vào hàng chờ đăng lại');
+      toast.success(t.calendar.retryQueued);
       await load();
     } catch {
-      toast.error('Retry thất bại');
+      toast.error(t.calendar.retryFailed);
     } finally {
       setActionId(null);
     }
@@ -136,7 +139,7 @@ export default function CalendarPage() {
               onClick={goToday}
               className="px-4 py-2 text-sm font-semibold text-blue-600 border border-blue-200 rounded-xl hover:bg-blue-50 transition-colors"
             >
-              Hôm nay
+              {t.calendar.today}
             </button>
           </div>
 
@@ -144,14 +147,14 @@ export default function CalendarPage() {
             {/* Month stats */}
             <div className="flex items-center gap-3 text-xs font-bold">
               <span className="flex items-center gap-1.5 text-amber-600">
-                <div className="w-2 h-2 rounded-full bg-amber-500" />{pending} chờ
+                <div className="w-2 h-2 rounded-full bg-amber-500" />{t.calendar.pendingCount(pending)}
               </span>
               <span className="flex items-center gap-1.5 text-emerald-600">
-                <div className="w-2 h-2 rounded-full bg-emerald-500" />{completed} đã đăng
+                <div className="w-2 h-2 rounded-full bg-emerald-500" />{t.calendar.completedCount(completed)}
               </span>
               {failed > 0 && (
                 <span className="flex items-center gap-1.5 text-red-600">
-                  <div className="w-2 h-2 rounded-full bg-red-500" />{failed} lỗi
+                  <div className="w-2 h-2 rounded-full bg-red-500" />{t.calendar.failedCount(failed)}
                 </span>
               )}
             </div>
@@ -159,7 +162,7 @@ export default function CalendarPage() {
               href="/dashboard/social/compose?tab=schedule"
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-colors shadow-sm"
             >
-              <Plus className="w-4 h-4" /> Lên lịch mới
+              <Plus className="w-4 h-4" /> {t.calendar.scheduleNew}
             </Link>
           </div>
         </div>
@@ -236,7 +239,7 @@ export default function CalendarPage() {
                         const meta = PLATFORM_META[post.platform as SocialPlatform] || PLATFORM_META.FACEBOOK;
                         const cfg = STATUS_CONFIG[post.status] || STATUS_CONFIG.PENDING;
                         const time = post.scheduled_at
-                          ? new Date(post.scheduled_at).toLocaleTimeString('vi', { hour: '2-digit', minute: '2-digit' })
+                          ? new Date(post.scheduled_at).toLocaleTimeString(t.dateLocale, { hour: '2-digit', minute: '2-digit' })
                           : '';
                         return (
                           <div
@@ -251,7 +254,7 @@ export default function CalendarPage() {
                       })}
                       {overflow > 0 && (
                         <div className="text-[10px] font-bold text-slate-400 pl-1">
-                          +{overflow} bài khác
+                          {t.calendar.morePosts(overflow)}
                         </div>
                       )}
                     </div>
@@ -285,8 +288,8 @@ export default function CalendarPage() {
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
                   {selectedPosts.length === 0
-                    ? 'Không có bài nào'
-                    : `${selectedPosts.length} bài đăng`}
+                    ? t.calendar.noPostsThisDay
+                    : t.calendar.postCount(selectedPosts.length)}
                 </p>
               </div>
               <button
@@ -302,12 +305,12 @@ export default function CalendarPage() {
               {selectedPosts.length === 0 ? (
                 <div className="text-center py-16">
                   <Calendar className="w-12 h-12 text-slate-200 mx-auto mb-3" />
-                  <p className="text-sm text-slate-400 font-medium">Ngày này chưa có bài lên lịch</p>
+                  <p className="text-sm text-slate-400 font-medium">{t.calendar.noScheduledPostsThisDay}</p>
                   <Link
                     href="/dashboard/social/compose?tab=schedule"
                     className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 transition-colors"
                   >
-                    <Plus className="w-3.5 h-3.5" /> Thêm bài
+                    <Plus className="w-3.5 h-3.5" /> {t.calendar.addPost}
                   </Link>
                 </div>
               ) : (
@@ -318,7 +321,7 @@ export default function CalendarPage() {
                     const cfg = STATUS_CONFIG[post.status] || STATUS_CONFIG.PENDING;
                     const StatusIcon = cfg.icon;
                     const time = post.scheduled_at
-                      ? new Date(post.scheduled_at).toLocaleTimeString('vi', { hour: '2-digit', minute: '2-digit' })
+                      ? new Date(post.scheduled_at).toLocaleTimeString(t.dateLocale, { hour: '2-digit', minute: '2-digit' })
                       : '';
 
                     return (
@@ -394,7 +397,7 @@ export default function CalendarPage() {
                               className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50"
                             >
                               <Send className="w-3.5 h-3.5" />
-                              {actionId === post.id ? 'Đang xử lý...' : 'Thử lại'}
+                              {actionId === post.id ? t.calendar.retrying : t.calendar.retry}
                             </button>
                           )}
                           {post.status === 'PENDING' && (
@@ -404,7 +407,7 @@ export default function CalendarPage() {
                               className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-white border border-red-200 text-red-500 text-xs font-bold rounded-xl hover:bg-red-50 transition-colors disabled:opacity-50"
                             >
                               <X className="w-3.5 h-3.5" />
-                              {actionId === post.id ? 'Đang huỷ...' : 'Huỷ bài'}
+                              {actionId === post.id ? t.calendar.cancelling : t.calendar.cancelPost}
                             </button>
                           )}
                         </div>

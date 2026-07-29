@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useLayoutEffect } from 'react';
 import { useAuthStore } from '@/store/auth-store';
 
 export default function AuthHydration() {
-  useEffect(() => {
+  useLayoutEffect(() => {
     useAuthStore.persist.rehydrate();
   }, []);
 

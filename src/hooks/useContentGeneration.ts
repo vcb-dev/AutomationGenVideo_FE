@@ -134,10 +134,10 @@ export function useContentGeneration() {
             }
 
             throw new Error('Generation failed');
-        } catch (err: any) {
-            const errorMessage = err.response?.data?.error || err.message || 'Failed to generate content';
+        } catch (err: unknown) {
+            const axiosErr = err as { response?: { data?: { error?: string } }; message?: string };
+            const errorMessage = axiosErr.response?.data?.error || axiosErr.message || 'Failed to generate content';
             setError(errorMessage);
-            console.error('Content generation error:', err);
             return null;
         } finally {
             setIsGenerating(false);
@@ -200,10 +200,10 @@ export function useContentGeneration() {
                 return response.data.prompt;
             }
             throw new Error('Failed to generate prompt');
-        } catch (err: any) {
-            const errorMessage = err.response?.data?.error || err.message || 'Failed to generate prompt';
+        } catch (err: unknown) {
+            const axiosErr = err as { response?: { data?: { error?: string } }; message?: string };
+            const errorMessage = axiosErr.response?.data?.error || axiosErr.message || 'Failed to generate prompt';
             setError(errorMessage);
-            console.error('Prompt generation error:', err);
             return null;
         } finally {
             setIsGenerating(false);

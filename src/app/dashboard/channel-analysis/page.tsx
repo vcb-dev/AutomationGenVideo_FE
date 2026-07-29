@@ -4,11 +4,6 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import apiClient from "@/lib/api-client";
 import toast from "react-hot-toast";
 import {
-    syncFromLarkAssignment,
-    syncFromLarkAssignmentIfStale,
-    clearLarkSyncCooldown,
-} from "@/lib/sync-lark-tracked-channels";
-import {
     BarChart3,
     Facebook,
     Instagram,
@@ -23,7 +18,6 @@ import {
     Eye,
     EyeOff,
     RotateCcw,
-    DownloadCloud,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, Legend } from 'recharts';
@@ -151,7 +145,6 @@ export default function ChannelAnalysisHubPage() {
     const [creating, setCreating] = useState(false);
     const [createError, setCreateError] = useState("");
     const [createMaxPosts, setCreateMaxPosts] = useState<number>(30); // New state
-    const [larkSyncing, setLarkSyncing] = useState(false);
   const [modalWarning, setModalWarning] = useState('');
 
   // Clear modal warning when loading ends
@@ -650,14 +643,6 @@ export default function ChannelAnalysisHubPage() {
         const init = async () => {
             setLoading(true);
             setError("");
-            try {
-                const r = await syncFromLarkAssignmentIfStale();
-                if (alive && r && r.imported > 0) {
-                    toast.success(`Đã thêm ${r.imported} kênh được phân công (HR/Lark)`, { duration: 4500 });
-                }
-            } catch {
-                /* vẫn tải danh sách */
-            }
             if (!alive) return;
             await fetchAll();
         };
@@ -666,31 +651,6 @@ export default function ChannelAnalysisHubPage() {
             alive = false;
         };
     }, [fetchAll]);
-
-    const handleSyncLarkChannels = async () => {
-        setLarkSyncing(true);
-        try {
-            clearLarkSyncCooldown();
-            const r = await syncFromLarkAssignment();
-            await fetchAll();
-            if (r.imported > 0) {
-                toast.success(`Đã đồng bộ ${r.imported} kênh từ HR/Lark`, { duration: 5000 });
-            } else if ((r.skipped_no_identity ?? 0) > 0 && r.imported === 0) {
-                toast(
-                    `Chưa thêm kênh mới. ${r.skipped_no_identity} dòng thiếu link/ID hợp lệ trên Lark — kiểm tra bảng Channel.`,
-                    { duration: 6000, icon: "ℹ️" },
-                );
-            } else if ((r.skipped_no_user ?? 0) > 0 && r.imported === 0) {
-                toast("Chưa có dòng Channel nào khớp email/tên bạn trên Lark.", { duration: 5000 });
-            } else {
-                toast.success("Danh sách kênh đã cập nhật.", { duration: 3000 });
-            }
-        } catch (e: any) {
-            toast.error(e?.response?.data?.message || e?.message || "Không đồng bộ được. Thử lại sau.");
-        } finally {
-            setLarkSyncing(false);
-        }
-    };
 
     const channelsByPlatform = useMemo(() => {
         const m: Record<PlatformKey, TrackedChannel[]> = { FACEBOOK: [], INSTAGRAM: [], TIKTOK: [] };
@@ -714,7 +674,7 @@ export default function ChannelAnalysisHubPage() {
             m[p] = (channelsByPlatform[p] || []).filter((ch) => !hiddenIds.has(getHiddenId(ch.platform, ch.username)));
         });
         return m;
-    }, [channelsByPlatform, hiddenIds, storageTick]);
+    }, [channelsByPlatform, hiddenIds]);
 
   const extractUsername = (platform: PlatformKey, input: string): string => {
     let clean = (input || '').trim();
@@ -957,9 +917,9 @@ export default function ChannelAnalysisHubPage() {
     executeAnalysisBatch(pendingRow, pendingStartDate, pendingEndDate, pendingMaxPosts, pendingMode === 'rerun');
   }, [pendingRow, pendingStartDate, pendingEndDate, pendingMaxPosts, pendingMode, executeAnalysisBatch]);
 
-    // Poll localStorage every 2s while any row is 'analyzing' to detect completion
+    // Poll while any channel is 'analyzing' — only fetch platforms that actually have analyzing channels
     useEffect(() => {
-        const hasAnalyzing = channels.some((ch) => {
+        const analyzingChannels = channels.filter((ch) => {
             try {
                 const raw = localStorage.getItem(getAnalysisKey(ch.platform, ch.username));
                 if (!raw) return false;
@@ -968,18 +928,22 @@ export default function ChannelAnalysisHubPage() {
                 return false;
             }
         });
-        if (!hasAnalyzing) return;
-        // Poll every 3s to pick up completion from server DB
+        if (analyzingChannels.length === 0) return;
+
+        const analyzingPlatforms = Array.from(new Set(analyzingChannels.map((ch) => ch.platform))) as PlatformKey[];
+
         const timer = setInterval(() => {
-           setStorageTick((x) => x + 1);
-           // Silent fetch to update channels from DB
-           const platforms: PlatformKey[] = ["FACEBOOK", "INSTAGRAM", "TIKTOK"];
-           Promise.all(platforms.map((p) => apiClient.get(`/tracked-channels?platform=${p}`)))
-             .then(res => {
-                const merged: TrackedChannel[] = res.flatMap((r: any) => r?.data || []);
-                if (merged.length > 0) setChannels(merged);
-             }).catch(() => {});
-        }, 5000); // 5s silent refresh
+            setStorageTick((x) => x + 1);
+            Promise.all(analyzingPlatforms.map((p) => apiClient.get(`/tracked-channels?platform=${p}`)))
+                .then((res) => {
+                    const updated: TrackedChannel[] = res.flatMap((r: any) => r?.data || []);
+                    if (updated.length > 0) {
+                        const byId = new Map(updated.map((ch) => [ch.id, ch]));
+                        setChannels((prev) => prev.map((ch) => byId.get(ch.id) ?? ch));
+                    }
+                })
+                .catch(() => {});
+        }, 5000);
         return () => clearInterval(timer);
     }, [channels, storageTick]);
 
@@ -1094,16 +1058,6 @@ export default function ChannelAnalysisHubPage() {
           >
             {showHidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             {showHidden ? 'Ẩn kênh đã ẩn' : `Kênh đã ẩn (${hiddenIds.size})`}
-          </button>
-          <button
-            type="button"
-            disabled={larkSyncing}
-            onClick={handleSyncLarkChannels}
-            title="Lấy kênh được phân công trên Lark (bảng Channel) — không cần nhập tay"
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold text-sm hover:bg-emerald-100 transition disabled:opacity-60"
-          >
-            {larkSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <DownloadCloud className="w-4 h-4" />}
-            Đồng bộ kênh HR
           </button>
           <button
             onClick={() => { setShowCreateModal(true); setCreateError(''); }}

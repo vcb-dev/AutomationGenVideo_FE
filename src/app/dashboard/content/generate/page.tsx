@@ -329,6 +329,10 @@ export default function GenerateContentPage() {
         }
         try {
             if (outputLanguage === 'vi') {
+                // IMPORTANT: Always use translation_mode for "Dịch content có sẵn" mode
+                // This ensures foreign source text (Thai, Japanese, etc.) uses the translation
+                // pipeline which preserves original line structure for the verification table,
+                // instead of the content generation pipeline which rewrites everything.
                 const viOnly = await generateContent({
                     video_description: sourceText,
                     video_title: 'Manual content',
@@ -1412,9 +1416,9 @@ export default function GenerateContentPage() {
                                                         </tr>
                                                     ) : (
                                                         <tr key={idx} className="border-b border-gray-800/60 hover:bg-white/[0.02]">
-                                                            <td className="px-4 py-3 text-gray-300 align-top leading-relaxed break-words whitespace-pre-wrap">{row.phonetic}</td>
-                                                            <td className="px-4 py-3 text-gray-200 align-top leading-relaxed break-words whitespace-pre-wrap">{row.native}</td>
-                                                            <td className="px-4 py-3 text-gray-300 align-top leading-relaxed break-words whitespace-pre-wrap">{row.vietnamese}</td>
+                                                            <td className="px-4 py-3 text-gray-300 align-top leading-relaxed break-words whitespace-pre-wrap">{row.phonetic?.replace(/\n/g, ' ')}</td>
+                                                            <td className="px-4 py-3 text-gray-200 align-top leading-relaxed break-words whitespace-pre-wrap">{row.native?.replace(/\n/g, ' ')}</td>
+                                                            <td className="px-4 py-3 text-gray-300 align-top leading-relaxed break-words whitespace-pre-wrap">{row.vietnamese?.replace(/\n/g, ' ')}</td>
                                                         </tr>
                                                     )
                                                 ))}

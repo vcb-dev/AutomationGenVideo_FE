@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
 import Header from '@/components/layout/Header';
+import { BackgroundTaskManager } from '@/components/social/BackgroundTaskManager';
 
 export default function DashboardLayout({
   children,
@@ -17,7 +18,10 @@ export default function DashboardLayout({
     logout: s.logout,
     token: s.token,
   }));
-  const [isHydrated, setIsHydrated] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    try { return !!useAuthStore.getState().user; } catch { return false; }
+  });
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [allowedMenuIds, setAllowedMenuIds] = useState<string[]>([]);
 
@@ -99,6 +103,7 @@ export default function DashboardLayout({
       <main className="flex-1 p-6">
         {children}
       </main>
+      <BackgroundTaskManager />
     </div>
   );
 }

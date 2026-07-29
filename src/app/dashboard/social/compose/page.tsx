@@ -3,13 +3,23 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Search, RefreshCw, Type, Image as ImageIcon, Smartphone, Monitor,
-  MapPin, Globe, Smile, UploadCloud, MessageCircle, Share2,
+  MapPin, Globe, Smile, MessageCircle, Share2,
   MoreHorizontal, ChevronDown, Save, Send, Clock, List, AlertCircle, ThumbsUp, X, Calendar as CalendarIcon,
-  Loader2, Sparkles, Layers, Hash,
+  Loader2, Sparkles, Layers, Hash, Film, Check,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { socialApi, SocialAccount, SocialPlatform, PLATFORM_META } from '@/lib/api/social';
+import { useSocialAccounts, useInvalidateAccounts } from '@/hooks/useSocialAccounts';
+import PublishProgressModal from './PublishProgressModal';
+import HashtagPanel from './HashtagPanel';
+import MediaLibraryModal from './MediaLibraryModal';
+import PlatformPreview from './PlatformPreview';
+import TemplateManager from './TemplateManager';
+import VideoFramePicker from './VideoFramePicker';
+import { useTaskStore } from '@/store/taskStore';
 import toast from 'react-hot-toast';
+import { useSocialLang } from '@/contexts/SocialLanguageContext';
+import { isPlatformModeSupported } from '@/lib/social/platform-support';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -21,12 +31,55 @@ const itemVariants = {
   visible: { opacity: 1, y: 0 }
 };
 
+const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
+
+/** Picker ngày + giờ theo định dạng 24h (HH:mm), không phụ thuộc locale browser */
+function DateTimePicker24h({
+  value,
+  onChange,
+  className,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  className?: string;
+}) {
+  const { t } = useSocialLang();
+  const date   = value?.slice(0, 10) ?? '';
+  const hour   = value?.slice(11, 13) ?? '00';
+  const minute = value?.slice(14, 16) ?? '00';
+
+  const set = (d: string, h: string, m: string) => {
+    if (d) onChange(`${d}T${h}:${m}`);
+  };
+
+  const selectCls = 'border border-blue-200 rounded-xl px-2 py-2 text-sm focus:ring-2 ring-blue-500/20 outline-none font-bold text-blue-700 bg-white cursor-pointer';
+
+  return (
+    <div className={`flex items-center gap-1.5 ${className ?? ''}`}>
+      <input
+        type="date"
+        value={date}
+        onChange={e => set(e.target.value, hour, minute)}
+        className="border border-blue-200 rounded-xl px-3 py-2 text-sm focus:ring-2 ring-blue-500/20 outline-none font-bold text-blue-700 bg-white"
+      />
+      <select value={hour}   onChange={e => set(date, e.target.value, minute)} className={selectCls}>
+        {HOURS.map(h   => <option key={h} value={h}>{t.compose.hourSuffix(h)}</option>)}
+      </select>
+      <select value={minute} onChange={e => set(date, hour, e.target.value)}   className={selectCls}>
+        {MINUTES.map(m => <option key={m} value={m}>{t.compose.minuteSuffix(m)}</option>)}
+      </select>
+    </div>
+  );
+}
+
 export default function ComposePage() {
-  const fileInputRef    = useRef<HTMLInputElement>(null);
+  const { t } = useSocialLang();
   const isDraggingRef   = useRef(false);
   const dragStartXRef   = useRef(0);
   const dragStartWRef   = useRef(0);
   const [sidebarWidth, setSidebarWidth] = useState(300);
+  const [mobileTab, setMobileTab] = useState<'CHANNELS' | 'EDITOR' | 'PREVIEW'>('EDITOR');
 
   const onDragHandleMouseDown = (e: React.MouseEvent) => {
     isDraggingRef.current  = true;
@@ -52,7 +105,8 @@ export default function ComposePage() {
   };
   
   // Core Data & UI State
-  const [accounts, setAccounts] = useState<SocialAccount[]>([]);
+  const { data: accounts = [] } = useSocialAccounts();
+  const invalidateAccounts = useInvalidateAccounts();
   const [drafts, setDrafts] = useState<any[]>([]);
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -67,14 +121,26 @@ export default function ComposePage() {
   const [previewPlatform, setPreviewPlatform] = useState<SocialPlatform>('FACEBOOK');
   const [mounted, setMounted] = useState(false);
   const [showDraftsModal, setShowDraftsModal] = useState(false);
+  const [showLibrary, setShowLibrary] = useState(false);
+  const [perPlatformMode, setPerPlatformMode] = useState(false);
+  const [topTab, setTopTab] = useState<'publish' | 'customize'>('publish');
+  const [thumbUrl, setThumbUrl] = useState<string>('');
+  const [showFramePicker, setShowFramePicker] = useState(false);
+  const [libraryMode, setLibraryMode] = useState<'media' | 'thumb'>('media');
+  // Map url → thumbnail_url cho các media chọn từ thư viện (để hiện đúng thumbnail Drive)
+  const [mediaThumbs, setMediaThumbs] = useState<Record<string, string>>({});
+  // Map url → library item id (để gọi API previewFrame/setThumbnail cho Drive video)
+  const [mediaLibraryIds, setMediaLibraryIds] = useState<Record<string, string>>({});
+  const [perPlatformMessages, setPerPlatformMessages] = useState<Partial<Record<SocialPlatform, string>>>({});
+  const [dragMediaIndex, setDragMediaIndex] = useState<number | null>(null);
 
   // --- PORTED LOGIC FROM VCB-TOOL ---
   
   // Hashtag State
   const [suggestedHashtags, setSuggestedHashtags] = useState<string[]>(() => {
-    if (typeof window === 'undefined') return ['VienChiBao', 'TrangSuc', 'PhongThuy', 'VangBac', 'QuaTang'];
+    if (typeof window === 'undefined') return ['a1', 'a2', 'a3', 'a4', 'a5'];
     const saved = localStorage.getItem('custom_hashtags');
-    return saved ? JSON.parse(saved) : ['VienChiBao', 'TrangSuc', 'PhongThuy', 'VangBac', 'QuaTang'];
+    return saved ? JSON.parse(saved) : ['a1', 'a2', 'a3', 'a4', 'a5'];
   });
   const [hashtags, setHashtags] = useState<string[]>([]);
   const [hashtagInput, setHashtagInput] = useState('');
@@ -85,6 +151,8 @@ export default function ComposePage() {
     const saved = localStorage.getItem('composer_channel_groups');
     return saved ? JSON.parse(saved) : [];
   });
+  const [showGroupNameInput, setShowGroupNameInput] = useState(false);
+  const [groupNameValue, setGroupNameValue] = useState('');
 
   // Advanced Options
   const [privacy, setPrivacy] = useState('EVERYONE');
@@ -92,7 +160,7 @@ export default function ComposePage() {
     show: boolean;
     phase: 'idle' | 'uploading' | 'publishing' | 'done';
     uploadPct: number;
-    channels: { id: string; name: string; platform: string; status: 'pending' | 'posting' | 'success' | 'fail'; error?: string; queuePosition?: number | null }[];
+    channels: { id: string; name: string; platform: string; status: 'pending' | 'posting' | 'success' | 'fail'; error?: string; queuePosition?: number | null; postUrl?: string }[];
   }>({
     show: false,
     phase: 'idle',
@@ -100,22 +168,14 @@ export default function ComposePage() {
     channels: []
   });
 
-  // Limits
-  const PLATFORM_LIMITS: Record<string, number> = { 
-    THREADS: 500, 
-    FACEBOOK: 63206, 
-    INSTAGRAM: 2200, 
-    TIKTOK: 2200, 
-    YOUTUBE: 5000 
-  };
+  const { addTask, updateTask, tasks } = useTaskStore();
 
-  const PLATFORM_SUPPORT = {
-    FACEBOOK: { text: true,  image: true,  video_vertical: true, video_horizontal: true },
-    THREADS:  { text: true,  image: true,  video_vertical: true, video_horizontal: true },
-    INSTAGRAM:{ text: false, image: true,  video_vertical: true, video_horizontal: false },
-    TIKTOK:   { text: false, image: false, video_vertical: true, video_horizontal: false },
-    YOUTUBE:  { text: false, image: false, video_vertical: true, video_horizontal: true },
-    ZALO:     { text: true,  image: false, video_vertical: true, video_horizontal: true },
+  // Limits
+  const PLATFORM_LIMITS: Record<string, number> = {
+    THREADS: 500,
+    FACEBOOK: 63206,
+    INSTAGRAM: 2200,
+    YOUTUBE: 5000
   };
 
   // --- ACTIONS ---
@@ -129,50 +189,44 @@ export default function ComposePage() {
 
   const removeHashtag = (tag: string) => setHashtags(prev => prev.filter(h => h !== tag));
 
-  const addSuggestedHashtag = () => {
-    const tag = window.prompt("Nhập hashtag mới muốn thêm vào gợi ý (không cần ghi dấu #):");
-    if (tag && tag.trim()) {
-      const cleanTag = tag.trim().replace(/^#+/, '');
-      if (!suggestedHashtags.includes(cleanTag)) {
-        const newList = [...suggestedHashtags, cleanTag];
-        setSuggestedHashtags(newList);
-        localStorage.setItem('custom_hashtags', JSON.stringify(newList));
-      }
-    }
+  const addSuggestedHashtag = (tag: string) => {
+    const cleanTag = tag.trim().replace(/^#+/, '');
+    if (!cleanTag || suggestedHashtags.includes(cleanTag)) return;
+    const newList = [...suggestedHashtags, cleanTag];
+    setSuggestedHashtags(newList);
+    localStorage.setItem('custom_hashtags', JSON.stringify(newList));
   };
 
   const removeSuggestedHashtag = (tag: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.confirm(`Bạn có chắc muốn xóa gợi ý #${tag} không?`)) {
-      const newList = suggestedHashtags.filter(t => t !== tag);
-      setSuggestedHashtags(newList);
-      localStorage.setItem('custom_hashtags', JSON.stringify(newList));
-    }
+    const newList = suggestedHashtags.filter(t => t !== tag);
+    setSuggestedHashtags(newList);
+    localStorage.setItem('custom_hashtags', JSON.stringify(newList));
   };
 
   const saveCurrentSelectionAsGroup = () => {
-    if (selectedAccountIds.length === 0) return toast.error('Vui lòng chọn ít nhất 1 kênh');
-    const name = window.prompt('Nhập tên nhóm kênh (VD: Nhóm Vàng bạc, Kênh TikTok...):');
-    if (!name || !name.trim()) return;
+    if (selectedAccountIds.length === 0) return toast.error(t.compose.selectAtLeastOneChannelGroup);
+    const name = groupNameValue.trim();
+    if (!name) return;
     const newGroup = {
       id: Date.now().toString(),
-      name: name.trim(),
+      name,
       channels: [...selectedAccountIds],
       hashtags: [...hashtags]
     };
     const updated = [...channelGroups, newGroup];
     setChannelGroups(updated);
     localStorage.setItem('composer_channel_groups', JSON.stringify(updated));
-    toast.success('Đã lưu nhóm kênh');
+    setGroupNameValue('');
+    setShowGroupNameInput(false);
+    toast.success(t.compose.groupSaved);
   };
 
   const deleteChannelGroup = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.confirm('Xóa nhóm kênh này?')) {
-      const updated = channelGroups.filter(g => g.id !== id);
-      setChannelGroups(updated);
-      localStorage.setItem('composer_channel_groups', JSON.stringify(updated));
-    }
+    const updated = channelGroups.filter(g => g.id !== id);
+    setChannelGroups(updated);
+    localStorage.setItem('composer_channel_groups', JSON.stringify(updated));
   };
 
 
@@ -180,21 +234,32 @@ export default function ComposePage() {
 
   useEffect(() => {
     setMounted(true);
-    socialApi.accounts.list().then(setAccounts).catch(() => {});
-    socialApi.drafts.list().then(setDrafts).catch(() => {});
-
     const now = new Date();
     now.setHours(now.getHours() + 1);
-    setScheduledAt(now.toISOString().slice(0, 16));
+    const pad = (n: number) => String(n).padStart(2, '0');
+    setScheduledAt(`${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`);
+
+    // Đọc prefill data từ Repost (history page)
+    const prefill = localStorage.getItem('compose_prefill');
+    if (prefill) {
+      try {
+        const data = JSON.parse(prefill);
+        if (data.message) setMessage(data.message);
+        if (data.mediaUrls?.length) {
+          setMediaUrls(data.mediaUrls);
+          setPostMode('image');
+        }
+        localStorage.removeItem('compose_prefill');
+      } catch {}
+    }
   }, []);
 
-  // Filter accounts based on SEARCH and POST MODE
-  const filteredAccounts = accounts.filter(a => {
-    const matchesSearch = a.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const platformKey = (a.platform || '').toUpperCase();
-    const isSupported = (PLATFORM_SUPPORT as any)[platformKey]?.[postMode] ?? true;
-    return matchesSearch && isSupported;
-  });
+  // Filter accounts theo SEARCH — không lọc theo post mode ở đây nữa: kênh không hỗ
+  // trợ dạng bài hiện tại vẫn cần hiện ra (dạng disabled) để user thấy đã kết nối,
+  // thay vì biến mất hoàn toàn trông như chưa kết nối (vd Instagram ở mode 'text').
+  const filteredAccounts = accounts.filter(a =>
+    a.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   // Group accounts logically for display
   const platformGroups = filteredAccounts.reduce((acc: Record<string, SocialAccount[]>, a) => {
@@ -227,28 +292,45 @@ export default function ComposePage() {
   };
 
   const handleAiOptimize = async () => {
-    if (!message.trim()) return toast.error('Vui lòng nhập nội dung trước');
+    if (!message.trim()) return toast.error(t.compose.enterContentFirst);
     setIsAiProcessing(true);
-    // Mocking AI response
-    setTimeout(() => {
-      const lines = message.split('\n');
-      let improved = "✨ [AI Optimized]: " + lines[0] + " ✨\n\n";
-      if (lines.length > 1) {
-          improved += lines.slice(1).join('\n') + "\n\n";
-      }
-      improved += "👉 Đừng quên để lại bình luận phía dưới nhé!\n✅ Nhắn tin ngay để được tư vấn chi tiết.";
-      setMessage(improved);
+    try {
+      const firstPlatform = selectedAccountIds.length > 0
+        ? accounts.find(a => selectedAccountIds.includes(a.id))?.platform as SocialPlatform | undefined
+        : undefined;
+      const { hashtags: suggestedTags, source } = await socialApi.hashtag.suggest(message, firstPlatform);
+      const currentTags = hashtags;
+      const newTags = suggestedTags.map(h => h.replace(/^#+/, '').trim()).filter(h => h && !currentTags.includes(h));
+      setHashtags(prev => Array.from(new Set([...prev, ...newTags])).slice(0, 30));
+      toast.success(t.compose.aiHashtagSuggested(suggestedTags.length, source === 'ai' ? t.compose.aiSourceAi : t.compose.aiSourceKeyword), { duration: 3000 });
+    } catch {
+      toast.error(t.compose.hashtagSuggestFailed);
+    } finally {
       setIsAiProcessing(false);
-      toast.success('Đã tối ưu nội dung bằng AI');
-    }, 1500);
+    }
   };
-
-  const [uploadingMedia, setUploadingMedia] = useState(false);
 
   // Hàng chờ: jobId[] sau khi enqueue, null = không có gì đang poll
   const [activeJobIds,   setActiveJobIds]   = useState<string[] | null>(null);
   // Map jobId → channelId (accountId) để ghép kết quả poll về UI
   const [jobChannelMap,  setJobChannelMap]  = useState<Record<string, string>>({});
+  // Ref luôn giữ giá trị mới nhất — tránh stale closure trong poll effect
+  const jobChannelMapRef = useRef<Record<string, string>>({});
+  jobChannelMapRef.current = jobChannelMap;
+
+  // Log đăng bài realtime
+  const [publishLogs, setPublishLogs] = useState<string[]>([]);
+  const prevJobStatusRef = useRef<Record<string, string>>({});
+  const prevJobQueueNullRef = useRef<Record<string, boolean>>({});
+  const channelInfoRef = useRef<Record<string, { name: string; platform: string }>>({});
+  // Batch jobIds (joined) đã hiển thị toast hoàn tất — chặn duplicate toast khi
+  // React StrictMode double-invoke effect (mount → cleanup → mount lại trong dev)
+  const notifiedBatchRef = useRef<string | null>(null);
+
+  const addPublishLog = useCallback((msg: string) => {
+    const time = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    setPublishLogs(prev => [...prev.slice(-99), `[${time}] ${msg}`]);
+  }, []);
 
   // Đồng hồ thời gian thực
   const [publishStartedAt, setPublishStartedAt] = useState<number | null>(null);
@@ -307,103 +389,149 @@ export default function ComposePage() {
   useEffect(() => {
     if (!activeJobIds || activeJobIds.length === 0) return;
 
+    // Khoá theo batch jobIds — dùng ref (bền qua StrictMode double-invoke) để
+    // chặn xử lý "allDone" nhiều lần cho cùng 1 lượt đăng bài
+    const batchKey = activeJobIds.join(',');
+    let timer: ReturnType<typeof setInterval>;
+
     const poll = async () => {
+      if (notifiedBatchRef.current === batchKey) return;
       try {
         const { jobs } = await socialApi.queue.pollStatus(activeJobIds);
 
+        // Log thay đổi trạng thái
+        for (const job of jobs) {
+          const channelId = jobChannelMapRef.current[job.id];
+          const chName = channelInfoRef.current[channelId]?.name || channelId || job.id.slice(0, 8);
+          const prevStatus = prevJobStatusRef.current[job.id];
+          const wasQueueNull = prevJobQueueNullRef.current[job.id];
+          const nowQueueNull = job.queuePosition === null;
+
+          if (prevStatus !== job.status) {
+            prevJobStatusRef.current[job.id] = job.status;
+            if (job.status === 'COMPLETED') {
+              const r = job.result as Record<string, unknown> | null | undefined;
+              const url = typeof r?.url === 'string' ? r.url : typeof r?.videoId === 'string' ? `https://youtube.com/watch?v=${r.videoId}` : '';
+              addPublishLog(`✅ ${chName}: Đăng thành công${url ? ` → ${url}` : ''}`);
+            } else if (job.status === 'FAILED') {
+              addPublishLog(`❌ ${chName}: Thất bại — ${job.error_msg || 'không rõ lỗi'}`);
+            }
+          }
+          // Phát hiện worker bắt đầu xử lý (queuePosition chuyển từ có số → null)
+          if (prevStatus === 'PENDING' && job.status === 'PENDING' && !wasQueueNull && nowQueueNull) {
+            addPublishLog(`▶ ${chName}: Worker bắt đầu xử lý...`);
+          }
+          prevJobQueueNullRef.current[job.id] = nowQueueNull;
+        }
+
         setPublishProgress(prev => {
           const newChannels = prev.channels.map(ch => {
-            const jobId = Object.entries(jobChannelMap).find(([, cid]) => cid === ch.id)?.[0];
+            const jobId = Object.entries(jobChannelMapRef.current).find(([, cid]) => cid === ch.id)?.[0];
             if (!jobId) return ch;
             const job = jobs.find(j => j.id === jobId);
             if (!job) return ch;
-
-            if (job.status === 'COMPLETED') return { ...ch, status: 'success' as const, queuePosition: null };
+            if (job.status === 'COMPLETED') {
+            const r = job.result as Record<string, unknown> | null | undefined;
+            const postUrl = (typeof r?.url === 'string' ? r.url : typeof r?.videoId === 'string' ? `https://youtube.com/watch?v=${r.videoId}` : undefined);
+            return { ...ch, status: 'success' as const, queuePosition: null, postUrl };
+          }
             if (job.status === 'FAILED')    return { ...ch, status: 'fail' as const, error: job.error_msg ?? undefined, queuePosition: null };
-            // PENDING với queuePosition null → worker đang xử lý (claimed)
             const isProcessing = job.queuePosition === null;
-            return {
-              ...ch,
-              status: isProcessing ? 'posting' as const : 'pending' as const,
-              queuePosition: job.queuePosition,
-            };
+            return { ...ch, status: isProcessing ? 'posting' as const : 'pending' as const, queuePosition: job.queuePosition };
           });
           return { ...prev, channels: newChannels };
         });
 
-        // Dừng poll khi tất cả đã xong
         const allDone = jobs.every(j => j.status === 'COMPLETED' || j.status === 'FAILED' || j.status === 'CANCELLED');
+
+        // Cập nhật task chạy ngầm
+        const mainTaskId = `post-${activeJobIds[0]}`;
+        const completedCount = jobs.filter(j => j.status === 'COMPLETED' || j.status === 'FAILED').length;
+        const totalCount = jobs.length;
+        const totalProgress = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+
+        updateTask(mainTaskId, {
+          progress: totalProgress,
+          status: allDone ? (jobs.some(j => j.status === 'FAILED') ? 'error' : 'success') : 'processing',
+          message: t.compose.channelsDone(completedCount, totalCount),
+        });
+
         if (allDone) {
+          if (notifiedBatchRef.current === batchKey) return;
+          notifiedBatchRef.current = batchKey;
+          clearInterval(timer);
+
+          const successCount = jobs.filter(j => j.status === 'COMPLETED').length;
+          const failCount = jobs.filter(j => j.status === 'FAILED').length;
+          addPublishLog(`🏁 Hoàn tất: ${successCount} thành công, ${failCount} thất bại`);
           setActiveJobIds(null);
           setPublishing(false);
           setPublishProgress(prev => ({ ...prev, phase: 'done' }));
-          const allSuccess = jobs.every(j => j.status === 'COMPLETED');
-          if (allSuccess) {
-            toast.success('Đã đăng bài thành công!');
+          if (jobs.every(j => j.status === 'COMPLETED')) {
+            toast.success(t.compose.postSuccessAll);
             setMessage(''); setMediaUrls([]); setHashtags([]); setSelectedAccountIds([]);
           } else {
-            toast.error('Một số kênh đăng bài thất bại');
+            toast.error(t.compose.someFailed);
           }
         }
-      } catch { /* bỏ qua lỗi mạng tạm thời khi poll */ }
+      } catch (err: any) {
+        // Lỗi mạng tạm thời — log để debug, không dừng polling
+        addPublishLog(`⚠️ Poll lỗi: ${err?.message || 'network error'}`);
+      }
     };
 
-    poll(); // gọi ngay 1 lần
-    const timer = setInterval(poll, 3000);
-    return () => clearInterval(timer);
+    poll();
+    timer = setInterval(poll, 2000);
+
+    return () => {
+      clearInterval(timer);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeJobIds]);
 
+  // Cảnh báo người dùng nếu họ định đóng/f5 trang khi đang có tác vụ chạy ngầm
+  useEffect(() => {
+    const hasActiveTasks = tasks.some(t => t.status === 'uploading' || t.status === 'processing' || t.status === 'pending');
+    if (!hasActiveTasks) return;
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = t.compose.beforeUnloadWarning;
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [tasks]);
 
-    setUploadingMedia(true);
-    try {
-      const { socialApi: api } = await import('@/lib/api/social');
-      const uploaded = await api.upload.media(Array.from(files));
-      const newUrls = uploaded.map((u: any) => u.url);
-      setMediaUrls(prev => Array.from(new Set([...prev, ...newUrls])));
-      if (postMode === 'text') setPostMode('image');
-      toast.success(`Đã upload ${newUrls.length} file`);
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Upload thất bại');
-    } finally {
-      setUploadingMedia(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
 
   const handlePublish = async () => {
     if (activeTab === 'draft') {
-      if (!message.trim() && mediaUrls.length === 0) return toast.error('Vui lòng nhập nội dung trước khi lưu nháp');
+      if (!message.trim() && mediaUrls.length === 0) return toast.error(t.compose.enterContentBeforeDraft);
       const hashtagStr = hashtags.map(h => `#${h}`).join(' ');
       const fullMessage = message.trim() + (hashtagStr ? `\n\n${hashtagStr}` : '');
       try {
-        await socialApi.drafts.create({ message: fullMessage, mediaUrls: mediaUrls.length ? mediaUrls : undefined });
+        await socialApi.drafts.create({ message: fullMessage, mediaUrls: mediaUrls.length ? mediaUrls : undefined, thumbUrl: thumbUrl || undefined });
         const updated = await socialApi.drafts.list();
         setDrafts(updated);
-        toast.success('Đã lưu nháp!');
+        toast.success(t.compose.draftSaved);
         setMessage('');
         setMediaUrls([]);
         setHashtags([]);
       } catch (err: any) {
-        toast.error(err.response?.data?.message || 'Lưu nháp thất bại');
+        toast.error(err.response?.data?.message || t.compose.draftSaveFailed);
       }
       return;
     }
 
-    if (selectedAccountIds.length === 0) return toast.error('Vui lòng chọn ít nhất một kênh');
-    if (!message.trim() && mediaUrls.length === 0) return toast.error('Vui lòng nhập nội dung');
-    if (hashtags.length === 0) return toast.error('🏷️ Vui lòng thêm ít nhất 1 hashtag');
+    if (selectedAccountIds.length === 0) return toast.error(t.compose.selectAtLeastOneChannel);
+    if (!message.trim() && mediaUrls.length === 0) return toast.error(t.compose.enterContent);
+    if (hashtags.length === 0) return toast.error(t.compose.addAtLeastOneHashtag);
 
     const isScheduling = activeTab === 'schedule';
     if (isScheduling) {
-      if (!scheduledAt) return toast.error('Vui lòng chọn thời gian đặt lịch');
+      if (!scheduledAt) return toast.error(t.compose.selectScheduleTime);
       const scheduledDate = new Date(scheduledAt);
-      if (isNaN(scheduledDate.getTime())) return toast.error('Thời gian đặt lịch không hợp lệ');
-      if (scheduledDate <= new Date()) return toast.error('Thời gian đặt lịch phải ở tương lai');
+      if (isNaN(scheduledDate.getTime())) return toast.error(t.compose.invalidScheduleTime);
+      if (scheduledDate <= new Date()) return toast.error(t.compose.scheduleTimeMustBeFuture);
     }
 
     const hashtagStr = hashtags.map(h => `#${h}`).join(' ');
@@ -428,6 +556,12 @@ export default function ComposePage() {
     setPostingPcts({});
     setPublishStartedAt(Date.now());
     setElapsedSeconds(0);
+    setPublishLogs([]);
+    prevJobStatusRef.current = {};
+    prevJobQueueNullRef.current = {};
+    const channelInfoMap: Record<string, { name: string; platform: string }> = {};
+    channelList.forEach(ch => { channelInfoMap[ch.id] = { name: ch.name, platform: ch.platform }; });
+    channelInfoRef.current = channelInfoMap;
     setPublishProgress({ show: true, phase: 'publishing', uploadPct: 100, channels: initialChannels });
     setPublishing(true);
 
@@ -446,6 +580,7 @@ export default function ComposePage() {
             mediaUrls: mediaUrls.length ? mediaUrls : undefined,
             scheduledAt: new Date(scheduledAt).toISOString(),
             privacy,
+            thumbUrl: thumbUrl || undefined,
           });
           results[i] = { ...results[i], status: 'success' };
         } catch (err: any) {
@@ -457,25 +592,46 @@ export default function ComposePage() {
       setPublishing(false);
       setPublishProgress(prev => ({ ...prev, phase: 'done' }));
       if (allOk) {
-        toast.success('Đã đặt lịch tất cả!');
+        toast.success(t.compose.allScheduled);
         setMessage(''); setMediaUrls([]); setHashtags([]); setSelectedAccountIds([]);
       } else {
-        toast.error('Một số kênh đặt lịch thất bại');
+        toast.error(t.compose.someScheduleFailed);
       }
       return;
     }
 
     // ── Đăng ngay: enqueue toàn bộ → poll từng 3 giây ────────────────────────
     try {
-      const jobs = channelList.map(ch => ({
-        accountId:  ch.id,
-        platform:   ch.platform as any,
-        message:    fullMessage,
-        mediaUrls:  mediaUrls.length ? mediaUrls : undefined,
-        privacy,
-      }));
+      const jobs = channelList.map(ch => {
+        // Dùng nội dung riêng per-platform nếu có
+        const platformMsg = perPlatformMode && perPlatformMessages[ch.platform as SocialPlatform]
+          ? perPlatformMessages[ch.platform as SocialPlatform]! + (hashtags.length ? `\n\n${hashtags.map(h => `#${h}`).join(' ')}` : '')
+          : fullMessage;
+        return {
+          accountId: ch.id,
+          platform:  ch.platform as any,
+          message:   platformMsg,
+          mediaUrls: mediaUrls.length ? mediaUrls : undefined,
+          privacy,
+          thumbUrl:  thumbUrl || undefined,
+        };
+      });
 
+      addPublishLog(`📤 Đang gửi ${jobs.length} bài lên hàng chờ...`);
       const { jobIds } = await socialApi.queue.enqueue(jobs);
+      addPublishLog(`✅ Đã vào hàng chờ (${jobIds.length} jobs)`);
+      jobIds.forEach((id, i) => {
+        addPublishLog(`  • Job ${i + 1}: ${channelList[i]?.name} — ID ${id.slice(0, 8)}...`);
+      });
+
+      // Thêm vào background task manager
+      addTask({
+        id: `post-${jobIds[0]}`,
+        name: t.compose.postingTaskName(message.slice(0, 20)),
+        status: 'pending',
+        progress: 0,
+        type: 'post'
+      });
 
       // Map jobId → channelId để polling effect có thể đối chiếu
       const idMap: Record<string, string> = {};
@@ -483,21 +639,26 @@ export default function ComposePage() {
       setJobChannelMap(idMap);
       setActiveJobIds(jobIds); // kích hoạt polling effect
 
-      toast.success(`Đã thêm ${jobIds.length} bài vào hàng chờ — đang xử lý...`);
+      toast.success(t.compose.addedToQueue(jobIds.length));
     } catch (err: any) {
+      const errMsg = err.response?.data?.message || err.message || t.compose.unknownError;
+      addPublishLog(`❌ Enqueue thất bại: ${errMsg}`);
       setPublishing(false);
       setPublishProgress(prev => ({ ...prev, phase: 'done' }));
-      toast.error(err.response?.data?.message || 'Không thêm được vào hàng chờ');
+      toast.error(errMsg);
     }
   };
 
   const selectDraft = (draft: any) => {
     // Tách hashtag ra khỏi nội dung nếu có
-    const parts = draft.message.split('\n\n');
+    const parts = (draft.message || '').split('\n\n');
     const lastPart = parts[parts.length - 1];
-    
+
     if (lastPart && lastPart.startsWith('#')) {
-      const foundTags = lastPart.split(' ').map((t: string) => t.replace('#', ''));
+      const foundTags = lastPart
+        .split(/\s+/)
+        .map((t: string) => t.replace(/^#+/, ''))
+        .filter(Boolean); // loại bỏ empty strings từ trailing spaces
       setHashtags(foundTags);
       setMessage(parts.slice(0, -1).join('\n\n'));
     } else {
@@ -507,50 +668,93 @@ export default function ComposePage() {
     
     setMediaUrls(draft.media_urls || []);
     if (draft.media_urls?.length > 0) setPostMode('image');
+    setThumbUrl(draft.thumb_url || '');
     setShowDraftsModal(false);
-    toast.success('Đã nạp bản nháp');
+    toast.success(t.compose.draftLoaded);
   };
 
   if (!mounted) return null;
 
+  // Helper: render media preview (xử lý cả Drive URL lẫn local URL)
+  const renderMediaPreview = (url: string, className: string, videoProps?: { controls?: boolean; autoPlay?: boolean; loop?: boolean }) => {
+    if (!url) return null;
+    const driveId = url.includes('drive.google.com')
+      ? (url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || url.match(/[?&]id=([a-zA-Z0-9_-]+)/))?.[1]
+      : null;
+    if (!driveId && /\.(mp4|mov|avi|mkv|webm)$/i.test(url)) {
+      return <video src={url} className={className} muted {...videoProps} />;
+    }
+    const src = driveId ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w400` : url;
+    return <img src={src} alt="" className={className} onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }} />;
+  };
+
   return (
-    <div className="flex flex-col h-screen bg-slate-50 font-sans overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-112px)] lg:h-screen bg-slate-50 font-sans overflow-hidden">
       
       {/* TOP HEADER */}
       <motion.div 
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="bg-white px-6 pt-3 border-b border-slate-200 flex-shrink-0 z-20 shadow-sm"
+        className="bg-white px-4 lg:px-6 pt-3 border-b border-slate-200 flex-shrink-0 z-20 shadow-sm overflow-x-auto scrollbar-none"
       >
-        <div className="text-[13px] text-slate-500 mb-2 font-medium flex items-center gap-2">
-          <span>Viết bài</span>
-          <span className="text-[10px] opacity-60">❯</span>
-          <span className="text-slate-900 font-bold">Đăng thường</span>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
+          <div className="text-[13px] text-slate-500 font-medium flex items-center gap-2 shrink-0">
+            <span>{t.compose.breadcrumbWrite}</span>
+            <span className="text-[10px] opacity-60">❯</span>
+            <span className="text-slate-900 font-bold">{t.compose.breadcrumbNormalPost}</span>
+          </div>
+
+          {/* Mobile Tabs */}
+          <div className="flex lg:hidden bg-slate-100 rounded-lg p-1 shrink-0 self-start sm:self-auto">
+            <button
+              onClick={() => setMobileTab('CHANNELS')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${mobileTab === 'CHANNELS' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
+            >{t.compose.tabChannels}</button>
+            <button
+              onClick={() => setMobileTab('EDITOR')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${mobileTab === 'EDITOR' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
+            >{t.compose.tabEditor}</button>
+            <button
+              onClick={() => setMobileTab('PREVIEW')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${mobileTab === 'PREVIEW' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
+            >{t.compose.tabPreview}</button>
+          </div>
         </div>
+
         <div className="flex gap-8 text-sm font-bold text-slate-600">
-          <button className="text-blue-600 border-b-2 border-blue-600 pb-2.5 -mb-[1px] relative">
-            Đăng bài
-            <motion.div layoutId="topTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
-          </button>
-          <button className="hover:text-slate-900 pb-2.5 transition-colors">Tùy chỉnh</button>
-          <button className="hover:text-slate-900 pb-2.5 transition-colors">Chủ đề</button>
-          <button className="hover:text-slate-900 pb-2.5 transition-colors">Xem trước</button>
+          {[
+            { id: 'publish',   label: t.compose.topTabPublish },
+            { id: 'customize', label: t.compose.topTabCustomize },
+          ].map(tt => (
+            <button
+              key={tt.id}
+              onClick={() => setTopTab(tt.id as any)}
+              className={`pb-2.5 -mb-[1px] relative transition-colors ${topTab === tt.id ? 'text-blue-600' : 'hover:text-slate-900'}`}
+            >
+              {tt.label}
+              {topTab === tt.id && (
+                <motion.div layoutId="topTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
+              )}
+            </button>
+          ))}
+          <button className="hover:text-slate-900 pb-2.5 transition-colors">{t.compose.topTabTopic}</button>
+          <button className="hidden lg:block hover:text-slate-900 pb-2.5 transition-colors">{t.compose.topTabPreview}</button>
         </div>
       </motion.div>
 
       {/* MAIN LAYOUT */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-col lg:flex-row flex-1 overflow-y-auto lg:overflow-hidden relative">
         
         {/* COLUMN 1: Kênh đăng bài — có thể kéo để đổi width */}
         <motion.div
           initial={{ x: -20, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
-          className="relative bg-white border-r border-slate-200 flex flex-col flex-shrink-0 z-10 shadow-sm"
-          style={{ width: sidebarWidth, minWidth: 200, maxWidth: 480 }}
+          className={`${mobileTab === 'CHANNELS' ? 'flex flex-1 w-full' : 'hidden'} lg:flex relative bg-white lg:border-r border-slate-200 flex-col flex-shrink-0 z-10 shadow-sm lg:w-[var(--sidebar-width)] lg:min-w-[200px] lg:max-w-[480px]`}
+          style={{ '--sidebar-width': `${sidebarWidth}px` } as any}
         >
           <div className="p-4 border-b border-slate-100 bg-slate-50/30">
             <div className="flex justify-between items-center mb-5">
-              <h3 className="font-extrabold text-slate-800 text-sm">Kênh đăng bài</h3>
+              <h3 className="font-extrabold text-slate-800 text-sm">{t.compose.channelsTitle}</h3>
               <div className="flex items-center gap-2.5">
                 <motion.span 
                   key={selectedAccountIds.length}
@@ -563,7 +767,7 @@ export default function ComposePage() {
                 <motion.button 
                   whileHover={{ rotate: 180 }}
                   transition={{ duration: 0.4 }}
-                  onClick={() => socialApi.accounts.list().then(setAccounts)}
+                  onClick={() => invalidateAccounts()}
                   className="text-slate-400 hover:text-slate-600"
                 >
                   <RefreshCw className="w-4 h-4" />
@@ -573,14 +777,14 @@ export default function ComposePage() {
             
             <div className="mb-5">
               <div className="text-[10px] font-bold text-slate-500 flex items-center gap-1.5 mb-2.5 tracking-wider">
-                <div className="w-1.5 h-3.5 bg-blue-500 rounded-full"></div> CHẾ ĐỘ ĐĂNG
+                <div className="w-1.5 h-3.5 bg-blue-500 rounded-full"></div> {t.compose.postModeLabel}
               </div>
               <div className="grid grid-cols-2 gap-2.5">
                 {[
-                  { id: 'text', icon: Type, label: 'Chữ' },
-                  { id: 'image', icon: ImageIcon, label: 'Ảnh' },
-                  { id: 'video_vertical', icon: Smartphone, label: 'Video Dọc' },
-                  { id: 'video_horizontal', icon: Monitor, label: 'Video Ngang' }
+                  { id: 'text', icon: Type, label: t.compose.modeText },
+                  { id: 'image', icon: ImageIcon, label: t.compose.modeImage },
+                  { id: 'video_vertical', icon: Smartphone, label: t.compose.modeVideoVertical },
+                  { id: 'video_horizontal', icon: Monitor, label: t.compose.modeVideoHorizontal }
                 ].map(mode => (
                   <motion.button 
                     key={mode.id}
@@ -603,7 +807,7 @@ export default function ComposePage() {
               <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input 
                 type="text" 
-                placeholder="Tìm kiếm kênh..." 
+                placeholder={t.compose.searchChannelsPlaceholder}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full border border-slate-200 rounded-lg pl-10 pr-4 py-2.5 text-[13px] focus:outline-none focus:border-blue-500 shadow-inner" 
@@ -613,13 +817,32 @@ export default function ComposePage() {
             <div className="border-t border-slate-200 pt-4">
               <div className="flex justify-between items-center mb-3">
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-tight flex items-center gap-1.5">
-                   <Layers className="w-3 h-3" /> Nhóm tùy chỉnh:
+                   <Layers className="w-3 h-3" /> {t.compose.customGroupsLabel}
                 </span>
-                <button onClick={saveCurrentSelectionAsGroup} className="text-blue-600 text-[11px] font-bold hover:underline">+ Lưu nhóm</button>
+                {showGroupNameInput ? (
+                  <div className="flex items-center gap-1">
+                    <input
+                      autoFocus
+                      type="text"
+                      value={groupNameValue}
+                      onChange={e => setGroupNameValue(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') saveCurrentSelectionAsGroup();
+                        if (e.key === 'Escape') { setGroupNameValue(''); setShowGroupNameInput(false); }
+                      }}
+                      placeholder={t.compose.groupNamePlaceholder}
+                      className="border border-blue-300 rounded-lg px-2 py-0.5 text-[11px] text-slate-700 outline-none focus:border-blue-500 w-28"
+                    />
+                    <button onClick={saveCurrentSelectionAsGroup} className="text-green-600 hover:text-green-700"><Check className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => { setGroupNameValue(''); setShowGroupNameInput(false); }} className="text-slate-400 hover:text-slate-600"><X className="w-3.5 h-3.5" /></button>
+                  </div>
+                ) : (
+                  <button onClick={() => setShowGroupNameInput(true)} className="text-blue-600 text-[11px] font-bold hover:underline">{t.compose.saveGroup}</button>
+                )}
               </div>
               <div className="flex flex-wrap gap-2">
                 {channelGroups.length === 0 && (
-                  <span className="text-[10px] text-slate-400 italic">Chưa có nhóm nào.</span>
+                  <span className="text-[10px] text-slate-400 italic">{t.compose.noGroupsYet}</span>
                 )}
                 {channelGroups.map(g => (
                   <motion.div 
@@ -650,7 +873,7 @@ export default function ComposePage() {
             variants={containerVariants}
             initial="hidden"
             animate="visible"
-            className="flex-1 overflow-y-auto p-3 space-y-6 scrollbar-thin scrollbar-thumb-slate-200"
+            className="flex-1 overflow-y-auto p-3 space-y-6 scrollbar-thin scrollbar-thumb-slate-200 max-h-none"
           >
             {(Object.entries(platformGroups) as [string, SocialAccount[]][]).map(([platform, groupAccounts]) => {
               const meta = PLATFORM_META[platform as SocialPlatform] || PLATFORM_META.FACEBOOK;
@@ -659,7 +882,7 @@ export default function ComposePage() {
                   <div className="px-3 flex items-center gap-2">
                     <div className={`w-1 h-3 rounded-full ${meta.color}`} />
                     <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                      Tài khoản {platform}
+                      {t.compose.accountsOfPlatform(platform)}
                     </h4>
                   </div>
                   <div className="space-y-1">
@@ -671,14 +894,20 @@ export default function ComposePage() {
                           // For now, let's allow selection of anything that isn't a root FB/IG account IF that account is just a profile.
                           const hasChildren = accounts.some(a => a.parent_id === account.id);
                           const isPersonalRoot = !isChild && hasChildren && (account.platform === 'FACEBOOK' || account.platform === 'INSTAGRAM');
-                          
+                          // Kênh có tồn tại/kết nối nhưng platform không hỗ trợ dạng bài đang chọn
+                          // (vd Instagram không đăng được post 'text' thuần) — vẫn hiện, chỉ disable,
+                          // để không trông như "chưa kết nối" khi chỉ là không hợp dạng bài hiện tại.
+                          const isModeUnsupported = !isPlatformModeSupported(account.platform || '', postMode);
+                          const isDisabled = isPersonalRoot || isModeUnsupported;
+
                           return (
-                            <motion.div 
+                            <motion.div
                               variants={itemVariants}
-                              key={account.id} 
-                              onClick={() => !isPersonalRoot && toggleAccount(account.id)} 
-                              whileHover={!isPersonalRoot ? { x: 4, backgroundColor: 'rgba(241, 245, 249, 0.4)' } : {}}
-                              className={`flex items-center gap-3 p-3 rounded-xl transition-all border relative ${isChild ? 'ml-6' : ''} ${isSelected ? 'bg-blue-50/50 border-blue-200 ring-1 ring-blue-100' : 'bg-white border-transparent'} ${isPersonalRoot ? 'opacity-40 grayscale cursor-not-allowed' : 'cursor-pointer'}`}
+                              key={account.id}
+                              onClick={() => !isDisabled && toggleAccount(account.id)}
+                              whileHover={!isDisabled ? { x: 4, backgroundColor: 'rgba(241, 245, 249, 0.4)' } : {}}
+                              title={isModeUnsupported ? t.compose.unsupportedForMode : undefined}
+                              className={`flex items-center gap-3 p-3 rounded-xl transition-all border relative ${isChild ? 'ml-6' : ''} ${isSelected ? 'bg-blue-50/50 border-blue-200 ring-1 ring-blue-100' : 'bg-white border-transparent'} ${isDisabled ? 'opacity-40 grayscale cursor-not-allowed' : 'cursor-pointer'}`}
                             >
                               {/* Visual connector for child accounts */}
                               {isChild && (
@@ -692,7 +921,7 @@ export default function ComposePage() {
                                 {account.avatar_url ? (
                                   <img src={account.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
                                 ) : meta.emoji}
-                                
+
                                 {isChild && (
                                   <div className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border border-white flex items-center justify-center text-[7px] ${meta.color}`}>
                                     {meta.emoji}
@@ -703,13 +932,23 @@ export default function ComposePage() {
                                 <p className="text-sm font-bold text-slate-800 truncate">{account.name}</p>
                                 {isChild && (
                                   <div className="flex items-center gap-1 text-[10px] text-slate-400 font-medium mt-0.5 uppercase tracking-tighter">
-                                    {account.platform === 'INSTAGRAM' ? 'IG Business' : 'Fanpage'}
+                                    {account.platform === 'INSTAGRAM' ? t.compose.igBusiness : t.compose.fanpage}
+                                  </div>
+                                )}
+                                {isModeUnsupported && (
+                                  <div className="text-[10px] text-amber-500 font-semibold mt-0.5">
+                                    {t.compose.unsupportedForMode}
+                                  </div>
+                                )}
+                                {account.token_expires_soon && (
+                                  <div className="text-[10px] text-amber-500 font-semibold mt-0.5">
+                                    {t.compose.tokenExpiresIn(account.token_expires_in_days ?? 0)}
                                   </div>
                                 )}
                               </div>
-                              {!isPersonalRoot && (
-                                <motion.div 
-                                  animate={{ 
+                              {!isDisabled && (
+                                <motion.div
+                                  animate={{
                                     backgroundColor: isSelected ? '#2563eb' : '#ffffff',
                                     borderColor: isSelected ? '#2563eb' : '#cbd5e1',
                                     scale: isSelected ? [1, 1.2, 1] : 1
@@ -730,7 +969,7 @@ export default function ComposePage() {
             {filteredAccounts.length === 0 && (
               <div className="text-center py-10 px-5 opacity-60">
                 <AlertCircle className="w-8 h-8 mx-auto mb-3 text-slate-300" />
-                <p className="text-sm italic text-slate-500">Không tìm thấy kênh phù hợp</p>
+                <p className="text-sm italic text-slate-500">{t.compose.noMatchingChannels}</p>
               </div>
             )}
           </motion.div>
@@ -738,8 +977,8 @@ export default function ComposePage() {
           {/* Drag handle — kéo để resize sidebar */}
           <div
             onMouseDown={onDragHandleMouseDown}
-            title="Kéo để điều chỉnh độ rộng"
-            className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize z-20 group flex items-center justify-center"
+            title={t.compose.dragToResize}
+            className="hidden lg:flex absolute top-0 right-0 h-full w-1.5 cursor-col-resize z-20 group items-center justify-center"
           >
             {/* Visual indicator */}
             <div className="h-12 w-1 rounded-full bg-slate-200 group-hover:bg-blue-400 group-active:bg-blue-500 transition-colors" />
@@ -747,20 +986,129 @@ export default function ComposePage() {
         </motion.div>
 
         {/* COLUMN 2: Editor */}
-        <div className="flex-1 overflow-y-auto bg-slate-50 p-6 flex flex-col gap-6 items-center scrollbar-none">
-          <motion.div 
+        <div className={`${mobileTab === 'EDITOR' ? 'flex flex-1 w-full' : 'hidden'} lg:flex lg:flex-1 overflow-y-visible lg:overflow-y-auto bg-slate-50 p-4 lg:p-6 flex-col gap-6 items-center scrollbar-none`}>
+
+          {/* ── Tab Tùy chỉnh ── */}
+          <AnimatePresence mode="wait">
+          {topTab === 'customize' && (
+            <motion.div
+              key="customize"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="w-full max-w-[800px]"
+            >
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
+                <h2 className="text-base font-bold text-slate-800">{t.compose.customizePostTitle}</h2>
+
+                {/* Ảnh bìa video */}
+                {(() => {
+                  const videoUrl = mediaUrls.find(u => /\.(mp4|mov|avi|mkv|webm)$/i.test(u) || u.includes('drive.google.com'));
+                  const isDriveVideo = !!videoUrl?.includes('drive.google.com');
+                  const driveLibraryId = videoUrl ? (mediaLibraryIds[videoUrl] || null) : null;
+                  if (!videoUrl) {
+                    return (
+                      <div className="flex flex-col items-center justify-center py-10 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl">
+                        <ImageIcon className="w-10 h-10 mb-3 text-slate-300" />
+                        <p className="text-sm font-semibold">{t.compose.noVideoYet}</p>
+                        <p className="text-xs mt-1">{t.compose.addVideoHintPrefix} <span className="font-bold text-blue-600 cursor-pointer" onClick={() => setTopTab('publish')}>{t.compose.addVideoHintTab}</span> {t.compose.addVideoHintSuffix}</p>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-sm font-bold text-slate-700 mb-1">{t.compose.thumbnailTitle}</p>
+                        <p className="text-xs text-slate-400">{t.compose.thumbnailDesc}</p>
+                      </div>
+
+                      <div className="flex gap-4 items-start flex-wrap">
+                        {/* Preview ảnh bìa đã chọn */}
+                        <div className="relative flex-shrink-0">
+                          {thumbUrl ? (
+                            <div className="relative group">
+                              <img
+                                src={thumbUrl}
+                                alt={t.compose.thumbnailAlt}
+                                className="w-40 h-24 object-cover rounded-xl border-2 border-blue-400 shadow-md"
+                              />
+                              <button
+                                onClick={() => setThumbUrl('')}
+                                className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                              <div className="absolute bottom-1 left-1 right-1 text-center">
+                                <span className="text-[10px] bg-black/60 text-white px-2 py-0.5 rounded-full font-bold">{t.compose.thumbnailSelected}</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="w-40 h-24 bg-slate-100 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400">
+                              <ImageIcon className="w-6 h-6 mb-1" />
+                              <span className="text-[10px] font-semibold">{t.compose.thumbnailNotChosen}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Các nút chọn ảnh bìa */}
+                        <div className="flex flex-col gap-2 flex-1">
+                          <button
+                            onClick={() => setShowFramePicker(true)}
+                            disabled={isDriveVideo && !driveLibraryId}
+                            className="flex items-center gap-2.5 px-4 py-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-sm font-bold text-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                            title={isDriveVideo && !driveLibraryId ? t.compose.driveVideoNoLibraryId : undefined}
+                          >
+                            <Film className="w-4 h-4" />
+                            {t.compose.chooseFrameFromVideo}
+                            {isDriveVideo && <span className="text-[10px] font-normal text-blue-500 ml-1">{t.compose.serverSide}</span>}
+                          </button>
+                          <button
+                            onClick={() => { setLibraryMode('thumb'); setShowLibrary(true); }}
+                            className="flex items-center gap-2.5 px-4 py-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 transition-colors"
+                          >
+                            <ImageIcon className="w-4 h-4" />
+                            {t.compose.chooseImageFromLibrary}
+                          </button>
+                          {thumbUrl && (
+                            <button
+                              onClick={() => setThumbUrl('')}
+                              className="flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-red-500 hover:text-red-700 transition-colors"
+                            >
+                              <X className="w-3.5 h-3.5" /> {t.compose.removeThumbnail}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* VideoFramePicker modal */}
+                      <VideoFramePicker
+                        videoUrl={videoUrl}
+                        mediaLibraryId={driveLibraryId || undefined}
+                        open={showFramePicker}
+                        onClose={() => setShowFramePicker(false)}
+                        onConfirm={(url) => { setThumbUrl(url); setShowFramePicker(false); }}
+                      />
+                    </div>
+                  );
+                })()}
+              </div>
+            </motion.div>
+          )}
+          </AnimatePresence>
+
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="w-full max-w-[800px] flex flex-col gap-6"
+            className={`w-full max-w-[800px] flex flex-col gap-6 ${topTab === 'customize' ? 'hidden' : ''}`}
           >
-            
+
             {/* Top Action Bar */}
-            <div className="flex justify-between items-center w-full">
-              <div className="flex bg-white rounded-xl border border-slate-200 p-1 shadow-sm relative">
+            <div className="flex flex-col md:flex-row justify-between items-center w-full gap-4">
+              <div className="flex bg-white rounded-xl border border-slate-200 p-1 shadow-sm relative w-full md:w-auto overflow-x-auto scrollbar-none">
                 {[
-                  { id: 'publish', label: 'Đăng ngay' },
-                  { id: 'schedule', label: 'Đặt lịch' },
-                  { id: 'draft', label: 'Lưu nháp' }
+                  { id: 'publish', label: t.compose.tabPublishNow },
+                  { id: 'schedule', label: t.compose.tabSchedule },
+                  { id: 'draft', label: t.compose.tabDraft }
                 ].map(tab => (
                   <button 
                     key={tab.id}
@@ -768,7 +1116,6 @@ export default function ComposePage() {
                       setActiveTab(tab.id as any);
                       if (tab.id === 'publish') setScheduleMode('now');
                       else if (tab.id === 'schedule') setScheduleMode('schedule');
-                      else if (tab.id === 'queue') setScheduleMode('queue');
                     }} 
                     className={`px-5 py-2 rounded-lg text-[13px] font-bold transition-all relative z-10 ${activeTab === tab.id ? 'text-blue-600' : 'text-slate-600 hover:text-slate-800'}`}
                   >
@@ -779,9 +1126,13 @@ export default function ComposePage() {
                   </button>
                 ))}
               </div>
-              <div className="flex items-center gap-3">
-                <motion.button whileHover={{ scale: 1.02 }} onClick={() => setShowDraftsModal(true)} className="flex items-center gap-2 px-5 py-2.5 border border-slate-200 rounded-xl bg-white text-slate-700 text-[13px] font-bold shadow-sm">
-                  <Save className="w-4 h-4" /> Nháp ({drafts.length})
+              <div className="flex flex-wrap items-center justify-end gap-3 w-full md:w-auto">
+                <motion.button whileHover={{ scale: 1.02 }} onClick={() => {
+                  setShowDraftsModal(true);
+                  // Lazy load drafts khi user thực sự mở modal
+                  if (drafts.length === 0) socialApi.drafts.list().then(setDrafts).catch(() => {});
+                }} className="flex items-center gap-2 px-5 py-2.5 border border-slate-200 rounded-xl bg-white text-slate-700 text-[13px] font-bold shadow-sm">
+                  <Save className="w-4 h-4" /> {t.compose.draftsButton(drafts.length)}
                 </motion.button>
                 <div className="flex shadow-sm rounded-xl overflow-hidden">
                   <motion.button 
@@ -790,7 +1141,7 @@ export default function ComposePage() {
                     disabled={publishing} 
                     className="px-6 py-2.5 bg-blue-600 text-white text-[13px] font-bold transition-colors disabled:opacity-50"
                   >
-                    {publishing ? <Loader2 className="w-4 h-4 animate-spin" /> : activeTab === 'schedule' ? 'Đặt lịch ngay' : activeTab === 'draft' ? 'Lưu nháp' : 'Đăng ngay'}
+                    {publishing ? <Loader2 className="w-4 h-4 animate-spin" /> : activeTab === 'schedule' ? t.compose.scheduleNowBtn : activeTab === 'draft' ? t.compose.saveDraftBtn : t.compose.publishNowBtn}
                   </motion.button>
                   <button className="px-3 py-2.5 bg-blue-700 text-white border-l border-blue-500"><ChevronDown className="w-4 h-4" /></button>
                 </div>
@@ -805,13 +1156,8 @@ export default function ComposePage() {
                 className="w-full bg-blue-50/50 border border-blue-100 rounded-2xl p-4 flex items-center justify-center gap-3 shadow-sm"
               >
                 <Clock className="w-4 h-4 text-blue-600" />
-                <span className="text-sm font-bold text-slate-700">Thời gian đặt lịch đăng bài:</span>
-                <input 
-                  type="datetime-local" 
-                  value={scheduledAt}
-                  onChange={e => setScheduledAt(e.target.value)}
-                  className="border border-blue-200 rounded-xl px-4 py-2 text-sm focus:ring-2 ring-blue-500/20 outline-none font-bold text-blue-700 bg-white"
-                />
+                <span className="text-sm font-bold text-slate-700">{t.compose.scheduledTimeLabel}</span>
+                <DateTimePicker24h value={scheduledAt} onChange={setScheduledAt} />
               </motion.div>
             )}
 
@@ -819,7 +1165,7 @@ export default function ComposePage() {
             <motion.div layout className="bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col shadow-sm focus-within:ring-2 ring-blue-500/20 transition-all">
               <textarea 
                 className="w-full h-48 p-5 resize-none outline-none text-slate-800 placeholder:text-slate-400 text-sm leading-relaxed"
-                placeholder="Hôm nay bạn muốn chia sẻ điều gì?..."
+                placeholder={t.compose.messagePlaceholder}
                 value={message}
                 onChange={e => setMessage(e.target.value)}
               />
@@ -828,8 +1174,16 @@ export default function ComposePage() {
                   <button className="text-slate-400 hover:text-amber-500 transition-colors"><Smile className="w-5 h-5" /></button>
                   <button className="text-slate-400 hover:text-red-500 transition-colors"><MapPin className="w-5 h-5" /></button>
                   <button className="flex items-center gap-1.5 text-slate-600 text-[13px] font-bold bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-full">
-                    <Globe className="w-4 h-4" /> Công khai
+                    <Globe className="w-4 h-4" /> {t.compose.public}
                   </button>
+                  <TemplateManager
+                    currentMessage={message}
+                    currentHashtags={hashtags}
+                    onApply={(text, tags) => {
+                      setMessage(text);
+                      if (tags.length) setHashtags(prev => Array.from(new Set([...prev, ...tags])));
+                    }}
+                  />
                   <motion.button
                     onClick={handleAiOptimize}
                     disabled={isAiProcessing}
@@ -838,7 +1192,7 @@ export default function ComposePage() {
                     className="flex items-center gap-1.5 text-white bg-gradient-to-r from-fuchsia-600 to-purple-600 px-4 py-1.5 rounded-full text-[13px] font-bold shadow-sm disabled:opacity-70"
                   >
                     {isAiProcessing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                    {isAiProcessing ? 'Đang tối ưu...' : 'AI Tối ưu nội dung'}
+                    {isAiProcessing ? t.compose.aiOptimizing : t.compose.aiOptimize}
                   </motion.button>
                 </div>
                 <div className="flex items-center gap-2">
@@ -854,84 +1208,93 @@ export default function ComposePage() {
                     return overLimit.length > 0 ? (
                       <span className="text-[11px] text-red-500 font-bold flex items-center gap-1">
                         <AlertCircle className="w-3.5 h-3.5" />
-                        Quá giới hạn: {overLimit.map(a => a!.platform).join(', ')}
+                        {t.compose.overLimit(overLimit.map(a => a!.platform).join(', '))}
                       </span>
                     ) : null;
                   })()}
                   <div className={`text-[11px] font-bold uppercase ${message.length > 500 ? 'text-amber-500' : 'text-slate-400'}`}>
-                    {message.length} ký tự
+                    {t.compose.charCount(message.length)}
                   </div>
                 </div>
               </div>
             </motion.div>
 
-            {/* Ported: Hashtag Helper */}
-            <motion.div layout className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
-              <div className="flex items-center justify-between">
-                 <div className="flex items-center gap-2">
-                    <div className={`p-1.5 rounded-lg ${hashtags.length === 0 ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-600'}`}>
-                       <Hash className="w-4 h-4" />
-                    </div>
-                    <span className="text-slate-800 font-extrabold text-[13px]">Hashtag Mục tiêu *</span>
-                 </div>
-                 <button onClick={addSuggestedHashtag} className="text-blue-600 text-xs font-bold hover:underline">+ Thêm gợi ý</button>
-              </div>
-              
-              <div className="flex flex-wrap gap-2 p-3 bg-slate-50/50 rounded-xl border border-slate-100 min-h-[48px]">
-                {hashtags.map(tag => (
-                  <span key={tag} className="flex items-center gap-1.5 bg-white border border-blue-100 text-blue-600 text-[11px] font-bold px-2.5 py-1 rounded-lg shadow-sm">
-                    #{tag}
-                    <X onClick={() => removeHashtag(tag)} className="w-3 h-3 hover:text-red-500 cursor-pointer" />
-                  </span>
-                ))}
-                <input 
-                  type="text" 
-                  placeholder={hashtags.length === 0 ? "Nhập hashtag và nhấn Space..." : "Thêm..."}
-                  value={hashtagInput}
-                  onChange={e => setHashtagInput(e.target.value)}
-                  onKeyDown={handleHashtagKeyDown}
-                  className="flex-1 bg-transparent border-none outline-none text-[13px] text-slate-700 min-w-[100px]"
-                />
-              </div>
-
-              <div className="space-y-2">
-                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Gợi ý nhanh:</span>
-                 <div className="flex flex-wrap gap-2">
-                    {suggestedHashtags.map(tag => (
-                      <div key={tag} className="relative group">
-                        <button 
-                          onClick={() => addHashtag(tag)}
-                          disabled={hashtags.includes(tag)}
-                          className={`px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-all ${hashtags.includes(tag) ? 'bg-slate-100 border-slate-100 text-slate-300' : 'bg-white border-slate-200 text-slate-600 hover:border-blue-400 hover:text-blue-600 shadow-sm'}`}
-                        >
-                          #{tag}
-                        </button>
-                        {!hashtags.includes(tag) && (
-                          <X 
-                            onClick={(e) => removeSuggestedHashtag(tag, e)} 
-                            className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-all cursor-pointer shadow-sm"
-                          />
-                        )}
-                      </div>
-                    ))}
-                 </div>
-              </div>
-            </motion.div>
+            <HashtagPanel
+              hashtags={hashtags}
+              suggestedHashtags={suggestedHashtags}
+              hashtagInput={hashtagInput}
+              onAdd={addHashtag}
+              onRemove={removeHashtag}
+              onInputChange={setHashtagInput}
+              onKeyDown={handleHashtagKeyDown}
+              onAddSuggested={addSuggestedHashtag}
+              onRemoveSuggested={removeSuggestedHashtag}
+            />
 
             {/* Upload Section */}
             <div className="space-y-4">
               {mediaUrls.length > 0 && (
                 <div className="flex flex-wrap gap-3">
                   {mediaUrls.map((url, i) => {
-                    const isVideo = /\.(mp4|mov|avi|mkv|webm)$/i.test(url);
+                    const isDrive = url.includes('drive.google.com');
+                    const isVideo = /\.(mp4|mov|avi|webm|mkv)$/i.test(url);
+                    const driveFileId = isDrive ? (url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || url.match(/[?&]id=([a-zA-Z0-9_-]+)/))?.[1] : null;
+                    const previewSrc = mediaThumbs[url]
+                      || (driveFileId ? `https://drive.google.com/thumbnail?id=${driveFileId}&sz=w300` : url);
+                    const isDragging = dragMediaIndex === i;
                     return (
-                      <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} key={i} className="relative w-24 h-24 rounded-xl overflow-hidden border border-slate-200 group">
-                        {isVideo ? (
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: isDragging ? 0.9 : 1, opacity: isDragging ? 0.5 : 1 }}
+                        key={i}
+                        draggable
+                        onDragStart={() => setDragMediaIndex(i)}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (dragMediaIndex === null || dragMediaIndex === i) return;
+                          const newUrls = [...mediaUrls];
+                          const [dragged] = newUrls.splice(dragMediaIndex, 1);
+                          newUrls.splice(i, 0, dragged);
+                          setMediaUrls(newUrls);
+                          setDragMediaIndex(null);
+                        }}
+                        onDragEnd={() => setDragMediaIndex(null)}
+                        className={`relative w-24 h-24 rounded-xl overflow-hidden border group cursor-grab active:cursor-grabbing transition-all ${
+                          isDragging ? 'border-blue-500 ring-2 ring-blue-300' : 'border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        {!isDrive && isVideo ? (
                           <video src={url} className="w-full h-full object-cover" muted />
+                        ) : isDrive && isVideo ? (
+                          <div className="relative w-full h-full bg-slate-800">
+                            <div className="absolute inset-0 flex items-center justify-center text-slate-500">
+                              <Film className="w-8 h-8" />
+                            </div>
+                            <img
+                              src={previewSrc}
+                              alt=""
+                              className="absolute inset-0 w-full h-full object-cover"
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                            />
+                          </div>
                         ) : (
-                          <img src={url} className="w-full h-full object-cover" />
+                          <img
+                            src={previewSrc}
+                            alt=""
+                            className="w-full h-full object-cover"
+                            onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }}
+                          />
                         )}
-                        <button onClick={() => setMediaUrls(p => p.filter((_, idx) => idx !== i))} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {/* Số thứ tự */}
+                        <div className="absolute top-1 left-1 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center text-white text-[9px] font-bold">
+                          {i + 1}
+                        </div>
+                        <button onClick={() => {
+                          const removed = mediaUrls[i];
+                          setMediaUrls(p => p.filter((_, idx) => idx !== i));
+                          if (thumbUrl && mediaThumbs[removed] && thumbUrl === mediaThumbs[removed]) setThumbUrl('');
+                        }} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                           <X className="w-3 h-3" />
                         </button>
                       </motion.div>
@@ -939,21 +1302,19 @@ export default function ComposePage() {
                   })}
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-4">
-                {/* Upload từ máy */}
+              {/* Chỉ còn Thư viện media — upload video trực tiếp trong modal thư viện */}
+              <div>
                 <motion.div
-                  whileHover={{ borderColor: '#3b82f6', backgroundColor: '#f8fafc' }}
-                  onClick={() => fileInputRef.current?.click()}
-                  className="bg-white border-2 border-dashed border-slate-300 rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer group shadow-sm"
+                  whileHover={{ borderColor: '#8b5cf6', backgroundColor: '#faf5ff' }}
+                  onClick={() => { setLibraryMode('media'); setShowLibrary(true); }}
+                  className="bg-white border-2 border-dashed border-slate-300 rounded-2xl p-10 flex flex-col items-center justify-center cursor-pointer group shadow-sm"
                 >
-                  <input type="file" ref={fileInputRef} onChange={handleFileSelect} multiple hidden />
-                  <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mb-3 text-slate-400 group-hover:text-blue-500 transition-all">
-                    {uploadingMedia ? <Loader2 className="w-6 h-6 animate-spin" /> : <UploadCloud className="w-6 h-6" />}
+                  <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mb-3 text-slate-400 group-hover:text-purple-500 transition-all group-hover:bg-purple-50">
+                    <Layers className="w-7 h-7" />
                   </div>
-                  <h4 className="text-sm font-bold text-slate-800 text-center">Tải từ máy tính</h4>
-                  <p className="text-xs text-slate-500 mt-1 text-center">Ảnh, Video tối đa 2GB</p>
+                  <h4 className="text-sm font-bold text-slate-800 text-center">{t.compose.chooseFromLibrary}</h4>
+                  <p className="text-xs text-slate-500 mt-1 text-center">{t.compose.chooseUploadedFile}</p>
                 </motion.div>
-
               </div>
             </div>
 
@@ -961,9 +1322,9 @@ export default function ComposePage() {
         </div>
 
         {/* COLUMN 3: Preview */}
-        <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} className="w-[380px] bg-white border-l border-slate-200 flex flex-col shrink-0 z-10">
-          <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/30">
-            <h3 className="font-extrabold text-slate-800 text-sm">Xem trước bài viết</h3>
+        <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} className={`${mobileTab === 'PREVIEW' ? 'flex flex-1 w-full' : 'hidden'} lg:flex lg:w-[380px] bg-white lg:border-l border-slate-200 flex-col shrink-0 z-10 lg:max-h-full`}>
+          <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row justify-between sm:items-center bg-slate-50/30 gap-3">
+            <h3 className="font-extrabold text-slate-800 text-sm">{t.compose.previewTitle}</h3>
             <div className="flex gap-2">
               {[
                 { 
@@ -992,15 +1353,6 @@ export default function ComposePage() {
                       <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.132 15.344c-.754.754-1.802 1.156-2.956 1.132-1.328-.027-2.454-.576-3.18-1.554-.645-.87-1.025-2.072-.754-3.414.281-1.385 1.054-2.401 2.193-2.88 1.01-.424 2.19-.286 3.125.367.625.434 1.077 1.066 1.258 1.758h.044c.055-.429.071-.857.049-1.286-.066-1.332-.733-2.522-1.884-3.351-1.228-.885-2.731-1.306-4.226-1.187-1.879.149-3.57 1.031-4.759 2.483C4.912 8.878 4.316 10.74 4.372 12.656c.112 3.842 3.14 6.942 6.981 7.142.923.048 1.841-.097 2.709-.431.547-.211.968-.588 1.218-1.09.208-.415.228-.87.054-1.312l-.028-.066zm-5.071-5.185c-.636.267-1.066.834-1.219 1.597-.134.664-.002 1.295.353 1.777.348.472.905.748 1.564.779.613.028 1.2-.178 1.572-.551.467-.468.653-1.173.524-1.99-.071-.444-.27-.852-.577-1.18-.328-.352-.771-.532-1.257-.532-.321-.001-.643.033-.96.1z"/>
                     </svg>
                   )
-                },
-                { 
-                  id: 'TIKTOK', 
-                  color: 'bg-black', 
-                  icon: (
-                    <svg className="w-3.5 h-3.5 fill-white" viewBox="0 0 24 24">
-                      <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.06-2.89-.54-4.11-1.32-.76-.5-1.41-1.13-1.92-1.87v7.54c.03 2.12-.51 4.34-2 5.92-1.58 1.67-4.01 2.5-6.24 2.17-2.31-.34-4.52-2.1-5.14-4.41C-.71 14.15-.09 10.22 2.21 8.21c1.83-1.61 4.49-1.96 6.8-1.12.01 1.43-.01 2.85 0 4.28-1.47-.46-3.15-.22-4.33.72-1.14.92-1.5 2.53-1.01 3.93.45 1.26 1.77 2.15 3.1 2.13 1.48-.02 2.76-1.11 2.94-2.58.05-1.14.01-6.19.01-15.55z"/>
-                    </svg>
-                  )
                 }
               ].map(p => (
                 <button 
@@ -1014,166 +1366,67 @@ export default function ComposePage() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto bg-slate-50/50 p-5 flex flex-col items-center">
-            {/* Phone Frame */}
-            <motion.div layout className={`w-[320px] bg-white rounded-[2.5rem] border-[6px] border-slate-900 shadow-2xl overflow-hidden aspect-[9/18.5] flex flex-col relative shrink-0 ${previewPlatform === 'TIKTOK' ? 'bg-black' : 'bg-white'}`}>
-              {previewPlatform === 'FACEBOOK' && (
-                <>
-                  <div className="p-4 pt-6">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-10 h-10 bg-slate-800 rounded-full flex items-center justify-center text-white font-bold text-sm">V</div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-1">
-                          <span className="text-[13px] font-bold text-slate-900">Viễn Chí Bảo</span>
-                          <div className="w-3 h-3 bg-blue-500 rounded-full text-white flex items-center justify-center text-[8px]">✓</div>
+          <div className="flex-1 overflow-y-auto bg-slate-50/50 p-5 flex flex-col items-center gap-4">
+            {/* Per-platform content toggle */}
+            <div className="w-full max-w-[380px]">
+              <button
+                onClick={() => setPerPlatformMode(v => !v)}
+                className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl border text-xs font-bold transition-all ${perPlatformMode ? 'bg-purple-50 border-purple-300 text-purple-700' : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'}`}
+              >
+                <span>{t.compose.perPlatformToggle}</span>
+                <span className={`w-4 h-4 rounded-full border-2 transition-all ${perPlatformMode ? 'bg-purple-500 border-purple-500' : 'border-slate-300'}`} />
+              </button>
+
+              {perPlatformMode && (
+                <div className="mt-3 space-y-2">
+                  {(Array.from(new Set(selectedAccountIds.map(id => accounts.find(a => a.id === id)?.platform).filter(Boolean))) as SocialPlatform[]).map(platform => {
+                    const meta = PLATFORM_META[platform];
+                    return (
+                      <div key={platform} className="border border-slate-200 rounded-xl overflow-hidden">
+                        <div className={`flex items-center gap-2 px-3 py-2 ${meta.color} text-white`}>
+                          <span>{meta.emoji}</span>
+                          <span className="text-xs font-bold">{meta.label}</span>
+                          {!perPlatformMessages[platform] && <span className="ml-auto text-[10px] opacity-70">{t.compose.useCommonContent}</span>}
                         </div>
-                        <div className="text-[11px] text-slate-500 mt-0.5">Vừa xong • <Globe className="w-3 h-3 inline" /></div>
+                        <textarea
+                          rows={3}
+                          placeholder={t.compose.perPlatformPlaceholder(meta.label)}
+                          value={perPlatformMessages[platform] || ''}
+                          onChange={e => setPerPlatformMessages(prev => ({ ...prev, [platform]: e.target.value }))}
+                          className="w-full px-3 py-2 text-xs text-slate-700 resize-none focus:outline-none focus:bg-blue-50/30 transition-colors"
+                        />
                       </div>
-                      <MoreHorizontal className="w-5 h-5 text-slate-400" />
-                    </div>
-                    <p className="text-[13px] text-slate-800 mb-3 whitespace-pre-wrap leading-relaxed">{message || 'Nội dung sẽ hiển thị ở đây...'}</p>
-                    {mediaUrls.length > 0 ? (
-                      <div className="rounded-xl overflow-hidden border border-slate-100 shadow-sm">
-                        {/\.(mp4|mov|avi|mkv|webm)$/i.test(mediaUrls[0]) ? (
-                          <video src={mediaUrls[0]} className="w-full aspect-square object-cover" muted controls />
-                        ) : (
-                          <img src={mediaUrls[0]} className="w-full aspect-square object-cover" />
-                        )}
-                      </div>
-                    ) : (
-                      <div className="bg-slate-100 aspect-[4/3] rounded-xl flex items-center justify-center border border-slate-200/60">
-                        <ImageIcon className="w-8 h-8 text-slate-300" />
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="mt-auto px-4 pb-6 bg-white border-t border-slate-50">
-                    <div className="flex justify-between items-center py-2 mb-2 border-b border-slate-100">
-                      <div className="flex items-center gap-1"><ThumbsUp className="w-3 h-3 text-blue-500" /><span className="text-[10px] text-slate-400">0</span></div>
-                      <div className="text-[10px] text-slate-400">0 bình luận</div>
-                    </div>
-                    <div className="flex justify-between text-slate-400">
-                      <ThumbsUp className="w-4 h-4" /> <MessageCircle className="w-4 h-4" /> <Share2 className="w-4 h-4" />
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {previewPlatform === 'INSTAGRAM' && (
-                <>
-                  <div className="p-4 pt-6 flex items-center gap-3">
-                    <div className="w-9 h-9 p-[2px] bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-500 rounded-full flex items-center justify-center">
-                      <div className="w-full h-full bg-white rounded-full flex items-center justify-center text-slate-900 font-bold text-xs">V</div>
-                    </div>
-                    <div className="flex-1">
-                      <span className="text-[13px] font-bold text-slate-900">vienchibao</span>
-                    </div>
-                    <MoreHorizontal className="w-4 h-4 text-slate-600" />
-                  </div>
-                  <div className="flex-1 bg-black flex items-center justify-center">
-                    {mediaUrls.length > 0 ? (
-                      /\.(mp4|mov|avi|mkv|webm)$/i.test(mediaUrls[0]) ? (
-                        <video src={mediaUrls[0]} className="w-full aspect-square object-cover" muted controls />
-                      ) : (
-                        <img src={mediaUrls[0]} className="w-full aspect-square object-cover" />
-                      )
-                    ) : (
-                      <div className="bg-slate-900 aspect-square w-full flex items-center justify-center">
-                        <ImageIcon className="w-8 h-8 text-slate-700" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-4 pb-6 bg-white flex flex-col gap-2">
-                    <div className="flex gap-4 text-slate-800">
-                      <svg className="w-6 h-6 fill-none stroke-current stroke-2" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l8.84-8.84 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
-                      <svg className="w-6 h-6 fill-none stroke-current stroke-2" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
-                      <svg className="w-6 h-6 fill-none stroke-current stroke-2" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-                    </div>
-                    <p className="text-[12px] text-slate-800 leading-relaxed"><span className="font-bold mr-1.5">vienchibao</span>{message || 'Nội dung...'}</p>
-                  </div>
-                </>
-              )}
-
-              {previewPlatform === 'THREADS' && (
-                <div className="p-4 pt-6 flex gap-3 h-full">
-                  <div className="flex flex-col items-center">
-                    <div className="w-9 h-9 bg-slate-900 rounded-full flex items-center justify-center text-white font-bold text-sm">V</div>
-                    <div className="w-0.5 flex-1 bg-slate-200 my-2"></div>
-                    <div className="w-5 h-5 bg-slate-100 rounded-full flex items-center justify-center text-[10px] text-slate-400 font-bold">V</div>
-                  </div>
-                  <div className="flex-1 flex flex-col">
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-[13px] font-bold text-slate-900">vienchibao</span>
-                      <span className="text-[11px] text-slate-400">1p</span>
-                    </div>
-                    <p className="text-[13px] text-slate-800 whitespace-pre-wrap mb-3 leading-relaxed">{message || 'Nội dung Threads...'}</p>
-                    {mediaUrls.length > 0 && (
-                      <div className="rounded-xl overflow-hidden border border-slate-100 max-h-[250px] mb-3">
-                        {/\.(mp4|mov|avi|mkv|webm)$/i.test(mediaUrls[0]) ? (
-                          <video src={mediaUrls[0]} className="w-full object-cover" muted controls />
-                        ) : (
-                          <img src={mediaUrls[0]} className="w-full object-cover" />
-                        )}
-                      </div>
-                    )}
-                    <div className="flex gap-4 text-slate-500 mt-auto pb-4">
-                      <svg className="w-5 h-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l8.84-8.84 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
-                      <svg className="w-5 h-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
-                      <svg className="w-5 h-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24"><path d="M17 2.1l4 4-4 4"></path><path d="M3 22l-4-4 4-4"></path><path d="M21 6.1H9c-3.3 0-6 2.7-6 6v3h3v-3c0-1.7 1.3-3 3-3h12"></path></svg>
-                    </div>
-                  </div>
+                    );
+                  })}
+                  {selectedAccountIds.length === 0 && (
+                    <p className="text-xs text-slate-400 text-center py-2">{t.compose.selectChannelToCustomize}</p>
+                  )}
                 </div>
               )}
+            </div>
 
-              {previewPlatform === 'TIKTOK' && (
-                <div className="relative flex-1 flex flex-col justify-end text-white">
-                  <div className="absolute inset-0 bg-black flex items-center justify-center">
-                    {mediaUrls.length > 0 ? (
-                      /\.(mp4|mov|avi|mkv|webm)$/i.test(mediaUrls[0]) ? (
-                        <video src={mediaUrls[0]} className="w-full h-full object-cover" muted autoPlay loop />
-                      ) : (
-                        <img src={mediaUrls[0]} className="w-full h-full object-cover" />
-                      )
-                    ) : (
-                      <div className="flex flex-col items-center gap-2 text-slate-700">
-                        <ImageIcon className="w-12 h-12" />
-                        <span className="text-xs text-slate-500">Chưa có video TikTok</span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Overlay for TikTok details */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 pointer-events-none flex flex-col justify-end p-4 pb-8">
-                    <div className="flex justify-between items-end">
-                      <div className="flex-1 pr-12">
-                        <span className="font-bold text-sm flex items-center gap-1 mb-1">@vienchibao <span className="bg-cyan-400 text-[8px] px-1 py-0.5 rounded">Follow</span></span>
-                        <p className="text-xs text-slate-200 line-clamp-3 leading-relaxed mb-2">{message || 'Nội dung video TikTok...'}</p>
-                        <div className="flex items-center gap-1.5 text-xs text-slate-300">
-                          <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24"><path fill="currentColor" d="M12 3v9h9c0-4.97-4.03-9-9-9z"/></svg>
-                          <span>Âm thanh gốc - Viễn Chí Bảo</span>
-                        </div>
-                      </div>
-                      
-                      {/* Side buttons */}
-                      <div className="flex flex-col items-center gap-4 text-white">
-                        <div className="relative mb-2">
-                          <div className="w-11 h-11 bg-slate-800 rounded-full border-2 border-white flex items-center justify-center text-sm font-bold">V</div>
-                          <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 bg-red-500 rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-bold">+</div>
-                        </div>
-                        <div className="flex flex-col items-center gap-1"><svg className="w-7 h-7 fill-white" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg><span className="text-[10px] font-bold">0</span></div>
-                        <div className="flex flex-col items-center gap-1"><svg className="w-7 h-7 fill-white" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/></svg><span className="text-[10px] font-bold">0</span></div>
-                        <div className="flex flex-col items-center gap-1"><svg className="w-7 h-7 fill-white" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg><span className="text-[10px] font-bold">0</span></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </motion.div>
+            {/* Platform Preview */}
+            <div className="w-full flex flex-col items-center">
+              <div className="w-[320px] bg-white rounded-[2.5rem] border-[6px] border-slate-900 shadow-2xl overflow-hidden flex flex-col relative shrink-0" style={{ minHeight: '520px' }}>
+              {/* Phone notch */}
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 w-20 h-4 bg-slate-900 rounded-full z-10" />
+              <div className="overflow-y-auto h-full pt-6">
+                <PlatformPreview
+                  platform={previewPlatform}
+                  message={(perPlatformMode && perPlatformMessages[previewPlatform]) || message || ''}
+                  mediaUrls={mediaUrls}
+                  accountName={accounts.find(a => a.platform === previewPlatform && selectedAccountIds.includes(a.id))?.name}
+                  accountAvatar={accounts.find(a => a.platform === previewPlatform && selectedAccountIds.includes(a.id))?.avatar_url}
+                  mediaThumbs={mediaThumbs}
+                />
+              </div>
+              </div>
+            </div>
           </div>
 
           <div className="p-5 bg-white border-t border-slate-200">
             <div className="flex items-center gap-2 mb-4 text-slate-800 font-bold text-[13px]">
-              <Clock className="w-4 h-4 text-slate-500" /> Thời gian đăng bài
+              <Clock className="w-4 h-4 text-slate-500" /> {t.compose.postingTimeLabel}
             </div>
             
             {/* Date Time Picker for Schedule */}
@@ -1181,27 +1434,23 @@ export default function ComposePage() {
               {(activeTab === 'schedule' || scheduleMode === 'schedule') && (
                 <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="mb-4 space-y-3">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Quyền riêng tư (FB)</label>
-                    <select 
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t.compose.privacyLabel}</label>
+                    <select
                       value={privacy}
                       onChange={e => setPrivacy(e.target.value)}
                       className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-700 bg-white"
                     >
-                      <option value="EVERYONE">👤 Công khai</option>
-                      <option value="ALL_FRIENDS">👥 Bạn bè</option>
-                      <option value="SELF">🔒 Chỉ mình tôi</option>
+                      <option value="EVERYONE">{t.compose.privacyPublic}</option>
+                      <option value="ALL_FRIENDS">{t.compose.privacyFriends}</option>
+                      <option value="SELF">{t.compose.privacyOnlyMe}</option>
                     </select>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Thời gian đăng bài</label>
-                    <input 
-                      type="datetime-local" 
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t.compose.postingTimeLabel}</label>
+                    <DateTimePicker24h
                       value={scheduledAt}
-                      onChange={e => {
-                        setScheduledAt(e.target.value);
-                        setScheduleMode('schedule');
-                      }}
-                      className="w-full border border-blue-200 rounded-xl p-3 text-sm focus:ring-2 ring-blue-500/20 outline-none font-bold text-blue-700 bg-blue-50/30"
+                      onChange={v => { setScheduledAt(v); setScheduleMode('schedule'); }}
+                      className="flex-wrap"
                     />
                   </div>
                 </motion.div>
@@ -1210,15 +1459,15 @@ export default function ComposePage() {
 
             <div className="flex gap-3">
               {[
-                { id: 'now', label: 'Đăng ngay', icon: Send },
-                { id: 'schedule', label: 'Đặt lịch', icon: CalendarIcon }
+                { id: 'now', label: t.compose.publishNowBtn, icon: Send },
+                { id: 'schedule', label: t.compose.tabSchedule, icon: CalendarIcon }
               ].map(m => (
                 <motion.button 
                   key={m.id}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => {
                     setScheduleMode(m.id as any);
-                    if (m.id === 'now' || m.id === 'queue') setActiveTab('publish');
+                    if (m.id === 'now') setActiveTab('publish');
                     else setActiveTab('schedule');
                   }}
                   className={`flex-1 flex flex-col items-center justify-center gap-2 py-3.5 rounded-xl border-2 transition-all relative ${scheduleMode === m.id ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-slate-100 text-slate-400 hover:bg-slate-50'}`}
@@ -1232,170 +1481,42 @@ export default function ComposePage() {
           </div>
         </motion.div>
 
-        {/* PROGRESS MODAL */}
-        <AnimatePresence>
-          {publishProgress.show && (
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-6"
-            >
-              <motion.div 
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className="bg-white rounded-[2rem] w-full max-w-[500px] overflow-hidden shadow-2xl"
-                onClick={e => e.stopPropagation()}
-              >
-                <div className="p-8 space-y-6">
-                  {(() => {
-                    const doneCount  = publishProgress.channels.filter(c => c.status === 'success' || c.status === 'fail').length;
-                    const totalCount = publishProgress.channels.length;
-                    const overallPct = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
+        <PublishProgressModal
+          publishProgress={publishProgress}
+          postingPcts={postingPcts}
+          elapsedSeconds={elapsedSeconds}
+          onClose={() => setPublishProgress(p => ({ ...p, show: false }))}
+        />
 
-                    // ── Ước tính thời gian ──────────────────────────────────
-                    const fmtTime = (s: number) => {
-                      if (s <= 0) return '< 1s';
-                      const m = Math.floor(s / 60);
-                      const sec = s % 60;
-                      if (m === 0) return `${sec}s`;
-                      return sec === 0 ? `${m}p` : `${m}p ${sec}s`;
-                    };
-
-                    // ETA dựa trên tốc độ thực tế
-                    const PLATFORM_AVG: Record<string, number> = {
-                      FACEBOOK: 25, INSTAGRAM: 65, TIKTOK: 50, YOUTUBE: 100, THREADS: 20, ZALO: 30,
-                    };
-                    const PLATFORM_SLOTS: Record<string, number> = {
-                      FACEBOOK: 6, INSTAGRAM: 3, TIKTOK: 2, YOUTUBE: 2, THREADS: 4, ZALO: 5,
-                    };
-                    const remainingCount = totalCount - doneCount;
-                    let etaSec: number | null = null;
-                    if (publishProgress.phase !== 'done') {
-                      if (doneCount > 0 && elapsedSeconds > 0) {
-                        // Ước tính từ tốc độ thực (elapsed / done × remaining / concurrency)
-                        const avgPerJob  = elapsedSeconds / doneCount;
-                        const concurrency = Math.max(1, Math.min(15, remainingCount));
-                        etaSec = Math.round((avgPerJob * remainingCount) / concurrency);
-                      } else if (totalCount > 0) {
-                        // Ước tính tĩnh trước khi có job hoàn thành
-                        const byPlatform: Record<string, number> = {};
-                        publishProgress.channels.forEach(ch => {
-                          byPlatform[ch.platform] = (byPlatform[ch.platform] || 0) + 1;
-                        });
-                        etaSec = Math.max(
-                          ...Object.entries(byPlatform).map(([p, n]) =>
-                            Math.ceil(n / (PLATFORM_SLOTS[p] || 3)) * (PLATFORM_AVG[p] || 30)
-                          )
-                        );
-                      }
-                    }
-                    return (
-                      <>
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <h3 className="text-xl font-black text-slate-900">
-                              {publishProgress.phase === 'done' ? 'Kết quả hoàn tất' : 'Đang xử lý đăng bài'}
-                            </h3>
-                            <p className="text-sm text-slate-500 mt-1">
-                              {publishProgress.phase === 'done'
-                                ? `${publishProgress.channels.filter(c => c.status === 'success').length} thành công, ${publishProgress.channels.filter(c => c.status === 'fail').length} lỗi`
-                                : 'Vui lòng không đóng trình duyệt lúc này'}
-                            </p>
-                          </div>
-                          {publishProgress.phase === 'done' && (
-                            <button onClick={() => setPublishProgress(p => ({ ...p, show: false }))} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition-colors">
-                              <X className="w-5 h-5" />
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Overall progress bar */}
-                        {publishProgress.phase !== 'done' && totalCount > 0 && (
-                          <div className="space-y-1.5">
-                            <div className="flex items-center justify-between text-[12px] font-bold text-slate-500">
-                              <span>{doneCount}/{totalCount} kênh</span>
-                              <motion.span
-                                key={overallPct}
-                                initial={{ opacity: 0, y: -4 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="text-blue-600"
-                              >
-                                {overallPct}%
-                              </motion.span>
-                            </div>
-                            <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                              <motion.div
-                                className="h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-400"
-                                initial={{ width: '0%' }}
-                                animate={{ width: `${overallPct}%` }}
-                                transition={{ duration: 0.5, ease: 'easeOut' }}
-                              />
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    );
-                  })()}
-
-                  <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                    {publishProgress.channels.map(ch => {
-                      const meta = PLATFORM_META[ch.platform as SocialPlatform] || PLATFORM_META.FACEBOOK;
-                      const pct = Math.round(postingPcts[ch.id] ?? 0);
-                      const isActive = ch.status === 'posting' || ch.status === 'success' || ch.status === 'fail';
-                      return (
-                        <div key={ch.id} className={`flex flex-col gap-2 p-4 rounded-2xl border transition-all ${ch.status === 'success' ? 'bg-green-50 border-green-100' : ch.status === 'fail' ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-slate-100'}`}>
-                          <div className="flex items-center gap-4">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white ${meta.color} shadow-sm flex-shrink-0`}>
-                              {meta.emoji}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-bold text-slate-800 truncate">{ch.name}</p>
-                              <p className={`text-[10px] font-black uppercase tracking-wider ${ch.status === 'success' ? 'text-green-600' : ch.status === 'fail' ? 'text-red-600' : ch.status === 'posting' ? 'text-blue-600' : 'text-slate-400'}`}>
-                                {ch.status === 'posting'  ? `Đang xử lý... ${pct}%`
-                                  : ch.status === 'success' ? 'Thành công'
-                                  : ch.status === 'fail'    ? 'Thất bại'
-                                  : ch.queuePosition        ? `Hàng chờ #${ch.queuePosition}`
-                                  : 'Đang chờ xử lý'}
-                              </p>
-                              {ch.error && <p className="text-[9px] text-red-400 mt-0.5 italic">{ch.error}</p>}
-                            </div>
-                            <div className="flex-shrink-0">
-                              {ch.status === 'posting' && <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />}
-                              {ch.status === 'success' && <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold">✓</div>}
-                              {ch.status === 'fail' && <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold">!</div>}
-                            </div>
-                          </div>
-
-                          {/* Per-channel progress bar */}
-                          {isActive && (
-                            <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                              <motion.div
-                                className={`h-full rounded-full ${ch.status === 'success' ? 'bg-green-500' : ch.status === 'fail' ? 'bg-red-400' : 'bg-blue-500'}`}
-                                initial={{ width: '0%' }}
-                                animate={{ width: `${pct}%` }}
-                                transition={{ duration: ch.status === 'posting' ? 0.3 : 0.4, ease: 'easeOut' }}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {publishProgress.phase === 'done' && (
-                    <button 
-                      onClick={() => setPublishProgress(p => ({ ...p, show: false }))}
-                      className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest shadow-lg hover:bg-black transition-all"
-                    >
-                      Xác nhận
-                    </button>
-                  )}
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* MEDIA LIBRARY MODAL */}
+        <MediaLibraryModal
+          open={showLibrary}
+          onClose={() => setShowLibrary(false)}
+          onSelect={(urls, thumbMap, idMap) => {
+            if (libraryMode === 'thumb') {
+              setThumbUrl(urls[0] || '');
+              toast.success(t.compose.thumbnailSet);
+            } else {
+              setMediaUrls(prev => Array.from(new Set([...prev, ...urls])));
+              if (thumbMap) setMediaThumbs(prev => ({ ...prev, ...thumbMap }));
+              if (idMap) setMediaLibraryIds(prev => ({ ...prev, ...idMap }));
+              // Nếu chọn video Drive và chưa có ảnh bìa → tự động dùng thumbnail FFmpeg
+              if (thumbMap && !thumbUrl) {
+                const firstVideoThumb = urls.find(u => u.includes('drive.google.com') && thumbMap[u]);
+                if (firstVideoThumb) {
+                  setThumbUrl(thumbMap[firstVideoThumb]);
+                  toast.success(t.compose.thumbnailAutoSet);
+                }
+              }
+              if (postMode === 'text') setPostMode('image');
+              if (!thumbMap || !urls.some(u => u.includes('drive.google.com') && thumbMap?.[u])) {
+                toast.success(t.compose.filesAddedFromLibrary(urls.length));
+              }
+            }
+          }}
+          maxSelect={libraryMode === 'thumb' ? 1 : 10}
+          mode={libraryMode}
+        />
 
         {/* DRAFTS MODAL */}
         <AnimatePresence>
@@ -1412,34 +1533,39 @@ export default function ComposePage() {
               >
                 <div className="p-8 space-y-6">
                   <div className="flex justify-between items-center">
-                    <h3 className="text-xl font-black text-slate-900">Danh sách bản nháp</h3>
+                    <h3 className="text-xl font-black text-slate-900">{t.compose.draftsListTitle}</h3>
                     <button onClick={() => setShowDraftsModal(false)} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200">
                       <X className="w-5 h-5" />
                     </button>
                   </div>
 
                   <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-                    {drafts.length === 0 && <p className="text-center py-10 text-slate-400 italic text-sm">Chưa có bản nháp nào được lưu.</p>}
+                    {drafts.length === 0 && <p className="text-center py-10 text-slate-400 italic text-sm">{t.compose.noDraftsSaved}</p>}
                     {drafts.map(d => (
                       <div 
                         key={d.id} 
                         onClick={() => selectDraft(d)}
                         className="group p-4 rounded-2xl border border-slate-100 hover:border-blue-300 hover:bg-blue-50/30 cursor-pointer transition-all flex gap-4"
                       >
-                        {d.media_urls?.[0] && (
+                        {(d.thumb_url || d.media_urls?.[0]) && (
                           <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 border border-slate-100">
-                             {/\.(mp4|mov|avi|mkv|webm)$/i.test(d.media_urls[0]) ? (
-                               <div className="w-full h-full bg-slate-900 flex items-center justify-center"><Smartphone className="w-6 h-6 text-white/50" /></div>
-                             ) : (
-                               <img src={d.media_urls[0]} className="w-full h-full object-cover" />
-                             )}
+                            {d.thumb_url ? (
+                              <img src={d.thumb_url} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }} />
+                            ) : /\.(mp4|mov|avi|mkv|webm)$/i.test(d.media_urls[0]) ? (
+                              <div className="w-full h-full bg-slate-900 flex items-center justify-center"><Smartphone className="w-6 h-6 text-white/50" /></div>
+                            ) : (() => {
+                              const driveId = d.media_urls[0].includes('drive.google.com')
+                                ? (d.media_urls[0].match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || d.media_urls[0].match(/[?&]id=([a-zA-Z0-9_-]+)/))?.[1]
+                                : null;
+                              return <img src={driveId ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w200` : d.media_urls[0]} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }} />;
+                            })()}
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm text-slate-700 line-clamp-2 leading-relaxed mb-2">{d.message || '(Không có nội dung)'}</p>
+                          <p className="text-sm text-slate-700 line-clamp-2 leading-relaxed mb-2">{d.message || t.compose.noContent}</p>
                           <div className="flex items-center justify-between">
                             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{new Date(d.created_at).toLocaleString()}</span>
-                            <span className="text-[10px] text-blue-500 font-bold opacity-0 group-hover:opacity-100 transition-all">Nhấn để chọn →</span>
+                            <span className="text-[10px] text-blue-500 font-bold opacity-0 group-hover:opacity-100 transition-all">{t.compose.clickToSelect}</span>
                           </div>
                         </div>
                       </div>

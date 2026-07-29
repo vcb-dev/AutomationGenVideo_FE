@@ -57,7 +57,6 @@ export function useSearchSuggestions(options: UseSuggestionsOptions = {}) {
             }
 
             lastQuery.current = q;
-            console.log(`🔍 [Suggest] Input: "${q}"`);
 
             // ── TIER 1: Local instant (0ms) ───────────────────────────────────
             const localItems = generateLocalSuggestions(q, maxResults);
@@ -87,8 +86,6 @@ export function useSearchSuggestions(options: UseSuggestionsOptions = {}) {
                     const raw: string[] = data.suggestions || [];
                     const apiSource: string = data.source || 'youtube';
 
-                    console.log(`🎯 [Suggest] Server Response: Query="${q}" | Source=${apiSource} | Count=${raw.length}`);
-
                     if (raw.length > 0 && lastQuery.current === q) {
                         const formatted: SearchSuggestion[] = raw.map(text => ({
                             text,
@@ -117,7 +114,7 @@ export function useSearchSuggestions(options: UseSuggestionsOptions = {}) {
                 }
             }, debounceMs);
         },
-        [minQueryLength, maxResults, debounceMs],
+        [minQueryLength, maxResults, debounceMs, options.platform],
     );
 
     const clearSuggestions = useCallback(() => {

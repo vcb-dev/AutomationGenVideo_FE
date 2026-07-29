@@ -14,6 +14,7 @@ import dynamic from 'next/dynamic';
 import { FacebookPost, ImageWithFallback } from './components/common';
 import { ReelsAnalytics } from './components/ReelsView';
 import { PostsAnalytics } from './components/PostsView';
+import toast from 'react-hot-toast';
 
 const FbEngagementChart = dynamic(
     () => import('./components/FbEngagementChart').then((m) => ({ default: m.FbEngagementChart })),
@@ -489,7 +490,7 @@ export default function FacebookAnalyticsPage() {
             const end = new Date(tempEndDate);
 
             if (start > end) {
-                alert('⚠️ Ngày bắt đầu phải trước ngày kết thúc.');
+                toast.error('Ngày bắt đầu phải trước ngày kết thúc.');
                 return;
             }
         }

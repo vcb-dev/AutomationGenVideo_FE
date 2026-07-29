@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import React from 'react';
-import { Calendar, AlertCircle, FileText, Target, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, Target, CheckCircle2, Users, CalendarDays, TrendingUp, Sun, MousePointerClick, CircleDollarSign, CheckCircle2Icon, User } from 'lucide-react';
 
 interface UserActivity {
     name: string;
@@ -16,6 +16,8 @@ interface UserActivity {
     revenue: string;
     reportStatus: string;
     monthlyProgress: number;
+    kpi_month?: number;
+    completed_month?: number;
     task_progress?: {
         task_auto: number;
         task_new: number;
@@ -54,7 +56,7 @@ const getAvatarUrl = (url: string | null, name: string) => {
     return url;
 };
 
-const UserActivityCard = React.memo(({ data, onClick, canClick = true, isActive, timeType }: UserActivityCardProps) => {
+const UserActivityCard = React.memo(({ data, onClick, canClick = true, isActive }: UserActivityCardProps) => {
     const dailyGoal = Number(data.dailyGoal) || 0;
     const done = Number(data.done) || 0;
 
@@ -68,55 +70,53 @@ const UserActivityCard = React.memo(({ data, onClick, canClick = true, isActive,
 
     const statusStyles = {
         neutral: {
-            card: `border-red-500 border-[3px] bg-red-100/40 ${canClick ? 'hover:bg-red-100/60 transition-all shadow-[0_8px_30px_rgba(239,68,68,0.08)]' : ''}`,
-            avatar: 'border-slate-200 ring-2 ring-slate-100',
+            card: `border-red-400 border-2 bg-gradient-to-b from-red-50/90 to-red-100/60 ${canClick ? 'hover:from-red-50 hover:to-red-100/80 transition-all shadow-[0_8px_30px_rgba(239,68,68,0.12)]' : ''}`,
+            avatar: 'ring-[3px] ring-red-400/70',
             icon: 'text-slate-500',
             badge: 'bg-slate-600 text-white',
             text: 'text-slate-800',
             doneRow: 'text-slate-800',
-            glow: canClick ? 'hover:shadow-red-300/40' : '',
-            accent: 'bg-red-100/60'
+            glow: canClick ? 'hover:shadow-red-300/50' : '',
+            accent: 'bg-red-50/80 border-red-200/60',
+            metricText: 'text-rose-600',
+            progressGrad: 'bg-gradient-to-r from-red-400 to-rose-500',
         },
         completed: {
-            card: `border-emerald-500 border-[3px] bg-emerald-100/70 ${canClick ? 'hover:bg-emerald-100/90 transition-all shadow-[0_8px_30px_rgba(16,185,129,0.1)]' : ''}`,
-            avatar: 'border-emerald-500 ring-4 ring-emerald-100',
+            card: `border-emerald-400 border-2 bg-gradient-to-b from-emerald-50/90 to-emerald-100/70 ${canClick ? 'hover:from-emerald-50 hover:to-emerald-100/90 transition-all shadow-[0_8px_30px_rgba(16,185,129,0.12)]' : ''}`,
+            avatar: 'ring-[3px] ring-emerald-400/70',
             icon: 'text-emerald-500',
             badge: 'bg-emerald-600 text-white',
             text: 'text-emerald-600',
             doneRow: 'text-emerald-700',
-            glow: canClick ? 'hover:shadow-emerald-300/40' : '',
-            accent: 'bg-emerald-100'
+            glow: canClick ? 'hover:shadow-emerald-300/50' : '',
+            accent: 'bg-emerald-50/80 border-emerald-200/60',
+            metricText: 'text-emerald-600',
+            progressGrad: 'bg-gradient-to-r from-emerald-400 to-teal-500',
         },
         exceeded: {
-            // Vượt mục tiêu: cùng nền xanh với đạt mục tiêu (chỉ khác accent tím ở vài ô con)
-            card: `border-emerald-500 border-[3px] bg-emerald-100/70 ${canClick ? 'hover:bg-emerald-100/90 transition-all shadow-[0_8px_30px_rgba(16,185,129,0.1)]' : ''}`,
-            avatar: 'border-emerald-500 ring-4 ring-emerald-100',
+            card: `border-emerald-400 border-2 bg-gradient-to-b from-emerald-50/90 to-emerald-100/70 ${canClick ? 'hover:from-emerald-50 hover:to-emerald-100/90 transition-all shadow-[0_8px_30px_rgba(16,185,129,0.12)]' : ''}`,
+            avatar: 'ring-[3px] ring-purple-400/70',
             icon: 'text-emerald-600',
             badge: 'bg-emerald-600 text-white',
             text: 'text-emerald-700',
             doneRow: 'text-purple-700',
-            glow: canClick ? 'hover:shadow-emerald-300/40' : '',
-            accent: 'bg-emerald-100'
+            glow: canClick ? 'hover:shadow-emerald-300/50' : '',
+            accent: 'bg-emerald-50/80 border-emerald-200/60',
+            metricText: 'text-purple-600',
+            progressGrad: 'bg-gradient-to-r from-purple-500 via-indigo-500 to-blue-500',
         }
     };
 
     const style = statusStyles[statusType];
     const isReportedOnTime = data.reportStatus === 'ĐÚNG HẠN' || data.reportStatus === 'ĐÃ XONG' || data.reportStatus === 'ĐÃ BÁO CÁO ĐỦ' || data.reportStatus === 'SUBMITTED';
-    const isRange = timeType && !['today', 'yesterday'].includes(timeType);
-    const goalLabel = 'MỤC TIÊU NGÀY';
 
     // Flag background - match exact team names from backend
     const getFlagBg = () => {
         const t = (data.team || '').toLowerCase();
-        // Global - Indo / Global Indo
         if (t.includes('indo')) return '/indo-flag.png';
-        // Global - JP1 / Global - JP2 / Global JP3 / Global JP4
         if (t.includes('- jp') || t.includes(' jp')) return '/japan-flag.png';
-        // Global Thái Lan
         if (t.includes('th') && t.includes('lan')) return '/thailand-flag.png';
-        // Global Đài Loan / Global Dai Loan
         if (t.includes('loan') || t.includes('taiwan')) return '/taiwan-flag.png';
-        // Default: VN (Team K0, K1, K2, v.v.)
         return '/vn-flag.png';
     };
     const flagBg = getFlagBg();
@@ -124,11 +124,13 @@ const UserActivityCard = React.memo(({ data, onClick, canClick = true, isActive,
     return (
         <div
             onClick={canClick ? onClick : undefined}
+            style={{ width: 'calc(100% - 7px)', margin: '0 auto' }}
             className={`relative rounded-2xl overflow-hidden transition-all duration-300 ${canClick ? 'cursor-pointer hover:scale-[1.01]' : 'cursor-default'} ${style.card} ${isActive
                 ? 'ring-4 ring-blue-500/20 shadow-2xl scale-[1.02] z-10 border-blue-500'
                 : `${style.glow}`
                 }`}>
 
+            {/* Corner Flag Background */}
             <div className="absolute top-0 left-0 pointer-events-none z-10" style={{ filter: 'drop-shadow(0 6px 12px rgba(0,0,0,0.3))' }}>
                 <div
                     style={{
@@ -144,23 +146,28 @@ const UserActivityCard = React.memo(({ data, onClick, canClick = true, isActive,
                 />
             </div>
 
-            <div className="p-4 flex flex-col items-center relative z-10">
-                {/* Warning/Status Icon */}
-                <div className="absolute top-2 right-2">
+            <div className="px-5 pt-6 pb-6 flex flex-col items-center relative z-10 gap-3">
+
+                {/* Top-Right Status Badge */}
+                <div className="absolute top-3 right-3 z-20">
                     {statusType === 'exceeded' ? (
-                        <div className="bg-purple-100 p-2 rounded-xl border border-purple-200 shadow-sm animate-pulse-slow">
-                            <Target className="w-4 h-4 text-purple-600" />
+                        <div className="bg-purple-100 p-1.5 rounded-xl border border-purple-200 shadow-sm animate-pulse-slow">
+                            <Target className="w-5 h-5 text-purple-600" />
+                        </div>
+                    ) : statusType === 'completed' ? (
+                        <div className="bg-white p-1 rounded-full border-2 border-emerald-500 shadow-sm">
+                            <CheckCircle2 className="w-5 h-5 text-emerald-600" />
                         </div>
                     ) : (
-                        <div className={`${statusType === 'completed' ? 'bg-emerald-100 border-emerald-200' : 'bg-gray-100 border-gray-200'} p-2 rounded-xl border`}>
-                            <AlertCircle className={`w-4 h-4 ${style.icon}`} />
+                        <div className="bg-white p-1 rounded-full border-2 border-red-500 shadow-sm">
+                            <AlertCircle className="w-5 h-5 text-red-500" />
                         </div>
                     )}
                 </div>
 
-                {/* Profile Info */}
-                <div className="mt-2 mb-3">
-                    <div className={`w-16 h-16 rounded-full border-2 ${style.avatar} p-0.5 transition-all bg-white overflow-hidden shadow-inner`}>
+                {/* Profile Info Row */}
+                <div className="flex items-center justify-center gap-4 w-full mt-1 relative z-20">
+                    <div className={`w-[68px] h-[68px] rounded-full ${style.avatar} bg-white overflow-hidden shadow-md flex-shrink-0`}>
                         <Image
                             src={getAvatarUrl(data.avatar, data.name)}
                             alt={data.name}
@@ -175,110 +182,123 @@ const UserActivityCard = React.memo(({ data, onClick, canClick = true, isActive,
                             unoptimized
                         />
                     </div>
-                </div>
-
-                <div className="text-center mb-4">
-                    <h4 className="text-sm font-black text-slate-800 tracking-tight leading-tight mb-1 truncate max-w-[170px]">{data.name}</h4>
-                    <div className="flex flex-wrap items-center justify-center gap-1.5 max-w-full">
-                        {data.position && (
-                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg border shadow-xs ${['leader', 'lead', 'quản lý', 'tp ', 'trưởng'].some(key => data.position?.toLowerCase().includes(key))
-                                ? 'bg-gradient-to-r from-orange-100 to-amber-100 text-orange-700 border-orange-200'
-                                : 'bg-white text-slate-500 border-slate-200'
-                                }`}>
-                                {data.position?.toUpperCase()}
+                    <div className="flex flex-col min-w-0">
+                        <h4 className="text-[18px] font-black text-slate-800 tracking-tight leading-tight mb-1.5 truncate max-w-[180px]">
+                            {data.name}
+                        </h4>
+                        <div className="flex flex-wrap items-center gap-1.5 max-w-full">
+                            {data.position && (
+                                <span className="text-[11px] font-black px-2 py-0.5 rounded-lg border bg-white text-slate-500 border-slate-200 uppercase tracking-widest shadow-xs flex items-center gap-1">
+                                    <User className="w-3 h-3" />
+                                    {data.position?.toUpperCase()}
+                                </span>
+                            )}
+                            <span className="text-[11px] font-black text-blue-700 bg-white px-2 py-0.5 rounded-lg border border-blue-200 shadow-xs flex items-center gap-1">
+                                <Users className="w-3 h-3" />
+                                {data.team}
+                                {data.team?.toLowerCase().includes('thái lan') && (
+                                    <Image src="/thailand-flag.png" alt="TH" className="w-3.5 h-2.5 object-contain filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.4)]" width={14} height={10} unoptimized />
+                                )}
+                                {data.team?.toLowerCase().includes('global - indo') && (
+                                    <Image src="/indo-flag.png" alt="INDO" className="w-3.5 h-2.5 object-contain filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.4)]" width={14} height={10} unoptimized />
+                                )}
+                                {data.team?.toLowerCase().includes('việt nam') && (
+                                    <Image src="/vn-flag.png" alt="VN" className="w-3.5 h-2.5 object-contain filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.4)]" width={14} height={10} unoptimized />
+                                )}
+                                {(data.team?.toLowerCase().includes('jp') || data.team?.toLowerCase().includes('nhật bản')) && (
+                                    <Image src="/japan-flag.png" alt="JP" className="w-3.5 h-2.5 object-contain border border-gray-100 filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.4)]" width={14} height={10} unoptimized />
+                                )}
+                                {data.team?.toLowerCase().includes('đài loan') && (
+                                    <Image src="/taiwan-flag.png" alt="TW" className="w-4 h-3 object-contain filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.4)]" width={16} height={12} unoptimized />
+                                )}
                             </span>
-                        )}
-                        <span className="text-[10px] font-black text-blue-700 bg-white px-2 py-0.5 rounded-lg border border-blue-200 shadow-xs flex items-center gap-1">
-                            {data.team}
-                            {data.team?.toLowerCase().includes('thái lan') && (
-                                <Image src="/thailand-flag.png" alt="TH" className="w-3.5 h-2.5 object-contain filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.4)]" width={14} height={10} unoptimized />
-                            )}
-                            {data.team?.toLowerCase().includes('global - indo') && (
-                                <Image src="/indo-flag.png" alt="INDO" className="w-3.5 h-2.5 object-contain filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.4)]" width={14} height={10} unoptimized />
-                            )}
-                            {data.team?.toLowerCase().includes('việt nam') && (
-                                <Image src="/vn-flag.png" alt="VN" className="w-3.5 h-2.5 object-contain filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.4)]" width={14} height={10} unoptimized />
-                            )}
-                            {(data.team?.toLowerCase().includes('jp') || data.team?.toLowerCase().includes('nhật bản')) && (
-                                <Image src="/japan-flag.png" alt="JP" className="w-3.5 h-2.5 object-contain border border-gray-100 filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.4)]" width={14} height={10} unoptimized />
-                            )}
-                            {data.team?.toLowerCase().includes('đài loan') && (
-                                <Image src="/taiwan-flag.png" alt="TW" className="w-4 h-3 object-contain filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.4)]" width={16} height={12} unoptimized />
-                            )}
-                        </span>
+                        </div>
                     </div>
                 </div>
 
-                {/* Metrics Grid */}
-                <div className="w-full grid grid-cols-1 gap-1.5 mb-4 px-1">
-                    <div className="flex items-center justify-between p-2 rounded-2xl bg-white border border-slate-100 shadow-sm">
-                        <div className="flex items-center gap-2">
-                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                            <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider">TBBC</span>
-                        </div>
-                        <span className="text-xs font-black text-slate-800">{data.time}</span>
-                    </div>
+                {/* Divider */}
+                <div className="w-full border-t border-dashed border-slate-200/60" />
 
-                    <div className={`flex items-center justify-between p-2 rounded-2xl border transition-colors ${statusType === 'exceeded' ? 'bg-purple-50/50 border-purple-100' : statusType === 'completed' ? 'bg-emerald-50/50 border-emerald-100' : 'bg-white border-slate-100'}`}>
-                        <div className="flex items-center gap-2">
-                            <Target className={`w-3.5 h-3.5 ${statusType === 'exceeded' ? 'text-purple-500' : statusType === 'completed' ? 'text-emerald-500' : 'text-slate-400'}`} />
-                            <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider">{goalLabel}</span>
-                        </div>
-                        <span className={`text-sm font-black ${statusType === 'exceeded' ? 'text-purple-700' : statusType === 'completed' ? 'text-emerald-800' : 'text-slate-900'}`}>{dailyGoal}</span>
+                {/* Metrics — 3 mini stat cards */}
+                <div className="w-full grid grid-cols-3 gap-2 px-0.5">
+                    <div className={`flex flex-col items-center py-2.5 px-1 rounded-xl border ${style.accent}`}>
+                        <CalendarDays className="w-3.5 h-3.5 text-slate-400 mb-1" />
+                        <span className={`text-[20px] font-black leading-none ${style.metricText}`}>{data.kpi_month ?? 0}</span>
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-1 text-center leading-tight">MT Tháng</span>
                     </div>
-
-                    <div className={`flex items-center justify-between p-2 rounded-2xl border shadow-sm ${statusType === 'exceeded' ? 'bg-purple-100 border-purple-200' : statusType === 'completed' ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-100'}`}>
-                        <div className="flex items-center gap-2">
-                            <CheckCircle2 className={`w-3.5 h-3.5 ${style.icon}`} />
-                            <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider">ĐÃ XONG</span>
-                        </div>
-                        <span className={`text-sm font-black ${style.doneRow}`}>{done}</span>
+                    <div className={`flex flex-col items-center py-2.5 px-1 rounded-xl border ${style.accent}`}>
+                        <Sun className="w-3.5 h-3.5 text-slate-400 mb-1" />
+                        <span className={`text-[20px] font-black leading-none ${style.metricText}`}>{dailyGoal}</span>
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-1 text-center leading-tight">MT Ngày</span>
                     </div>
-                </div>
-
-                {/* Report Status Badge */}
-                <div className="w-full flex justify-center mb-4 px-2">
-                    <div className={`w-full py-2.5 rounded-full text-[13px] font-black uppercase tracking-widest shadow-lg text-center transition-all ${isReportedOnTime
-                        ? 'bg-emerald-600 text-white shadow-emerald-200/50'
-                        : 'bg-red-600 text-white shadow-red-200/50'
-                        }`}>
-                        {data.reportStatus || 'Chưa báo cáo'}
+                    <div className={`flex flex-col items-center py-2.5 px-1 rounded-xl border ${style.accent}`}>
+                        <CheckCircle2Icon className="w-3.5 h-3.5 text-slate-400 mb-1" />
+                        <span className={`text-[20px] font-black leading-none ${
+                            statusType === 'exceeded' ? 'text-purple-600' : style.metricText
+                        }`}>{done}</span>
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-1 text-center leading-tight">Đã Xong</span>
                     </div>
                 </div>
 
                 {/* Monthly Progress */}
-                <div className="w-full space-y-1.5 mb-4 px-1">
-                    <div className="flex justify-between items-center text-[11px] font-black tracking-wider">
-                        <span className="text-slate-500 uppercase">TIẾN ĐỘ THÁNG</span>
-                        <span className={`${statusType === 'exceeded' ? 'text-purple-600' : 'text-blue-600'}`}>{data.monthlyProgress}%</span>
+                <div className="w-full px-0.5 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                            <TrendingUp className="w-3 h-3" />
+                            Tiến độ tháng
+                        </span>
+                        <span className={`text-[13px] font-black ${
+                            statusType === 'neutral' ? 'text-rose-600'
+                            : statusType === 'exceeded' ? 'text-purple-600'
+                            : 'text-emerald-600'
+                        }`}>{data.monthlyProgress}%</span>
                     </div>
-                    <div className="h-2 w-full bg-slate-200/50 rounded-full overflow-hidden p-0.5 shadow-inner">
+                    <div className="h-2.5 w-full bg-slate-200/60 rounded-full overflow-hidden shadow-inner">
                         <div
-                            className={`h-full rounded-full transition-all duration-700 shadow-sm ${statusType === 'exceeded'
-                                ? 'bg-gradient-to-r from-purple-500 via-indigo-500 to-blue-500'
-                                : 'bg-gradient-to-r from-blue-500 to-indigo-600'}`}
+                            className={`h-full rounded-full transition-all duration-700 ${style.progressGrad}`}
                             style={{ width: `${Math.min(data.monthlyProgress, 100)}%` }}
                         />
                     </div>
                 </div>
 
                 {/* Traffic & Revenue Footer */}
-                <div className="grid grid-cols-2 w-full gap-2 px-1">
-                    <div className="bg-white p-2.5 rounded-2xl border border-blue-100 shadow-sm text-center">
-                        <span className="block text-[10px] font-black text-blue-500 uppercase tracking-widest mb-1">TRAFFIC</span>
-                        <div className="text-xs font-black text-blue-800 truncate leading-none">{data.traffic}</div>
+                <div className="grid grid-cols-2 w-full gap-2.5 px-0.5">
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-100/80 p-3 rounded-2xl border border-blue-200/60 shadow-sm text-center">
+                        <span className="flex items-center justify-center gap-1 text-[10px] font-black text-blue-500 uppercase tracking-widest mb-1.5">
+                            <MousePointerClick className="w-3.5 h-3.5" />
+                            TRAFFIC
+                        </span>
+                        <div className="text-[17px] font-black text-blue-800 truncate leading-none">{data.traffic}</div>
                     </div>
-                    <div className="bg-white p-2.5 rounded-2xl border border-emerald-100 shadow-sm text-center">
-                        <span className="block text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">DOANH THU</span>
-                        <div className="text-xs font-black text-emerald-800 truncate leading-none">{data.revenue}</div>
+                    <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/80 p-3 rounded-2xl border border-emerald-200/60 shadow-sm text-center">
+                        <span className="flex items-center justify-center gap-1 text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1.5">
+                            <CircleDollarSign className="w-3.5 h-3.5" />
+                            DOANH THU
+                        </span>
+                        <div className="text-[17px] font-black text-emerald-800 truncate leading-none">{data.revenue}</div>
                     </div>
                 </div>
+
+                {/* Report Status Banner — bottom */}
+                <div className="w-full px-0.5">
+                    <div className={`w-full py-2 rounded-xl text-[12px] font-black uppercase tracking-widest shadow-sm text-center flex items-center justify-center gap-2 transition-all border-l-4 ${
+                        isReportedOnTime
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 border-l-emerald-500'
+                            : 'bg-red-50 text-red-600 border border-red-200 border-l-red-500'
+                    }`}>
+                        {isReportedOnTime
+                            ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                            : <AlertCircle className="w-4 h-4 flex-shrink-0 animate-pulse" />
+                        }
+                        {data.reportStatus || 'Chưa báo cáo'}
+                    </div>
+                </div>
+
             </div>
         </div>
     );
-});
 
-UserActivityCard.displayName = 'UserActivityCard';
+});
 
 export default UserActivityCard;
 export type { UserActivity };

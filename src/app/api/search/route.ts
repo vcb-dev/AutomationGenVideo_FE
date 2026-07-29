@@ -12,31 +12,33 @@ async function proxyToNestJS(target: string, init: RequestInit) {
         const contentType = res.headers.get('content-type') || '';
 
         if (!contentType.includes('application/json')) {
-            const text = await res.text();
-            console.error(`[Search Proxy] NestJS returned non-JSON (${res.status}):`, text.slice(0, 200));
             return NextResponse.json(
-                { error: `Backend trả về lỗi (HTTP ${res.status}). Kiểm tra NestJS đang chạy tại port 3000.` },
+                { error: `Backend trả về lỗi (HTTP ${res.status}). Kiểm tra NestJS đang chạy.` },
                 { status: 502 },
             );
         }
 
         const data = await res.json();
         return NextResponse.json(data, { status: res.status });
-    } catch (err: any) {
-        console.error(`[Search Proxy] Error calling ${target}:`, err?.message);
+    } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
         return NextResponse.json(
-            { error: `Không kết nối được NestJS (${target}). Kiểm tra BE đã chạy chưa.`, detail: err?.message },
+            { error: 'Không kết nối được backend. Kiểm tra BE đã chạy chưa.', detail: message },
             { status: 502 },
         );
     }
 }
 
 export async function POST(request: Request) {
-    const target = `${NESTJS_BASE}/ai/search`;
-    const body = await request.json();
-    const authHeader = request.headers.get('Authorization') || '';
+    let body: unknown;
+    try {
+        body = await request.json();
+    } catch {
+        return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
 
-    console.log(`[Search Proxy] POST → ${target}`);
+    const target = `${NESTJS_BASE}/ai/search`;
+    const authHeader = request.headers.get('Authorization') || '';
 
     return proxyToNestJS(target, {
         method: 'POST',
@@ -50,12 +52,11 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
-    const platform = searchParams.get('platform');
+    const platform = searchParams.get('platform') || '';
     const limit = searchParams.get('limit') || '50';
     const authHeader = request.headers.get('Authorization') || '';
 
-    const target = `${NESTJS_BASE}/ai/search/history?platform=${platform || ''}&limit=${limit}`;
-    console.log(`[Search Proxy] GET → ${target}`);
+    const target = `${NESTJS_BASE}/ai/search/history?platform=${encodeURIComponent(platform)}&limit=${encodeURIComponent(limit)}`;
 
     return proxyToNestJS(target, {
         method: 'GET',

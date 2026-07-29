@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import {
     Shield,
     CheckSquare,
@@ -119,9 +120,9 @@ export default function PermissionManagement() {
                 body: JSON.stringify(payload)
             });
             if (!response.ok) throw new Error('Failed to save');
-            alert(`Đã lưu phân quyền cho ${role}`);
+            toast.success(`Đã lưu phân quyền cho ${role}`);
         } catch (err: any) {
-            alert(err.message);
+            toast.error(err.message);
         } finally {
             setSaving(null);
         }

@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
     BarChart,
     Bar,
@@ -16,6 +17,12 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TrendingUp, TrendingDown, Video, Activity } from 'lucide-react';
 
+/** /lark/* yêu cầu đăng nhập (JwtAuthGuard) — phải gắn token cho fetch thủ công. */
+function getAuthHeaders(): Record<string, string> {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 interface DashboardAnalyticsProps {
     /** ISO date strings — stable references prevent spurious refetches */
     startDate: string;
@@ -24,36 +31,24 @@ interface DashboardAnalyticsProps {
 }
 
 const DashboardAnalytics = ({ startDate, endDate, activeTeam }: DashboardAnalyticsProps) => {
-    const [data, setData] = React.useState<any>(null);
-    const [loading, setLoading] = React.useState(true);
+    const startStr = startDate ? startDate.slice(0, 10) : '';
+    const endStr = endDate ? endDate.slice(0, 10) : '';
 
-    React.useEffect(() => {
-        const controller = new AbortController();
+    const { data, isLoading: loading } = useQuery({
+        queryKey: ['dashboardAnalytics', startStr, endStr, activeTeam],
+        queryFn: async ({ signal }) => {
+            const params = new URLSearchParams();
+            if (startStr) params.append('startDate', startStr);
+            if (endStr)   params.append('endDate',   endStr);
+            if (activeTeam !== 'All') params.append('team', activeTeam);
 
-        const fetchAnalytics = async () => {
-            setLoading(true);
-            try {
-                const params = new URLSearchParams();
-                if (startDate) params.append('startDate', startDate.slice(0, 10));
-                if (endDate)   params.append('endDate',   endDate.slice(0, 10));
-                if (activeTeam !== 'All') params.append('team', activeTeam);
-
-                const url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api'}/lark/dashboard-analytics?${params.toString()}`;
-                const response = await fetch(url, { signal: controller.signal });
-                const result = await response.json();
-                setData(result);
-            } catch (error: any) {
-                if (error?.name !== 'AbortError') {
-                    console.error('Failed to fetch dashboard analytics:', error);
-                }
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchAnalytics();
-        return () => controller.abort();
-    }, [startDate, endDate, activeTeam]);
+            const url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api'}/lark/dashboard-analytics?${params.toString()}`;
+            const response = await fetch(url, { signal, headers: getAuthHeaders() });
+            if (!response.ok) throw new Error('Failed to fetch dashboard analytics');
+            return await response.json();
+        },
+        staleTime: 60 * 1000, // 1 minute stale time
+    });
 
     if (loading) {
         return (

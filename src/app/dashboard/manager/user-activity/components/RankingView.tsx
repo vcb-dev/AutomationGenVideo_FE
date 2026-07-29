@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import React from 'react';
-import { Users, DollarSign } from 'lucide-react';
+import { Activity, DollarSign, Trophy } from 'lucide-react';
 
 interface RankingUser {
     rank: number;
@@ -12,11 +12,16 @@ interface RankingUser {
     value: string;
 }
 
+interface RankingViewProps {
+    rankings?: {
+        traffic: RankingUser[];
+        revenue: RankingUser[];
+    };
+}
+
 const getAvatarUrl = (url: string | null, name: string) => {
     if (!url) return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`;
-
     if (url.includes('drive.google.com')) {
-        // Extract ID from various Drive formats
         const match = url.match(/\/d\/([^/]+)/) || url.match(/id=([^&]+)/);
         if (match && match[1]) {
             return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w200`;
@@ -25,12 +30,252 @@ const getAvatarUrl = (url: string | null, name: string) => {
     return url;
 };
 
-interface RankingViewProps {
-    rankings?: {
-        traffic: RankingUser[];
-        revenue: RankingUser[];
-    };
-}
+const parseRawValue = (val: string): number =>
+    parseFloat(val.replace(/[^0-9.]/g, '')) || 0;
+
+const formatGap = (gap: number): string => {
+    if (gap >= 1_000_000) return `${(gap / 1_000_000).toFixed(1)}M`;
+    if (gap >= 1_000) return `${Math.round(gap / 1_000)}K`;
+    return gap.toLocaleString('vi-VN');
+};
+
+// Podium visual config: order [#2 left, #1 center, #3 right]
+const PODIUM_CFG = [
+    {
+        avatarSize: 44,
+        podiumH: 'h-[52px]',
+        podiumGrad: 'from-slate-400 to-slate-300',
+        podiumShadow: 'shadow-slate-300/50',
+        borderColor: 'border-slate-300',
+        ring: '',
+        medal: '🥈',
+        nameColor: 'text-slate-700',
+        valColor: 'text-slate-500',
+    },
+    {
+        avatarSize: 60,
+        podiumH: 'h-[80px]',
+        podiumGrad: 'from-amber-500 to-yellow-300',
+        podiumShadow: 'shadow-amber-400/50',
+        borderColor: 'border-amber-400',
+        ring: 'ring-2 ring-amber-300/70 ring-offset-1',
+        medal: '🥇',
+        nameColor: 'text-slate-900',
+        valColor: 'text-amber-600',
+    },
+    {
+        avatarSize: 38,
+        podiumH: 'h-[36px]',
+        podiumGrad: 'from-orange-500 to-amber-300',
+        podiumShadow: 'shadow-orange-300/50',
+        borderColor: 'border-orange-400',
+        ring: '',
+        medal: '🥉',
+        nameColor: 'text-slate-700',
+        valColor: 'text-orange-600',
+    },
+];
+
+// indices into users array: [#2, #1, #3]
+const PODIUM_ORDER = [1, 0, 2];
+
+const AvatarImg = ({ src, name, size, className = '' }: { src: string; name: string; size: number; className?: string }) => (
+    <Image
+        src={getAvatarUrl(src, name)}
+        alt={name}
+        width={size}
+        height={size}
+        className={`object-cover ${className}`}
+        unoptimized
+        onError={(e) => {
+            e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`;
+        }}
+    />
+);
+
+const RankingCard = ({
+    title,
+    subtitle,
+    icon: Icon,
+    users,
+    unit,
+    iconBg,
+    barColorClass,
+}: {
+    title: string;
+    subtitle: string;
+    icon: React.ElementType;
+    users: RankingUser[];
+    unit: string;
+    iconBg: string;
+    barColorClass: (rank: number) => string;
+}) => {
+    if (!users || users.length === 0) return null;
+
+    const hasPodium = users.length >= 3;
+    const podiumUsers = hasPodium ? PODIUM_ORDER.map(i => users[i]) : [];
+    const listUsers = users.slice(hasPodium ? 3 : 0);
+
+    const maxVal = Math.max(...users.map(u => parseRawValue(u.value)), 1);
+    const top1Val = parseRawValue(users[0]?.value || '0');
+
+    const now = new Date();
+    const monthLabel = `Tháng ${now.getMonth() + 1}/${now.getFullYear()}`;
+
+    return (
+        <div className="rounded-2xl overflow-hidden border border-slate-200/80 shadow-md flex flex-col">
+
+            {/* Dark competitive header */}
+            <div className="bg-gradient-to-r from-slate-800 to-slate-900 px-5 py-4">
+                <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBg}`}>
+                            <Icon className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <h3 className="text-[14px] font-black text-white tracking-wide uppercase">{title}</h3>
+                                <Trophy className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                            </div>
+                            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">{subtitle}</p>
+                        </div>
+                    </div>
+                    <span className="text-[11px] font-semibold text-slate-300 bg-slate-700/50 border border-slate-600/50 rounded-lg px-2.5 py-1 flex-shrink-0">
+                        {monthLabel}
+                    </span>
+                </div>
+            </div>
+
+            {/* Podium — top 3 */}
+            {hasPodium && (
+                <div className="bg-gradient-to-b from-slate-100/90 to-slate-50/30 px-5 pt-6 pb-0">
+                    <div className="flex items-end justify-center gap-3">
+                        {podiumUsers.map((user, pi) => {
+                            const cfg = PODIUM_CFG[pi];
+                            const isCenter = pi === 1;
+
+                            return (
+                                <div key={user.rank} className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
+                                    {/* Crown for #1 */}
+                                    {isCenter ? (
+                                        <span className="text-xl leading-none mb-0.5 drop-shadow-sm">👑</span>
+                                    ) : (
+                                        <div className="h-6" />
+                                    )}
+
+                                    {/* Avatar */}
+                                    <div
+                                        style={{ width: cfg.avatarSize, height: cfg.avatarSize }}
+                                        className={`rounded-full overflow-hidden border-2 ${cfg.borderColor} ${cfg.ring} bg-white shadow-sm flex-shrink-0`}
+                                    >
+                                        <AvatarImg
+                                            src={user.avatar}
+                                            name={user.name}
+                                            size={cfg.avatarSize}
+                                            className="w-full h-full rounded-full"
+                                        />
+                                    </div>
+
+                                    {/* Name */}
+                                    <p className={`text-center leading-tight px-0.5 truncate w-full text-[10px] font-black ${cfg.nameColor}`}>
+                                        {user.name.split(' ').slice(-2).join(' ')}
+                                    </p>
+
+                                    {/* Value */}
+                                    <p className={`text-[11px] font-black leading-none ${cfg.valColor}`}>
+                                        {user.value}
+                                    </p>
+
+                                    {/* Podium column */}
+                                    <div className={`w-full ${cfg.podiumH} bg-gradient-to-t ${cfg.podiumGrad} rounded-t-xl flex items-end justify-center pb-2 shadow-inner ${cfg.podiumShadow}`}>
+                                        <span className="text-base leading-none drop-shadow">{cfg.medal}</span>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {/* List — ranks 4 and 5 */}
+            {listUsers.length > 0 && (
+                <div className="p-4 space-y-2 flex-1 bg-white">
+                    {listUsers.map((user) => {
+                        const rawVal = parseRawValue(user.value);
+                        const barPct = Math.round((rawVal / maxVal) * 100);
+                        const gap = top1Val - rawVal;
+
+                        return (
+                            <div
+                                key={user.rank}
+                                className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-slate-50/80 border border-slate-100 hover:bg-slate-100/60 transition-all"
+                            >
+                                {/* Rank badge */}
+                                <div className="w-7 h-7 rounded-lg bg-slate-200 text-slate-500 flex items-center justify-center text-[11px] font-black flex-shrink-0">
+                                    {user.rank}
+                                </div>
+
+                                {/* Avatar */}
+                                <div className="w-9 h-9 rounded-full overflow-hidden border border-slate-200 bg-white flex-shrink-0">
+                                    <AvatarImg src={user.avatar} name={user.name} size={36} className="w-full h-full rounded-full" />
+                                </div>
+
+                                {/* Name + bar */}
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-[12px] font-bold text-slate-700 truncate leading-tight">{user.name}</p>
+                                    <div className="mt-1.5 h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                                        <div
+                                            className={`h-full rounded-full transition-all duration-700 ${barColorClass(user.rank)}`}
+                                            style={{ width: `${barPct}%` }}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Value + gap */}
+                                <div className="text-right flex-shrink-0 min-w-[60px]">
+                                    <span className="block text-[13px] font-black text-slate-700 tabular-nums">{user.value}</span>
+                                    {top1Val > 0 && gap > 0 && (
+                                        <span className="block text-[9px] font-semibold text-rose-400 mt-0.5">
+                                            -{formatGap(gap)} vs #1
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* If no podium, show all in plain list */}
+            {!hasPodium && users.length > 0 && (
+                <div className="p-4 space-y-2 flex-1 bg-white">
+                    {users.map((user) => {
+                        const rawVal = parseRawValue(user.value);
+                        const barPct = Math.round((rawVal / maxVal) * 100);
+
+                        return (
+                            <div key={user.rank} className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-slate-50/80 border border-slate-100">
+                                <div className="w-7 h-7 rounded-lg bg-slate-200 text-slate-500 flex items-center justify-center text-[11px] font-black flex-shrink-0">
+                                    {user.rank}
+                                </div>
+                                <div className="w-9 h-9 rounded-full overflow-hidden border border-slate-200 bg-white flex-shrink-0">
+                                    <AvatarImg src={user.avatar} name={user.name} size={36} className="w-full h-full rounded-full" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-[12px] font-bold text-slate-700 truncate">{user.name}</p>
+                                    <div className="mt-1.5 h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                                        <div className={`h-full rounded-full ${barColorClass(user.rank)}`} style={{ width: `${barPct}%` }} />
+                                    </div>
+                                </div>
+                                <span className="text-[13px] font-black text-slate-700 tabular-nums flex-shrink-0">{user.value}</span>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+};
 
 const RankingView = ({ rankings }: RankingViewProps) => {
     const defaultTraffic: RankingUser[] = [
@@ -52,139 +297,40 @@ const RankingView = ({ rankings }: RankingViewProps) => {
     const trafficRanking = rankings?.traffic || defaultTraffic;
     const revenueRanking = rankings?.revenue || defaultRevenue;
 
-    const getMedalEmoji = (rank: number) => {
-        switch (rank) {
-            case 1: return '🥇';
-            case 2: return '🥈';
-            case 3: return '🥉';
-            default: return null;
-        }
+    const trafficBarColor = (rank: number) => {
+        if (rank === 1) return 'bg-gradient-to-r from-amber-400 to-yellow-400';
+        if (rank === 2) return 'bg-gradient-to-r from-slate-300 to-slate-400';
+        if (rank === 3) return 'bg-gradient-to-r from-orange-300 to-amber-400';
+        return 'bg-blue-300';
     };
 
-    const getRankStyle = (rank: number) => {
-        switch (rank) {
-            case 1: return {
-                container: 'border-2 border-yellow-400/70 bg-gradient-to-r from-yellow-50 via-amber-50/80 to-yellow-50 shadow-[0_0_20px_-4px_rgba(234,179,8,0.3)]',
-                nameColor: 'text-yellow-900',
-                valueColor: 'text-yellow-700',
-                accentBar: 'bg-gradient-to-b from-yellow-400 to-amber-500',
-                avatarRing: 'ring-yellow-300/60 shadow-[0_0_12px_-2px_rgba(234,179,8,0.4)]',
-                badge: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-            };
-            case 2: return {
-                container: 'border-2 border-slate-300/70 bg-gradient-to-r from-slate-50 via-gray-50/80 to-slate-100/50 shadow-[0_0_16px_-4px_rgba(148,163,184,0.3)]',
-                nameColor: 'text-slate-800',
-                valueColor: 'text-slate-600',
-                accentBar: 'bg-gradient-to-b from-slate-400 to-slate-500',
-                avatarRing: 'ring-slate-300/60 shadow-[0_0_10px_-2px_rgba(148,163,184,0.3)]',
-                badge: 'bg-slate-100 text-slate-600 border-slate-200',
-            };
-            case 3: return {
-                container: 'border-2 border-orange-300/60 bg-gradient-to-r from-orange-50/80 via-amber-50/50 to-orange-50/60 shadow-[0_0_14px_-4px_rgba(251,146,60,0.25)]',
-                nameColor: 'text-orange-900',
-                valueColor: 'text-orange-600',
-                accentBar: 'bg-gradient-to-b from-orange-400 to-amber-600',
-                avatarRing: 'ring-orange-300/50 shadow-[0_0_8px_-2px_rgba(251,146,60,0.3)]',
-                badge: 'bg-orange-100 text-orange-600 border-orange-200',
-            };
-            default: return {
-                container: 'border border-slate-100 bg-white hover:bg-slate-50/50',
-                nameColor: 'text-slate-900',
-                valueColor: 'text-slate-700',
-                accentBar: '',
-                avatarRing: 'ring-white',
-                badge: 'bg-blue-100/50 text-blue-600',
-            };
-        }
+    const revenueBarColor = (rank: number) => {
+        if (rank === 1) return 'bg-gradient-to-r from-amber-400 to-yellow-400';
+        if (rank === 2) return 'bg-gradient-to-r from-slate-300 to-slate-400';
+        if (rank === 3) return 'bg-gradient-to-r from-orange-300 to-amber-400';
+        return 'bg-emerald-300';
     };
-
-    const RankingCard = ({ title, icon: Icon, users }: { title: string; icon: any; users: RankingUser[] }) => (
-        <div className="bg-white rounded-[2.5rem] p-8 shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden relative">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full -mr-16 -mt-16 blur-3xl" />
-
-            <div className="flex items-center justify-between mb-8 relative z-10">
-                <div className="flex items-center gap-4">
-                    <div className={`p-3 rounded-2xl ${title.includes('TRAFFIC') ? 'bg-blue-600 shadow-lg shadow-blue-500/20' : 'bg-blue-800 shadow-lg shadow-blue-800/20'}`}>
-                        <Icon className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                        <h3 className="text-xl font-black text-slate-900 tracking-tight">{title}</h3>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-0.5">Top 5 Bùng nổ nhất</p>
-                    </div>
-                </div>
-                <div className="bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">
-                    <span className="text-xs font-black text-slate-400 uppercase">Tháng 2/2026</span>
-                </div>
-            </div>
-
-            <div className="space-y-4 relative z-10">
-                {users.map((user) => {
-                    const style = getRankStyle(user.rank);
-                    const isTop3 = user.rank <= 3;
-
-                    return (
-                        <div
-                            key={user.rank}
-                            className={`relative flex items-center justify-between p-5 rounded-3xl transition-all duration-300 hover:scale-[1.01] hover:shadow-lg overflow-hidden ${style.container}`}
-                        >
-                            {/* Accent bar for top 3 */}
-                            {isTop3 && (
-                                <div className={`absolute left-0 top-0 bottom-0 w-1.5 rounded-l-3xl ${style.accentBar}`} />
-                            )}
-
-                            <div className="flex items-center gap-4">
-                                <div className="flex items-center justify-center w-10 text-center">
-                                    {getMedalEmoji(user.rank) ? (
-                                        <span className={`text-2xl drop-shadow-sm ${isTop3 ? 'animate-[bounce_2s_ease-in-out_infinite]' : ''}`}>
-                                            {getMedalEmoji(user.rank)}
-                                        </span>
-                                    ) : (
-                                        <span className="text-slate-300 font-black text-lg">0{user.rank}</span>
-                                    )}
-                                </div>
-                                <div className="relative">
-                                    <Image
-                                        src={getAvatarUrl(user.avatar, user.name)}
-                                        alt={user.name}
-                                        className={`w-12 h-12 rounded-2xl object-cover ring-4 shadow-md ${style.avatarRing}`}
-                                        onError={(e) => {
-                                            e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random`;
-                                        }}
-                                     width={48} height={48} sizes="48px" unoptimized/>
-                                    {user.rank === 1 && (
-                                            <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-gradient-to-br from-yellow-300 to-amber-500 rounded-full border-2 border-white shadow-sm flex items-center justify-center">
-                                                <span className="text-[10px]">👑</span>
-                                            </div>
-                                    )}
-                                </div>
-                                <div className="flex flex-col">
-                                    <span className={`font-black tracking-tight ${isTop3 ? 'text-base' : 'text-sm'} ${style.nameColor} truncate max-w-[120px] sm:max-w-[200px]`}>
-                                        {user.name}
-                                    </span>
-                                    <span className={`text-[11px] font-black px-2 py-0.5 rounded-lg w-fit uppercase tracking-wider mt-1 border ${style.badge}`}>
-                                        {user.position || 'Member'}
-                                    </span>
-                                </div>
-                            </div>
-                            <div className="text-right">
-                                <span className={`font-black block leading-none ${isTop3 ? 'text-xl' : 'text-lg'} ${style.valueColor}`}>
-                                    {user.value}
-                                </span>
-                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-tighter">
-                                    {title.includes('TRAFFIC') ? 'Lượt xem' : 'VND'}
-                                </span>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-        </div>
-    );
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <RankingCard title="BXH TRAFFIC" icon={Users} users={trafficRanking} />
-            <RankingCard title="BXH DOANH THU" icon={DollarSign} users={revenueRanking} />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <RankingCard
+                title="BXH TRAFFIC"
+                subtitle="Top 5 chiến binh bùng nổ nhất"
+                icon={Activity}
+                users={trafficRanking}
+                unit="Lượt xem"
+                iconBg="bg-blue-500/20 text-blue-400 border border-blue-400/30"
+                barColorClass={trafficBarColor}
+            />
+            <RankingCard
+                title="BXH DOANH THU"
+                subtitle="Top 5 chiến binh bùng nổ nhất"
+                icon={DollarSign}
+                users={revenueRanking}
+                unit="VNĐ"
+                iconBg="bg-emerald-500/20 text-emerald-400 border border-emerald-400/30"
+                barColorClass={revenueBarColor}
+            />
         </div>
     );
 };
