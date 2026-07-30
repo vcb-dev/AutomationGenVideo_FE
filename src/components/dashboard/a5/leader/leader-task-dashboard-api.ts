@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 
 export interface LeaderDashboardMember {
@@ -16,6 +16,12 @@ export interface LeaderDashboardMember {
   kpi_video_win: number;
   kpi_content_new: number;
   kpi_product_planned: number;
+  /** Số task được giao (assigned_at) hôm nay — "mục tiêu" của KPI ngày. */
+  kpi_day_target: number;
+  /** Số task đã duyệt hôm nay — "hiện tại" của KPI ngày. */
+  kpi_day_completed: number;
+  /** Tổng traffic tự báo cáo hằng ngày, cộng dồn trong tháng hiện tại. Chưa có KPI/mục tiêu traffic. */
+  traffic_month: number;
 }
 
 export interface LeaderTaskDashboard {
@@ -31,19 +37,26 @@ export interface LeaderTaskDashboard {
     content_new: number;
     product_planned: number;
   } | null;
+  /** Số video (task đã duyệt) trong tháng của cả team, gộp theo tuyến nội dung A1-A5. */
+  video_by_line: { line: string; count: number }[];
 }
 
-/** Task thật (task-auto) của team do leader hiện tại đang lead — BE tự khoá theo JWT, không cần truyền team. */
-export function useLeaderTaskDashboard(params: { dateFrom?: string; dateTo?: string }) {
+/**
+ * Task thật (task-auto) của team do leader hiện tại đang lead — BE tự khoá theo JWT, không cần truyền team.
+ * `month` ("YYYY-MM") lọc báo cáo theo tháng — bỏ trống thì BE mặc định về tháng hiện tại.
+ */
+export function useLeaderTaskDashboard(params: { month?: string }) {
   return useQuery({
-    queryKey: ["leaderTaskDashboard", params.dateFrom, params.dateTo],
+    queryKey: ["leaderTaskDashboard", params.month],
     queryFn: async ({ signal }) => {
       const { data } = await apiClient.get<LeaderTaskDashboard>("/task-auto/dashboard", {
-        params: { date_from: params.dateFrom, date_to: params.dateTo },
+        params: { month: params.month },
         signal,
       });
       return data;
     },
     staleTime: 60 * 1000,
+    // Giữ data tháng cũ trên màn hình khi đổi tháng, tránh nháy về spinner/màn hình trống.
+    placeholderData: keepPreviousData,
   });
 }
