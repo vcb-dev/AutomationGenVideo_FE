@@ -1,38 +1,99 @@
 'use client';
 
+import { useQuery } from '@tanstack/react-query';
+import { scraperService } from '@/services/scraperService';
+import { useAuthStore } from '@/store/auth-store';
+
 /**
- * Hai ô lọc dùng chung cho MỌI trang kênh nội bộ: thị trường (VN / Global) và tuyến nội
- * dung (A1–A5). Cả 5 trang nội bộ đều gọi cùng một endpoint `scraper/owned/videos`, nên
- * đặt ở một chỗ thay vì dán lại năm lần.
+ * Bộ lọc dùng chung cho MỌI trang kênh nội bộ: kênh, hashtag, thị trường (VN/Global) và
+ * tuyến nội dung (A1–A5). Cả 5 trang nội bộ đều gọi cùng một endpoint `scraper/owned/videos`
+ * nên đặt ở một chỗ thay vì dán lại năm lần.
  *
- * Lọc được làm Ở SERVER, không phải ở đây. Nếu lọc trên danh sách đã tải về thì trang 1
- * lấy 24 video rồi lọc còn 3 — người dùng tưởng chỉ có 3 video thuộc tuyến đó, trong khi
- * thực tế còn hàng nghìn ở các trang sau.
+ * Lọc được làm Ở SERVER, không phải ở đây. Lọc trên danh sách đã tải về thì trang 1 lấy 24
+ * video rồi lọc còn 3 — người dùng tưởng cả hệ thống chỉ có 3 video thuộc nhóm đó, trong
+ * khi thực tế còn hàng nghìn ở các trang sau.
  */
 
 /** Đúng bộ tuyến mà đội nội dung đang gắn vào caption dưới dạng #A1…#A5. */
 export const TUYEN_NOI_DUNG = ['A1', 'A2', 'A3', 'A4', 'A5'] as const;
 
-export default function ContentFilters({
-    market,
-    onMarketChange,
-    contentLine,
-    onContentLineChange,
-}: {
+const O_CHON =
+    'px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary';
+
+export interface ContentFiltersValue {
+    channel: string;
+    hashtag: string;
     market: string;
-    onMarketChange: (v: string) => void;
     contentLine: string;
-    onContentLineChange: (v: string) => void;
+}
+
+export default function ContentFilters({
+    value,
+    onChange,
+    /** Trang từng nền tảng chỉ nên hiện kênh của nền tảng đó. Bỏ trống = hiện tất cả. */
+    platform,
+}: {
+    value: ContentFiltersValue;
+    onChange: (v: Partial<ContentFiltersValue>) => void;
+    platform?: string;
 }) {
-    const oCham =
-        'px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary';
+    const { token } = useAuthStore();
+
+    // Danh sách kênh và hashtag hiếm khi đổi trong một phiên làm việc, mà lại là hai truy vấn
+    // gom nhóm nặng ở server (bóc hashtag từ 20.000 caption). staleTime dài để mỗi lần đổi
+    // bộ lọc không gọi lại.
+    const kenhQuery = useQuery({
+        queryKey: ['owned-channels'],
+        queryFn: () => scraperService.getOwnedChannels(token!),
+        enabled: !!token,
+        staleTime: 10 * 60 * 1000,
+    });
+
+    const hashtagQuery = useQuery({
+        queryKey: ['owned-hashtags'],
+        queryFn: () => scraperService.getOwnedHashtags(token!, 60),
+        enabled: !!token,
+        staleTime: 10 * 60 * 1000,
+    });
+
+    const kenh = (kenhQuery.data || []).filter(
+        (c) => !platform || c.platform === platform,
+    );
 
     return (
         <>
             <select
-                value={market}
-                onChange={(e) => onMarketChange(e.target.value)}
-                className={oCham}
+                value={value.channel}
+                onChange={(e) => onChange({ channel: e.target.value })}
+                className={`${O_CHON} max-w-[220px]`}
+                title="Chỉ hiện video của kênh đã chọn"
+            >
+                <option value="">Tất cả kênh{kenh.length ? ` (${kenh.length})` : ''}</option>
+                {kenh.map((c) => (
+                    <option key={`${c.platform}:${c.id}`} value={c.id}>
+                        {c.ten} ({c.so_video})
+                    </option>
+                ))}
+            </select>
+
+            <select
+                value={value.hashtag}
+                onChange={(e) => onChange({ hashtag: e.target.value })}
+                className={`${O_CHON} max-w-[200px]`}
+                title="Chỉ hiện video có hashtag đã chọn"
+            >
+                <option value="">Tất cả hashtag</option>
+                {(hashtagQuery.data || []).map((h) => (
+                    <option key={h.the} value={h.the}>
+                        #{h.the} ({h.so_video})
+                    </option>
+                ))}
+            </select>
+
+            <select
+                value={value.market}
+                onChange={(e) => onChange({ market: e.target.value })}
+                className={O_CHON}
                 title="Kênh VN nhận theo dấu tiếng Việt trong caption"
             >
                 <option value="">VN + Global</option>
@@ -41,9 +102,9 @@ export default function ContentFilters({
             </select>
 
             <select
-                value={contentLine}
-                onChange={(e) => onContentLineChange(e.target.value)}
-                className={oCham}
+                value={value.contentLine}
+                onChange={(e) => onChange({ contentLine: e.target.value })}
+                className={O_CHON}
                 title="Bắt theo hashtag #A1…#A5 có trong caption"
             >
                 <option value="">Tất cả tuyến</option>

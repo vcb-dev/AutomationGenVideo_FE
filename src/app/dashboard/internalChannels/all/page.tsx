@@ -137,13 +137,15 @@ export default function AllOwnedVideosPage() {
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [sortBy, setSortBy] = useState('date');
+  const [sortBy, setSortBy] = useState('plays');
   const [platform, setPlatform] = useState('');
   const [minPlays, setMinPlays] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [market, setMarket] = useState('');
   const [contentLine, setContentLine] = useState('');
+  const [channel, setChannel] = useState('');
+  const [hashtag, setHashtag] = useState('');
   const searchTimer = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
@@ -151,11 +153,11 @@ export default function AllOwnedVideosPage() {
     return () => clearTimeout(searchTimer.current);
   }, [search]);
 
-  const hasFilters = !!debouncedSearch || !!platform || !!minPlays || !!dateFrom || !!dateTo || sortBy !== 'date' || !!market || !!contentLine;
-  const clearFilters = () => { setSearch(''); setPlatform(''); setMinPlays(''); setDateFrom(''); setDateTo(''); setSortBy('date'); setMarket(''); setContentLine(''); };
+  const hasFilters = !!debouncedSearch || !!platform || !!minPlays || !!dateFrom || !!dateTo || sortBy !== 'plays' || !!market || !!contentLine || !!channel || !!hashtag;
+  const clearFilters = () => { setSearch(''); setPlatform(''); setMinPlays(''); setDateFrom(''); setDateTo(''); setSortBy('plays'); setMarket(''); setContentLine(''); setChannel(''); setHashtag(''); };
 
   const videosQuery = useInfiniteQuery({
-    queryKey: ['owned-channel-videos', debouncedSearch, sortBy, platform, minPlays, dateFrom, dateTo, market, contentLine],
+    queryKey: ['owned-channel-videos', debouncedSearch, sortBy, platform, minPlays, dateFrom, dateTo, market, contentLine, channel, hashtag],
     queryFn: ({ pageParam = 1 }) => {
       if (!token) return Promise.reject('No token');
       return scraperService.getOwnedChannelVideos(token, {
@@ -169,6 +171,8 @@ export default function AllOwnedVideosPage() {
         date_to: dateTo || undefined,
         market: market || undefined,
         content_line: contentLine || undefined,
+        channel: channel || undefined,
+        hashtag: hashtag || undefined,
       });
     },
     getNextPageParam: (last) => last.page < last.total_pages ? last.page + 1 : undefined,
@@ -219,10 +223,13 @@ export default function AllOwnedVideosPage() {
           className="w-28 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
         />
         <ContentFilters
-          market={market}
-          onMarketChange={setMarket}
-          contentLine={contentLine}
-          onContentLineChange={setContentLine}
+          value={{ channel, hashtag, market, contentLine }}
+          onChange={(v) => {
+            if (v.channel !== undefined) setChannel(v.channel);
+            if (v.hashtag !== undefined) setHashtag(v.hashtag);
+            if (v.market !== undefined) setMarket(v.market);
+            if (v.contentLine !== undefined) setContentLine(v.contentLine);
+          }}
         />
         <select
           value={sortBy}
