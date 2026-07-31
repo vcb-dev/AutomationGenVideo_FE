@@ -1,6 +1,12 @@
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
 
 export interface ProposeVideoPayload {
+  /**
+   * true = tiêu đề/mô tả do CON NGƯỜI tự gõ trong form, BE sẽ không đè lên bằng dữ liệu
+   * lấy từ nền tảng. Chỉ form "Đề xuất video" đặt cờ này; extension và các thẻ video ở
+   * trang Khám phá thì để trống vì chữ ở đó do máy đọc, số liệu nền tảng chuẩn hơn.
+   */
+  user_edited?: boolean;
   video_id: string;
   platform: string;
   title?: string;

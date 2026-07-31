@@ -6,8 +6,12 @@ import toast from 'react-hot-toast';
 import { CircleNotch, FilmReel, Warning, Eye, Heart, ChatCircle, FacebookLogo, TiktokLogo, InstagramLogo, PaperPlaneTilt } from '@phosphor-icons/react';
 
 import { useAuthStore } from '@/store/auth-store';
+import { platformStyle } from '@/lib/platform-config';
 import { scraperService, ExternalVideo } from '@/services/scraperService';
 import { videoLibraryService } from '@/services/videoLibraryService';
+import { useSubmitVideoToLibrary } from '@/hooks/useProposeVideo';
+import { dedupeById } from '@/lib/dedupe-pages';
+import WatchFeedButton from '../components/WatchFeedButton';
 import QuickAddChannel from '../components/QuickAddChannel';
 
 function formatNum(n: number): string {
@@ -51,20 +55,18 @@ function getAuthorAvatar(video: ExternalVideo): string {
   return video.author_avatar || '';
 }
 
-const platformConfig = {
-  facebook: { icon: FacebookLogo, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/30', label: 'Facebook' },
-  tiktok: { icon: TiktokLogo, color: 'text-slate-800 dark:text-white', bg: 'bg-slate-100 dark:bg-slate-800', label: 'TikTok' },
-  instagram: { icon: InstagramLogo, color: 'text-pink-500', bg: 'bg-pink-50 dark:bg-pink-900/30', label: 'Instagram' },
-};
 
 function AllVideoCard({ video }: { video: ExternalVideo }) {
-  const config = platformConfig[video.platform];
+  // platformStyle LUÔN trả về kiểu dáng dùng được. Tra thẳng vào bảng rồi `.icon` như
+  // trước là cách đã làm trang này vỡ trắng khi gặp video Douyin.
+  const config = platformStyle(video.platform);
   const PlatformIcon = config.icon;
   const { token } = useAuthStore();
+  // Leader/Admin them thang vao Bo Suu Tap, con lai vao hang cho duyet — xem useProposeVideo.ts
+  const { submit, successMessage, actionLabel, doneLabel } = useSubmitVideoToLibrary();
   const proposeMutation = useMutation({
     mutationFn: () => {
-      if (!token) throw new Error('Chưa đăng nhập');
-      return videoLibraryService.proposeVideo(token, {
+      return submit({
         video_id: video.post_id,
         platform: video.platform,
         title: video.description?.slice(0, 200) || '',
@@ -79,7 +81,7 @@ function AllVideoCard({ video }: { video: ExternalVideo }) {
         source: 'SCRAPED',
       });
     },
-    onSuccess: () => toast.success('Đã gửi đề xuất, chờ duyệt.'),
+    onSuccess: () => toast.success(successMessage),
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -168,7 +170,7 @@ function AllVideoCard({ video }: { video: ExternalVideo }) {
             ) : (
               <PaperPlaneTilt size={12} weight="bold" />
             )}
-            {proposeMutation.isSuccess ? 'Đã đề xuất' : 'Đề xuất'}
+            {proposeMutation.isSuccess ? doneLabel : actionLabel}
           </button>
         </div>
       </div>
@@ -216,7 +218,7 @@ export default function AllExternalVideosPage() {
     enabled: !!token,
   });
 
-  const allVideos = videosQuery.data?.pages.flatMap(p => p.videos) || [];
+  const allVideos = dedupeById(videosQuery.data?.pages.flatMap(p => p.videos) || []);
   const totalVideos = videosQuery.data?.pages[0]?.count || 0;
 
   const observerRef = useRef<IntersectionObserver>();
@@ -232,6 +234,10 @@ export default function AllExternalVideosPage() {
   return (
     <div className="flex flex-col gap-5">
       <QuickAddChannel />
+
+      <div>
+        <WatchFeedButton platform="all" label="Xem ngay tại đây" />
+      </div>
 
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-3 bg-card border border-border rounded-xl p-4">
@@ -256,7 +262,7 @@ export default function AllExternalVideosPage() {
           type="number"
           value={minPlays}
           onChange={e => setMinPlays(e.target.value)}
-          placeholder="Min plays"
+          placeholder="Min view"
           className="w-28 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
         />
         <select
@@ -265,7 +271,7 @@ export default function AllExternalVideosPage() {
           className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           <option value="date">Mới nhất</option>
-          <option value="plays">Nhiều plays nhất</option>
+          <option value="plays">Nhiều views nhất</option>
           <option value="likes">Nhiều likes nhất</option>
         </select>
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none" title="Từ ngày" />

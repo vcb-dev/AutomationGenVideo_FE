@@ -172,31 +172,53 @@ async function rememberAppBase(claimedOrigin, sender) {
 // Dịch từ khoá sang tiếng Trung qua chính trang web hệ thống (Next route công khai,
 // không cần đăng nhập) — dùng lại đúng endpoint AI mà web app đang dùng, không tự
 // gọi dịch vụ dịch bên thứ ba từ extension.
+/**
+ * Trả { ok, translated, reason } — `reason` là BẮT BUỘC khi thất bại.
+ *
+ * Trước đây mọi nhánh hỏng đều trả {ok:false} trơ trọi, content script thấy vậy thì ẩn chip
+ * đi. Kết quả: địa chỉ hệ thống sai / không kết nối được / AI lỗi đều cho ra đúng một hiện
+ * tượng "gõ tiếng Việt mà chẳng thấy gì", người dùng tưởng tính năng không tồn tại. Có
+ * `reason` thì mới nói được cho họ biết hỏng ở đâu.
+ *
+ *   'skip'    — vốn đã là tiếng Trung, không cần gợi ý (im lặng, KHÔNG phải lỗi)
+ *   'offline' — không gọi tới được trang web hệ thống
+ *   'server'  — gọi tới được nhưng hệ thống trả lỗi
+ */
 async function translateToChinese(text) {
     const raw = (text || '').trim();
-    if (!raw) return { ok: false, translated: '' };
+    if (!raw) return { ok: false, translated: '', reason: 'skip' };
 
+    const { appBase } = await getSettings();
+    const base = (appBase || DEFAULT_APP_BASE).replace(/\/$/, '');
+
+    let res;
     try {
-        const { appBase } = await getSettings();
-        const base = (appBase || DEFAULT_APP_BASE).replace(/\/$/, '');
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 10000);
-        const res = await fetch(`${base}/api/translate-chinese`, {
+        res = await fetch(`${base}/api/translate-chinese`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text: raw }),
             signal: controller.signal,
         });
         clearTimeout(timer);
-        if (!res.ok) return { ok: false, translated: '' };
-        const data = await res.json();
-        const translated = (data?.translated || '').trim();
-        // source='already_chinese' nghĩa là input vốn đã là tiếng Trung → không cần gợi ý.
-        if (!translated || translated === raw) return { ok: false, translated: '' };
-        return { ok: true, translated };
     } catch {
-        return { ok: false, translated: '' };
+        return { ok: false, translated: '', reason: 'offline', base };
     }
+
+    if (!res.ok) return { ok: false, translated: '', reason: 'server', status: res.status, base };
+
+    let data;
+    try {
+        data = await res.json();
+    } catch {
+        return { ok: false, translated: '', reason: 'server', base };
+    }
+
+    const translated = (data?.translated || '').trim();
+    // source='already_chinese' nghĩa là input vốn đã là tiếng Trung → không cần gợi ý.
+    if (!translated || translated === raw) return { ok: false, translated: '', reason: 'skip' };
+    return { ok: true, translated };
 }
 
 function buildTargetUrl(base, pageUrl, { format, quality, auto }) {

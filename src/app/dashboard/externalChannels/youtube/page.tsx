@@ -12,8 +12,11 @@ import YoutubeProfileCard from '../components/YoutubeProfileCard';
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService, YoutubeShortWithProfile } from '@/services/scraperService';
 import { videoLibraryService } from '@/services/videoLibraryService';
+import { useSubmitVideoToLibrary } from '@/hooks/useProposeVideo';
 import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
 import { UserRole } from '@/types/auth';
+import { dedupeById } from '@/lib/dedupe-pages';
+import WatchFeedButton from '../components/WatchFeedButton';
 
 const PAGE_SIZE_PROFILES = 12;
 const PAGE_SIZE_SHORTS = 24;
@@ -26,10 +29,11 @@ function formatNum(n: number): string {
 
 function YoutubeShortCard({ short }: { short: YoutubeShortWithProfile }) {
   const { token } = useAuthStore();
+  // Leader/Admin them thang vao Bo Suu Tap, con lai vao hang cho duyet — xem useProposeVideo.ts
+  const { submit, successMessage, actionLabel, doneLabel } = useSubmitVideoToLibrary();
   const proposeMutation = useMutation({
     mutationFn: () => {
-      if (!token) throw new Error('Chưa đăng nhập');
-      return videoLibraryService.proposeVideo(token, {
+      return submit({
         video_id: short.video_id,
         platform: 'youtube',
         title: short.title?.slice(0, 200) || '',
@@ -43,7 +47,7 @@ function YoutubeShortCard({ short }: { short: YoutubeShortWithProfile }) {
         source: 'SCRAPED',
       });
     },
-    onSuccess: () => toast.success('Đã gửi đề xuất, chờ duyệt.'),
+    onSuccess: () => toast.success(successMessage),
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -96,7 +100,7 @@ function YoutubeShortCard({ short }: { short: YoutubeShortWithProfile }) {
             ) : (
               <PaperPlaneTilt size={12} weight="bold" />
             )}
-            {proposeMutation.isSuccess ? 'Đã đề xuất' : 'Đề xuất'}
+            {proposeMutation.isSuccess ? doneLabel : actionLabel}
           </button>
         </div>
       </div>
@@ -185,7 +189,7 @@ export default function YoutubeExternalPage() {
     if (node) observerRef.current.observe(node);
   }, [shortsQuery.isFetchingNextPage, shortsQuery.hasNextPage, shortsQuery.fetchNextPage]);
 
-  const allShorts = shortsQuery.data?.pages.flatMap(p => p.shorts) || [];
+  const allShorts = dedupeById(shortsQuery.data?.pages.flatMap(p => p.shorts) || []);
   const totalShorts = shortsQuery.data?.pages[0]?.count || 0;
 
   // ─── Mutations ────────────────────────────────────────
@@ -242,6 +246,9 @@ export default function YoutubeExternalPage() {
 
   return (
     <div className="flex flex-col gap-5">
+      <div>
+        <WatchFeedButton platform="youtube" label="Xem ngay tại đây" />
+      </div>
       {/* Input channel_id — chỉ leader/admin */}
       {canManageChannels && (
         <div className="bg-card border border-border rounded-xl p-4">

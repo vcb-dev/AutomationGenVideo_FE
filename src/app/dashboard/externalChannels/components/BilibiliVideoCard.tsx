@@ -5,8 +5,7 @@ import toast from 'react-hot-toast';
 import { Eye, Heart, ChatCircle, BookmarkSimple, FilmReel, ChatsCircle, PaperPlaneTilt, CircleNotch } from '@phosphor-icons/react';
 import { BilibiliSearchVideo } from '@/services/scraperService';
 import { videoLibraryService } from '@/services/videoLibraryService';
-import { useAuthStore } from '@/store/auth-store';
-
+import { useSubmitVideoToLibrary } from '@/hooks/useProposeVideo';
 function formatNum(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
   if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
@@ -31,11 +30,11 @@ function relativeTime(dateStr: string): string {
 }
 
 export default function BilibiliVideoCard({ video }: { video: BilibiliSearchVideo }) {
-  const { token } = useAuthStore();
+  // Leader/Admin them thang vao Bo Suu Tap, con lai vao hang cho duyet — xem useProposeVideo.ts
+  const { submit, successMessage, actionLabel, doneLabel } = useSubmitVideoToLibrary();
   const proposeMutation = useMutation({
     mutationFn: () => {
-      if (!token) throw new Error('Chưa đăng nhập');
-      return videoLibraryService.proposeVideo(token, {
+      return submit({
         video_id: video.post_id,
         platform: 'bilibili',
         title: video.description?.slice(0, 200) || '',
@@ -51,7 +50,7 @@ export default function BilibiliVideoCard({ video }: { video: BilibiliSearchVide
         source: 'SCRAPED',
       });
     },
-    onSuccess: () => toast.success('Đã gửi đề xuất, chờ duyệt.'),
+    onSuccess: () => toast.success(successMessage),
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -144,7 +143,7 @@ export default function BilibiliVideoCard({ video }: { video: BilibiliSearchVide
             ) : (
               <PaperPlaneTilt size={12} weight="bold" />
             )}
-            {proposeMutation.isSuccess ? 'Đã đề xuất' : 'Đề xuất'}
+            {proposeMutation.isSuccess ? doneLabel : actionLabel}
           </button>
         </div>
       </div>

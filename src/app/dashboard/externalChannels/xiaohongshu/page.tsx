@@ -15,6 +15,9 @@ import { scraperService, XiaohongshuVideo, XiaohongshuProfile } from '@/services
 import { useScrapingStore } from '@/store/scraping-store';
 import { UserRole } from '@/types/auth';
 import { videoLibraryService } from '@/services/videoLibraryService';
+import { useSubmitVideoToLibrary } from '@/hooks/useProposeVideo';
+import { dedupeById } from '@/lib/dedupe-pages';
+import WatchFeedButton from '../components/WatchFeedButton';
 import KeywordTranslateHint from '../components/KeywordTranslateHint';
 
 function formatNum(n: number): string {
@@ -40,10 +43,11 @@ function relativeTime(dateStr: string): string {
 
 function XhsVideoCard({ video }: { video: XiaohongshuVideo }) {
   const { token } = useAuthStore();
+  // Leader/Admin them thang vao Bo Suu Tap, con lai vao hang cho duyet — xem useProposeVideo.ts
+  const { submit, successMessage, actionLabel, doneLabel } = useSubmitVideoToLibrary();
   const proposeMutation = useMutation({
     mutationFn: () => {
-      if (!token) throw new Error('Chưa đăng nhập');
-      return videoLibraryService.proposeVideo(token, {
+      return submit({
         video_id: video.note_id,
         platform: 'xiaohongshu',
         title: video.title?.slice(0, 200) || '',
@@ -59,7 +63,7 @@ function XhsVideoCard({ video }: { video: XiaohongshuVideo }) {
         source: 'SCRAPED',
       });
     },
-    onSuccess: () => toast.success('Đã gửi đề xuất, chờ duyệt.'),
+    onSuccess: () => toast.success(successMessage),
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -116,7 +120,7 @@ function XhsVideoCard({ video }: { video: XiaohongshuVideo }) {
           ) : (
             <PaperPlaneTilt size={12} weight="bold" />
           )}
-          {proposeMutation.isSuccess ? 'Đã đề xuất' : 'Đề xuất'}
+          {proposeMutation.isSuccess ? doneLabel : actionLabel}
         </button>
       </div>
     </div>
@@ -334,7 +338,7 @@ function VideoSearchTab() {
     enabled: !!token,
   });
 
-  const allVideos = videosQuery.data?.pages.flatMap(p => p.videos) || [];
+  const allVideos = dedupeById(videosQuery.data?.pages.flatMap(p => p.videos) || []);
   const total = videosQuery.data?.pages[0]?.count || 0;
 
   const observerRef = useRef<IntersectionObserver>();
@@ -695,6 +699,9 @@ export default function XiaohongshuExternalPage() {
 
   return (
     <div className="flex flex-col gap-5">
+      <div>
+        <WatchFeedButton platform="xiaohongshu" label="Xem ngay tại đây" />
+      </div>
       {/* Tabs */}
       <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg w-fit">
         {([['videos', 'Videos'], ['profiles', 'Profiles']] as [Tab, string][]).map(([t, label]) => (

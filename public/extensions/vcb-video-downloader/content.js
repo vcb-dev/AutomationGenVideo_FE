@@ -419,13 +419,40 @@
     }
 
     /**
-     * Lùng trong các khối JSON của trang một object mô tả đúng video này.
-     * Ưu tiên object có id trùng videoId; nếu không có thì lấy object "giống video nhất"
-     * (có nhiều nhóm chỉ số nhất). Trả về {} khi không tìm được gì.
+     * Như pickAlias nhưng CHỈ nhận chữ. Vài nền tảng để trường tiêu đề/tác giả là object
+     * (vd Instagram: caption = {text: ...}) — String(object) ra "[object Object]" và đã lọt
+     * vào bộ sưu tập thật, nên chặn tại đây.
+     */
+    function pickText(obj, keys) {
+        for (const k of keys) {
+            const v = obj?.[k];
+            if (typeof v === 'string' && v.trim()) return v;
+            if (typeof v === 'number' && Number.isFinite(v)) return String(v);
+            // Dạng {text: "..."} / {name: "..."} vẫn lấy được phần chữ bên trong.
+            if (v && typeof v === 'object' && !Array.isArray(v)) {
+                for (const inner of ['text', 'name', 'title', 'content']) {
+                    if (typeof v[inner] === 'string' && v[inner].trim()) return v[inner];
+                }
+            }
+        }
+        return undefined;
+    }
+
+    /**
+     * Lùng trong các khối JSON của trang object mô tả ĐÚNG video này.
+     *
+     * Quy tắc an toàn (quan trọng): thà không có số liệu còn hơn có số liệu của video khác.
+     * Trang kiểu bảng tin nhúng JSON của hàng chục video; lấy "object giống video nhất"
+     * sẽ gán nhầm lượt xem/tim/tên kênh của một video hoàn toàn khác. Nên:
+     *   - có object trùng id  → dùng object đó;
+     *   - không trùng id nhưng cả trang chỉ có ĐÚNG 1 object dạng video → dùng (trang 1 video);
+     *   - không trùng id mà có nhiều object → trả rỗng, không đoán.
      */
     function findVideoNode(blobs, videoId) {
         let best = null;
         let bestScore = 0;
+        let idMatched = null;
+        let candidateCount = 0;
         const seen = new Set();
         const MAX_NODES = 200000;
         let visited = 0;
@@ -443,13 +470,19 @@
                 }
                 if (groups > 0) {
                     // Cộng điểm cho những dấu hiệu "đây là object mô tả video" chứ không phải
-                    // riêng cụm số liệu: có tiêu đề, có tác giả, và nhất là có đúng id.
+                    // riêng cụm số liệu: có tiêu đề, có tác giả.
                     let score = groups;
-                    if (pickAlias(node, TITLE_KEYS) !== undefined) score += 2;
-                    if (node.author || node.owner || node.user || node.uploader) score += 2;
+                    const hasTitle = pickAlias(node, TITLE_KEYS) !== undefined;
+                    const hasAuthor = !!(node.author || node.owner || node.user || node.uploader);
+                    if (hasTitle) score += 2;
+                    if (hasAuthor) score += 2;
+                    // Chỉ đếm là "ứng viên video" khi trông thật sự giống một video, để cụm
+                    // số liệu lồng bên trong không bị đếm thành ứng viên thứ hai.
+                    if (hasTitle || hasAuthor) candidateCount++;
+
                     const idHit = videoId && NODE_ID_KEYS
                         .some((k) => node[k] !== undefined && String(node[k]) === String(videoId));
-                    if (idHit) score += 100;
+                    if (idHit && !idMatched) idMatched = node;
                     if (score > bestScore) { bestScore = score; best = node; }
                 }
             }
@@ -459,7 +492,11 @@
         };
 
         for (const b of blobs) walk(b);
-        return best || {};
+
+        if (idMatched) return idMatched;
+        // Không khớp id: chỉ tin khi cả trang chỉ có một ứng viên duy nhất.
+        if (candidateCount === 1 && best) return best;
+        return {};
     }
 
     function readMeta(sel) {
@@ -515,18 +552,28 @@
         meta.likes_count = parseCount(pickAlias(stats, FIELD_ALIASES.likes));
         meta.comments_count = parseCount(pickAlias(stats, FIELD_ALIASES.comments));
         meta.shares_count = parseCount(pickAlias(stats, FIELD_ALIASES.shares));
-        meta.title = String(pickAlias(node, TITLE_KEYS) ?? '').slice(0, 500);
+        meta.title = (pickText(node, TITLE_KEYS) ?? '').slice(0, 500);
         // YouTube để author là chuỗi thẳng, các trang khác để là object.
-        const authorRaw = pickAlias(author, AUTHOR_BOX_NAME_KEYS)
+        const authorRaw = pickText(author, AUTHOR_BOX_NAME_KEYS)
             ?? (typeof node.author === 'string' ? node.author : undefined)
             ?? (typeof node.uploader === 'string' ? node.uploader : undefined)
-            ?? pickAlias(node, AUTHOR_NAME_KEYS);
-        meta.author_name = String(authorRaw ?? '').slice(0, 255);
-        meta.author_username = String(pickAlias(author, AUTHOR_ID_KEYS) ?? pickAlias(node, AUTHOR_ID_KEYS) ?? '').slice(0, 255);
+            ?? pickText(node, AUTHOR_NAME_KEYS);
+        meta.author_name = (authorRaw ?? '').slice(0, 255);
+        meta.author_username = (pickText(author, AUTHOR_ID_KEYS) ?? pickText(node, AUTHOR_ID_KEYS) ?? '').slice(0, 255);
         // Douyin/Kuaishou giấu ảnh bìa trong node video chứ không có thẻ og:image.
         meta.thumbnail_url = pickCover(node) || pickCover(node.video) || pickCover(node.thumbnail) || '';
 
-        const ld = readJsonLd();
+        // Thẻ og:/JSON-LD mô tả CẢ TRANG, không phải video đang rê chuột. Ở bảng tin
+        // Facebook chúng mô tả chính Facebook (tiêu đề "Facebook", ảnh là logo). Chỉ tin
+        // chúng khi trang này đúng là trang của video đang đề xuất.
+        const pageRef = [
+            location.href,
+            document.querySelector('link[rel="canonical"]')?.href,
+            document.querySelector('meta[property="og:url"]')?.getAttribute('content'),
+        ].map((u) => (u ? detectVideoRef(u) : null)).find((r) => r && r.videoId);
+        const pageIsThisVideo = !!(videoId && pageRef && String(pageRef.videoId) === String(videoId));
+
+        const ld = pageIsThisVideo ? readJsonLd() : null;
         if (ld) {
             if (!meta.title) meta.title = String(ld.name || '').slice(0, 500);
             if (!meta.description) meta.description = String(ld.description || '').slice(0, 2000);
@@ -541,14 +588,19 @@
             if (!meta.shares_count) meta.shares_count = parseCount(jsonLdStat(ld, 'Share'));
         }
 
-        if (!meta.title) {
-            meta.title = (readMeta('meta[property="og:title"]') || readMeta('meta[name="twitter:title"]') || document.title || '').slice(0, 500);
-        }
-        if (!meta.description) {
-            meta.description = (readMeta('meta[property="og:description"]') || readMeta('meta[name="description"]') || '').slice(0, 2000);
-        }
-        if (!meta.thumbnail_url) {
-            meta.thumbnail_url = readMeta('meta[property="og:image"]') || readMeta('meta[name="twitter:image"]') || '';
+        if (pageIsThisVideo) {
+            const siteName = readMeta('meta[property="og:site_name"]');
+            if (!meta.title) {
+                const ogTitle = readMeta('meta[property="og:title"]') || readMeta('meta[name="twitter:title"]') || document.title || '';
+                // "Facebook", "TikTok - Make Your Day"... là tên trang, không phải tên video.
+                if (ogTitle && ogTitle.trim() !== (siteName || '').trim()) meta.title = ogTitle.slice(0, 500);
+            }
+            if (!meta.description) {
+                meta.description = (readMeta('meta[property="og:description"]') || readMeta('meta[name="description"]') || '').slice(0, 2000);
+            }
+            if (!meta.thumbnail_url) {
+                meta.thumbnail_url = readMeta('meta[property="og:image"]') || readMeta('meta[name="twitter:image"]') || '';
+            }
         }
         // Ảnh bìa dạng data: nhét vào DB thì phình cột — bỏ, để trống còn hơn.
         if (/^data:/i.test(meta.thumbnail_url) || meta.thumbnail_url.length > 1900) meta.thumbnail_url = '';
@@ -1249,6 +1301,16 @@
         hideCnChip();
     }
 
+    /** Bám theo ô nhập khi trang cuộn; ô rời khỏi màn hình thì mới bỏ chip. */
+    function repositionCnChip() {
+        if (!cnChipEl || !cnChipInput) return;
+        if (!cnChipInput.isConnected) { hideCnChip(); return; }
+        const rect = cnChipInput.getBoundingClientRect();
+        if (rect.bottom < 0 || rect.top > window.innerHeight) { hideCnChip(); return; }
+        cnChipEl.style.top = `${Math.round(rect.bottom + 6)}px`;
+        cnChipEl.style.left = `${Math.round(rect.left)}px`;
+    }
+
     function showCnChip(input, translated) {
         hideCnChip();
         cnChipInput = input;
@@ -1313,15 +1375,64 @@
         cnDebounceTimer = setTimeout(() => {
             sendMessageSafe({ type: 'vcb-translate-zh', text }, (res) => {
                 if (myReq !== cnReqId) return; // đã có lần gõ mới hơn
-                if (chrome.runtime.lastError || !res?.ok || !res.translated) {
-                    hideCnChip();
+
+                if (chrome.runtime.lastError) {
+                    showCnNotice('Extension vừa cập nhật — tải lại trang (F5) rồi gõ lại.');
                     return;
                 }
-                // Ô có thể đã đổi/đã mất focus trong lúc chờ dịch.
-                if (document.activeElement !== el) return;
+                if (!res?.ok) {
+                    // 'skip' = vốn đã là tiếng Trung, im lặng là đúng. Còn lại phải nói ra,
+                    // im lặng khiến người dùng tưởng tính năng không tồn tại.
+                    if (!res || res.reason === 'skip') { hideCnChip(); return; }
+                    showCnNotice(cnFailureText(res));
+                    return;
+                }
+
+                // Không dùng document.activeElement: trang Trung Quốc bung khung gợi ý ngay
+                // khi gõ và hay cướp focus, làm chip không bao giờ hiện. Điều kiện đúng là
+                // ô còn nằm trên trang và nội dung chưa đổi so với lúc gửi đi dịch.
+                if (!el.isConnected || readInputValue(el).trim() !== text) return;
                 showCnChip(el, res.translated);
             });
         }, 600);
+    }
+
+    function cnFailureText(res) {
+        const where = res?.base ? ` (${String(res.base).replace(/^https?:\/\//, '')})` : '';
+        if (res?.reason === 'offline') return `Chưa kết nối được hệ thống VCB${where} để dịch.`;
+        if (res?.reason === 'server') return `Hệ thống VCB${where} đang lỗi, chưa dịch được.`;
+        return 'Chưa dịch được từ khoá này.';
+    }
+
+    // Chip báo lỗi: cùng chỗ, cùng kiểu với chip gợi ý nhưng không bấm được, tự tắt sau 4s.
+    // Chỉ nhắc lại sau 30s để không nổ liên tục theo từng phím gõ.
+    let cnLastNoticeAt = 0;
+    function showCnNotice(message) {
+        hideCnChip();
+        const now = Date.now();
+        if (now - cnLastNoticeAt < 30000) return;
+        cnLastNoticeAt = now;
+
+        const el = document.activeElement;
+        const rect = (el && el.getBoundingClientRect) ? el.getBoundingClientRect() : { bottom: 60, left: 20 };
+        const box = document.createElement('div');
+        box.setAttribute('data-vcb-cn-chip', '1');
+        box.style.cssText = [
+            'position:fixed',
+            `top:${Math.round(rect.bottom + 6)}px`,
+            `left:${Math.round(rect.left)}px`,
+            'z-index:2147483647',
+            'background:#7f1d1d', 'color:#fff', 'font-size:12.5px',
+            'font-family:system-ui,-apple-system,sans-serif',
+            'padding:7px 11px', 'border-radius:8px',
+            'box-shadow:0 4px 14px rgba(0,0,0,.35)',
+            'max-width:min(420px,90vw)',
+        ].join(';');
+        box.textContent = `VCB: ${message}`;
+        document.body.appendChild(box);
+        cnChipEl = box;
+        cnChipTranslated = '';
+        setTimeout(() => { if (cnChipEl === box) hideCnChip(); }, 4000);
     }
 
     function isTextEntry(el) {
@@ -1346,9 +1457,20 @@
                 hideCnChip();
             }
         }, true);
-        document.addEventListener('focusout', () => setTimeout(hideCnChip, 150), true);
-        window.addEventListener('scroll', hideCnChip, true);
-        window.addEventListener('resize', hideCnChip);
+        // KHÔNG ẩn chip khi ô mất focus. Douyin/Xiaohongshu vừa gõ là bung ngay khung gợi ý
+        // của chính trang và cướp focus, nên 'focusout' bắn liên tục — chip bị xoá trước khi
+        // người dùng kịp nhìn thấy, thành ra tính năng trông như không tồn tại.
+        // Chỉ ẩn khi người dùng thật sự bấm ra chỗ khác (ngoài chip và ngoài ô đang gõ).
+        document.addEventListener('mousedown', (e) => {
+            if (!cnChipEl) return;
+            const path = e.composedPath ? e.composedPath() : [e.target];
+            if (path.includes(cnChipEl) || (cnChipInput && path.includes(cnChipInput))) return;
+            hideCnChip();
+        }, true);
+        // Cuộn trang thì bám theo ô thay vì biến mất — khung gợi ý của trang cũng bắn scroll,
+        // ẩn đi là mất chip oan. Chỉ bỏ khi ô đã rời khỏi màn hình.
+        window.addEventListener('scroll', repositionCnChip, true);
+        window.addEventListener('resize', repositionCnChip);
     }
 
     // --- Load settings ---

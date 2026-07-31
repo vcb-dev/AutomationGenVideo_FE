@@ -14,6 +14,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { scraperService } from '@/services/scraperService';
 import { useScrapingStore } from '@/store/scraping-store';
 import { UserRole } from '@/types/auth';
+import { dedupeById } from '@/lib/dedupe-pages';
 
 function formatNum(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -141,7 +142,7 @@ export default function FanpageDetailPage() {
   });
 
   const fp = detailQuery.data;
-  const allReels = reelsQuery.data?.pages.flatMap(p => p.reels) || [];
+  const allReels = dedupeById(reelsQuery.data?.pages.flatMap(p => p.reels) || []);
   const totalReels = reelsQuery.data?.pages[0]?.count || 0;
   const isProcessing = isProcessingNow;
 

@@ -10,6 +10,7 @@ import toast from 'react-hot-toast';
 import TikTokProfileCard from '../../externalChannels/components/TikTokProfileCard';
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService, ExternalVideo } from '@/services/scraperService';
+import ContentFilters from '../components/ContentFilters';
 import { channelsService, ChannelInfo } from '@/services/channelsService';
 import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
 
@@ -191,6 +192,8 @@ export default function TikTokChannelsPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [minPlays, setMinPlays] = useState('');
+  const [market, setMarket] = useState('');
+  const [contentLine, setContentLine] = useState('');
   const videoSearchTimer = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
@@ -199,7 +202,7 @@ export default function TikTokChannelsPage() {
   }, [videoSearch]);
 
   const videosQuery = useInfiniteQuery({
-    queryKey: ['owned-tiktok-videos', debouncedVideoSearch, sortVideos, dateFrom, dateTo, minPlays],
+    queryKey: ['owned-tiktok-videos', debouncedVideoSearch, sortVideos, dateFrom, dateTo, minPlays, market, contentLine],
     queryFn: ({ pageParam = 1 }) => {
       if (!token) return Promise.reject('No token');
       return scraperService.getOwnedChannelVideos(token, {
@@ -209,6 +212,8 @@ export default function TikTokChannelsPage() {
         date_from: dateFrom || undefined,
         date_to: dateTo || undefined,
         min_plays: minPlays ? Number(minPlays) : undefined,
+        market: market || undefined,
+        content_line: contentLine || undefined,
       });
     },
     getNextPageParam: (last) => last.page < last.total_pages ? last.page + 1 : undefined,
@@ -347,7 +352,7 @@ export default function TikTokChannelsPage() {
             className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             <option value="date">Mới nhất</option>
-            <option value="plays">Nhiều plays nhất</option>
+            <option value="plays">Nhiều views nhất</option>
             <option value="likes">Nhiều likes nhất</option>
           </select>
           <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none" title="Từ ngày" />
@@ -358,6 +363,12 @@ export default function TikTokChannelsPage() {
             onChange={e => setMinPlays(e.target.value)}
             placeholder="Min views"
             className="w-28 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          />
+          <ContentFilters
+            market={market}
+            onMarketChange={setMarket}
+            contentLine={contentLine}
+            onContentLineChange={setContentLine}
           />
           {hasVideoFilters && (
             <button onClick={() => { setVideoSearch(''); setSortVideos('date'); setDateFrom(''); setDateTo(''); setMinPlays(''); }} className="px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50 dark:hover:bg-slate-800">

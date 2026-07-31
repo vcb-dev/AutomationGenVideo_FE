@@ -15,6 +15,8 @@ import { scraperService, TikTokProfileVideo } from '@/services/scraperService';
 import { useScrapingStore } from '@/store/scraping-store';
 import { UserRole } from '@/types/auth';
 import { videoLibraryService } from '@/services/videoLibraryService';
+import { useSubmitVideoToLibrary } from '@/hooks/useProposeVideo';
+import { dedupeById } from '@/lib/dedupe-pages';
 import LookalikeSection from '../../components/LookalikeSection';
 
 function formatNum(n: number): string {
@@ -42,10 +44,11 @@ function relativeTime(dateStr: string): string {
 
 function ProfileVideoCard({ video }: { video: TikTokProfileVideo }) {
   const { token } = useAuthStore();
+  // Leader/Admin them thang vao Bo Suu Tap, con lai vao hang cho duyet — xem useProposeVideo.ts
+  const { submit, successMessage, actionLabel, doneLabel } = useSubmitVideoToLibrary();
   const proposeMutation = useMutation({
     mutationFn: () => {
-      if (!token) throw new Error('No token');
-      return videoLibraryService.proposeVideo(token, {
+      return submit({
         video_id: video.video_id,
         platform: 'tiktok',
         title: video.description?.slice(0, 200) || '',
@@ -62,7 +65,7 @@ function ProfileVideoCard({ video }: { video: TikTokProfileVideo }) {
         source: 'SCRAPED',
       });
     },
-    onSuccess: () => toast.success('Đã gửi đề xuất, chờ duyệt.'),
+    onSuccess: () => toast.success(successMessage),
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -131,7 +134,7 @@ function ProfileVideoCard({ video }: { video: TikTokProfileVideo }) {
             ) : (
               <PaperPlaneTilt size={12} weight="bold" />
             )}
-            {proposeMutation.isSuccess ? 'Đã đề xuất' : 'Đề xuất'}
+            {proposeMutation.isSuccess ? doneLabel : actionLabel}
           </button>
         </div>
       </div>
@@ -267,7 +270,7 @@ export default function TikTokProfileDetailPage() {
   });
 
   const p = detailQuery.data;
-  const allVideos = videosQuery.data?.pages.flatMap(pg => pg.videos) || [];
+  const allVideos = dedupeById(videosQuery.data?.pages.flatMap(pg => pg.videos) || []);
   const totalVideos = videosQuery.data?.pages[0]?.count || 0;
   const isProcessing = isProcessingNow;
 
@@ -442,7 +445,7 @@ export default function TikTokProfileDetailPage() {
             type="number"
             value={minPlays}
             onChange={e => setMinPlays(e.target.value)}
-            placeholder="Min plays"
+            placeholder="Min View"
             className="w-28 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
           />
           <select
@@ -451,7 +454,7 @@ export default function TikTokProfileDetailPage() {
             className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             <option value="date">Mới nhất</option>
-            <option value="plays">Nhiều plays nhất</option>
+            <option value="plays">Nhiều views nhất</option>
             <option value="likes">Nhiều likes nhất</option>
           </select>
           {hasFilters && (

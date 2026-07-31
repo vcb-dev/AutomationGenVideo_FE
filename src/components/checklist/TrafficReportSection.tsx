@@ -1,6 +1,7 @@
 import Image from "next/image";
 import React, { useEffect, useRef, useState } from 'react';
 import { Activity, ImagePlus, X, Loader2 } from 'lucide-react';
+import { digitsOnly, sumEntryValues } from './report-total';
 
 /** /lark/* yêu cầu đăng nhập (JwtAuthGuard) — phải gắn token cho fetch thủ công. */
 function getAuthHeaders(): Record<string, string> {
@@ -112,16 +113,13 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
         }
     }, [initialEntries]);
 
-    const digitsOnly = (s: string) => (s || '').replace(/\D/g, '');
 
     // Update parent whenever entries change
     const updateParent = (platformId: string, currentEntries: TrafficEntry[], allEntries: Record<string, TrafficEntry[]>) => {
         // Aggregated total — BigInt avoids float precision loss on very large traffic totals
-        const total = currentEntries.reduce((sum, e) => {
-            const d = digitsOnly(e.value);
-            return d ? sum + BigInt(d) : sum;
-        }, BigInt(0));
-        onChange(platformId as keyof TrafficData, total > BigInt(0) ? total.toString() : '');
+        // sumEntryValues phân biệt "chưa nhập gì" ('') với "đã nhập số 0" ('0') — xem
+        // report-total.ts. Trả sai chỗ này thì người dùng không nộp nổi báo cáo.
+        onChange(platformId as keyof TrafficData, sumEntryValues(currentEntries.map(e => e.value)));
         
         // Joined channel names
         const joinedChannels = currentEntries

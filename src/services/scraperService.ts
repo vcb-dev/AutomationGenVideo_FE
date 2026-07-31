@@ -1,4 +1,6 @@
 // Đi qua BE (proxy sang AI ở src/modules/scraper-proxy), không gọi thẳng AI nữa.
+import type { PlatformKey } from '@/lib/platform-config';
+
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
 
 function buildParams(filters: Record<string, any>): string {
@@ -657,7 +659,17 @@ export interface PaginatedReels {
 }
 
 export interface ExternalVideo {
-  platform: 'facebook' | 'tiktok' | 'instagram';
+  /**
+   * TÁM nền tảng, không phải ba.
+   *
+   * Trước đây endpoint gộp chỉ trả facebook/tiktok/instagram nên kiểu này khai đúng ba cái.
+   * Từ khi thêm 5 nhánh douyin/xiaohongshu/kuaishou/bilibili/youtube vào truy vấn gộp, thực
+   * tế trả về tới 6 nền tảng — mà kiểu vẫn khai 3, nên TypeScript tưởng mọi tra cứu
+   * `platformConfig[video.platform]` đều chắc chắn có, không cảnh báo gì, và trang
+   * /externalChannels/all vỡ ngay khi gặp video Douyin. Khai đủ ở đây để trình biên dịch
+   * bắt lỗi thay vì để người dùng gặp.
+   */
+  platform: PlatformKey;
   post_id: string;
   url: string;
   description: string;
@@ -697,6 +709,10 @@ export const scraperService = {
   getOwnedChannelVideos: async (token: string, params: {
     page?: number; page_size?: number; q?: string; sort?: string; platform?: string;
     min_plays?: number; date_from?: string; date_to?: string;
+    /** 'vn' | 'global' — server đoán theo dấu tiếng Việt trong caption. */
+    market?: string;
+    /** 'A1'..'A5' — server bắt theo hashtag #A1..#A5 sẵn có trong caption. */
+    content_line?: string;
   }): Promise<PaginatedExternalVideos> => {
     const res = await fetch(`${API_URL}/scraper/owned/videos/${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },

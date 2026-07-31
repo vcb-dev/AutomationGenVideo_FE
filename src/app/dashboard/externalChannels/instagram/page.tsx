@@ -12,8 +12,11 @@ import InstagramProfileCard from '../components/InstagramProfileCard';
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService, InstagramReel } from '@/services/scraperService';
 import { videoLibraryService } from '@/services/videoLibraryService';
+import { useSubmitVideoToLibrary } from '@/hooks/useProposeVideo';
 import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
 import { UserRole } from '@/types/auth';
+import { dedupeById } from '@/lib/dedupe-pages';
+import WatchFeedButton from '../components/WatchFeedButton';
 
 const PAGE_SIZE_PROFILES = 12;
 const PAGE_SIZE_REELS = 24;
@@ -26,10 +29,11 @@ function formatNum(n: number): string {
 
 function InstagramReelCard({ reel }: { reel: InstagramReel }) {
   const { token } = useAuthStore();
+  // Leader/Admin them thang vao Bo Suu Tap, con lai vao hang cho duyet — xem useProposeVideo.ts
+  const { submit, successMessage, actionLabel, doneLabel } = useSubmitVideoToLibrary();
   const proposeMutation = useMutation({
     mutationFn: () => {
-      if (!token) throw new Error('Chưa đăng nhập');
-      return videoLibraryService.proposeVideo(token, {
+      return submit({
         video_id: reel.post_id,
         platform: 'instagram',
         title: reel.description?.slice(0, 200) || '',
@@ -44,7 +48,7 @@ function InstagramReelCard({ reel }: { reel: InstagramReel }) {
         source: 'SCRAPED',
       });
     },
-    onSuccess: () => toast.success('Đã gửi đề xuất, chờ duyệt.'),
+    onSuccess: () => toast.success(successMessage),
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -99,7 +103,7 @@ function InstagramReelCard({ reel }: { reel: InstagramReel }) {
             ) : (
               <PaperPlaneTilt size={12} weight="bold" />
             )}
-            {proposeMutation.isSuccess ? 'Đã đề xuất' : 'Đề xuất'}
+            {proposeMutation.isSuccess ? doneLabel : actionLabel}
           </button>
         </div>
       </div>
@@ -195,7 +199,7 @@ export default function InstagramExternalPage() {
     if (node) observerRef.current.observe(node);
   }, [reelsQuery.isFetchingNextPage, reelsQuery.hasNextPage, reelsQuery.fetchNextPage]);
 
-  const allReels = reelsQuery.data?.pages.flatMap(p => p.reels) || [];
+  const allReels = dedupeById(reelsQuery.data?.pages.flatMap(p => p.reels) || []);
   const totalReels = reelsQuery.data?.pages[0]?.count || 0;
 
   // ─── Mutations ────────────────────────────────────────
@@ -249,6 +253,9 @@ export default function InstagramExternalPage() {
 
   return (
     <div className="flex flex-col gap-5">
+      <div>
+        <WatchFeedButton platform="instagram" label="Xem ngay tại đây" />
+      </div>
       {/* Input username — chỉ leader/admin */}
       {canManageChannels && (
         <div className="bg-card border border-border rounded-xl p-4">
@@ -380,7 +387,7 @@ export default function InstagramExternalPage() {
             type="number"
             value={minPlays}
             onChange={e => setMinPlays(e.target.value)}
-            placeholder="Min plays"
+            placeholder="Min View"
             className="w-28 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
           />
           <select
@@ -389,7 +396,7 @@ export default function InstagramExternalPage() {
             className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             <option value="date">Mới nhất</option>
-            <option value="plays">Nhiều plays nhất</option>
+            <option value="plays">Nhiều views nhất</option>
             <option value="likes">Nhiều likes nhất</option>
           </select>
           <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none" title="Từ ngày" />

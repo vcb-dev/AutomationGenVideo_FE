@@ -18,6 +18,8 @@ import { scraperService, DouyinVideo } from '@/services/scraperService';
 import { useScrapingStore } from '@/store/scraping-store';
 import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
 import { UserRole } from '@/types/auth';
+import { dedupeById } from '@/lib/dedupe-pages';
+import WatchFeedButton from '../components/WatchFeedButton';
 
 type Tab = 'videos' | 'profiles';
 
@@ -170,7 +172,7 @@ export default function DouyinExternalPage() {
     enabled: !!token,
   });
 
-  const allVideos = videosQuery.data?.pages.flatMap(p => p.videos) || [];
+  const allVideos = dedupeById(videosQuery.data?.pages.flatMap(p => p.videos) || []);
   const totalVideos = videosQuery.data?.pages[0]?.count || 0;
 
   // ─── Profile tab state ────────────────────────────────
@@ -309,6 +311,10 @@ export default function DouyinExternalPage() {
           <UserCircle size={15} weight={activeTab === 'profiles' ? 'fill' : 'regular'} />
           Khám phá Profile
         </button>
+      </div>
+
+      <div className="-mt-2">
+        <WatchFeedButton platform="douyin" label="Xem ngay tại đây" />
       </div>
 
       {/* ─── Videos Tab ──────────────────────────────────── */}

@@ -15,6 +15,8 @@ import { scraperService, XiaohongshuVideo } from '@/services/scraperService';
 import { useScrapingStore } from '@/store/scraping-store';
 import { UserRole } from '@/types/auth';
 import { videoLibraryService } from '@/services/videoLibraryService';
+import { useSubmitVideoToLibrary } from '@/hooks/useProposeVideo';
+import { dedupeById } from '@/lib/dedupe-pages';
 import LookalikeSection from '../../components/LookalikeSection';
 
 function formatNum(n: number): string {
@@ -45,10 +47,11 @@ function relativeTime(dateStr: string): string {
 
 function VideoCard({ video }: { video: XiaohongshuVideo }) {
   const { token } = useAuthStore();
+  // Leader/Admin them thang vao Bo Suu Tap, con lai vao hang cho duyet — xem useProposeVideo.ts
+  const { submit, successMessage, actionLabel, doneLabel } = useSubmitVideoToLibrary();
   const proposeMutation = useMutation({
     mutationFn: () => {
-      if (!token) throw new Error('No token');
-      return videoLibraryService.proposeVideo(token, {
+      return submit({
         video_id: video.note_id,
         platform: 'xiaohongshu',
         title: video.title?.slice(0, 200) || '',
@@ -64,7 +67,7 @@ function VideoCard({ video }: { video: XiaohongshuVideo }) {
         source: 'SCRAPED',
       });
     },
-    onSuccess: () => toast.success('Đã gửi đề xuất, chờ duyệt.'),
+    onSuccess: () => toast.success(successMessage),
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -112,7 +115,7 @@ function VideoCard({ video }: { video: XiaohongshuVideo }) {
             ) : (
               <PaperPlaneTilt size={12} weight="bold" />
             )}
-            {proposeMutation.isSuccess ? 'Đã đề xuất' : 'Đề xuất'}
+            {proposeMutation.isSuccess ? doneLabel : actionLabel}
           </button>
         </div>
       </div>
@@ -234,7 +237,7 @@ export default function XhsProfileDetailPage() {
   });
 
   const p = profileQuery.data;
-  const allVideos = videosQuery.data?.pages.flatMap(pg => pg.videos) || [];
+  const allVideos = dedupeById(videosQuery.data?.pages.flatMap(pg => pg.videos) || []);
   const totalVideos = videosQuery.data?.pages[0]?.count || 0;
   const isProcessing = isProcessingNow;
 

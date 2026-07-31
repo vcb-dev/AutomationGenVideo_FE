@@ -14,6 +14,8 @@ import { scraperService } from '@/services/scraperService';
 import { useScrapingStore } from '@/store/scraping-store';
 import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
 import { UserRole } from '@/types/auth';
+import { dedupeById } from '@/lib/dedupe-pages';
+import WatchFeedButton from '../components/WatchFeedButton';
 
 type Tab = 'videos' | 'profiles';
 
@@ -185,7 +187,7 @@ export default function TiktokExternalPage() {
     enabled: !!token,
   });
 
-  const allVideos = videosQuery.data?.pages.flatMap(p => p.videos) || [];
+  const allVideos = dedupeById(videosQuery.data?.pages.flatMap(p => p.videos) || []);
   const totalVideos = videosQuery.data?.pages[0]?.count || 0;
 
 
@@ -292,6 +294,10 @@ export default function TiktokExternalPage() {
         </button>
       </div>
 
+      <div className="-mt-2">
+        <WatchFeedButton platform="tiktok" label="Xem ngay tại đây" />
+      </div>
+
       {/* ─── Videos Tab ──────────────────────────────────── */}
       {activeTab === 'videos' && (
         <>
@@ -378,7 +384,7 @@ export default function TiktokExternalPage() {
               type="number"
               value={minPlays}
               onChange={e => setMinPlays(e.target.value)}
-              placeholder="Min plays"
+              placeholder="Min View"
               className="w-28 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
             />
             <select
@@ -388,7 +394,7 @@ export default function TiktokExternalPage() {
             >
               <option value="scraped">Mới cào về</option>
               <option value="date">Ngày đăng mới nhất</option>
-              <option value="plays">Nhiều plays nhất</option>
+              <option value="plays">Nhiều views nhất</option>
               <option value="likes">Nhiều likes nhất</option>
             </select>
             <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none" title="Từ ngày" />

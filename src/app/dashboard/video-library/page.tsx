@@ -37,6 +37,7 @@ import {
 import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
 import { videoLibraryService, ScraperVideoProposal, ProposeVideoPayload } from '@/services/videoLibraryService';
+import { useSubmitVideoToLibrary } from '@/hooks/useProposeVideo';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -148,6 +149,17 @@ const VIDEO_ID_PATTERNS: Array<[RegExp, RegExp[]]> = [
     [/instagram\.com/, [/\/reels?\/([\w-]{5,})/, /\/p\/([\w-]{5,})/, /\/tv\/([\w-]{5,})/]],
     [/facebook\.com|fb\.watch/, [/\/videos\/(?:[^/]+\/)?(\d{6,})/, /\/reel\/(\d{6,})/, /[?&]v=(\d{6,})/]],
 ];
+
+/**
+ * Link rút gọn do app điện thoại tạo ra khi bấm "Chia sẻ → Sao chép liên kết".
+ * Chúng KHÔNG chứa mã video, nên đừng chặn ở đây — BE sẽ follow redirect để lấy link đầy
+ * đủ rồi bóc mã (xem resolveVideoRef trong video-library.service.ts).
+ */
+const SHORT_LINK_HOSTS = /vt\.tiktok\.com|vm\.tiktok\.com|v\.douyin\.com|xhslink\.com|b23\.tv|fb\.watch|v\.kuaishou\.com/i;
+
+function isShortVideoLink(url: string): boolean {
+    return SHORT_LINK_HOSTS.test((url || '').trim());
+}
 
 /** '' nghĩa là link không trỏ vào một video cụ thể (vd link trang cá nhân). */
 function extractVideoId(url: string): string {
@@ -600,6 +612,7 @@ function ProposeVideoModal({
     initialUrl?: string;
 }) {
     const { token } = useAuthStore();
+    const { submit: submitToLibrary, successMessage: submitSuccessMessage } = useSubmitVideoToLibrary();
     const [videoUrl, setVideoUrl] = useState(initialUrl);
     const [title, setTitle] = useState('');
     const [notes, setNotes] = useState('');
@@ -618,8 +631,10 @@ function ProposeVideoModal({
 
     const handleSubmit = async () => {
         if (!token || !videoUrl.trim()) return;
+        // Link rút gọn thì để BE giải rồi tự bóc mã — chặn ở đây là chặn oan đúng cách
+        // chia sẻ phổ biến nhất (app điện thoại chỉ cho ra link rút gọn).
         const videoId = extractVideoId(videoUrl);
-        if (!videoId) {
+        if (!videoId && !isShortVideoLink(videoUrl)) {
             setError('Link này không trỏ vào một video cụ thể (có thể là link trang cá nhân). Mở đúng video rồi copy link của video đó.');
             return;
         }
@@ -627,20 +642,20 @@ function ProposeVideoModal({
         setError('');
         try {
             const payload: ProposeVideoPayload = {
-                video_id: videoId,
+                video_id: videoId,   // rỗng khi là link rút gọn — BE bóc lại sau khi giải link
                 platform,
                 title: title.trim() || undefined,
                 video_url: videoUrl.trim(),
                 notes: notes.trim() || undefined,
                 source: 'MANUAL',
+                // Người dùng tự gõ tiêu đề/ghi chú ở form này → BE giữ nguyên, không đè.
+                user_edited: true,
             };
-            if (canReview) {
-                await videoLibraryService.addVideoDirectly(token, payload);
-                toast.success('Đã thêm video vào bộ sưu tập.');
-            } else {
-                await videoLibraryService.proposeVideo(token, payload);
-                toast.success('Đã gửi đề xuất, chờ duyệt.');
-            }
+            // Quy tắc "ai được thêm thẳng, ai phải chờ duyệt" chỉ nằm ở useProposeVideo.ts.
+            // Trước đây form này tự phân luồng còn 15 nút ở trang Khám phá Video thì không,
+            // nên leader/admin bấm bên kia lại phải tự duyệt đề xuất của chính mình.
+            await submitToLibrary(payload);
+            toast.success(submitSuccessMessage);
             onSubmitted();
             onClose();
         } catch (e) {

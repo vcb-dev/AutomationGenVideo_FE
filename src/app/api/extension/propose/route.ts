@@ -90,7 +90,11 @@ export async function POST(request: Request) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: auth },
             body: JSON.stringify(payload),
-            signal: AbortSignal.timeout(30000),
+            // Phải DÀI HƠN toàn bộ chuỗi phía sau (lấy chi tiết video 30s + AI sinh script
+            // tối đa 120s). Trước đây để 30s nên khi leader thêm video, FE bỏ cuộc giữa chừng
+            // và báo "Không kết nối được tới máy chủ" trong khi BE vẫn thêm xong bình thường —
+            // người dùng thấy lỗi nhưng video vẫn vào bộ sưu tập.
+            signal: AbortSignal.timeout(155000),
         });
 
     try {
