@@ -13,6 +13,7 @@ const DEFAULTS = {
     disabledSites: [],
 };
 const CONTEXT_MENU_ID = 'vcb-download-video';
+const PROPOSE_MENU_ID = 'vcb-propose-video';
 
 // --- Bắt link media thật từ network traffic (kiểu Cốc Cốc) ---------------
 // Khi trang tự tải video bằng phiên/cookie thật của người dùng, ta "nhìn" lại
@@ -102,8 +103,23 @@ chrome.runtime.onInstalled.addListener((details) => {
             title: 'Tải video này qua VCB',
             contexts: ['video', 'link', 'page'],
         });
+        chrome.contextMenus.create({
+            id: PROPOSE_MENU_ID,
+            title: 'Đề xuất video này vào VCB',
+            contexts: ['video', 'link', 'page'],
+        });
     });
-    if (details.reason === 'install') chrome.runtime.openOptionsPage();
+    // KHÔNG tự mở trang Cài đặt khi cài nữa: địa chỉ hệ thống được nhận diện tự động
+    // lúc người dùng mở trang web hệ thống (xem rememberAppBase). Trang Cài đặt vẫn
+    // truy cập được từ menu extension khi cần sửa tay.
+    if (details.reason === 'install') {
+        chrome.notifications.create({
+            type: 'basic',
+            iconUrl: 'icon128.png',
+            title: 'VCB Video Downloader đã sẵn sàng',
+            message: 'Mở trang web hệ thống một lần để extension tự kết nối. Sau đó rê chuột vào video bất kỳ để tải, hoặc chuột phải để đề xuất.',
+        });
+    }
 });
 
 async function getSettings() {
@@ -111,34 +127,98 @@ async function getSettings() {
     return { ...DEFAULTS, ...stored };
 }
 
+// Các origin đã báo trong vòng đời service worker này — chống nổ notification liên tục
+// khi người dùng mở song song localhost và link tunnel (mỗi lần đổi tab lại ghi đè nhau).
+const notifiedOrigins = new Set();
+
+/**
+ * Ghi nhớ địa chỉ hệ thống khi người dùng mở trang web hệ thống — thay cho việc bắt
+ * họ tự nhập trong trang Cài đặt (địa chỉ đổi liên tục vì chạy qua Cloudflare Tunnel).
+ *
+ * Bất kỳ trang nào cũng có thể tự gắn thẻ <meta name="vcb-app"> để giả danh, nên:
+ *  - chỉ tin origin LẤY TỪ CHÍNH TAB gửi tin (sender.origin), không tin origin trong message;
+ *  - chỉ nhận từ tab chính (frameId === 0), để một iframe ẩn trên trang lạ không tự đổi được;
+ *  - ghi đè một địa chỉ đã dùng thật thì báo notification, không đổi ngầm;
+ *  - vẫn giữ trang Cài đặt để sửa tay khi cần.
+ */
+async function rememberAppBase(claimedOrigin, sender) {
+    if (sender?.frameId !== 0) return;
+
+    // sender.origin do Chrome cấp, không giả được — ưu tiên nó hơn giá trị trong message.
+    let origin = sender?.origin || claimedOrigin;
+    if (!origin && sender?.url) {
+        try { origin = new URL(sender.url).origin; } catch { return; }
+    }
+    if (!origin || !/^https?:\/\/[^/]+$/i.test(origin)) return;
+
+    const { appBase } = await getSettings();
+    const current = (appBase || '').replace(/\/$/, '');
+    if (current === origin) return;
+
+    await chrome.storage.sync.set({ appBase: origin });
+
+    // Lần đầu (vẫn đang là địa chỉ mặc định) thì im lặng — mục tiêu là bỏ hẳn bước cấu hình.
+    // Chỉ báo khi ghi đè một địa chỉ người dùng đã thực sự dùng.
+    if (!current || current === DEFAULT_APP_BASE || notifiedOrigins.has(origin)) return;
+    notifiedOrigins.add(origin);
+    chrome.notifications.create({
+        type: 'basic',
+        iconUrl: 'icon128.png',
+        title: 'VCB — Đổi địa chỉ hệ thống',
+        message: `Extension sẽ dùng: ${origin}\n(Nếu bạn không mở trang này, hãy sửa lại trong Cài đặt.)`,
+    });
+}
+
 // Dịch từ khoá sang tiếng Trung qua chính trang web hệ thống (Next route công khai,
 // không cần đăng nhập) — dùng lại đúng endpoint AI mà web app đang dùng, không tự
 // gọi dịch vụ dịch bên thứ ba từ extension.
+/**
+ * Trả { ok, translated, reason } — `reason` là BẮT BUỘC khi thất bại.
+ *
+ * Trước đây mọi nhánh hỏng đều trả {ok:false} trơ trọi, content script thấy vậy thì ẩn chip
+ * đi. Kết quả: địa chỉ hệ thống sai / không kết nối được / AI lỗi đều cho ra đúng một hiện
+ * tượng "gõ tiếng Việt mà chẳng thấy gì", người dùng tưởng tính năng không tồn tại. Có
+ * `reason` thì mới nói được cho họ biết hỏng ở đâu.
+ *
+ *   'skip'    — vốn đã là tiếng Trung, không cần gợi ý (im lặng, KHÔNG phải lỗi)
+ *   'offline' — không gọi tới được trang web hệ thống
+ *   'server'  — gọi tới được nhưng hệ thống trả lỗi
+ */
 async function translateToChinese(text) {
     const raw = (text || '').trim();
-    if (!raw) return { ok: false, translated: '' };
+    if (!raw) return { ok: false, translated: '', reason: 'skip' };
 
+    const { appBase } = await getSettings();
+    const base = (appBase || DEFAULT_APP_BASE).replace(/\/$/, '');
+
+    let res;
     try {
-        const { appBase } = await getSettings();
-        const base = (appBase || DEFAULT_APP_BASE).replace(/\/$/, '');
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 10000);
-        const res = await fetch(`${base}/api/translate-chinese`, {
+        res = await fetch(`${base}/api/translate-chinese`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text: raw }),
             signal: controller.signal,
         });
         clearTimeout(timer);
-        if (!res.ok) return { ok: false, translated: '' };
-        const data = await res.json();
-        const translated = (data?.translated || '').trim();
-        // source='already_chinese' nghĩa là input vốn đã là tiếng Trung → không cần gợi ý.
-        if (!translated || translated === raw) return { ok: false, translated: '' };
-        return { ok: true, translated };
     } catch {
-        return { ok: false, translated: '' };
+        return { ok: false, translated: '', reason: 'offline', base };
     }
+
+    if (!res.ok) return { ok: false, translated: '', reason: 'server', status: res.status, base };
+
+    let data;
+    try {
+        data = await res.json();
+    } catch {
+        return { ok: false, translated: '', reason: 'server', base };
+    }
+
+    const translated = (data?.translated || '').trim();
+    // source='already_chinese' nghĩa là input vốn đã là tiếng Trung → không cần gợi ý.
+    if (!translated || translated === raw) return { ok: false, translated: '', reason: 'skip' };
+    return { ok: true, translated };
 }
 
 function buildTargetUrl(base, pageUrl, { format, quality, auto }) {
@@ -195,8 +275,8 @@ async function openDownloaderBatch(urls, opts = {}) {
     return { ok: true, count: valid.length };
 }
 
-chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-    if (info.menuItemId !== CONTEXT_MENU_ID) return;
+// Suy ra permalink video từ chỗ user bấm chuột phải — dùng chung cho cả 2 menu.
+async function resolveUrlFromContext(info, tab) {
     let url = null;
     if (tab?.id != null) {
         try {
@@ -212,9 +292,150 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
             // content script chưa sẵn sàng trên tab này (vd trang chrome://) — bỏ qua.
         }
     }
-    url = url || info.linkUrl || info.srcUrl || tab?.url || null;
-    await openDownloader(url);
+    return url || info.linkUrl || info.srcUrl || tab?.url || null;
+}
+
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+    if (info.menuItemId === CONTEXT_MENU_ID) {
+        await openDownloader(await resolveUrlFromContext(info, tab));
+        return;
+    }
+    if (info.menuItemId === PROPOSE_MENU_ID) {
+        // Xin luôn thông tin video từ chính trang đang mở (số view/tim/tiêu đề/ảnh bìa),
+        // giống hệt nút trong bảng hover — đề xuất từ menu chuột phải cũng phải có dữ liệu.
+        const ctx = await collectProposeContext(info, tab);
+        const res = await proposeVideo(ctx);
+        chrome.notifications.create({
+            type: 'basic',
+            iconUrl: 'icon128.png',
+            title: res?.ok ? 'VCB — Đã gửi đề xuất' : 'VCB — Không đề xuất được',
+            message: res?.ok ? (res.message || 'Video đã được gửi vào hệ thống.') : (res?.error || 'Có lỗi xảy ra.'),
+        });
+    }
 });
+
+// Hỏi content script mọi thứ cần cho một đề xuất; thiếu thì rơi về link thô.
+async function collectProposeContext(info, tab) {
+    const url = await resolveUrlFromContext(info, tab);
+    if (tab?.id != null) {
+        const res = await sendToTab(tab.id, { type: 'vcb-collect-meta', url });
+        if (res && res.url) return res;
+    }
+    return { url };
+}
+
+/**
+ * Gửi đề xuất mà KHÔNG kéo người dùng rời trang họ đang xem.
+ *
+ * Extension không giữ JWT (và không nên giữ), nên nhờ content script chạy trên chính
+ * tab trang web hệ thống gọi API hộ — ở đó có sẵn phiên đăng nhập.
+ *   1. Có tab hệ thống đang mở  → nhắn cho nó, người dùng không thấy gì ngoài 1 toast.
+ *   2. Không có tab nào         → mở 1 tab NGẦM (không chuyển focus), gửi xong thì đóng.
+ *   3. Cả hai đều hỏng          → mới quay về cách cũ: mở form đề xuất cho user tự bấm.
+ */
+async function proposeVideo({ url, platform, videoId, meta }) {
+    if (!url) return { ok: false, error: 'Không tìm thấy link video.' };
+    const settings = await getSettings();
+    const base = (settings.appBase || DEFAULT_APP_BASE).replace(/\/$/, '');
+    const payload = {
+        video_url: url,
+        platform: platform || platformLabel(url),
+        video_id: videoId || '',
+        ...(meta || {}),
+    };
+
+    const existing = await findAppTab(base);
+    if (existing != null) {
+        const res = await sendToTab(existing, { type: 'vcb-propose-api', payload });
+        if (res && res.ok) return res;
+        // Tab hệ thống có đó nhưng chưa đăng nhập / hết hạn: báo đúng lý do, đừng mở thêm tab.
+        if (res && res.error) return res;
+    }
+
+    const hidden = await proposeViaHiddenTab(base, payload);
+    if (hidden) return hidden;
+
+    // Đường lui cuối: mở form đề xuất điền sẵn link cho người dùng tự xác nhận.
+    return openProposeVideo(url);
+}
+
+/** Tìm 1 tab đang mở trang web hệ thống. */
+async function findAppTab(base) {
+    try {
+        const tabs = await chrome.tabs.query({ url: `${base}/*` });
+        // Ưu tiên tab đang hiển thị — nhiều khả năng là tab người dùng vừa đăng nhập.
+        const pick = tabs.find((t) => t.active) || tabs[0];
+        return pick?.id ?? null;
+    } catch {
+        return null;
+    }
+}
+
+function sendToTab(tabId, msg) {
+    return new Promise((resolve) => {
+        try {
+            chrome.tabs.sendMessage(tabId, msg, (res) => {
+                if (chrome.runtime.lastError) resolve(null); // content script chưa sẵn sàng
+                else resolve(res || null);
+            });
+        } catch {
+            resolve(null);
+        }
+    });
+}
+
+/**
+ * Mở tab hệ thống ở chế độ ngầm (active: false) chỉ để mượn phiên đăng nhập, xong thì đóng.
+ * Người dùng vẫn đứng nguyên ở trang đang xem.
+ */
+async function proposeViaHiddenTab(base, payload) {
+    let tabId = null;
+    try {
+        const tab = await chrome.tabs.create({ url: `${base}/dashboard`, active: false });
+        tabId = tab?.id ?? null;
+        if (tabId == null) return null;
+        await waitForTabReady(tabId, 15000);
+        // Content script vừa nạp cần một nhịp để gắn listener.
+        await new Promise((r) => setTimeout(r, 400));
+        const res = await sendToTab(tabId, { type: 'vcb-propose-api', payload });
+        return res && (res.ok || res.error) ? res : null;
+    } catch {
+        return null;
+    } finally {
+        // Đóng tab mượn. Bọc try/catch vì nếu bước này ném thì service worker chết ngang,
+        // nuốt luôn kết quả đề xuất đã thành công.
+        if (tabId != null) {
+            try { await chrome.tabs.remove(tabId); } catch { /* tab có thể đã đóng */ }
+        }
+    }
+}
+
+function waitForTabReady(tabId, timeoutMs) {
+    return new Promise((resolve) => {
+        const done = () => {
+            chrome.tabs.onUpdated.removeListener(onUpdate);
+            clearTimeout(timer);
+            resolve();
+        };
+        const onUpdate = (id, info) => { if (id === tabId && info.status === 'complete') done(); };
+        const timer = setTimeout(done, timeoutMs);
+        chrome.tabs.onUpdated.addListener(onUpdate);
+        // Có thể tab đã 'complete' trước khi ta kịp lắng nghe.
+        chrome.tabs.get(tabId).then((t) => { if (t?.status === 'complete') done(); }).catch(() => {});
+    });
+}
+
+// Mở trang Bộ Sưu Tập kèm link video để app tự bật hộp thoại đề xuất.
+// Chỉ còn dùng làm đường lui khi không mượn được phiên đăng nhập ở tab hệ thống.
+async function openProposeVideo(videoUrl) {
+    if (!videoUrl) return { ok: false, error: 'Không tìm thấy link video.' };
+    const settings = await getSettings();
+    const base = (settings.appBase || DEFAULT_APP_BASE).replace(/\/$/, '');
+    const target = `${base}/dashboard/video-library?propose=${encodeURIComponent(videoUrl)}`;
+    const tab = await chrome.tabs.create({ url: target, active: true });
+    if (tab?.id != null) await chrome.storage.local.set({ lastAppTabId: tab.id });
+    return { ok: true };
+}
 
 // Tên nền tảng gọn từ hostname của trang video (vd "www.tiktok.com" -> "tiktok").
 function platformLabel(pageUrl) {
@@ -297,6 +518,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg?.type === 'vcb-get-settings') {
         getSettings().then(sendResponse);
         return true;
+    }
+    if (msg?.type === 'vcb-propose') {
+        // Nút "Đề xuất vào VCB" trong bảng hover (cùng đường với menu chuột phải).
+        proposeVideo(msg).then(sendResponse);
+        return true;
+    }
+    if (msg?.type === 'vcb-app-detected') {
+        // Content script báo: tab này chính là trang web hệ thống → nhớ địa chỉ.
+        rememberAppBase(msg.origin, sender);
+        return;
     }
     if (msg?.type === 'vcb-translate-zh') {
         // Dịch tiếng Việt → tiếng Trung cho ô tìm kiếm trên các trang TQ (Douyin, Xiaohongshu...).

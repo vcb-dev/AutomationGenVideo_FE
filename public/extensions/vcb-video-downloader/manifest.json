@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "VCB Video Downloader",
-    "version": "2.4.0",
+    "version": "3.2.0",
     "description": "Rê chuột vào video trên bất kỳ trang nào (YouTube, TikTok, Facebook, Instagram...) để hiện nút tải nhanh qua hệ thống VCB.",
     "action": {
         "default_title": "VCB Video Downloader",

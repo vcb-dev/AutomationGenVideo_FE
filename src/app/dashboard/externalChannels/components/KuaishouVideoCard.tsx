@@ -1,8 +1,11 @@
 'use client';
 
-import { Eye, Heart, ChatCircle, ShareNetwork, BookmarkSimple, SealCheck, FilmReel } from '@phosphor-icons/react';
+import { useMutation } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
+import { Eye, Heart, ChatCircle, ShareNetwork, BookmarkSimple, SealCheck, FilmReel, PaperPlaneTilt, CircleNotch } from '@phosphor-icons/react';
 import { KuaishouSearchVideo } from '@/services/scraperService';
-
+import { videoLibraryService } from '@/services/videoLibraryService';
+import { useSubmitVideoToLibrary } from '@/hooks/useProposeVideo';
 function formatNum(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
   if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
@@ -36,14 +39,39 @@ function renderCaption(text: string) {
 }
 
 export default function KuaishouVideoCard({ video }: { video: KuaishouSearchVideo }) {
+  // Leader/Admin them thang vao Bo Suu Tap, con lai vao hang cho duyet — xem useProposeVideo.ts
+  const { submit, successMessage, actionLabel, doneLabel } = useSubmitVideoToLibrary();
+  const proposeMutation = useMutation({
+    mutationFn: () => {
+      return submit({
+        video_id: video.post_id,
+        platform: 'kuaishou',
+        title: video.description?.slice(0, 200) || '',
+        description: video.description || '',
+        video_url: video.url,
+        author_username: video.author?.username || '',
+        author_name: video.author?.username || '',
+        thumbnail_url: video.thumbnail_url || undefined,
+        views_count: video.view_count,
+        likes_count: video.like_count,
+        comments_count: video.comment_count,
+        shares_count: video.share_count,
+        hashtags: video.hashtags,
+        source: 'SCRAPED',
+      });
+    },
+    onSuccess: () => toast.success(successMessage),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   return (
-    <a
-      href={video.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg hover:scale-[1.01] transition-all duration-200 flex flex-col"
-    >
-      <div className="relative aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[320px]">
+    <div className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg hover:scale-[1.01] transition-all duration-200 flex flex-col">
+      <a
+        href={video.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="relative block aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[320px]"
+      >
         {video.thumbnail_url ? (
           <img
             src={video.thumbnail_url}
@@ -97,7 +125,7 @@ export default function KuaishouVideoCard({ video }: { video: KuaishouSearchVide
             {video.search_keyword}
           </div>
         )}
-      </div>
+      </a>
 
       <div className="p-3 flex flex-col gap-1.5 flex-1">
         <p className="text-xs text-foreground line-clamp-2 leading-relaxed">
@@ -120,10 +148,24 @@ export default function KuaishouVideoCard({ video }: { video: KuaishouSearchVide
           </div>
         )}
 
-        <p className="text-xs text-slate-400 dark:text-slate-500">
-          {relativeTime(video.date_posted)}
-        </p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-slate-400 dark:text-slate-500">
+            {relativeTime(video.date_posted)}
+          </p>
+          <button
+            onClick={() => proposeMutation.mutate()}
+            disabled={proposeMutation.isPending || proposeMutation.isSuccess}
+            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-primary border border-primary/30 rounded-md hover:bg-primary/10 disabled:opacity-50 transition-colors flex-shrink-0"
+          >
+            {proposeMutation.isPending ? (
+              <CircleNotch size={12} weight="bold" className="animate-spin" />
+            ) : (
+              <PaperPlaneTilt size={12} weight="bold" />
+            )}
+            {proposeMutation.isSuccess ? doneLabel : actionLabel}
+          </button>
+        </div>
       </div>
-    </a>
+    </div>
   );
 }

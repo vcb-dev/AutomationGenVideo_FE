@@ -371,7 +371,7 @@ export default function OwnedTikTokProfileDetailPage() {
             type="number"
             value={minPlays}
             onChange={e => setMinPlays(e.target.value)}
-            placeholder="Min plays"
+            placeholder="Min View"
             className="w-28 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
           />
           <select
@@ -380,7 +380,7 @@ export default function OwnedTikTokProfileDetailPage() {
             className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             <option value="date">Mới nhất</option>
-            <option value="plays">Nhiều plays nhất</option>
+            <option value="plays">Nhiều views nhất</option>
             <option value="likes">Nhiều likes nhất</option>
           </select>
           {hasFilters && (

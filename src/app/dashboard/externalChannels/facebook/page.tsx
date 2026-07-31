@@ -15,6 +15,8 @@ import { useAuthStore } from '@/store/auth-store';
 import { scraperService, ScrapedFanpage } from '@/services/scraperService';
 import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
 import { UserRole } from '@/types/auth';
+import { dedupeById } from '@/lib/dedupe-pages';
+import WatchFeedButton from '../components/WatchFeedButton';
 
 const PAGE_SIZE_FANPAGES = 12;
 const PAGE_SIZE_REELS = 24;
@@ -180,11 +182,14 @@ export default function FacebookExternalPage() {
     prevProcessingRef.current = processingCount;
   }, [processingCount]);
 
-  const allReels = reelsQuery.data?.pages.flatMap(p => p.reels) || [];
+  const allReels = dedupeById(reelsQuery.data?.pages.flatMap(p => p.reels) || []);
   const totalReels = reelsQuery.data?.pages[0]?.count || 0;
 
   return (
     <div className="flex flex-col gap-5">
+      <div>
+        <WatchFeedButton platform="facebook" label="Xem ngay tại đây" />
+      </div>
       {/* Scrape by URL — chỉ leader/admin được cào kênh mới */}
       {canManageChannels && (
       <div className="bg-card border border-border rounded-xl p-4">

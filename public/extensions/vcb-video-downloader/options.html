@@ -31,8 +31,11 @@
 </head>
 <body>
     <h1>VCB Video Downloader — Cài đặt</h1>
-    <p>Nhập địa chỉ trang web hệ thống bạn đang dùng (ví dụ link Cloudflare Tunnel hiện tại hoặc domain nội bộ).</p>
-    <label class="field" for="appBase">Địa chỉ trang web</label>
+    <p style="background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;padding:10px 12px;border-radius:8px;">
+        <b>Không cần cài đặt gì.</b> Chỉ cần mở trang web hệ thống một lần, extension tự ghi nhớ địa chỉ.
+        Các mục dưới đây chỉ dùng khi bạn muốn chỉnh tay.
+    </p>
+    <label class="field" for="appBase">Địa chỉ trang web <span style="font-weight:400;color:#6b7280;">(tự điền)</span></label>
     <input id="appBase" type="url" placeholder="https://xxxx.trycloudflare.com" />
 
     <h2>Mặc định khi tải</h2>
@@ -73,8 +76,8 @@
         <li>Mở chrome://extensions (Chrome/Edge/Brave đều được).</li>
         <li>Bật "Chế độ dành cho nhà phát triển" (Developer mode) ở góc phải.</li>
         <li>Bấm "Tải tiện ích đã giải nén" (Load unpacked) và chọn thư mục vừa giải nén.</li>
-        <li>Dán đúng địa chỉ trang web ở ô phía trên rồi Lưu.</li>
-        <li>Xong! Rê chuột vào video bất kỳ trên trang web để hiện nút tải, hoặc bấm icon extension trên thanh công cụ.</li>
+        <li>Mở trang web hệ thống một lần — extension tự nhận địa chỉ, không phải nhập gì.</li>
+        <li>Xong! Rê chuột vào video bất kỳ để hiện nút tải, hoặc chuột phải vào video để "Đề xuất video này cho hệ thống VCB".</li>
     </ol>
 
     <script src="options.js"></script>

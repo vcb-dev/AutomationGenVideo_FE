@@ -15,6 +15,8 @@ import { scraperService, InstagramReel } from '@/services/scraperService';
 import { useScrapingStore } from '@/store/scraping-store';
 import { UserRole } from '@/types/auth';
 import { videoLibraryService } from '@/services/videoLibraryService';
+import { useSubmitVideoToLibrary } from '@/hooks/useProposeVideo';
+import { dedupeById } from '@/lib/dedupe-pages';
 import LookalikeSection from '../../components/LookalikeSection';
 
 function proxyImg(url: string): string {
@@ -56,10 +58,11 @@ function formatDuration(seconds: number | null): string {
 
 function InstagramReelCard({ reel }: { reel: InstagramReel }) {
   const { token } = useAuthStore();
+  // Leader/Admin them thang vao Bo Suu Tap, con lai vao hang cho duyet — xem useProposeVideo.ts
+  const { submit, successMessage, actionLabel, doneLabel } = useSubmitVideoToLibrary();
   const proposeMutation = useMutation({
     mutationFn: () => {
-      if (!token) throw new Error('No token');
-      return videoLibraryService.proposeVideo(token, {
+      return submit({
         video_id: reel.post_id,
         platform: 'instagram',
         title: reel.description?.slice(0, 200) || '',
@@ -74,7 +77,7 @@ function InstagramReelCard({ reel }: { reel: InstagramReel }) {
         source: 'SCRAPED',
       });
     },
-    onSuccess: () => toast.success('Đã gửi đề xuất, chờ duyệt.'),
+    onSuccess: () => toast.success(successMessage),
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -147,7 +150,7 @@ function InstagramReelCard({ reel }: { reel: InstagramReel }) {
             ) : (
               <PaperPlaneTilt size={12} weight="bold" />
             )}
-            {proposeMutation.isSuccess ? 'Đã đề xuất' : 'Đề xuất'}
+            {proposeMutation.isSuccess ? doneLabel : actionLabel}
           </button>
         </div>
       </div>
@@ -274,7 +277,7 @@ export default function InstagramProfileDetailPage() {
   });
 
   const p = detailQuery.data;
-  const allReels = reelsQuery.data?.pages.flatMap(pg => pg.reels) || [];
+  const allReels = dedupeById(reelsQuery.data?.pages.flatMap(pg => pg.reels) || []);
   const totalReels = reelsQuery.data?.pages[0]?.count || 0;
   const isProcessing = isProcessingNow;
 
@@ -344,7 +347,7 @@ export default function InstagramProfileDetailPage() {
                 {(p.total_plays ?? 0) > 0 && (
                   <span className="flex items-center gap-1">
                     <Eye size={14} className="text-blue-500" />
-                    {formatNum(p.total_plays || 0)} tổng plays
+                    {formatNum(p.total_plays || 0)} tổng views
                   </span>
                 )}
                 {(p.total_likes ?? 0) > 0 && (
@@ -432,7 +435,7 @@ export default function InstagramProfileDetailPage() {
             type="number"
             value={minPlays}
             onChange={e => setMinPlays(e.target.value)}
-            placeholder="Min plays"
+            placeholder="Min view"
             className="w-28 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
           />
           <select
@@ -441,7 +444,7 @@ export default function InstagramProfileDetailPage() {
             className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             <option value="date">Mới nhất</option>
-            <option value="plays">Nhiều plays nhất</option>
+            <option value="plays">Nhiều views nhất</option>
             <option value="likes">Nhiều likes nhất</option>
           </select>
           {hasFilters && (

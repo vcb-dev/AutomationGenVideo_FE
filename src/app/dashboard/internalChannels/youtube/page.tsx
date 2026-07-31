@@ -10,6 +10,7 @@ import toast from 'react-hot-toast';
 import YoutubeProfileCard from '../../externalChannels/components/YoutubeProfileCard';
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService, ExternalVideo } from '@/services/scraperService';
+import ContentFilters from '../components/ContentFilters';
 import { channelsService, ChannelInfo } from '@/services/channelsService';
 import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
 
@@ -177,10 +178,14 @@ export default function YoutubeChannelsPage() {
   // ── Videos ───────────────────────────────────────────
   const [videoSearch, setVideoSearch] = useState('');
   const [debouncedVideoSearch, setDebouncedVideoSearch] = useState('');
-  const [sortVideos, setSortVideos] = useState('date');
+  const [sortVideos, setSortVideos] = useState('plays');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [minPlays, setMinPlays] = useState('');
+  const [market, setMarket] = useState('');
+  const [contentLine, setContentLine] = useState('');
+  const [channel, setChannel] = useState('');
+  const [hashtag, setHashtag] = useState('');
   const videoSearchTimer = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
@@ -189,7 +194,7 @@ export default function YoutubeChannelsPage() {
   }, [videoSearch]);
 
   const videosQuery = useInfiniteQuery({
-    queryKey: ['owned-youtube-videos', debouncedVideoSearch, sortVideos, dateFrom, dateTo, minPlays],
+    queryKey: ['owned-youtube-videos', debouncedVideoSearch, sortVideos, dateFrom, dateTo, minPlays, market, contentLine, channel, hashtag],
     queryFn: ({ pageParam = 1 }) => {
       if (!token) return Promise.reject('No token');
       return scraperService.getOwnedChannelVideos(token, {
@@ -199,6 +204,10 @@ export default function YoutubeChannelsPage() {
         date_from: dateFrom || undefined,
         date_to: dateTo || undefined,
         min_plays: minPlays ? Number(minPlays) : undefined,
+        market: market || undefined,
+        content_line: contentLine || undefined,
+        channel: channel || undefined,
+        hashtag: hashtag || undefined,
       });
     },
     getNextPageParam: (last) => last.page < last.total_pages ? last.page + 1 : undefined,
@@ -219,7 +228,7 @@ export default function YoutubeChannelsPage() {
     if (node) observerRef.current.observe(node);
   }, [videosQuery.isFetchingNextPage, videosQuery.hasNextPage, videosQuery.fetchNextPage]);
 
-  const hasVideoFilters = !!debouncedVideoSearch || !!dateFrom || !!dateTo || !!minPlays || sortVideos !== 'date';
+  const hasVideoFilters = !!debouncedVideoSearch || !!dateFrom || !!dateTo || !!minPlays || sortVideos !== 'plays';
 
   return (
     <div className="flex flex-col gap-5">
@@ -348,8 +357,18 @@ export default function YoutubeChannelsPage() {
             placeholder="Min views"
             className="w-28 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
           />
+          <ContentFilters
+            value={{ channel, hashtag, market, contentLine }}
+            onChange={(v) => {
+              if (v.channel !== undefined) setChannel(v.channel);
+              if (v.hashtag !== undefined) setHashtag(v.hashtag);
+              if (v.market !== undefined) setMarket(v.market);
+              if (v.contentLine !== undefined) setContentLine(v.contentLine);
+            }}
+            platform="youtube"
+          />
           {hasVideoFilters && (
-            <button onClick={() => { setVideoSearch(''); setSortVideos('date'); setDateFrom(''); setDateTo(''); setMinPlays(''); }} className="px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50 dark:hover:bg-slate-800">
+            <button onClick={() => { setVideoSearch(''); setSortVideos('plays'); setDateFrom(''); setDateTo(''); setMinPlays(''); }} className="px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50 dark:hover:bg-slate-800">
               Xóa bộ lọc
             </button>
           )}

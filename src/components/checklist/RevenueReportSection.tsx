@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { DollarSign, Plus, X } from 'lucide-react';
+import { digitsOnly, sumEntryValues } from './report-total';
 
 export const REVENUE_PLATFORMS = [
     { id: 'fb', label: 'Doanh thu FB' },
@@ -82,15 +83,12 @@ const RevenueReportSection: React.FC<RevenueReportSectionProps> = ({
         }
     }, [initialEntries]);
 
-    const digitsOnly = (s: string) => (s || '').replace(/\D/g, '');
 
     const updateParent = (platformId: string, currentEntries: RevenueEntry[], allEntries: Record<string, RevenueEntry[]>) => {
         // Aggregated total — BigInt tránh mất chính xác số thực với doanh thu lớn
-        const total = currentEntries.reduce((sum, e) => {
-            const d = digitsOnly(e.value);
-            return d ? sum + BigInt(d) : sum;
-        }, BigInt(0));
-        onChange(platformId as keyof RevenueData, total > BigInt(0) ? total.toString() : '');
+        // sumEntryValues phân biệt "chưa nhập gì" ('') với "đã nhập số 0" ('0') — xem
+        // report-total.ts. Trả sai chỗ này thì người dùng không nộp nổi báo cáo.
+        onChange(platformId as keyof RevenueData, sumEntryValues(currentEntries.map(e => e.value)));
 
         const joinedChannels = currentEntries
             .map(e => e.channel)

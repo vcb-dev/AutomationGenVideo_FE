@@ -1,4 +1,6 @@
 // Đi qua BE (proxy sang AI ở src/modules/scraper-proxy), không gọi thẳng AI nữa.
+import type { PlatformKey } from '@/lib/platform-config';
+
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
 
 function buildParams(filters: Record<string, any>): string {
@@ -657,7 +659,17 @@ export interface PaginatedReels {
 }
 
 export interface ExternalVideo {
-  platform: 'facebook' | 'tiktok' | 'instagram';
+  /**
+   * TÁM nền tảng, không phải ba.
+   *
+   * Trước đây endpoint gộp chỉ trả facebook/tiktok/instagram nên kiểu này khai đúng ba cái.
+   * Từ khi thêm 5 nhánh douyin/xiaohongshu/kuaishou/bilibili/youtube vào truy vấn gộp, thực
+   * tế trả về tới 6 nền tảng — mà kiểu vẫn khai 3, nên TypeScript tưởng mọi tra cứu
+   * `platformConfig[video.platform]` đều chắc chắn có, không cảnh báo gì, và trang
+   * /externalChannels/all vỡ ngay khi gặp video Douyin. Khai đủ ở đây để trình biên dịch
+   * bắt lỗi thay vì để người dùng gặp.
+   */
+  platform: PlatformKey;
   post_id: string;
   url: string;
   description: string;
@@ -671,6 +683,20 @@ export interface ExternalVideo {
   author_name: string;
   author_avatar: string;
   author_username: string;
+}
+
+export interface OwnedChannel {
+  platform: string;
+  /** page_id / username / channel_id tuỳ nền tảng — chính là giá trị gửi lên khi lọc. */
+  id: string;
+  ten: string;
+  so_video: number;
+}
+
+export interface OwnedHashtag {
+  /** Không kèm dấu #. */
+  the: string;
+  so_video: number;
 }
 
 export interface PaginatedExternalVideos {
@@ -697,12 +723,38 @@ export const scraperService = {
   getOwnedChannelVideos: async (token: string, params: {
     page?: number; page_size?: number; q?: string; sort?: string; platform?: string;
     min_plays?: number; date_from?: string; date_to?: string;
+    /** 'vn' | 'global' — server đoán theo dấu tiếng Việt trong caption. */
+    market?: string;
+    /** 'A1'..'A5' — server bắt theo hashtag #A1..#A5 sẵn có trong caption. */
+    content_line?: string;
+    /** Định danh kênh: page_id (Facebook) / username / channel_id tuỳ nền tảng. */
+    channel?: string;
+    /** Hashtag bất kỳ, có hay không có dấu # đều được. */
+    hashtag?: string;
   }): Promise<PaginatedExternalVideos> => {
     const res = await fetch(`${API_URL}/scraper/owned/videos/${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải videos');
     return res.json();
+  },
+
+  /** Danh sách kênh nội bộ để đổ vào ô chọn (kèm số video từng kênh). */
+  getOwnedChannels: async (token: string): Promise<OwnedChannel[]> => {
+    const res = await fetch(`${API_URL}/scraper/owned/channels/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    return (await res.json()).channels || [];
+  },
+
+  /** Hashtag đang thực sự có trong dữ liệu, sắp theo số video giảm dần. */
+  getOwnedHashtags: async (token: string, limit = 60): Promise<OwnedHashtag[]> => {
+    const res = await fetch(`${API_URL}/scraper/owned/hashtags/${buildParams({ limit })}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    return (await res.json()).hashtags || [];
   },
 
   suggestKeywords: async (token: string, q: string): Promise<KeywordSuggestion[]> => {

@@ -20,6 +20,12 @@ const roboto = Roboto({
 export const metadata: Metadata = {
   title: 'Video Production System',
   description: 'Automated video production management system',
+  // Dấu nhận biết cho extension VCB Video Downloader: content script thấy thẻ này thì
+  // tự lưu origin hiện tại làm địa chỉ hệ thống, người dùng khỏi phải nhập tay trong
+  // trang Cài đặt (địa chỉ đổi liên tục vì chạy qua Cloudflare Tunnel).
+  other: {
+    'vcb-app': '1',
+  },
   icons: {
     icon: '/icons/icon-192.png',
     apple: '/icons/icon-192.png',

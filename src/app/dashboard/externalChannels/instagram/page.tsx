@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CircleNotch, MagnifyingGlassPlus, UserCircle, FilmReel, CaretDown, CaretUp, Eye, Heart, ChatCircle, Warning } from '@phosphor-icons/react';
+import { CircleNotch, MagnifyingGlassPlus, UserCircle, FilmReel, CaretDown, CaretUp, Eye, Heart, ChatCircle, Warning, PaperPlaneTilt } from '@phosphor-icons/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { MagnifyingGlass, X } from '@phosphor-icons/react';
 import { useRouter } from 'next/navigation';
@@ -11,8 +11,12 @@ import toast from 'react-hot-toast';
 import InstagramProfileCard from '../components/InstagramProfileCard';
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService, InstagramReel } from '@/services/scraperService';
+import { videoLibraryService } from '@/services/videoLibraryService';
+import { useSubmitVideoToLibrary } from '@/hooks/useProposeVideo';
 import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
 import { UserRole } from '@/types/auth';
+import { dedupeById } from '@/lib/dedupe-pages';
+import WatchFeedButton from '../components/WatchFeedButton';
 
 const PAGE_SIZE_PROFILES = 12;
 const PAGE_SIZE_REELS = 24;
@@ -24,14 +28,38 @@ function formatNum(n: number): string {
 }
 
 function InstagramReelCard({ reel }: { reel: InstagramReel }) {
+  const { token } = useAuthStore();
+  // Leader/Admin them thang vao Bo Suu Tap, con lai vao hang cho duyet — xem useProposeVideo.ts
+  const { submit, successMessage, actionLabel, doneLabel } = useSubmitVideoToLibrary();
+  const proposeMutation = useMutation({
+    mutationFn: () => {
+      return submit({
+        video_id: reel.post_id,
+        platform: 'instagram',
+        title: reel.description?.slice(0, 200) || '',
+        description: reel.description || '',
+        video_url: reel.url,
+        author_username: reel.profile?.username || '',
+        thumbnail_url: reel.thumbnail_drive_url || reel.thumbnail_url || undefined,
+        views_count: reel.play_count,
+        likes_count: reel.likes_count,
+        comments_count: reel.comments_count,
+        hashtags: reel.hashtags,
+        source: 'SCRAPED',
+      });
+    },
+    onSuccess: () => toast.success(successMessage),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   return (
-    <a
-      href={reel.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-md transition-shadow flex flex-col"
-    >
-      <div className="relative aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[280px]">
+    <div className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-md transition-shadow flex flex-col">
+      <a
+        href={reel.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="relative block aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[280px]"
+      >
         {reel.thumbnail_url ? (
           <img
             src={reel.thumbnail_url}
@@ -52,7 +80,7 @@ function InstagramReelCard({ reel }: { reel: InstagramReel }) {
             <span className="flex items-center gap-1"><ChatCircle size={12} weight="fill" />{formatNum(reel.comments_count)}</span>
           </div>
         </div>
-      </div>
+      </a>
       <div className="p-3 flex flex-col gap-1.5 flex-1">
         <p className="text-xs text-foreground line-clamp-2 leading-relaxed">{reel.description || <span className="text-slate-400 italic">Không có caption</span>}</p>
         {reel.profile && (
@@ -63,9 +91,23 @@ function InstagramReelCard({ reel }: { reel: InstagramReel }) {
             <span className="text-xs text-slate-500 truncate">@{reel.profile.username}</span>
           </div>
         )}
-        <p className="text-xs text-slate-400">{new Date(reel.date_posted).toLocaleDateString('vi-VN')}</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-slate-400">{new Date(reel.date_posted).toLocaleDateString('vi-VN')}</p>
+          <button
+            onClick={() => proposeMutation.mutate()}
+            disabled={proposeMutation.isPending || proposeMutation.isSuccess}
+            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-primary border border-primary/30 rounded-md hover:bg-primary/10 disabled:opacity-50 transition-colors flex-shrink-0"
+          >
+            {proposeMutation.isPending ? (
+              <CircleNotch size={12} weight="bold" className="animate-spin" />
+            ) : (
+              <PaperPlaneTilt size={12} weight="bold" />
+            )}
+            {proposeMutation.isSuccess ? doneLabel : actionLabel}
+          </button>
+        </div>
       </div>
-    </a>
+    </div>
   );
 }
 
@@ -157,7 +199,7 @@ export default function InstagramExternalPage() {
     if (node) observerRef.current.observe(node);
   }, [reelsQuery.isFetchingNextPage, reelsQuery.hasNextPage, reelsQuery.fetchNextPage]);
 
-  const allReels = reelsQuery.data?.pages.flatMap(p => p.reels) || [];
+  const allReels = dedupeById(reelsQuery.data?.pages.flatMap(p => p.reels) || []);
   const totalReels = reelsQuery.data?.pages[0]?.count || 0;
 
   // ─── Mutations ────────────────────────────────────────
@@ -211,6 +253,9 @@ export default function InstagramExternalPage() {
 
   return (
     <div className="flex flex-col gap-5">
+      <div>
+        <WatchFeedButton platform="instagram" label="Xem ngay tại đây" />
+      </div>
       {/* Input username — chỉ leader/admin */}
       {canManageChannels && (
         <div className="bg-card border border-border rounded-xl p-4">
@@ -342,7 +387,7 @@ export default function InstagramExternalPage() {
             type="number"
             value={minPlays}
             onChange={e => setMinPlays(e.target.value)}
-            placeholder="Min plays"
+            placeholder="Min View"
             className="w-28 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
           />
           <select
@@ -351,7 +396,7 @@ export default function InstagramExternalPage() {
             className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             <option value="date">Mới nhất</option>
-            <option value="plays">Nhiều plays nhất</option>
+            <option value="plays">Nhiều views nhất</option>
             <option value="likes">Nhiều likes nhất</option>
           </select>
           <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none" title="Từ ngày" />
