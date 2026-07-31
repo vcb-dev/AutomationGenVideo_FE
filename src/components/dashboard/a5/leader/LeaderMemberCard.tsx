@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import type { LeaderDashboardMember } from "./leader-task-dashboard-api";
+import type { LeaderStyleCardData } from "../shared/leader-style-card-data";
 import { LeaderGaugeRing } from "./LeaderGaugeRing";
 
 function initialsOf(name: string) {
@@ -22,7 +22,7 @@ function statusAccent(pct: number | null) {
 }
 
 interface LeaderMemberCardProps {
-  member: LeaderDashboardMember;
+  entity: LeaderStyleCardData;
   index: number;
   /** "KPI ngày" chỉ có ý nghĩa khi đang xem đúng tháng hiện tại (chỉ tiêu/tiến độ trong NGÀY). */
   showDailyKpi: boolean;
@@ -30,13 +30,13 @@ interface LeaderMemberCardProps {
 
 /**
  * Video tháng là chỉ số chính (gauge lớn, căn giữa) — KPI ngày và Traffic là 2 ô phụ ở chân card.
- * flex-1 quanh phần gauge để card tự căn giữa theo chiều dọc khi các card cùng hàng cao thấp khác nhau.
+ * Dùng chung cho cả card 1 người (leader dashboard) và card 1 team (admin dashboard, chế độ "Tất cả Team").
  */
-export function LeaderMemberCard({ member, index, showDailyKpi }: LeaderMemberCardProps) {
-  const name = member.full_name || member.email;
-  const videoPct = member.kpi_target > 0 ? Math.round((member.kpi_completed / member.kpi_target) * 100) : null;
+export function LeaderMemberCard({ entity, index, showDailyKpi }: LeaderMemberCardProps) {
+  const name = entity.name;
+  const videoPct = entity.kpi_target > 0 ? Math.round((entity.kpi_completed / entity.kpi_target) * 100) : null;
   const dayPct =
-    member.kpi_day_target > 0 ? Math.round((member.kpi_day_completed / member.kpi_day_target) * 100) : null;
+    entity.kpi_day_target > 0 ? Math.round((entity.kpi_day_completed / entity.kpi_day_target) * 100) : null;
   const avatarColor = AVATAR_COLORS[index % AVATAR_COLORS.length];
 
   return (
@@ -62,7 +62,7 @@ export function LeaderMemberCard({ member, index, showDailyKpi }: LeaderMemberCa
       </div>
 
       <div className="flex flex-col items-center">
-        <LeaderGaugeRing pct={videoPct} size={160} current={member.kpi_completed} target={member.kpi_target} />
+        <LeaderGaugeRing pct={videoPct} size={160} current={entity.kpi_completed} target={entity.kpi_target} />
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3 border-t border-gray-100 pt-4">
@@ -70,9 +70,9 @@ export function LeaderMemberCard({ member, index, showDailyKpi }: LeaderMemberCa
           <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">KPI ngày</div>
           {showDailyKpi ? (
             <div className="mt-0.5 text-base font-bold text-gray-800">
-              {member.kpi_day_completed}
+              {entity.kpi_day_completed}
               <span className="text-xs font-normal text-gray-400">
-                /{member.kpi_day_target > 0 ? member.kpi_day_target : "—"}
+                /{entity.kpi_day_target > 0 ? entity.kpi_day_target : "—"}
               </span>
               {dayPct != null ? <span className="ml-1 text-xs font-normal text-gray-400">({dayPct}%)</span> : null}
             </div>
@@ -83,7 +83,7 @@ export function LeaderMemberCard({ member, index, showDailyKpi }: LeaderMemberCa
         <div className="rounded-xl bg-gray-50 px-3 py-2.5 text-center">
           <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Traffic</div>
           <div className="mt-0.5 text-base font-bold text-gray-800">
-            {member.traffic_month.toLocaleString("vi-VN")}
+            {entity.traffic_month.toLocaleString("vi-VN")}
           </div>
         </div>
       </div>

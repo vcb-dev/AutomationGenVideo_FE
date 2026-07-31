@@ -16,12 +16,14 @@ export interface LeaderDashboardMember {
   kpi_video_win: number;
   kpi_content_new: number;
   kpi_product_planned: number;
-  /** Số task được giao (assigned_at) hôm nay — "mục tiêu" của KPI ngày. */
+  /** Số task có deadline hôm nay (hoặc tạo hôm nay nếu chưa có deadline) — "mục tiêu" của KPI ngày. */
   kpi_day_target: number;
   /** Số task đã duyệt hôm nay — "hiện tại" của KPI ngày. */
   kpi_day_completed: number;
   /** Tổng traffic tự báo cáo hằng ngày, cộng dồn trong tháng hiện tại. Chưa có KPI/mục tiêu traffic. */
   traffic_month: number;
+  /** Tổng doanh thu tự báo cáo hằng ngày, cộng dồn trong tháng hiện tại. Chưa có KPI/mục tiêu doanh thu. */
+  revenue_month: number;
 }
 
 export interface LeaderTaskDashboard {
