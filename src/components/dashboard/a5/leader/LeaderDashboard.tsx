@@ -4,7 +4,7 @@ import { useState } from "react";
 import { LeaderHeader } from "./LeaderHeader";
 import { LeaderMemberCard } from "./LeaderMemberCard";
 import { currentMonthKey, LeaderMonthFilter, monthLabelOf } from "./LeaderMonthFilter";
-import { LeaderRevenuePlaceholder } from "./LeaderRevenuePlaceholder";
+import { LeaderRevenueTotalCard } from "./LeaderRevenueTotalCard";
 import { LeaderTrafficTotalCard } from "./LeaderTrafficTotalCard";
 import { LeaderVideoByLineChart } from "./LeaderVideoByLineChart";
 import { LeaderVideoMonthCard } from "./LeaderVideoMonthCard";
@@ -22,6 +22,7 @@ export function LeaderDashboard() {
     { current: 0, target: 0 },
   );
   const trafficTotal = members.reduce((sum, m) => sum + m.traffic_month, 0);
+  const revenueTotal = members.reduce((sum, m) => sum + m.revenue_month, 0);
 
   if (isLoading) {
     return (
@@ -48,9 +49,8 @@ export function LeaderDashboard() {
       <div className={isFetching ? "pointer-events-none opacity-50 transition-opacity" : "transition-opacity"}>
         <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
           <LeaderVideoMonthCard current={videoTotals.current} target={videoTotals.target} />
-          <div className="md:col-span-2">
-            <LeaderTrafficTotalCard total={trafficTotal} monthLabel={monthLabel} />
-          </div>
+          <LeaderTrafficTotalCard total={trafficTotal} monthLabel={monthLabel} />
+          <LeaderRevenueTotalCard total={revenueTotal} monthLabel={monthLabel} />
         </div>
 
         {members.length === 0 ? (
@@ -58,12 +58,23 @@ export function LeaderDashboard() {
         ) : (
           <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
             {members.map((m, i) => (
-              <LeaderMemberCard key={m.user_id} member={m} index={i} showDailyKpi={isCurrentMonth} />
+              <LeaderMemberCard
+                key={m.user_id}
+                index={i}
+                showDailyKpi={isCurrentMonth}
+                entity={{
+                  id: m.user_id,
+                  name: m.full_name || m.email,
+                  kpi_completed: m.kpi_completed,
+                  kpi_target: m.kpi_target,
+                  kpi_day_completed: m.kpi_day_completed,
+                  kpi_day_target: m.kpi_day_target,
+                  traffic_month: m.traffic_month,
+                }}
+              />
             ))}
           </div>
         )}
-
-        <LeaderRevenuePlaceholder />
 
         <LeaderVideoByLineChart data={data.video_by_line} />
       </div>
