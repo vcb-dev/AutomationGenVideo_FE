@@ -17,6 +17,7 @@ import { FacebookPage, PaginatedPages, PageFilters } from '@/types/facebook';
 import { facebookService } from '@/services/facebookService';
 import { scraperService, ExternalVideo } from '@/services/scraperService';
 import ContentFilters from '../components/ContentFilters';
+import { FilterDateRange, FilterNumber, FilterReset, FilterSearch, FilterSelect } from '../components/FilterFields';
 import { channelsService, ChannelInfo } from '@/services/channelsService';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -536,32 +537,15 @@ export default function FacebookChannelsPage() {
       {/* ── Videos Section ───────────────────────────────── */}
       <div>
         {/* Filter bar */}
-        <div className="flex flex-wrap items-center gap-3 bg-card border border-border rounded-xl p-4 mb-4">
-          <input
-            type="text"
-            value={videoSearch}
-            onChange={e => setVideoSearch(e.target.value)}
-            placeholder="Tìm theo caption, hashtag..."
-            className="flex-1 min-w-[180px] max-w-sm px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          />
-          <select
-            value={sortBy}
-            onChange={e => setSortBy(e.target.value)}
-            className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          >
+        <div className="flex flex-wrap items-center gap-2 bg-card border border-border rounded-xl p-3 mb-4">
+          <FilterSearch value={videoSearch} onChange={setVideoSearch} />
+          <FilterSelect value={sortBy} onChange={setSortBy} className="w-[160px]" title="Sắp xếp">
             <option value="date">Mới nhất</option>
             <option value="plays">Nhiều views nhất</option>
             <option value="likes">Nhiều likes nhất</option>
-          </select>
-          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none" title="Từ ngày" />
-          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none" title="Đến ngày" />
-          <input
-            type="number"
-            value={minPlays}
-            onChange={e => setMinPlays(e.target.value)}
-            placeholder="Min views"
-            className="w-28 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          />
+          </FilterSelect>
+          <FilterDateRange from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
+          <FilterNumber value={minPlays} onChange={setMinPlays} />
           <ContentFilters
             value={{ channel, hashtag, market, contentLine }}
             onChange={(v) => {
@@ -573,9 +557,7 @@ export default function FacebookChannelsPage() {
             platform="facebook"
           />
           {hasVideoFilters && (
-            <button onClick={() => { setVideoSearch(''); setSortBy('plays'); setDateFrom(''); setDateTo(''); setMinPlays(''); }} className="px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50 dark:hover:bg-slate-800">
-              Xóa bộ lọc
-            </button>
+            <FilterReset onClick={() => { setVideoSearch(''); setSortBy('plays'); setDateFrom(''); setDateTo(''); setMinPlays(''); }} />
           )}
         </div>
 

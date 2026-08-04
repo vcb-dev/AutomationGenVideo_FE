@@ -78,9 +78,17 @@ function Slide({
         // Trình duyệt chặn tự phát có tiếng — muốn tự chạy thì phải tắt tiếng.
         el.muted = tatTieng;
         el.play().then(() => setTamDung(false)).catch(() => {
-            // Cuộn qua quá nhanh hoặc trình duyệt từ chối — không phải lỗi cần báo.
+            // Tới đây gần như luôn là vì người dùng ĐÃ BẬT TIẾNG: trình duyệt chỉ cho tự phát
+            // khi tắt tiếng, nên video sau bị từ chối và đứng im chờ bấm — đúng cái phiền mà
+            // người dùng gặp. Hạ xuống tắt tiếng để video vẫn chạy khi cuộn tới.
+            if (el.muted) return;      // đã tắt tiếng mà vẫn trượt thì do cuộn quá nhanh, kệ.
+            el.muted = true;
+            // Đổi luôn trạng thái chung, nếu không thì loa vẫn vẽ "đang có tiếng" trong khi
+            // thực tế đã tắt — bấm vào lại thành tắt lần nữa, nhìn như nút hỏng.
+            setTatTieng(() => true);
+            el.play().then(() => setTamDung(false)).catch(() => {});
         });
-    }, [tatTieng]);
+    }, [tatTieng, setTatTieng]);
 
     useEffect(() => {
         const el = videoRef.current;
@@ -88,6 +96,21 @@ function Slide({
         if (active && shouldLoad) tuPhat();
         else { el.pause(); setTamDung(false); }
     }, [active, shouldLoad, tuPhat]);
+
+    /**
+     * Gắn/gỡ thẻ video — PHẢI dừng ngay lúc gỡ.
+     *
+     * Cuộn nhanh thì khung đang phát nhảy thẳng từ "đang xem" sang "ở xa" trong một lượt vẽ,
+     * thẻ <video> bị gỡ khỏi trang luôn. Lúc đó hiệu ứng ở trên chạy thì `videoRef.current` đã
+     * rỗng (React xoá ref TRƯỚC khi hiệu ứng chạy) nên nhánh `el.pause()` không tới lượt —
+     * thẻ video đã tách khỏi trang VẪN CHẠY TIẾP và tiếng vẫn phát chồng lên video mới.
+     *
+     * Hàm ref là chỗ duy nhất còn cầm được phần tử ngay khoảnh khắc bị gỡ.
+     */
+    const ganVideo = useCallback((el: HTMLVideoElement | null) => {
+        if (!el) videoRef.current?.pause();
+        videoRef.current = el;
+    }, []);
 
     /** Bấm vào video để dừng / chạy lại — như TikTok. */
     const doiTrangThai = useCallback(() => {
@@ -119,7 +142,7 @@ function Slide({
 
             {nearby && plan.mode === 'proxy' && !failed && (
                 <video
-                    ref={videoRef}
+                    ref={ganVideo}
                     // Chỉ nạp khi tới lượt — tránh tải song song cả danh sách.
                     src={shouldLoad ? plan.src : undefined}
                     poster={video.thumbnail || undefined}
@@ -334,6 +357,26 @@ function WatchInner() {
         Array.from(root.children).forEach((c) => io.observe(c));
         return () => io.disconnect();
     }, [videos.length]);
+
+    /**
+     * Chốt chặn: chỉ khung đang xem được phát, mọi khung khác dừng.
+     *
+     * Mỗi khung đã tự dừng mình rồi, nhưng chỉ cần MỘT đường đi lọt (cuộn quá nhanh, khung bị
+     * gỡ giữa chừng, sau này thêm nhánh vẽ mới) là có hai video cùng ra tiếng — lỗi này rất
+     * khó lần vì nghe thì rõ mà nhìn vào trang không thấy gì bất thường. Quét ở đây rẻ: cùng
+     * lắm chỉ có 5 thẻ video trong trang.
+     *
+     * Chạy SAU các khung con (React luôn chạy hiệu ứng con trước cha) nên không cắt ngang lệnh
+     * phát của khung đang xem — miễn là bỏ qua đúng khung đó.
+     */
+    useEffect(() => {
+        const root = containerRef.current;
+        if (!root) return;
+        for (const khung of Array.from(root.children)) {
+            if (Number((khung as HTMLElement).dataset.index) === activeIndex) continue;
+            khung.querySelector('video')?.pause();
+        }
+    }, [activeIndex]);
 
     // Gần hết danh sách thì tải thêm.
     // Tách sẵn ra biến thay vì để cả `query` trong danh sách phụ thuộc: đối tượng `query` là
