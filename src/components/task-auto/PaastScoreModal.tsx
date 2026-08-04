@@ -11,6 +11,7 @@ import {
   upgradePaastAnalysis,
   type PaastAnalysisHistory,
   type PaastCriterion,
+  type PaastVerdict,
 } from '@/lib/api/paast-analyzer'
 
 interface Props {
@@ -231,6 +232,7 @@ export function PaastScoreModal({ open, content, onClose, cachedResult, onAnalyz
                   <p className="text-3xl font-extrabold text-violet-700 mt-0.5 leading-none">
                     {result.total_score}<span className="text-base font-semibold text-violet-400">/100</span>
                   </p>
+                  {analysis.verdict && <VerdictBadge verdict={analysis.verdict} className="mt-2" />}
                 </div>
                 <div className="flex gap-2">
                   {(['prefer', 'action', 'acknowledge', 'stick', 'trust'] as const).map(key => (
@@ -322,6 +324,7 @@ export function PaastScoreModal({ open, content, onClose, cachedResult, onAnalyz
                     <span className="text-gray-300">→</span>
                     {upgradeResult.total_score}<span className="text-sm font-semibold text-emerald-400">/100</span>
                   </p>
+                  {upgradedAnalysis.verdict && <VerdictBadge verdict={upgradedAnalysis.verdict} className="mt-2" />}
                 </div>
               </div>
 
@@ -406,6 +409,29 @@ export function PaastScoreModal({ open, content, onClose, cachedResult, onAnalyz
         )}
       </div>
     </div>
+  )
+}
+
+/**
+ * Đạt chuẩn PAAST khi cả 5 lớp đều có ≥1 tiêu chí đạt — không phải cứ đủ điểm là đạt
+ * (business doc §1.3/§5.2, xem `compute_verdict` ở AI service).
+ */
+function VerdictBadge({ verdict, className = '' }: { verdict: PaastVerdict; className?: string }) {
+  if (verdict.passed) {
+    return (
+      <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-600 text-white ${className}`}>
+        <CheckCircle2 className="w-3 h-3" /> Đạt chuẩn PAAST
+      </span>
+    )
+  }
+  const missingLabels = verdict.missing_layers.map(l => LAYER_META[l].label).join(', ')
+  return (
+    <span
+      title={`Còn thiếu ở lớp: ${missingLabels}`}
+      className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-orange-50 border border-orange-300 text-orange-700 ${className}`}
+    >
+      <AlertTriangle className="w-3 h-3" /> Chưa đạt chuẩn — thiếu {missingLabels}
+    </span>
   )
 }
 
