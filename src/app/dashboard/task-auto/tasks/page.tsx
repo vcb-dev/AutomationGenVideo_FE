@@ -21,6 +21,8 @@ import { UserRole } from '@/types/auth'
 type ViewMode = 'team' | 'mine'
 type PageTab = 'table' | 'submitted'
 
+const TASKS_PAGE_SIZE = 10
+
 function todayString() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -112,7 +114,7 @@ export default function TasksPage() {
       deadline_date: deadlineDate || undefined,
       task_type:     taskType     || undefined,
       page,
-      limit: 6,
+      limit: TASKS_PAGE_SIZE,
       assignee_id: isMineView ? (user?.id || undefined) : (assigneeId || undefined),
     }),
     refetchOnWindowFocus: true,
@@ -123,7 +125,7 @@ export default function TasksPage() {
   const total      = data?.total      || 0
 
   // Danh sách người làm để lọc — lấy từ toàn bộ thành viên team (đúng phạm vi team đang xem),
-  // không lấy từ `tasks` vì đó chỉ là 1 trang kết quả (limit: 6) nên sẽ thiếu người.
+  // không lấy từ `tasks` vì đó chỉ là 1 trang kết quả (limit: TASKS_PAGE_SIZE) nên sẽ thiếu người.
   // Ở isMineView, assignee_id đã bị khóa cứng về chính user nên không cần (và không nên) cho chọn người khác.
   const assigneeScopeTeams = effectiveTeamId ? teams.filter(t => t.id === effectiveTeamId) : teams
   const assigneeOptionsMap = new Map<string, { id: string; name: string }>()
@@ -257,6 +259,7 @@ export default function TasksPage() {
           tasks={tasks}
           total={total}
           page={page}
+          limit={TASKS_PAGE_SIZE}
           totalPages={totalPages}
           isLoading={isLoading}
           onViewTask={setSelectedTaskId}

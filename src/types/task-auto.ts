@@ -448,11 +448,23 @@ export interface TeamSource {
 
 // ── Tasks ────────────────────────────────────────
 
+export interface PublishedLinkStats {
+  views: number
+  likes: number
+  comments: number
+  shares: number
+  status: 'success' | 'failed' | 'unsupported'
+  fetched_at: string
+  error?: string
+}
+
 export interface PublishedLink {
   id: string
   /** Tên nền tảng tự do; "FACEBOOK"/"TIKTOK"/"INSTAGRAM"/"YOUTUBE" được nhận icon thương hiệu, còn lại dùng icon mặc định */
   platform: string
   url: string
+  /** Số liệu tương tác do BE tự kéo — hiện chỉ Facebook (page nội bộ) được hỗ trợ, platform khác có status 'unsupported' */
+  stats?: PublishedLinkStats | null
 }
 
 export interface Task {

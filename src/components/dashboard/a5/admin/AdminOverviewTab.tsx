@@ -1,16 +1,44 @@
 "use client";
 
 import { DashboardFilters } from "../shared/DashboardFilters";
-import { Funnel5A } from "../shared/Funnel5A";
-import { KpiTripleCards } from "../shared/KpiTripleCards";
-import { AdminDonut5A } from "./AdminDonut5A";
-import { AdminGrowthBars5AMonthly } from "./AdminGrowthBars5AMonthly";
+import { LeaderMemberCard } from "../leader/LeaderMemberCard";
+import { LeaderRevenueTotalCard } from "../leader/LeaderRevenueTotalCard";
+import { LeaderTrafficTotalCard } from "../leader/LeaderTrafficTotalCard";
+import { LeaderVideoByLineChart } from "../leader/LeaderVideoByLineChart";
+import { LeaderVideoMonthCard } from "../leader/LeaderVideoMonthCard";
+import { useAdminTeamReport } from "./admin-team-report-api";
 import { useAdminOverviewFilters } from "./AdminOverviewFiltersContext";
-import { AdminPlatformTable } from "./AdminPlatformTable";
-import { AdminTeamTable } from "./AdminTeamTable";
+
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 export function AdminOverviewTab() {
   const f = useAdminOverviewFilters();
+  const { data, isLoading, isFetching } = useAdminTeamReport({
+    team: f.teamFilter,
+    dateFrom: f.dateFrom,
+    dateTo: f.dateTo,
+  });
+
+  const rows = data?.rows ?? [];
+  const isAllTeams = f.teamFilter === "all";
+  // "KPI ngày" (hôm nay) chỉ có ý nghĩa khi khoảng ngày đang chọn có bao gồm ngày hôm nay.
+  const today = todayStr();
+  const showDailyKpi = f.dateFrom <= today && today <= f.dateTo;
+
+  const totals = rows.reduce(
+    (acc, r) => ({
+      current: acc.current + r.kpi_completed,
+      target: acc.target + r.kpi_target,
+      traffic: acc.traffic + r.traffic_month,
+      revenue: acc.revenue + r.revenue_month,
+    }),
+    { current: 0, target: 0, traffic: 0, revenue: 0 },
+  );
+
+  const periodLabel = !isAllTeams && data?.team ? data.team.name : "Toàn công ty";
 
   return (
     <div>
@@ -27,20 +55,40 @@ export function AdminOverviewTab() {
           options: f.teamOptions,
         }}
       />
-      <KpiTripleCards
-        trafficLabel={f.kpiTrafficLabel}
-        revenueLabel={f.kpiRevenueLabel}
-        videoTotal={f.videoTotal}
-        progressPct={f.kpiProgressPct}
-        syncNote={f.kpiSyncNote}
-        isLoading={f.isLoading}
-      />
-      <Funnel5A variant="admin" note={f.a5Note} />
-      <AdminTeamTable />
-      <AdminPlatformTable />
-      <div className="mb-4 grid gap-4 lg:grid-cols-2">
-        <AdminDonut5A note={f.a5Note} />
-        <AdminGrowthBars5AMonthly note={f.a5Note} />
+
+      <div className={isFetching ? "pointer-events-none opacity-50 transition-opacity" : "transition-opacity"}>
+        <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+          <LeaderVideoMonthCard current={totals.current} target={totals.target} />
+          <LeaderTrafficTotalCard total={totals.traffic} monthLabel={periodLabel} />
+          <LeaderRevenueTotalCard total={totals.revenue} monthLabel={periodLabel} />
+        </div>
+
+        {isLoading ? (
+          <p className="py-8 text-center text-sm text-gray-400">Đang tải dữ liệu…</p>
+        ) : rows.length === 0 ? (
+          <p className="py-8 text-center text-sm text-gray-500">Không có dữ liệu trong kỳ đã chọn.</p>
+        ) : (
+          <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+            {rows.map((r, i) => (
+              <LeaderMemberCard
+                key={r.id}
+                index={i}
+                showDailyKpi={showDailyKpi}
+                entity={{
+                  id: r.id,
+                  name: r.name,
+                  kpi_completed: r.kpi_completed,
+                  kpi_target: r.kpi_target,
+                  kpi_day_completed: r.kpi_day_completed,
+                  kpi_day_target: r.kpi_day_target,
+                  traffic_month: r.traffic_month,
+                }}
+              />
+            ))}
+          </div>
+        )}
+
+        <LeaderVideoByLineChart data={data?.video_by_line ?? []} />
       </div>
     </div>
   );

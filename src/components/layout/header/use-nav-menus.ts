@@ -28,6 +28,7 @@ import {
     AudioLines,
     Wand2,
     DownloadCloud,
+    Sparkles,
 } from "lucide-react";
 import { NavMenu } from "./types";
 
@@ -439,6 +440,7 @@ export function useNavMenus(
                     "/dashboard/ai/overview",
                     "/dashboard/ai/content-transform",
                     "/dashboard/tools/video-downloader",
+                    "/dashboard/tools/lucky-spin",
                 ] as string[],
                 sections: [
                     {
@@ -480,6 +482,18 @@ export function useNavMenus(
                                 href: "/dashboard/tools/video-downloader",
                                 icon: DownloadCloud,
                                 description: "Tải MP4/MP3 từ YouTube, TikTok, Facebook... kèm Chrome extension",
+                            },
+                        ],
+                    },
+                    {
+                        section: "SỰ KIỆN NỘI BỘ",
+                        color: "indigo" as const,
+                        items: [
+                            {
+                                label: "Vòng quay may mắn",
+                                href: "/dashboard/tools/lucky-spin",
+                                icon: Sparkles,
+                                description: "Quay chọn thành viên, team & quà tặng, nhập danh sách từ file Excel",
                             },
                         ],
                     },
