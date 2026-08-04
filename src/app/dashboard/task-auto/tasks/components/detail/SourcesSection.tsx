@@ -81,7 +81,7 @@ export function SourcesSection({
             {edit.scopeSwitch}
           </div>
         )}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <CustomSelect
           label="Outro"
           value={edit.form.source_outro_id}

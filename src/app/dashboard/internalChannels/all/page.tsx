@@ -6,6 +6,9 @@ import { CircleNotch, FilmReel, Warning, Eye, Heart, ChatCircle, FacebookLogo, T
 
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService, ExternalVideo } from '@/services/scraperService';
+import { platformStyle } from '@/lib/platform-config';
+import ContentFilters from '../components/ContentFilters';
+import { FilterDateRange, FilterNumber, FilterReset, FilterSearch, FilterSelect } from '../components/FilterFields';
 
 function formatNum(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -48,15 +51,11 @@ function getAuthorAvatar(video: ExternalVideo): string {
   return video.author_avatar || '';
 }
 
-const platformConfig: Record<string, { icon: any; color: string; bg: string; label: string }> = {
-  facebook:  { icon: FacebookLogo,  color: 'text-blue-600',                 bg: 'bg-blue-50 dark:bg-blue-900/30',  label: 'Facebook'  },
-  tiktok:    { icon: TiktokLogo,    color: 'text-slate-800 dark:text-white', bg: 'bg-slate-100 dark:bg-slate-800',  label: 'TikTok'    },
-  instagram: { icon: InstagramLogo, color: 'text-pink-500',                 bg: 'bg-pink-50 dark:bg-pink-900/30',  label: 'Instagram' },
-  youtube:   { icon: YoutubeLogo,   color: 'text-red-600',                  bg: 'bg-red-50 dark:bg-red-900/30',    label: 'YouTube'   },
-};
 
 function VideoCard({ video }: { video: ExternalVideo }) {
-  const config = platformConfig[video.platform] ?? platformConfig.tiktok;
+  // Trước dùng bảng cục bộ thiếu Douyin/Xiaohongshu với dự phòng `?? platformConfig.tiktok`
+  // — không vỡ trang nhưng video Douyin lại đeo phù hiệu TikTok. Bảng dùng chung có đủ 8.
+  const config = platformStyle(video.platform);
   const PlatformIcon = config.icon;
 
   return (
@@ -139,11 +138,15 @@ export default function AllOwnedVideosPage() {
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [sortBy, setSortBy] = useState('date');
+  const [sortBy, setSortBy] = useState('plays');
   const [platform, setPlatform] = useState('');
   const [minPlays, setMinPlays] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [market, setMarket] = useState('');
+  const [contentLine, setContentLine] = useState('');
+  const [channel, setChannel] = useState('');
+  const [hashtag, setHashtag] = useState('');
   const searchTimer = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
@@ -151,11 +154,11 @@ export default function AllOwnedVideosPage() {
     return () => clearTimeout(searchTimer.current);
   }, [search]);
 
-  const hasFilters = !!debouncedSearch || !!platform || !!minPlays || !!dateFrom || !!dateTo || sortBy !== 'date';
-  const clearFilters = () => { setSearch(''); setPlatform(''); setMinPlays(''); setDateFrom(''); setDateTo(''); setSortBy('date'); };
+  const hasFilters = !!debouncedSearch || !!platform || !!minPlays || !!dateFrom || !!dateTo || sortBy !== 'plays' || !!market || !!contentLine || !!channel || !!hashtag;
+  const clearFilters = () => { setSearch(''); setPlatform(''); setMinPlays(''); setDateFrom(''); setDateTo(''); setSortBy('plays'); setMarket(''); setContentLine(''); setChannel(''); setHashtag(''); };
 
   const videosQuery = useInfiniteQuery({
-    queryKey: ['owned-channel-videos', debouncedSearch, sortBy, platform, minPlays, dateFrom, dateTo],
+    queryKey: ['owned-channel-videos', debouncedSearch, sortBy, platform, minPlays, dateFrom, dateTo, market, contentLine, channel, hashtag],
     queryFn: ({ pageParam = 1 }) => {
       if (!token) return Promise.reject('No token');
       return scraperService.getOwnedChannelVideos(token, {
@@ -167,6 +170,10 @@ export default function AllOwnedVideosPage() {
         min_plays: minPlays ? Number(minPlays) : undefined,
         date_from: dateFrom || undefined,
         date_to: dateTo || undefined,
+        market: market || undefined,
+        content_line: contentLine || undefined,
+        channel: channel || undefined,
+        hashtag: hashtag || undefined,
       });
     },
     getNextPageParam: (last) => last.page < last.total_pages ? last.page + 1 : undefined,
@@ -190,48 +197,32 @@ export default function AllOwnedVideosPage() {
   return (
     <div className="flex flex-col gap-5">
       {/* Filter bar */}
-      <div className="flex flex-wrap items-center gap-3 bg-card border border-border rounded-xl p-4">
-        <input
-          type="text"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Tìm theo caption, hashtag..."
-          className="flex-1 min-w-[180px] max-w-sm px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        />
-        <select
-          value={platform}
-          onChange={e => setPlatform(e.target.value)}
-          className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        >
+      <div className="flex flex-wrap items-center gap-2 bg-card border border-border rounded-xl p-3">
+        <FilterSearch value={search} onChange={setSearch} />
+        <FilterSelect value={platform} onChange={setPlatform} className="w-[150px]" title="Lọc theo nền tảng">
           <option value="">Tất cả nền tảng</option>
           <option value="facebook">Facebook</option>
           <option value="tiktok">TikTok</option>
           <option value="instagram">Instagram</option>
           <option value="youtube">YouTube</option>
-        </select>
-        <input
-          type="number"
-          value={minPlays}
-          onChange={e => setMinPlays(e.target.value)}
-          placeholder="Min plays"
-          className="w-28 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        </FilterSelect>
+        <FilterNumber value={minPlays} onChange={setMinPlays} />
+        <ContentFilters
+          value={{ channel, hashtag, market, contentLine }}
+          onChange={(v) => {
+            if (v.channel !== undefined) setChannel(v.channel);
+            if (v.hashtag !== undefined) setHashtag(v.hashtag);
+            if (v.market !== undefined) setMarket(v.market);
+            if (v.contentLine !== undefined) setContentLine(v.contentLine);
+          }}
         />
-        <select
-          value={sortBy}
-          onChange={e => setSortBy(e.target.value)}
-          className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        >
+        <FilterSelect value={sortBy} onChange={setSortBy} className="w-[160px]" title="Sắp xếp">
           <option value="date">Mới nhất</option>
-          <option value="plays">Nhiều plays nhất</option>
+          <option value="plays">Nhiều views nhất</option>
           <option value="likes">Nhiều likes nhất</option>
-        </select>
-        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none" title="Từ ngày" />
-        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none" title="Đến ngày" />
-        {hasFilters && (
-          <button onClick={clearFilters} className="px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-            Xóa bộ lọc
-          </button>
-        )}
+        </FilterSelect>
+        <FilterDateRange from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
+        {hasFilters && <FilterReset onClick={clearFilters} />}
       </div>
 
       <h2 className="text-sm font-semibold text-foreground">

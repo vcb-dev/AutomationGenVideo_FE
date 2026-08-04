@@ -1,11 +1,18 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useInfiniteQuery } from '@tanstack/react-query';
-import { CircleNotch, FilmReel, Warning, Eye, Heart, ChatCircle, FacebookLogo, TiktokLogo, InstagramLogo } from '@phosphor-icons/react';
+import { useInfiniteQuery, useMutation } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
+import { CircleNotch, FilmReel, Warning, Eye, Heart, ChatCircle, FacebookLogo, TiktokLogo, InstagramLogo, PaperPlaneTilt } from '@phosphor-icons/react';
 
 import { useAuthStore } from '@/store/auth-store';
+import { platformStyle } from '@/lib/platform-config';
 import { scraperService, ExternalVideo } from '@/services/scraperService';
+import { videoLibraryService } from '@/services/videoLibraryService';
+import { useSubmitVideoToLibrary } from '@/hooks/useProposeVideo';
+import { dedupeById } from '@/lib/dedupe-pages';
+import WatchFeedButton from '../components/WatchFeedButton';
+import QuickAddChannel from '../components/QuickAddChannel';
 
 function formatNum(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -48,24 +55,44 @@ function getAuthorAvatar(video: ExternalVideo): string {
   return video.author_avatar || '';
 }
 
-const platformConfig = {
-  facebook: { icon: FacebookLogo, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/30', label: 'Facebook' },
-  tiktok: { icon: TiktokLogo, color: 'text-slate-800 dark:text-white', bg: 'bg-slate-100 dark:bg-slate-800', label: 'TikTok' },
-  instagram: { icon: InstagramLogo, color: 'text-pink-500', bg: 'bg-pink-50 dark:bg-pink-900/30', label: 'Instagram' },
-};
 
 function AllVideoCard({ video }: { video: ExternalVideo }) {
-  const config = platformConfig[video.platform];
+  // platformStyle LUÔN trả về kiểu dáng dùng được. Tra thẳng vào bảng rồi `.icon` như
+  // trước là cách đã làm trang này vỡ trắng khi gặp video Douyin.
+  const config = platformStyle(video.platform);
   const PlatformIcon = config.icon;
+  const { token } = useAuthStore();
+  // Leader/Admin them thang vao Bo Suu Tap, con lai vao hang cho duyet — xem useProposeVideo.ts
+  const { submit, successMessage, actionLabel, doneLabel } = useSubmitVideoToLibrary();
+  const proposeMutation = useMutation({
+    mutationFn: () => {
+      return submit({
+        video_id: video.post_id,
+        platform: video.platform,
+        title: video.description?.slice(0, 200) || '',
+        description: video.description || '',
+        video_url: video.url,
+        author_username: video.author_username || '',
+        author_name: video.author_name || '',
+        thumbnail_url: video.thumbnail_url || undefined,
+        views_count: video.play_count,
+        likes_count: video.likes_count,
+        comments_count: video.comments_count,
+        source: 'SCRAPED',
+      });
+    },
+    onSuccess: () => toast.success(successMessage),
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   return (
-    <a
-      href={video.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg hover:scale-[1.01] transition-all duration-200 flex flex-col"
-    >
-      <div className="relative aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[320px]">
+    <div className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg hover:scale-[1.01] transition-all duration-200 flex flex-col">
+      <a
+        href={video.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="relative block aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[320px]"
+      >
         {video.thumbnail_url ? (
           <img
             src={proxyImg(video.thumbnail_url, video.platform)}
@@ -108,7 +135,7 @@ function AllVideoCard({ video }: { video: ExternalVideo }) {
         <div className={`absolute top-2 left-2 flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium ${config.bg} ${config.color}`}>
           <PlatformIcon size={12} weight="fill" />
         </div>
-      </div>
+      </a>
 
       {/* Body */}
       <div className="p-3 flex flex-col gap-1.5 flex-1">
@@ -129,11 +156,25 @@ function AllVideoCard({ video }: { video: ExternalVideo }) {
           </span>
         </div>
 
-        <p className="text-xs text-slate-400 dark:text-slate-500">
-          {relativeTime(video.date_posted)}
-        </p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-slate-400 dark:text-slate-500">
+            {relativeTime(video.date_posted)}
+          </p>
+          <button
+            onClick={() => proposeMutation.mutate()}
+            disabled={proposeMutation.isPending || proposeMutation.isSuccess}
+            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-primary border border-primary/30 rounded-md hover:bg-primary/10 disabled:opacity-50 transition-colors flex-shrink-0"
+          >
+            {proposeMutation.isPending ? (
+              <CircleNotch size={12} weight="bold" className="animate-spin" />
+            ) : (
+              <PaperPlaneTilt size={12} weight="bold" />
+            )}
+            {proposeMutation.isSuccess ? doneLabel : actionLabel}
+          </button>
+        </div>
       </div>
-    </a>
+    </div>
   );
 }
 
@@ -177,7 +218,7 @@ export default function AllExternalVideosPage() {
     enabled: !!token,
   });
 
-  const allVideos = videosQuery.data?.pages.flatMap(p => p.videos) || [];
+  const allVideos = dedupeById(videosQuery.data?.pages.flatMap(p => p.videos) || []);
   const totalVideos = videosQuery.data?.pages[0]?.count || 0;
 
   const observerRef = useRef<IntersectionObserver>();
@@ -192,6 +233,12 @@ export default function AllExternalVideosPage() {
 
   return (
     <div className="flex flex-col gap-5">
+      <QuickAddChannel />
+
+      <div>
+        <WatchFeedButton platform="all" label="Xem ngay tại đây" />
+      </div>
+
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-3 bg-card border border-border rounded-xl p-4">
         <input
@@ -215,7 +262,7 @@ export default function AllExternalVideosPage() {
           type="number"
           value={minPlays}
           onChange={e => setMinPlays(e.target.value)}
-          placeholder="Min plays"
+          placeholder="Min view"
           className="w-28 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
         />
         <select
@@ -224,7 +271,7 @@ export default function AllExternalVideosPage() {
           className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           <option value="date">Mới nhất</option>
-          <option value="plays">Nhiều plays nhất</option>
+          <option value="plays">Nhiều views nhất</option>
           <option value="likes">Nhiều likes nhất</option>
         </select>
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none" title="Từ ngày" />

@@ -3,11 +3,17 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Link2, Plus, Pencil, Trash2, Check, X, Loader2 } from 'lucide-react'
+import { Link2, Plus, Pencil, Trash2, Check, X, Loader2, AlertTriangle, Eye, Heart, MessageCircle, Share2, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { updateTaskPublishedLinks } from '@/lib/api/task-auto'
+import { updateTaskPublishedLinks, refreshPublishedLinkStats } from '@/lib/api/task-auto'
 import type { PublishedLink } from '@/types/task-auto'
 import { Section } from './Section'
+
+function formatCount(n: number): string {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M'
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K'
+  return n.toString()
+}
 
 // Icon thương hiệu thật cho các nền tảng phổ biến (quick-add) — path lấy từ
 // src/app/dashboard/social/channels/page.tsx (P_STATIC) để đồng bộ hình ảnh trong toàn app.
@@ -83,6 +89,18 @@ export function PublishedLinksSection({ taskId, publishedLinks, canEdit }: Props
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Cập nhật link thất bại'),
   })
 
+  const [refreshingId, setRefreshingId] = useState<string | null>(null)
+  const refreshMutation = useMutation({
+    mutationFn: (linkId: string) => refreshPublishedLinkStats(taskId, linkId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['task-auto', 'task', taskId] }),
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Làm mới số liệu thất bại'),
+    onSettled: () => setRefreshingId(null),
+  })
+  const handleRefreshStats = (linkId: string) => {
+    setRefreshingId(linkId)
+    refreshMutation.mutate(linkId)
+  }
+
   const resetForm = () => { setFormOpen(false); setDraftPlatform(''); setDraftUrl('') }
 
   const handleAdd = () => {
@@ -110,14 +128,17 @@ export function PublishedLinksSection({ taskId, publishedLinks, canEdit }: Props
     <Section icon={<Link2 className="w-4 h-4" />} title="Link bài đăng" bgColor="bg-emerald-50" iconColor="text-emerald-600">
       <div className="p-4 space-y-2">
         {links.length === 0 && !formOpen && (
-          <p className="text-sm text-gray-400 italic">Chưa có link bài đăng nào được nộp</p>
+          <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl border border-amber-200 bg-amber-50 text-amber-700">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+            <p className="text-sm font-medium">Task đã duyệt nhưng chưa có link bài đăng nào được nộp</p>
+          </div>
         )}
 
         {links.map(link => {
           const meta = getPlatformMeta(link.platform)
           const isEditing = editingId === link.id
           return (
-            <div key={link.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-gray-100 bg-gray-50/60">
+            <div key={link.id} className="flex items-center flex-wrap gap-3 px-3 py-2.5 rounded-xl border border-gray-100 bg-gray-50/60">
               <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: meta.color }}>
                 {meta.icon}
               </div>
@@ -128,7 +149,7 @@ export function PublishedLinksSection({ taskId, publishedLinks, canEdit }: Props
                     value={editPlatform}
                     onChange={e => setEditPlatform(e.target.value)}
                     placeholder="Nền tảng"
-                    className="w-28 shrink-0 border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-semibold focus:ring-2 ring-indigo-500/20 outline-none"
+                    className="w-full sm:w-28 shrink-0 border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-semibold focus:ring-2 ring-indigo-500/20 outline-none"
                   />
                   <input
                     value={editUrl}
@@ -159,6 +180,38 @@ export function PublishedLinksSection({ taskId, publishedLinks, canEdit }: Props
                     >
                       {link.url}
                     </a>
+                    {/* Số liệu tương tác — hiện chỉ Facebook (page nội bộ) được tự động hỗ trợ */}
+                    {link.platform.trim().toUpperCase() === 'FACEBOOK' && (
+                      <div className="flex items-center gap-3 mt-1.5">
+                        {link.stats?.status === 'success' && (
+                          <div className="flex items-center gap-3 text-xs text-gray-500">
+                            <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {formatCount(link.stats.views)}</span>
+                            <span className="flex items-center gap-1"><Heart className="w-3 h-3" /> {formatCount(link.stats.likes)}</span>
+                            <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" /> {formatCount(link.stats.comments)}</span>
+                            <span className="flex items-center gap-1"><Share2 className="w-3 h-3" /> {formatCount(link.stats.shares)}</span>
+                          </div>
+                        )}
+                        {link.stats?.status === 'failed' && (
+                          <p className="text-xs text-red-500">Không lấy được số liệu</p>
+                        )}
+                        {link.stats?.status === 'unsupported' && (
+                          <p className="text-xs text-gray-400">Page này chưa kết nối hệ thống</p>
+                        )}
+                        {!link.stats && (
+                          <p className="text-xs text-gray-400">Chưa có số liệu</p>
+                        )}
+                        {canEdit && (
+                          <button
+                            onClick={() => handleRefreshStats(link.id)}
+                            disabled={refreshingId === link.id}
+                            className="p-1 rounded-md text-gray-400 hover:bg-gray-100 hover:text-indigo-600 disabled:opacity-50 transition-colors shrink-0"
+                            title="Làm mới số liệu"
+                          >
+                            {refreshingId === link.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                   {canEdit && (
                     <div className="flex items-center gap-1 shrink-0">

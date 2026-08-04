@@ -219,6 +219,20 @@ export interface EditorKpiAllocation {
 
 // ── Team Push Request (duyệt đẩy kho cá nhân → kho team) ──
 
+export interface TaskContentApproval {
+  id: string
+  task_id: string
+  status: ApprovalStatus
+  content: string
+  requested_by_id: string
+  reviewed_by_id: string | null
+  reviewed_at: string | null
+  reject_reason: string | null
+  created_at: string
+  requested_by?: UserBasic
+  reviewed_by?: UserBasic | null
+}
+
 export interface TeamPushRequest {
   id: string
   team_id: string
@@ -434,11 +448,23 @@ export interface TeamSource {
 
 // ── Tasks ────────────────────────────────────────
 
+export interface PublishedLinkStats {
+  views: number
+  likes: number
+  comments: number
+  shares: number
+  status: 'success' | 'failed' | 'unsupported'
+  fetched_at: string
+  error?: string
+}
+
 export interface PublishedLink {
   id: string
   /** Tên nền tảng tự do; "FACEBOOK"/"TIKTOK"/"INSTAGRAM"/"YOUTUBE" được nhận icon thương hiệu, còn lại dùng icon mặc định */
   platform: string
   url: string
+  /** Số liệu tương tác do BE tự kéo — hiện chỉ Facebook (page nội bộ) được hỗ trợ, platform khác có status 'unsupported' */
+  stats?: PublishedLinkStats | null
 }
 
 export interface Task {

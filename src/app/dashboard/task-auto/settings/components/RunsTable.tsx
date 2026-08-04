@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { RefreshCw, Loader2, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -26,7 +26,7 @@ export function RunsTable() {
 
   return (
     <div className="bg-white border border-gray-100 rounded-2xl shadow-sm">
-      <div className="flex items-center justify-between px-7 py-6 border-b border-gray-100">
+      <div className="flex items-center flex-wrap gap-3 justify-between px-7 py-6 border-b border-gray-100">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center">
             <RefreshCw className="w-6 h-6 text-amber-600" />
@@ -81,25 +81,46 @@ export function RunsTable() {
                 </td>
               </tr>
             )}
-            {runs?.map(run => (
-              <>
-                <tr key={run.id} className={cn('hover:bg-gray-50/70 transition-colors', run.status === 'RUNNING' && 'bg-amber-50/30')}>
-                  <td className="px-5 py-4 text-slate-500 text-sm">{formatDateTime(run.run_at)}</td>
-                  <td className="px-5 py-4">
-                    <div className="space-y-1">
-                      <RunStatusBadge status={run.status} />
-                      {run.status === 'FAILED' && run.error_msg && (
-                        <p className="text-sm text-red-500 max-w-48 truncate" title={run.error_msg}>{run.error_msg}</p>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-5 py-4 text-right font-semibold text-emerald-600">{run.total_assigned}</td>
-                  <td className="px-5 py-4 text-right text-sm text-slate-500">{run.total_skipped}</td>
-                  <td className="px-5 py-4 text-slate-500 text-sm">{formatDateTime(run.finished_at)}</td>
-                  <td className="px-5 py-4 text-right font-mono text-sm text-slate-400">{calcDuration(run.run_at, run.finished_at)}</td>
-                </tr>
-              </>
-            ))}
+            {runs?.map(run => {
+              const hasError = run.status === 'FAILED' && !!run.error_msg
+              const isExpanded = hasError && expandedId === run.id
+              return (
+                <Fragment key={run.id}>
+                  <tr className={cn('hover:bg-gray-50/70 transition-colors', run.status === 'RUNNING' && 'bg-amber-50/30')}>
+                    <td className="px-5 py-4 text-slate-500 text-sm">{formatDateTime(run.run_at)}</td>
+                    <td className="px-5 py-4">
+                      <div className="space-y-1">
+                        <RunStatusBadge status={run.status} />
+                        {hasError && (
+                          <button
+                            type="button"
+                            onClick={() => toggleExpand(run.id)}
+                            title={run.error_msg ?? undefined}
+                            className={cn(
+                              'text-sm text-red-500 text-left hover:underline block',
+                              isExpanded ? 'whitespace-normal break-words' : 'max-w-48 truncate',
+                            )}
+                          >
+                            {run.error_msg}
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 text-right font-semibold text-emerald-600">{run.total_assigned}</td>
+                    <td className="px-5 py-4 text-right text-sm text-slate-500">{run.total_skipped}</td>
+                    <td className="px-5 py-4 text-slate-500 text-sm">{formatDateTime(run.finished_at)}</td>
+                    <td className="px-5 py-4 text-right font-mono text-sm text-slate-400">{calcDuration(run.run_at, run.finished_at)}</td>
+                  </tr>
+                  {isExpanded && (
+                    <tr className="bg-red-50/50">
+                      <td colSpan={6} className="px-5 py-3 text-sm text-red-600 whitespace-pre-wrap break-words">
+                        {run.error_msg}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              )
+            })}
           </tbody>
         </table>
       </div>

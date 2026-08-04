@@ -410,16 +410,16 @@ export function TeamSourcesTab({ isAdminOrManager, isScaleData = false, userId, 
                           <div className="flex items-center justify-end gap-1">
                             {canPushToGlobal && (
                               <button onClick={() => setPushingId(s.id)} title="Đẩy ra kho tổng"
-                                className="p-2 rounded-xl hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition-colors">
+                                className="p-2.5 rounded-xl hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition-colors">
                                 <ArrowUpToLine className="w-4 h-4" />
                               </button>
                             )}
                             <button onClick={() => openEdit(s)} title="Chỉnh sửa"
-                              className="p-2 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors">
+                              className="p-2.5 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors">
                               <Edit2 className="w-4 h-4" />
                             </button>
                             <button onClick={() => setDeletingId(s.id)} title="Xóa"
-                              className="p-2 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors">
+                              className="p-2.5 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors">
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </div>

@@ -709,6 +709,8 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
 
                   <VideoScriptSection
                     taskId={task.id}
+                    isAssignee={isAssignee}
+                    canApproveReject={canApproveReject}
                     fileUrl={fileUrl}
                     scriptText={scriptText}
                     contentTitle={contentTitle}

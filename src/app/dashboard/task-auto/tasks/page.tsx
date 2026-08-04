@@ -21,6 +21,8 @@ import { UserRole } from '@/types/auth'
 type ViewMode = 'team' | 'mine'
 type PageTab = 'table' | 'submitted'
 
+const TASKS_PAGE_SIZE = 10
+
 function todayString() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -61,6 +63,7 @@ export default function TasksPage() {
   const [search, setSearch]           = useState('')
   const [deadlineDate, setDeadlineDate] = useState(todayString())
   const [taskType, setTaskType]       = useState<'auto' | 'manual' | ''>('')
+  const [assigneeId, setAssigneeId]   = useState('')
   const [page, setPage]               = useState(1)
   const [submittedPage, setSubmittedPage] = useState(1)
 
@@ -103,7 +106,7 @@ export default function TasksPage() {
       : (teamId || undefined)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'tasks', { status, effectiveTeamId, search, deadlineDate, taskType, page, viewMode, userId: user?.id }],
+    queryKey: ['task-auto', 'tasks', { status, effectiveTeamId, search, deadlineDate, taskType, page, viewMode, userId: user?.id, assigneeId }],
     queryFn: () => getTasks({
       status:        status       || undefined,
       team_id:       effectiveTeamId,
@@ -111,8 +114,8 @@ export default function TasksPage() {
       deadline_date: deadlineDate || undefined,
       task_type:     taskType     || undefined,
       page,
-      limit: 6,
-      ...(isMineView && user?.id ? { assignee_id: user.id } : {}),
+      limit: TASKS_PAGE_SIZE,
+      assignee_id: isMineView ? (user?.id || undefined) : (assigneeId || undefined),
     }),
     refetchOnWindowFocus: true,
   })
@@ -120,6 +123,20 @@ export default function TasksPage() {
   const tasks      = data?.data       || []
   const totalPages = data?.totalPages || 1
   const total      = data?.total      || 0
+
+  // Danh sách người làm để lọc — lấy từ toàn bộ thành viên team (đúng phạm vi team đang xem),
+  // không lấy từ `tasks` vì đó chỉ là 1 trang kết quả (limit: TASKS_PAGE_SIZE) nên sẽ thiếu người.
+  // Ở isMineView, assignee_id đã bị khóa cứng về chính user nên không cần (và không nên) cho chọn người khác.
+  const assigneeScopeTeams = effectiveTeamId ? teams.filter(t => t.id === effectiveTeamId) : teams
+  const assigneeOptionsMap = new Map<string, { id: string; name: string }>()
+  if (!isMineView) {
+    for (const t of assigneeScopeTeams) {
+      for (const m of t.members ?? []) {
+        if (m.user_id && m.user?.full_name) assigneeOptionsMap.set(m.user_id, { id: m.user_id, name: m.user.full_name })
+      }
+    }
+  }
+  const assigneeOptions = Array.from(assigneeOptionsMap.values()).sort((a, b) => a.name.localeCompare(b.name, 'vi'))
 
   function switchView(mode: ViewMode) {
     setViewMode(mode)
@@ -132,6 +149,7 @@ export default function TasksPage() {
   function handleSearchChange(v: string)                             { setSearch(v);       setPage(1); setSubmittedPage(1) }
   function handleDeadlineDateChange(v: string)                       { setDeadlineDate(v); setPage(1); setSubmittedPage(1) }
   function handleTaskTypeChange(v: 'auto' | 'manual' | '')           { setTaskType(v);    setPage(1) }
+  function handleAssigneeChange(v: string)                           { setAssigneeId(v);  setPage(1) }
 
   const pageTitle = isMember || (isLeaderEditor && viewMode === 'mine')
     ? 'Nhiệm vụ của tôi'
@@ -215,6 +233,8 @@ export default function TasksPage() {
           searchFilter={search}
           deadlineDateFilter={deadlineDate}
           taskTypeFilter={taskType}
+          assigneeFilter={assigneeId}
+          assigneeOptions={assigneeOptions}
           teams={teams}
           canCreate={canCreate}
           isMember={isMineView}
@@ -225,6 +245,7 @@ export default function TasksPage() {
           onSearchChange={handleSearchChange}
           onDeadlineDateChange={handleDeadlineDateChange}
           onTaskTypeChange={handleTaskTypeChange}
+          onAssigneeChange={handleAssigneeChange}
           onCreateClick={() => setShowCreate(true)}
         />
       </div>
@@ -238,6 +259,7 @@ export default function TasksPage() {
           tasks={tasks}
           total={total}
           page={page}
+          limit={TASKS_PAGE_SIZE}
           totalPages={totalPages}
           isLoading={isLoading}
           onViewTask={setSelectedTaskId}

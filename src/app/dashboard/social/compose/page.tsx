@@ -19,6 +19,7 @@ import VideoFramePicker from './VideoFramePicker';
 import { useTaskStore } from '@/store/taskStore';
 import toast from 'react-hot-toast';
 import { useSocialLang } from '@/contexts/SocialLanguageContext';
+import { isPlatformModeSupported } from '@/lib/social/platform-support';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -32,6 +33,22 @@ const itemVariants = {
 
 const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
 const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
+
+/**
+ * Safari/macOS vẽ widget <select> gốc (nền xám gradient, mũi tên đôi) đè lên
+ * bg-white + rounded-xl của Tailwind. appearance:none tắt widget đó, rồi tự vẽ
+ * chevron bằng background-image để ô khớp với phần còn lại của form.
+ * Nhớ kèm padding-right (pr-8) cho chữ không đè lên mũi tên.
+ */
+const SELECT_RESET: React.CSSProperties = {
+  appearance: 'none',
+  WebkitAppearance: 'none',
+  backgroundImage:
+    `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M6 8l4 4 4-4' fill='none' stroke='%2394a3b8' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
+  backgroundRepeat: 'no-repeat',
+  backgroundPosition: 'right 0.4rem center',
+  backgroundSize: '1.1rem 1.1rem',
+};
 
 /** Picker ngày + giờ theo định dạng 24h (HH:mm), không phụ thuộc locale browser */
 function DateTimePicker24h({
@@ -52,7 +69,7 @@ function DateTimePicker24h({
     if (d) onChange(`${d}T${h}:${m}`);
   };
 
-  const selectCls = 'border border-blue-200 rounded-xl px-2 py-2 text-sm focus:ring-2 ring-blue-500/20 outline-none font-bold text-blue-700 bg-white cursor-pointer';
+  const selectCls = 'border border-blue-200 rounded-xl pl-2.5 pr-8 py-2 text-sm focus:ring-2 ring-blue-500/20 outline-none font-bold text-blue-700 bg-white cursor-pointer';
 
   return (
     <div className={`flex items-center gap-1.5 ${className ?? ''}`}>
@@ -62,10 +79,10 @@ function DateTimePicker24h({
         onChange={e => set(e.target.value, hour, minute)}
         className="border border-blue-200 rounded-xl px-3 py-2 text-sm focus:ring-2 ring-blue-500/20 outline-none font-bold text-blue-700 bg-white"
       />
-      <select value={hour}   onChange={e => set(date, e.target.value, minute)} className={selectCls}>
+      <select value={hour}   onChange={e => set(date, e.target.value, minute)} className={selectCls} style={SELECT_RESET}>
         {HOURS.map(h   => <option key={h} value={h}>{t.compose.hourSuffix(h)}</option>)}
       </select>
-      <select value={minute} onChange={e => set(date, hour, e.target.value)}   className={selectCls}>
+      <select value={minute} onChange={e => set(date, hour, e.target.value)}   className={selectCls} style={SELECT_RESET}>
         {MINUTES.map(m => <option key={m} value={m}>{t.compose.minuteSuffix(m)}</option>)}
       </select>
     </div>
@@ -177,13 +194,6 @@ export default function ComposePage() {
     YOUTUBE: 5000
   };
 
-  const PLATFORM_SUPPORT = {
-    FACEBOOK: { text: true,  image: true,  video_vertical: true, video_horizontal: true },
-    THREADS:  { text: true,  image: true,  video_vertical: true, video_horizontal: true },
-    INSTAGRAM:{ text: false, image: true,  video_vertical: true, video_horizontal: false },
-    YOUTUBE:  { text: false, image: false, video_vertical: true, video_horizontal: true },
-  };
-
   // --- ACTIONS ---
 
   const addHashtag = (raw: string) => {
@@ -260,13 +270,12 @@ export default function ComposePage() {
     }
   }, []);
 
-  // Filter accounts based on SEARCH and POST MODE
-  const filteredAccounts = accounts.filter(a => {
-    const matchesSearch = a.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const platformKey = (a.platform || '').toUpperCase();
-    const isSupported = (PLATFORM_SUPPORT as any)[platformKey]?.[postMode] ?? true;
-    return matchesSearch && isSupported;
-  });
+  // Filter accounts theo SEARCH — không lọc theo post mode ở đây nữa: kênh không hỗ
+  // trợ dạng bài hiện tại vẫn cần hiện ra (dạng disabled) để user thấy đã kết nối,
+  // thay vì biến mất hoàn toàn trông như chưa kết nối (vd Instagram ở mode 'text').
+  const filteredAccounts = accounts.filter(a =>
+    a.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   // Group accounts logically for display
   const platformGroups = filteredAccounts.reduce((acc: Record<string, SocialAccount[]>, a) => {
@@ -419,14 +428,14 @@ export default function ComposePage() {
             if (job.status === 'COMPLETED') {
               const r = job.result as Record<string, unknown> | null | undefined;
               const url = typeof r?.url === 'string' ? r.url : typeof r?.videoId === 'string' ? `https://youtube.com/watch?v=${r.videoId}` : '';
-              addPublishLog(`✅ ${chName}: Đăng thành công${url ? ` → ${url}` : ''}`);
+              addPublishLog(t.compose.logPublished(chName, url));
             } else if (job.status === 'FAILED') {
-              addPublishLog(`❌ ${chName}: Thất bại — ${job.error_msg || 'không rõ lỗi'}`);
+              addPublishLog(t.compose.logFailed(chName, job.error_msg || t.compose.logUnknownError));
             }
           }
           // Phát hiện worker bắt đầu xử lý (queuePosition chuyển từ có số → null)
           if (prevStatus === 'PENDING' && job.status === 'PENDING' && !wasQueueNull && nowQueueNull) {
-            addPublishLog(`▶ ${chName}: Worker bắt đầu xử lý...`);
+            addPublishLog(t.compose.logWorkerStarted(chName));
           }
           prevJobQueueNullRef.current[job.id] = nowQueueNull;
         }
@@ -470,7 +479,7 @@ export default function ComposePage() {
 
           const successCount = jobs.filter(j => j.status === 'COMPLETED').length;
           const failCount = jobs.filter(j => j.status === 'FAILED').length;
-          addPublishLog(`🏁 Hoàn tất: ${successCount} thành công, ${failCount} thất bại`);
+          addPublishLog(t.compose.logFinished(successCount, failCount));
           setActiveJobIds(null);
           setPublishing(false);
           setPublishProgress(prev => ({ ...prev, phase: 'done' }));
@@ -483,7 +492,7 @@ export default function ComposePage() {
         }
       } catch (err: any) {
         // Lỗi mạng tạm thời — log để debug, không dừng polling
-        addPublishLog(`⚠️ Poll lỗi: ${err?.message || 'network error'}`);
+        addPublishLog(t.compose.logPollError(err?.message || 'network error'));
       }
     };
 
@@ -624,9 +633,9 @@ export default function ComposePage() {
         };
       });
 
-      addPublishLog(`📤 Đang gửi ${jobs.length} bài lên hàng chờ...`);
+      addPublishLog(t.compose.logSendingToQueue(jobs.length));
       const { jobIds } = await socialApi.queue.enqueue(jobs);
-      addPublishLog(`✅ Đã vào hàng chờ (${jobIds.length} jobs)`);
+      addPublishLog(t.compose.logQueued(jobIds.length));
       jobIds.forEach((id, i) => {
         addPublishLog(`  • Job ${i + 1}: ${channelList[i]?.name} — ID ${id.slice(0, 8)}...`);
       });
@@ -649,7 +658,7 @@ export default function ComposePage() {
       toast.success(t.compose.addedToQueue(jobIds.length));
     } catch (err: any) {
       const errMsg = err.response?.data?.message || err.message || t.compose.unknownError;
-      addPublishLog(`❌ Enqueue thất bại: ${errMsg}`);
+      addPublishLog(t.compose.logEnqueueFailed(errMsg));
       setPublishing(false);
       setPublishProgress(prev => ({ ...prev, phase: 'done' }));
       toast.error(errMsg);
@@ -901,14 +910,20 @@ export default function ComposePage() {
                           // For now, let's allow selection of anything that isn't a root FB/IG account IF that account is just a profile.
                           const hasChildren = accounts.some(a => a.parent_id === account.id);
                           const isPersonalRoot = !isChild && hasChildren && (account.platform === 'FACEBOOK' || account.platform === 'INSTAGRAM');
-                          
+                          // Kênh có tồn tại/kết nối nhưng platform không hỗ trợ dạng bài đang chọn
+                          // (vd Instagram không đăng được post 'text' thuần) — vẫn hiện, chỉ disable,
+                          // để không trông như "chưa kết nối" khi chỉ là không hợp dạng bài hiện tại.
+                          const isModeUnsupported = !isPlatformModeSupported(account.platform || '', postMode);
+                          const isDisabled = isPersonalRoot || isModeUnsupported;
+
                           return (
-                            <motion.div 
+                            <motion.div
                               variants={itemVariants}
-                              key={account.id} 
-                              onClick={() => !isPersonalRoot && toggleAccount(account.id)} 
-                              whileHover={!isPersonalRoot ? { x: 4, backgroundColor: 'rgba(241, 245, 249, 0.4)' } : {}}
-                              className={`flex items-center gap-3 p-3 rounded-xl transition-all border relative ${isChild ? 'ml-6' : ''} ${isSelected ? 'bg-blue-50/50 border-blue-200 ring-1 ring-blue-100' : 'bg-white border-transparent'} ${isPersonalRoot ? 'opacity-40 grayscale cursor-not-allowed' : 'cursor-pointer'}`}
+                              key={account.id}
+                              onClick={() => !isDisabled && toggleAccount(account.id)}
+                              whileHover={!isDisabled ? { x: 4, backgroundColor: 'rgba(241, 245, 249, 0.4)' } : {}}
+                              title={isModeUnsupported ? t.compose.unsupportedForMode : undefined}
+                              className={`flex items-center gap-3 p-3 rounded-xl transition-all border relative ${isChild ? 'ml-6' : ''} ${isSelected ? 'bg-blue-50/50 border-blue-200 ring-1 ring-blue-100' : 'bg-white border-transparent'} ${isDisabled ? 'opacity-40 grayscale cursor-not-allowed' : 'cursor-pointer'}`}
                             >
                               {/* Visual connector for child accounts */}
                               {isChild && (
@@ -922,7 +937,7 @@ export default function ComposePage() {
                                 {account.avatar_url ? (
                                   <img src={account.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
                                 ) : meta.emoji}
-                                
+
                                 {isChild && (
                                   <div className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border border-white flex items-center justify-center text-[7px] ${meta.color}`}>
                                     {meta.emoji}
@@ -936,15 +951,20 @@ export default function ComposePage() {
                                     {account.platform === 'INSTAGRAM' ? t.compose.igBusiness : t.compose.fanpage}
                                   </div>
                                 )}
+                                {isModeUnsupported && (
+                                  <div className="text-[10px] text-amber-500 font-semibold mt-0.5">
+                                    {t.compose.unsupportedForMode}
+                                  </div>
+                                )}
                                 {account.token_expires_soon && (
                                   <div className="text-[10px] text-amber-500 font-semibold mt-0.5">
                                     {t.compose.tokenExpiresIn(account.token_expires_in_days ?? 0)}
                                   </div>
                                 )}
                               </div>
-                              {!isPersonalRoot && (
-                                <motion.div 
-                                  animate={{ 
+                              {!isDisabled && (
+                                <motion.div
+                                  animate={{
                                     backgroundColor: isSelected ? '#2563eb' : '#ffffff',
                                     borderColor: isSelected ? '#2563eb' : '#cbd5e1',
                                     scale: isSelected ? [1, 1.2, 1] : 1
@@ -1434,7 +1454,8 @@ export default function ComposePage() {
                     <select
                       value={privacy}
                       onChange={e => setPrivacy(e.target.value)}
-                      className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-700 bg-white"
+                      className="w-full border border-slate-200 rounded-xl py-2.5 pl-2.5 pr-8 text-xs font-bold text-slate-700 bg-white cursor-pointer"
+                      style={SELECT_RESET}
                     >
                       <option value="EVERYONE">{t.compose.privacyPublic}</option>
                       <option value="ALL_FRIENDS">{t.compose.privacyFriends}</option>

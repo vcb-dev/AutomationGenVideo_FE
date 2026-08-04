@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Send, Play, Upload, CheckCircle2 } from 'lucide-react'
+import { Send, Play, Upload, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Task } from '@/types/task-auto'
 
@@ -11,10 +11,11 @@ interface Props {
 
 export function TaskStatsBar({ tasks }: Props) {
   const counts = useMemo(() => ({
-    assigned:    tasks.filter(t => t.status === 'ASSIGNED').length,
-    in_progress: tasks.filter(t => t.status === 'IN_PROGRESS').length,
-    submitted:   tasks.filter(t => t.status === 'SUBMITTED').length,
-    approved:    tasks.filter(t => t.status === 'APPROVED').length,
+    assigned:      tasks.filter(t => t.status === 'ASSIGNED').length,
+    in_progress:   tasks.filter(t => t.status === 'IN_PROGRESS').length,
+    submitted:     tasks.filter(t => t.status === 'SUBMITTED').length,
+    approved:      tasks.filter(t => t.status === 'APPROVED').length,
+    missing_link:  tasks.filter(t => t.status === 'APPROVED' && !(t.published_links?.length)).length,
   }), [tasks])
 
   const pills = [
@@ -49,6 +50,14 @@ export function TaskStatsBar({ tasks }: Props) {
       pill: 'bg-emerald-50 border-emerald-200 text-emerald-700',
       iconClass: 'text-emerald-500',
       dot: 'bg-emerald-400',
+    },
+    {
+      label: 'Thiếu link đăng',
+      value: counts.missing_link,
+      icon: AlertTriangle,
+      pill: 'bg-red-50 border-red-200 text-red-700',
+      iconClass: 'text-red-500',
+      dot: 'bg-red-400',
     },
   ]
 

@@ -91,7 +91,7 @@ export function TeamStatsTab({ teamId, isAdminOrManager, userId, showSourceStats
 
       {/* Summary cards */}
       {!isLoading && stats.length > 0 && (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
             <p className="text-sm text-slate-500 mb-1">Tổng source đã thêm</p>
             <p className="text-3xl font-black text-indigo-600">{stats.reduce((s, m) => s + m.total, 0)}</p>
@@ -129,7 +129,7 @@ export function TeamStatsTab({ teamId, isAdminOrManager, userId, showSourceStats
         ) : (
           <div className="divide-y divide-gray-100">
             {stats.map((member, idx) => (
-              <div key={member.user_id} className="px-6 py-4 flex items-center gap-4 hover:bg-indigo-50/30 transition-colors">
+              <div key={member.user_id} className="px-6 py-4 flex items-center gap-4 flex-wrap gap-y-2 hover:bg-indigo-50/30 transition-colors">
                 {/* Rank */}
                 <div className={cn(
                   'w-8 h-8 rounded-full flex items-center justify-center text-sm font-black shrink-0',
@@ -174,7 +174,7 @@ export function TeamStatsTab({ teamId, isAdminOrManager, userId, showSourceStats
                 </div>
 
                 {/* Stats */}
-                <div className="flex items-center gap-5 shrink-0">
+                <div className="flex items-center gap-5 shrink-0 flex-wrap gap-y-2">
                   <div className="text-center">
                     <p className="text-xs text-slate-400">Kho chung</p>
                     <p className="text-base font-bold text-teal-600">{member.global_sources}</p>
@@ -259,7 +259,7 @@ export function TeamStatsTab({ teamId, isAdminOrManager, userId, showSourceStats
             ) : (
               <div className="divide-y divide-gray-100">
                 {pushMembers.map((member, idx) => (
-                  <div key={member.user_id} className="px-6 py-4 flex items-center gap-4 hover:bg-emerald-50/30 transition-colors">
+                  <div key={member.user_id} className="px-6 py-4 flex items-center gap-4 flex-wrap gap-y-2 hover:bg-emerald-50/30 transition-colors">
                     {/* Rank */}
                     <div className={cn(
                       'w-8 h-8 rounded-full flex items-center justify-center text-sm font-black shrink-0',

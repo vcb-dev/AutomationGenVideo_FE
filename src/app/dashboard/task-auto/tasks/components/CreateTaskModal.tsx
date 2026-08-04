@@ -41,7 +41,7 @@ interface Props {
 
 function SectionHeader({ label, children }: { label: string; children?: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center flex-wrap gap-3 gap-y-2">
       <p className="text-xs font-bold text-slate-400 uppercase tracking-widest shrink-0">{label}</p>
       <div className="flex-1 h-px bg-gray-100" />
       {children}
@@ -140,6 +140,9 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
   // brandType derive từ team đang chọn (hoặc team duy nhất của user)
   const selectedTeam = teams.find(t => t.id === form.team_id)
   const brandType: BrandType = selectedTeam?.brand_type ?? lockedTeam?.brand_type ?? 'DO_DA'
+  // market của người tạo — lấy từ team đang chọn (hoặc team duy nhất của user), dùng làm mặc định
+  // khi tạo content mới ngay trong modal này, thay vì luôn mặc định Việt Nam.
+  const creatorMarket = selectedTeam?.market ?? lockedTeam?.market ?? 'VIETNAM'
   // team dùng để load kho team (kho team của team đang chọn, không phải myTeams[0])
   const activeTeamForWarehouse = selectedTeam ?? lockedTeam
 
@@ -473,7 +476,7 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
         {/* ── Phân công ── */}
         <div className="space-y-3">
           <SectionHeader label="Phân công" />
-          <div className={!isMember ? 'grid grid-cols-2 gap-3' : ''}>
+          <div className={!isMember ? 'grid grid-cols-1 sm:grid-cols-2 gap-3' : ''}>
             {lockedTeam ? (
               <div className="space-y-2">
                 <label className="block text-base font-semibold text-slate-700">Đội nhóm *</label>
@@ -552,7 +555,7 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
               ))}
             </div>
           </SectionHeader>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <label className="block text-sm font-semibold text-slate-700">
                 Outro
@@ -612,6 +615,7 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
         open
         userId={userId}
         brandType={brandType}
+        initialMarket={creatorMarket}
         onClose={() => setShowContentModal(false)}
         onSuccess={(content: Content) => {
           qc.invalidateQueries({ queryKey: ['task-auto', 'create-contents-personal'] })
@@ -628,6 +632,7 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
         open
         userId={userId}
         defaultBrandType={brandType}
+        initialMarket={creatorMarket}
         onClose={() => setShowProductModal(false)}
         onSuccess={(product: Product) => {
           qc.invalidateQueries({ queryKey: ['task-auto', 'create-products-personal'] })

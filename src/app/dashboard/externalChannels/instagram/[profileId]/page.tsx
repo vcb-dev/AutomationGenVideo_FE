@@ -6,13 +6,18 @@ import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft, Users, Heart, Eye, ChatCircle, InstagramLogo,
   VideoCamera, ArrowsClockwise, BookmarkSimple, Timer, CircleNotch,
-  FilmReel, SealCheck,
+  FilmReel, SealCheck, PaperPlaneTilt,
 } from '@phosphor-icons/react';
 import toast from 'react-hot-toast';
 
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService, InstagramReel } from '@/services/scraperService';
 import { useScrapingStore } from '@/store/scraping-store';
+import { UserRole } from '@/types/auth';
+import { videoLibraryService } from '@/services/videoLibraryService';
+import { useSubmitVideoToLibrary } from '@/hooks/useProposeVideo';
+import { dedupeById } from '@/lib/dedupe-pages';
+import LookalikeSection from '../../components/LookalikeSection';
 
 function proxyImg(url: string): string {
   if (!url) return '';
@@ -52,14 +57,38 @@ function formatDuration(seconds: number | null): string {
 }
 
 function InstagramReelCard({ reel }: { reel: InstagramReel }) {
+  const { token } = useAuthStore();
+  // Leader/Admin them thang vao Bo Suu Tap, con lai vao hang cho duyet — xem useProposeVideo.ts
+  const { submit, successMessage, actionLabel, doneLabel } = useSubmitVideoToLibrary();
+  const proposeMutation = useMutation({
+    mutationFn: () => {
+      return submit({
+        video_id: reel.post_id,
+        platform: 'instagram',
+        title: reel.description?.slice(0, 200) || '',
+        description: reel.description || '',
+        video_url: reel.url,
+        author_username: reel.profile?.username || '',
+        thumbnail_url: reel.thumbnail_drive_url || reel.thumbnail_url || undefined,
+        views_count: reel.play_count,
+        likes_count: reel.likes_count,
+        comments_count: reel.comments_count,
+        hashtags: reel.hashtags,
+        source: 'SCRAPED',
+      });
+    },
+    onSuccess: () => toast.success(successMessage),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   return (
-    <a
-      href={reel.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg hover:scale-[1.01] transition-all duration-200 flex flex-col"
-    >
-      <div className="relative aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[320px]">
+    <div className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg hover:scale-[1.01] transition-all duration-200 flex flex-col">
+      <a
+        href={reel.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="relative block aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[320px]"
+      >
         {(reel.thumbnail_drive_url || reel.thumbnail_url) ? (
           <img
             src={reel.thumbnail_drive_url || proxyImg(reel.thumbnail_url)}
@@ -101,22 +130,37 @@ function InstagramReelCard({ reel }: { reel: InstagramReel }) {
             Paid
           </div>
         )}
-      </div>
+      </a>
 
       <div className="p-3 flex flex-col gap-1.5 flex-1">
         <p className="text-xs text-foreground line-clamp-2 leading-relaxed">
           {reel.description}
         </p>
-        <p className="text-xs text-slate-400 dark:text-slate-500 mt-auto">
-          {relativeTime(reel.date_posted)}
-        </p>
+        <div className="flex items-center justify-between gap-2 mt-auto">
+          <p className="text-xs text-slate-400 dark:text-slate-500">
+            {relativeTime(reel.date_posted)}
+          </p>
+          <button
+            onClick={() => proposeMutation.mutate()}
+            disabled={proposeMutation.isPending || proposeMutation.isSuccess}
+            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-primary border border-primary/30 rounded-md hover:bg-primary/10 disabled:opacity-50 transition-colors flex-shrink-0"
+          >
+            {proposeMutation.isPending ? (
+              <CircleNotch size={12} weight="bold" className="animate-spin" />
+            ) : (
+              <PaperPlaneTilt size={12} weight="bold" />
+            )}
+            {proposeMutation.isSuccess ? doneLabel : actionLabel}
+          </button>
+        </div>
       </div>
-    </a>
+    </div>
   );
 }
 
 export default function InstagramProfileDetailPage() {
-  const { token } = useAuthStore();
+  const { token, user } = useAuthStore();
+  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
   const router = useRouter();
   const queryClient = useQueryClient();
   const { profileId } = useParams<{ profileId: string }>();
@@ -233,7 +277,7 @@ export default function InstagramProfileDetailPage() {
   });
 
   const p = detailQuery.data;
-  const allReels = reelsQuery.data?.pages.flatMap(pg => pg.reels) || [];
+  const allReels = dedupeById(reelsQuery.data?.pages.flatMap(pg => pg.reels) || []);
   const totalReels = reelsQuery.data?.pages[0]?.count || 0;
   const isProcessing = isProcessingNow;
 
@@ -303,7 +347,7 @@ export default function InstagramProfileDetailPage() {
                 {(p.total_plays ?? 0) > 0 && (
                   <span className="flex items-center gap-1">
                     <Eye size={14} className="text-blue-500" />
-                    {formatNum(p.total_plays || 0)} tổng plays
+                    {formatNum(p.total_plays || 0)} tổng views
                   </span>
                 )}
                 {(p.total_likes ?? 0) > 0 && (
@@ -331,14 +375,16 @@ export default function InstagramProfileDetailPage() {
 
           {/* Action buttons */}
           <div className="flex items-center gap-2 mt-5">
-            <button
-              onClick={() => scrapeMutation.mutate()}
-              disabled={isProcessing}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-md hover:opacity-90 disabled:opacity-50"
-            >
-              <ArrowsClockwise size={15} className={isProcessing ? 'animate-spin' : ''} />
-              {isProcessing ? 'Đang cào...' : p.is_initial_scraped ? 'Cập nhật' : 'Cào lượt đầu'}
-            </button>
+            {canManageChannels && (
+              <button
+                onClick={() => scrapeMutation.mutate()}
+                disabled={isProcessing}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-md hover:opacity-90 disabled:opacity-50"
+              >
+                <ArrowsClockwise size={15} className={isProcessing ? 'animate-spin' : ''} />
+                {isProcessing ? 'Đang cào...' : p.is_initial_scraped ? 'Cập nhật' : 'Cào lượt đầu'}
+              </button>
+            )}
             <button
               onClick={() => toggleMutation.mutate('is_bookmarked')}
               className={`flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-md transition-colors ${p.is_bookmarked ? 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-900/20 dark:border-amber-700' : 'hover:bg-slate-50 dark:hover:bg-slate-800'}`}
@@ -346,13 +392,15 @@ export default function InstagramProfileDetailPage() {
               <BookmarkSimple size={15} weight={p.is_bookmarked ? 'fill' : 'regular'} />
               {p.is_bookmarked ? 'Đã lưu' : 'Lưu'}
             </button>
-            <button
-              onClick={() => toggleMutation.mutate('is_tracked')}
-              className={`flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-md transition-colors ${p.is_tracked ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-700' : 'hover:bg-slate-50 dark:hover:bg-slate-800'}`}
-            >
-              <Timer size={15} weight={p.is_tracked ? 'fill' : 'regular'} />
-              {p.is_tracked ? 'Đang theo dõi' : 'Theo dõi'}
-            </button>
+            {canManageChannels && (
+              <button
+                onClick={() => toggleMutation.mutate('is_tracked')}
+                className={`flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-md transition-colors ${p.is_tracked ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-700' : 'hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+              >
+                <Timer size={15} weight={p.is_tracked ? 'fill' : 'regular'} />
+                {p.is_tracked ? 'Kênh chú ý' : 'Đánh dấu kênh chú ý'}
+              </button>
+            )}
             {p.url && (
               <a
                 href={p.url}
@@ -366,6 +414,8 @@ export default function InstagramProfileDetailPage() {
           </div>
         </div>
       </div>
+
+      <LookalikeSection platform="instagram" profileId={id} />
 
       {/* Reels Grid */}
       <div>
@@ -385,7 +435,7 @@ export default function InstagramProfileDetailPage() {
             type="number"
             value={minPlays}
             onChange={e => setMinPlays(e.target.value)}
-            placeholder="Min plays"
+            placeholder="Min view"
             className="w-28 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
           />
           <select
@@ -394,7 +444,7 @@ export default function InstagramProfileDetailPage() {
             className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             <option value="date">Mới nhất</option>
-            <option value="plays">Nhiều plays nhất</option>
+            <option value="plays">Nhiều views nhất</option>
             <option value="likes">Nhiều likes nhất</option>
           </select>
           {hasFilters && (

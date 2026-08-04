@@ -5,13 +5,18 @@ import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tansta
 import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft, Users, Eye, Heart, ChatCircle, VideoCamera,
-  ArrowsClockwise, BookmarkSimple, Timer, CircleNotch, FilmReel,
+  ArrowsClockwise, BookmarkSimple, Timer, CircleNotch, FilmReel, PaperPlaneTilt,
 } from '@phosphor-icons/react';
 import toast from 'react-hot-toast';
 
 import { useAuthStore } from '@/store/auth-store';
-import { scraperService, KuaishouVideo } from '@/services/scraperService';
+import { scraperService, KuaishouVideo, KuaishouProfile } from '@/services/scraperService';
 import { useScrapingStore } from '@/store/scraping-store';
+import { UserRole } from '@/types/auth';
+import { videoLibraryService } from '@/services/videoLibraryService';
+import { useSubmitVideoToLibrary } from '@/hooks/useProposeVideo';
+import { dedupeById } from '@/lib/dedupe-pages';
+import LookalikeSection from '../../components/LookalikeSection';
 
 function formatNum(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -36,15 +41,41 @@ function relativeTime(dateStr: string): string {
   return `${Math.floor(diffD / 365)} năm trước`;
 }
 
-function VideoCard({ video }: { video: KuaishouVideo }) {
+function VideoCard({ video, profile }: { video: KuaishouVideo; profile?: KuaishouProfile }) {
+  const { token } = useAuthStore();
+  // Leader/Admin them thang vao Bo Suu Tap, con lai vao hang cho duyet — xem useProposeVideo.ts
+  const { submit, successMessage, actionLabel, doneLabel } = useSubmitVideoToLibrary();
+  const proposeMutation = useMutation({
+    mutationFn: () => {
+      return submit({
+        video_id: video.post_id,
+        platform: 'kuaishou',
+        title: video.description?.slice(0, 200) || '',
+        description: video.description || '',
+        video_url: video.url,
+        author_username: profile?.username || '',
+        author_name: profile?.nickname || '',
+        thumbnail_url: video.thumbnail_url || undefined,
+        views_count: video.view_count,
+        likes_count: video.like_count,
+        comments_count: video.comment_count,
+        shares_count: video.share_count,
+        hashtags: video.hashtags,
+        source: 'SCRAPED',
+      });
+    },
+    onSuccess: () => toast.success(successMessage),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   return (
-    <a
-      href={video.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg hover:scale-[1.01] transition-all duration-200 flex flex-col"
-    >
-      <div className="relative aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[320px]">
+    <div className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg hover:scale-[1.01] transition-all duration-200 flex flex-col">
+      <a
+        href={video.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="relative block aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[320px]"
+      >
         {video.thumbnail_url ? (
           <img
             src={video.thumbnail_url}
@@ -80,22 +111,37 @@ function VideoCard({ video }: { video: KuaishouVideo }) {
             {Math.floor(video.video_duration / 60)}:{String(video.video_duration % 60).padStart(2, '0')}
           </div>
         )}
-      </div>
+      </a>
 
       <div className="p-3 flex flex-col gap-1.5 flex-1">
         <p className="text-xs text-foreground line-clamp-2 leading-relaxed">
           {video.description || 'Không có mô tả'}
         </p>
-        <p className="text-xs text-slate-400 dark:text-slate-500 mt-auto">
-          {relativeTime(video.date_posted)}
-        </p>
+        <div className="flex items-center justify-between gap-2 mt-auto">
+          <p className="text-xs text-slate-400 dark:text-slate-500">
+            {relativeTime(video.date_posted)}
+          </p>
+          <button
+            onClick={() => proposeMutation.mutate()}
+            disabled={proposeMutation.isPending || proposeMutation.isSuccess}
+            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-primary border border-primary/30 rounded-md hover:bg-primary/10 disabled:opacity-50 transition-colors flex-shrink-0"
+          >
+            {proposeMutation.isPending ? (
+              <CircleNotch size={12} weight="bold" className="animate-spin" />
+            ) : (
+              <PaperPlaneTilt size={12} weight="bold" />
+            )}
+            {proposeMutation.isSuccess ? doneLabel : actionLabel}
+          </button>
+        </div>
       </div>
-    </a>
+    </div>
   );
 }
 
 export default function KuaishouProfileDetailPage() {
-  const { token } = useAuthStore();
+  const { token, user } = useAuthStore();
+  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
   const router = useRouter();
   const queryClient = useQueryClient();
   const { profileId } = useParams<{ profileId: string }>();
@@ -218,7 +264,7 @@ export default function KuaishouProfileDetailPage() {
   });
 
   const p = detailQuery.data;
-  const allVideos = videosQuery.data?.pages.flatMap(pg => pg.videos) || [];
+  const allVideos = dedupeById(videosQuery.data?.pages.flatMap(pg => pg.videos) || []);
   const totalVideos = videosQuery.data?.pages[0]?.count || 0;
   const isProcessing = isProcessingNow;
 
@@ -301,14 +347,16 @@ export default function KuaishouProfileDetailPage() {
           </div>
 
           <div className="flex items-center gap-2 mt-5">
-            <button
-              onClick={() => scrapeMutation.mutate()}
-              disabled={isProcessing}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-md hover:opacity-90 disabled:opacity-50"
-            >
-              <ArrowsClockwise size={15} className={isProcessing ? 'animate-spin' : ''} />
-              {isProcessing ? 'Đang cào...' : p.is_initial_scraped ? 'Cập nhật' : 'Cào lượt đầu'}
-            </button>
+            {canManageChannels && (
+              <button
+                onClick={() => scrapeMutation.mutate()}
+                disabled={isProcessing}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-md hover:opacity-90 disabled:opacity-50"
+              >
+                <ArrowsClockwise size={15} className={isProcessing ? 'animate-spin' : ''} />
+                {isProcessing ? 'Đang cào...' : p.is_initial_scraped ? 'Cập nhật' : 'Cào lượt đầu'}
+              </button>
+            )}
             <button
               onClick={() => toggleMutation.mutate('is_bookmarked')}
               className={`flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-md transition-colors ${p.is_bookmarked ? 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-900/20 dark:border-amber-700' : 'hover:bg-slate-50 dark:hover:bg-slate-800'}`}
@@ -316,13 +364,15 @@ export default function KuaishouProfileDetailPage() {
               <BookmarkSimple size={15} weight={p.is_bookmarked ? 'fill' : 'regular'} />
               {p.is_bookmarked ? 'Đã lưu' : 'Lưu'}
             </button>
-            <button
-              onClick={() => toggleMutation.mutate('is_tracked')}
-              className={`flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-md transition-colors ${p.is_tracked ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-700' : 'hover:bg-slate-50 dark:hover:bg-slate-800'}`}
-            >
-              <Timer size={15} weight={p.is_tracked ? 'fill' : 'regular'} />
-              {p.is_tracked ? 'Đang theo dõi' : 'Theo dõi'}
-            </button>
+            {canManageChannels && (
+              <button
+                onClick={() => toggleMutation.mutate('is_tracked')}
+                className={`flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-md transition-colors ${p.is_tracked ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-700' : 'hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+              >
+                <Timer size={15} weight={p.is_tracked ? 'fill' : 'regular'} />
+                {p.is_tracked ? 'Kênh chú ý' : 'Đánh dấu kênh chú ý'}
+              </button>
+            )}
             {p.url && (
               <a
                 href={p.url}
@@ -336,6 +386,8 @@ export default function KuaishouProfileDetailPage() {
           </div>
         </div>
       </div>
+
+      <LookalikeSection platform="kuaishou" profileId={id} />
 
       {/* Videos Grid */}
       <div>
@@ -397,7 +449,7 @@ export default function KuaishouProfileDetailPage() {
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
               {allVideos.map(v => (
-                <VideoCard key={v.post_id} video={v} />
+                <VideoCard key={v.post_id} video={v} profile={p} />
               ))}
               {videosQuery.isFetchingNextPage && Array.from({ length: 6 }).map((_, i) => (
                 <div key={`skel-${i}`} className="bg-card border border-border rounded-lg overflow-hidden animate-pulse">

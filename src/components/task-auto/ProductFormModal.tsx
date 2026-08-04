@@ -30,11 +30,13 @@ interface Props {
   defaultBrandType?: 'DO_DA' | 'TRANG_SUC'
   /** Ẩn lựa chọn nhóm sản phẩm khi form được mở từ một tab đã cố định nhóm (VD: tab Đồ da/Trang sức riêng biệt). */
   lockBrandType?: boolean
+  /** Thị trường mặc định khi tạo mới (VD: thị trường của team người tạo) — bỏ qua khi đang sửa sản phẩm có sẵn. */
+  initialMarket?: string
   onClose: () => void
   onSuccess: (product: Product) => void
 }
 
-export function ProductFormModal({ open, editing, userId, title, defaultBrandType = 'DO_DA', lockBrandType, onClose, onSuccess }: Props) {
+export function ProductFormModal({ open, editing, userId, title, defaultBrandType = 'DO_DA', lockBrandType, initialMarket = 'VIETNAM', onClose, onSuccess }: Props) {
   const qc = useQueryClient()
   const isEdit = !!editing
 
@@ -43,7 +45,7 @@ export function ProductFormModal({ open, editing, userId, title, defaultBrandTyp
     sku: '', name: '', image_urls: [], price: '',
     price_segment: '', priority_score: 0, cooldown_days: null, material_id: '', product_line_id: '', classification_id: '', is_active: true,
   })
-  const [markets, setMarkets] = useState<string[]>(['VIETNAM'])
+  const [markets, setMarkets] = useState<string[]>([initialMarket])
   const [sourceDraft, setSourceDraft] = useState<SourceDraft>(defaultSource)
   const imagePickerRef = useRef<MultiImagePickerHandle>(null)
 
@@ -89,11 +91,11 @@ export function ProductFormModal({ open, editing, userId, title, defaultBrandTyp
       } else {
         setBrandType(defaultBrandType)
         setForm({ sku: '', name: '', image_urls: [], price: '', price_segment: '', priority_score: 0, cooldown_days: null, material_id: '', product_line_id: '', classification_id: '', is_active: true })
-        setMarkets(['VIETNAM'])
+        setMarkets([initialMarket])
         setSourceDraft(defaultSource)
       }
     }
-  }, [open, editing, defaultBrandType])
+  }, [open, editing, defaultBrandType, initialMarket])
 
   const mut = useMutation({
     mutationFn: async () => {

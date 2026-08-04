@@ -27,6 +27,7 @@ import type {
   TeamProduct,
   TeamContent,
   TeamPushRequest,
+  TaskContentApproval,
   Notification,
   PublishedLink,
 } from '@/types/task-auto'
@@ -65,8 +66,15 @@ export const approveTask = (id: string) =>
 export const rejectTask = (id: string, reason: string) =>
   apiClient.post<Task>(`/task-auto/tasks/${id}/review`, { action: 'REJECTED', reject_reason: reason }).then(r => r.data)
 
+// stats là dữ liệu server tự tính (không cho client ghi) — chỉ gửi lên id/platform/url,
+// BE tự quyết định giữ lại stats cũ hay fetch mới dựa trên có đổi url/platform hay không.
 export const updateTaskPublishedLinks = (id: string, links: PublishedLink[]) =>
-  apiClient.patch<Task>(`/task-auto/tasks/${id}/published-links`, { links }).then(r => r.data)
+  apiClient.patch<Task>(`/task-auto/tasks/${id}/published-links`, {
+    links: links.map(({ id, platform, url }) => ({ id, platform, url })),
+  }).then(r => r.data)
+
+export const refreshPublishedLinkStats = (taskId: string, linkId: string) =>
+  apiClient.post<Task>(`/task-auto/tasks/${taskId}/published-links/${linkId}/refresh-stats`).then(r => r.data)
 
 export const startTask = (id: string) =>
   apiClient.put<Task>(`/task-auto/tasks/${id}`, { status: 'IN_PROGRESS' }).then(r => r.data)
@@ -134,6 +142,17 @@ export const translateTaskVideoScript = (taskId: string, market?: string | null)
   apiClient
     .post<{ script: VideoScript }>(`/task-auto/tasks/${taskId}/video-script/translate`, { market })
     .then(r => r.data.script)
+
+// ── Content Approval (duyệt content mới trước khi làm task) ─────────────────
+
+export const getTaskContentApproval = (taskId: string) =>
+  apiClient.get<TaskContentApproval | null>(`/task-auto/tasks/${taskId}/content-approval`).then(r => r.data)
+
+export const requestTaskContentApproval = (taskId: string) =>
+  apiClient.post<TaskContentApproval>(`/task-auto/tasks/${taskId}/content-approval`, {}).then(r => r.data)
+
+export const reviewTaskContentApproval = (approvalId: string, action: 'APPROVED' | 'REJECTED', reject_reason?: string) =>
+  apiClient.post<TaskContentApproval>(`/task-auto/content-approvals/${approvalId}/review`, { action, reject_reason }).then(r => r.data)
 
 // ── Teams ─────────────────────────────────────────────────────────────────────
 

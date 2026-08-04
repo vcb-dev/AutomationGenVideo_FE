@@ -295,14 +295,14 @@ export function ProductsTab({ brandType, month, onMonthChange }: { brandType: Br
                           <>
                             <button
                               onClick={e => { e.stopPropagation(); openEdit(p) }}
-                              className="p-2 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors"
+                              className="p-2.5 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors"
                               title="Chỉnh sửa"
                             >
                               <Edit2 className="w-4 h-4" />
                             </button>
                             <button
                               onClick={e => { e.stopPropagation(); setDeletingId(p.id) }}
-                              className="p-2 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
+                              className="p-2.5 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
                               title="Xóa"
                             >
                               <Trash2 className="w-4 h-4" />

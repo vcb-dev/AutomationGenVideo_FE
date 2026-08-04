@@ -13,6 +13,8 @@ import ReelCard from '../../components/ReelCard';
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService } from '@/services/scraperService';
 import { useScrapingStore } from '@/store/scraping-store';
+import { UserRole } from '@/types/auth';
+import { dedupeById } from '@/lib/dedupe-pages';
 
 function formatNum(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -21,7 +23,8 @@ function formatNum(n: number): string {
 }
 
 export default function FanpageDetailPage() {
-  const { token } = useAuthStore();
+  const { token, user } = useAuthStore();
+  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
   const router = useRouter();
   const queryClient = useQueryClient();
   const { fanpageId } = useParams<{ fanpageId: string }>();
@@ -139,7 +142,7 @@ export default function FanpageDetailPage() {
   });
 
   const fp = detailQuery.data;
-  const allReels = reelsQuery.data?.pages.flatMap(p => p.reels) || [];
+  const allReels = dedupeById(reelsQuery.data?.pages.flatMap(p => p.reels) || []);
   const totalReels = reelsQuery.data?.pages[0]?.count || 0;
   const isProcessing = isProcessingNow;
 
@@ -214,14 +217,16 @@ export default function FanpageDetailPage() {
           </div>
 
           <div className="flex items-center gap-2 mt-4">
-            <button
-              onClick={() => scrapeMutation.mutate()}
-              disabled={isProcessing}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-md hover:opacity-90 disabled:opacity-50"
-            >
-              <ArrowsClockwise size={15} className={isProcessing ? 'animate-spin' : ''} />
-              {isProcessing ? 'Đang cào...' : fp.is_initial_scraped ? 'Cập nhật' : 'Cào lượt đầu (300)'}
-            </button>
+            {canManageChannels && (
+              <button
+                onClick={() => scrapeMutation.mutate()}
+                disabled={isProcessing}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-md hover:opacity-90 disabled:opacity-50"
+              >
+                <ArrowsClockwise size={15} className={isProcessing ? 'animate-spin' : ''} />
+                {isProcessing ? 'Đang cào...' : fp.is_initial_scraped ? 'Cập nhật' : 'Cào lượt đầu (300)'}
+              </button>
+            )}
             <button
               onClick={() => toggleMutation.mutate('is_bookmarked')}
               className={`flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-md transition-colors ${fp.is_bookmarked ? 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-900/20 dark:border-amber-700' : 'hover:bg-slate-50 dark:hover:bg-slate-800'}`}
@@ -229,13 +234,15 @@ export default function FanpageDetailPage() {
               <BookmarkSimple size={15} weight={fp.is_bookmarked ? 'fill' : 'regular'} />
               {fp.is_bookmarked ? 'Đã lưu' : 'Lưu'}
             </button>
-            <button
-              onClick={() => toggleMutation.mutate('is_periodic_crawl')}
-              className={`flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-md transition-colors ${fp.is_periodic_crawl ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-700' : 'hover:bg-slate-50 dark:hover:bg-slate-800'}`}
-            >
-              <Timer size={15} weight={fp.is_periodic_crawl ? 'fill' : 'regular'} />
-              {fp.is_periodic_crawl ? 'Cào định kỳ: BẬT' : 'Cào định kỳ'}
-            </button>
+            {canManageChannels && (
+              <button
+                onClick={() => toggleMutation.mutate('is_periodic_crawl')}
+                className={`flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-md transition-colors ${fp.is_periodic_crawl ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-700' : 'hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+              >
+                <Timer size={15} weight={fp.is_periodic_crawl ? 'fill' : 'regular'} />
+                {fp.is_periodic_crawl ? 'Kênh chú ý' : 'Đánh dấu kênh chú ý'}
+              </button>
+            )}
             {fp.page_url && (
               <a
                 href={fp.page_url}

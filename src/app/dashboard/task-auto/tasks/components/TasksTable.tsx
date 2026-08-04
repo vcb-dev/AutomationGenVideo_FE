@@ -1,8 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import { Eye, Zap, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { Eye, Zap, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { TaskStatusBadge } from '@/components/task-auto/StatusBadge'
 import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
@@ -14,10 +12,32 @@ interface Props {
   tasks: Task[]
   total: number
   page: number
+  limit: number
   totalPages: number
   isLoading: boolean
   onViewTask: (id: string) => void
   onPageChange: (page: number) => void
+}
+
+// Danh sách trang hiển thị trong thanh phân trang, rút gọn bằng dấu "..." khi
+// quá nhiều trang: luôn giữ trang đầu/cuối + 1 trang lân cận quanh trang hiện tại.
+function getPageItems(current: number, total: number): (number | 'ellipsis')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+
+  const pages = new Set<number>([1, total, current - 1, current, current + 1])
+  if (current <= 3) [2, 3, 4].forEach((p) => pages.add(p))
+  if (current >= total - 2) [total - 3, total - 2, total - 1].forEach((p) => pages.add(p))
+
+  const sorted = Array.from(pages)
+    .filter((p) => p >= 1 && p <= total)
+    .sort((a, b) => a - b)
+
+  const items: (number | 'ellipsis')[] = []
+  sorted.forEach((p, i) => {
+    if (i > 0 && p - sorted[i - 1] > 1) items.push('ellipsis')
+    items.push(p)
+  })
+  return items
 }
 
 // Lấy tiêu đề content: personal → team (own→FK) → global (own→team FK→editor FK)
@@ -82,36 +102,12 @@ export function TasksTable({
   tasks,
   total,
   page,
+  limit,
   totalPages,
   isLoading,
   onViewTask,
   onPageChange,
 }: Props) {
-  const [assigneeFilter, setAssigneeFilter] = useState('')
-  const [showAssigneeDrop, setShowAssigneeDrop] = useState(false)
-  const assigneeDropRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (assigneeDropRef.current && !assigneeDropRef.current.contains(e.target as Node))
-        setShowAssigneeDrop(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
-
-  const assigneeCountMap = new Map<string, { id: string; name: string; count: number }>()
-  for (const t of tasks) {
-    if (t.assignee_id && t.assignee) {
-      const e = assigneeCountMap.get(t.assignee_id)
-      if (e) e.count++
-      else assigneeCountMap.set(t.assignee_id, { id: t.assignee_id, name: t.assignee.full_name, count: 1 })
-    }
-  }
-  const assigneeOptions = Array.from(assigneeCountMap.values()).sort((a, b) => a.name.localeCompare(b.name, 'vi'))
-
-  const filteredTasks = assigneeFilter ? tasks.filter(t => t.assignee_id === assigneeFilter) : tasks
-
   return (
     <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
       <div className="overflow-x-auto">
@@ -121,78 +117,7 @@ export function TasksTable({
               <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-14">STT</th>
               <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Task</th>
               <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Team</th>
-              <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">
-                <div className="relative" ref={assigneeDropRef}>
-                  <button
-                    onClick={e => { e.stopPropagation(); setShowAssigneeDrop(v => !v) }}
-                    className={cn(
-                      'flex items-center gap-1.5 text-sm font-black tracking-wide transition-colors whitespace-nowrap',
-                      assigneeFilter ? 'text-indigo-600' : 'text-slate-600 hover:text-slate-600',
-                    )}
-                  >
-                    {assigneeFilter
-                      ? (assigneeOptions.find(o => o.id === assigneeFilter)?.name ?? 'Người làm')
-                      : 'Người làm'}
-                    <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', showAssigneeDrop && 'rotate-180')} />
-                  </button>
-
-                  <AnimatePresence>
-                    {showAssigneeDrop && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -6, scale: 0.97 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: -4, scale: 0.97 }}
-                        transition={{ duration: 0.12 }}
-                        className="absolute top-full left-0 mt-2 w-56 bg-white border border-slate-200 rounded-2xl shadow-xl shadow-slate-200/60 z-30 overflow-hidden py-1.5"
-                      >
-                        <button
-                          onClick={() => { setAssigneeFilter(''); setShowAssigneeDrop(false) }}
-                          className={cn(
-                            'w-full flex items-center justify-between gap-3 px-4 py-2.5 text-sm font-semibold transition-colors',
-                            !assigneeFilter ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50',
-                          )}
-                        >
-                          <span className="flex items-center gap-2.5">
-                            <span className="w-2 h-2 rounded-full bg-slate-300 shrink-0" />
-                            Tất cả
-                          </span>
-                          <span className={cn(
-                            'text-xs px-2 py-0.5 rounded-full font-bold',
-                            !assigneeFilter ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400',
-                          )}>
-                            {tasks.length}
-                          </span>
-                        </button>
-
-                        {assigneeOptions.map(opt => {
-                          const active = assigneeFilter === opt.id
-                          return (
-                            <button
-                              key={opt.id}
-                              onClick={() => { setAssigneeFilter(opt.id); setShowAssigneeDrop(false) }}
-                              className={cn(
-                                'w-full flex items-center justify-between gap-3 px-4 py-2.5 text-sm font-semibold transition-colors',
-                                active ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50',
-                              )}
-                            >
-                              <span className="flex items-center gap-2 min-w-0">
-                                <AvatarInitials name={opt.name} size="sm" />
-                                <span className="truncate">{opt.name}</span>
-                              </span>
-                              <span className={cn(
-                                'text-xs px-2 py-0.5 rounded-full font-bold shrink-0',
-                                active ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400',
-                              )}>
-                                {opt.count}
-                              </span>
-                            </button>
-                          )
-                        })}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </th>
+              <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Người làm</th>
               <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Trạng thái</th>
               <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Deadline</th>
               <th className="text-center px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-32">Loại</th>
@@ -202,14 +127,14 @@ export function TasksTable({
           <tbody className="divide-y divide-gray-100">
             {isLoading ? (
               <SkeletonRows />
-            ) : filteredTasks.length === 0 ? (
+            ) : tasks.length === 0 ? (
               <tr>
                 <td colSpan={9}>
                   <EmptyState title="Không có task nào" description="Thử thay đổi bộ lọc hoặc tạo task mới" />
                 </td>
               </tr>
             ) : (
-              filteredTasks.map((task, idx) => {
+              tasks.map((task, idx) => {
                 const contentTitle = resolveContentTitle(task)
                 const productName = resolveProductName(task)
                 return (
@@ -219,7 +144,7 @@ export function TasksTable({
                     onClick={() => onViewTask(task.id)}
                   >
                     <td className="px-5 py-4 text-slate-400 font-mono text-sm whitespace-nowrap">
-                      {(page - 1) * 20 + idx + 1}
+                      {(page - 1) * limit + idx + 1}
                     </td>
                     <td className="px-5 py-4 max-w-[300px]">
                       <p className="font-semibold text-slate-800 truncate text-base group-hover:text-indigo-700 transition-colors">
@@ -247,7 +172,12 @@ export function TasksTable({
                       ) : <span className="text-slate-300 text-sm italic">Chưa giao</span>}
                     </td>
                     <td className="px-5 py-4 whitespace-nowrap">
-                      <TaskStatusBadge status={task.status} />
+                      <div className="flex items-center gap-1.5">
+                        <TaskStatusBadge status={task.status} />
+                        {task.status === 'APPROVED' && !task.published_links?.length && (
+                          <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" aria-label="Chưa nộp link bài đăng" />
+                        )}
+                      </div>
                     </td>
                     <td className="px-5 py-4 whitespace-nowrap">
                       {task.deadline ? (
@@ -282,47 +212,56 @@ export function TasksTable({
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between px-5 py-4 border-t border-gray-100 bg-gray-50/50">
+        <div className="flex items-center justify-between flex-wrap gap-3 px-5 py-3.5 border-t border-gray-100 bg-gray-50/50">
           <span className="text-sm text-slate-500">
-            Trang <span className="font-semibold text-slate-700">{page}</span> / {totalPages}
+            Trang <span className="font-semibold text-slate-700">{page}</span>/{totalPages}
             {' '}·{' '}
             <span className="font-semibold text-slate-700">{total}</span> task
           </span>
-          <div className="flex items-center gap-1">
+
+          <div className="flex items-center gap-1.5">
             <button
               onClick={() => onPageChange(page - 1)}
               disabled={page <= 1}
-              className="p-2 rounded-lg hover:bg-gray-200 text-slate-500 disabled:opacity-30 transition-colors"
+              aria-label="Trang trước"
+              className="flex items-center justify-center w-9 h-9 rounded-lg border border-gray-200 bg-white text-slate-500 hover:bg-gray-100 hover:text-slate-700 disabled:opacity-30 disabled:hover:bg-white disabled:cursor-not-allowed transition-colors"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-              const pg = totalPages <= 7
-                ? i + 1
-                : page <= 4
-                  ? i + 1
-                  : page >= totalPages - 3
-                    ? totalPages - 6 + i
-                    : page - 3 + i
-              return (
-                <button
-                  key={pg}
-                  onClick={() => onPageChange(pg)}
-                  className={cn(
-                    'w-9 h-9 rounded-lg text-sm font-semibold transition-colors',
-                    pg === page
-                      ? 'bg-indigo-600 text-white'
-                      : 'hover:bg-gray-200 text-slate-600'
-                  )}
-                >
-                  {pg}
-                </button>
-              )
-            })}
+
+            <span className="sm:hidden px-2.5 text-sm font-semibold text-slate-600 whitespace-nowrap">
+              {page} / {totalPages}
+            </span>
+
+            <div className="hidden sm:flex items-center gap-1">
+              {getPageItems(page, totalPages).map((item, i) =>
+                item === 'ellipsis' ? (
+                  <span key={`e-${i}`} className="w-9 h-9 flex items-center justify-center text-slate-300 select-none">
+                    …
+                  </span>
+                ) : (
+                  <button
+                    key={item}
+                    onClick={() => onPageChange(item)}
+                    aria-current={item === page ? 'page' : undefined}
+                    className={cn(
+                      'w-9 h-9 rounded-lg text-sm font-semibold transition-colors',
+                      item === page
+                        ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+                        : 'text-slate-600 border border-transparent hover:border-gray-200 hover:bg-white'
+                    )}
+                  >
+                    {item}
+                  </button>
+                )
+              )}
+            </div>
+
             <button
               onClick={() => onPageChange(page + 1)}
               disabled={page >= totalPages}
-              className="p-2 rounded-lg hover:bg-gray-200 text-slate-500 disabled:opacity-30 transition-colors"
+              aria-label="Trang sau"
+              className="flex items-center justify-center w-9 h-9 rounded-lg border border-gray-200 bg-white text-slate-500 hover:bg-gray-100 hover:text-slate-700 disabled:opacity-30 disabled:hover:bg-white disabled:cursor-not-allowed transition-colors"
             >
               <ChevronRight className="w-4 h-4" />
             </button>

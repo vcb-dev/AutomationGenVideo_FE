@@ -141,15 +141,15 @@ export default function MyCatalogPage() {
       )}
 
       {/* Tab bar + Brand indicator */}
-      <div className="border-b border-gray-200 flex items-center justify-between">
+      <div className="border-b border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         {/* Tabs */}
-        <div className="flex gap-1">
+        <div className="flex gap-1 overflow-x-auto scrollbar-none">
           {TABS.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                'flex items-center gap-2 px-6 py-3 text-base rounded-t-xl transition-all',
+                'flex items-center gap-2 px-6 py-3 text-base rounded-t-xl transition-all shrink-0 whitespace-nowrap',
                 activeTab === tab.id
                   ? 'bg-indigo-50 text-indigo-700 font-semibold'
                   : 'text-slate-500 hover:text-slate-800 hover:bg-gray-100'
@@ -162,14 +162,14 @@ export default function MyCatalogPage() {
         </div>
 
         {/* Brand: switcher cho admin/manager, badge cho user thường */}
-        <div className="flex gap-3 pb-1">
+        <div className="flex gap-3 pb-1 flex-wrap">
           {isAdminOrManager ? (
             BRANDS.map(b => (
               <button
                 key={b.key}
                 onClick={() => setBrand(b.key)}
                 className={cn(
-                  'px-6 py-1.5 rounded-full text-sm font-semibold border-2 transition-all',
+                  'px-6 py-2.5 rounded-full text-sm font-semibold border-2 transition-all',
                   brand === b.key
                     ? b.color === 'amber'
                       ? 'bg-amber-500 border-amber-500 text-white shadow-md'
@@ -182,7 +182,7 @@ export default function MyCatalogPage() {
             ))
           ) : (
             <span className={cn(
-              'px-6 py-1.5 rounded-full text-sm font-semibold border-2',
+              'px-6 py-2.5 rounded-full text-sm font-semibold border-2',
               currentBrand.color === 'amber'
                 ? 'bg-amber-500 border-amber-500 text-white'
                 : 'bg-violet-600 border-violet-600 text-white'

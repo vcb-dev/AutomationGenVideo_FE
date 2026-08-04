@@ -4,6 +4,7 @@ import { Roboto } from 'next/font/google';
 import './globals.css';
 import { Toaster } from 'react-hot-toast';
 import AuthHydration from '@/components/AuthHydration';
+import ChunkErrorReload from '@/components/ChunkErrorReload';
 import QueryProvider from '@/components/QueryProvider';
 import InstallPwaPrompt from '@/components/InstallPwaPrompt';
 import { ThemeProvider } from '@/contexts/ThemeContext';
@@ -19,6 +20,12 @@ const roboto = Roboto({
 export const metadata: Metadata = {
   title: 'Video Production System',
   description: 'Automated video production management system',
+  // Dấu nhận biết cho extension VCB Video Downloader: content script thấy thẻ này thì
+  // tự lưu origin hiện tại làm địa chỉ hệ thống, người dùng khỏi phải nhập tay trong
+  // trang Cài đặt (địa chỉ đổi liên tục vì chạy qua Cloudflare Tunnel).
+  other: {
+    'vcb-app': '1',
+  },
   icons: {
     icon: '/icons/icon-192.png',
     apple: '/icons/icon-192.png',
@@ -43,6 +50,7 @@ export default function RootLayout({
     <html lang="vi">
       <body className={`${roboto.variable} font-sans antialiased`}>
         <AuthHydration />
+        <ChunkErrorReload />
         <ThemeProvider>
           <LanguageProvider>
             <QueryProvider>{children}</QueryProvider>

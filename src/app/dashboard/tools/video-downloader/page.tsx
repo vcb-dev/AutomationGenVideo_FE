@@ -445,8 +445,8 @@ function VideoDownloaderInner() {
                         'Mở chrome://extensions (Chrome/Edge/Brave đều được).',
                         'Bật "Chế độ dành cho nhà phát triển" (Developer mode) ở góc phải.',
                         'Bấm "Tải tiện ích đã giải nén" (Load unpacked) và chọn thư mục vừa giải nén.',
-                        'Bấm icon extension trên thanh công cụ → "Cài đặt nâng cao" → dán đúng địa chỉ trang web này rồi Lưu.',
-                        'Xong! Rê chuột vào video bất kỳ để hiện nút tải, hoặc chuột phải chọn "Tải video này qua VCB".',
+                        'Tải lại (F5) trang này một lần — extension tự nhận địa chỉ hệ thống, bạn không phải nhập gì.',
+                        'Xong! Rê chuột vào video bất kỳ để hiện nút tải, hoặc chuột phải chọn "Tải video này qua VCB" / "Đề xuất video này vào VCB".',
                     ].map((step, i) => (
                         <li key={i} className="flex gap-2">
                             <CheckCircle2 className="w-4 h-4 text-violet-500 flex-shrink-0 mt-0.5" />
