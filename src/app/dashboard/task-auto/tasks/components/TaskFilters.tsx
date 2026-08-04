@@ -1,6 +1,7 @@
 'use client'
 
-import { CalendarDays, Plus, Search, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { CalendarDays, Plus, Search, X, RotateCcw } from 'lucide-react'
 import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { cn } from '@/lib/utils'
 import { TaskStatus, Team } from '@/types/task-auto'
@@ -40,6 +41,7 @@ interface Props {
   isMember?: boolean
   hideTeamFilter?: boolean
   hideStatusFilter?: boolean
+  hideDeadlineFilter?: boolean
   onStatusChange: (v: TaskStatus | '') => void
   onTeamChange: (v: string) => void
   onSearchChange: (v: string) => void
@@ -62,6 +64,7 @@ export function TaskFilters({
   isMember = false,
   hideTeamFilter = false,
   hideStatusFilter = false,
+  hideDeadlineFilter = false,
   onStatusChange,
   onTeamChange,
   onSearchChange,
@@ -72,6 +75,32 @@ export function TaskFilters({
 }: Props) {
   const isToday = deadlineDateFilter === todayString()
 
+  // Gõ tìm kiếm phản hồi tức thì trên input, nhưng chỉ bắn query lên cha sau khi
+  // ngừng gõ ~300ms — tránh gọi lại getTasks mỗi phím gõ (giật/nháy danh sách).
+  const [localSearch, setLocalSearch] = useState(searchFilter)
+  useEffect(() => { setLocalSearch(searchFilter) }, [searchFilter])
+  useEffect(() => {
+    if (localSearch === searchFilter) return
+    const t = setTimeout(() => onSearchChange(localSearch), 300)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localSearch])
+
+  const hasStatus   = !hideStatusFilter && !!statusFilter
+  const hasTeam      = !isMember && !hideTeamFilter && !!teamFilter
+  const hasAssignee  = !isMember && assigneeOptions.length > 0 && !!assigneeFilter
+  const hasSearch    = !!searchFilter
+  const hasCustomDate = !hideDeadlineFilter && deadlineDateFilter !== todayString()
+  const activeFilterCount = [hasStatus, hasTeam, hasAssignee, hasSearch, hasCustomDate].filter(Boolean).length
+
+  function resetAllFilters() {
+    if (hasStatus) onStatusChange('')
+    if (hasTeam) onTeamChange('')
+    if (hasAssignee) onAssigneeChange('')
+    if (hasSearch) { setLocalSearch(''); onSearchChange('') }
+    if (hasCustomDate) onDeadlineDateChange(todayString())
+  }
+
   return (
     <div className="flex flex-wrap gap-2.5 items-center flex-1">
       {/* Search */}
@@ -81,8 +110,8 @@ export function TaskFilters({
           type="text"
           className="w-full pl-10 pr-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-colors"
           placeholder="Tìm kiếm theo tiêu đề..."
-          value={searchFilter}
-          onChange={e => onSearchChange(e.target.value)}
+          value={localSearch}
+          onChange={e => setLocalSearch(e.target.value)}
         />
       </div>
 
@@ -137,6 +166,7 @@ export function TaskFilters({
       )}
 
       {/* Deadline date picker */}
+      {!hideDeadlineFilter && (
       <div className="relative">
         <CalendarDays className={cn(
           'absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none',
@@ -160,23 +190,57 @@ export function TaskFilters({
         {deadlineDateFilter && (
           <button
             onClick={() => onDeadlineDateChange('')}
+            title="Bỏ lọc theo ngày"
             className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
           >
             <X className="w-3 h-3" />
           </button>
         )}
-        {isToday && (
-          <span className="absolute -top-2 left-2.5 px-1.5 py-0.5 text-[9px] font-bold bg-amber-500 text-white rounded-full leading-none">
+        {isToday ? (
+          <button
+            type="button"
+            onClick={() => onDeadlineDateChange('')}
+            title="Đang lọc hôm nay — bấm để xem tất cả ngày"
+            className="absolute -top-2 left-2.5 px-1.5 py-0.5 text-[9px] font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-full leading-none transition-colors cursor-pointer"
+          >
             Hôm nay
-          </span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onDeadlineDateChange(todayString())}
+            title="Bấm để lọc theo hôm nay"
+            className="absolute -top-2 left-2.5 px-1.5 py-0.5 text-[9px] font-bold bg-slate-200 hover:bg-indigo-500 hover:text-white text-slate-500 rounded-full leading-none transition-colors cursor-pointer"
+          >
+            Hôm nay
+          </button>
         )}
       </div>
+      )}
+
+      {/* Xoá lọc — chỉ hiện khi có filter khác mặc định đang bật */}
+      {activeFilterCount > 0 && (
+        <button
+          type="button"
+          onClick={resetAllFilters}
+          className="flex items-center gap-1.5 px-3 py-3 rounded-xl text-sm font-semibold text-slate-500 hover:text-slate-700 hover:bg-gray-100 transition-colors flex-shrink-0 ml-auto"
+        >
+          <RotateCcw className="w-3.5 h-3.5" />
+          Xoá lọc
+          <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-slate-200 text-[10px] font-bold text-slate-600">
+            {activeFilterCount}
+          </span>
+        </button>
+      )}
 
       {/* Create button */}
       {canCreate && (
         <button
           onClick={onCreateClick}
-          className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-5 py-3 text-sm font-semibold flex items-center gap-2 transition-colors flex-shrink-0 ml-auto shadow-sm"
+          className={cn(
+            'bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-5 py-3 text-sm font-semibold flex items-center gap-2 transition-colors flex-shrink-0 shadow-sm',
+            activeFilterCount === 0 && 'ml-auto'
+          )}
         >
           <Plus className="w-4 h-4" />
           Tạo task

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
+import { ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { DarkInput, CustomSelect, ServerSearchSelect } from '@/components/task-auto/DarkInput'
@@ -155,6 +156,9 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
   const [contentActualId, setContentActualId] = useState('')
   const [productActualId, setProductActualId] = useState('')
   const [sourceScope, setSourceScope] = useState<'personal' | 'team' | 'global' | 'all'>('all')
+  // Khối "Nguồn source" gồm 4 field tuỳ chọn, ít khi dùng hết — đóng mặc định để giảm
+  // chiều cao/scroll cho luồng phổ biến (chỉ chọn content + sản phẩm + phân công).
+  const [sourcesOpen, setSourcesOpen] = useState(false)
   const [prevBrandType, setPrevBrandType] = useState<BrandType>(brandType)
 
   useEffect(() => {
@@ -300,6 +304,8 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
 
   const selectedContent = contents.find(c => c.id === form.content_id)
   const teamMembers     = selectedTeam?.members ?? []
+  const selectedSourceCount = [form.source_outro_id, form.source_collected_id, form.source_workshop_id, form.source_huyk_id]
+    .filter(Boolean).length
 
   function resolveSourceField(prefixedId: string, fieldBase: 'outro' | 'extra' | 'workshop' | 'huyk'): Record<string, string | undefined> {
     if (!prefixedId) return {}
@@ -528,83 +534,100 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
           />
         </div>
 
-        {/* ── Nguồn source ── */}
+        {/* ── Nguồn source (tuỳ chọn) — đóng mặc định để giảm scroll, hiếm khi dùng hết cả 4 ── */}
         <div className="space-y-3">
-          <SectionHeader label="Nguồn source">
-            <div className="flex gap-0.5 p-0.5 bg-gray-100 rounded-lg">
-              {([
-                { key: 'personal', label: 'Cá nhân',  disabled: false },
-                { key: 'team',     label: 'Kho team',  disabled: !form.team_id },
-                { key: 'global',   label: 'Kho chung', disabled: false },
-                { key: 'all',      label: 'Tất cả',    disabled: false },
-              ] as const).map(({ key, label, disabled }) => (
-                <button
-                  key={key}
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => setSourceScope(key)}
-                  className={cn(
-                    'px-2.5 py-1 rounded-md text-xs font-semibold transition-all',
-                    sourceScope === key
-                      ? 'bg-white shadow-sm text-indigo-700'
-                      : 'text-slate-500 hover:text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed'
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+          <SectionHeader label="Nguồn source (tuỳ chọn)">
+            {sourcesOpen && (
+              <div className="flex gap-0.5 p-0.5 bg-gray-100 rounded-lg">
+                {([
+                  { key: 'personal', label: 'Cá nhân',  disabled: false },
+                  { key: 'team',     label: 'Kho team',  disabled: !form.team_id },
+                  { key: 'global',   label: 'Kho chung', disabled: false },
+                  { key: 'all',      label: 'Tất cả',    disabled: false },
+                ] as const).map(({ key, label, disabled }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => setSourceScope(key)}
+                    className={cn(
+                      'px-2.5 py-1 rounded-md text-xs font-semibold transition-all',
+                      sourceScope === key
+                        ? 'bg-white shadow-sm text-indigo-700'
+                        : 'text-slate-500 hover:text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed'
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setSourcesOpen(v => !v)}
+              className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 shrink-0"
+            >
+              {selectedSourceCount > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold">
+                  {selectedSourceCount} đã chọn
+                </span>
+              )}
+              {sourcesOpen ? 'Thu gọn' : 'Chọn nguồn'}
+              <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', sourcesOpen && 'rotate-180')} />
+            </button>
           </SectionHeader>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-slate-700">
-                Outro
-                {outroSources.length > 0 && <span className="ml-1.5 text-xs font-normal text-slate-400">{outroSources.length}</span>}
-              </label>
-              <CustomSelect
-                value={form.source_outro_id}
-                onChange={v => setForm(f => ({ ...f, source_outro_id: v }))}
-                options={[{ value: '', label: '-- Không chọn --' }, ...outroSources.map(s => ({ value: s.id, label: s.name }))]}
-                searchable
-              />
+          {sourcesOpen && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-slate-700">
+                  Outro
+                  {outroSources.length > 0 && <span className="ml-1.5 text-xs font-normal text-slate-400">{outroSources.length}</span>}
+                </label>
+                <CustomSelect
+                  value={form.source_outro_id}
+                  onChange={v => setForm(f => ({ ...f, source_outro_id: v }))}
+                  options={[{ value: '', label: '-- Không chọn --' }, ...outroSources.map(s => ({ value: s.id, label: s.name }))]}
+                  searchable
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-slate-700">
+                  Sưu tầm
+                  {collectedSrcs.length > 0 && <span className="ml-1.5 text-xs font-normal text-slate-400">{collectedSrcs.length}</span>}
+                </label>
+                <CustomSelect
+                  value={form.source_collected_id}
+                  onChange={v => setForm(f => ({ ...f, source_collected_id: v }))}
+                  options={[{ value: '', label: '-- Không chọn --' }, ...collectedSrcs.map(s => ({ value: s.id, label: s.name }))]}
+                  searchable
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-slate-700">
+                  Chế tác
+                  {workshopSrcs.length > 0 && <span className="ml-1.5 text-xs font-normal text-slate-400">{workshopSrcs.length}</span>}
+                </label>
+                <CustomSelect
+                  value={form.source_workshop_id}
+                  onChange={v => setForm(f => ({ ...f, source_workshop_id: v }))}
+                  options={[{ value: '', label: '-- Không chọn --' }, ...workshopSrcs.map(s => ({ value: s.id, label: s.name }))]}
+                  searchable
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-slate-700">
+                  Huy-K
+                  {huykSrcs.length > 0 && <span className="ml-1.5 text-xs font-normal text-slate-400">{huykSrcs.length}</span>}
+                </label>
+                <CustomSelect
+                  value={form.source_huyk_id}
+                  onChange={v => setForm(f => ({ ...f, source_huyk_id: v }))}
+                  options={[{ value: '', label: '-- Không chọn --' }, ...huykSrcs.map(s => ({ value: s.id, label: s.name }))]}
+                  searchable
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-slate-700">
-                Sưu tầm
-                {collectedSrcs.length > 0 && <span className="ml-1.5 text-xs font-normal text-slate-400">{collectedSrcs.length}</span>}
-              </label>
-              <CustomSelect
-                value={form.source_collected_id}
-                onChange={v => setForm(f => ({ ...f, source_collected_id: v }))}
-                options={[{ value: '', label: '-- Không chọn --' }, ...collectedSrcs.map(s => ({ value: s.id, label: s.name }))]}
-                searchable
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-slate-700">
-                Chế tác
-                {workshopSrcs.length > 0 && <span className="ml-1.5 text-xs font-normal text-slate-400">{workshopSrcs.length}</span>}
-              </label>
-              <CustomSelect
-                value={form.source_workshop_id}
-                onChange={v => setForm(f => ({ ...f, source_workshop_id: v }))}
-                options={[{ value: '', label: '-- Không chọn --' }, ...workshopSrcs.map(s => ({ value: s.id, label: s.name }))]}
-                searchable
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-slate-700">
-                Huy-K
-                {huykSrcs.length > 0 && <span className="ml-1.5 text-xs font-normal text-slate-400">{huykSrcs.length}</span>}
-              </label>
-              <CustomSelect
-                value={form.source_huyk_id}
-                onChange={v => setForm(f => ({ ...f, source_huyk_id: v }))}
-                options={[{ value: '', label: '-- Không chọn --' }, ...huykSrcs.map(s => ({ value: s.id, label: s.name }))]}
-                searchable
-              />
-            </div>
-          </div>
+          )}
         </div>
 
       </div>
