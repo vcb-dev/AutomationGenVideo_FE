@@ -1,8 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { Gift as GiftIcon, Maximize2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { LuckySpinStore } from '@/hooks/useLuckySpin';
+import { useRoundPlayback } from '@/hooks/useRoundPlayback';
+import { apiErrorMessage } from '@/lib/lucky-spin/api';
+import { stopApplause } from '@/lib/lucky-spin/spin-effects';
 import {
   activeRecipientIdOf,
   activeScopeOf,
@@ -13,31 +17,26 @@ import {
   selectRecipient,
   selectScope,
 } from '@/lib/lucky-spin/gift-recipients';
-import { awardGiftToMember, awardGiftToTeam, resetGiftStock } from '@/lib/lucky-spin/spin-history';
-import { nextRotation, SPIN_DURATION_MS } from '@/lib/lucky-spin/spin-rotation';
-import { Gift, GiftRecipientMode, WheelSegment } from '@/types/lucky-spin';
+import { GiftRecipientMode, SpinRoundView, WheelSegment } from '@/types/lucky-spin';
 import { ActionButton } from '@/components/lucky-spin/ActionButton';
+import { ConfirmDialog } from '@/components/lucky-spin/ConfirmDialog';
+import { PanelCard } from '@/components/lucky-spin/PanelCard';
+import { PresentationStage } from '@/components/lucky-spin/PresentationStage';
 import { ResultAction } from '@/components/lucky-spin/ResultAction';
 import { ResultDialog } from '@/components/lucky-spin/ResultDialog';
 import { SegToggle } from '@/components/lucky-spin/SegToggle';
+import { showUndoToast } from '@/components/lucky-spin/showUndoToast';
 import { SpinWheel } from '@/components/lucky-spin/SpinWheel';
-import { fieldLabelClass, railClass, selectClass } from '@/components/lucky-spin/styles';
-
+import { counterLabelClass, counterNumberClass, fieldLabelClass, selectClass } from '@/components/lucky-spin/styles';
 
 export function GiftSpinTab({ store }: { store: LuckySpinStore }) {
-  const { state, patchState } = store;
+  const { state, actions, canControl, setPollPaused } = store;
   const [selection, setSelection] = useState(INITIAL_SELECTION);
-  const [rotation, setRotation] = useState(0);
-  const [spinning, setSpinning] = useState(false);
-  const [wonGift, setWonGift] = useState<Gift | null>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(
-    () => () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    },
-    [],
-  );
+  const [askReset, setAskReset] = useState(false);
+  const [presenting, setPresenting] = useState(false);
+  /** Lượt do chính máy này bốc — có ngay, không phải đợi nhịp poll kế tiếp. */
+  const [ownRound, setOwnRound] = useState<SpinRoundView | null>(null);
+  const [result, setResult] = useState<SpinRoundView | null>(null);
 
   const recipientMode = selection.mode;
   const activeScope = activeScopeOf(selection, state.teams);
@@ -49,61 +48,46 @@ export function GiftSpinTab({ store }: { store: LuckySpinStore }) {
 
   const changeMode = (mode: GiftRecipientMode) =>
     setSelection((prev) => selectMode(prev, mode, state.teams, state.members));
-
   const changeScope = (scope: string) =>
     setSelection((prev) => selectScope(prev, scope, state.teams, state.members));
-
   const changeRecipient = (recipientId: string) => setSelection((prev) => selectRecipient(prev, recipientId));
 
-  const availableGifts = useMemo(() => state.gifts.filter((g) => g.remaining > 0), [state.gifts]);
-  const segments: WheelSegment[] = availableGifts.map((g) => ({ id: g.id, name: g.name }));
+  // Người điều khiển dùng lượt của mình, người xem dùng lượt server báo về.
+  const round = ownRound ?? (state.activeRound && state.activeRound.kind === 'gift' ? state.activeRound : null);
+  const { rotation, spinning, revealed, transitionMs } = useRoundPlayback(round, (finished) => {
+    setPollPaused(false);
+    if (ownRound?.id === finished.id) setResult(finished);
+  });
 
-  const handleSpin = () => {
+  const availableGifts = useMemo(() => state.gifts.filter((g) => g.remaining > 0), [state.gifts]);
+  const idleSegments: WheelSegment[] = availableGifts.map((g) => ({ id: g.id, name: g.name }));
+  const segments = round ? round.pool : idleSegments;
+
+  const handleSpin = async () => {
     if (spinning) return;
     if (!activeRecipientId) {
       toast.error(recipientMode === 'team' ? 'Chọn team nhận quà trước.' : 'Chọn người nhận quà trước.');
       return;
     }
-    if (availableGifts.length < 1) {
-      toast.error('Không còn quà nào để quay.');
-      return;
+    try {
+      setPollPaused(true);
+      setOwnRound(
+        await actions.drawRound({ kind: 'gift', recipientId: activeRecipientId, recipientType: recipientMode }),
+      );
+    } catch (err) {
+      setPollPaused(false);
+      toast.error(apiErrorMessage(err, 'Không quay được, thử lại.'));
     }
-    setSpinning(true);
-    const winnerIndex = Math.floor(Math.random() * availableGifts.length);
-    const picked = availableGifts[winnerIndex];
-    setRotation(nextRotation(rotation, winnerIndex, availableGifts.length));
-    timerRef.current = setTimeout(() => {
-      setSpinning(false);
-      setWonGift(picked);
-    }, SPIN_DURATION_MS);
   };
 
-  const confirmGift = () => {
-    if (!wonGift) return;
+  const wonGift = result ? result.pool[result.winnerIndexes[0] ?? 0] : null;
 
-    const recipientName =
-      recipientMode === 'team'
-        ? state.teams.find((t) => t.id === activeRecipientId)?.name
-        : state.members.find((m) => m.id === activeRecipientId)?.name;
-    if (!recipientName) return;
-
-    patchState((prev) =>
-      recipientMode === 'team'
-        ? awardGiftToTeam(prev, activeRecipientId, wonGift)
-        : awardGiftToMember(prev, activeRecipientId, wonGift),
-    );
-    toast.success(`Đã trao "${wonGift.name}" cho ${recipientName}.`);
-    setWonGift(null);
-  };
-
-  const resetGifts = () => {
-    patchState(resetGiftStock);
-    toast.success('Đã khôi phục số lượng quà và trạng thái nhận quà.');
-  };
-
-  const cancelResult = () => {
-    setWonGift(null);
-    toast('Đã hủy kết quả, có thể quay lại.');
+  const closeResult = () => {
+    // Bấm nút là xong khoảnh khắc công bố — cắt tiếng vỗ tay ngay thay vì để chạy hết file.
+    // Không bấm gì thì cứ để nó phát tự nhiên tới hết.
+    stopApplause();
+    setResult(null);
+    setOwnRound(null);
   };
 
   let recipientSubtitle = '—';
@@ -120,12 +104,53 @@ export function GiftSpinTab({ store }: { store: LuckySpinStore }) {
     }
   }
 
+  const confirmGift = async () => {
+    if (!result || !wonGift) return;
+    const roundId = result.id;
+    const giftName = wonGift.name;
+    const nguoiNhan = recipientSubtitle;
+    closeResult();
+    try {
+      const res: any = await actions.confirmRound(roundId, false);
+      const id = res.data?.entries?.[0]?.id;
+      showUndoToast(`Đã trao "${giftName}" cho ${nguoiNhan}.`, () =>
+        id ? actions.deleteHistoryEntry('gifts', id) : Promise.resolve(),
+      );
+    } catch (err) {
+      // Hay gặp nhất: người khác vừa nhận mất món quà cuối cùng — server trả lời rõ ràng.
+      toast.error(apiErrorMessage(err, 'Không trao được quà, thử lại.'));
+    }
+  };
+
+  const cancelResult = async () => {
+    if (!result) return;
+    const roundId = result.id;
+    closeResult();
+    try {
+      await actions.cancelRound(roundId);
+      toast('Đã hủy kết quả, có thể quay lại.');
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Không hủy được lượt quay.'));
+    }
+  };
+
+  const resetGifts = async () => {
+    setAskReset(false);
+    try {
+      await actions.resetGifts();
+      toast.success('Đã khôi phục số lượng quà và trạng thái nhận quà.');
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Không khôi phục được, thử lại.'));
+    }
+  };
+
+  const spinDisabled = spinning || availableGifts.length < 1 || !activeRecipientId;
+
   return (
     <div className="grid gap-7 lg:grid-cols-[260px_1fr]">
-      <div className={railClass}>
+      <PanelCard>
         <SegToggle
-          className="mb-4"
-          accent="teal"
+          className="mb-6"
           value={recipientMode}
           onChange={changeMode}
           options={[
@@ -135,7 +160,7 @@ export function GiftSpinTab({ store }: { store: LuckySpinStore }) {
         />
 
         {recipientMode === 'member' && (
-          <div className="mb-4">
+          <div className="mb-5">
             <label className={fieldLabelClass}>Lọc theo team (tuỳ chọn)</label>
             <select className={selectClass} value={activeScope} onChange={(e) => changeScope(e.target.value)}>
               <option value={ALL_TEAMS_SCOPE}>Tất cả team</option>
@@ -148,7 +173,7 @@ export function GiftSpinTab({ store }: { store: LuckySpinStore }) {
           </div>
         )}
 
-        <div className="mb-5">
+        <div className="mb-6">
           <label className={fieldLabelClass}>{recipientMode === 'team' ? 'Team nhận quà' : 'Người nhận quà'}</label>
           <select
             className={selectClass}
@@ -170,36 +195,76 @@ export function GiftSpinTab({ store }: { store: LuckySpinStore }) {
           </select>
         </div>
 
-        <div className="mb-5 flex items-baseline gap-2">
-          <span className="text-3xl font-bold text-[#2A8768]">{availableGifts.length}</span>
-          <span className="text-sm text-gray-500 dark:text-gray-400">loại quà còn hàng</span>
+        <div className="mb-6 flex items-baseline gap-2.5">
+          <span className={counterNumberClass}>{availableGifts.length}</span>
+          <span className={counterLabelClass}>loại quà còn hàng</span>
         </div>
 
         <ActionButton
-          accent="teal"
-          className="w-full"
-          onClick={handleSpin}
-          disabled={spinning || availableGifts.length < 1 || !activeRecipientId}
+          variant="secondary"
+          className="w-full !text-[14px] !font-medium"
+          onClick={() => setPresenting(true)}
         >
-          {spinning ? 'Đang quay...' : 'Quay quà'}
+          <Maximize2 className="h-4 w-4" strokeWidth={1.8} />
+          Trình chiếu
         </ActionButton>
-        <ActionButton accent="ghost" className="mt-2.5 w-full" onClick={resetGifts}>
-          Khôi phục số lượng quà &amp; trạng thái nhận quà
+        <ActionButton
+          variant="secondary"
+          className="mt-3 w-full !text-[14px] !font-medium"
+          onClick={() => setAskReset(true)}
+        >
+          Khôi phục số lượng quà
         </ActionButton>
-      </div>
+      </PanelCard>
 
       <SpinWheel
         segments={segments}
         rotation={rotation}
         colorOffset={1}
-        accent="teal"
+        spinning={spinning}
+        transitionMs={transitionMs}
         hubLabel="QUÀ"
+        onSpin={handleSpin}
+        spinDisabled={availableGifts.length < 1 || !activeRecipientId}
+        emptyIcon={GiftIcon}
         emptyText="Chưa có quà nào còn hàng. Thêm quà ở tab Quà tặng."
       />
 
+      <PresentationStage
+        open={presenting}
+        onClose={() => setPresenting(false)}
+        poolCount={availableGifts.length}
+        poolLabel="loại quà còn hàng"
+      >
+        <SpinWheel
+          segments={segments}
+          rotation={rotation}
+          colorOffset={1}
+          spinning={spinning}
+          transitionMs={transitionMs}
+          sizeClass="h-[min(70vh,70vw)] w-[min(70vh,70vw)]"
+          hubLabel="QUÀ"
+          onSpin={handleSpin}
+          spinDisabled={availableGifts.length < 1 || !activeRecipientId}
+          emptyIcon={GiftIcon}
+          emptyText="Chưa có quà nào còn hàng."
+        />
+        <p className="text-[17px] text-white/50">
+          Người nhận: <b className="font-semibold text-white">{recipientSubtitle}</b>
+        </p>
+      </PresentationStage>
+
+      <ConfirmDialog
+        open={askReset}
+        title="Khôi phục toàn bộ số lượng quà?"
+        description="Tồn kho mọi món quà về lại số ban đầu và xóa dấu đã nhận quà của tất cả mọi người. Lịch sử trao quà vẫn giữ nguyên."
+        confirmLabel="Khôi phục"
+        onConfirm={resetGifts}
+        onCancel={() => setAskReset(false)}
+      />
+
       <ResultDialog
-        open={!!wonGift}
-        accent="teal"
+        open={!!result}
         eyebrow="Kết quả quay quà"
         name={wonGift?.name ?? ''}
         subtitle={recipientSubtitle}

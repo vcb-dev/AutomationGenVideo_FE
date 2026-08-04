@@ -1,4 +1,4 @@
-import { nextRotation, SPIN_DURATION_MS } from './spin-rotation';
+import { nextRotation, REVEAL_DELAY_MS, SPIN_DURATION_MS } from './spin-rotation';
 
 /**
  * Người trúng được bốc TRƯỚC, góc xoay tính ngược lại. Nếu công thức sai thì mũi tên dừng ở ô
@@ -64,7 +64,8 @@ describe('nextRotation — ô trúng phải dừng đúng dưới mũi tên', ()
     expect(segmentUnderPointer(nextRotation(0, 0, 1), 1)).toBe(0);
   });
 
-  it('thời lượng khớp với animation của SpinWheel (4500ms) và có dư', () => {
-    expect(SPIN_DURATION_MS).toBeGreaterThanOrEqual(4500);
+  it('quay đúng 5 giây, và còn một nhịp lặng trước khi công bố', () => {
+    expect(SPIN_DURATION_MS).toBe(5000);
+    expect(REVEAL_DELAY_MS).toBeGreaterThan(0);
   });
 });

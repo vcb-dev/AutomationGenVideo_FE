@@ -1,18 +1,16 @@
-import { teamChipColor } from '@/lib/lucky-spin/wheel-colors';
-
 interface Props {
   name: string;
-  /** Vị trí team trong danh sách; -1 nghĩa là team đã bị xóa, màu sẽ băm từ tên. */
-  teamIndex: number;
 }
 
-export function TeamTag({ name, teamIndex }: Props) {
-  const color = teamChipColor(name, teamIndex);
+/**
+ * Chip trung tính cho tên team.
+ *
+ * Trước đây mỗi team một màu pastel riêng, nhưng bảng đầy chip nhiều màu làm giao diện vụn và
+ * kéo sự chú ý khỏi nút hành động chính. Tên team đã tự phân biệt được, nên chip chỉ cần nền xám.
+ */
+export function TeamTag({ name }: Props) {
   return (
-    <span
-      className="inline-block rounded-full px-2.5 py-0.5 text-xs font-medium"
-      style={{ background: color.bg, color: color.text }}
-    >
+    <span className="inline-flex items-center rounded-full bg-[#F3F4F6] px-3 py-1 text-[13px] font-medium text-[#6B7280] dark:bg-white/[0.06] dark:text-gray-300">
       {name}
     </span>
   );

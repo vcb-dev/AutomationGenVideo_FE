@@ -1,28 +1,31 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { Gift as GiftIcon, PackageOpen } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { LuckySpinStore } from '@/hooks/useLuckySpin';
-import { importGiftsFromRows, isImportError } from '@/lib/lucky-spin/import-rows';
+import { apiErrorMessage } from '@/lib/lucky-spin/api';
+import { isImportError, parseGiftRows } from '@/lib/lucky-spin/import-rows';
 import { SheetRow } from '@/lib/lucky-spin/sheet-io';
-import { uid } from '@/lib/lucky-spin/storage';
 import { Gift } from '@/types/lucky-spin';
 import { ActionButton } from '@/components/lucky-spin/ActionButton';
 import { BulkImportPanel } from '@/components/lucky-spin/BulkImportPanel';
 import { EmptyRow } from '@/components/lucky-spin/EmptyRow';
 import { PanelCard } from '@/components/lucky-spin/PanelCard';
 import { RowActionButton } from '@/components/lucky-spin/RowActionButton';
-import { fieldLabelClass, inputClass, monoCellClass, tdClass, thClass } from '@/components/lucky-spin/styles';
+import { useConfirmDialog } from '@/components/lucky-spin/useConfirmDialog';
+import { fieldLabelClass, inputClass, monoCellClass, tdClass, thClass, trClass } from '@/components/lucky-spin/styles';
 
 export function GiftsTab({ store }: { store: LuckySpinStore }) {
-  const { state, patchState } = store;
+  const { state, actions } = store;
   const [newGiftName, setNewGiftName] = useState('');
   const [newGiftQty, setNewGiftQty] = useState('1');
   const [filterName, setFilterName] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState({ name: '', remaining: '0', total: '0' });
+  const { confirm, dialog } = useConfirmDialog();
 
-  const addGift = () => {
+  const addGift = async () => {
     const name = newGiftName.trim();
     const qty = parseInt(newGiftQty, 10);
     if (!name) {
@@ -33,24 +36,35 @@ export function GiftsTab({ store }: { store: LuckySpinStore }) {
       toast.error('Số lượng phải lớn hơn 0.');
       return;
     }
-    patchState((prev) => ({ gifts: [...prev.gifts, { id: uid(), name, total: qty, remaining: qty }] }));
-    setNewGiftName('');
-    setNewGiftQty('1');
-    toast.success('Đã thêm quà.');
+    try {
+      await actions.addGift(name, qty);
+      setNewGiftName('');
+      setNewGiftQty('1');
+      toast.success('Đã thêm quà.');
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Không thêm được quà.'));
+    }
   };
 
-  const importRows = (rows: SheetRow[]) => {
-    const result = importGiftsFromRows(rows);
-    if (isImportError(result)) {
-      toast.error(result.error);
+  const importRows = async (rows: SheetRow[]) => {
+    const parsed = parseGiftRows(rows);
+    if (isImportError(parsed)) {
+      toast.error(parsed.error);
+      return;
+    }
+    if (parsed.rows.length === 0) {
+      toast.error('Không có dòng nào hợp lệ để nhập.');
       return;
     }
 
-    patchState((prev) => ({ gifts: [...prev.gifts, ...result.gifts] }));
-
-    const parts = [`Đã nhập ${result.gifts.length} quà`];
-    if (result.skipped > 0) parts.push(`bỏ qua ${result.skipped} dòng thiếu dữ liệu`);
-    toast.success(parts.join(', ') + '.');
+    try {
+      const res = await actions.bulkAddGifts(parsed.rows);
+      const parts = [`Đã nhập ${(res as any).data.createdGifts} quà`];
+      if (parsed.skipped > 0) parts.push(`bỏ qua ${parsed.skipped} dòng thiếu dữ liệu`);
+      toast.success(parts.join(', ') + '.');
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Không nhập được danh sách quà.'));
+    }
   };
 
   const startEdit = (gift: Gift) => {
@@ -58,7 +72,7 @@ export function GiftsTab({ store }: { store: LuckySpinStore }) {
     setDraft({ name: gift.name, remaining: String(gift.remaining), total: String(gift.total) });
   };
 
-  const saveEdit = (id: string) => {
+  const saveEdit = async (id: string) => {
     const name = draft.name.trim();
     const total = parseInt(draft.total, 10);
     let remaining = parseInt(draft.remaining, 10);
@@ -76,9 +90,28 @@ export function GiftsTab({ store }: { store: LuckySpinStore }) {
     }
     if (remaining > total) remaining = total;
 
-    patchState((prev) => ({ gifts: prev.gifts.map((g) => (g.id === id ? { ...g, name, total, remaining } : g)) }));
-    setEditingId(null);
-    toast.success('Đã cập nhật quà tặng.');
+    try {
+      await actions.editGift(id, { name, total, remaining });
+      setEditingId(null);
+      toast.success('Đã cập nhật quà tặng.');
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Không cập nhật được quà.'));
+    }
+  };
+
+  const removeGift = async (gift: Gift) => {
+    const ok = await confirm({
+      title: `Xóa quà "${gift.name}"?`,
+      description: 'Món quà bị xóa khỏi vòng quay. Lịch sử các phần đã trao vẫn được giữ nguyên.',
+      confirmLabel: 'Xóa quà',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await actions.removeGift(gift.id);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Không xóa được quà.'));
+    }
   };
 
   const filtered = useMemo(() => {
@@ -88,10 +121,11 @@ export function GiftsTab({ store }: { store: LuckySpinStore }) {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_1.4fr]">
-      <div className="space-y-5">
+      {dialog}
+      <div className="space-y-6">
         <PanelCard title="Thêm quà tặng">
           <input
-            className={`${inputClass} mb-3`}
+            className={`${inputClass} mb-4`}
             placeholder="Tên quà, ví dụ: Voucher 500k"
             value={newGiftName}
             onChange={(e) => setNewGiftName(e.target.value)}
@@ -101,11 +135,11 @@ export function GiftsTab({ store }: { store: LuckySpinStore }) {
           <input
             type="number"
             min={1}
-            className={`${inputClass} mb-3`}
+            className={`${inputClass} mb-4`}
             value={newGiftQty}
             onChange={(e) => setNewGiftQty(e.target.value)}
           />
-          <ActionButton accent="teal" className="w-full" onClick={addGift}>
+          <ActionButton className="w-full" onClick={addGift}>
             Thêm quà
           </ActionButton>
         </PanelCard>
@@ -123,14 +157,14 @@ export function GiftsTab({ store }: { store: LuckySpinStore }) {
 
       <PanelCard title="Danh sách quà tặng">
         <input
-          className={`${inputClass} mb-3.5`}
+          className={`${inputClass} mb-5`}
           placeholder="Tìm theo tên quà..."
           value={filterName}
           onChange={(e) => setFilterName(e.target.value)}
         />
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full border-separate border-spacing-0">
             <thead>
               <tr>
                 <th className={thClass}>Tên quà</th>
@@ -141,9 +175,9 @@ export function GiftsTab({ store }: { store: LuckySpinStore }) {
             </thead>
             <tbody>
               {state.gifts.length === 0 ? (
-                <EmptyRow colSpan={4}>Chưa có quà nào. Thêm quà ở bên trái.</EmptyRow>
+                <EmptyRow colSpan={4} icon={GiftIcon}>Chưa có quà nào. Thêm ở khung bên trái hoặc nhập từ file Excel.</EmptyRow>
               ) : filtered.length === 0 ? (
-                <EmptyRow colSpan={4}>Không tìm thấy quà phù hợp.</EmptyRow>
+                <EmptyRow colSpan={4} icon={PackageOpen}>Không có món quà nào khớp từ khoá tìm kiếm.</EmptyRow>
               ) : (
                 filtered.map((g) =>
                   editingId === g.id ? (
@@ -179,10 +213,18 @@ export function GiftsTab({ store }: { store: LuckySpinStore }) {
                       </td>
                     </tr>
                   ) : (
-                    <tr key={g.id}>
+                    <tr key={g.id} className={trClass}>
                       <td className={tdClass}>{g.name}</td>
-                      <td className={`${tdClass} ${g.remaining > 0 ? 'text-emerald-600' : 'text-gray-400'}`}>
-                        {g.remaining}
+                      <td className={tdClass}>
+                        <span
+                          className={
+                            g.remaining > 0
+                              ? 'inline-flex items-center rounded-full bg-[#22C55E]/10 px-2.5 py-1 text-[13px] font-semibold tabular-nums text-[#16A34A]'
+                              : 'inline-flex items-center rounded-full bg-[#F3F4F6] px-2.5 py-1 text-[13px] font-medium text-[#6B7280] dark:bg-white/[0.06]'
+                          }
+                        >
+                          {g.remaining > 0 ? g.remaining : 'Hết'}
+                        </span>
                       </td>
                       <td className={monoCellClass}>{g.total}</td>
                       <td className={`${tdClass} whitespace-nowrap`}>
@@ -190,7 +232,7 @@ export function GiftsTab({ store }: { store: LuckySpinStore }) {
                         <RowActionButton
                           action="delete"
                           title="Xóa quà"
-                          onClick={() => patchState((prev) => ({ gifts: prev.gifts.filter((x) => x.id !== g.id) }))}
+                          onClick={() => removeGift(g)}
                         />
                       </td>
                     </tr>
