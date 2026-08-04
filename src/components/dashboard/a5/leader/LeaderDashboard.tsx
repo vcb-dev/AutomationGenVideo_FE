@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Camera } from "lucide-react";
+import { useRef, useState } from "react";
 import { LeaderHeader } from "./LeaderHeader";
 import { LeaderMemberCard } from "./LeaderMemberCard";
 import { currentMonthKey, LeaderMonthFilter, monthLabelOf } from "./LeaderMonthFilter";
@@ -12,10 +13,35 @@ import { useLeaderTaskDashboard } from "./leader-task-dashboard-api";
 
 export function LeaderDashboard() {
   const [month, setMonth] = useState(currentMonthKey);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const reportRef = useRef<HTMLDivElement>(null);
   const { data, isLoading, isFetching } = useLeaderTaskDashboard({ month });
   const members = data?.members ?? [];
   const isCurrentMonth = month === currentMonthKey();
   const monthLabel = monthLabelOf(month);
+
+  const handleCapture = async () => {
+    if (!reportRef.current || isCapturing) return;
+    setIsCapturing(true);
+    try {
+      const { toPng } = await import("html-to-image");
+      const node = reportRef.current;
+      const dataUrl = await toPng(node, {
+        backgroundColor: "#f9fafb",
+        pixelRatio: 3,
+        width: node.scrollWidth,
+        height: node.scrollHeight,
+        style: { width: `${node.scrollWidth}px`, height: `${node.scrollHeight}px` },
+      });
+      const teamSlug = (data?.team?.name ?? "team").replace(/[^a-zA-Z0-9]+/g, "-");
+      const link = document.createElement("a");
+      link.download = `bao-cao-${teamSlug}-${month}.png`;
+      link.href = dataUrl;
+      link.click();
+    } finally {
+      setIsCapturing(false);
+    }
+  };
 
   const videoTotals = members.reduce(
     (acc, m) => ({ current: acc.current + m.kpi_completed, target: acc.target + m.kpi_target }),
@@ -42,41 +68,55 @@ export function LeaderDashboard() {
 
   return (
     <div className="w-full max-w-none p-4 text-sm text-gray-900 antialiased">
-      <LeaderHeader teamName={data.team.name} monthLabel={monthLabel} />
+      <div className="mb-4 flex justify-end">
+        <button
+          type="button"
+          onClick={handleCapture}
+          disabled={isCapturing}
+          className="flex items-center gap-2 rounded-lg border border-amber-200 bg-white px-3 py-1.5 text-sm font-semibold text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Camera className="h-4 w-4" />
+          {isCapturing ? "Đang chụp..." : "Chụp ảnh báo cáo"}
+        </button>
+      </div>
 
-      <LeaderMonthFilter month={month} onChange={setMonth} />
+      <div ref={reportRef} className="bg-gray-50">
+        <LeaderHeader teamName={data.team.name} monthLabel={monthLabel} />
 
-      <div className={isFetching ? "pointer-events-none opacity-50 transition-opacity" : "transition-opacity"}>
-        <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-          <LeaderVideoMonthCard current={videoTotals.current} target={videoTotals.target} />
-          <LeaderTrafficTotalCard total={trafficTotal} monthLabel={monthLabel} />
-          <LeaderRevenueTotalCard total={revenueTotal} monthLabel={monthLabel} />
-        </div>
+        <LeaderMonthFilter month={month} onChange={setMonth} />
 
-        {members.length === 0 ? (
-          <p className="py-8 text-center text-sm text-gray-500">Team chưa có thành viên.</p>
-        ) : (
-          <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-            {members.map((m, i) => (
-              <LeaderMemberCard
-                key={m.user_id}
-                index={i}
-                showDailyKpi={isCurrentMonth}
-                entity={{
-                  id: m.user_id,
-                  name: m.full_name || m.email,
-                  kpi_completed: m.kpi_completed,
-                  kpi_target: m.kpi_target,
-                  kpi_day_completed: m.kpi_day_completed,
-                  kpi_day_target: m.kpi_day_target,
-                  traffic_month: m.traffic_month,
-                }}
-              />
-            ))}
+        <div className={isFetching ? "pointer-events-none opacity-50 transition-opacity" : "transition-opacity"}>
+          <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+            <LeaderVideoMonthCard current={videoTotals.current} target={videoTotals.target} />
+            <LeaderTrafficTotalCard total={trafficTotal} monthLabel={monthLabel} />
+            <LeaderRevenueTotalCard total={revenueTotal} monthLabel={monthLabel} />
           </div>
-        )}
 
-        <LeaderVideoByLineChart data={data.video_by_line} />
+          {members.length === 0 ? (
+            <p className="py-8 text-center text-sm text-gray-500">Team chưa có thành viên.</p>
+          ) : (
+            <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+              {members.map((m, i) => (
+                <LeaderMemberCard
+                  key={m.user_id}
+                  index={i}
+                  showDailyKpi={isCurrentMonth}
+                  entity={{
+                    id: m.user_id,
+                    name: m.full_name || m.email,
+                    kpi_completed: m.kpi_completed,
+                    kpi_target: m.kpi_target,
+                    kpi_day_completed: m.kpi_day_completed,
+                    kpi_day_target: m.kpi_day_target,
+                    traffic_month: m.traffic_month,
+                  }}
+                />
+              ))}
+            </div>
+          )}
+
+          <LeaderVideoByLineChart data={data.video_by_line} />
+        </div>
       </div>
     </div>
   );
