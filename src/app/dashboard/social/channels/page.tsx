@@ -135,7 +135,7 @@ export default function ChannelsPage() {
         if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
         refreshAfterOAuth(platform);
       } else if (payload.type.endsWith('-oauth-error')) {
-        toast.error(tRef.current.connectFailed(payload.error || 'Lỗi không xác định'));
+        toast.error(tRef.current.connectFailed(payload.error || tRef.current.unknownError));
         setConnecting(null);
       }
     };
@@ -238,7 +238,7 @@ export default function ChannelsPage() {
       toast.success(t.disconnected);
       await invalidateAccounts();
     } catch (err: any) {
-      const msg = err?.response?.data?.message || err?.message || 'Lỗi không xác định';
+      const msg = err?.response?.data?.message || err?.message || t.unknownError;
       toast.error(t.disconnectFailed(msg));
     }
     finally { setDisconnecting(null); }
