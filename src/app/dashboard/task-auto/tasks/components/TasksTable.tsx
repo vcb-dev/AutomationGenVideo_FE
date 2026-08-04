@@ -12,10 +12,32 @@ interface Props {
   tasks: Task[]
   total: number
   page: number
+  limit: number
   totalPages: number
   isLoading: boolean
   onViewTask: (id: string) => void
   onPageChange: (page: number) => void
+}
+
+// Danh sách trang hiển thị trong thanh phân trang, rút gọn bằng dấu "..." khi
+// quá nhiều trang: luôn giữ trang đầu/cuối + 1 trang lân cận quanh trang hiện tại.
+function getPageItems(current: number, total: number): (number | 'ellipsis')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+
+  const pages = new Set<number>([1, total, current - 1, current, current + 1])
+  if (current <= 3) [2, 3, 4].forEach((p) => pages.add(p))
+  if (current >= total - 2) [total - 3, total - 2, total - 1].forEach((p) => pages.add(p))
+
+  const sorted = Array.from(pages)
+    .filter((p) => p >= 1 && p <= total)
+    .sort((a, b) => a - b)
+
+  const items: (number | 'ellipsis')[] = []
+  sorted.forEach((p, i) => {
+    if (i > 0 && p - sorted[i - 1] > 1) items.push('ellipsis')
+    items.push(p)
+  })
+  return items
 }
 
 // Lấy tiêu đề content: personal → team (own→FK) → global (own→team FK→editor FK)
@@ -80,6 +102,7 @@ export function TasksTable({
   tasks,
   total,
   page,
+  limit,
   totalPages,
   isLoading,
   onViewTask,
@@ -121,7 +144,7 @@ export function TasksTable({
                     onClick={() => onViewTask(task.id)}
                   >
                     <td className="px-5 py-4 text-slate-400 font-mono text-sm whitespace-nowrap">
-                      {(page - 1) * 20 + idx + 1}
+                      {(page - 1) * limit + idx + 1}
                     </td>
                     <td className="px-5 py-4 max-w-[300px]">
                       <p className="font-semibold text-slate-800 truncate text-base group-hover:text-indigo-700 transition-colors">
@@ -189,52 +212,56 @@ export function TasksTable({
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between flex-wrap gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50/50">
+        <div className="flex items-center justify-between flex-wrap gap-3 px-5 py-3.5 border-t border-gray-100 bg-gray-50/50">
           <span className="text-sm text-slate-500">
-            Trang <span className="font-semibold text-slate-700">{page}</span> / {totalPages}
+            Trang <span className="font-semibold text-slate-700">{page}</span>/{totalPages}
             {' '}·{' '}
             <span className="font-semibold text-slate-700">{total}</span> task
           </span>
-          <div className="flex items-center gap-1">
+
+          <div className="flex items-center gap-1.5">
             <button
               onClick={() => onPageChange(page - 1)}
               disabled={page <= 1}
-              className="p-2 rounded-lg hover:bg-gray-200 text-slate-500 disabled:opacity-30 transition-colors"
+              aria-label="Trang trước"
+              className="flex items-center justify-center w-9 h-9 rounded-lg border border-gray-200 bg-white text-slate-500 hover:bg-gray-100 hover:text-slate-700 disabled:opacity-30 disabled:hover:bg-white disabled:cursor-not-allowed transition-colors"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <span className="sm:hidden px-2 text-sm font-semibold text-slate-600 whitespace-nowrap">
+
+            <span className="sm:hidden px-2.5 text-sm font-semibold text-slate-600 whitespace-nowrap">
               {page} / {totalPages}
             </span>
+
             <div className="hidden sm:flex items-center gap-1">
-              {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-                const pg = totalPages <= 7
-                  ? i + 1
-                  : page <= 4
-                    ? i + 1
-                    : page >= totalPages - 3
-                      ? totalPages - 6 + i
-                      : page - 3 + i
-                return (
+              {getPageItems(page, totalPages).map((item, i) =>
+                item === 'ellipsis' ? (
+                  <span key={`e-${i}`} className="w-9 h-9 flex items-center justify-center text-slate-300 select-none">
+                    …
+                  </span>
+                ) : (
                   <button
-                    key={pg}
-                    onClick={() => onPageChange(pg)}
+                    key={item}
+                    onClick={() => onPageChange(item)}
+                    aria-current={item === page ? 'page' : undefined}
                     className={cn(
                       'w-9 h-9 rounded-lg text-sm font-semibold transition-colors',
-                      pg === page
-                        ? 'bg-indigo-600 text-white'
-                        : 'hover:bg-gray-200 text-slate-600'
+                      item === page
+                        ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+                        : 'text-slate-600 border border-transparent hover:border-gray-200 hover:bg-white'
                     )}
                   >
-                    {pg}
+                    {item}
                   </button>
                 )
-              })}
+              )}
             </div>
+
             <button
               onClick={() => onPageChange(page + 1)}
               disabled={page >= totalPages}
-              className="p-2 rounded-lg hover:bg-gray-200 text-slate-500 disabled:opacity-30 transition-colors"
+              aria-label="Trang sau"
+              className="flex items-center justify-center w-9 h-9 rounded-lg border border-gray-200 bg-white text-slate-500 hover:bg-gray-100 hover:text-slate-700 disabled:opacity-30 disabled:hover:bg-white disabled:cursor-not-allowed transition-colors"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
