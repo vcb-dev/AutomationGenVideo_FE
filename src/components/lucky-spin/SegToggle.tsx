@@ -1,44 +1,41 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { SpinAccent } from '@/types/lucky-spin';
 
 interface Props<T extends string> {
   value: T;
   onChange: (value: T) => void;
   options: { value: T; label: string }[];
-  accent?: SpinAccent;
   className?: string;
 }
 
-const ACTIVE_CLASS: Record<SpinAccent, string> = {
-  gold: 'bg-[#F0B93C] text-[#2A2000]',
-  teal: 'bg-[#3FB893] text-[#0E2B21]',
-};
-
-export function SegToggle<T extends string>({ value, onChange, options, accent = 'gold', className }: Props<T>) {
+/** Segmented control kiểu Linear: rãnh xám bo tròn, viên đang chọn nổi lên bằng màu nhấn. */
+export function SegToggle<T extends string>({ value, onChange, options, className }: Props<T>) {
   return (
     <div
       className={cn(
-        'inline-flex gap-1 rounded-full border border-gray-200 bg-gray-100 p-1 dark:border-gray-700 dark:bg-gray-800',
+        'inline-flex gap-1 rounded-full bg-[#F3F4F6] p-1 dark:bg-white/[0.05]',
         className,
       )}
     >
-      {options.map((opt) => (
-        <button
-          key={opt.value}
-          type="button"
-          onClick={() => onChange(opt.value)}
-          className={cn(
-            'rounded-full px-3.5 py-1.5 text-sm transition-colors',
-            value === opt.value
-              ? ACTIVE_CLASS[accent]
-              : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100',
-          )}
-        >
-          {opt.label}
-        </button>
-      ))}
+      {options.map((opt) => {
+        const active = value === opt.value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onChange(opt.value)}
+            className={cn(
+              'rounded-full px-4 py-2 text-[14px] transition-all duration-[250ms] ease-out',
+              active
+                ? 'bg-[#F4B63D] font-semibold text-[#111827] shadow-[0_2px_8px_rgba(244,182,61,0.25)]'
+                : 'font-medium text-[#6B7280] hover:bg-[#ECEFF3] hover:text-[#111827] dark:text-gray-400 dark:hover:bg-white/[0.06] dark:hover:text-gray-100',
+            )}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

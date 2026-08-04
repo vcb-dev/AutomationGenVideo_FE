@@ -225,7 +225,7 @@ export default function TemplateManager({ currentMessage, currentHashtags, onApp
                               autoFocus
                             />
                             <p className="text-[10px] text-slate-400">
-                              {t.templateManager.useVariableHintPrefix} <code className="bg-slate-100 px-1 rounded">{'{tên_biến}'}</code> {t.templateManager.useVariableHintSuffix}
+                              {t.templateManager.useVariableHintPrefix} <code className="bg-slate-100 px-1 rounded">{t.templateManager.variablePlaceholder}</code> {t.templateManager.useVariableHintSuffix}
                             </p>
                             {extractVariables(currentMessage).length > 0 && (
                               <p className="text-[10px] text-indigo-600 font-semibold">

@@ -34,6 +34,22 @@ const itemVariants = {
 const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
 const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
 
+/**
+ * Safari/macOS vẽ widget <select> gốc (nền xám gradient, mũi tên đôi) đè lên
+ * bg-white + rounded-xl của Tailwind. appearance:none tắt widget đó, rồi tự vẽ
+ * chevron bằng background-image để ô khớp với phần còn lại của form.
+ * Nhớ kèm padding-right (pr-8) cho chữ không đè lên mũi tên.
+ */
+const SELECT_RESET: React.CSSProperties = {
+  appearance: 'none',
+  WebkitAppearance: 'none',
+  backgroundImage:
+    `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M6 8l4 4 4-4' fill='none' stroke='%2394a3b8' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
+  backgroundRepeat: 'no-repeat',
+  backgroundPosition: 'right 0.4rem center',
+  backgroundSize: '1.1rem 1.1rem',
+};
+
 /** Picker ngày + giờ theo định dạng 24h (HH:mm), không phụ thuộc locale browser */
 function DateTimePicker24h({
   value,
@@ -53,7 +69,7 @@ function DateTimePicker24h({
     if (d) onChange(`${d}T${h}:${m}`);
   };
 
-  const selectCls = 'border border-blue-200 rounded-xl px-2 py-2 text-sm focus:ring-2 ring-blue-500/20 outline-none font-bold text-blue-700 bg-white cursor-pointer';
+  const selectCls = 'border border-blue-200 rounded-xl pl-2.5 pr-8 py-2 text-sm focus:ring-2 ring-blue-500/20 outline-none font-bold text-blue-700 bg-white cursor-pointer';
 
   return (
     <div className={`flex items-center gap-1.5 ${className ?? ''}`}>
@@ -63,10 +79,10 @@ function DateTimePicker24h({
         onChange={e => set(e.target.value, hour, minute)}
         className="border border-blue-200 rounded-xl px-3 py-2 text-sm focus:ring-2 ring-blue-500/20 outline-none font-bold text-blue-700 bg-white"
       />
-      <select value={hour}   onChange={e => set(date, e.target.value, minute)} className={selectCls}>
+      <select value={hour}   onChange={e => set(date, e.target.value, minute)} className={selectCls} style={SELECT_RESET}>
         {HOURS.map(h   => <option key={h} value={h}>{t.compose.hourSuffix(h)}</option>)}
       </select>
-      <select value={minute} onChange={e => set(date, hour, e.target.value)}   className={selectCls}>
+      <select value={minute} onChange={e => set(date, hour, e.target.value)}   className={selectCls} style={SELECT_RESET}>
         {MINUTES.map(m => <option key={m} value={m}>{t.compose.minuteSuffix(m)}</option>)}
       </select>
     </div>
@@ -412,14 +428,14 @@ export default function ComposePage() {
             if (job.status === 'COMPLETED') {
               const r = job.result as Record<string, unknown> | null | undefined;
               const url = typeof r?.url === 'string' ? r.url : typeof r?.videoId === 'string' ? `https://youtube.com/watch?v=${r.videoId}` : '';
-              addPublishLog(`✅ ${chName}: Đăng thành công${url ? ` → ${url}` : ''}`);
+              addPublishLog(t.compose.logPublished(chName, url));
             } else if (job.status === 'FAILED') {
-              addPublishLog(`❌ ${chName}: Thất bại — ${job.error_msg || 'không rõ lỗi'}`);
+              addPublishLog(t.compose.logFailed(chName, job.error_msg || t.compose.logUnknownError));
             }
           }
           // Phát hiện worker bắt đầu xử lý (queuePosition chuyển từ có số → null)
           if (prevStatus === 'PENDING' && job.status === 'PENDING' && !wasQueueNull && nowQueueNull) {
-            addPublishLog(`▶ ${chName}: Worker bắt đầu xử lý...`);
+            addPublishLog(t.compose.logWorkerStarted(chName));
           }
           prevJobQueueNullRef.current[job.id] = nowQueueNull;
         }
@@ -463,7 +479,7 @@ export default function ComposePage() {
 
           const successCount = jobs.filter(j => j.status === 'COMPLETED').length;
           const failCount = jobs.filter(j => j.status === 'FAILED').length;
-          addPublishLog(`🏁 Hoàn tất: ${successCount} thành công, ${failCount} thất bại`);
+          addPublishLog(t.compose.logFinished(successCount, failCount));
           setActiveJobIds(null);
           setPublishing(false);
           setPublishProgress(prev => ({ ...prev, phase: 'done' }));
@@ -476,7 +492,7 @@ export default function ComposePage() {
         }
       } catch (err: any) {
         // Lỗi mạng tạm thời — log để debug, không dừng polling
-        addPublishLog(`⚠️ Poll lỗi: ${err?.message || 'network error'}`);
+        addPublishLog(t.compose.logPollError(err?.message || 'network error'));
       }
     };
 
@@ -617,9 +633,9 @@ export default function ComposePage() {
         };
       });
 
-      addPublishLog(`📤 Đang gửi ${jobs.length} bài lên hàng chờ...`);
+      addPublishLog(t.compose.logSendingToQueue(jobs.length));
       const { jobIds } = await socialApi.queue.enqueue(jobs);
-      addPublishLog(`✅ Đã vào hàng chờ (${jobIds.length} jobs)`);
+      addPublishLog(t.compose.logQueued(jobIds.length));
       jobIds.forEach((id, i) => {
         addPublishLog(`  • Job ${i + 1}: ${channelList[i]?.name} — ID ${id.slice(0, 8)}...`);
       });
@@ -642,7 +658,7 @@ export default function ComposePage() {
       toast.success(t.compose.addedToQueue(jobIds.length));
     } catch (err: any) {
       const errMsg = err.response?.data?.message || err.message || t.compose.unknownError;
-      addPublishLog(`❌ Enqueue thất bại: ${errMsg}`);
+      addPublishLog(t.compose.logEnqueueFailed(errMsg));
       setPublishing(false);
       setPublishProgress(prev => ({ ...prev, phase: 'done' }));
       toast.error(errMsg);
@@ -1438,7 +1454,8 @@ export default function ComposePage() {
                     <select
                       value={privacy}
                       onChange={e => setPrivacy(e.target.value)}
-                      className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-700 bg-white"
+                      className="w-full border border-slate-200 rounded-xl py-2.5 pl-2.5 pr-8 text-xs font-bold text-slate-700 bg-white cursor-pointer"
+                      style={SELECT_RESET}
                     >
                       <option value="EVERYONE">{t.compose.privacyPublic}</option>
                       <option value="ALL_FRIENDS">{t.compose.privacyFriends}</option>

@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { scraperService } from '@/services/scraperService';
 import { useAuthStore } from '@/store/auth-store';
+import { FilterSelect } from './FilterFields';
 
 /**
  * Bộ lọc dùng chung cho MỌI trang kênh nội bộ: kênh, hashtag, thị trường (VN/Global) và
@@ -16,9 +17,6 @@ import { useAuthStore } from '@/store/auth-store';
 
 /** Đúng bộ tuyến mà đội nội dung đang gắn vào caption dưới dạng #A1…#A5. */
 export const TUYEN_NOI_DUNG = ['A1', 'A2', 'A3', 'A4', 'A5'] as const;
-
-const O_CHON =
-    'px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary';
 
 export interface ContentFiltersValue {
     channel: string;
@@ -62,10 +60,10 @@ export default function ContentFilters({
 
     return (
         <>
-            <select
+            <FilterSelect
                 value={value.channel}
-                onChange={(e) => onChange({ channel: e.target.value })}
-                className={`${O_CHON} max-w-[220px]`}
+                onChange={(v) => onChange({ channel: v })}
+                className="w-[190px]"
                 title="Chỉ hiện video của kênh đã chọn"
             >
                 <option value="">Tất cả kênh{kenh.length ? ` (${kenh.length})` : ''}</option>
@@ -74,12 +72,12 @@ export default function ContentFilters({
                         {c.ten} ({c.so_video})
                     </option>
                 ))}
-            </select>
+            </FilterSelect>
 
-            <select
+            <FilterSelect
                 value={value.hashtag}
-                onChange={(e) => onChange({ hashtag: e.target.value })}
-                className={`${O_CHON} max-w-[200px]`}
+                onChange={(v) => onChange({ hashtag: v })}
+                className="w-[170px]"
                 title="Chỉ hiện video có hashtag đã chọn"
             >
                 <option value="">Tất cả hashtag</option>
@@ -88,23 +86,23 @@ export default function ContentFilters({
                         #{h.the} ({h.so_video})
                     </option>
                 ))}
-            </select>
+            </FilterSelect>
 
-            <select
+            <FilterSelect
                 value={value.market}
-                onChange={(e) => onChange({ market: e.target.value })}
-                className={O_CHON}
+                onChange={(v) => onChange({ market: v })}
+                className="w-[140px]"
                 title="Kênh VN nhận theo dấu tiếng Việt trong caption"
             >
                 <option value="">VN + Global</option>
                 <option value="vn">Kênh VN</option>
                 <option value="global">Kênh Global</option>
-            </select>
+            </FilterSelect>
 
-            <select
+            <FilterSelect
                 value={value.contentLine}
-                onChange={(e) => onChange({ contentLine: e.target.value })}
-                className={O_CHON}
+                onChange={(v) => onChange({ contentLine: v })}
+                className="w-[140px]"
                 title="Bắt theo hashtag #A1…#A5 có trong caption"
             >
                 <option value="">Tất cả tuyến</option>
@@ -113,7 +111,7 @@ export default function ContentFilters({
                         Tuyến {ma}
                     </option>
                 ))}
-            </select>
+            </FilterSelect>
         </>
     );
 }

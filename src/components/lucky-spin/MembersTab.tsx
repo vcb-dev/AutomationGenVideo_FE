@@ -1,13 +1,13 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { X } from 'lucide-react';
+import { UserPlus, Users, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { LuckySpinStore } from '@/hooks/useLuckySpin';
-import { importMembersFromRows, isImportError } from '@/lib/lucky-spin/import-rows';
+import { apiErrorMessage } from '@/lib/lucky-spin/api';
+import { isImportError, parseMemberRows } from '@/lib/lucky-spin/import-rows';
 import { keepSelected } from '@/lib/lucky-spin/selection';
 import { SheetRow } from '@/lib/lucky-spin/sheet-io';
-import { uid } from '@/lib/lucky-spin/storage';
 import { Member } from '@/types/lucky-spin';
 import { ActionButton } from '@/components/lucky-spin/ActionButton';
 import { BulkImportPanel } from '@/components/lucky-spin/BulkImportPanel';
@@ -15,12 +15,13 @@ import { EmptyRow } from '@/components/lucky-spin/EmptyRow';
 import { PanelCard } from '@/components/lucky-spin/PanelCard';
 import { RowActionButton } from '@/components/lucky-spin/RowActionButton';
 import { TeamTag } from '@/components/lucky-spin/TeamTag';
-import { inputClass, monoCellClass, selectClass, tdClass, thClass } from '@/components/lucky-spin/styles';
+import { useConfirmDialog } from '@/components/lucky-spin/useConfirmDialog';
+import { inputClass, monoCellClass, selectClass, tdClass, thClass, trClass } from '@/components/lucky-spin/styles';
 
 const ALL_TEAMS = '__all__';
 
 export function MembersTab({ store }: { store: LuckySpinStore }) {
-  const { state, patchState, winCountFor, giftCountFor, teamIndexByName } = store;
+  const { state, actions, winCountFor, giftCountFor } = store;
   const [newTeamName, setNewTeamName] = useState('');
   const [newMemberName, setNewMemberName] = useState('');
   const [newMemberTeamId, setNewMemberTeamId] = useState('');
@@ -28,32 +29,46 @@ export function MembersTab({ store }: { store: LuckySpinStore }) {
   const [filterTeam, setFilterTeam] = useState(ALL_TEAMS);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState({ name: '', teamId: '' });
+  const { confirm, dialog } = useConfirmDialog();
 
   const teamIds = state.teams.map((t) => t.id);
   // Team vừa chọn có thể vừa bị xóa ngay bên trên; giữ id đã chết sẽ tạo thành viên mồ côi.
   const selectedTeamId = keepSelected(newMemberTeamId, teamIds, state.teams[0]?.id ?? '');
   const activeFilterTeam = keepSelected(filterTeam, [ALL_TEAMS, ...teamIds], ALL_TEAMS);
 
-  const addTeam = () => {
+  const addTeam = async () => {
     const name = newTeamName.trim();
     if (!name) {
       toast.error('Nhập tên team.');
       return;
     }
-    patchState((prev) => ({ teams: [...prev.teams, { id: uid(), name, status: 'active' as const }] }));
-    setNewTeamName('');
-    toast.success('Đã thêm team.');
-  };
-
-  const removeTeam = (id: string) => {
-    if (state.members.some((m) => m.teamId === id)) {
-      toast.error('Không thể xóa team còn thành viên. Hãy xóa hoặc chuyển thành viên trước.');
-      return;
+    try {
+      await actions.addTeam(name);
+      setNewTeamName('');
+      toast.success('Đã thêm team.');
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Không thêm được team.'));
     }
-    patchState((prev) => ({ teams: prev.teams.filter((t) => t.id !== id) }));
   };
 
-  const addMember = () => {
+  const removeTeam = async (id: string) => {
+    const team = state.teams.find((t) => t.id === id);
+    const ok = await confirm({
+      title: `Xóa team "${team?.name ?? ''}"?`,
+      description: 'Team sẽ bị xóa khỏi vòng quay của cả công ty. Lịch sử trúng thưởng đã ghi vẫn được giữ nguyên.',
+      confirmLabel: 'Xóa team',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await actions.removeTeam(id);
+    } catch (err) {
+      // Server là nơi chặn xóa team còn thành viên, kể cả khi màn hình đang xem dữ liệu cũ.
+      toast.error(apiErrorMessage(err, 'Không xóa được team.'));
+    }
+  };
+
+  const addMember = async () => {
     const name = newMemberName.trim();
     if (!name) {
       toast.error('Nhập tên thành viên.');
@@ -63,32 +78,37 @@ export function MembersTab({ store }: { store: LuckySpinStore }) {
       toast.error('Thêm ít nhất một team trước khi thêm thành viên.');
       return;
     }
-    patchState((prev) => ({
-      members: [
-        ...prev.members,
-        { id: uid(), name, teamId: selectedTeamId, status: 'active' as const, giftReceived: false },
-      ],
-    }));
-    setNewMemberName('');
-    toast.success('Đã thêm thành viên.');
+    try {
+      await actions.addMember(name, selectedTeamId);
+      setNewMemberName('');
+      toast.success('Đã thêm thành viên.');
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Không thêm được thành viên.'));
+    }
   };
 
-  const importRows = (rows: SheetRow[]) => {
-    const result = importMembersFromRows(rows, state.teams);
-    if (isImportError(result)) {
-      toast.error(result.error);
+  const importRows = async (rows: SheetRow[]) => {
+    const parsed = parseMemberRows(rows);
+    if (isImportError(parsed)) {
+      toast.error(parsed.error);
+      return;
+    }
+    if (parsed.rows.length === 0) {
+      toast.error('Không có dòng nào hợp lệ để nhập.');
       return;
     }
 
-    patchState((prev) => ({
-      teams: [...prev.teams, ...result.teams],
-      members: [...prev.members, ...result.members],
-    }));
+    try {
+      const res = await actions.bulkAddMembers(parsed.rows);
+      const { createdMembers, createdTeams } = (res as any).data;
 
-    const parts = [`Đã nhập ${result.members.length} thành viên`];
-    if (result.teams.length > 0) parts.push(`tạo mới ${result.teams.length} team`);
-    if (result.skipped > 0) parts.push(`bỏ qua ${result.skipped} dòng thiếu dữ liệu`);
-    toast.success(parts.join(', ') + '.');
+      const parts = [`Đã nhập ${createdMembers} thành viên`];
+      if (createdTeams > 0) parts.push(`tạo mới ${createdTeams} team`);
+      if (parsed.skipped > 0) parts.push(`bỏ qua ${parsed.skipped} dòng thiếu dữ liệu`);
+      toast.success(parts.join(', ') + '.');
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Không nhập được danh sách.'));
+    }
   };
 
   const startEdit = (member: Member) => {
@@ -100,17 +120,35 @@ export function MembersTab({ store }: { store: LuckySpinStore }) {
     setDraft({ name: member.name, teamId: member.teamId });
   };
 
-  const saveEdit = (id: string) => {
+  const saveEdit = async (id: string) => {
     const name = draft.name.trim();
     if (!name) {
       toast.error('Tên không được để trống.');
       return;
     }
-    patchState((prev) => ({
-      members: prev.members.map((m) => (m.id === id ? { ...m, name, teamId: draft.teamId } : m)),
-    }));
-    setEditingId(null);
-    toast.success('Đã cập nhật thành viên.');
+    try {
+      await actions.editMember(id, { name, teamId: draft.teamId });
+      setEditingId(null);
+      toast.success('Đã cập nhật thành viên.');
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Không cập nhật được thành viên.'));
+    }
+  };
+
+  const removeMember = async (member: Member) => {
+    const ok = await confirm({
+      title: `Xóa "${member.name}" khỏi danh sách?`,
+      description:
+        'Người này biến mất khỏi vòng quay của cả công ty. Các lượt đã trúng vẫn còn trong lịch sử với tên đã ghi.',
+      confirmLabel: 'Xóa thành viên',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await actions.removeMember(member.id);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Không xóa được thành viên.'));
+    }
   };
 
   const filtered = useMemo(() => {
@@ -124,10 +162,11 @@ export function MembersTab({ store }: { store: LuckySpinStore }) {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_1.4fr]">
-      <div className="space-y-5">
+      {dialog}
+      <div className="space-y-6">
         <PanelCard title="Thêm team">
           <input
-            className={`${inputClass} mb-3`}
+            className={`${inputClass} mb-4`}
             placeholder="Tên team, ví dụ: Team Sales"
             value={newTeamName}
             onChange={(e) => setNewTeamName(e.target.value)}
@@ -136,24 +175,24 @@ export function MembersTab({ store }: { store: LuckySpinStore }) {
           <ActionButton className="w-full" onClick={addTeam}>
             Thêm team
           </ActionButton>
-          <div className="mt-3.5 flex flex-wrap gap-2">
+          <div className="mt-5 flex flex-wrap gap-2">
             {state.teams.length === 0 ? (
-              <span className="text-sm text-gray-400 dark:text-gray-500">Chưa có team nào.</span>
+              <span className="text-[15px] text-[#9CA3AF]">Chưa có team nào.</span>
             ) : (
               state.teams.map((t) => (
                 <span
                   key={t.id}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1 text-sm dark:border-gray-700 dark:bg-gray-950"
+                  className="group inline-flex items-center gap-2 rounded-full bg-[#F3F4F6] py-1.5 pl-3.5 pr-2 text-[13px] font-medium text-[#111827] transition-colors hover:bg-[#ECEFF3] dark:bg-white/[0.06] dark:text-gray-200"
                 >
                   {t.name}
-                  <span className="text-gray-400">({state.members.filter((m) => m.teamId === t.id).length})</span>
+                  <span className="text-[#9CA3AF]">{state.members.filter((m) => m.teamId === t.id).length}</span>
                   <button
                     type="button"
                     onClick={() => removeTeam(t.id)}
-                    className="text-gray-400 hover:text-red-500"
+                    className="flex h-5 w-5 items-center justify-center rounded-full text-[#9CA3AF] transition-colors hover:bg-[#EF4444]/10 hover:text-[#EF4444]"
                     title="Xóa team"
                   >
-                    <X className="h-3.5 w-3.5" />
+                    <X className="h-3.5 w-3.5" strokeWidth={2} />
                   </button>
                 </span>
               ))
@@ -163,14 +202,14 @@ export function MembersTab({ store }: { store: LuckySpinStore }) {
 
         <PanelCard title="Thêm thành viên">
           <input
-            className={`${inputClass} mb-3`}
+            className={`${inputClass} mb-4`}
             placeholder="Họ và tên"
             value={newMemberName}
             onChange={(e) => setNewMemberName(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && addMember()}
           />
           <select
-            className={`${selectClass} mb-3`}
+            className={`${selectClass} mb-4`}
             value={selectedTeamId}
             onChange={(e) => setNewMemberTeamId(e.target.value)}
             disabled={state.teams.length === 0}
@@ -202,7 +241,7 @@ export function MembersTab({ store }: { store: LuckySpinStore }) {
       </div>
 
       <PanelCard title="Danh sách thành viên">
-        <div className="mb-3.5 flex flex-wrap gap-2.5">
+        <div className="mb-5 flex flex-wrap gap-3">
           <input
             className={`${inputClass} min-w-[140px] flex-1`}
             placeholder="Tìm theo tên..."
@@ -224,7 +263,7 @@ export function MembersTab({ store }: { store: LuckySpinStore }) {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full border-separate border-spacing-0">
             <thead>
               <tr>
                 <th className={thClass}>Tên</th>
@@ -237,9 +276,9 @@ export function MembersTab({ store }: { store: LuckySpinStore }) {
             </thead>
             <tbody>
               {state.members.length === 0 ? (
-                <EmptyRow colSpan={6}>Chưa có thành viên nào. Thêm thành viên ở bên trái.</EmptyRow>
+                <EmptyRow colSpan={6} icon={UserPlus}>Chưa có thành viên nào. Thêm ở khung bên trái hoặc nhập từ file Excel.</EmptyRow>
               ) : filtered.length === 0 ? (
-                <EmptyRow colSpan={6}>Không tìm thấy thành viên phù hợp.</EmptyRow>
+                <EmptyRow colSpan={6} icon={Users}>Không có thành viên nào khớp bộ lọc hiện tại.</EmptyRow>
               ) : (
                 filtered.map((m) => {
                   const team = state.teams.find((t) => t.id === m.teamId);
@@ -277,13 +316,21 @@ export function MembersTab({ store }: { store: LuckySpinStore }) {
                   }
 
                   return (
-                    <tr key={m.id}>
+                    <tr key={m.id} className={trClass}>
                       <td className={tdClass}>{m.name}</td>
                       <td className={tdClass}>
-                        {team ? <TeamTag name={team.name} teamIndex={teamIndexByName.get(team.name) ?? -1} /> : '—'}
+                        {team ? <TeamTag name={team.name} /> : '—'}
                       </td>
-                      <td className={`${tdClass} ${m.status === 'active' ? 'text-emerald-600' : 'text-gray-400'}`}>
-                        {m.status === 'active' ? 'Đang trong vòng quay' : 'Đã trúng'}
+                      <td className={tdClass}>
+                        <span
+                          className={
+                            m.status === 'active'
+                              ? 'inline-flex items-center gap-1.5 rounded-full bg-[#22C55E]/10 px-2.5 py-1 text-[13px] font-medium text-[#16A34A]'
+                              : 'inline-flex items-center gap-1.5 rounded-full bg-[#F3F4F6] px-2.5 py-1 text-[13px] font-medium text-[#6B7280] dark:bg-white/[0.06]'
+                          }
+                        >
+                          {m.status === 'active' ? 'Trong vòng quay' : 'Đã trúng'}
+                        </span>
                       </td>
                       <td className={monoCellClass}>{winCountFor(m.id)}</td>
                       <td className={monoCellClass}>{giftCountFor(m.id)}</td>
@@ -292,7 +339,7 @@ export function MembersTab({ store }: { store: LuckySpinStore }) {
                         <RowActionButton
                           action="delete"
                           title="Xóa thành viên"
-                          onClick={() => patchState((prev) => ({ members: prev.members.filter((x) => x.id !== m.id) }))}
+                          onClick={() => removeMember(m)}
                         />
                       </td>
                     </tr>
