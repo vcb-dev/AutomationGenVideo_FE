@@ -1,10 +1,11 @@
 'use client';
 
 import { ReactNode, useRef, useState } from 'react';
-import { FileSpreadsheet, Loader2 } from 'lucide-react';
+import { CheckCircle2, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { readRowsFromExcel, SheetRow } from '@/lib/lucky-spin/sheet-io';
 import { PanelCard } from '@/components/lucky-spin/PanelCard';
+import { useSpinReadOnly } from '@/components/lucky-spin/ReadOnlyContext';
 import { fieldLabelClass, fileInputClass, hintClass } from '@/components/lucky-spin/styles';
 
 interface Props {
@@ -18,6 +19,7 @@ export function BulkImportPanel({ title, hint, onRows }: Props) {
   const [importing, setImporting] = useState(false);
   const [fileName, setFileName] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const readOnly = useSpinReadOnly();
 
   const handleExcelFile = async (file: File) => {
     setImporting(true);
@@ -36,27 +38,27 @@ export function BulkImportPanel({ title, hint, onRows }: Props) {
 
   return (
     <PanelCard title={title}>
-      <p className={`mb-3.5 ${hintClass}`}>{hint}</p>
+      <p className={`mb-5 ${hintClass}`}>{hint}</p>
 
       <label className={fieldLabelClass}>File Excel (.xlsx, .xls)</label>
       <input
         ref={fileInputRef}
         type="file"
         accept=".xlsx,.xls"
-        disabled={importing}
+        disabled={importing || readOnly}
         onChange={(e) => e.target.files?.[0] && handleExcelFile(e.target.files[0])}
         className={fileInputClass}
       />
 
       {importing && (
-        <p className="mt-3 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        <p className="mt-4 flex items-center gap-2 text-[13px] font-medium text-[#6B7280] dark:text-gray-400">
+          <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.8} />
           Đang đọc {fileName}...
         </p>
       )}
       {!importing && fileName && (
-        <p className="mt-3 flex items-center gap-1.5 text-xs text-emerald-600">
-          <FileSpreadsheet className="h-3.5 w-3.5" />
+        <p className="mt-4 flex items-center gap-2 text-[13px] font-medium text-[#22C55E]">
+          <CheckCircle2 className="h-4 w-4" strokeWidth={1.8} />
           Đã nhập từ {fileName}
         </p>
       )}

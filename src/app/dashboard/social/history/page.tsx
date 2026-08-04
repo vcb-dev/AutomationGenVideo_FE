@@ -209,7 +209,7 @@ function GridItem({
         {/* Nút xem chi tiết (modal) — click card thì phát video nên cần lối vào riêng */}
         <button
           onClick={e => { e.stopPropagation(); onOpenDetail(post); }}
-          title="Xem chi tiết bài đăng"
+          title={t.history.viewPostDetail}
           className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition-colors"
         >
           <Info className="w-4 h-4" />
@@ -229,7 +229,7 @@ function GridItem({
       {/* ── Info ── */}
       <div className="p-3 flex-1 flex flex-col">
         <p className="text-[13px] font-semibold text-slate-800 line-clamp-2 min-h-[2.4rem] leading-snug" title={message}>
-          {message || <span className="text-slate-400 italic font-normal">(Không có nội dung)</span>}
+          {message || <span className="text-slate-400 italic font-normal">({t.history.noContent})</span>}
         </p>
 
         {post.account?.name && (

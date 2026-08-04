@@ -1,6 +1,6 @@
 import * as path from 'path';
 import { giftHistoryToExcelRows, memberHistoryToExcelRows } from './export-rows';
-import { importGiftsFromRows, importMembersFromRows, isImportError } from './import-rows';
+import { isImportError, parseGiftRows, parseMemberRows } from './import-rows';
 import { GiftRecord, WinRecord } from '@/types/lucky-spin';
 
 /**
@@ -52,11 +52,11 @@ describe('Nhập thành viên từ file .xlsx thật', () => {
     const rows = readRows(buffer);
     expect(rows).toHaveLength(3);
 
-    const result = importMembersFromRows(rows, []);
+    const result = parseMemberRows(rows);
     if (isImportError(result)) throw new Error(result.error);
 
-    expect(result.teams.map((t) => t.name)).toEqual(['Team Sales', 'Team Marketing']);
-    expect(result.members.map((m) => m.name)).toEqual(['Nguyễn Văn A', 'Trần Thị Bích', 'Lê Văn Cường']);
+    expect(result.rows.map((r) => r.teamName)).toEqual(['Team Sales', 'Team Sales', 'Team Marketing']);
+    expect(result.rows.map((r) => r.name)).toEqual(['Nguyễn Văn A', 'Trần Thị Bích', 'Lê Văn Cường']);
     expect(result.skipped).toBe(0);
   });
 
@@ -64,11 +64,11 @@ describe('Nhập thành viên từ file .xlsx thật', () => {
     const ten = 'Đặng Thị Quỳnh Hương';
     const rows = readRows(writeRows([{ Tên: ten, Team: 'Tổ Kỹ thuật' }], 'Thanh vien'));
 
-    const result = importMembersFromRows(rows, []);
+    const result = parseMemberRows(rows);
     if (isImportError(result)) throw new Error(result.error);
 
-    expect(result.members[0].name).toBe(ten);
-    expect(result.teams[0].name).toBe('Tổ Kỹ thuật');
+    expect(result.rows[0].name).toBe(ten);
+    expect(result.rows[0].teamName).toBe('Tổ Kỹ thuật');
   });
 
   it('ô trống trong file không làm hỏng việc nhập, chỉ bị đếm là dòng bỏ qua', () => {
@@ -83,10 +83,10 @@ describe('Nhập thành viên từ file .xlsx thật', () => {
       ),
     );
 
-    const result = importMembersFromRows(rows, []);
+    const result = parseMemberRows(rows);
     if (isImportError(result)) throw new Error(result.error);
 
-    expect(result.members).toHaveLength(1);
+    expect(result.rows).toHaveLength(1);
     expect(result.skipped).toBe(1);
   });
 });
@@ -103,12 +103,13 @@ describe('Nhập quà từ file .xlsx thật', () => {
       ),
     );
 
-    const result = importGiftsFromRows(rows);
+    const result = parseGiftRows(rows);
     if (isImportError(result)) throw new Error(result.error);
 
-    expect(result.gifts).toHaveLength(2);
-    expect(result.gifts[0]).toMatchObject({ name: 'Voucher 500k', total: 10, remaining: 10 });
-    expect(result.gifts[1]).toMatchObject({ name: 'Áo thun đồng phục', total: 25, remaining: 25 });
+    expect(result.rows).toEqual([
+      { name: 'Voucher 500k', total: 10 },
+      { name: 'Áo thun đồng phục', total: 25 },
+    ]);
   });
 });
 
@@ -158,10 +159,10 @@ describe('Xuất lịch sử ra Excel', () => {
     const rows = readRows(writeRows(memberHistoryToExcelRows(history), 'Thanh vien trung'));
 
     // File xuất ra có cột Tên và Team nên chính nó nhập ngược lại được làm danh sách thành viên.
-    const result = importMembersFromRows(rows, []);
+    const result = parseMemberRows(rows);
     if (isImportError(result)) throw new Error(result.error);
 
-    expect(result.members.map((m) => m.name)).toEqual(['Nguyễn Văn A', 'Trần Thị Bích']);
-    expect(result.teams.map((t) => t.name)).toEqual(['Team Sales', 'Tổ Kỹ thuật']);
+    expect(result.rows.map((r) => r.name)).toEqual(['Nguyễn Văn A', 'Trần Thị Bích']);
+    expect(result.rows.map((r) => r.teamName)).toEqual(['Team Sales', 'Tổ Kỹ thuật']);
   });
 });

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Sparkles, Loader2, Copy, Check, Languages, Save, X, Send, Clock, CheckCircle2, XCircle } from 'lucide-react'
+import { Sparkles, Loader2, Copy, Check, Languages, Save, X, Send, Clock, CheckCircle2, XCircle, Gauge } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Section } from './Section'
 import {
@@ -15,6 +15,10 @@ import {
   type VideoScript,
 } from '@/lib/api/task-auto'
 import type { TaskContentApproval } from '@/types/task-auto'
+import { PaastScoreModal } from '@/components/task-auto/PaastScoreModal'
+import type { PaastAnalysisHistory } from '@/lib/api/paast-analyzer'
+
+const PAAST_MIN_LENGTH = 100
 
 function arraysEqual(a: string[], b: string[]) {
   return a.length === b.length && a.every((v, i) => v === b[i])
@@ -74,6 +78,12 @@ export function VideoScriptSection(props: VideoScriptSectionProps) {
   const [reviewing, setReviewing] = useState<'APPROVED' | 'REJECTED' | null>(null)
   const [showRejectInput, setShowRejectInput] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
+
+  // Chấm điểm PAAST — công cụ học hỏi/cải thiện, mọi role đều dùng được, không phải bước duyệt.
+  // Cache kết quả theo đúng nội dung đã chấm — bấm lại nút với content không đổi thì hiển thị lại
+  // kết quả cũ thay vì gọi phân tích lại; content đổi (sửa tay/sinh lại) thì cache tự hết hạn.
+  const [showScoreModal, setShowScoreModal] = useState(false)
+  const [scoreCache, setScoreCache] = useState<{ content: string; result: PaastAnalysisHistory } | null>(null)
 
   const contentTextareaRef = useRef<HTMLTextAreaElement | null>(null)
   const translationTextareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -430,6 +440,20 @@ export function VideoScriptSection(props: VideoScriptSectionProps) {
                   )}
                   <button
                     type="button"
+                    onClick={() => setShowScoreModal(true)}
+                    disabled={editedContent.trim().length < PAAST_MIN_LENGTH}
+                    title={editedContent.trim().length < PAAST_MIN_LENGTH ? `Cần ít nhất ${PAAST_MIN_LENGTH} ký tự để chấm điểm` : undefined}
+                    className={cn(
+                      'flex items-center gap-1.5 text-sm font-medium px-3.5 py-2 rounded-lg border transition-colors',
+                      editedContent.trim().length >= PAAST_MIN_LENGTH
+                        ? 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                        : 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed',
+                    )}
+                  >
+                    <Gauge className="w-3.5 h-3.5" /> Chấm điểm content
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => generate(!!script)}
                     disabled={!canGenerate || loading}
                     className={cn(
@@ -602,6 +626,20 @@ export function VideoScriptSection(props: VideoScriptSectionProps) {
           </div>
         )}
       </div>
+
+      <PaastScoreModal
+        open={showScoreModal}
+        content={editedContent}
+        onClose={() => setShowScoreModal(false)}
+        cachedResult={scoreCache?.content === editedContent ? scoreCache.result : null}
+        onAnalyzed={result => setScoreCache({ content: editedContent, result })}
+        onApply={(upgradedContent, result) => {
+          // Đưa bản nâng cấp vào textarea như 1 lần sửa tay — user vẫn cần bấm "Lưu" để lưu thật sự,
+          // nhất quán với luồng edit content hiện có (không tự động persist thay người dùng).
+          setEditedContent(upgradedContent)
+          setScoreCache({ content: upgradedContent, result })
+        }}
+      />
     </Section>
   )
 }

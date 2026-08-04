@@ -8,6 +8,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { scraperService, ExternalVideo } from '@/services/scraperService';
 import { platformStyle } from '@/lib/platform-config';
 import ContentFilters from '../components/ContentFilters';
+import { FilterDateRange, FilterNumber, FilterReset, FilterSearch, FilterSelect } from '../components/FilterFields';
 
 function formatNum(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -196,32 +197,16 @@ export default function AllOwnedVideosPage() {
   return (
     <div className="flex flex-col gap-5">
       {/* Filter bar */}
-      <div className="flex flex-wrap items-center gap-3 bg-card border border-border rounded-xl p-4">
-        <input
-          type="text"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Tìm theo caption, hashtag..."
-          className="flex-1 min-w-[180px] max-w-sm px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        />
-        <select
-          value={platform}
-          onChange={e => setPlatform(e.target.value)}
-          className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        >
+      <div className="flex flex-wrap items-center gap-2 bg-card border border-border rounded-xl p-3">
+        <FilterSearch value={search} onChange={setSearch} />
+        <FilterSelect value={platform} onChange={setPlatform} className="w-[150px]" title="Lọc theo nền tảng">
           <option value="">Tất cả nền tảng</option>
           <option value="facebook">Facebook</option>
           <option value="tiktok">TikTok</option>
           <option value="instagram">Instagram</option>
           <option value="youtube">YouTube</option>
-        </select>
-        <input
-          type="number"
-          value={minPlays}
-          onChange={e => setMinPlays(e.target.value)}
-          placeholder="Min View"
-          className="w-28 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        />
+        </FilterSelect>
+        <FilterNumber value={minPlays} onChange={setMinPlays} />
         <ContentFilters
           value={{ channel, hashtag, market, contentLine }}
           onChange={(v) => {
@@ -231,22 +216,13 @@ export default function AllOwnedVideosPage() {
             if (v.contentLine !== undefined) setContentLine(v.contentLine);
           }}
         />
-        <select
-          value={sortBy}
-          onChange={e => setSortBy(e.target.value)}
-          className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        >
+        <FilterSelect value={sortBy} onChange={setSortBy} className="w-[160px]" title="Sắp xếp">
           <option value="date">Mới nhất</option>
           <option value="plays">Nhiều views nhất</option>
           <option value="likes">Nhiều likes nhất</option>
-        </select>
-        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none" title="Từ ngày" />
-        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none" title="Đến ngày" />
-        {hasFilters && (
-          <button onClick={clearFilters} className="px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-            Xóa bộ lọc
-          </button>
-        )}
+        </FilterSelect>
+        <FilterDateRange from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
+        {hasFilters && <FilterReset onClick={clearFilters} />}
       </div>
 
       <h2 className="text-sm font-semibold text-foreground">
