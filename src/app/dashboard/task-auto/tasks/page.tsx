@@ -62,7 +62,8 @@ export default function TasksPage() {
   const [status, setStatus]           = useState<TaskStatus | ''>('')
   const [teamId, setTeamId]           = useState('')
   const [search, setSearch]           = useState('')
-  const [deadlineDate, setDeadlineDate] = useState(todayString())
+  const [deadlineFrom, setDeadlineFrom] = useState(todayString())
+  const [deadlineTo, setDeadlineTo]     = useState(todayString())
   const [taskType, setTaskType]       = useState<'auto' | 'manual' | ''>('')
   const [assigneeId, setAssigneeId]   = useState('')
   const [page, setPage]               = useState(1)
@@ -108,12 +109,13 @@ export default function TasksPage() {
       : (teamId || undefined)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'tasks', { status, effectiveTeamId, search, deadlineDate, taskType, page, viewMode, userId: user?.id, assigneeId }],
+    queryKey: ['task-auto', 'tasks', { status, effectiveTeamId, search, deadlineFrom, deadlineTo, taskType, page, viewMode, userId: user?.id, assigneeId }],
     queryFn: () => getTasks({
       status:        status       || undefined,
       team_id:       effectiveTeamId,
       search:        search       || undefined,
-      deadline_date: deadlineDate || undefined,
+      deadline_from: deadlineFrom || undefined,
+      deadline_to:   deadlineTo   || undefined,
       task_type:     taskType     || undefined,
       page,
       limit: TASKS_PAGE_SIZE,
@@ -149,7 +151,8 @@ export default function TasksPage() {
   function handleStatusChange(v: TaskStatus | '')                    { setStatus(v);       setPage(1) }
   function handleTeamChange(v: string)                               { setTeamId(v);       setPage(1); setSubmittedPage(1) }
   function handleSearchChange(v: string)                             { setSearch(v);       setPage(1); setSubmittedPage(1) }
-  function handleDeadlineDateChange(v: string)                       { setDeadlineDate(v); setPage(1); setSubmittedPage(1) }
+  function handleDeadlineFromChange(v: string)                       { setDeadlineFrom(v); setPage(1); setSubmittedPage(1) }
+  function handleDeadlineToChange(v: string)                         { setDeadlineTo(v);   setPage(1); setSubmittedPage(1) }
   function handleTaskTypeChange(v: 'auto' | 'manual' | '')           { setTaskType(v);    setPage(1) }
   function handleAssigneeChange(v: string)                           { setAssigneeId(v);  setPage(1) }
 
@@ -250,7 +253,8 @@ export default function TasksPage() {
           statusFilter={status}
           teamFilter={teamId}
           searchFilter={search}
-          deadlineDateFilter={deadlineDate}
+          deadlineFromFilter={deadlineFrom}
+          deadlineToFilter={deadlineTo}
           taskTypeFilter={taskType}
           assigneeFilter={assigneeId}
           assigneeOptions={assigneeOptions}
@@ -263,7 +267,8 @@ export default function TasksPage() {
           onStatusChange={handleStatusChange}
           onTeamChange={handleTeamChange}
           onSearchChange={handleSearchChange}
-          onDeadlineDateChange={handleDeadlineDateChange}
+          onDeadlineFromChange={handleDeadlineFromChange}
+          onDeadlineToChange={handleDeadlineToChange}
           onTaskTypeChange={handleTaskTypeChange}
           onAssigneeChange={handleAssigneeChange}
           onCreateClick={() => setShowCreate(true)}
@@ -290,7 +295,8 @@ export default function TasksPage() {
           teamId={effectiveTeamId}
           teams={teams}
           search={search || undefined}
-          deadlineDate={deadlineDate || undefined}
+          deadlineFrom={deadlineFrom || undefined}
+          deadlineTo={deadlineTo || undefined}
           assigneeId={isMineView ? user?.id : undefined}
           page={submittedPage}
           onPageChange={setSubmittedPage}

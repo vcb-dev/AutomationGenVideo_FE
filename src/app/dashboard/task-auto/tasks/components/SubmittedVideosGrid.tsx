@@ -21,7 +21,8 @@ interface Props {
   teamId?: string
   teams: Team[]
   search?: string
-  deadlineDate?: string
+  deadlineFrom?: string
+  deadlineTo?: string
   assigneeId?: string
   page: number
   onPageChange: (page: number) => void
@@ -71,7 +72,7 @@ function VideoThumbnail({ resultUrl, productImage, alt }: { resultUrl: string | 
   )
 }
 
-export function SubmittedVideosGrid({ teamId, teams, search, deadlineDate, assigneeId, page, onPageChange, onViewTask, canApproveReject }: Props) {
+export function SubmittedVideosGrid({ teamId, teams, search, deadlineFrom, deadlineTo, assigneeId, page, onPageChange, onViewTask, canApproveReject }: Props) {
   const qc = useQueryClient()
   const [rejectingTask, setRejectingTask] = useState<Task | null>(null)
   const [previewIndex, setPreviewIndex] = useState<number | null>(null)
@@ -88,12 +89,13 @@ export function SubmittedVideosGrid({ teamId, teams, search, deadlineDate, assig
   const effectiveAssigneeId = assigneeId ?? (submitterFilter || undefined)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'tasks', 'submitted', { teamId, search, deadlineDate, effectiveAssigneeId, page }],
+    queryKey: ['task-auto', 'tasks', 'submitted', { teamId, search, deadlineFrom, deadlineTo, effectiveAssigneeId, page }],
     queryFn: () => getTasks({
       status: 'SUBMITTED',
       team_id: teamId,
       search: search || undefined,
-      deadline_date: deadlineDate || undefined,
+      deadline_from: deadlineFrom || undefined,
+      deadline_to: deadlineTo || undefined,
       assignee_id: effectiveAssigneeId,
       page,
       limit: LIMIT,

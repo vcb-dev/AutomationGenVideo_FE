@@ -23,7 +23,6 @@ import { ContentSection } from './detail/ContentSection'
 import { SourcesSection } from './detail/SourcesSection'
 import { ProductSection } from './detail/ProductSection'
 import { VideoPreviewOverlay } from './detail/VideoPreviewOverlay'
-import { VideoScriptSection } from './detail/VideoScriptSection'
 import { TaskSchedulePostModal } from './detail/TaskSchedulePostModal'
 import { PublishedLinksSection } from './detail/PublishedLinksSection'
 import type { Source, TeamSource } from '@/types/task-auto'
@@ -648,6 +647,16 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                           fileUrl,
                           voiceUrl,
                         }}
+                        taskId={task.id}
+                        isAssignee={isAssignee}
+                        canApproveReject={canApproveReject}
+                        productName={productName}
+                        productSku={productSku}
+                        productPrice={mergedProduct?.price ?? null}
+                        productMaterial={mergedProduct?.material?.name ?? null}
+                        productPriceSegment={mergedProduct?.price_segment ?? null}
+                        productLine={mergedProduct?.product_line?.name ?? null}
+                        productMarket={mergedProduct?.market ?? null}
                       />
 
                       <SourcesSection
@@ -724,24 +733,6 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                       }}
                     />
                   </div>
-
-                  <VideoScriptSection
-                    taskId={task.id}
-                    isAssignee={isAssignee}
-                    canApproveReject={canApproveReject}
-                    fileUrl={fileUrl}
-                    scriptText={scriptText}
-                    contentTitle={contentTitle}
-                    contentLine={contentLine}
-                    contentMarket={contentMarket}
-                    productName={productName}
-                    productSku={productSku}
-                    productPrice={mergedProduct?.price ?? null}
-                    productMaterial={mergedProduct?.material?.name ?? null}
-                    productPriceSegment={mergedProduct?.price_segment ?? null}
-                    productLine={mergedProduct?.product_line?.name ?? null}
-                    productMarket={mergedProduct?.market ?? null}
-                  />
 
                   <TaskMetaStrip
                     task={task}

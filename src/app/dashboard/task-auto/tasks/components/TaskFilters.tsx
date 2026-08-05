@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { CalendarDays, Plus, Search, X, RotateCcw } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { CalendarDays, Plus, Search, RotateCcw, ChevronDown } from 'lucide-react'
 import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { cn } from '@/lib/utils'
 import { TaskStatus, Team } from '@/types/task-auto'
@@ -20,9 +20,34 @@ const STATUS_OPTIONS: { value: TaskStatus | ''; label: string }[] = [
 // ]
 
 function todayString() {
-  const d = new Date()
+  return dateString(new Date())
+}
+
+function dateString(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
+
+function addDays(dateStr: string, days: number) {
+  const d = new Date(`${dateStr}T00:00:00`)
+  d.setDate(d.getDate() + days)
+  return dateString(d)
+}
+
+function monthStart(d = new Date()) {
+  return dateString(new Date(d.getFullYear(), d.getMonth(), 1))
+}
+
+interface DatePreset {
+  label: string
+  range: () => [string, string]
+}
+
+const DATE_PRESETS: DatePreset[] = [
+  { label: 'Hôm nay', range: () => [todayString(), todayString()] },
+  { label: '7 ngày qua', range: () => [addDays(todayString(), -6), todayString()] },
+  { label: '30 ngày qua', range: () => [addDays(todayString(), -29), todayString()] },
+  { label: 'Tháng này', range: () => [monthStart(), todayString()] },
+]
 
 type TaskTypeFilter = 'auto' | 'manual' | ''
 
@@ -32,7 +57,8 @@ interface Props {
   statusFilter: TaskStatus | ''
   teamFilter: string
   searchFilter: string
-  deadlineDateFilter: string
+  deadlineFromFilter: string
+  deadlineToFilter: string
   taskTypeFilter: TaskTypeFilter
   assigneeFilter: string
   assigneeOptions: AssigneeOption[]
@@ -45,7 +71,8 @@ interface Props {
   onStatusChange: (v: TaskStatus | '') => void
   onTeamChange: (v: string) => void
   onSearchChange: (v: string) => void
-  onDeadlineDateChange: (v: string) => void
+  onDeadlineFromChange: (v: string) => void
+  onDeadlineToChange: (v: string) => void
   onTaskTypeChange: (v: TaskTypeFilter) => void
   onAssigneeChange: (v: string) => void
   onCreateClick: () => void
@@ -55,7 +82,8 @@ export function TaskFilters({
   statusFilter,
   teamFilter,
   searchFilter,
-  deadlineDateFilter,
+  deadlineFromFilter,
+  deadlineToFilter,
   taskTypeFilter,
   assigneeFilter,
   assigneeOptions,
@@ -68,12 +96,45 @@ export function TaskFilters({
   onStatusChange,
   onTeamChange,
   onSearchChange,
-  onDeadlineDateChange,
+  onDeadlineFromChange,
+  onDeadlineToChange,
   onTaskTypeChange,
   onAssigneeChange,
   onCreateClick,
 }: Props) {
-  const isToday = deadlineDateFilter === todayString()
+  const isToday = deadlineFromFilter === todayString() && deadlineToFilter === todayString()
+  const isSingleDay = !!deadlineFromFilter && deadlineFromFilter === deadlineToFilter
+  const [datePickerOpen, setDatePickerOpen] = useState(false)
+  const datePickerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!datePickerOpen) return
+    function onClickOutside(e: MouseEvent) {
+      if (datePickerRef.current && !datePickerRef.current.contains(e.target as Node)) setDatePickerOpen(false)
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [datePickerOpen])
+
+  function applyPreset(preset: DatePreset) {
+    const [from, to] = preset.range()
+    onDeadlineFromChange(from)
+    onDeadlineToChange(to)
+    setDatePickerOpen(false)
+  }
+
+  function clearDateFilter() {
+    onDeadlineFromChange('')
+    onDeadlineToChange('')
+  }
+
+  const dateFilterLabel = !deadlineFromFilter && !deadlineToFilter
+    ? 'Tất cả ngày'
+    : isToday
+      ? 'Hôm nay'
+      : isSingleDay
+        ? deadlineFromFilter
+        : `${deadlineFromFilter || '…'} → ${deadlineToFilter || '…'}`
 
   // Gõ tìm kiếm phản hồi tức thì trên input, nhưng chỉ bắn query lên cha sau khi
   // ngừng gõ ~300ms — tránh gọi lại getTasks mỗi phím gõ (giật/nháy danh sách).
@@ -90,7 +151,7 @@ export function TaskFilters({
   const hasTeam      = !isMember && !hideTeamFilter && !!teamFilter
   const hasAssignee  = !isMember && assigneeOptions.length > 0 && !!assigneeFilter
   const hasSearch    = !!searchFilter
-  const hasCustomDate = !hideDeadlineFilter && deadlineDateFilter !== todayString()
+  const hasCustomDate = !hideDeadlineFilter && !isToday
   const activeFilterCount = [hasStatus, hasTeam, hasAssignee, hasSearch, hasCustomDate].filter(Boolean).length
 
   function resetAllFilters() {
@@ -98,7 +159,7 @@ export function TaskFilters({
     if (hasTeam) onTeamChange('')
     if (hasAssignee) onAssigneeChange('')
     if (hasSearch) { setLocalSearch(''); onSearchChange('') }
-    if (hasCustomDate) onDeadlineDateChange(todayString())
+    if (hasCustomDate) applyPreset(DATE_PRESETS[0])
   }
 
   return (
@@ -165,55 +226,77 @@ export function TaskFilters({
         />
       )}
 
-      {/* Deadline date picker */}
+      {/* Deadline date range picker */}
       {!hideDeadlineFilter && (
-      <div className="relative">
-        <CalendarDays className={cn(
-          'absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none',
-          isToday ? 'text-amber-500' : deadlineDateFilter ? 'text-indigo-500' : 'text-slate-400'
-        )} />
-        <input
-          type="date"
-          value={deadlineDateFilter}
-          onChange={e => onDeadlineDateChange(e.target.value)}
+      <div className="relative" ref={datePickerRef}>
+        <button
+          type="button"
+          onClick={() => setDatePickerOpen(o => !o)}
+          title="Lọc theo khoảng ngày hết hạn"
           className={cn(
-            'pl-9 py-3 bg-gray-50 border rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-colors',
-            deadlineDateFilter ? 'pr-7 min-w-[160px]' : 'pr-3 min-w-[160px]',
+            'flex items-center gap-2 pl-3.5 pr-2.5 py-3 bg-gray-50 border rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-colors',
             isToday
-              ? 'border-amber-300 ring-1 ring-amber-100'
-              : deadlineDateFilter
-                ? 'border-indigo-400 ring-1 ring-indigo-100'
-                : 'border-gray-200'
+              ? 'border-amber-300 ring-1 ring-amber-100 text-amber-700'
+              : deadlineFromFilter || deadlineToFilter
+                ? 'border-indigo-400 ring-1 ring-indigo-100 text-indigo-700'
+                : 'border-gray-200 text-slate-500'
           )}
-          title="Lọc theo ngày hết hạn"
-        />
-        {deadlineDateFilter && (
-          <button
-            onClick={() => onDeadlineDateChange('')}
-            title="Bỏ lọc theo ngày"
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
-          >
-            <X className="w-3 h-3" />
-          </button>
-        )}
-        {isToday ? (
-          <button
-            type="button"
-            onClick={() => onDeadlineDateChange('')}
-            title="Đang lọc hôm nay — bấm để xem tất cả ngày"
-            className="absolute -top-2 left-2.5 px-1.5 py-0.5 text-[9px] font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-full leading-none transition-colors cursor-pointer"
-          >
-            Hôm nay
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => onDeadlineDateChange(todayString())}
-            title="Bấm để lọc theo hôm nay"
-            className="absolute -top-2 left-2.5 px-1.5 py-0.5 text-[9px] font-bold bg-slate-200 hover:bg-indigo-500 hover:text-white text-slate-500 rounded-full leading-none transition-colors cursor-pointer"
-          >
-            Hôm nay
-          </button>
+        >
+          <CalendarDays className={cn(
+            'w-4 h-4 flex-shrink-0',
+            isToday ? 'text-amber-500' : (deadlineFromFilter || deadlineToFilter) ? 'text-indigo-500' : 'text-slate-400'
+          )} />
+          <span className="whitespace-nowrap">{dateFilterLabel}</span>
+          <ChevronDown className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+        </button>
+
+        {datePickerOpen && (
+          <div className="absolute z-20 top-full mt-1.5 left-0 w-[290px] bg-white border border-gray-200 rounded-xl shadow-lg p-3 space-y-3">
+            <div className="flex flex-wrap gap-1.5">
+              {DATE_PRESETS.map(preset => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => applyPreset(preset)}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 hover:bg-indigo-500 hover:text-white text-slate-600 transition-colors"
+                >
+                  {preset.label}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => { clearDateFilter(); setDatePickerOpen(false) }}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 hover:bg-slate-500 hover:text-white text-slate-600 transition-colors"
+              >
+                Tất cả ngày
+              </button>
+            </div>
+
+            <div className="h-px bg-gray-100" />
+
+            <div className="flex items-center gap-2">
+              <div className="flex-1 min-w-0">
+                <label className="block text-[11px] font-semibold text-slate-400 mb-1">Từ ngày</label>
+                <input
+                  type="date"
+                  value={deadlineFromFilter}
+                  max={deadlineToFilter || undefined}
+                  onChange={e => onDeadlineFromChange(e.target.value)}
+                  className="w-full px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+              </div>
+              <div className="flex-1 min-w-0">
+                <label className="block text-[11px] font-semibold text-slate-400 mb-1">Đến ngày</label>
+                <input
+                  type="date"
+                  value={deadlineToFilter}
+                  min={deadlineFromFilter || undefined}
+                  onChange={e => onDeadlineToChange(e.target.value)}
+                  className="w-full px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+              </div>
+            </div>
+          </div>
         )}
       </div>
       )}

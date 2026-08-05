@@ -682,6 +682,8 @@ export interface TasksQuery {
   assignee_id?: string
   month?: string
   deadline_date?: string
+  deadline_from?: string
+  deadline_to?: string
   task_type?: 'auto' | 'extra' | 'manual' | ''
   page?: number
   limit?: number
