@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Users, User, LayoutGrid, Table2 } from 'lucide-react'
+import { Users, User, LayoutGrid, Table2, FileClock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth-store'
 
@@ -12,6 +12,7 @@ import { WarehouseEmptyBanner } from './components/WarehouseEmptyBanner'
 import { TaskFilters } from './components/TaskFilters'
 import { TasksTable } from './components/TasksTable'
 import { SubmittedVideosGrid } from './components/SubmittedVideosGrid'
+import { ContentApprovalList } from './components/ContentApprovalList'
 import { TaskDetailPanel } from './components/TaskDetailPanel'
 import { CreateTaskModal } from './components/TaskModals'
 import { getApprovals, getTasks, getTeams } from '@/lib/api/task-auto'
@@ -19,7 +20,7 @@ import { TaskStatus } from '@/types/task-auto'
 import { UserRole } from '@/types/auth'
 
 type ViewMode = 'team' | 'mine'
-type PageTab = 'table' | 'submitted'
+type PageTab = 'table' | 'submitted' | 'content-approval'
 
 const TASKS_PAGE_SIZE = 10
 
@@ -61,11 +62,13 @@ export default function TasksPage() {
   const [status, setStatus]           = useState<TaskStatus | ''>('')
   const [teamId, setTeamId]           = useState('')
   const [search, setSearch]           = useState('')
-  const [deadlineDate, setDeadlineDate] = useState(todayString())
+  const [deadlineFrom, setDeadlineFrom] = useState(todayString())
+  const [deadlineTo, setDeadlineTo]     = useState(todayString())
   const [taskType, setTaskType]       = useState<'auto' | 'manual' | ''>('')
   const [assigneeId, setAssigneeId]   = useState('')
   const [page, setPage]               = useState(1)
   const [submittedPage, setSubmittedPage] = useState(1)
+  const [contentApprovalPage, setContentApprovalPage] = useState(1)
 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(() => searchParams?.get('taskId') ?? null)
   const [showCreate, setShowCreate]   = useState(false)
@@ -106,12 +109,13 @@ export default function TasksPage() {
       : (teamId || undefined)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'tasks', { status, effectiveTeamId, search, deadlineDate, taskType, page, viewMode, userId: user?.id, assigneeId }],
+    queryKey: ['task-auto', 'tasks', { status, effectiveTeamId, search, deadlineFrom, deadlineTo, taskType, page, viewMode, userId: user?.id, assigneeId }],
     queryFn: () => getTasks({
       status:        status       || undefined,
       team_id:       effectiveTeamId,
       search:        search       || undefined,
-      deadline_date: deadlineDate || undefined,
+      deadline_from: deadlineFrom || undefined,
+      deadline_to:   deadlineTo   || undefined,
       task_type:     taskType     || undefined,
       page,
       limit: TASKS_PAGE_SIZE,
@@ -147,7 +151,8 @@ export default function TasksPage() {
   function handleStatusChange(v: TaskStatus | '')                    { setStatus(v);       setPage(1) }
   function handleTeamChange(v: string)                               { setTeamId(v);       setPage(1); setSubmittedPage(1) }
   function handleSearchChange(v: string)                             { setSearch(v);       setPage(1); setSubmittedPage(1) }
-  function handleDeadlineDateChange(v: string)                       { setDeadlineDate(v); setPage(1); setSubmittedPage(1) }
+  function handleDeadlineFromChange(v: string)                       { setDeadlineFrom(v); setPage(1); setSubmittedPage(1) }
+  function handleDeadlineToChange(v: string)                         { setDeadlineTo(v);   setPage(1); setSubmittedPage(1) }
   function handleTaskTypeChange(v: 'auto' | 'manual' | '')           { setTaskType(v);    setPage(1) }
   function handleAssigneeChange(v: string)                           { setAssigneeId(v);  setPage(1) }
 
@@ -173,13 +178,16 @@ export default function TasksPage() {
 
           <div className="w-px h-10 bg-gray-200 flex-shrink-0 hidden sm:block" />
 
-          {/* Tab switcher: bảng task / video đã nộp */}
-          <div className="flex rounded-xl overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0">
+          {/* Tab switcher: bảng task / video đã nộp — kiểu underline, tách biệt trực quan
+              với toggle phạm vi (pill) bên dưới để không bị nhầm là cùng một nhóm điều khiển */}
+          <div className="flex items-center gap-5 border-b border-transparent flex-shrink-0">
             <button
               onClick={() => setActiveTab('table')}
               className={cn(
-                'flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors',
-                activeTab === 'table' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-gray-100'
+                'flex items-center gap-2 pb-2.5 -mb-px border-b-2 text-sm font-semibold transition-colors',
+                activeTab === 'table'
+                  ? 'border-indigo-600 text-indigo-700'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
               )}
             >
               <Table2 className="w-4 h-4" />
@@ -188,18 +196,32 @@ export default function TasksPage() {
             <button
               onClick={() => setActiveTab('submitted')}
               className={cn(
-                'flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors border-l border-gray-200',
-                activeTab === 'submitted' ? 'bg-indigo-600 text-white border-indigo-600' : 'text-slate-600 hover:bg-gray-100'
+                'flex items-center gap-2 pb-2.5 -mb-px border-b-2 text-sm font-semibold transition-colors',
+                activeTab === 'submitted'
+                  ? 'border-indigo-600 text-indigo-700'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
               )}
             >
               <LayoutGrid className="w-4 h-4" />
               Video đã nộp
             </button>
+            <button
+              onClick={() => setActiveTab('content-approval')}
+              className={cn(
+                'flex items-center gap-2 pb-2.5 -mb-px border-b-2 text-sm font-semibold transition-colors',
+                activeTab === 'content-approval'
+                  ? 'border-indigo-600 text-indigo-700'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              )}
+            >
+              <FileClock className="w-4 h-4" />
+              Content chờ duyệt
+            </button>
           </div>
 
-          {/* View mode toggle (LeaderEditor) */}
+          {/* View mode toggle (LeaderEditor) — giữ kiểu pill để phân biệt với tab nội dung ở trên */}
           {isLeaderEditor && (
-            <div className="flex rounded-xl overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0">
+            <div className="flex rounded-xl overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0 sm:ml-auto">
               <button
                 onClick={() => switchView('team')}
                 className={cn(
@@ -214,7 +236,7 @@ export default function TasksPage() {
                 onClick={() => switchView('mine')}
                 className={cn(
                   'flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors border-l border-gray-200',
-                  viewMode === 'mine' ? 'bg-indigo-600 text-white border-indigo-600' : 'text-slate-600 hover:bg-gray-100'
+                  viewMode === 'mine' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-gray-100'
                 )}
               >
                 <User className="w-4 h-4" />
@@ -231,7 +253,8 @@ export default function TasksPage() {
           statusFilter={status}
           teamFilter={teamId}
           searchFilter={search}
-          deadlineDateFilter={deadlineDate}
+          deadlineFromFilter={deadlineFrom}
+          deadlineToFilter={deadlineTo}
           taskTypeFilter={taskType}
           assigneeFilter={assigneeId}
           assigneeOptions={assigneeOptions}
@@ -239,11 +262,13 @@ export default function TasksPage() {
           canCreate={canCreate}
           isMember={isMineView}
           hideTeamFilter={isLeader}
-          hideStatusFilter={activeTab === 'submitted'}
+          hideStatusFilter={activeTab !== 'table'}
+          hideDeadlineFilter={activeTab === 'content-approval'}
           onStatusChange={handleStatusChange}
           onTeamChange={handleTeamChange}
           onSearchChange={handleSearchChange}
-          onDeadlineDateChange={handleDeadlineDateChange}
+          onDeadlineFromChange={handleDeadlineFromChange}
+          onDeadlineToChange={handleDeadlineToChange}
           onTaskTypeChange={handleTaskTypeChange}
           onAssigneeChange={handleAssigneeChange}
           onCreateClick={() => setShowCreate(true)}
@@ -265,16 +290,26 @@ export default function TasksPage() {
           onViewTask={setSelectedTaskId}
           onPageChange={setPage}
         />
-      ) : (
+      ) : activeTab === 'submitted' ? (
         <SubmittedVideosGrid
           teamId={effectiveTeamId}
           teams={teams}
           search={search || undefined}
-          deadlineDate={deadlineDate || undefined}
+          deadlineFrom={deadlineFrom || undefined}
+          deadlineTo={deadlineTo || undefined}
           assigneeId={isMineView ? user?.id : undefined}
           page={submittedPage}
           onPageChange={setSubmittedPage}
           onViewTask={setSelectedTaskId}
+          canApproveReject={canApproveReject}
+        />
+      ) : (
+        <ContentApprovalList
+          teamId={effectiveTeamId}
+          search={search || undefined}
+          assigneeId={isMineView ? user?.id : (assigneeId || undefined)}
+          page={contentApprovalPage}
+          onPageChange={setContentApprovalPage}
           canApproveReject={canApproveReject}
         />
       )}

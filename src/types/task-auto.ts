@@ -231,6 +231,32 @@ export interface TaskContentApproval {
   created_at: string
   requested_by?: UserBasic
   reviewed_by?: UserBasic | null
+  // Chỉ có khi lấy qua getContentApprovals() (tab "Content chờ duyệt") — dùng để hiển thị
+  // tiêu đề/team/người làm mà không cần gọi thêm request riêng cho từng dòng.
+  task?: {
+    id: string
+    deadline: string | null
+    team?: { id: string; name: string } | null
+    assignee?: { id: string; full_name: string } | null
+    content?: {
+      title: string | null
+      source_team_content?: { title: string | null; source_editor_content?: { title: string | null } | null } | null
+    } | null
+    editor_content?: { title: string | null } | null
+    team_content?: {
+      title: string | null
+      source_editor_content?: { title: string | null } | null
+    } | null
+  }
+}
+
+export interface ContentApprovalsQuery {
+  status?: ApprovalStatus | ''
+  team_id?: string
+  assignee_id?: string
+  search?: string
+  page?: number
+  limit?: number
 }
 
 export interface TeamPushRequest {
@@ -656,6 +682,8 @@ export interface TasksQuery {
   assignee_id?: string
   month?: string
   deadline_date?: string
+  deadline_from?: string
+  deadline_to?: string
   task_type?: 'auto' | 'extra' | 'manual' | ''
   page?: number
   limit?: number

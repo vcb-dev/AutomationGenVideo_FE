@@ -6,6 +6,7 @@ import { useScrollLock } from '@/hooks/useScrollLock'
 import toast from 'react-hot-toast'
 import { Loader2, XCircle, CheckCircle2, Play, ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
 import {
   getTask, approveTask, deleteTask, getSources, getTeamSources,
   getProduct, getContent, startTask,
@@ -22,7 +23,6 @@ import { ContentSection } from './detail/ContentSection'
 import { SourcesSection } from './detail/SourcesSection'
 import { ProductSection } from './detail/ProductSection'
 import { VideoPreviewOverlay } from './detail/VideoPreviewOverlay'
-import { VideoScriptSection } from './detail/VideoScriptSection'
 import { TaskSchedulePostModal } from './detail/TaskSchedulePostModal'
 import { PublishedLinksSection } from './detail/PublishedLinksSection'
 import type { Source, TeamSource } from '@/types/task-auto'
@@ -79,6 +79,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
   const [showResubmit, setShowResubmit]     = useState(false)
   const [showVideoPreview, setShowVideoPreview] = useState(false)
   const [showSchedule, setShowSchedule]     = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [editMode, setEditMode]             = useState(false)
   const [editForm, setEditForm] = useState({
     product_id: '',
@@ -94,6 +95,19 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
   const [productScope, setProductScope] = useState<'personal' | 'global' | 'team'>('global')
   const [contentScope, setContentScope] = useState<'personal' | 'global' | 'team'>('global')
   const [sourceScope, setSourceScope] = useState<SourceScope>('all')
+
+  // Esc đóng panel — nhưng nếu đang có modal con (nộp/từ chối/preview/lên lịch/xác nhận xoá)
+  // hoặc đang sửa, chỉ đóng lớp đó trước (giống hành vi đã có ở VideoPreviewOverlay).
+  const hasChildOverlay = showSubmit || showReject || showResubmit || showVideoPreview || showSchedule || showDeleteConfirm
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape' || hasChildOverlay) return
+      if (editMode) { setEditMode(false); setProductSearch(''); setContentSearch(''); return }
+      onClose()
+    }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [hasChildOverlay, editMode, onClose])
 
   const { data: task, isLoading } = useQuery({
     queryKey: ['task-auto', 'task', taskId],
@@ -400,7 +414,10 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
       qc.removeQueries({ queryKey: ['task-auto', 'task', taskId] })
       onClose()
     },
-    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Xoá task thất bại'),
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message ?? 'Xoá task thất bại')
+      setShowDeleteConfirm(false)
+    },
   })
 
   // ✅ Content fallback chain: fullContent → editor → team (own→FK) → global (own→team FK→editor FK)
@@ -630,6 +647,16 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                           fileUrl,
                           voiceUrl,
                         }}
+                        taskId={task.id}
+                        isAssignee={isAssignee}
+                        canApproveReject={canApproveReject}
+                        productName={productName}
+                        productSku={productSku}
+                        productPrice={mergedProduct?.price ?? null}
+                        productMaterial={mergedProduct?.material?.name ?? null}
+                        productPriceSegment={mergedProduct?.price_segment ?? null}
+                        productLine={mergedProduct?.product_line?.name ?? null}
+                        productMarket={mergedProduct?.market ?? null}
                       />
 
                       <SourcesSection
@@ -707,24 +734,6 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                     />
                   </div>
 
-                  <VideoScriptSection
-                    taskId={task.id}
-                    isAssignee={isAssignee}
-                    canApproveReject={canApproveReject}
-                    fileUrl={fileUrl}
-                    scriptText={scriptText}
-                    contentTitle={contentTitle}
-                    contentLine={contentLine}
-                    contentMarket={contentMarket}
-                    productName={productName}
-                    productSku={productSku}
-                    productPrice={mergedProduct?.price ?? null}
-                    productMaterial={mergedProduct?.material?.name ?? null}
-                    productPriceSegment={mergedProduct?.price_segment ?? null}
-                    productLine={mergedProduct?.product_line?.name ?? null}
-                    productMarket={mergedProduct?.market ?? null}
-                  />
-
                   <TaskMetaStrip
                     task={task}
                     assigneeEdit={editMode && canAssign && task.status === 'PENDING' ? {
@@ -767,7 +776,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
               onSubmit={() => setShowSubmit(true)}
               onApprove={() => approveMut.mutate()}
               onReject={() => setShowReject(true)}
-              onDelete={() => deleteMut.mutate()}
+              onDelete={() => setShowDeleteConfirm(true)}
               onResubmit={() => setShowResubmit(true)}
               onSchedulePost={() => setShowSchedule(true)}
             />
@@ -796,6 +805,16 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
           onClose={() => setShowSchedule(false)}
         />
       )}
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title="Xoá task này?"
+        message="Bạn có chắc muốn xoá task này? Hành động này không thể hoàn tác."
+        confirmLabel="Xoá task"
+        danger
+        isLoading={deleteMut.isPending}
+        onConfirm={() => deleteMut.mutate()}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </>
   )
 }

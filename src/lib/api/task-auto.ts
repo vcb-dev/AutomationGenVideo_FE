@@ -28,6 +28,7 @@ import type {
   TeamContent,
   TeamPushRequest,
   TaskContentApproval,
+  ContentApprovalsQuery,
   Notification,
   PublishedLink,
 } from '@/types/task-auto'
@@ -153,6 +154,9 @@ export const requestTaskContentApproval = (taskId: string) =>
 
 export const reviewTaskContentApproval = (approvalId: string, action: 'APPROVED' | 'REJECTED', reject_reason?: string) =>
   apiClient.post<TaskContentApproval>(`/task-auto/content-approvals/${approvalId}/review`, { action, reject_reason }).then(r => r.data)
+
+export const getContentApprovals = (q: ContentApprovalsQuery = {}) =>
+  apiClient.get<PaginatedResult<TaskContentApproval>>(`/task-auto/content-approvals${qs(q as any)}`).then(r => r.data)
 
 // ── Teams ─────────────────────────────────────────────────────────────────────
 

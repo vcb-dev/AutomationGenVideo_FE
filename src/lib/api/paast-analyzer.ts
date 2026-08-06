@@ -41,6 +41,18 @@ export interface PaastChangeAdded {
   text: string
 }
 
+export type PaastLayerKey = 'prefer' | 'action' | 'acknowledge' | 'stick' | 'trust'
+
+/**
+ * Đạt chuẩn PAAST khi cả 5 lớp đều có ≥1 tiêu chí đạt (Prefer cần ≥1 insight `primary`) —
+ * không dùng ngưỡng điểm tổng, xem `compute_verdict` ở AI service (business doc §1.3/§5.2).
+ */
+export interface PaastVerdict {
+  passed: boolean
+  passed_layers: PaastLayerKey[]
+  missing_layers: PaastLayerKey[]
+}
+
 export interface PaastAnalysisResult {
   layers: {
     prefer: PaastLayerInsights
@@ -49,6 +61,7 @@ export interface PaastAnalysisResult {
     stick: PaastLayerCriteria
     trust: PaastLayerCriteria
   }
+  verdict: PaastVerdict
   cta_warning: { detected: boolean; matches: string[] }
   /** Chỉ có ở bản ghi là kết quả của 1 lần nâng cấp (`upgraded_from_id` != null). */
   changes_added?: PaastChangeAdded[]
