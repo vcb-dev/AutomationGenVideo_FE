@@ -67,7 +67,7 @@ function SkeletonRows() {
     <>
       {Array.from({ length: 5 }).map((_, i) => (
         <tr key={i} className="border-b border-gray-100">
-          {Array.from({ length: 9 }).map((_, j) => (
+          {Array.from({ length: 8 }).map((_, j) => (
             <td key={j} className="px-5 py-4">
               <div className="h-5 bg-gray-100 rounded animate-pulse" style={{ width: j === 1 ? '80%' : j === 0 ? '36px' : j >= 6 ? '24px' : '60%' }} />
             </td>
@@ -109,7 +109,7 @@ export function TasksTable({
               <SkeletonRows />
             ) : tasks.length === 0 ? (
               <tr>
-                <td colSpan={9}>
+                <td colSpan={8}>
                   <EmptyState title="Không có task nào" description="Thử thay đổi bộ lọc hoặc tạo task mới" />
                 </td>
               </tr>
