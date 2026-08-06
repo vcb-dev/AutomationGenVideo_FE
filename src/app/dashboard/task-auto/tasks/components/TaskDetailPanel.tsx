@@ -81,6 +81,10 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
   const [showSchedule, setShowSchedule]     = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [editMode, setEditMode]             = useState(false)
+  // ContentSection báo lên đây khi có content/bản dịch sửa tay chưa lưu — chặn đóng panel
+  // (backdrop, Esc, nút Đóng) mất trắng thay đổi mà không hỏi lại.
+  const [contentDirty, setContentDirty]     = useState(false)
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false)
   const [editForm, setEditForm] = useState({
     product_id: '',
     content_id: '',
@@ -98,16 +102,23 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
 
   // Esc đóng panel — nhưng nếu đang có modal con (nộp/từ chối/preview/lên lịch/xác nhận xoá)
   // hoặc đang sửa, chỉ đóng lớp đó trước (giống hành vi đã có ở VideoPreviewOverlay).
-  const hasChildOverlay = showSubmit || showReject || showResubmit || showVideoPreview || showSchedule || showDeleteConfirm
+  const hasChildOverlay = showSubmit || showReject || showResubmit || showVideoPreview || showSchedule || showDeleteConfirm || showCloseConfirm
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key !== 'Escape' || hasChildOverlay) return
       if (editMode) { setEditMode(false); setProductSearch(''); setContentSearch(''); return }
-      onClose()
+      requestClose()
     }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
-  }, [hasChildOverlay, editMode, onClose])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasChildOverlay, editMode, contentDirty, onClose])
+
+  // Nội dung content sửa tay chưa lưu (dirty) sẽ mất nếu đóng panel — hỏi lại thay vì đóng thẳng.
+  function requestClose() {
+    if (contentDirty) { setShowCloseConfirm(true); return }
+    onClose()
+  }
 
   const { data: task, isLoading } = useQuery({
     queryKey: ['task-auto', 'task', taskId],
@@ -538,10 +549,10 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
 
   return (
     <>
-      <div className="fixed inset-0 z-[1001] bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 z-[1001] bg-black/50 backdrop-blur-sm" onClick={requestClose} />
 
       <div className="fixed inset-0 z-[1002] flex items-center justify-center p-4 sm:p-6">
-        <div className="relative w-full max-w-5xl max-h-[92vh] bg-gray-50 rounded-2xl shadow-2xl flex flex-col overflow-hidden ring-1 ring-black/8">
+        <div className="relative w-full max-w-6xl max-h-[95vh] bg-gray-50 rounded-2xl shadow-2xl flex flex-col overflow-hidden ring-1 ring-black/8">
 
           <TaskPanelHeader
             task={task}
@@ -551,7 +562,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
             productName={productName}
             productSku={productSku}
             onToggleEdit={() => setEditMode(v => !v)}
-            onClose={onClose}
+            onClose={requestClose}
           />
 
           {task && (
@@ -657,6 +668,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                         productPriceSegment={mergedProduct?.price_segment ?? null}
                         productLine={mergedProduct?.product_line?.name ?? null}
                         productMarket={mergedProduct?.market ?? null}
+                        onDirtyChange={setContentDirty}
                       />
 
                       <SourcesSection
@@ -769,7 +781,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
               isPendingApprove={approveMut.isPending}
               isPendingDelete={deleteMut.isPending}
               isPendingUpdate={updateMut.isPending}
-              onClose={onClose}
+              onClose={requestClose}
               onCancelEdit={() => { setEditMode(false); setProductSearch(''); setContentSearch('') }}
               onSaveEdit={() => updateMut.mutate()}
               onStart={() => startMut.mutate()}
@@ -814,6 +826,15 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
         isLoading={deleteMut.isPending}
         onConfirm={() => deleteMut.mutate()}
         onCancel={() => setShowDeleteConfirm(false)}
+      />
+      <ConfirmDialog
+        open={showCloseConfirm}
+        title="Đóng và bỏ qua thay đổi?"
+        message="Content bạn vừa sửa chưa được lưu. Nếu đóng bây giờ, các thay đổi này sẽ mất."
+        confirmLabel="Đóng, bỏ qua"
+        danger
+        onConfirm={() => { setShowCloseConfirm(false); onClose() }}
+        onCancel={() => setShowCloseConfirm(false)}
       />
     </>
   )

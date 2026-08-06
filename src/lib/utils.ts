@@ -28,6 +28,26 @@ export function formatDate(date: string): string {
   });
 }
 
+const INVISIBLE_CHARS_RE = /[\u00A0\u200B\u200C\u200D\uFEFF]/g;
+
+/**
+ * Chuẩn hoá nội dung copy-paste từ Word/Zalo/Facebook... về format sạch để hiển thị đẹp:
+ * - Chuẩn hoá xuống dòng (CRLF/CR → LF), bỏ non-breaking space, zero-width space, BOM
+ * - Gộp tab/nhiều space liên tiếp thành 1 space, xoá khoảng trắng đầu/cuối mỗi dòng
+ * - Gộp từ 3 dòng trống liên tiếp trở lên thành đúng 1 dòng trống (giữ ngắt đoạn)
+ */
+export function cleanContentText(raw: string): string {
+  if (!raw) return raw;
+  return raw
+    .replace(/\r\n?/g, '\n')
+    .replace(INVISIBLE_CHARS_RE, ' ')
+    .split('\n')
+    .map(line => line.replace(/[ \t]+/g, ' ').trim())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 /** Convert bất kỳ Google Drive URL nào sang thumbnail URL để dùng trong <img src>. */
 export function driveImageUrl(url: string | null | undefined, sz = 400): string | null {
   if (!url) return null;
