@@ -3,12 +3,13 @@
 import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Play, CheckCircle2, XCircle, Loader2, ChevronLeft, ChevronRight, Info } from 'lucide-react'
+import { Play, CheckCircle2, XCircle, Loader2, Info } from 'lucide-react'
 import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { driveImageUrl } from '@/lib/utils'
 import { TaskStatusBadge } from '@/components/task-auto/StatusBadge'
 import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
 import { EmptyState } from '@/components/task-auto/EmptyState'
+import { NumberedPagination } from '@/components/task-auto/NumberedPagination'
 import { formatDateTime } from '@/components/task-auto/helpers'
 import { getTasks, approveTask } from '@/lib/api/task-auto'
 import { RejectModal } from './RejectModal'
@@ -20,7 +21,8 @@ interface Props {
   teamId?: string
   teams: Team[]
   search?: string
-  deadlineDate?: string
+  deadlineFrom?: string
+  deadlineTo?: string
   assigneeId?: string
   page: number
   onPageChange: (page: number) => void
@@ -70,7 +72,7 @@ function VideoThumbnail({ resultUrl, productImage, alt }: { resultUrl: string | 
   )
 }
 
-export function SubmittedVideosGrid({ teamId, teams, search, deadlineDate, assigneeId, page, onPageChange, onViewTask, canApproveReject }: Props) {
+export function SubmittedVideosGrid({ teamId, teams, search, deadlineFrom, deadlineTo, assigneeId, page, onPageChange, onViewTask, canApproveReject }: Props) {
   const qc = useQueryClient()
   const [rejectingTask, setRejectingTask] = useState<Task | null>(null)
   const [previewIndex, setPreviewIndex] = useState<number | null>(null)
@@ -87,12 +89,13 @@ export function SubmittedVideosGrid({ teamId, teams, search, deadlineDate, assig
   const effectiveAssigneeId = assigneeId ?? (submitterFilter || undefined)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'tasks', 'submitted', { teamId, search, deadlineDate, effectiveAssigneeId, page }],
+    queryKey: ['task-auto', 'tasks', 'submitted', { teamId, search, deadlineFrom, deadlineTo, effectiveAssigneeId, page }],
     queryFn: () => getTasks({
       status: 'SUBMITTED',
       team_id: teamId,
       search: search || undefined,
-      deadline_date: deadlineDate || undefined,
+      deadline_from: deadlineFrom || undefined,
+      deadline_to: deadlineTo || undefined,
       assignee_id: effectiveAssigneeId,
       page,
       limit: LIMIT,
@@ -203,31 +206,14 @@ export function SubmittedVideosGrid({ teamId, teams, search, deadlineDate, assig
         })}
       </div>
 
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between px-1">
-          <span className="text-sm text-slate-500">
-            Trang <span className="font-semibold text-slate-700">{page}</span> / {totalPages}
-            {' '}·{' '}
-            <span className="font-semibold text-slate-700">{total}</span> video
-          </span>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => onPageChange(page - 1)}
-              disabled={page <= 1}
-              className="p-2 rounded-lg hover:bg-gray-200 text-slate-500 disabled:opacity-30 transition-colors"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => onPageChange(page + 1)}
-              disabled={page >= totalPages}
-              className="p-2 rounded-lg hover:bg-gray-200 text-slate-500 disabled:opacity-30 transition-colors"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      )}
+      <NumberedPagination
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        itemLabel="video"
+        onPageChange={onPageChange}
+        className="px-1"
+      />
 
       {rejectingTask && (
         <RejectModal

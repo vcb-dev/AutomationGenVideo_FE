@@ -102,7 +102,7 @@ export function TaskPanelFooter({
             )}
             {!['APPROVED', 'IN_PROGRESS'].includes(task.status) && canDelete && (
               <button
-                onClick={() => { if (confirm('Bạn có chắc muốn xoá task này? Hành động này không thể hoàn tác.')) onDelete() }}
+                onClick={onDelete}
                 disabled={isPendingDelete}
                 className="border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-60 rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors">
                 {isPendingDelete ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
