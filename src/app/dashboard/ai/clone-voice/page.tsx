@@ -21,12 +21,12 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
-    laGiongXoaDuoc,
+    laGiongDungDuoc,
     boGiongKhoiDanhSach,
-    chonGiongThayThe,
-    xoaGiongClone,
+    chonGiongMacDinh,
     type GiongNoi,
-} from '@/lib/voice/xoa-giong-clone';
+} from '@/lib/voice/chon-giong-clone';
+import { xoaGiongClone } from '@/lib/voice/xoa-giong-clone';
 import { noiDungXacNhan, type ThaoTacGiong } from '@/lib/voice/xac-nhan-thao-tac-giong';
 
 /* ────────────────────────── Constants ──────────────────────── */
@@ -55,6 +55,17 @@ const MINIMAX_RECHARGE_URL = 'https://www.minimax.io/platform/user-center/paymen
 // Đơn giá mặc định khi BE chưa cấu hình env MINIMAX_VND_PER_1K_CHARS:
 // gói 250.000đ / 500.000 ký tự → 500đ mỗi 1.000 ký tự. BE trả giá khác 0 thì dùng giá BE.
 const DEFAULT_VND_PER_1K_CHARS = 500;
+
+// Giới hạn file mẫu để clone. Khớp cả ba tầng: FileInterceptor của BE
+// (ai-integration.controller.ts) và upload_audio của MiniMax đều chặn ở 20MB —
+// chặn sớm tại đây để người dùng không chờ upload xong mới nhận lỗi.
+const MAX_CLONE_FILE_MB = 20;
+const MAX_CLONE_FILE_SIZE = MAX_CLONE_FILE_MB * 1024 * 1024;
+
+// Khớp cột name của bảng Voice. Chặn ngay ở ô nhập vì tên quá dài chỉ bị DB từ
+// chối SAU khi MiniMax đã clone xong và đã tính phí — AI service cũng chặn lại
+// một lần nữa (xem _kiem_dau_vao_clone), đây chỉ là để người dùng biết sớm.
+const MAX_TEN_GIONG = 255;
 
 // Helper to get API URL
 const getApiUrl = () => {
@@ -228,7 +239,7 @@ function VoiceContextPanel({
     onRequestDelete,
     deletingVoiceId,
 }: {
-    voices: any[];
+    voices: GiongNoi[];
     selectedVoiceId: string;
     onSelectVoiceId: (id: string) => void;
     cloneFile: File | null;
@@ -245,11 +256,8 @@ function VoiceContextPanel({
     onRequestDelete: (voice: GiongNoi) => void;
     deletingVoiceId: string | null;
 }) {
-    // Chỉ voice Minimax dùng được với endpoint TTS này — voice clone của provider
-    // khác (vd HeyGen) nếu hiển thị ở đây sẽ bị BE trả 400 khi generate. Giọng hệ
-    // thống cũng bị loại: mọi giọng trong danh sách này đều kèm nút xoá, mà giọng
-    // hệ thống thì AI service từ chối xoá (xem delete_voice_api).
-    const clonedVoices = voices.filter(laGiongXoaDuoc);
+    // Cùng luật với chỗ tự chọn giọng và nút Tạo giọng nói — xem laGiongDungDuoc.
+    const clonedVoices = voices.filter(laGiongDungDuoc);
 
     return (
         <div className="mt-4 pt-4 border-t border-gray-100 space-y-4">
@@ -343,6 +351,7 @@ function VoiceContextPanel({
                             type="text"
                             value={cloneVoiceName}
                             onChange={(e) => onCloneVoiceNameChange(e.target.value)}
+                            maxLength={MAX_TEN_GIONG}
                             placeholder="Nhập tên KOC / tên bạn..."
                             className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-700 placeholder-gray-400 shadow-sm
                                 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 transition-all duration-200"
@@ -422,7 +431,7 @@ function VoiceContextPanel({
                                 </div>
                                 <div className="text-center px-2">
                                     <p className="text-xs font-medium text-gray-600">Chọn hoặc thả file audio</p>
-                                    <p className="text-[10px] text-gray-400 mt-0.5">Hỗ trợ MP3, WAV (tối đa 20MB)</p>
+                                    <p className="text-[10px] text-gray-400 mt-0.5">Hỗ trợ MP3, WAV (tối đa {MAX_CLONE_FILE_MB}MB)</p>
                                 </div>
                             </>
                         )}
@@ -460,8 +469,11 @@ function VoiceContextPanel({
 
 /* ─────────────────────────── Page ──────────────────────────── */
 export default function CloneVoicePage() {
-    const [voices, setVoices] = useState<any[]>([]);
-    const [selectedVoiceId, setSelectedVoiceId] = useState<string>('3f7bd9c515cb40cead3a233461c713ca'); // default HuyK
+    const [voices, setVoices] = useState<GiongNoi[]>([]);
+    // Rỗng cho tới khi tải xong danh sách. Bản cũ khởi tạo bằng voice_id của giọng
+    // HuyK gõ cứng — giọng HeyGen, endpoint TTS ở đây không dùng được, nên nó chỉ
+    // làm trang trông như đang chọn sẵn một giọng mà bấm Tạo là báo lỗi.
+    const [selectedVoiceId, setSelectedVoiceId] = useState<string>('');
     const [text, setText] = useState('');
     const [translateLang, setTranslateLang] = useState('Tiếng Việt');
     const [ttsLang, setTtsLang] = useState('Tiếng Việt');
@@ -507,15 +519,10 @@ export default function CloneVoicePage() {
             if (data.success && data.voices) {
                 setVoices(data.voices);
                 setVndPer1kChars(Number(data.pricing?.vnd_per_1k_chars) || 0);
-
-                // Select the first cloned voice if the current selection isn't a cloned voice
-                const cloned = data.voices.filter((v: any) => v.is_cloned && (v.provider ?? 'minimax') === 'minimax');
-                if (cloned.length > 0) {
-                    const exists = cloned.some((v: any) => v.voice_id === selectedVoiceId);
-                    if (!exists) {
-                        setSelectedVoiceId(cloned[0].voice_id);
-                    }
-                }
+                // Cùng luật với thư mục bên phải và với nút Tạo giọng nói — xem
+                // chonGiongMacDinh. Tự chọn một giọng KHÔNG hiện trong thư mục là
+                // cách cũ để người dùng đọc bằng giọng họ không hề thấy mình chọn.
+                setSelectedVoiceId((dangChon) => chonGiongMacDinh(data.voices, dangChon));
             }
         } catch (error: any) {
             console.error('Fetch voices error:', error);
@@ -528,8 +535,6 @@ export default function CloneVoicePage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const MAX_CLONE_FILE_SIZE = 20 * 1024 * 1024; // 20MB, matches UI copy + BE limit
-
     const handleFileSelect = (f: File | null) => {
         if (!f) {
             setCloneFile(null);
@@ -540,7 +545,7 @@ export default function CloneVoicePage() {
             return;
         }
         if (f.size > MAX_CLONE_FILE_SIZE) {
-            toast.error('File audio vượt quá 20MB');
+            toast.error(`File audio vượt quá ${MAX_CLONE_FILE_MB}MB`);
             return;
         }
         setCloneFile(f);
@@ -598,7 +603,7 @@ export default function CloneVoicePage() {
 
             const conLai = boGiongKhoiDanhSach(voices, voiceId);
             setVoices(conLai);
-            setSelectedVoiceId((dangChon) => chonGiongThayThe(conLai, dangChon, voiceId));
+            setSelectedVoiceId((dangChon) => chonGiongMacDinh(conLai, dangChon));
 
             toast.success(
                 ketQua.minimax_deleted === false
@@ -626,7 +631,9 @@ export default function CloneVoicePage() {
         try {
             const formData = new FormData();
             formData.append('file', cloneFile);
-            formData.append('voice_name', cloneVoiceName);
+            // Trim để khớp với chỗ chặn trùng tên (cả FE lẫn AI đều so tên đã trim) —
+            // gửi nguyên khoảng trắng thừa thì tên lưu vào DB lệch với tên vừa kiểm tra.
+            formData.append('voice_name', cloneVoiceName.trim());
             formData.append('gender', cloneGender);
 
             const startRes = await fetch(`${getApiUrl()}/ai/voice/clone/start`, {
@@ -735,9 +742,7 @@ export default function CloneVoicePage() {
             return;
         }
 
-        const usable = voices.some(
-            (v) => v.voice_id === selectedVoiceId && v.is_cloned && (v.provider ?? 'minimax') === 'minimax',
-        );
+        const usable = laGiongDungDuoc(voices.find((v) => v.voice_id === selectedVoiceId));
         if (!usable) {
             toast.error('Vui lòng chọn một giọng đã clone (Minimax) trong danh sách, hoặc clone giọng mới trước.');
             return;
