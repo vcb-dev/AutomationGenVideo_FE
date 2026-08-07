@@ -11,6 +11,8 @@ interface UserActivity {
     avatar: string;
     time: string;
     dailyGoal: number;
+    /** 'manual' = KPI ngày do leader/admin set tay; 'derived' = suy ra từ số task có deadline trong ngày */
+    dailyGoalSource?: 'manual' | 'derived';
     done: number;
     traffic: string;
     revenue: string;
@@ -226,7 +228,13 @@ const UserActivityCard = React.memo(({ data, onClick, canClick = true, isActive 
                         <span className={`text-[20px] font-black leading-none ${style.metricText}`}>{data.kpi_month ?? 0}</span>
                         <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-1 text-center leading-tight">MT Tháng</span>
                     </div>
-                    <div className={`flex flex-col items-center py-2.5 px-1 rounded-xl border ${style.accent}`}>
+                    <div className={`relative flex flex-col items-center py-2.5 px-1 rounded-xl border ${style.accent}`}>
+                        {data.dailyGoalSource === 'manual' && (
+                            <span
+                                title="KPI ngày do leader/admin set"
+                                className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-indigo-500"
+                            />
+                        )}
                         <Sun className="w-3.5 h-3.5 text-slate-400 mb-1" />
                         <span className={`text-[20px] font-black leading-none ${style.metricText}`}>{dailyGoal}</span>
                         <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-1 text-center leading-tight">MT Ngày</span>
