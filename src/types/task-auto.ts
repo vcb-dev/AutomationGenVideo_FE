@@ -217,6 +217,23 @@ export interface EditorKpiAllocation {
   product_line?: ProductLine | null
 }
 
+// ── Editor Daily KPI (KPI ngày set tay, từng ngày một con số) ──
+
+export interface EditorDailyKpi {
+  id: string
+  user_id: string
+  team_id: string
+  date: string            // ISO — ngày áp dụng (DATE, UTC midnight)
+  target: number          // 0 = chưa set → BE fallback logic cũ
+  note: string | null
+  set_by_id: string
+  created_at: string
+  updated_at: string
+  user?: UserBasic
+  set_by?: UserBasic
+  team?: { id: string; name: string }
+}
+
 // ── Team Push Request (duyệt đẩy kho cá nhân → kho team) ──
 
 export interface TaskContentApproval {
@@ -688,6 +705,7 @@ export interface TasksQuery {
   page?: number
   limit?: number
   search?: string
+  sort?: 'created_at' | 'updated_at'
 }
 
 export type BrandType = 'DO_DA' | 'TRANG_SUC'

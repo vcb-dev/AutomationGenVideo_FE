@@ -7,6 +7,7 @@ import type {
   EditorApproval,
   TeamKpi,
   EditorKpi,
+  EditorDailyKpi,
   ContentLine,
   ProductLine,
   Material,
@@ -354,6 +355,28 @@ export const updateEditorKpi = (_id: string, body: Partial<EditorKpi>) =>
 
 export const deleteEditorKpi = (id: string) =>
   apiClient.delete(`/task-auto/kpi/editors/${id}`).then(r => r.data)
+
+// ── Editor Daily KPI (KPI ngày set tay) ───────────────────────────────────────
+
+export const getEditorDailyKpis = (params: {
+  date?: string      // YYYY-MM-DD
+  from?: string
+  to?: string
+  team_id?: string
+  user_id?: string
+}) =>
+  apiClient.get<EditorDailyKpi[]>(`/task-auto/kpi/editors/daily${qs(params)}`).then(r => r.data)
+
+/** Upsert theo lô: cả team cho 1 ngày (target = 0 nghĩa là bỏ set → BE fallback logic cũ) */
+export const upsertEditorDailyKpis = (body: {
+  team_id: string
+  date: string       // YYYY-MM-DD
+  entries: { user_id: string; target: number; note?: string }[]
+}) =>
+  apiClient.post<EditorDailyKpi[]>('/task-auto/kpi/editors/daily', body).then(r => r.data)
+
+export const deleteEditorDailyKpi = (id: string) =>
+  apiClient.delete(`/task-auto/kpi/editors/daily/${id}`).then(r => r.data)
 
 // ── Catalog — Lookup Tables ────────────────────────────────────────────────────
 

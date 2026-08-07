@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {
@@ -9,13 +10,14 @@ import {
   type DragStartEvent, type DragEndEvent,
 } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { Send, Play, Upload, CheckCircle2, XCircle, AlertTriangle, ChevronDown, Loader2, Inbox, Clock, GripVertical } from 'lucide-react'
+import { Send, Play, Upload, CheckCircle2, XCircle, AlertTriangle, ChevronDown, Loader2, Inbox, Clock, GripVertical, ExternalLink } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { cn, driveImageUrl } from '@/lib/utils'
 import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
 import { formatDateTime, isOverdue } from '@/components/task-auto/helpers'
 import { getTasks, updateTask, approveTask } from '@/lib/api/task-auto'
 import { RejectModal } from './RejectModal'
+import { VideoPreviewOverlay } from './detail/VideoPreviewOverlay'
 import { resolveContentTitle, resolveProductName, resolveProductImage } from './TasksTable'
 import type { Task, TaskStatus } from '@/types/task-auto'
 
@@ -71,24 +73,31 @@ const COLUMNS: ColumnDef[] = [
 
 const PAGE_SIZE = 12
 
-// Kéo-thả chỉ cho phép đúng 2 dịch chuyển vừa hợp lệ ở BE (xem allowedTransition() trong
+// Kéo-thả chỉ cho phép đúng các dịch chuyển vừa hợp lệ ở BE (xem allowedTransition() trong
 // tasks.service.ts) vừa KHÔNG làm mất dữ liệu bắt buộc đi kèm bước đó:
-// - ASSIGNED → IN_PROGRESS: tương đương nút "Bắt đầu làm" hiện có, không cần thêm dữ liệu gì.
+// - ASSIGNED ⇄ IN_PROGRESS: tương đương nút "Bắt đầu làm"/hoàn tác, không cần thêm dữ liệu gì.
+//   Cho phép kéo ngược lại (IN_PROGRESS → ASSIGNED) vì kéo nhầm cột rất dễ xảy ra và người
+//   dùng cần cách sửa nhanh mà không phải mở panel chi tiết.
 // - SUBMITTED → APPROVED: gọi thẳng approveTask() (endpoint review) chứ KHÔNG dùng update()
 //   thường vì review() còn tự động đẩy pending video lên Drive — update() thường thì không.
+//   Chiều ngược lại (đã duyệt → đã nộp) không hợp lệ ở BE vì approve có side-effect khó hoàn tác
+//   nên không thêm kéo-thả cho chiều này.
 // Nộp bài (…→ SUBMITTED) cần result_url và từ chối cần lý do nên vẫn bắt buộc qua modal riêng
 // (TaskSubmitModal/RejectModal), không cho kéo-thả 2 trường hợp này.
-const DRAG_TRANSITIONS: Partial<Record<TaskStatus, { to: TaskStatus; action: 'start' | 'approve' }>> = {
-  ASSIGNED:  { to: 'IN_PROGRESS', action: 'start' },
-  SUBMITTED: { to: 'APPROVED',    action: 'approve' },
+const DRAG_TRANSITIONS: Partial<Record<TaskStatus, { to: TaskStatus; action: 'move' | 'approve' }>> = {
+  ASSIGNED:    { to: 'IN_PROGRESS', action: 'move' },
+  IN_PROGRESS: { to: 'ASSIGNED',    action: 'move' },
+  SUBMITTED:   { to: 'APPROVED',    action: 'approve' },
 }
 
-function TaskCardBody({ task }: { task: Task }) {
+function TaskCardBody({ task, onOpenPreview }: { task: Task; onOpenPreview?: () => void }) {
   const title = resolveContentTitle(task)
   const productName = resolveProductName(task)
   const productImage = driveImageUrl(resolveProductImage(task), 120)
   const overdue = isOverdue(task.deadline) && !['APPROVED', 'CANCELLED'].includes(task.status)
   const missingLink = task.status === 'APPROVED' && !task.published_links?.length
+  // Cùng convention với TaskDetailPanel: link Drive mở preview trong app (popup), link khác mở tab mới
+  const isDriveUrl = task.result_url?.includes('drive.google.com')
 
   return (
     <>
@@ -133,7 +142,7 @@ function TaskCardBody({ task }: { task: Task }) {
         )}
       </div>
 
-      {(task.deadline || missingLink) && (
+      {(task.deadline || missingLink || task.result_url) && (
         <div className="flex items-center flex-wrap gap-1.5 mt-2.5">
           {task.deadline && (
             <span className={cn(
@@ -148,6 +157,31 @@ function TaskCardBody({ task }: { task: Task }) {
             <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold bg-red-50 text-red-600">
               <AlertTriangle className="w-3 h-3 shrink-0" /> Thiếu link
             </span>
+          )}
+          {task.result_url && (
+            isDriveUrl ? (
+              onOpenPreview && (
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); onOpenPreview() }}
+                  onPointerDown={e => e.stopPropagation()}
+                  className="ml-auto inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-700 hover:text-indigo-900 underline underline-offset-2 transition-colors"
+                >
+                  <Play className="w-3 h-3 shrink-0" /> Xem kết quả
+                </button>
+              )
+            ) : (
+              <a
+                href={task.result_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={e => e.stopPropagation()}
+                onPointerDown={e => e.stopPropagation()}
+                className="ml-auto inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-700 hover:text-indigo-900 underline underline-offset-2 transition-colors"
+              >
+                <ExternalLink className="w-3 h-3 shrink-0" /> Xem kết quả
+              </a>
+            )
           )}
         </div>
       )}
@@ -173,6 +207,8 @@ function TaskCard({ task, cardBar, actions, onViewTask }: {
   const isStarting    = actions.startingId === task.id
   const isApproving   = actions.approvingId === task.id
 
+  const [showPreview, setShowPreview] = useState(false)
+
   return (
     // div role="button" thay vì <button> vì bên trong có nút thao tác nhanh — không được lồng button trong button
     <div
@@ -195,7 +231,18 @@ function TaskCard({ task, cardBar, actions, onViewTask }: {
       {draggable && (
         <GripVertical className="absolute top-2.5 right-2.5 w-3.5 h-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
       )}
-      <TaskCardBody task={task} />
+      <TaskCardBody task={task} onOpenPreview={() => setShowPreview(true)} />
+
+      {showPreview && task.result_url && createPortal(
+        // Portal ra document.body: card có hover:-translate-y-0.5 (transform khi hover) làm ancestor
+        // trở thành containing block cho position:fixed, khiến overlay bị "giam" trong card và
+        // nháy liên tục theo trạng thái hover thay vì hiện full màn hình như mong đợi.
+        // stopPropagation để bấm backdrop đóng overlay không lọt lên onClick mở panel chi tiết của card.
+        <div onClick={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()}>
+          <VideoPreviewOverlay resultUrl={task.result_url} onClose={() => setShowPreview(false)} />
+        </div>,
+        document.body,
+      )}
 
       {(canStartTask || canReviewTask) && (
         // Chặn cả click lẫn pointerdown để bấm nút không mở panel chi tiết và không kích hoạt kéo-thả
@@ -270,6 +317,8 @@ function KanbanColumn({
       assignee_id: filters.assigneeId,
       page: 1,
       limit,
+      // Task vừa được kéo sang cột này cần nổi lên đầu chứ không kẹt theo created_at gốc
+      sort: 'updated_at',
     }),
     refetchOnWindowFocus: true,
   })
@@ -368,9 +417,14 @@ export function TasksKanbanBoard({
     queryClient.invalidateQueries({ queryKey: ['task-auto', 'tasks'] })
   }
 
-  const startMutation = useMutation({
-    mutationFn: (id: string) => updateTask(id, { status: 'IN_PROGRESS' }),
-    onSuccess: () => { invalidateTasks(); toast.success('Đã chuyển sang "Đang làm"') },
+  // Dùng chung cho nút "Bắt đầu làm" lẫn kéo-thả (cả 2 chiều ASSIGNED ⇄ IN_PROGRESS) — cùng
+  // gọi update() thường, chỉ khác trạng thái đích nên gộp 1 mutation nhận kèm { id, to }.
+  const moveMutation = useMutation({
+    mutationFn: ({ id, to }: { id: string; to: TaskStatus }) => updateTask(id, { status: to }),
+    onSuccess: (_data, { to }) => {
+      invalidateTasks()
+      toast.success(`Đã chuyển sang "${COLUMNS.find(c => c.status === to)?.label ?? to}"`)
+    },
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Không thể chuyển trạng thái task này'),
   })
   const approveMutation = useMutation({
@@ -392,8 +446,8 @@ export function TasksKanbanBoard({
     const toStatus = over.id as TaskStatus
     const transition = DRAG_TRANSITIONS[task.status]
     if (!transition || transition.to !== toStatus) return
-    if (transition.action === 'start') startMutation.mutate(task.id)
-    else approveMutation.mutate(task.id)
+    if (transition.action === 'approve') approveMutation.mutate(task.id)
+    else moveMutation.mutate({ id: task.id, to: transition.to })
   }
 
   const draggingStatus = draggingTask?.status ?? null
@@ -402,9 +456,9 @@ export function TasksKanbanBoard({
   const cardActions: CardActions = {
     currentUserId,
     canApproveReject,
-    startingId:  startMutation.isPending   ? startMutation.variables   ?? null : null,
+    startingId:  moveMutation.isPending   ? moveMutation.variables?.id ?? null : null,
     approvingId: approveMutation.isPending ? approveMutation.variables ?? null : null,
-    onStart:   id => startMutation.mutate(id),
+    onStart:   id => moveMutation.mutate({ id, to: 'IN_PROGRESS' }),
     onApprove: id => approveMutation.mutate(id),
     onReject:  task => setRejectingTask(task),
   }
@@ -423,7 +477,7 @@ export function TasksKanbanBoard({
         <p className="flex items-center gap-1.5 text-xs text-slate-400">
           <GripVertical className="w-3.5 h-3.5 shrink-0" />
           Bấm thẻ để xem chi tiết · kéo thẻ sang cột bên để chuyển nhanh trạng thái
-          (Đã giao → Đang làm{canApproveReject ? ', Đã nộp → Đã duyệt' : ''})
+          (Đã giao ⇄ Đang làm{canApproveReject ? ', Đã nộp → Đã duyệt' : ''})
         </p>
 
         <div className="flex gap-4 overflow-x-auto custom-scrollbar pb-2 items-start">
