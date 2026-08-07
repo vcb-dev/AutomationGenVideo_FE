@@ -79,11 +79,11 @@ export interface PaastAnalysisHistory {
 }
 
 export const analyzePaastContent = (content: string) =>
-  apiClient.post<PaastAnalysisHistory>('/paast-analyzer/analyze', { content }).then(r => r.data)
+  apiClient.post<PaastAnalysisHistory>('/ai/paast/analyze', { content }).then(r => r.data)
 
 /** Tìm bản phân tích PAAST gần nhất khớp đúng nội dung này — null nếu content chưa từng được chấm. */
 export const findPaastAnalysisByContent = (content: string) =>
-  apiClient.post<PaastAnalysisHistory | null>('/paast-analyzer/find-by-content', { content }).then(r => r.data)
+  apiClient.post<PaastAnalysisHistory | null>('/ai/paast/find-by-content', { content }).then(r => r.data)
 
 export const upgradePaastAnalysis = (analysisId: string) =>
-  apiClient.post<PaastAnalysisHistory>(`/paast-analyzer/upgrade/${analysisId}`).then(r => r.data)
+  apiClient.post<PaastAnalysisHistory>(`/ai/paast/upgrade/${analysisId}`).then(r => r.data)

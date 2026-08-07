@@ -128,13 +128,21 @@ export function TaskFilters({
     onDeadlineToChange('')
   }
 
+  // Hiển thị dd/MM thay vì yyyy-mm-dd thô, kèm chữ "Ngày:" để người dùng hiểu ngay đây là
+  // bộ lọc thời gian — mặc định trang lọc "Hôm nay" nên nếu không nói rõ, người dùng dễ
+  // tưởng mất task trong khi chỉ là bị bộ lọc ngày che. Không ghi "Hạn:" vì BE lọc theo
+  // hạn chót NHƯNG task chưa đặt hạn thì tính theo ngày tạo thay thế (tasks.service.ts findAll).
+  const formatShortDate = (s: string) => {
+    const [, m, d] = s.split('-')
+    return m && d ? `${d}/${m}` : s
+  }
   const dateFilterLabel = !deadlineFromFilter && !deadlineToFilter
-    ? 'Tất cả ngày'
+    ? 'Ngày: Tất cả'
     : isToday
-      ? 'Hôm nay'
+      ? 'Ngày: Hôm nay'
       : isSingleDay
-        ? deadlineFromFilter
-        : `${deadlineFromFilter || '…'} → ${deadlineToFilter || '…'}`
+        ? `Ngày: ${formatShortDate(deadlineFromFilter)}`
+        : `Ngày: ${deadlineFromFilter ? formatShortDate(deadlineFromFilter) : '…'} → ${deadlineToFilter ? formatShortDate(deadlineToFilter) : '…'}`
 
   // Gõ tìm kiếm phản hồi tức thì trên input, nhưng chỉ bắn query lên cha sau khi
   // ngừng gõ ~300ms — tránh gọi lại getTasks mỗi phím gõ (giật/nháy danh sách).
@@ -232,7 +240,7 @@ export function TaskFilters({
         <button
           type="button"
           onClick={() => setDatePickerOpen(o => !o)}
-          title="Lọc theo khoảng ngày hết hạn"
+          title="Lọc theo hạn chót của task — task chưa đặt hạn thì tính theo ngày tạo"
           className={cn(
             'flex items-center gap-2 pl-3.5 pr-2.5 py-3 bg-gray-50 border rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-colors',
             isToday
