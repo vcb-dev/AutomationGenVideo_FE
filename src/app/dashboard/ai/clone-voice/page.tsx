@@ -16,8 +16,18 @@ import {
     Check,
     CreditCard,
     ExternalLink,
+    AlertTriangle,
+    X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import {
+    laGiongXoaDuoc,
+    boGiongKhoiDanhSach,
+    chonGiongThayThe,
+    xoaGiongClone,
+    type GiongNoi,
+} from '@/lib/voice/xoa-giong-clone';
+import { noiDungXacNhan, type ThaoTacGiong } from '@/lib/voice/xac-nhan-thao-tac-giong';
 
 /* ────────────────────────── Constants ──────────────────────── */
 const LANGUAGES = [
@@ -116,6 +126,89 @@ function SelectDropdown({
     );
 }
 
+/* ── Hộp xác nhận cho thao tác tốn tiền / không hoàn tác (clone mới, xoá giọng) ── */
+function ConfirmDialog({
+    thaoTac,
+    onCancel,
+    onConfirm,
+}: {
+    thaoTac: ThaoTacGiong;
+    onCancel: () => void;
+    onConfirm: () => void;
+}) {
+    const noiDung = noiDungXacNhan(thaoTac);
+    const nguyHiem = noiDung.kieu === 'nguy-hiem';
+
+    // Esc để huỷ — thao tác huỷ phải luôn dễ hơn thao tác xác nhận
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onCancel();
+        };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+    }, [onCancel]);
+
+    return (
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4"
+            onClick={onCancel}
+        >
+            <div
+                role="dialog"
+                aria-modal="true"
+                className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-gray-200 p-5"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="flex items-start gap-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0
+                        ${nguyHiem ? 'bg-red-100' : 'bg-cyan-100'}`}>
+                        {nguyHiem
+                            ? <Trash2 className="w-5 h-5 text-red-600" />
+                            : <AudioLines className="w-5 h-5 text-cyan-600" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <h3 className="font-semibold text-gray-800">{noiDung.tieuDe}</h3>
+                        <p className="text-xs text-gray-600 mt-1 leading-relaxed">{noiDung.moTa}</p>
+                    </div>
+                    <button
+                        onClick={onCancel}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0"
+                        title="Đóng"
+                    >
+                        <X className="w-4 h-4 text-gray-400" />
+                    </button>
+                </div>
+
+                <div className={`mt-4 flex gap-2 p-3 rounded-xl border text-[11px] leading-relaxed
+                    ${nguyHiem
+                        ? 'bg-red-50 border-red-200 text-red-700'
+                        : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <span>{noiDung.canhBao}</span>
+                </div>
+
+                <div className="mt-5 flex gap-2">
+                    <button
+                        onClick={onCancel}
+                        className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                    >
+                        Huỷ
+                    </button>
+                    <button
+                        onClick={onConfirm}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white transition-all duration-200
+                            ${nguyHiem
+                                ? 'bg-red-600 hover:bg-red-700 shadow-md shadow-red-200'
+                                : 'bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 shadow-md shadow-cyan-200'}`}
+                    >
+                        {noiDung.nhanNutXacNhan}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 /* ── Right panel: cloned voice directory + upload ── */
 function VoiceContextPanel({
     voices,
@@ -132,6 +225,8 @@ function VoiceContextPanel({
     isCloning,
     onCloneSubmit,
     onRefreshVoices,
+    onRequestDelete,
+    deletingVoiceId,
 }: {
     voices: any[];
     selectedVoiceId: string;
@@ -147,10 +242,14 @@ function VoiceContextPanel({
     isCloning: boolean;
     onCloneSubmit: () => void;
     onRefreshVoices: () => void;
+    onRequestDelete: (voice: GiongNoi) => void;
+    deletingVoiceId: string | null;
 }) {
     // Chỉ voice Minimax dùng được với endpoint TTS này — voice clone của provider
-    // khác (vd HeyGen) nếu hiển thị ở đây sẽ bị BE trả 400 khi generate.
-    const clonedVoices = voices.filter(v => v.is_cloned && (v.provider ?? 'minimax') === 'minimax');
+    // khác (vd HeyGen) nếu hiển thị ở đây sẽ bị BE trả 400 khi generate. Giọng hệ
+    // thống cũng bị loại: mọi giọng trong danh sách này đều kèm nút xoá, mà giọng
+    // hệ thống thì AI service từ chối xoá (xem delete_voice_api).
+    const clonedVoices = voices.filter(laGiongXoaDuoc);
 
     return (
         <div className="mt-4 pt-4 border-t border-gray-100 space-y-4">
@@ -174,24 +273,52 @@ function VoiceContextPanel({
                     <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                         {clonedVoices.map((voice) => {
                             const isSelected = selectedVoiceId === voice.voice_id;
+                            const isDeleting = deletingVoiceId === voice.voice_id;
                             return (
-                                <button
+                                // Hàng là div chứ không phải button: nút xoá nằm bên trong,
+                                // mà button lồng trong button là HTML không hợp lệ (React cảnh báo,
+                                // và click nút xoá sẽ kích hoạt luôn cả chọn giọng).
+                                <div
                                     key={voice.voice_id}
-                                    onClick={() => onSelectVoiceId(voice.voice_id)}
-                                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left border transition-all duration-150
+                                    className={`w-full flex items-center gap-1 pl-3 pr-1.5 py-2 rounded-xl border transition-all duration-150
                                         ${isSelected
                                             ? 'bg-cyan-50 border-cyan-300 text-cyan-800 font-medium'
-                                            : 'bg-white border-gray-200 hover:bg-gray-50 text-gray-700'}`}
+                                            : 'bg-white border-gray-200 hover:bg-gray-50 text-gray-700'}
+                                        ${isDeleting ? 'opacity-50' : ''}`}
                                 >
-                                    <div className="flex items-center gap-2 min-w-0">
-                                        <Mic className={`w-3.5 h-3.5 flex-shrink-0 ${isSelected ? 'text-cyan-600' : 'text-gray-400'}`} />
-                                        <div className="truncate">
-                                            <p className="text-xs font-semibold leading-tight truncate">{voice.name}</p>
-                                            <p className="text-[10px] text-gray-400 mt-0.5 capitalize leading-none">{voice.gender ?? '—'} · {voice.provider ?? '—'}</p>
+                                    <button
+                                        onClick={() => onSelectVoiceId(voice.voice_id)}
+                                        disabled={isDeleting}
+                                        className="flex-1 flex items-center justify-between gap-2 min-w-0 text-left disabled:cursor-not-allowed"
+                                    >
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <Mic className={`w-3.5 h-3.5 flex-shrink-0 ${isSelected ? 'text-cyan-600' : 'text-gray-400'}`} />
+                                            <div className="truncate">
+                                                <p className="text-xs font-semibold leading-tight truncate">{voice.name}</p>
+                                                <p className="text-[10px] text-gray-400 mt-0.5 capitalize leading-none">{voice.gender ?? '—'} · {voice.provider ?? '—'}</p>
+                                            </div>
                                         </div>
-                                    </div>
-                                    {isSelected && <Check className="w-3.5 h-3.5 text-cyan-600 flex-shrink-0" />}
-                                </button>
+                                        {isSelected && <Check className="w-3.5 h-3.5 text-cyan-600 flex-shrink-0" />}
+                                    </button>
+                                    <button
+                                        onClick={() => onRequestDelete(voice)}
+                                        disabled={isDeleting}
+                                        title={`Xoá giọng "${voice.name}"`}
+                                        aria-label={`Xoá giọng ${voice.name}`}
+                                        // gray-400 chứ không nhạt hơn: gray-300 chìm hẳn vào nền
+                                        // cyan của hàng đang chọn, gần như không thấy nút đâu
+                                        className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors flex-shrink-0 disabled:cursor-not-allowed"
+                                    >
+                                        {isDeleting ? (
+                                            <svg className="w-3.5 h-3.5 animate-spin text-red-500" viewBox="0 0 24 24" fill="none">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                                            </svg>
+                                        ) : (
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                        )}
+                                    </button>
+                                </div>
                             );
                         })}
                     </div>
@@ -356,6 +483,9 @@ export default function CloneVoicePage() {
     const [cloneVoiceName, setCloneVoiceName] = useState('');
     const [cloneGender, setCloneGender] = useState<'male' | 'female'>('female');
     const [isCloning, setIsCloning] = useState(false);
+    // Thao tác đang chờ xác nhận (clone mới hoặc xoá giọng) — null = không mở hộp thoại
+    const [thaoTacChoXacNhan, setThaoTacChoXacNhan] = useState<ThaoTacGiong | null>(null);
+    const [deletingVoiceId, setDeletingVoiceId] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -423,10 +553,9 @@ export default function CloneVoicePage() {
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
-    // Handle voice cloning. Chạy nền + poll trạng thái thay vì 1 request chờ trực
-    // tiếp — mạng tới Minimax có thể chập chờn vài phút, request đồng bộ dễ bị
-    // BE/trình duyệt tự timeout dù cuối cùng Minimax vẫn xử lý xong.
-    const handleCloneSubmit = async () => {
+    // Bước 1 của clone: kiểm tra đầu vào rồi MỞ HỘP XÁC NHẬN. Clone bị MiniMax tính
+    // phí ngay từ lần bấm đầu tiên nên không cho bấm nhầm là chạy luôn.
+    const yeuCauClone = () => {
         if (!cloneFile || !cloneVoiceName.trim()) {
             toast.error('Vui lòng điền tên giọng và chọn file audio mẫu');
             return;
@@ -441,6 +570,55 @@ export default function CloneVoicePage() {
             toast.error(`Đã có giọng clone tên "${dupe.name}". Đặt tên khác hoặc xoá giọng cũ trước khi clone lại (mỗi lần clone đều tính phí).`);
             return;
         }
+
+        setThaoTacChoXacNhan({
+            loai: 'them',
+            tenGiong: cloneVoiceName.trim(),
+            tenFile: cloneFile.name,
+            kichThuocByte: cloneFile.size,
+            gioiTinh: cloneGender,
+        });
+    };
+
+    // Mở hộp xác nhận xoá — việc xoá thật nằm ở thucHienXoa()
+    const yeuCauXoa = (voice: GiongNoi) => {
+        setThaoTacChoXacNhan({ loai: 'xoa', tenGiong: voice.name, voiceId: voice.voice_id });
+    };
+
+    // Xoá giọng: BE gọi MiniMax xoá trước rồi mới xoá bản ghi, nên xoá xong là mất hẳn.
+    const thucHienXoa = async (voiceId: string, tenGiong: string) => {
+        setDeletingVoiceId(voiceId);
+        const deletingToast = toast.loading(`Đang xoá giọng "${tenGiong}"...`);
+
+        try {
+            const ketQua = await xoaGiongClone(voiceId, {
+                apiUrl: getApiUrl(),
+                authHeaders: getAuthHeaders(),
+            });
+
+            const conLai = boGiongKhoiDanhSach(voices, voiceId);
+            setVoices(conLai);
+            setSelectedVoiceId((dangChon) => chonGiongThayThe(conLai, dangChon, voiceId));
+
+            toast.success(
+                ketQua.minimax_deleted === false
+                    ? `Đã xoá giọng "${tenGiong}" khỏi danh sách (giọng này vốn không còn trên MiniMax).`
+                    : `Đã xoá giọng "${tenGiong}".`,
+                { id: deletingToast },
+            );
+        } catch (error: any) {
+            console.error('Delete voice error:', error);
+            toast.error(error.message || 'Lỗi khi xoá giọng', { id: deletingToast });
+        } finally {
+            setDeletingVoiceId(null);
+        }
+    };
+
+    // Bước 2 của clone. Chạy nền + poll trạng thái thay vì 1 request chờ trực
+    // tiếp — mạng tới Minimax có thể chập chờn vài phút, request đồng bộ dễ bị
+    // BE/trình duyệt tự timeout dù cuối cùng Minimax vẫn xử lý xong.
+    const thucHienClone = async () => {
+        if (!cloneFile || !cloneVoiceName.trim()) return;
 
         setIsCloning(true);
         const loadingToast = toast.loading('Đang tải audio lên...');
@@ -811,14 +989,34 @@ export default function CloneVoicePage() {
                                 cloneGender={cloneGender}
                                 onCloneGenderChange={setCloneGender}
                                 isCloning={isCloning}
-                                onCloneSubmit={handleCloneSubmit}
+                                onCloneSubmit={yeuCauClone}
                                 onRefreshVoices={fetchVoices}
+                                onRequestDelete={yeuCauXoa}
+                                deletingVoiceId={deletingVoiceId}
                             />
                         </div>
                     </div>
 
                 </div>
             </div>
+
+            {/* Hộp xác nhận — đóng ngay khi bấm xác nhận, tiến độ hiển thị tại chỗ
+                (nút Clone quay vòng / hàng giọng mờ đi) vì clone có thể mất vài phút */}
+            {thaoTacChoXacNhan && (
+                <ConfirmDialog
+                    thaoTac={thaoTacChoXacNhan}
+                    onCancel={() => setThaoTacChoXacNhan(null)}
+                    onConfirm={() => {
+                        const thaoTac = thaoTacChoXacNhan;
+                        setThaoTacChoXacNhan(null);
+                        if (thaoTac.loai === 'xoa') {
+                            thucHienXoa(thaoTac.voiceId, thaoTac.tenGiong);
+                        } else {
+                            thucHienClone();
+                        }
+                    }}
+                />
+            )}
         </div>
     );
 }

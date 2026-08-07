@@ -104,11 +104,20 @@ export default function DateRangeFilter({
     from,
     to,
     onChange,
+    canhPhai = false,
 }: {
     from: string;
     to: string;
     /** Trả về cả hai đầu cùng lúc — đổi riêng lẻ dễ tạo khoảng ngược (từ > đến). */
     onChange: (from: string, to: string) => void;
+    /**
+     * Neo lịch vào mép PHẢI của nút thay vì mép trái.
+     *
+     * Mặc định canh trái vì trên thanh lọc của các trang kênh, nút này nằm bên trái nên lịch
+     * đổ xuống thoải mái. Ở trang Tổng quan nút nằm sát mép phải trang: canh trái thì popover
+     * 280px tràn khỏi màn hình và mất hẳn hai cột T7/CN — đã dựng ra và nhìn thấy tận mắt.
+     */
+    canhPhai?: boolean;
 }) {
     const [mo, setMo] = useState(false);
     /** Lần bấm kế tiếp đặt đầu nào của khoảng. */
@@ -243,7 +252,7 @@ export default function DateRangeFilter({
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 4, scale: 0.98 }}
                         transition={{ duration: 0.12, ease: 'easeOut' }}
-                        className="absolute left-0 top-full z-50 mt-2 w-[280px] overflow-hidden rounded-xl border border-border bg-card shadow-xl"
+                        className={`absolute ${canhPhai ? 'right-0' : 'left-0'} top-full z-50 mt-2 w-[280px] overflow-hidden rounded-xl border border-border bg-card shadow-xl`}
                     >
                         <div className="flex flex-wrap gap-1 border-b border-border p-2">
                             {PRESETS.map((p) => (

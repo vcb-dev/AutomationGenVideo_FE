@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { Suspense, useState, useEffect, useRef, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { CircleNotch, FilmReel, Warning, Eye, Heart, ChatCircle, FacebookLogo, TiktokLogo, InstagramLogo, YoutubeLogo } from '@phosphor-icons/react';
 
 import { useAuthStore } from '@/store/auth-store';
-import { scraperService, ExternalVideo } from '@/services/scraperService';
+import { scraperService, ExternalVideo, TrangThaiPaast } from '@/services/scraperService';
 import { platformStyle } from '@/lib/platform-config';
+import OPaastVideo from '../components/OPaastVideo';
 import ContentFilters from '../components/ContentFilters';
 import { FilterDateRange, FilterNumber, FilterReset, FilterSearch, FilterSelect } from '../components/FilterFields';
 
@@ -52,7 +54,15 @@ function getAuthorAvatar(video: ExternalVideo): string {
 }
 
 
-function VideoCard({ video }: { video: ExternalVideo }) {
+function VideoCard({
+  video,
+  paast,
+  onPaast,
+}: {
+  video: ExternalVideo;
+  paast?: TrangThaiPaast;
+  onPaast?: (khoa: string, t: TrangThaiPaast) => void;
+}) {
   // Trước dùng bảng cục bộ thiếu Douyin/Xiaohongshu với dự phòng `?? platformConfig.tiktok`
   // — không vỡ trang nhưng video Douyin lại đeo phù hiệu TikTok. Bảng dùng chung có đủ 8.
   const config = platformStyle(video.platform);
@@ -97,9 +107,18 @@ function VideoCard({ video }: { video: ExternalVideo }) {
           </div>
         </div>
 
-        {/* Duration badge */}
+        {/* Ô chấm điểm PAAST — góc trên phải, nên chiếm chỗ của huy hiệu thời lượng cũ. */}
+        <OPaastVideo
+          platform={video.platform}
+          postId={video.post_id}
+          trangThai={paast}
+          onCapNhat={(t) => onPaast?.(`${video.platform}:${video.post_id}`, t)}
+        />
+
+        {/* Duration badge — lùi sang trái nhường góc cho ô chấm điểm. Video Facebook nội bộ
+            không có thời lượng (cột trả NULL) nên phần lớn thẻ chỉ hiện ô chấm điểm. */}
         {video.duration_seconds && video.duration_seconds > 0 && (
-          <div className="absolute top-2 right-2 px-1.5 py-0.5 bg-black/60 backdrop-blur-sm rounded text-white text-xs font-medium">
+          <div className="absolute top-2 right-9 px-1.5 py-0.5 bg-black/60 backdrop-blur-sm rounded text-white text-xs font-medium">
             {Math.floor(video.duration_seconds / 60)}:{String(Math.round(video.duration_seconds % 60)).padStart(2, '0')}
           </div>
         )}
@@ -133,8 +152,14 @@ function VideoCard({ video }: { video: ExternalVideo }) {
   );
 }
 
-export default function AllOwnedVideosPage() {
+/**
+ * `?channel=<page_id|username|channel_id>` để mở thẳng vào một kênh — trang Tổng quan nội bộ
+ * dẫn sang đây khi bấm một dòng trong bảng xếp hạng. Chỉ dùng làm GIÁ TRỊ BAN ĐẦU: sau đó
+ * người dùng đổi bộ lọc trong trang thì URL không đổi theo, đúng như mọi bộ lọc khác ở đây.
+ */
+function AllOwnedVideosPage() {
   const { token } = useAuthStore();
+  const searchParams = useSearchParams();
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -145,7 +170,7 @@ export default function AllOwnedVideosPage() {
   const [dateTo, setDateTo] = useState('');
   const [market, setMarket] = useState('');
   const [contentLine, setContentLine] = useState('');
-  const [channel, setChannel] = useState('');
+  const [channel, setChannel] = useState(() => searchParams.get('channel') ?? '');
   const [hashtag, setHashtag] = useState('');
   const searchTimer = useRef<NodeJS.Timeout>();
 
@@ -183,6 +208,22 @@ export default function AllOwnedVideosPage() {
 
   const allVideos = videosQuery.data?.pages.flatMap(p => p.videos) || [];
   const totalVideos = videosQuery.data?.pages[0]?.count || 0;
+
+  // Trạng thái chấm điểm PAAST của cả lưới, lấy MỘT lượt cho mỗi trang video vừa tải thêm.
+  // Endpoint này chỉ đọc bảng đã lưu nên không tốn LLM và không gọi sang Facebook.
+  const [paast, setPaast] = useState<Record<string, TrangThaiPaast>>({});
+  const daHoiRef = useRef(new Set<string>());
+  useEffect(() => {
+    if (!token) return;
+    const canHoi = allVideos
+      .map(v => `${v.platform}:${v.post_id}`)
+      .filter(k => !daHoiRef.current.has(k));
+    if (!canHoi.length) return;
+    canHoi.forEach(k => daHoiRef.current.add(k));
+    scraperService.getPaastStatus(token, canHoi).then(r => {
+      if (Object.keys(r).length) setPaast(cu => ({ ...cu, ...r }));
+    });
+  }, [allVideos.length, token]);
 
   const observerRef = useRef<IntersectionObserver>();
   const loadMoreRef = useCallback((node: HTMLDivElement | null) => {
@@ -255,7 +296,14 @@ export default function AllOwnedVideosPage() {
       {allVideos.length > 0 && (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {allVideos.map(v => <VideoCard key={`${v.platform}-${v.post_id}`} video={v} />)}
+            {allVideos.map(v => (
+              <VideoCard
+                key={`${v.platform}-${v.post_id}`}
+                video={v}
+                paast={paast[`${v.platform}:${v.post_id}`]}
+                onPaast={(khoa, t) => setPaast(cu => ({ ...cu, [khoa]: t }))}
+              />
+            ))}
             {videosQuery.isFetchingNextPage && Array.from({ length: 6 }).map((_, i) => (
               <div key={`skel-${i}`} className="bg-card border border-border rounded-lg overflow-hidden animate-pulse">
                 <div className="aspect-[9/16] max-h-[280px] bg-slate-200 dark:bg-slate-700" />
@@ -273,5 +321,22 @@ export default function AllOwnedVideosPage() {
         </>
       )}
     </div>
+  );
+}
+
+// useSearchParams() bắt buộc phải nằm trong ranh giới Suspense, thiếu thì `next build` dừng
+// với "useSearchParams() should be wrapped in a suspense boundary".
+export default function Page() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex flex-col items-center py-16 gap-3">
+          <CircleNotch size={28} weight="bold" className="animate-spin text-primary" />
+          <p className="text-sm text-slate-500">Đang tải videos...</p>
+        </div>
+      }
+    >
+      <AllOwnedVideosPage />
+    </Suspense>
   );
 }

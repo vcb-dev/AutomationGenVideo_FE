@@ -114,6 +114,15 @@ function getContentCode(c: any): string | undefined {
     || undefined
 }
 
+// Mặc định deadline 17h50 hôm nay — giờ chốt nộp phổ biến nhất, giảm thao tác chọn tay mỗi lần tạo task.
+function defaultDeadline(): string {
+  const d = new Date()
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}T17:50`
+}
+
 function getContentLine(c: any): string | undefined {
   if (!c) return undefined
   return c.content_line?.name
@@ -134,7 +143,7 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
 
   const [form, setForm] = useState<CreateForm>({
     content_id: '', product_id: '', team_id: lockedTeam?.id ?? myTeams[0]?.id ?? '',
-    assignee_id: '', deadline: '',
+    assignee_id: '', deadline: defaultDeadline(),
     source_outro_id: '', source_collected_id: '', source_workshop_id: '', source_huyk_id: '',
   })
 
