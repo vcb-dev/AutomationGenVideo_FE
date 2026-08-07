@@ -298,6 +298,7 @@ export function useNavMenus(
                     "/dashboard/channel-analysis",
                     "/dashboard/video-library",
                     "/dashboard/content/generate",
+                    "/dashboard/internalOverview",
                     "/dashboard/internalChannels",
                     "/dashboard/externalChannels",
                 ],
@@ -317,6 +318,12 @@ export function useNavMenus(
                                 href: "/dashboard/channel-analysis",
                                 icon: BarChart3,
                                 description: n.channelAnalysisDesc,
+                            },
+                            {
+                                label: n.internalOverview,
+                                href: "/dashboard/internalOverview",
+                                icon: LayoutDashboard,
+                                description: n.internalOverviewDesc,
                             },
                             {
                                 label: n.internalChannels,

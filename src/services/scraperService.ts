@@ -699,6 +699,186 @@ export interface OwnedHashtag {
   so_video: number;
 }
 
+// ─── Tổng quan kênh nội bộ ───────────────────────────────────────────────────
+// Khớp với OwnedStatsService bên BE (owned-stats.service.ts). Mọi con số đều là TỔNG của
+// các video ĐĂNG trong kỳ, không phải số phát sinh trong kỳ — xem ghi chú ở trang tổng quan.
+
+export interface SoLieuKy {
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  posts: number;
+}
+
+export interface SoLieuNgay extends SoLieuKy {
+  /** 'YYYY-MM-DD' theo giờ Việt Nam. */
+  ngay: string;
+}
+
+export interface ThongKeNenTang extends SoLieuKy {
+  platform: string;
+  truoc: SoLieuKy;
+  followers: number;
+  /** Số kênh có đăng bài trong kỳ. */
+  so_kenh: number;
+  /** Tổng số kênh nội bộ của nền tảng, kể cả kênh không đăng gì. */
+  tong_kenh: number;
+  theo_ngay: SoLieuNgay[];
+}
+
+export interface ThongKeKenh extends SoLieuKy {
+  platform: string;
+  id: string;
+  ten: string;
+  avatar: string;
+  followers: number;
+  /** ISO, null nếu chưa đồng bộ lần nào. */
+  dong_bo: string | null;
+  views_truoc: number;
+}
+
+export interface VideoNoiBat {
+  platform: string;
+  post_id: string;
+  url: string;
+  mo_ta: string;
+  thumbnail: string;
+  kenh_ten: string;
+  views: number;
+  likes: number;
+  comments: number;
+  /** ISO. */
+  ngay: string;
+}
+
+export interface ThiTruongNenTang {
+  platform: string;
+  vn: number;
+  global: number;
+  posts_vn: number;
+  posts_global: number;
+}
+
+export interface TuyenNoiDung {
+  /** 'A1'…'A5'. */
+  ma: string;
+  posts: number;
+  views: number;
+  views_vn: number;
+  views_global: number;
+}
+
+export interface HashtagThongKe {
+  the: string;
+  posts: number;
+  views: number;
+}
+
+export interface CanhBaoKenh {
+  platform: string;
+  kenh: string;
+  noi_dung: string;
+  /** 'w' = cảnh báo nhẹ (vàng), 'b' = nặng (đỏ). */
+  muc: 'w' | 'b';
+  nhan: string;
+}
+
+export interface ThongKeNoiBo {
+  status: string;
+  ky: { tu: string; den: string; so_ngay: number };
+  nen_tang: ThongKeNenTang[];
+  kenh: ThongKeKenh[];
+  top_video: VideoNoiBat[];
+  thi_truong: ThiTruongNenTang[];
+  tuyen_noi_dung: TuyenNoiDung[];
+  hashtag: HashtagThongKe[];
+  canh_bao: CanhBaoKenh[];
+  tong_kenh: number;
+}
+
+// ─── Video đăng trùng giữa các kênh nội bộ ───────────────────────────────────
+// Khớp với OwnedDuplicateService bên BE.
+
+/** Một nội dung bị đăng trên từ 2 kênh nội bộ trở lên. */
+export interface NhomTrung {
+  /** Caption đã chuẩn hoá (hạ hoa/thường, gộp khoảng trắng) — dùng luôn làm nhãn hiển thị. */
+  noi_dung: string;
+  platform: string;
+  /** Độ dài video, giây. `null` với YouTube Shorts — bảng đó không có trường độ dài. */
+  giay: number | null;
+  so_kenh: number;
+  /** Có thể lớn hơn `so_kenh`: một kênh đăng lại cùng nội dung nhiều lần trong kỳ. */
+  so_video: number;
+  views: number;
+  kenh: { id: string; ten: string }[];
+  ngay_dau: string;
+  ngay_cuoi: string;
+  /** Link tới bài nhiều lượt xem nhất trong nhóm. */
+  url_mau: string;
+}
+
+export interface TrungTheoKenh {
+  platform: string;
+  id: string;
+  ten: string;
+  video_trung: number;
+  tong_video: number;
+  ty_le: number;
+}
+
+export interface TrungLapNoiBo {
+  status: string;
+  ky: { tu: string; den: string; so_ngay: number };
+  tom_tat: {
+    so_nhom: number;
+    so_nhom_tu_3_kenh: number;
+    so_video_trung: number;
+    /** Chỉ đếm video có caption từ 20 ký tự — dưới ngưỡng đó không đủ để nhận diện trùng. */
+    tong_video: number;
+    ty_le: number;
+    so_kenh_dinh: number;
+  };
+  nhom: NhomTrung[];
+  theo_kenh: TrungTheoKenh[];
+  canh_bao: CanhBaoKenh[];
+}
+
+// ─── Chấm điểm PAAST cho video nội bộ ────────────────────────────────────────
+// Khớp với OwnedScriptService bên BE.
+
+/**
+ * - `da_cham`           — có kịch bản và đã có điểm
+ * - `co_kich_ban`       — có kịch bản nhưng chưa chấm (hoặc chấm lỗi)
+ * - `chua_co_kich_ban`  — Facebook chưa sinh phụ đề cho video này (~2/3 số video)
+ * - `qua_ngan`          — kịch bản dưới 100 ký tự, PAAST không nhận
+ * - `khong_ho_tro`      — nền tảng chưa lấy được kịch bản
+ */
+export type TrangThaiPaastMa =
+  | 'da_cham'
+  | 'co_kich_ban'
+  | 'chua_co_kich_ban'
+  | 'qua_ngan'
+  | 'khong_ho_tro';
+
+export interface TrangThaiPaast {
+  trang_thai: TrangThaiPaastMa;
+  /** Bản 2 bỏ thang điểm 0–100, chỉ còn kết luận đạt/chưa đạt chuẩn PAAST. */
+  dat: boolean | null;
+  so_ky_tu: number;
+}
+
+export interface KetQuaPaastVideo {
+  trang_thai: TrangThaiPaastMa;
+  nguon?: string;
+  ngon_ngu?: string;
+  so_ky_tu?: number;
+  kich_ban?: string;
+  /** Bản ghi PaastAnalysisHistory — đưa thẳng vào PaastScoreModal qua prop `cachedResult`. */
+  phan_tich?: any;
+  ghi_chu?: string;
+}
+
 export interface PaginatedExternalVideos {
   status: string;
   count: number;
@@ -736,6 +916,88 @@ export const scraperService = {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải videos');
+    return res.json();
+  },
+
+  /**
+   * Số liệu tổng hợp cho trang Tổng quan kênh nội bộ.
+   *
+   * KHÔNG cộng lại từ getOwnedChannelVideos(): kỳ 28 ngày có ~3.800 video, kéo hết về rồi
+   * cộng ở trình duyệt thì vừa chậm vừa sai vì API vốn chỉ trả tối đa 100 video mỗi trang.
+   */
+  getOwnedStats: async (
+    token: string,
+    params: {
+      platform?: string;
+      /** Preset nhanh. Có `tu` thì server bỏ qua `days`. */
+      days?: number;
+      /** 'YYYY-MM-DD' — khoảng ngày người dùng tự chọn. */
+      tu?: string;
+      den?: string;
+    },
+  ): Promise<ThongKeNoiBo> => {
+    const res = await fetch(`${API_URL}/scraper/owned/stats/${buildParams(params)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Không thể tải số liệu tổng quan');
+    return res.json();
+  },
+
+  /**
+   * Video bị đăng trùng trên nhiều kênh nội bộ.
+   *
+   * Endpoint RIÊNG chứ không gộp vào getOwnedStats(): gộp vào thì cả trang tổng quan phải
+   * chờ thêm ba truy vấn nữa mới vẽ được ô số đầu tiên. Nhận cùng bộ tham số kỳ ngày nên
+   * hai khối luôn nói về cùng một khoảng thời gian.
+   */
+  getOwnedDuplicates: async (
+    token: string,
+    params: { platform?: string; days?: number; tu?: string; den?: string },
+  ): Promise<TrungLapNoiBo> => {
+    const res = await fetch(`${API_URL}/scraper/owned/trung-lap/${buildParams(params)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Không thể tải số liệu trùng lặp');
+    return res.json();
+  },
+
+  /**
+   * Trạng thái chấm điểm PAAST của một loạt video — gọi MỘT lần cho cả lưới.
+   *
+   * Chỉ đọc bảng đã lưu, không kích hoạt lấy phụ đề, nên gọi thoải mái khi mở trang.
+   * Video chưa từng chấm sẽ không có mặt trong kết quả.
+   */
+  getPaastStatus: async (
+    token: string,
+    khoas: string[],
+  ): Promise<Record<string, TrangThaiPaast>> => {
+    if (!khoas.length) return {};
+    const res = await fetch(
+      `${API_URL}/scraper/owned/paast/status/${buildParams({ ids: khoas.join(',') })}`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (!res.ok) return {};
+    return res.json();
+  },
+
+  /**
+   * Lấy kịch bản và chấm điểm PAAST cho một video.
+   *
+   * Lần đầu mỗi video mất ~15 giây (hỏi phụ đề Facebook rồi gọi LLM chấm) và tốn một lượt
+   * LLM, nên CHỈ gọi khi người dùng chủ động bấm. Từ lần sau lấy từ bảng, ~35ms, và cả team
+   * dùng chung một điểm.
+   */
+  chamDiemPaast: async (
+    token: string,
+    platform: string,
+    postId: string,
+  ): Promise<KetQuaPaastVideo> => {
+    const res = await fetch(`${API_URL}/scraper/owned/paast/`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ platform, post_id: postId }),
+    });
+    if (!res.ok) throw new Error('Không chấm điểm được video này');
     return res.json();
   },
 
