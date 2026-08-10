@@ -23,9 +23,16 @@ import {
   XCircle,
   AlertTriangle,
   TrendingUp,
+  Circle,
+  MinusCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import apiClient from '@/lib/api-client';
+import type {
+  PaastAnalysisResult,
+  PaastCriterion,
+  PaastLayerCriteria,
+} from '@/lib/api/paast-analyzer';
 import { NumberedPagination } from '@/components/ui/NumberedPagination';
 import { MemberDropdown } from '@/components/ui/MemberDropdown';
 
@@ -57,11 +64,29 @@ interface TransformHistoryItem {
     avatar_url: string | null;
   };
   // BE trả kèm ở /history, /history/member/:id, /history/:id (đồng bộ camelCase với
-  // /transform, /upgrade, /rescore) — null nếu bản ghi chưa từng có output_text để chấm.
+  // /transform, /upgrade, /rescore).
   scoreResult: ScoreResult | null;
-  scoreStatus: 'success' | 'failed' | null;
+  scoreStatus: ScoreStatus;
   scoreError: string | null;
+  /**
+   * true = điểm này là kết quả DÙNG LẠI của lần chấm trước cho đúng nội dung đó, không phải một
+   * lượt chấm mới vừa chạy (BE tái dùng điểm cũ khi output_text và phiên bản logic chấm không
+   * đổi). Chỉ có ở response /rescore; các endpoint lịch sử không trả field này.
+   */
+  fromCache?: boolean;
 }
+
+/**
+ * Trạng thái chấm điểm — khớp 1-1 với type cùng tên bên BE (ai-integration.service.ts, phần
+ * "chuyển đổi content" — gộp từ content-transform.service.ts cũ):
+ *  - `null`    : bản ghi chưa từng có kịch bản kết quả (transform hỏng ngay từ bước viết).
+ *  - `pending` : ĐÃ có kịch bản nhưng CHƯA chấm điểm — trạng thái bình thường ngay sau khi bấm
+ *                "Chuyển đổi nội dung", vì chấm điểm giờ là 1 bước riêng người dùng chủ động
+ *                bấm. Hiển thị "Chưa chấm điểm", KHÔNG hiển thị như lỗi.
+ *  - `success` : đã có điểm PAAST.
+ *  - `failed`  : lần chấm vừa rồi thất bại, hoặc bản ghi dùng hệ điểm cũ đã ngừng dùng.
+ */
+type ScoreStatus = 'success' | 'failed' | 'pending' | null;
 
 interface TeamMember {
   id: string;
@@ -71,49 +96,31 @@ interface TeamMember {
   team?: string;
 }
 
-// ── Chấm điểm kịch bản (BE trả về, đọc động — không hardcode tên nhóm/tiêu chí) ──
-interface ScoreItem {
-  label: string;
-  passed: boolean;
-  quote: string;
-  suggestion?: string;
-}
+// ── Chấm điểm kịch bản theo khung PAAST ──────────────────────────────────────────────────
+// Type lấy thẳng từ @/lib/api/paast-analyzer (nguồn duy nhất, dùng chung với PaastScoreModal
+// của Task Auto) — BE lưu và trả về ĐÚNG shape mà PaastAnalyzerService sinh ra, không đổi tên
+// field, nên FE không cần lớp map trung gian nào.
+type ScoreResult = PaastAnalysisResult & { total_score: number };
 
-// 'error': có tiêu chí con fail và fail quá nửa nhóm | 'warning': có fail nhưng chưa quá nửa
-// | 'good': không fail tiêu chí nào — BE tính sẵn (content-transform.service.ts, scoring.util.ts).
-type GroupStatus = 'good' | 'warning' | 'error';
+const PAAST_LAYER_KEYS = ['prefer', 'action', 'acknowledge', 'stick', 'trust'] as const;
+type PaastLayerKey = (typeof PAAST_LAYER_KEYS)[number];
 
-interface ScoreGroup {
-  name: string;
-  maxScore: number;
-  score: number;
-  status: GroupStatus;
-  items: ScoreItem[];
-}
+/** Điểm tối đa của MỖI lớp PAAST — 5 lớp x 20 = 100. */
+const LAYER_MAX_SCORE = 20;
 
-interface HardGateViolation {
-  type: string;
-  quote: string;
-  explanation: string;
-}
+const LAYER_META: Record<
+  PaastLayerKey,
+  { label: string; sub: string; initial: string; markBg: string; markText: string; swatch: string; quoteBorder: string }
+> = {
+  prefer: { label: 'Prefer (Thích)', sub: 'CRAVES', initial: 'P', markBg: 'bg-amber-100', markText: 'text-amber-900', swatch: 'bg-amber-100', quoteBorder: 'border-amber-300' },
+  action: { label: 'Action (Hành động)', sub: 'S-FACES', initial: 'A', markBg: 'bg-lime-100', markText: 'text-lime-900', swatch: 'bg-lime-100', quoteBorder: 'border-lime-300' },
+  acknowledge: { label: 'Acknowledge (Biết)', sub: 'BRANDS', initial: 'A', markBg: 'bg-orange-100', markText: 'text-orange-900', swatch: 'bg-orange-100', quoteBorder: 'border-orange-300' },
+  stick: { label: 'Stick (Nhớ)', sub: 'STICKS', initial: 'S', markBg: 'bg-sky-100', markText: 'text-sky-900', swatch: 'bg-sky-100', quoteBorder: 'border-sky-300' },
+  trust: { label: 'Trust (Tin)', sub: 'TRUSTS', initial: 'T', markBg: 'bg-teal-100', markText: 'text-teal-900', swatch: 'bg-teal-100', quoteBorder: 'border-teal-300' },
+};
 
-interface ScoreResult {
-  groups: ScoreGroup[];
-  overallScore: number;
-  verdict: string;
-  hardGateViolations: HardGateViolation[];
-}
-
-// 7 màu highlight theo INDEX nhóm (không theo tên) — tránh trùng đỏ (dành riêng cho Hard Gate).
-const GROUP_HIGHLIGHT_COLORS = [
-  { bg: 'bg-indigo-100', text: 'text-indigo-900', solid: 'bg-indigo-500', border: 'border-indigo-300', chipBg: 'bg-indigo-50', chipText: 'text-indigo-700' },
-  { bg: 'bg-emerald-100', text: 'text-emerald-900', solid: 'bg-emerald-500', border: 'border-emerald-300', chipBg: 'bg-emerald-50', chipText: 'text-emerald-700' },
-  { bg: 'bg-amber-100', text: 'text-amber-900', solid: 'bg-amber-500', border: 'border-amber-300', chipBg: 'bg-amber-50', chipText: 'text-amber-700' },
-  { bg: 'bg-sky-100', text: 'text-sky-900', solid: 'bg-sky-500', border: 'border-sky-300', chipBg: 'bg-sky-50', chipText: 'text-sky-700' },
-  { bg: 'bg-fuchsia-100', text: 'text-fuchsia-900', solid: 'bg-fuchsia-500', border: 'border-fuchsia-300', chipBg: 'bg-fuchsia-50', chipText: 'text-fuchsia-700' },
-  { bg: 'bg-teal-100', text: 'text-teal-900', solid: 'bg-teal-500', border: 'border-teal-300', chipBg: 'bg-teal-50', chipText: 'text-teal-700' },
-  { bg: 'bg-orange-100', text: 'text-orange-900', solid: 'bg-orange-500', border: 'border-orange-300', chipBg: 'bg-orange-50', chipText: 'text-orange-700' },
-];
+/** 4 lớp chấm theo từng tiêu chí; Prefer chấm toàn bài nên hiển thị riêng. */
+const CRITERIA_LAYER_KEYS: PaastLayerKey[] = ['action', 'acknowledge', 'stick', 'trust'];
 
 function getScoreTheme(score: number) {
   if (score >= 90) return { border: 'border-emerald-300', bg: 'bg-emerald-50', text: 'text-emerald-700' };
@@ -122,38 +129,62 @@ function getScoreTheme(score: number) {
   return { border: 'border-red-300', bg: 'bg-red-50', text: 'text-red-700' };
 }
 
-type HighlightMark = { kind: 'hardgate' } | { kind: 'group'; groupIndex: number };
+/**
+ * Trạng thái hiển thị của 1 lớp, suy từ tỷ lệ điểm lớp đó. Đây thuần là quy ước MÀU SẮC/ICON
+ * của UI (PAAST không định nghĩa ngưỡng đạt/không đạt cho từng lớp) — không phải luật tính
+ * điểm, và không ảnh hưởng con số nào hiển thị cho người dùng.
+ */
+type LayerStatus = 'good' | 'warning' | 'error';
+
+function getLayerStatus(score: number): LayerStatus {
+  const ratio = score / LAYER_MAX_SCORE;
+  if (ratio >= 0.8) return 'good';
+  if (ratio >= 0.5) return 'warning';
+  return 'error';
+}
+
+const LAYER_STATUS_STYLES: Record<
+  LayerStatus,
+  { Icon: typeof CheckCircle2; iconClass: string; barClass: string; label: string }
+> = {
+  good: { Icon: CheckCircle2, iconClass: 'text-emerald-600', barClass: 'bg-emerald-500', label: 'Tốt' },
+  warning: { Icon: AlertTriangle, iconClass: 'text-amber-600', barClass: 'bg-amber-500', label: 'Cần cải thiện' },
+  error: { Icon: XCircle, iconClass: 'text-red-600', barClass: 'bg-red-500', label: 'Yếu' },
+};
+
+type HighlightMark = { kind: 'cta' } | { kind: 'prefer' };
 
 function sameMark(a: HighlightMark | null, b: HighlightMark | null): boolean {
   if (a === null && b === null) return true;
-  if (!a || !b || a.kind !== b.kind) return false;
-  if (a.kind === 'group' && b.kind === 'group') return a.groupIndex === b.groupIndex;
-  return true;
+  if (!a || !b) return false;
+  return a.kind === b.kind;
 }
 
 /**
- * Gán màu highlight cho từng ký tự của outputText dựa trên vị trí xuất hiện đầu tiên
- * (indexOf) của mỗi quote đã được BE validate. Hard Gate luôn tô SAU (ưu tiên cao hơn,
- * ghi đè lên màu nhóm nếu trùng vị trí). Trả về danh sách đoạn liền mạch để render.
+ * Highlight nội dung theo dữ liệu PAAST. Chỉ tô những chuỗi CHẮC CHẮN có mặt nguyên văn trong
+ * bài: `evidence_sentences` của các insight Prefer (AI trích nguyên câu) và `matches` của
+ * cảnh báo CTA (cụm từ bắt được). Các tiêu chí của 4 lớp còn lại chỉ có `evidence` là lời nhận
+ * xét, KHÔNG phải trích dẫn nguyên văn, nên cố ý không dùng để highlight — tô theo nó sẽ trượt
+ * hoặc tô nhầm đoạn. Chuỗi không tìm thấy thì bỏ qua, không tô bừa.
  */
 function buildHighlightSegments(text: string, scoreResult: ScoreResult): Array<{ text: string; mark: HighlightMark | null }> {
   const marks: (HighlightMark | null)[] = new Array(text.length).fill(null);
 
-  scoreResult.groups.forEach((group, gIdx) => {
-    group.items.forEach((item) => {
-      if (!item.quote) return;
-      const idx = text.indexOf(item.quote);
-      if (idx === -1) return;
-      for (let i = idx; i < idx + item.quote.length; i++) marks[i] = { kind: 'group', groupIndex: gIdx };
-    });
+  const paint = (needle: string, mark: HighlightMark) => {
+    const trimmed = needle.trim();
+    if (!trimmed) return;
+    const idx = text.indexOf(trimmed);
+    if (idx === -1) return;
+    for (let i = idx; i < idx + trimmed.length; i++) marks[i] = mark;
+  };
+
+  scoreResult.layers?.prefer?.insights?.forEach((insight) => {
+    if (insight.status === 'off') return;
+    insight.evidence_sentences?.forEach((s) => paint(s, { kind: 'prefer' }));
   });
 
-  scoreResult.hardGateViolations.forEach((v) => {
-    if (!v.quote) return;
-    const idx = text.indexOf(v.quote);
-    if (idx === -1) return;
-    for (let i = idx; i < idx + v.quote.length; i++) marks[i] = { kind: 'hardgate' };
-  });
+  // CTA tô SAU để luôn thắng khi trùng vị trí — đây là phần người dùng cần thấy rõ nhất.
+  scoreResult.cta_warning?.matches?.forEach((m) => paint(m, { kind: 'cta' }));
 
   const segments: Array<{ text: string; mark: HighlightMark | null }> = [];
   let i = 0;
@@ -167,65 +198,45 @@ function buildHighlightSegments(text: string, scoreResult: ScoreResult): Array<{
   return segments;
 }
 
-// ── Accordion 7 nhóm tiêu chí + khối Hard Gate — dùng chung cho cả màn hình chuyển đổi
+// ── Accordion 5 lớp PAAST + khối CTA Compliance — dùng chung cho cả màn hình chuyển đổi
 // (Kết quả chuyển đổi) và modal "Chi tiết kịch bản" ở tab Lịch sử, đọc cùng 1 shape ScoreResult.
 
-const GROUP_STATUS_STYLES: Record<
-  GroupStatus,
-  { Icon: typeof CheckCircle2; iconClass: string; barClass: string; label: string }
-> = {
-  good: { Icon: CheckCircle2, iconClass: 'text-emerald-600', barClass: 'bg-emerald-500', label: 'Đạt' },
-  warning: { Icon: AlertTriangle, iconClass: 'text-amber-600', barClass: 'bg-amber-500', label: 'Cần cải thiện' },
-  error: { Icon: XCircle, iconClass: 'text-red-600', barClass: 'bg-red-500', label: 'Lỗi' },
-};
-
 /**
- * Nhóm mặc định mở khi vừa nhận scoreResult: ưu tiên nhóm 'error' điểm thấp nhất (theo tỷ lệ
- * score/maxScore); nếu không có nhóm nào 'error' thì lấy nhóm 'warning' điểm thấp nhất; nếu
- * mọi nhóm đều 'good' thì không mở nhóm nào. Trả về null nếu không cần mở nhóm nào.
+ * Lớp mặc định mở khi vừa nhận scoreResult: lớp có điểm thấp nhất trong số các lớp chưa đạt
+ * mức 'good'. Mọi lớp đều 'good' thì không mở lớp nào (không có gì cần chú ý ngay).
  */
-function computeDefaultOpenIndex(groups: ScoreGroup[]): number | null {
-  const withRatio = groups.map((g, idx) => ({
-    idx,
-    ratio: g.maxScore > 0 ? g.score / g.maxScore : 1,
-    status: g.status,
-  }));
+function computeDefaultOpenLayers(scoreResult: ScoreResult): Set<PaastLayerKey> {
+  const weak = PAAST_LAYER_KEYS
+    .map((key) => ({ key, score: scoreResult.layers?.[key]?.score ?? 0 }))
+    .filter((l) => getLayerStatus(l.score) !== 'good');
 
-  const pickLowest = (candidates: typeof withRatio) =>
-    candidates.length > 0
-      ? candidates.reduce((min, g) => (g.ratio < min.ratio ? g : min)).idx
-      : null;
-
-  const errors = withRatio.filter((g) => g.status === 'error');
-  if (errors.length > 0) return pickLowest(errors);
-
-  const warnings = withRatio.filter((g) => g.status === 'warning');
-  if (warnings.length > 0) return pickLowest(warnings);
-
-  return null;
+  if (weak.length === 0) return new Set();
+  const lowest = weak.reduce((min, l) => (l.score < min.score ? l : min));
+  return new Set([lowest.key]);
 }
 
-function computeDefaultOpenIndices(groups: ScoreGroup[]): Set<number> {
-  const idx = computeDefaultOpenIndex(groups);
-  return idx === null ? new Set() : new Set([idx]);
-}
-
-function ScoreGroupAccordionItem({
-  group,
-  groupIndex,
+function PaastLayerAccordionItem({
+  layerKey,
+  score,
+  summary,
   isOpen,
   onToggle,
+  children,
 }: {
-  group: ScoreGroup;
-  groupIndex: number;
+  layerKey: PaastLayerKey;
+  score: number;
+  /** Dòng tóm tắt ngắn hiển thị ngay trên header (vd "4/6 tiêu chí đạt"). */
+  summary: string;
   isOpen: boolean;
   onToggle: () => void;
+  children: React.ReactNode;
 }) {
-  const style = GROUP_STATUS_STYLES[group.status];
-  const highlightBorder = GROUP_HIGHLIGHT_COLORS[groupIndex % GROUP_HIGHLIGHT_COLORS.length].border;
-  const ratioPct = group.maxScore > 0 ? Math.round((group.score / group.maxScore) * 100) : 0;
-  const headerId = `score-group-header-${groupIndex}`;
-  const panelId = `score-group-panel-${groupIndex}`;
+  const meta = LAYER_META[layerKey];
+  const status = getLayerStatus(score);
+  const style = LAYER_STATUS_STYLES[status];
+  const ratioPct = Math.min(100, Math.round((score / LAYER_MAX_SCORE) * 100));
+  const headerId = `paast-layer-header-${layerKey}`;
+  const panelId = `paast-layer-panel-${layerKey}`;
 
   return (
     <div className={`rounded-xl border overflow-hidden ${isOpen ? 'border-[#c7c4d7]' : 'border-[#eae7ea]'}`}>
@@ -234,21 +245,24 @@ function ScoreGroupAccordionItem({
         id={headerId}
         aria-expanded={isOpen}
         aria-controls={panelId}
-        aria-label={`Nhóm ${group.name}, ${group.score} trên ${group.maxScore} điểm, ${style.label}`}
+        aria-label={`Lớp ${meta.label} ${meta.sub}, ${score} trên ${LAYER_MAX_SCORE} điểm, ${style.label}. ${summary}`}
         onClick={onToggle}
         className="w-full flex items-center gap-2 px-2.5 py-2 bg-white hover:bg-[#f6f3f5] transition-colors text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4441cc] focus-visible:ring-offset-1"
       >
         <style.Icon className={`w-4 h-4 flex-shrink-0 ${style.iconClass}`} aria-hidden="true" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] font-bold text-[#1b1b1d] truncate">{group.name}</span>
+            <span className="text-[11px] font-bold text-[#1b1b1d] truncate">
+              {meta.label} <span className="font-medium text-[#464554]">· {meta.sub}</span>
+            </span>
             <span className="text-[10.5px] font-semibold text-[#464554] flex-shrink-0">
-              {group.score}/{group.maxScore}
+              {score}/{LAYER_MAX_SCORE}
             </span>
           </div>
           <div className="mt-1 h-1.5 rounded-full bg-[#eae7ea] overflow-hidden">
             <div className={`h-full rounded-full ${style.barClass}`} style={{ width: `${ratioPct}%` }} />
           </div>
+          <p className="mt-1 text-[9.5px] text-[#464554]">{summary}</p>
         </div>
         <svg
           className={`w-3.5 h-3.5 flex-shrink-0 text-[#464554] transition-transform ${isOpen ? 'rotate-180' : ''}`}
@@ -267,107 +281,297 @@ function ScoreGroupAccordionItem({
           id={panelId}
           role="region"
           aria-labelledby={headerId}
-          className="px-2.5 pb-2.5 pt-1 space-y-1 bg-[#fcfbfd] border-t border-[#eae7ea]"
+          className="px-2.5 pb-2.5 pt-1.5 space-y-1 bg-[#fcfbfd] border-t border-[#eae7ea]"
         >
-          {group.items.map((item, idx) => (
-            <div
-              key={idx}
-              className={`p-2 rounded-lg border ${item.passed ? 'border-[#eae7ea] bg-white' : 'border-red-100 bg-red-50/40'}`}
-            >
-              <div className="flex items-start gap-2">
-                {item.passed ? (
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0 mt-0.5" aria-hidden="true" />
-                ) : (
-                  <XCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0 mt-0.5" aria-hidden="true" />
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-semibold text-[#1b1b1d]">{item.label}</p>
-                  {item.quote && (
-                    <div className={`mt-1 pl-2 border-l-2 ${highlightBorder} italic text-[10.5px] text-[#464554]`}>
-                      &ldquo;{item.quote}&rdquo;
-                    </div>
-                  )}
-                  {!item.passed && item.suggestion && (
-                    <p className="mt-1 text-[10.5px] text-orange-600 font-medium">→ Gợi ý: {item.suggestion}</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
+          {children}
         </div>
       )}
     </div>
   );
 }
 
-function ScoreGroupsAccordion({ scoreResult }: { scoreResult: ScoreResult }) {
-  const [openIndices, setOpenIndices] = useState<Set<number>>(() => computeDefaultOpenIndices(scoreResult.groups));
+/**
+ * 1 tiêu chí của 4 lớp Action/Acknowledge/Stick/Trust.
+ *
+ * `na` được hiển thị KHÁC HẲN `miss`: xám trung tính + nhãn "Cần production", không tô đỏ và
+ * không gắn nhãn "Gợi ý" — vì đây không phải lỗi của người viết mà là phần chỉ đánh giá được
+ * khi có khâu sản xuất (hình hiệu, đạo cụ, nhạc, nghi thức quay), không sửa bằng chữ được.
+ */
+function PaastCriterionRow({ criterion }: { criterion: PaastCriterion }) {
+  const Icon = criterion.status === 'pass' ? CheckCircle2 : criterion.status === 'na' ? MinusCircle : Circle;
+  const iconClass =
+    criterion.status === 'pass' ? 'text-emerald-500' : criterion.status === 'na' ? 'text-[#9c9aa8]' : 'text-orange-500';
+  const boxClass =
+    criterion.status === 'pass'
+      ? 'border-[#eae7ea] bg-white'
+      : criterion.status === 'na'
+        ? 'border-[#eae7ea] bg-[#f6f3f5]'
+        : 'border-orange-100 bg-orange-50/40';
+
+  return (
+    <div className={`p-2 rounded-lg border ${boxClass}`}>
+      <div className="flex items-start gap-2">
+        <Icon className={`w-3.5 h-3.5 flex-shrink-0 mt-0.5 ${iconClass}`} aria-hidden="true" />
+        <div className="flex-1 min-w-0">
+          <p className={`text-[11px] font-semibold ${criterion.status === 'na' ? 'text-[#464554]' : 'text-[#1b1b1d]'}`}>
+            {criterion.name_en} <span className="font-normal text-[#464554]">· {criterion.name_vi}</span>
+          </p>
+          {criterion.evidence && (
+            <p className="mt-1 text-[10.5px] leading-relaxed text-[#464554]">
+              {criterion.status === 'miss' && <span className="font-semibold text-orange-600">Gợi ý — </span>}
+              {criterion.status === 'na' && <span className="font-semibold text-[#6b6979]">Cần production — </span>}
+              {criterion.evidence}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Tóm tắt header của 1 lớp tiêu chí: tách riêng số `na` để không bị hiểu nhầm là tiêu chí trượt. */
+function summarizeCriteriaLayer(layer: PaastLayerCriteria | undefined): string {
+  const criteria = layer?.criteria || [];
+  const pass = criteria.filter((c) => c.status === 'pass').length;
+  const na = criteria.filter((c) => c.status === 'na').length;
+  const base = `${pass}/${criteria.length} tiêu chí đạt`;
+  return na > 0 ? `${base} · ${na} cần production` : base;
+}
+
+function PaastLayersAccordion({ scoreResult }: { scoreResult: ScoreResult }) {
+  const [openLayers, setOpenLayers] = useState<Set<PaastLayerKey>>(() => computeDefaultOpenLayers(scoreResult));
 
   // scoreResult đổi tham chiếu mỗi khi có kết quả MỚI thật sự (chấm lần đầu/chấm lại/nâng cấp)
-  // — tính lại nhóm mặc định mở cho bản mới, không đụng vào lựa chọn mở/đóng thủ công của user
+  // — tính lại lớp mặc định mở cho bản mới, không đụng vào lựa chọn mở/đóng thủ công của user
   // trong lúc vẫn đang xem cùng 1 kết quả.
   useEffect(() => {
-    setOpenIndices(computeDefaultOpenIndices(scoreResult.groups));
+    setOpenLayers(computeDefaultOpenLayers(scoreResult));
   }, [scoreResult]);
 
-  const toggle = (idx: number) => {
-    setOpenIndices((prev) => {
+  const toggle = (key: PaastLayerKey) => {
+    setOpenLayers((prev) => {
       const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx);
-      else next.add(idx);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   };
 
+  const prefer = scoreResult.layers?.prefer;
+  const preferInsights = prefer?.insights || [];
+
   return (
     <div className="space-y-1.5">
-      {scoreResult.groups.map((group, idx) => (
-        <ScoreGroupAccordionItem
-          key={group.name}
-          group={group}
-          groupIndex={idx}
-          isOpen={openIndices.has(idx)}
-          onToggle={() => toggle(idx)}
-        />
-      ))}
+      {/* Prefer — chấm TOÀN BÀI theo insight nổi bật, không phải pass/miss từng tiêu chí */}
+      <PaastLayerAccordionItem
+        layerKey="prefer"
+        score={prefer?.score ?? 0}
+        summary={`${prefer?.primary_count ?? 0} insight chính · ${prefer?.secondary_count ?? 0} insight phụ`}
+        isOpen={openLayers.has('prefer')}
+        onToggle={() => toggle('prefer')}
+      >
+        <div className="flex flex-wrap gap-1">
+          {preferInsights.map((insight) => (
+            <span
+              key={insight.code}
+              title={insight.description || undefined}
+              className={`text-[9.5px] font-semibold px-2 py-0.5 rounded-full border ${
+                insight.status === 'primary'
+                  ? 'bg-amber-500 border-amber-500 text-white'
+                  : insight.status === 'secondary'
+                    ? 'bg-white border-amber-400 text-amber-700'
+                    : 'bg-white border-[#eae7ea] text-[#9c9aa8]'
+              }`}
+            >
+              {insight.name_en} · {insight.name_vi}
+            </span>
+          ))}
+        </div>
+        {preferInsights
+          .filter((i) => i.status !== 'off')
+          .map((insight) => (
+            <div key={insight.code} className="mt-1.5 p-2 rounded-lg border border-[#eae7ea] bg-white">
+              <p className="text-[11px] font-semibold text-[#1b1b1d]">
+                {insight.name_en} <span className="font-normal text-[#464554]">· {insight.name_vi}</span>
+                <span className="ml-1.5 text-[9.5px] font-bold uppercase text-amber-600">
+                  {insight.status === 'primary' ? 'Chính' : 'Phụ'}
+                </span>
+              </p>
+              {insight.description && (
+                <p className="mt-0.5 text-[10.5px] text-[#464554] leading-relaxed">{insight.description}</p>
+              )}
+              {insight.evidence_sentences?.map((s, idx) => (
+                <div
+                  key={idx}
+                  className={`mt-1 pl-2 border-l-2 ${LAYER_META.prefer.quoteBorder} italic text-[10.5px] text-[#464554]`}
+                >
+                  &ldquo;{s}&rdquo;
+                </div>
+              ))}
+            </div>
+          ))}
+      </PaastLayerAccordionItem>
+
+      {/* Action / Acknowledge / Stick / Trust — 6 tiêu chí mỗi lớp */}
+      {CRITERIA_LAYER_KEYS.map((key) => {
+        const layer = scoreResult.layers?.[key] as PaastLayerCriteria | undefined;
+        return (
+          <PaastLayerAccordionItem
+            key={key}
+            layerKey={key}
+            score={layer?.score ?? 0}
+            summary={summarizeCriteriaLayer(layer)}
+            isOpen={openLayers.has(key)}
+            onToggle={() => toggle(key)}
+          >
+            {(layer?.criteria || []).map((c) => (
+              <PaastCriterionRow key={c.code} criterion={c} />
+            ))}
+          </PaastLayerAccordionItem>
+        );
+      })}
     </div>
   );
 }
 
-function ScoreOverallCard({ scoreResult }: { scoreResult: ScoreResult }) {
-  const theme = getScoreTheme(scoreResult.overallScore);
+function ScoreOverallCard({ scoreResult, fromCache = false }: { scoreResult: ScoreResult; fromCache?: boolean }) {
+  const theme = getScoreTheme(scoreResult.total_score);
   return (
     <div className={`p-2.5 2xl:p-3 rounded-2xl border ${theme.border} ${theme.bg}`}>
-      <div className="flex items-end gap-1.5">
-        <span className={`text-3xl 2xl:text-4xl font-black leading-none ${theme.text}`}>{scoreResult.overallScore}</span>
-        <span className="text-xs text-[#464554] mb-0.5">/100</span>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <div className="flex items-end gap-1.5">
+            <span className={`text-3xl 2xl:text-4xl font-black leading-none ${theme.text}`}>
+              {scoreResult.total_score}
+            </span>
+            <span className="text-xs text-[#464554] mb-0.5">/100</span>
+          </div>
+          <p className="text-[10px] text-[#464554] mt-1 uppercase tracking-wide font-semibold">Tổng điểm PAAST</p>
+          {/* Nội dung không đổi thì BE dùng lại điểm đã chấm thay vì chấm mới — nói rõ để người
+              dùng không tưởng vừa có một lượt chấm mới chạy (và không thắc mắc sao quá nhanh). */}
+          {fromCache && (
+            <p className="mt-1 inline-flex items-center gap-1 text-[10px] text-[#464554] bg-white/70 border border-[#c7c4d7] rounded-md px-1.5 py-0.5">
+              <History className="w-3 h-3 flex-shrink-0" />
+              <span>Kết quả từ lần chấm gần nhất — nội dung không đổi nên không chấm lại</span>
+            </p>
+          )}
+        </div>
+        {/* 5 lớp x 20 điểm — hiển thị đúng con số từng lớp, không quy đổi/làm tròn thêm */}
+        <div className="flex gap-1.5">
+          {PAAST_LAYER_KEYS.map((key) => (
+            <div key={key} className="text-center">
+              <div
+                className="w-8 h-8 rounded-lg bg-white/80 border border-[#c7c4d7] flex items-center justify-center text-[11px] font-bold text-[#1b1b1d]"
+                title={`${LAYER_META[key].label} · ${LAYER_META[key].sub}: ${scoreResult.layers?.[key]?.score ?? 0}/${LAYER_MAX_SCORE}`}
+              >
+                {scoreResult.layers?.[key]?.score ?? 0}
+              </div>
+              <p className="text-[9px] text-[#464554] mt-0.5 font-bold">{LAYER_META[key].initial}</p>
+            </div>
+          ))}
+        </div>
       </div>
-      <p className={`text-[11px] 2xl:text-xs font-semibold mt-1 ${theme.text}`}>{scoreResult.verdict}</p>
     </div>
   );
 }
 
-/** Tách biệt hoàn toàn khỏi 7 nhóm/23 tiêu chí — không cộng vào điểm 100 (Playbook mục 22). */
-function HardGateBlock({ violations }: { violations: HardGateViolation[] }) {
-  if (violations.length === 0) return null;
+/**
+ * CTA Compliance — CHỈ cảnh báo, KHÔNG trừ vào điểm 100.
+ *
+ * Cố tình dùng tông cam (không phải đỏ như khối Hard Gate của hệ chấm điểm cũ): đây không phải
+ * lỗi chặn đăng, mà là gợi ý chuyển CTA thương mại ép hành vi sang lời mời chia sẻ/lưu giữ
+ * giá trị theo chuẩn New Media.
+ */
+function CtaComplianceBlock({ ctaWarning }: { ctaWarning: ScoreResult['cta_warning'] }) {
+  const matches = ctaWarning?.matches || [];
+  if (!ctaWarning?.detected || matches.length === 0) return null;
+
   return (
-    <div className="p-2.5 2xl:p-3 rounded-2xl border-2 border-red-300 bg-red-50">
-      <div className="flex items-center gap-1.5 mb-1.5">
-        <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0" aria-hidden="true" />
-        <h4 className="text-xs font-bold text-red-700 uppercase tracking-wide">Vi phạm Hard Gate</h4>
+    <div className="p-2.5 2xl:p-3 rounded-2xl border border-orange-300 bg-orange-50">
+      <div className="flex items-center gap-1.5 mb-1">
+        <AlertTriangle className="w-4 h-4 text-orange-600 flex-shrink-0" aria-hidden="true" />
+        <h4 className="text-xs font-bold text-orange-700 uppercase tracking-wide">CTA Compliance</h4>
+        <span className="text-[9.5px] font-semibold text-orange-600/80 bg-white/70 border border-orange-200 rounded-full px-1.5 py-0.5">
+          Cảnh báo · không trừ điểm
+        </span>
       </div>
-      <div className="space-y-1.5">
-        {violations.map((v, idx) => (
-          <div key={idx} className="text-[11px] text-red-800 bg-white/70 rounded-lg p-2 border border-red-200">
-            <p className="font-bold flex items-start gap-1.5">
-              <span aria-hidden="true">•</span>
-              <span>{v.type}</span>
-            </p>
-            {v.quote && <p className="italic mt-1 pl-3.5">&ldquo;{v.quote}&rdquo;</p>}
-            {v.explanation && <p className="text-red-700/80 mt-1 pl-3.5">{v.explanation}</p>}
-          </div>
+      <p className="text-[10.5px] text-orange-800/90 mb-1.5">
+        Phát hiện CTA thương mại ép hành vi — nên chuyển sang mời chia sẻ quan điểm, mời lưu lại hoặc gửi cho người cần.
+      </p>
+      <div className="flex flex-wrap gap-1">
+        {matches.map((m, idx) => (
+          <span
+            key={idx}
+            className="text-[10.5px] font-medium text-orange-800 bg-white/80 border border-orange-200 rounded-md px-1.5 py-0.5"
+          >
+            &ldquo;{m}&rdquo;
+          </span>
         ))}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Ô "Điểm PAAST" của 1 dòng lịch sử. Phân biệt rõ 3 tình huống thay vì chỉ hiện/không hiện điểm:
+ * đã chấm (badge điểm), chưa chấm (nhãn "Chưa chấm điểm" + nút chấm ngay tại chỗ), và chấm hỏng
+ * (nhãn cảnh báo + nút chấm lại). Bản ghi không có output_text thì chẳng có gì để chấm.
+ */
+function HistoryScoreCell({
+  item,
+  isScoring,
+  onScore,
+}: {
+  item: TransformHistoryItem;
+  isScoring: boolean;
+  onScore: () => void;
+}) {
+  if (!item.output_text) {
+    return <span className="text-xs text-[#464554]/60">—</span>;
+  }
+
+  if (item.scoreStatus === 'success' && item.scoreResult) {
+    const theme = getScoreTheme(item.scoreResult.total_score);
+    return (
+      <span
+        className={`inline-flex items-baseline gap-0.5 px-2 py-0.5 rounded-full border font-bold text-xs ${theme.border} ${theme.bg} ${theme.text}`}
+      >
+        {item.scoreResult.total_score}
+        <span className="text-[9px] font-semibold opacity-70">/100</span>
+      </span>
+    );
+  }
+
+  const isFailed = item.scoreStatus === 'failed';
+
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      <span
+        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold ${
+          isFailed ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-[#c7c4d7] bg-[#f6f3f5] text-[#464554]'
+        }`}
+        title={item.scoreError || undefined}
+      >
+        {isFailed ? <AlertTriangle className="w-3 h-3" /> : <Circle className="w-3 h-3" />}
+        {isFailed ? 'Chấm lỗi' : 'Chưa chấm điểm'}
+      </span>
+      <button
+        onClick={onScore}
+        disabled={isScoring}
+        className="px-2 py-0.5 rounded-lg border border-[#4441cc] text-[#4441cc] text-[10px] font-bold hover:bg-[#5e5ce6]/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+      >
+        {isScoring ? (
+          <>
+            <Loader2 className="w-3 h-3 animate-spin" />
+            Đang chấm...
+          </>
+        ) : (
+          <>
+            <Sparkles className="w-3 h-3" />
+            {isFailed ? 'Chấm lại' : 'Chấm điểm'}
+          </>
+        )}
+      </button>
     </div>
   );
 }
@@ -387,11 +591,16 @@ export default function ContentTransformPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isTranscribing, setIsTranscribing] = useState<boolean>(false);
 
-  // Chấm điểm kịch bản (scoreResult trả kèm response /transform và /upgrade)
+  // Chấm điểm kịch bản — KHÔNG còn đi kèm response /transform (đã tách thành bước riêng qua
+  // /rescore), chỉ có sau khi người dùng bấm "Chấm điểm content", hoặc kèm response /upgrade.
   const [scoreResult, setScoreResult] = useState<ScoreResult | null>(null);
-  const [scoreStatus, setScoreStatus] = useState<'success' | 'failed' | null>(null);
+  const [scoreStatus, setScoreStatus] = useState<ScoreStatus>(null);
   const [scoreErrorMsg, setScoreErrorMsg] = useState<string | null>(null);
-  const [isRescoring, setIsRescoring] = useState<boolean>(false);
+  // Điểm đang hiển thị có phải là kết quả dùng lại của lần chấm trước không (xem fromCache ở BE).
+  const [scoreFromCache, setScoreFromCache] = useState(false);
+  // ID bản ghi đang được chấm điểm (null = không có lượt nào chạy). Dùng id thay vì boolean để
+  // ở tab Lịch sử chỉ nút của ĐÚNG dòng đang chấm bị khoá, các dòng khác vẫn bấm được.
+  const [scoringId, setScoringId] = useState<string | null>(null);
   const [currentHistoryId, setCurrentHistoryId] = useState<string | null>(null);
   const [isUpgrading, setIsUpgrading] = useState<boolean>(false);
   const [previousOverallScore, setPreviousOverallScore] = useState<number | null>(null);
@@ -399,6 +608,9 @@ export default function ContentTransformPage() {
   // đảm bảo double-click nhanh trong cùng 1 tick vẫn không lọt qua được request thứ 2.
   const isTransformingRef = useRef(false);
   const isUpgradingRef = useRef(false);
+  // Khối cuộn của cột "Kết quả chuyển đổi" — cuộn về đầu sau khi chấm điểm xong để người dùng
+  // thấy ngay khối điểm PAAST vừa xuất hiện phía trên nội dung, không phải tự cuộn lên tìm.
+  const resultScrollRef = useRef<HTMLDivElement | null>(null);
 
   // History states
   const [historyItems, setHistoryItems] = useState<TransformHistoryItem[]>([]);
@@ -432,7 +644,7 @@ export default function ContentTransformPage() {
   // 1. Fetch active characters
   const fetchCharacters = useCallback(async () => {
     try {
-      const res = await apiClient.get<Character[]>('/content-transform/characters');
+      const res = await apiClient.get<Character[]>('/ai/content-transform/characters');
       setCharacters(res.data);
       if (res.data.length > 0) {
         setSelectedCharacterId(res.data[0].id);
@@ -447,7 +659,7 @@ export default function ContentTransformPage() {
     const requestId = ++personalHistoryRequestId.current;
     setIsHistoryLoading(true);
     try {
-      const res = await apiClient.get('/content-transform/history', {
+      const res = await apiClient.get('/ai/content-transform/history', {
         params: { page, limit: historyLimit },
       });
       if (requestId !== personalHistoryRequestId.current) return; // request cũ hơn đã bị request sau ghi đè, bỏ qua
@@ -484,7 +696,7 @@ export default function ContentTransformPage() {
     const requestId = ++memberHistoryRequestId.current;
     setIsMemberHistoryLoading(true);
     try {
-      const res = await apiClient.get(`/content-transform/history/member/${memberId}`, {
+      const res = await apiClient.get(`/ai/content-transform/history/member/${memberId}`, {
         params: { page, limit: historyLimit },
       });
       if (requestId !== memberHistoryRequestId.current) return; // request cũ hơn đã bị request sau ghi đè, bỏ qua
@@ -537,7 +749,7 @@ export default function ContentTransformPage() {
       const formData = new FormData();
       formData.append('file', selectedFile);
 
-      const res = await apiClient.post('/content-transform/transcribe', formData, {
+      const res = await apiClient.post('/ai/content-transform/transcribe', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -578,31 +790,37 @@ export default function ContentTransformPage() {
     setScoreResult(null);
     setScoreStatus(null);
     setScoreErrorMsg(null);
+    setScoreFromCache(false);
     setCurrentHistoryId(null);
     setPreviousOverallScore(null);
     const loadingToast = toast.loading('Đang chuyển đổi kịch bản...');
 
     try {
-      // BE giờ retry CẢ bước viết kịch bản (3x120s=360s) LẪN bước chấm điểm (3x120s=360s) =>
-      // tối đa ~720s. Đặt dư lên 900s để không bị client huỷ ngang khi BE vẫn xử lý bình thường
-      // (giữ 120s mỗi lần retry vì thực đo giảm xuống 60s làm TĂNG tỷ lệ thất bại, phản tác dụng).
+      // Request này giờ CHỈ viết kịch bản, không chấm điểm — BE retry bước viết tối đa
+      // 3x120s = 360s. Đặt dư lên 420s là đủ (trước đây phải để 900s vì còn gánh thêm cả
+      // bước chấm điểm chạy nối tiếp trong cùng 1 request).
       const res = await apiClient.post(
-        '/content-transform/transform',
+        '/ai/content-transform/transform',
         {
           character_id: selectedCharacterId,
           input_text: inputText,
           input_type: inputMode === 'video' ? 'VIDEO' : inputMode === 'audio' ? 'AUDIO' : 'TEXT',
         },
-        { timeout: 900000 },
+        { timeout: 420000 },
       );
 
       if (res.data && res.data.status === 'SUCCESS') {
         setOutputText(res.data.output_text);
-        setScoreResult(res.data.scoreResult || null);
-        setScoreStatus(res.data.scoreStatus || null);
-        setScoreErrorMsg(res.data.scoreError || null);
+        // Chưa chấm điểm ở bước này — giữ scoreResult null và trạng thái 'pending' để hiện
+        // nút "Chấm điểm content" thay vì khối điểm PAAST.
+        setScoreResult(null);
+        setScoreStatus(res.data.scoreStatus || 'pending');
+        setScoreErrorMsg(null);
+        setScoreFromCache(false);
         setCurrentHistoryId(res.data.id || null);
-        toast.success('Chuyển đổi kịch bản thành công!', { id: loadingToast });
+        toast.success('Chuyển đổi kịch bản thành công! Bấm "Chấm điểm content" để chấm điểm PAAST.', {
+          id: loadingToast,
+        });
       } else {
         throw new Error(res.data?.error_message || 'Lỗi xử lý kịch bản');
       }
@@ -629,7 +847,7 @@ export default function ContentTransformPage() {
       // lại bản mới 3x120s=360s => tối đa ~1080s. Đặt dư lên 1200s (20 phút) để không bị client
       // huỷ ngang khi BE vẫn xử lý bình thường.
       const res = await apiClient.post(
-        '/content-transform/upgrade',
+        '/ai/content-transform/upgrade',
         { history_id: currentHistoryId },
         { timeout: 1200000 },
       );
@@ -639,12 +857,14 @@ export default function ContentTransformPage() {
         throw new Error('Phản hồi không hợp lệ từ máy chủ');
       }
 
-      const prevScore = res.data?.previous?.scoreResult?.overallScore ?? scoreResult?.overallScore ?? null;
+      const prevScore = res.data?.previous?.scoreResult?.total_score ?? scoreResult?.total_score ?? null;
       setPreviousOverallScore(prevScore);
       setOutputText(upgraded.output_text || '');
       setScoreResult(upgraded.scoreResult || null);
       setScoreStatus(upgraded.scoreStatus || null);
       setScoreErrorMsg(upgraded.scoreError || null);
+      // /upgrade luôn chấm mới trên kịch bản vừa nâng cấp, không bao giờ dùng lại điểm cũ.
+      setScoreFromCache(false);
       setCurrentHistoryId(upgraded.id || null);
       toast.success('Đã nâng cấp nội dung thành công!', { id: loadingToast });
     } catch (err: any) {
@@ -657,32 +877,37 @@ export default function ContentTransformPage() {
   };
 
   /**
-   * Không truyền historyId: chấm lại bản ghi đang xem ở màn hình "Chuyển đổi" (currentHistoryId).
-   * Có truyền historyId: dùng cho nút "Chấm điểm lại" trong modal "Chi tiết kịch bản" ở tab
-   * Lịch sử — chỉ cập nhật đúng bản ghi đó (selectedItem + trong danh sách), không đụng state
-   * của màn hình "Chuyển đổi" vì đây là 1 bản ghi khác, có thể của người dùng khác đang xem.
+   * Bước 2 của luồng đã tách đôi — gọi /rescore để chấm điểm PAAST cho 1 bản ghi ĐÃ có
+   * output_text. Dùng chung cho cả lần chấm ĐẦU TIÊN (nút "Chấm điểm content") lẫn chấm LẠI khi
+   * lần trước thất bại; BE luôn cập nhật vào đúng bản ghi đó nên không sinh bản ghi trùng lặp.
+   *
+   * Không truyền historyId: chấm bản ghi đang xem ở màn hình "Chuyển đổi" (currentHistoryId).
+   * Có truyền historyId: dùng cho tab Lịch sử (bảng + modal "Chi tiết kịch bản") — chỉ cập nhật
+   * đúng bản ghi đó (selectedItem + trong danh sách), không đụng state của màn hình "Chuyển đổi"
+   * vì đây là 1 bản ghi khác, có thể của người dùng khác đang xem.
    */
-  const handleRescore = async (historyId?: string) => {
+  const handleScore = async (historyId?: string) => {
     const targetId = historyId || currentHistoryId;
-    if (!targetId || isRescoring) return;
+    if (!targetId || scoringId) return;
 
-    setIsRescoring(true);
-    const loadingToast = toast.loading('Đang chấm điểm lại...');
+    setScoringId(targetId);
+    const loadingToast = toast.loading('Đang chấm điểm nội dung...');
 
     try {
       // BE retry chấm điểm tới 3 lần x 120s = 360s tối đa. Đặt dư lên 480s để không bị client
       // huỷ ngang khi BE vẫn đang thử lại bình thường (giữ 120s mỗi lần retry vì thực đo giảm
       // xuống 60s làm TĂNG tỷ lệ thất bại, phản tác dụng).
       const res = await apiClient.post(
-        '/content-transform/rescore',
+        '/ai/content-transform/rescore',
         { history_id: targetId },
         { timeout: 480000 },
       );
 
       const updatedFields = {
-        scoreResult: res.data?.scoreResult || null,
-        scoreStatus: res.data?.scoreStatus || null,
-        scoreError: res.data?.scoreError || null,
+        scoreResult: (res.data?.scoreResult || null) as ScoreResult | null,
+        scoreStatus: (res.data?.scoreStatus || null) as ScoreStatus,
+        scoreError: (res.data?.scoreError || null) as string | null,
+        fromCache: res.data?.fromCache === true,
       };
 
       if (historyId) {
@@ -693,18 +918,24 @@ export default function ContentTransformPage() {
         setScoreResult(updatedFields.scoreResult);
         setScoreStatus(updatedFields.scoreStatus);
         setScoreErrorMsg(updatedFields.scoreError);
+        setScoreFromCache(updatedFields.fromCache);
       }
 
       if (res.data?.scoreStatus === 'success') {
-        toast.success('Đã chấm điểm lại thành công!', { id: loadingToast });
+        // Khối điểm PAAST vừa xuất hiện nằm phía trên nội dung — cuộn về đầu để người dùng thấy
+        // ngay kết quả thay vì vẫn đang ở chỗ nút "Chấm điểm content" (giờ đã biến mất).
+        if (!historyId) {
+          resultScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        toast.success('Đã chấm điểm thành công!', { id: loadingToast });
       } else {
-        toast.error(res.data?.scoreError || 'Chấm điểm lại vẫn thất bại, vui lòng thử lại sau.', { id: loadingToast });
+        toast.error(res.data?.scoreError || 'Chấm điểm thất bại, vui lòng thử lại sau.', { id: loadingToast });
       }
     } catch (err: any) {
-      const errMsg = err.response?.data?.message || err.message || 'Lỗi khi chấm điểm lại';
+      const errMsg = err.response?.data?.message || err.message || 'Lỗi khi chấm điểm';
       toast.error(errMsg, { id: loadingToast });
     } finally {
-      setIsRescoring(false);
+      setScoringId(null);
     }
   };
 
@@ -1024,11 +1255,11 @@ export default function ContentTransformPage() {
                                 <span>⚠️ {scoreErrorMsg || 'Không thể chấm điểm nội dung này (có thể do timeout).'}</span>
                               </p>
                               <button
-                                onClick={() => handleRescore()}
-                                disabled={isRescoring}
+                                onClick={() => handleScore()}
+                                disabled={scoringId !== null}
                                 className="flex-shrink-0 px-2.5 py-1 rounded-lg bg-white border border-amber-300 text-amber-800 text-[11px] font-semibold hover:bg-amber-100 transition-colors disabled:opacity-50 flex items-center gap-1"
                               >
-                                {isRescoring ? (
+                                {scoringId ? (
                                   <>
                                     <Loader2 className="w-3 h-3 animate-spin" />
                                     Đang thử lại...
@@ -1040,37 +1271,39 @@ export default function ContentTransformPage() {
                             </div>
                           )}
 
-                          {/* 1. Hard Gate — tách biệt hoàn toàn khỏi phần điểm số, luôn nằm trên cùng */}
-                          {scoreResult && <HardGateBlock violations={scoreResult.hardGateViolations} />}
+                          {/* 1. CTA Compliance — tách biệt khỏi điểm số (chỉ cảnh báo), luôn nằm trên cùng */}
+                          {scoreResult && <CtaComplianceBlock ctaWarning={scoreResult.cta_warning} />}
 
                           {/* 2. Card điểm tổng */}
-                          {scoreResult && <ScoreOverallCard scoreResult={scoreResult} />}
+                          {scoreResult && <ScoreOverallCard scoreResult={scoreResult} fromCache={scoreFromCache} />}
                         </div>
 
-                        {/* Khối cuộn riêng: accordion 7 nhóm + nội dung highlight + nút nâng cấp */}
-                        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-0.5 space-y-2">
-                          {/* 3-4. Accordion 7 nhóm tiêu chí — mặc định mở nhóm lỗi/cần cải thiện điểm thấp nhất */}
-                          {scoreResult && <ScoreGroupsAccordion scoreResult={scoreResult} />}
+                        {/* Khối cuộn riêng: accordion 5 lớp PAAST + nội dung highlight + nút chấm điểm/nâng cấp */}
+                        <div ref={resultScrollRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-0.5 space-y-2">
+                          {/* 3-4. Accordion 5 lớp PAAST — mặc định mở lớp yếu nhất */}
+                          {scoreResult && <PaastLayersAccordion scoreResult={scoreResult} />}
 
-                          {/* 5. Nội dung đã chuyển đổi — highlight tiêu chí đạt theo màu nhóm, Hard Gate ưu tiên đỏ */}
+                          {/* 5. Nội dung đã chuyển đổi — highlight câu dẫn chứng Prefer + cụm CTA lệch chuẩn */}
                           <div>
                             <p className="text-[10px] font-bold text-[#464554] uppercase tracking-wider mb-1.5">
-                              Nội dung đã chuyển đổi{scoreResult ? ' · Highlight tiêu chí đạt' : ''}
+                              Nội dung đã chuyển đổi{scoreResult ? ' · Highlight dẫn chứng' : ''}
                             </p>
                             <div className="bg-[#f6f3f5] p-2.5 2xl:p-3.5 rounded-xl border border-[#c7c4d7] shadow-inner text-[11px] 2xl:text-xs text-[#1b1b1d] leading-relaxed whitespace-pre-wrap select-text">
                               {scoreResult
                                 ? buildHighlightSegments(outputText, scoreResult).map((seg, idx) => {
                                   if (!seg.mark) return <span key={idx}>{seg.text}</span>;
-                                  if (seg.mark.kind === 'hardgate') {
+                                  if (seg.mark.kind === 'cta') {
                                     return (
-                                      <mark key={idx} className="bg-red-200 text-red-900 rounded px-0.5">
+                                      <mark key={idx} className="bg-orange-200 text-orange-900 rounded px-0.5">
                                         {seg.text}
                                       </mark>
                                     );
                                   }
-                                  const theme = GROUP_HIGHLIGHT_COLORS[seg.mark.groupIndex % GROUP_HIGHLIGHT_COLORS.length];
                                   return (
-                                    <mark key={idx} className={`${theme.bg} ${theme.text} rounded px-0.5`}>
+                                    <mark
+                                      key={idx}
+                                      className={`${LAYER_META.prefer.markBg} ${LAYER_META.prefer.markText} rounded px-0.5`}
+                                    >
                                       {seg.text}
                                     </mark>
                                   );
@@ -1078,35 +1311,62 @@ export default function ContentTransformPage() {
                                 : outputText}
                             </div>
 
-                            {/* Chú thích màu */}
+                            {/* Chú thích màu — chỉ liệt kê đúng 2 loại highlight thật sự được tô */}
                             {scoreResult && (
                               <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 pt-2 border-t border-[#eae7ea]">
-                                {scoreResult.groups.map((group, idx) => (
-                                  <span key={group.name} className="flex items-center gap-1 text-[9.5px] text-[#464554]">
-                                    <span className={`w-2.5 h-2.5 rounded-sm ${GROUP_HIGHLIGHT_COLORS[idx % GROUP_HIGHLIGHT_COLORS.length].bg}`} />
-                                    {group.name}
-                                  </span>
-                                ))}
-                                {scoreResult.hardGateViolations.length > 0 && (
-                                  <span className="flex items-center gap-1 text-[9.5px] text-red-700 font-semibold">
-                                    <span className="w-2.5 h-2.5 rounded-sm bg-red-200" />
-                                    Hard Gate (lỗi bắt buộc sửa)
+                                <span className="flex items-center gap-1 text-[9.5px] text-[#464554]">
+                                  <span className={`w-2.5 h-2.5 rounded-sm ${LAYER_META.prefer.swatch}`} />
+                                  Câu dẫn chứng insight Prefer (CRAVES)
+                                </span>
+                                {(scoreResult.cta_warning?.matches?.length ?? 0) > 0 && (
+                                  <span className="flex items-center gap-1 text-[9.5px] text-orange-700 font-semibold">
+                                    <span className="w-2.5 h-2.5 rounded-sm bg-orange-200" />
+                                    CTA lệch chuẩn (cảnh báo, không trừ điểm)
                                   </span>
                                 )}
                               </div>
                             )}
                           </div>
 
-                          {/* 6. So sánh điểm cũ/mới + nút nâng cấp */}
+                          {/* 6. Bước 2 — nút "Chấm điểm content", chỉ hiện khi đã có kịch bản mà CHƯA có
+                              điểm. Bấm vào gọi 1 request riêng (/rescore) chấm bằng paast-analyzer trên
+                              đúng output_text vừa tạo, rồi cập nhật lại chính bản ghi đó. */}
+                          {!scoreResult && currentHistoryId && (
+                            <div className="pt-1 space-y-1.5">
+                              <button
+                                onClick={() => handleScore()}
+                                disabled={scoringId !== null}
+                                className="w-full bg-white border-2 border-[#4441cc] text-[#4441cc] py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 hover:bg-[#5e5ce6]/5 active:scale-[0.99] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {scoringId ? (
+                                  <>
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    <span>Đang chấm điểm PAAST...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Sparkles className="w-3.5 h-3.5" />
+                                    <span>Chấm điểm content</span>
+                                  </>
+                                )}
+                              </button>
+                              <p className="text-[9.5px] text-[#464554] text-center">
+                                Chấm theo khung PAAST (5 lớp). Có điểm rồi mới nâng cấp được content theo gợi ý.
+                              </p>
+                            </div>
+                          )}
+
+                          {/* 7. So sánh điểm cũ/mới + nút nâng cấp — chỉ hiện SAU KHI đã chấm điểm, vì
+                              cần biết tiêu chí nào đang miss mới nâng cấp có mục tiêu được. */}
                           {scoreResult && currentHistoryId && (
                             <div className="pt-1 space-y-2">
                               {previousOverallScore !== null && (
                                 <div className="flex items-center justify-center gap-2">
                                   <span className="text-sm text-[#464554]/50 line-through">{previousOverallScore}</span>
                                   <TrendingUp
-                                    className={`w-4 h-4 ${scoreResult.overallScore >= previousOverallScore ? 'text-emerald-500' : 'text-red-500'}`}
+                                    className={`w-4 h-4 ${scoreResult.total_score >= previousOverallScore ? 'text-emerald-500' : 'text-red-500'}`}
                                   />
-                                  <span className="text-lg font-black text-[#4441cc]">{scoreResult.overallScore}</span>
+                                  <span className="text-lg font-black text-[#4441cc]">{scoreResult.total_score}</span>
                                 </div>
                               )}
                               <button
@@ -1199,6 +1459,7 @@ export default function ContentTransformPage() {
                           <th className="py-2.5 px-4">Nhân vật</th>
                           <th className="py-2.5 px-4">Nội dung thô (Input)</th>
                           <th className="py-2.5 px-4">Kết quả (Output)</th>
+                          <th className="py-2.5 px-4">Điểm PAAST</th>
                           <th className="py-2.5 px-4">Thời gian tạo</th>
                           <th className="py-2.5 px-4 text-right">Chi tiết</th>
                         </tr>
@@ -1217,6 +1478,13 @@ export default function ContentTransformPage() {
                             <td className="py-2.5 px-4 max-w-xs truncate">{item.input_text}</td>
                             <td className="py-2.5 px-4 max-w-xs truncate text-[#464554]">
                               {item.output_text || <span className="text-xs text-red-500 font-bold">Lỗi</span>}
+                            </td>
+                            <td className="py-2.5 px-4">
+                              <HistoryScoreCell
+                                item={item}
+                                isScoring={scoringId === item.id}
+                                onScore={() => handleScore(item.id)}
+                              />
                             </td>
                             <td className="py-2.5 px-4 text-xs text-[#464554]/80">
                               {new Date(item.created_at).toLocaleString('vi-VN')}
@@ -1441,9 +1709,31 @@ export default function ContentTransformPage() {
               {/* Chấm điểm — chỉ áp dụng khi bản ghi từng có kịch bản kết quả để chấm */}
               {selectedItem.output_text && (
                 <div className="space-y-2">
-                  {selectedItem.scoreStatus === null && (
-                    <div className="p-3 rounded-xl border border-[#c7c4d7] bg-[#f6f3f5] text-xs text-[#464554] font-medium">
-                      Bản ghi này chưa có dữ liệu chấm điểm.
+                  {/* Chưa chấm điểm — trạng thái bình thường của bản ghi vừa chuyển đổi xong.
+                      Cho chấm ngay tại đây, không bắt quay lại màn hình "Chuyển đổi". */}
+                  {selectedItem.scoreStatus === 'pending' && (
+                    <div className="p-3 rounded-2xl border border-[#c7c4d7] bg-[#f6f3f5] flex items-center justify-between gap-2 flex-wrap">
+                      <p className="text-[11px] text-[#464554] font-medium flex items-center gap-1.5 flex-1 min-w-0">
+                        <Circle className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span>Bản ghi này chưa được chấm điểm PAAST.</span>
+                      </p>
+                      <button
+                        onClick={() => handleScore(selectedItem.id)}
+                        disabled={scoringId !== null}
+                        className="flex-shrink-0 px-2.5 py-1 rounded-lg bg-white border border-[#4441cc] text-[#4441cc] text-[11px] font-bold hover:bg-[#5e5ce6]/5 transition-colors disabled:opacity-50 flex items-center gap-1"
+                      >
+                        {scoringId === selectedItem.id ? (
+                          <>
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            Đang chấm điểm...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-3 h-3" />
+                            Chấm điểm content
+                          </>
+                        )}
+                      </button>
                     </div>
                   )}
 
@@ -1454,11 +1744,11 @@ export default function ContentTransformPage() {
                         <span>⚠️ {selectedItem.scoreError || 'Không thể chấm điểm nội dung này (có thể do timeout).'}</span>
                       </p>
                       <button
-                        onClick={() => handleRescore(selectedItem.id)}
-                        disabled={isRescoring}
+                        onClick={() => handleScore(selectedItem.id)}
+                        disabled={scoringId !== null}
                         className="flex-shrink-0 px-2.5 py-1 rounded-lg bg-white border border-amber-300 text-amber-800 text-[11px] font-semibold hover:bg-amber-100 transition-colors disabled:opacity-50 flex items-center gap-1"
                       >
-                        {isRescoring ? (
+                        {scoringId === selectedItem.id ? (
                           <>
                             <Loader2 className="w-3 h-3 animate-spin" />
                             Đang thử lại...
@@ -1472,9 +1762,9 @@ export default function ContentTransformPage() {
 
                   {selectedItem.scoreStatus === 'success' && selectedItem.scoreResult && (
                     <>
-                      <HardGateBlock violations={selectedItem.scoreResult.hardGateViolations} />
-                      <ScoreOverallCard scoreResult={selectedItem.scoreResult} />
-                      <ScoreGroupsAccordion scoreResult={selectedItem.scoreResult} />
+                      <CtaComplianceBlock ctaWarning={selectedItem.scoreResult.cta_warning} />
+                      <ScoreOverallCard scoreResult={selectedItem.scoreResult} fromCache={selectedItem.fromCache} />
+                      <PaastLayersAccordion scoreResult={selectedItem.scoreResult} />
                     </>
                   )}
                 </div>
