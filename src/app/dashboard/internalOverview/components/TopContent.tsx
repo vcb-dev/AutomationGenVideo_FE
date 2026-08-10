@@ -5,30 +5,30 @@ import { CaretLeft, CaretRight, Play } from '@phosphor-icons/react';
 
 import type { VideoNoiBat } from '@/services/scraperService';
 import {
-  Cham,
-  PhuDe,
+  Dot,
+  Subtitle,
   The,
-  TieuDeThe,
-  TrangRong,
-  mauNenTang,
-  ngayNgan,
-  soDay,
-  soGon,
-  tenNenTang,
+  CardTitle,
+  EmptyState,
+  platformColor,
+  shortDate,
+  fullNumber,
+  compactNumber,
+  platformName,
 } from './shared';
 
 /** Băng ngang video nhiều lượt xem nhất trong kỳ; bấm để mở bài gốc trên nền tảng. */
-export default function NoiDungHangDau({ video }: { video: VideoNoiBat[] }) {
+export default function TopContent({ video }: { video: VideoNoiBat[] }) {
   const bang = useRef<HTMLDivElement>(null);
   const cuon = (huong: number) => bang.current?.scrollBy({ left: huong * 450, behavior: 'smooth' });
 
   return (
     <The className="!mb-5">
-      <TieuDeThe chuThich="Xếp theo lượt xem của các video đăng trong kỳ">Nội dung hàng đầu</TieuDeThe>
-      <PhuDe className="!mb-4">Bấm để mở bài gốc</PhuDe>
+      <CardTitle chuThich="Xếp theo lượt xem của các video đăng trong kỳ">Nội dung hàng đầu</CardTitle>
+      <Subtitle className="!mb-4">Bấm để mở bài gốc</Subtitle>
 
       {video.length === 0 ? (
-        <TrangRong tieu_de="Chưa có video nào" mo_ta="Không có bài đăng nào trong kỳ đang chọn." />
+        <EmptyState tieu_de="Chưa có video nào" mo_ta="Không có bài đăng nào trong kỳ đang chọn." />
       ) : (
         <div className="relative">
           <NutCuon huong={-1} onBam={() => cuon(-1)} />
@@ -56,14 +56,14 @@ export default function NoiDungHangDau({ video }: { video: VideoNoiBat[] }) {
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950/75 via-slate-950/15 to-transparent" />
 
                   <span className="absolute top-2.5 left-2.5 z-10 h-[21px] px-2.5 grid place-items-center rounded-full text-[10px] font-medium text-white bg-slate-950/45 backdrop-blur border border-white/20">
-                    {tenNenTang(v.platform)}
+                    {platformName(v.platform)}
                   </span>
                   <span className="absolute top-2.5 right-2.5 z-10 text-white/85">
                     <Play size={13} weight="fill" />
                   </span>
 
                   <span className="absolute bottom-3 left-3 z-10 text-white font-semibold text-base tracking-tight leading-tight">
-                    <span title={soDay(v.views)}>{soGon(v.views)}</span>
+                    <span title={fullNumber(v.views)}>{compactNumber(v.views)}</span>
                     <small className="block font-normal text-[10px] opacity-80 mt-0.5">lượt xem</small>
                   </span>
                 </div>
@@ -72,9 +72,9 @@ export default function NoiDungHangDau({ video }: { video: VideoNoiBat[] }) {
                   {v.mo_ta || 'Không có mô tả'}
                 </div>
                 <div className="text-slate-400 dark:text-slate-500 text-[11.5px] mt-1.5 flex items-center gap-1.5">
-                  <Cham mau={mauNenTang(v.platform)} size={7} />
-                  <span className="truncate">{v.kenh_ten || tenNenTang(v.platform)}</span>
-                  <span className="shrink-0">· {ngayNgan(v.ngay)}</span>
+                  <Dot mau={platformColor(v.platform)} size={7} />
+                  <span className="truncate">{v.kenh_ten || platformName(v.platform)}</span>
+                  <span className="shrink-0">· {shortDate(v.ngay)}</span>
                 </div>
               </a>
             ))}

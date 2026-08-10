@@ -1,18 +1,18 @@
 'use client';
 
-import type { ThongKeNenTang } from '@/services/scraperService';
-import { CHI_SO, MaChiSo, TongHop } from './tinh-toan';
+import type { PlatformStats } from '@/services/scraperService';
+import { METRICS, MetricCode, Summary } from './calculations';
 import {
-  Cham,
-  ChenhLechPhanTram,
-  ChuThich,
-  chenhLech,
-  mauNenTang,
-  phanTram,
-  soDay,
-  soGon,
-  tenNenTang,
-  tyLe,
+  Dot,
+  PercentDelta,
+  Legend,
+  computeDelta,
+  platformColor,
+  percent,
+  fullNumber,
+  compactNumber,
+  platformName,
+  ratio,
 } from './shared';
 
 /**
@@ -23,31 +23,31 @@ import {
  * nội bộ — phần tách đó chỉ là một vệt đặc vô nghĩa, nên thay bằng đường xu hướng thu nhỏ
  * của chính chỉ số đó, vẫn là số thật và nói được nhiều hơn.
  */
-export default function TheChiSo({
-  tong,
-  nenTang,
-  dangChon,
-  onChon,
+export default function MetricCards({
+  total,
+  platform,
+  selected,
+  onSelect,
 }: {
-  tong: TongHop;
-  nenTang: ThongKeNenTang[];
-  dangChon: MaChiSo;
-  onChon: (ma: MaChiSo) => void;
+  total: Summary;
+  platform: PlatformStats[];
+  selected: MetricCode;
+  onSelect: (ma: MetricCode) => void;
 }) {
-  const tachTheoNenTang = nenTang.length > 1;
+  const tachTheoNenTang = platform.length > 1;
 
   return (
     <div className="grid gap-4 mb-5" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(232px,1fr))' }}>
-      {CHI_SO.map((cs) => {
-        const giaTri = tong[cs.ma];
-        const delta = chenhLech(giaTri, tong.truoc[cs.ma]);
-        const chon = cs.ma === dangChon;
+      {METRICS.map((cs) => {
+        const value = total[cs.ma];
+        const delta = computeDelta(value, total.truoc[cs.ma]);
+        const chon = cs.ma === selected;
 
         return (
           <button
             key={cs.ma}
             aria-pressed={chon}
-            onClick={() => onChon(cs.ma)}
+            onClick={() => onSelect(cs.ma)}
             className={[
               'text-left bg-card border rounded-2xl px-[18px] pt-[18px] pb-4 transition-all duration-200',
               chon
@@ -57,47 +57,47 @@ export default function TheChiSo({
           >
             <div className="flex items-center text-[12.5px] font-medium text-slate-500 dark:text-slate-400">
               {cs.nhan}
-              <ChuThich noiDung={`Tổng ${cs.nhan.toLowerCase()} của các video đăng trong kỳ`} />
+              <Legend noiDung={`Tổng ${cs.nhan.toLowerCase()} của các video đăng trong kỳ`} />
             </div>
 
             <div
               className="text-[30px] font-semibold tracking-tighter my-1.5 tabular-nums leading-none text-foreground"
-              title={soDay(giaTri)}
+              title={fullNumber(value)}
             >
-              {soGon(giaTri)}
+              {compactNumber(value)}
             </div>
 
             <div className="text-xs flex items-center gap-1.5">
-              <ChenhLechPhanTram delta={delta} hau_to="so với kỳ trước" />
+              <PercentDelta delta={delta} hau_to="so với kỳ trước" />
             </div>
 
             {tachTheoNenTang ? (
               <>
                 <div className="flex h-[5px] rounded-full overflow-hidden mt-4 bg-slate-100 dark:bg-slate-800 gap-0.5">
-                  {nenTang
+                  {platform
                     .filter((nt) => nt[cs.ma] > 0)
                     .map((nt) => (
                       <i
                         key={nt.platform}
                         className="block rounded-full transition-[width] duration-500"
-                        style={{ width: `${tyLe(nt[cs.ma], giaTri)}%`, background: mauNenTang(nt.platform) }}
-                        title={`${tenNenTang(nt.platform)}: ${soDay(nt[cs.ma])}`}
+                        style={{ width: `${ratio(nt[cs.ma], value)}%`, background: platformColor(nt.platform) }}
+                        title={`${platformName(nt.platform)}: ${fullNumber(nt[cs.ma])}`}
                       />
                     ))}
                 </div>
                 <div className="mt-3 grid gap-2">
-                  {nenTang.map((nt) => (
+                  {platform.map((nt) => (
                     <div
                       key={nt.platform}
                       className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap"
                     >
-                      <Cham mau={mauNenTang(nt.platform)} />
-                      {tenNenTang(nt.platform)}
-                      <b className="ml-auto text-foreground font-semibold tabular-nums" title={soDay(nt[cs.ma])}>
-                        {soGon(nt[cs.ma])}
+                      <Dot mau={platformColor(nt.platform)} />
+                      {platformName(nt.platform)}
+                      <b className="ml-auto text-foreground font-semibold tabular-nums" title={fullNumber(nt[cs.ma])}>
+                        {compactNumber(nt[cs.ma])}
                       </b>
                       <em className="not-italic w-11 text-right text-slate-400 dark:text-slate-500 tabular-nums">
-                        {phanTram(tyLe(nt[cs.ma], giaTri))}
+                        {percent(ratio(nt[cs.ma], value))}
                       </em>
                     </div>
                   ))}
@@ -105,8 +105,8 @@ export default function TheChiSo({
               </>
             ) : (
               <DuongXuHuong
-                gia_tri={tong.theo_ngay.map((d) => d[cs.ma])}
-                mau={chon ? 'hsl(var(--primary))' : mauNenTang(nenTang[0]?.platform ?? '')}
+                gia_tri={total.theo_ngay.map((d) => d[cs.ma])}
+                mau={chon ? 'hsl(var(--primary))' : platformColor(platform[0]?.platform ?? '')}
               />
             )}
           </button>

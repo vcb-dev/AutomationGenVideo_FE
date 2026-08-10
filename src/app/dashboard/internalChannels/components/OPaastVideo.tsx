@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import { Check, CircleNotch, Sparkle, WarningCircle } from '@phosphor-icons/react';
 
 import { useAuthStore } from '@/store/auth-store';
-import { scraperService, KetQuaPaastVideo, TrangThaiPaast } from '@/services/scraperService';
+import { scraperService, PaastVideoResult, TrangThaiPaast } from '@/services/scraperService';
 import PaastV2Modal, { KetQuaV2 } from './PaastV2Modal';
 
 /**
@@ -36,7 +36,7 @@ export default function OPaastVideo({
 }) {
   const { token } = useAuthStore();
   const [dangChay, setDangChay] = useState(false);
-  const [ketQua, setKetQua] = useState<KetQuaPaastVideo | null>(null);
+  const [result, setResult] = useState<PaastVideoResult | null>(null);
   const [moModal, setMoModal] = useState(false);
   const [loi, setLoi] = useState<string | null>(null);
 
@@ -45,7 +45,7 @@ export default function OPaastVideo({
   useEffect(() => setDaMount(true), []);
 
   // Bản 2 không có điểm số — ô hiển thị ĐẠT / CHƯA ĐẠT theo verdict.
-  const kq: KetQuaV2 | null = ketQua?.phan_tich?.analysis_result ?? null;
+  const kq: KetQuaV2 | null = result?.phan_tich?.analysis_result ?? null;
   const dat = kq ? kq.verdict.passed : trangThai?.dat ?? null;
   const daCham = dat !== null;
 
@@ -55,7 +55,7 @@ export default function OPaastVideo({
     if (dangChay) return;
 
     // Đã có kết quả trong phiên này thì mở lại luôn, khỏi hỏi server.
-    if (ketQua?.phan_tich) {
+    if (result?.phan_tich) {
       setMoModal(true);
       return;
     }
@@ -67,7 +67,7 @@ export default function OPaastVideo({
     const dangCho = toast.loading('Đang lấy kịch bản và chấm điểm…');
     try {
       const r = await scraperService.chamDiemPaast(token!, platform, postId);
-      setKetQua(r);
+      setResult(r);
       if (r.phan_tich) {
         toast.dismiss(dangCho);
         setMoModal(true);
@@ -141,8 +141,8 @@ export default function OPaastVideo({
         ? createPortal(
             <PaastV2Modal
               open={moModal}
-              ketQua={kq}
-              kichBan={ketQua?.kich_ban}
+              result={kq}
+              kichBan={result?.kich_ban}
               onClose={() => setMoModal(false)}
             />,
             document.body,

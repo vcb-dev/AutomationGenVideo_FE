@@ -6,7 +6,7 @@
  * nơi bằng ba biểu thức lọc chép tay, và hai trong ba quên loại giọng hệ thống.
  */
 
-export interface GiongNoi {
+export interface Voice {
     voice_id: string;
     name: string;
     gender?: string | null;
@@ -26,7 +26,7 @@ export interface GiongNoi {
  * Cùng luật này quyết định giọng nào được xoá — thư mục hiện giọng nào thì nút
  * xoá nằm ở đó, mà giọng hệ thống thì AI service từ chối xoá (xem delete_voice_api).
  */
-export function laGiongDungDuoc(voice: GiongNoi | undefined | null): boolean {
+export function isUsableVoice(voice: Voice | undefined | null): boolean {
     if (!voice) return false;
     if (voice.is_system) return false;
     return Boolean(voice.is_cloned) && (voice.provider ?? 'minimax') === 'minimax';
@@ -39,13 +39,13 @@ export function laGiongDungDuoc(voice: GiongNoi | undefined | null): boolean {
  * dùng được. Hết sạch thì trả chuỗi rỗng để handleGenerate chặn sớm, thay vì gửi
  * một voice_id đã chết sang MiniMax rồi nhận lỗi khó hiểu.
  */
-export function chonGiongMacDinh(voices: GiongNoi[], voiceIdDangChon: string): string {
-    const dungDuoc = voices.filter(laGiongDungDuoc);
-    if (dungDuoc.some((v) => v.voice_id === voiceIdDangChon)) return voiceIdDangChon;
-    return dungDuoc.length > 0 ? dungDuoc[0].voice_id : '';
+export function pickDefaultVoice(voices: Voice[], selectedVoiceId: string): string {
+    const usable = voices.filter(isUsableVoice);
+    if (usable.some((v) => v.voice_id === selectedVoiceId)) return selectedVoiceId;
+    return usable.length > 0 ? usable[0].voice_id : '';
 }
 
 /** Bỏ giọng vừa xoá khỏi danh sách đang hiển thị — cập nhật lạc quan, không chờ fetch lại. */
-export function boGiongKhoiDanhSach(voices: GiongNoi[], voiceId: string): GiongNoi[] {
+export function removeVoiceFromList(voices: Voice[], voiceId: string): Voice[] {
     return voices.filter((v) => v.voice_id !== voiceId);
 }
