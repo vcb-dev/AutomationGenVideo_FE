@@ -317,7 +317,7 @@ function RejectedTasksPanel({ userId }: { userId: string }) {
 
 // ─── Daily Progress ─────────────────────────────────────────────────────────
 
-function DailyProgress({ userId }: { userId: string }) {
+function DailyProgress({ userId, dailyKpiTarget = 0 }: { userId: string; dailyKpiTarget?: number }) {
   const today = new Date().toISOString().split('T')[0]
   const rawDateLabel = new Date().toLocaleDateString('vi-VN', {
     weekday: 'long', day: 'numeric', month: 'numeric',
@@ -362,7 +362,8 @@ function DailyProgress({ userId }: { userId: string }) {
   return (
     <DashboardCard
       icon={CalendarClock} iconColor="text-indigo-600" iconBg="bg-indigo-50"
-      title="Tiến độ hôm nay" subtitle={dateLabel}
+      title="Tiến độ hôm nay"
+      subtitle={dailyKpiTarget > 0 ? `${dateLabel} — Mục tiêu: ${dailyKpiTarget} video` : dateLabel}
       action={{ href: '/dashboard/task-auto/tasks', label: 'Xem tất cả' }}
       className="flex flex-col"
     >
@@ -518,7 +519,7 @@ export function PersonalDashboard({ d }: { d: any }) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
 
         {/* Left: Daily */}
-        {user?.id && <DailyProgress userId={user.id} />}
+        {user?.id && <DailyProgress userId={user.id} dailyKpiTarget={d.daily_kpi_target ?? 0} />}
 
         {/* Right: KPI */}
         <DashboardCard

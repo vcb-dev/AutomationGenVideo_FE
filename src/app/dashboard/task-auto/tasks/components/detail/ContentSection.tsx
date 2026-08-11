@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   FileText, Link2, Mic, Download, X, ChevronDown, ChevronUp,
-  Sparkles, Loader2, Copy, Check, Languages, Save, Send, Clock, CheckCircle2, XCircle, Gauge, PenLine,
+  Sparkles, Loader2, Copy, Check, Languages, Save, Send, Clock, CheckCircle2, XCircle, Gauge, PenLine, Wand2,
 } from 'lucide-react'
-import { cn, drivePreviewUrl } from '@/lib/utils'
+import { cn, drivePreviewUrl, cleanContentText } from '@/lib/utils'
 import { ServerSearchSelect } from '@/components/task-auto/DarkInput'
+import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
 import { Section } from './Section'
 import {
   getTaskVideoScript,
@@ -32,6 +33,26 @@ function autoResize(el: HTMLTextAreaElement | null) {
   if (!el) return
   el.style.height = 'auto'
   el.style.height = `${el.scrollHeight}px`
+}
+
+// Người dùng hay copy-paste content từ Word/Zalo/Facebook mang theo format xấu (nbsp, nhiều
+// dòng trống, khoảng trắng thừa...) — dọn sạch phần vừa dán, chèn đúng vị trí con trỏ thay vì
+// ghi đè cả ô, để không mất phần đang gõ dở trước/sau đoạn dán.
+function handleCleanPaste(
+  e: React.ClipboardEvent<HTMLTextAreaElement>,
+  currentValue: string,
+  setValue: (v: string) => void,
+) {
+  e.preventDefault()
+  const cleaned = cleanContentText(e.clipboardData.getData('text/plain'))
+  const el = e.currentTarget
+  const start = el.selectionStart
+  const end = el.selectionEnd
+  setValue(currentValue.slice(0, start) + cleaned + currentValue.slice(end))
+  requestAnimationFrame(() => {
+    const pos = start + cleaned.length
+    el.setSelectionRange(pos, pos)
+  })
 }
 
 // Khớp logic phía AI service (task_script_service.py): market rỗng hoặc chỉ gồm VN/Vietnam thì không cần dịch.
@@ -77,11 +98,14 @@ interface Props {
   productPriceSegment?: string | null
   productLine?: string | null
   productMarket?: string | null
+  /** Báo cho parent (TaskDetailPanel) biết còn thay đổi chưa lưu — để chặn đóng panel mất dữ liệu. */
+  onDirtyChange?: (dirty: boolean) => void
 }
 
 export function ContentSection({
   editMode, edit, view, taskId, isAssignee, canApproveReject,
   productName, productSku, productPrice, productMaterial, productPriceSegment, productLine, productMarket,
+  onDirtyChange,
 }: Props) {
   const [voiceOpen, setVoiceOpen] = useState(false)
   const [filePreviewOpen, setFilePreviewOpen] = useState(false)
@@ -113,6 +137,9 @@ export function ContentSection({
   // Chấm điểm PAAST — công cụ học hỏi/cải thiện, mọi role đều dùng được, không phải bước duyệt.
   const [showScoreModal, setShowScoreModal] = useState(false)
   const [scoreCache, setScoreCache] = useState<{ content: string; result: PaastAnalysisHistory } | null>(null)
+
+  // "Sinh lại" ghi đè toàn bộ ô content — hỏi lại nếu đang có sửa tay chưa lưu để tránh mất trắng.
+  const [showRegenConfirm, setShowRegenConfirm] = useState(false)
 
   const contentTextareaRef = useRef<HTMLTextAreaElement | null>(null)
   const translationTextareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -152,6 +179,8 @@ export function ContentSection({
     !arraysEqual(editedTranslationHashtags, script.translation.hashtags)
   )
   const dirty = contentDirty || translationDirty
+
+  useEffect(() => { onDirtyChange?.(dirty) }, [dirty, onDirtyChange])
 
   // Nạp content AI đã cache cho task này (nếu có) — không tốn token vì không gọi lại DeepSeek
   useEffect(() => {
@@ -242,6 +271,13 @@ export function ContentSection({
     }
   }
 
+  // "Sinh content AI" lần đầu (chưa có gì để mất) chạy thẳng; "Sinh lại" khi đang có sửa tay
+  // chưa lưu (dirty) phải hỏi lại trước vì generate() sẽ ghi đè editedContent qua effect đồng bộ script.
+  function handleGenerateClick() {
+    if (script && dirty) { setShowRegenConfirm(true); return }
+    generate(!!script)
+  }
+
   async function handleSave() {
     setSaving(true)
     setError(null)
@@ -265,6 +301,20 @@ export function ContentSection({
     } finally {
       setSaving(false)
     }
+  }
+
+  function onContentPaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    userTouchedRef.current = true
+    handleCleanPaste(e, editedContent, setEditedContent)
+  }
+
+  function onTranslationPaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    handleCleanPaste(e, editedTranslationContent, setEditedTranslationContent)
+  }
+
+  function formatContent() {
+    userTouchedRef.current = true
+    setEditedContent(prev => cleanContentText(prev))
   }
 
   function cancelRewrite() {
@@ -584,7 +634,7 @@ export function ContentSection({
                 <div className="flex items-center justify-end gap-2 flex-wrap">
                   <button
                     type="button"
-                    onClick={() => generate(!!script)}
+                    onClick={handleGenerateClick}
                     disabled={!canGenerate || loading}
                     className={cn(
                       'flex items-center gap-1.5 text-sm font-semibold px-3.5 py-2 rounded-lg transition-colors',
@@ -601,6 +651,20 @@ export function ContentSection({
                   </button>
                   <button
                     type="button"
+                    onClick={formatContent}
+                    disabled={!editedContent.trim()}
+                    title="Dọn khoảng trắng/dòng trống thừa do copy-paste, không đổi nội dung chữ"
+                    className={cn(
+                      'flex items-center gap-1.5 text-sm font-medium px-3.5 py-2 rounded-lg border transition-colors',
+                      editedContent.trim()
+                        ? 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                        : 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed',
+                    )}
+                  >
+                    <Wand2 className="w-3.5 h-3.5" /> Định dạng lại
+                  </button>
+                  <button
+                    type="button"
                     onClick={cancelRewrite}
                     className="flex items-center gap-1.5 text-sm font-medium px-3.5 py-2 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 transition-colors"
                   >
@@ -611,6 +675,7 @@ export function ContentSection({
                   ref={contentTextareaRef}
                   value={editedContent}
                   onChange={e => { userTouchedRef.current = true; setEditedContent(e.target.value) }}
+                  onPaste={onContentPaste}
                   rows={5}
                   autoFocus
                   placeholder="Gõ content tại đây, hoặc bấm 'Sinh content AI' để AI viết giúp..."
@@ -742,6 +807,7 @@ export function ContentSection({
                 ref={translationTextareaRef}
                 value={editedTranslationContent}
                 onChange={e => setEditedTranslationContent(e.target.value)}
+                onPaste={onTranslationPaste}
                 rows={3}
                 className="w-full text-sm text-sky-900 leading-relaxed whitespace-pre-line bg-white/70 border border-sky-200 rounded-lg px-3 py-2 resize-none overflow-hidden focus:outline-none focus:ring-2 focus:ring-sky-300"
               />
@@ -783,6 +849,16 @@ export function ContentSection({
           setEditedContent(upgradedContent)
           setScoreCache({ content: upgradedContent, result })
         }}
+      />
+
+      <ConfirmDialog
+        open={showRegenConfirm}
+        title="Sinh lại content bằng AI?"
+        message="Bạn đang có nội dung sửa tay chưa lưu. Sinh lại sẽ ghi đè toàn bộ nội dung đang gõ và không thể hoàn tác."
+        confirmLabel="Sinh lại, ghi đè"
+        danger
+        onConfirm={() => { setShowRegenConfirm(false); generate(true) }}
+        onCancel={() => setShowRegenConfirm(false)}
       />
     </Section>
   )

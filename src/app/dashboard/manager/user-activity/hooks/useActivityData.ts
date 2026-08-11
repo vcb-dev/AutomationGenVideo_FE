@@ -98,6 +98,7 @@ const mapReportItem = (item: any) => {
             ? `${new Date(item.date).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} ${new Date(item.date).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" }).replace(/\//g, "-")}`
             : "Chưa báo cáo",
         dailyGoal: item.dailyGoal || 0,
+        dailyGoalSource: item.dailyGoalSource || 'derived',
         done: item.done || 0,
         kpi_month: item.kpi_month || 0,
         completed_month: item.completed_month || 0,
