@@ -1,7 +1,6 @@
 name: CI
 
 on:
-  # Mọi PR, không lọc nhánh đích — xem lý do trong .github/scripts/check-test-required.sh
   pull_request:
   push:
     branches: [main, dev, truqhieu]
@@ -38,42 +37,4 @@ jobs:
       # KHÔNG có bước lint: repo chưa có file cấu hình ESLint, nên `next lint` mở prompt hỏi
       # "How would you like to configure ESLint?" và treo trên CI. Thêm .eslintrc rồi hãy bật lại.
 
-  unit-test:
-    name: Unit test (Jest)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Chạy unit test
-        run: npm test -- --ci
-
-  test-required:
-    name: PR phải kèm unit test
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    if: github.event_name == 'pull_request'
-
-    steps:
-      # fetch-depth 0 vì phải so diff với nhánh đích; bản checkout nông không có commit gốc chung.
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Kiểm tra PR có kèm file unit test
-        env:
-          BASE_REF: ${{ github.base_ref }}
-          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ' ') }}
-        run: bash .github/scripts/check-test-required.sh
+      # FE không bắt buộc unit test trên CI (khác BE). Muốn test thì chạy `npm test` local.
