@@ -20,9 +20,9 @@ describe('dedupeById — lọc video lặp khi nối trang cuộn vô tận', ()
         const noiTrang = [...trang1, ...trang2];
         expect(noiTrang).toHaveLength(48);
 
-        const ketQua = dedupeById(noiTrang);
-        expect(ketQua).toHaveLength(43);
-        expect(new Set(ketQua.map((v) => v.post_id)).size).toBe(43);
+        const result = dedupeById(noiTrang);
+        expect(result).toHaveLength(43);
+        expect(new Set(result.map((v) => v.post_id)).size).toBe(43);
     });
 
     it('giữ nguyên thứ tự, giữ lần xuất hiện ĐẦU TIÊN', () => {
