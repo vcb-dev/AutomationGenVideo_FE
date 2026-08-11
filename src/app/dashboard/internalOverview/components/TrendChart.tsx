@@ -13,19 +13,19 @@ import {
 } from 'recharts';
 import { Eye, Users, VideoCamera } from '@phosphor-icons/react';
 
-import type { ThongKeNenTang } from '@/services/scraperService';
-import { CHI_SO, MaChiSo, TongHop } from './tinh-toan';
+import type { PlatformStats } from '@/services/scraperService';
+import { METRICS, MetricCode, Summary } from './calculations';
 import {
-  ChenhLechPhanTram,
-  ChuThich,
-  Cham,
-  chenhLech,
-  mauNenTang,
-  ngayDayDu,
-  ngayNgan,
-  soDay,
-  soGon,
-  tenNenTang,
+  PercentDelta,
+  Legend,
+  Dot,
+  computeDelta,
+  platformColor,
+  fullDate,
+  shortDate,
+  fullNumber,
+  compactNumber,
+  platformName,
   The,
 } from './shared';
 
@@ -35,75 +35,75 @@ import {
  * Bật "Tách theo nền tảng" thì mỗi nền tảng một đường; tắt thì gộp thành một đường có nền
  * chuyển sắc. Chỉ có một nền tảng thì công tắc bị ẩn — tách hay không cũng ra đúng một đường.
  */
-export default function BieuDoXuHuong({
-  tong,
-  nenTang,
-  chiSo,
+export default function TrendChart({
+  total,
+  platform,
+  metric,
   tach,
   onDoiTach,
-  soNgay,
+  dayCount,
 }: {
-  tong: TongHop;
-  nenTang: ThongKeNenTang[];
-  chiSo: MaChiSo;
+  total: Summary;
+  platform: PlatformStats[];
+  metric: MetricCode;
   tach: boolean;
   onDoiTach: (v: boolean) => void;
-  soNgay: number;
+  dayCount: number;
 }) {
-  const nhanChiSo = CHI_SO.find((c) => c.ma === chiSo)!.nhan;
-  const nhieuNenTang = nenTang.length > 1;
+  const nhanChiSo = METRICS.find((c) => c.ma === metric)!.nhan;
+  const nhieuNenTang = platform.length > 1;
   const tachThat = tach && nhieuNenTang;
 
   // Tra theo NGÀY chứ không theo vị trí trong mảng: hiện BE trả các nền tảng cùng một dải
   // ngày nên hai cách cho kết quả như nhau, nhưng chỉ cần một nền tảng thiếu vài ngày là cách
   // tra theo vị trí sẽ gán nhầm số của ngày này sang ngày khác mà biểu đồ vẫn vẽ trơn tru.
-  const duLieu = useMemo(() => {
+  const data = useMemo(() => {
     const bang = new Map(
-      nenTang.map((nt) => [nt.platform, new Map(nt.theo_ngay.map((d) => [d.ngay, d[chiSo]]))]),
+      platform.map((nt) => [nt.platform, new Map(nt.theo_ngay.map((d) => [d.ngay, d[metric]]))]),
     );
-    return tong.theo_ngay.map((d) => {
-      const dong: Record<string, number | string> = { ngay: d.ngay, tong: d[chiSo] };
-      for (const nt of nenTang) dong[nt.platform] = bang.get(nt.platform)?.get(d.ngay) ?? 0;
+    return total.theo_ngay.map((d) => {
+      const dong: Record<string, number | string> = { ngay: d.ngay, total: d[metric] };
+      for (const nt of platform) dong[nt.platform] = bang.get(nt.platform)?.get(d.ngay) ?? 0;
       return dong;
     });
-  }, [tong.theo_ngay, nenTang, chiSo]);
+  }, [total.theo_ngay, platform, metric]);
 
   const duong = tachThat
-    ? nenTang.map((nt) => ({ khoa: nt.platform, mau: mauNenTang(nt.platform), ten: tenNenTang(nt.platform) }))
+    ? platform.map((nt) => ({ khoa: nt.platform, mau: platformColor(nt.platform), ten: platformName(nt.platform) }))
     : [
         {
-          khoa: 'tong',
-          mau: nhieuNenTang ? '#5b5bd6' : mauNenTang(nenTang[0]?.platform ?? ''),
-          ten: nhieuNenTang ? `Tổng ${nenTang.length} nền tảng` : tenNenTang(nenTang[0]?.platform ?? ''),
+          khoa: 'total',
+          mau: nhieuNenTang ? '#5b5bd6' : platformColor(platform[0]?.platform ?? ''),
+          ten: nhieuNenTang ? `Tổng ${platform.length} nền tảng` : platformName(platform[0]?.platform ?? ''),
         },
       ];
 
-  const delta = chenhLech(tong[chiSo], tong.truoc[chiSo]);
-  const trungBinh = tong.posts > 0 ? Math.round(tong.views / tong.posts) : 0;
+  const delta = computeDelta(total[metric], total.truoc[metric]);
+  const average = total.posts > 0 ? Math.round(total.views / total.posts) : 0;
 
   // Cách 5-6 ngày mới in một nhãn trục ngang — 90 ngày mà in hết thì nhãn chồng lên nhau.
-  const buocNhan = Math.max(0, Math.ceil(duLieu.length / 6) - 1);
+  const buocNhan = Math.max(0, Math.ceil(data.length / 6) - 1);
 
   return (
     <The noiBat className="mb-5">
       <div className="flex items-baseline gap-3 flex-wrap mb-1">
         <span
           className="text-[32px] font-semibold tracking-tighter tabular-nums leading-none text-foreground"
-          title={soDay(tong[chiSo])}
+          title={fullNumber(total[metric])}
         >
-          {soGon(tong[chiSo])}
+          {compactNumber(total[metric])}
         </span>
         <span className="text-[14.5px] font-medium text-slate-500 dark:text-slate-400">{nhanChiSo}</span>
-        <ChuThich noiDung="Tổng của toàn bộ video đăng trong kỳ đang chọn" />
+        <Legend tooltip="Tổng của toàn bộ video đăng trong kỳ đang chọn" />
       </div>
       <div className="text-[12.5px] text-slate-400 dark:text-slate-500">
-        <ChenhLechPhanTram delta={delta} /> so với {soNgay} ngày trước đó ·{' '}
-        {nhieuNenTang ? `gộp ${nenTang.length} nền tảng` : tenNenTang(nenTang[0]?.platform ?? '')}
+        <PercentDelta delta={delta} /> so với {dayCount} ngày trước đó ·{' '}
+        {nhieuNenTang ? `gộp ${platform.length} nền tảng` : platformName(platform[0]?.platform ?? '')}
       </div>
 
       <div className="mt-3 h-[272px]">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={duLieu} margin={{ top: 16, right: 8, left: 0, bottom: 0 }}>
+          <ComposedChart data={data} margin={{ top: 16, right: 8, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id="nenBieuDo" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={duong[0].mau} stopOpacity={0.18} />
@@ -114,7 +114,7 @@ export default function BieuDoXuHuong({
             <CartesianGrid vertical={false} stroke="currentColor" className="text-slate-100 dark:text-slate-800" />
             <XAxis
               dataKey="ngay"
-              tickFormatter={ngayNgan}
+              tickFormatter={shortDate}
               interval={buocNhan}
               tick={{ fontSize: 11, fill: 'currentColor' }}
               className="text-slate-400"
@@ -123,7 +123,7 @@ export default function BieuDoXuHuong({
               dy={8}
             />
             <YAxis
-              tickFormatter={soGon}
+              tickFormatter={compactNumber}
               tick={{ fontSize: 11, fill: 'currentColor' }}
               className="text-slate-400"
               axisLine={false}
@@ -137,7 +137,7 @@ export default function BieuDoXuHuong({
             {!tachThat && (
               <Area
                 type="monotone"
-                dataKey="tong"
+                dataKey="total"
                 stroke="none"
                 fill="url(#nenBieuDo)"
                 isAnimationActive={false}
@@ -192,21 +192,21 @@ export default function BieuDoXuHuong({
       <div className="grid gap-px mt-6 bg-border rounded-xl overflow-hidden" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))' }}>
         <ODem
           icon={<Users size={17} />}
-          so={soDay(tong.followers)}
+          so={fullNumber(total.followers)}
           nhan="Tổng người theo dõi"
-          chuThich="Cộng người theo dõi của tất cả kênh nội bộ tại lần đồng bộ gần nhất"
+          hint="Cộng người theo dõi của tất cả kênh nội bộ tại lần đồng bộ gần nhất"
         />
         <ODem
           icon={<Eye size={17} />}
-          so={soDay(trungBinh)}
+          so={fullNumber(average)}
           nhan="Lượt xem trung bình / bài"
-          chuThich="Tổng lượt xem chia cho số bài đăng trong kỳ"
+          hint="Tổng lượt xem chia cho số bài đăng trong kỳ"
         />
         <ODem
           icon={<VideoCamera size={17} />}
-          so={`${soDay(tong.so_kenh)} / ${soDay(tong.tong_kenh)}`}
+          so={`${fullNumber(total.so_kenh)} / ${fullNumber(total.tong_kenh)}`}
           nhan="Kênh có đăng bài trong kỳ"
-          chuThich="Số kênh nội bộ có ít nhất một bài trong kỳ, trên tổng số kênh đang quản lý"
+          hint="Số kênh nội bộ có ít nhất một bài trong kỳ, trên tổng số kênh đang quản lý"
         />
       </div>
     </The>
@@ -217,12 +217,12 @@ function ODem({
   icon,
   so,
   nhan,
-  chuThich,
+  hint,
 }: {
   icon: React.ReactNode;
   so: string;
   nhan: string;
-  chuThich: string;
+  hint: string;
 }) {
   return (
     <div className="bg-card px-[18px] py-4">
@@ -230,7 +230,7 @@ function ODem({
       <div className="text-xl font-semibold tracking-tight tabular-nums text-foreground">{so}</div>
       <div className="text-slate-500 dark:text-slate-400 text-[12.5px] mt-0.5 flex items-center">
         {nhan}
-        <ChuThich noiDung={chuThich} />
+        <Legend tooltip={hint} />
       </div>
     </div>
   );
@@ -260,17 +260,17 @@ function GoiY({
 
   return (
     <div className="bg-card border border-border rounded-xl shadow-lg px-3.5 py-2.5 text-[12.5px] font-medium leading-relaxed">
-      <div className="text-slate-400 dark:text-slate-500 text-[11.5px] mb-0.5">{ngayDayDu(label)}</div>
+      <div className="text-slate-400 dark:text-slate-500 text-[11.5px] mb-0.5">{fullDate(label)}</div>
       {dong.map((d) => (
         <div key={d.khoa} className="flex items-center gap-2 whitespace-nowrap">
-          <Cham mau={d.mau} />
+          <Dot mau={d.mau} />
           <span className="text-slate-500 dark:text-slate-400">{d.ten}:</span>
-          <span className="text-foreground tabular-nums">{soDay(d.gia_tri || 0)}</span>
+          <span className="text-foreground tabular-nums">{fullNumber(d.gia_tri || 0)}</span>
         </div>
       ))}
       {tach && dong.length > 1 && (
         <div className="text-slate-400 dark:text-slate-500 mt-1 pt-1 border-t border-border">
-          Tổng: <span className="tabular-nums">{soDay(tongNgay)}</span>
+          Tổng: <span className="tabular-nums">{fullNumber(tongNgay)}</span>
         </div>
       )}
     </div>

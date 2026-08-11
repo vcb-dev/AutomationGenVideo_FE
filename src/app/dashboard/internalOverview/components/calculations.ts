@@ -1,7 +1,7 @@
-import type { SoLieuKy, SoLieuNgay, ThongKeNenTang } from '@/services/scraperService';
+import type { PeriodStats, DailyStats, PlatformStats } from '@/services/scraperService';
 
 /** Năm chỉ số hiện trên hàng thẻ đầu trang, đúng thứ tự của bản thiết kế. */
-export const CHI_SO = [
+export const METRICS = [
   { ma: 'views', nhan: 'Lượt xem' },
   { ma: 'likes', nhan: 'Lượt thích' },
   { ma: 'comments', nhan: 'Bình luận' },
@@ -9,17 +9,17 @@ export const CHI_SO = [
   { ma: 'posts', nhan: 'Bài đã đăng' },
 ] as const;
 
-export type MaChiSo = (typeof CHI_SO)[number]['ma'];
+export type MetricCode = (typeof METRICS)[number]['ma'];
 
-export interface TongHop extends SoLieuKy {
-  truoc: SoLieuKy;
+export interface Summary extends PeriodStats {
+  truoc: PeriodStats;
   followers: number;
   so_kenh: number;
   tong_kenh: number;
-  theo_ngay: SoLieuNgay[];
+  theo_ngay: DailyStats[];
 }
 
-const RONG: SoLieuKy = { views: 0, likes: 0, comments: 0, shares: 0, posts: 0 };
+const RONG: PeriodStats = { views: 0, likes: 0, comments: 0, shares: 0, posts: 0 };
 
 /**
  * Cộng nhiều nền tảng thành một bộ số cho chế độ "Tất cả nền tảng".
@@ -28,8 +28,8 @@ const RONG: SoLieuKy = { views: 0, likes: 0, comments: 0, shares: 0, posts: 0 };
  * cho từng nền tảng nên hai mảng vốn dài bằng nhau, nhưng cộng theo ngày thì kể cả sau này
  * BE đổi cách trả về, biểu đồ vẫn không bị lệch cột.
  */
-export function gopNenTang(list: ThongKeNenTang[]): TongHop {
-  const theoNgay = new Map<string, SoLieuNgay>();
+export function mergePlatforms(list: PlatformStats[]): Summary {
+  const theoNgay = new Map<string, DailyStats>();
   for (const nt of list) {
     for (const d of nt.theo_ngay) {
       const cur = theoNgay.get(d.ngay) ?? { ngay: d.ngay, ...RONG };
@@ -42,7 +42,7 @@ export function gopNenTang(list: ThongKeNenTang[]): TongHop {
     }
   }
 
-  const cong = (lay: (nt: ThongKeNenTang) => SoLieuKy): SoLieuKy =>
+  const cong = (lay: (nt: PlatformStats) => PeriodStats): PeriodStats =>
     list.reduce(
       (s, nt) => {
         const v = lay(nt);
