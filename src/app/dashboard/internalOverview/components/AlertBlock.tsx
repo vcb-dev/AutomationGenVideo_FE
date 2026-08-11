@@ -10,7 +10,7 @@ import { ChannelAvatar, Subtitle, The, PlatformCard, CardTitle, EmptyState } fro
 export default function AlertBlock({ alerts }: { alerts: ChannelAlert[] }) {
   return (
     <The chim className="!mb-0">
-      <CardTitle chuThich="Kênh đồng bộ lỗi, tụt hiệu quả hoặc đã lâu không đăng bài">
+      <CardTitle hint="Kênh đồng bộ lỗi, tụt hiệu quả hoặc đã lâu không đăng bài">
         Cần chú ý
       </CardTitle>
       <Subtitle className="!mb-2">Cập nhật sau mỗi lần đồng bộ</Subtitle>

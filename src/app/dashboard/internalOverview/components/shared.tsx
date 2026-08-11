@@ -104,10 +104,10 @@ export function The({
 }
 
 /** Chấm "i" giải thích cách một con số được tính — bản thiết kế dùng ở mọi tiêu đề. */
-export function Legend({ noiDung }: { noiDung: string }) {
+export function Legend({ tooltip }: { tooltip: string }) {
   return (
     <span
-      title={noiDung}
+      title={tooltip}
       className="ml-1.5 inline-grid place-items-center w-[15px] h-[15px] rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 text-[9.5px] font-semibold cursor-help shrink-0 leading-none"
     >
       i
@@ -115,11 +115,11 @@ export function Legend({ noiDung }: { noiDung: string }) {
   );
 }
 
-export function CardTitle({ children, chuThich }: { children: ReactNode; chuThich?: string }) {
+export function CardTitle({ children, hint }: { children: ReactNode; hint?: string }) {
   return (
     <h3 className="text-[14.5px] font-semibold text-foreground flex items-center tracking-tight">
       {children}
-      {chuThich && <Legend noiDung={chuThich} />}
+      {hint && <Legend tooltip={hint} />}
     </h3>
   );
 }

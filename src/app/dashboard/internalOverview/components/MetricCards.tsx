@@ -57,7 +57,7 @@ export default function MetricCards({
           >
             <div className="flex items-center text-[12.5px] font-medium text-slate-500 dark:text-slate-400">
               {cs.nhan}
-              <Legend noiDung={`Tổng ${cs.nhan.toLowerCase()} của các video đăng trong kỳ`} />
+              <Legend tooltip={`Tổng ${cs.nhan.toLowerCase()} của các video đăng trong kỳ`} />
             </div>
 
             <div

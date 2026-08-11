@@ -77,7 +77,7 @@ export default function DuplicateBlock({
   if (tom_tat.tong_video === 0) {
     return (
       <The className="mb-5">
-        <CardTitle chuThich={CHU_THICH}>Trùng lặp nội dung</CardTitle>
+        <CardTitle hint={CHU_THICH}>Trùng lặp nội dung</CardTitle>
         <EmptyState
           tieu_de="Chưa có video nào trong kỳ"
           mo_ta="Đổi khoảng ngày hoặc chờ lần đồng bộ kế tiếp để hệ thống cào thêm video."
@@ -90,7 +90,7 @@ export default function DuplicateBlock({
     <The className="mb-5">
       <div className="flex items-start gap-4 flex-wrap">
         <div>
-          <CardTitle chuThich={CHU_THICH}>Trùng lặp nội dung</CardTitle>
+          <CardTitle hint={CHU_THICH}>Trùng lặp nội dung</CardTitle>
           <Subtitle>Cùng một video được đăng trên nhiều kênh nội bộ khác nhau</Subtitle>
         </div>
       </div>

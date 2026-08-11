@@ -85,7 +85,7 @@ export default function ChannelRanking({ kenh }: { kenh: ChannelStats[] }) {
 
   return (
     <The className="!mb-5">
-      <CardTitle chuThich="Bấm tiêu đề cột để đổi cách sắp xếp">Xếp hạng kênh</CardTitle>
+      <CardTitle hint="Bấm tiêu đề cột để đổi cách sắp xếp">Xếp hạng kênh</CardTitle>
       <Subtitle>Bấm một dòng để xem toàn bộ video của kênh</Subtitle>
 
       {nhieuNenTang && (

@@ -24,7 +24,7 @@ export default function TopContent({ video }: { video: VideoNoiBat[] }) {
 
   return (
     <The className="!mb-5">
-      <CardTitle chuThich="Xếp theo lượt xem của các video đăng trong kỳ">Nội dung hàng đầu</CardTitle>
+      <CardTitle hint="Xếp theo lượt xem của các video đăng trong kỳ">Nội dung hàng đầu</CardTitle>
       <Subtitle className="!mb-4">Bấm để mở bài gốc</Subtitle>
 
       {video.length === 0 ? (

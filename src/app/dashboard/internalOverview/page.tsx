@@ -238,7 +238,7 @@ function PageHeader({
       <div>
         <h1 className="text-xl font-bold text-foreground flex items-center">
           Tổng quan kênh nội bộ
-          <Legend noiDung="Số liệu cào từ các kênh mạng xã hội do công ty sở hữu" />
+          <Legend tooltip="Số liệu cào từ các kênh mạng xã hội do công ty sở hữu" />
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
           Tổng hợp lượt xem và tương tác của các video đăng trong kỳ

@@ -44,7 +44,7 @@ export function MarketBlock({ thiTruong }: { thiTruong: ThiTruongNenTang[] }) {
 
   return (
     <The className="!mb-0 flex flex-col">
-      <CardTitle chuThich="Đoán theo dấu tiếng Việt trong caption — caption tiếng Việt không dấu sẽ bị xếp sang Global">
+      <CardTitle hint="Đoán theo dấu tiếng Việt trong caption — caption tiếng Việt không dấu sẽ bị xếp sang Global">
         Thị trường nội dung
       </CardTitle>
       <Subtitle>Theo lượt xem trong kỳ</Subtitle>
@@ -183,7 +183,7 @@ export function ContentLineBlock({ tuyen }: { tuyen: TuyenNoiDung[] }) {
 
   return (
     <The className="!mb-0 flex flex-col">
-      <CardTitle chuThich="Bắt theo hashtag #A1…#A5 sẵn có trong caption. Một video gắn nhiều tuyến sẽ được tính cho từng tuyến">
+      <CardTitle hint="Bắt theo hashtag #A1…#A5 sẵn có trong caption. Một video gắn nhiều tuyến sẽ được tính cho từng tuyến">
         Tuyến nội dung
       </CardTitle>
       <Subtitle>Tỷ trọng lượt xem theo tuyến A1–A5</Subtitle>
@@ -271,7 +271,7 @@ export function EngagementBlock({ platform }: { platform: PlatformStats[] }) {
 
   return (
     <The className="!mb-0 flex flex-col">
-      <CardTitle chuThich="Tỷ trọng thích / bình luận / chia sẻ trong tổng tương tác của các video đăng trong kỳ">
+      <CardTitle hint="Tỷ trọng thích / bình luận / chia sẻ trong tổng tương tác của các video đăng trong kỳ">
         Cơ cấu tương tác
       </CardTitle>
       <Subtitle>Trong kỳ đang chọn</Subtitle>

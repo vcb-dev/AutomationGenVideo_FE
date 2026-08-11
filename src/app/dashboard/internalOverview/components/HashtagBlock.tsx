@@ -5,7 +5,7 @@ import type { HashtagThongKe } from '@/services/scraperService';
 import { HorizontalBar } from './BreakdownBlocks';
 import { COLOR_PRIMARY, TabGroup, Subtitle, The, CardTitle, EmptyState, fullNumber, compactNumber } from './shared';
 
-type Kieu = 'views' | 'posts';
+type MetricKey = 'views' | 'posts';
 
 /**
  * Thay cho khối "Cách mọi người tìm thấy nội dung" của bản thiết kế — nguồn hiển thị là số
@@ -15,21 +15,21 @@ type Kieu = 'views' | 'posts';
  * #A1…#A5 đã bị BE loại khỏi danh sách này vì đã có khối "Tuyến nội dung" riêng.
  */
 export default function HashtagBlock({ hashtag }: { hashtag: HashtagThongKe[] }) {
-  const [kieu, setKieu] = useState<Kieu>('views');
+  const [metric, setMetric] = useState<MetricKey>('views');
 
-  const lon = Math.max(...hashtag.map((h) => h[kieu]), 1);
+  const maxValue = Math.max(...hashtag.map((h) => h[metric]), 1);
 
   return (
     <The className="!mb-5">
-      <CardTitle chuThich="Bóc trực tiếp từ hashtag trong caption. Một video gắn nhiều thẻ sẽ được tính cho từng thẻ">
+      <CardTitle hint="Bóc trực tiếp từ hashtag trong caption. Một video gắn nhiều thẻ sẽ được tính cho từng thẻ">
         Hiệu quả theo hashtag
       </CardTitle>
       <Subtitle>10 thẻ dẫn đầu trong kỳ</Subtitle>
 
-      <TabGroup<Kieu>
+      <TabGroup<MetricKey>
         className="my-3.5"
-        dang_chon={kieu}
-        onSelect={setKieu}
+        dang_chon={metric}
+        onSelect={setMetric}
         cac_tab={[
           { ma: 'views', nhan: 'Theo lượt xem' },
           { ma: 'posts', nhan: 'Theo số bài' },
@@ -41,16 +41,16 @@ export default function HashtagBlock({ hashtag }: { hashtag: HashtagThongKe[] })
       ) : (
         <div>
           {[...hashtag]
-            .sort((a, b) => b[kieu] - a[kieu])
+            .sort((a, b) => b[metric] - a[metric])
             .map((h) => (
               <HorizontalBar
                 key={h.the}
                 nhan={`#${h.the}`}
-                phanTramGiaTri={h[kieu]}
-                phanTramLon={lon}
+                phanTramGiaTri={h[metric]}
+                phanTramLon={maxValue}
                 mau={COLOR_PRIMARY}
-                ben_phai={kieu === 'views' ? compactNumber(h.views) : fullNumber(h.posts)}
-                phu={kieu === 'views' ? `${fullNumber(h.posts)} bài` : `${compactNumber(h.views)} lượt xem`}
+                ben_phai={metric === 'views' ? compactNumber(h.views) : fullNumber(h.posts)}
+                phu={metric === 'views' ? `${fullNumber(h.posts)} bài` : `${compactNumber(h.views)} lượt xem`}
               />
             ))}
         </div>

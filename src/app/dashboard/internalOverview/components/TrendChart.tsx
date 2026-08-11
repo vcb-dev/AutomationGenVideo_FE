@@ -79,7 +79,7 @@ export default function TrendChart({
       ];
 
   const delta = computeDelta(total[metric], total.truoc[metric]);
-  const trungBinh = total.posts > 0 ? Math.round(total.views / total.posts) : 0;
+  const average = total.posts > 0 ? Math.round(total.views / total.posts) : 0;
 
   // Cách 5-6 ngày mới in một nhãn trục ngang — 90 ngày mà in hết thì nhãn chồng lên nhau.
   const buocNhan = Math.max(0, Math.ceil(data.length / 6) - 1);
@@ -94,7 +94,7 @@ export default function TrendChart({
           {compactNumber(total[metric])}
         </span>
         <span className="text-[14.5px] font-medium text-slate-500 dark:text-slate-400">{nhanChiSo}</span>
-        <Legend noiDung="Tổng của toàn bộ video đăng trong kỳ đang chọn" />
+        <Legend tooltip="Tổng của toàn bộ video đăng trong kỳ đang chọn" />
       </div>
       <div className="text-[12.5px] text-slate-400 dark:text-slate-500">
         <PercentDelta delta={delta} /> so với {dayCount} ngày trước đó ·{' '}
@@ -194,19 +194,19 @@ export default function TrendChart({
           icon={<Users size={17} />}
           so={fullNumber(total.followers)}
           nhan="Tổng người theo dõi"
-          chuThich="Cộng người theo dõi của tất cả kênh nội bộ tại lần đồng bộ gần nhất"
+          hint="Cộng người theo dõi của tất cả kênh nội bộ tại lần đồng bộ gần nhất"
         />
         <ODem
           icon={<Eye size={17} />}
-          so={fullNumber(trungBinh)}
+          so={fullNumber(average)}
           nhan="Lượt xem trung bình / bài"
-          chuThich="Tổng lượt xem chia cho số bài đăng trong kỳ"
+          hint="Tổng lượt xem chia cho số bài đăng trong kỳ"
         />
         <ODem
           icon={<VideoCamera size={17} />}
           so={`${fullNumber(total.so_kenh)} / ${fullNumber(total.tong_kenh)}`}
           nhan="Kênh có đăng bài trong kỳ"
-          chuThich="Số kênh nội bộ có ít nhất một bài trong kỳ, trên tổng số kênh đang quản lý"
+          hint="Số kênh nội bộ có ít nhất một bài trong kỳ, trên tổng số kênh đang quản lý"
         />
       </div>
     </The>
@@ -217,12 +217,12 @@ function ODem({
   icon,
   so,
   nhan,
-  chuThich,
+  hint,
 }: {
   icon: React.ReactNode;
   so: string;
   nhan: string;
-  chuThich: string;
+  hint: string;
 }) {
   return (
     <div className="bg-card px-[18px] py-4">
@@ -230,7 +230,7 @@ function ODem({
       <div className="text-xl font-semibold tracking-tight tabular-nums text-foreground">{so}</div>
       <div className="text-slate-500 dark:text-slate-400 text-[12.5px] mt-0.5 flex items-center">
         {nhan}
-        <Legend noiDung={chuThich} />
+        <Legend tooltip={hint} />
       </div>
     </div>
   );
