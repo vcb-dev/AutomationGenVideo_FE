@@ -7,7 +7,7 @@ import type { VideoNoiBat } from '@/services/scraperService';
 import {
   Dot,
   Subtitle,
-  The,
+  Card,
   CardTitle,
   EmptyState,
   platformColor,
@@ -23,7 +23,7 @@ export default function TopContent({ video }: { video: VideoNoiBat[] }) {
   const cuon = (huong: number) => bang.current?.scrollBy({ left: huong * 450, behavior: 'smooth' });
 
   return (
-    <The className="!mb-5">
+    <Card className="!mb-5">
       <CardTitle hint="Xếp theo lượt xem của các video đăng trong kỳ">Nội dung hàng đầu</CardTitle>
       <Subtitle className="!mb-4">Bấm để mở bài gốc</Subtitle>
 
@@ -82,7 +82,7 @@ export default function TopContent({ video }: { video: VideoNoiBat[] }) {
           <NutCuon huong={1} onBam={() => cuon(1)} />
         </div>
       )}
-    </The>
+    </Card>
   );
 }
 

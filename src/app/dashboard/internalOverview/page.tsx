@@ -111,7 +111,7 @@ export default function InternalOverviewPage() {
   //
   // Phải là state chứ không phải ref: ghi vào ref trong useEffect KHÔNG kích hoạt vẽ lại, nên
   // ngay lần tải đầu hàng tab sẽ không hiện — chỉ lộ ra khi có từ 2 nền tảng nội bộ trở lên.
-  const [cacNenTang, setCacNenTang] = useState<string[]>([]);
+  const [platforms, setCacNenTang] = useState<string[]>([]);
   useEffect(() => {
     if (nenTangChon || !data) return;
     const ds = data.nen_tang.map((nt) => nt.platform);
@@ -153,14 +153,14 @@ export default function InternalOverviewPage() {
     <Vo>
       <PageHeader range={range} onRangeChange={setRange} dayCount={data.ky.so_ngay} />
 
-      {cacNenTang.length > 1 && (
+      {platforms.length > 1 && (
         <TabGroup
           className="mb-5"
           dang_chon={nenTangChon}
           onSelect={setNenTangChon}
           cac_tab={[
             { ma: '', nhan: 'Tất cả nền tảng' },
-            ...cacNenTang.map((p) => ({
+            ...platforms.map((p) => ({
               ma: p,
               nhan: (
                 <>
@@ -194,7 +194,7 @@ export default function InternalOverviewPage() {
       <ChannelRanking kenh={data.kenh} />
       <DuplicateBlock
         data={duplicateQuery.data}
-        dangTai={duplicateQuery.isLoading}
+        isLoading={duplicateQuery.isLoading}
         loi={duplicateQuery.isError}
       />
       <TopContent video={data.top_video} />
