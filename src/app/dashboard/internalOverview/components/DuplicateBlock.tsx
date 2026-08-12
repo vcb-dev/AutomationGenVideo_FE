@@ -1,19 +1,19 @@
 'use client';
 
-import type { NhomTrung, TrungLapNoiBo, TrungTheoKenh } from '@/services/scraperService';
+import type { DuplicateGroup, InternalDuplicates, DuplicateByChannel } from '@/services/scraperService';
 import {
-  AnhKenh,
-  Khung,
-  MAU_CHINH,
-  PhuDe,
+  ChannelAvatar,
+  Frame,
+  COLOR_PRIMARY,
+  Subtitle,
   The,
-  TieuDeThe,
-  ThanhChia,
-  TrangRong,
-  ngayNgan,
-  phanTram,
-  soDay,
-  soGon,
+  CardTitle,
+  SplitBar,
+  EmptyState,
+  shortDate,
+  percent,
+  fullNumber,
+  compactNumber,
 } from './shared';
 
 /** Kênh trùng từ ngưỡng này trở lên bị đánh dấu — khớp đúng ngưỡng cảnh báo bên BE. */
@@ -26,7 +26,7 @@ const NGUONG_DANH_DAU = 90;
  * thật, "HUYK - Trang Sức Viễn Chí Bảo" có 1/1 video trùng ra 100%, đứng trên cả "Huyk thợ
  * kim hoàn trang sức" 93/99 video — trong khi kênh sau mới là chỗ thật sự lặp nội dung.
  */
-const SAN_VIDEO_XEP_HANG = 20;
+const RANKING_VIDEO_FLOOR = 20;
 
 /** Cắt bảng xếp hạng kênh cho cân với cột nhóm bên trái; 27 dòng thì khối dài quá đọc. */
 const SO_KENH_TOI_DA = 12;
@@ -47,22 +47,22 @@ const SO_AVATAR_TOI_DA = 4;
  * Gọi endpoint riêng /scraper/owned/trung-lap. Query lỗi hay đang tải thì chỉ khối này
  * hiện khung chờ, phần còn lại của trang vẫn vẽ đủ.
  */
-export default function KhoiTrungLap({
-  duLieu,
+export default function DuplicateBlock({
+  data,
   dangTai,
   loi,
 }: {
-  duLieu?: TrungLapNoiBo;
+  data?: InternalDuplicates;
   dangTai: boolean;
   loi: boolean;
 }) {
-  if (dangTai && !duLieu) return <KhungChoTrungLap />;
+  if (dangTai && !data) return <KhungChoTrungLap />;
 
-  if (loi && !duLieu) {
+  if (loi && !data) {
     return (
       <The className="mb-5">
-        <TieuDeThe>Trùng lặp nội dung</TieuDeThe>
-        <TrangRong
+        <CardTitle>Trùng lặp nội dung</CardTitle>
+        <EmptyState
           tieu_de="Không tải được số liệu trùng lặp"
           mo_ta="Các khối khác trên trang vẫn dùng bình thường. Tải lại trang để thử lại."
         />
@@ -70,15 +70,15 @@ export default function KhoiTrungLap({
     );
   }
 
-  if (!duLieu) return null;
+  if (!data) return null;
 
-  const { tom_tat, nhom, theo_kenh } = duLieu;
+  const { tom_tat, nhom, theo_kenh } = data;
 
   if (tom_tat.tong_video === 0) {
     return (
       <The className="mb-5">
-        <TieuDeThe chuThich={CHU_THICH}>Trùng lặp nội dung</TieuDeThe>
-        <TrangRong
+        <CardTitle hint={CHU_THICH}>Trùng lặp nội dung</CardTitle>
+        <EmptyState
           tieu_de="Chưa có video nào trong kỳ"
           mo_ta="Đổi khoảng ngày hoặc chờ lần đồng bộ kế tiếp để hệ thống cào thêm video."
         />
@@ -90,36 +90,36 @@ export default function KhoiTrungLap({
     <The className="mb-5">
       <div className="flex items-start gap-4 flex-wrap">
         <div>
-          <TieuDeThe chuThich={CHU_THICH}>Trùng lặp nội dung</TieuDeThe>
-          <PhuDe>Cùng một video được đăng trên nhiều kênh nội bộ khác nhau</PhuDe>
+          <CardTitle hint={CHU_THICH}>Trùng lặp nội dung</CardTitle>
+          <Subtitle>Cùng một video được đăng trên nhiều kênh nội bộ khác nhau</Subtitle>
         </div>
       </div>
 
       <div className="grid gap-3 mt-4 mb-1 grid-cols-2 lg:grid-cols-4">
-        <O nhan="Nội dung bị trùng" giaTri={soDay(tom_tat.so_nhom)} phu="nhóm video giống nhau" />
+        <O nhan="Nội dung bị trùng" value={fullNumber(tom_tat.so_nhom)} phu="nhóm video giống nhau" />
         <O
           nhan="Phủ từ 3 kênh"
-          giaTri={soDay(tom_tat.so_nhom_tu_3_kenh)}
+          value={fullNumber(tom_tat.so_nhom_tu_3_kenh)}
           phu="nhóm lan ra nhiều kênh"
           nhanManh={tom_tat.so_nhom_tu_3_kenh > 0}
         />
         <O
           nhan="Video trùng"
-          giaTri={phanTram(tom_tat.ty_le)}
-          phu={`${soDay(tom_tat.so_video_trung)} / ${soDay(tom_tat.tong_video)} video trong kỳ`}
+          value={percent(tom_tat.ty_le)}
+          phu={`${fullNumber(tom_tat.so_video_trung)} / ${fullNumber(tom_tat.tong_video)} video trong kỳ`}
         />
-        <O nhan="Kênh dính trùng" giaTri={soDay(tom_tat.so_kenh_dinh)} phu="kênh có video lặp" />
+        <O nhan="Kênh dính trùng" value={fullNumber(tom_tat.so_kenh_dinh)} phu="kênh có video lặp" />
       </div>
 
       {tom_tat.so_nhom === 0 ? (
-        <TrangRong
+        <EmptyState
           tieu_de="Không có nội dung nào bị đăng trùng"
           mo_ta="Mỗi kênh nội bộ đang đăng nội dung riêng trong kỳ này."
         />
       ) : (
         <div className="grid gap-6 mt-5 grid-cols-1 xl:grid-cols-[1.6fr_1fr]">
           <BangNhom nhom={nhom} tongNhom={tom_tat.so_nhom} />
-          <BangKenh theoKenh={theo_kenh} />
+          <ChannelTable byChannel={theo_kenh} />
         </div>
       )}
     </The>
@@ -132,12 +132,12 @@ const CHU_THICH =
 
 function O({
   nhan,
-  giaTri,
+  value,
   phu,
   nhanManh = false,
 }: {
   nhan: string;
-  giaTri: string;
+  value: string;
   phu: string;
   nhanManh?: boolean;
 }) {
@@ -151,20 +151,20 @@ function O({
           nhanManh ? 'text-amber-600 dark:text-amber-400' : 'text-foreground'
         }`}
       >
-        {giaTri}
+        {value}
       </div>
       <div className="text-[11.5px] text-slate-400 dark:text-slate-500 mt-1.5">{phu}</div>
     </div>
   );
 }
 
-function BangNhom({ nhom, tongNhom }: { nhom: NhomTrung[]; tongNhom: number }) {
+function BangNhom({ nhom, tongNhom }: { nhom: DuplicateGroup[]; tongNhom: number }) {
   return (
     <div>
       <h4 className="text-[13px] font-semibold text-foreground mb-1">Nội dung phủ nhiều kênh nhất</h4>
       <p className="text-[11.5px] text-slate-400 dark:text-slate-500 mb-1">
         {tongNhom > nhom.length
-          ? `${nhom.length} nhóm hàng đầu trong tổng số ${soDay(tongNhom)}`
+          ? `${nhom.length} nhóm hàng đầu trong tổng số ${fullNumber(tongNhom)}`
           : `${nhom.length} nhóm`}
       </p>
       <div>
@@ -176,7 +176,7 @@ function BangNhom({ nhom, tongNhom }: { nhom: NhomTrung[]; tongNhom: number }) {
   );
 }
 
-function DongNhom({ nhom }: { nhom: NhomTrung }) {
+function DongNhom({ nhom }: { nhom: DuplicateGroup }) {
   const nhieuKenh = nhom.so_kenh >= 3;
   // Một kênh có thể đăng lại cùng nội dung nhiều lần, nên so_video > so_kenh là chuyện thường —
   // hiện thêm phần chênh ra để người đọc không tưởng con số bị đếm sai.
@@ -187,7 +187,7 @@ function DongNhom({ nhom }: { nhom: NhomTrung }) {
       <div className="flex -space-x-2 shrink-0 pt-0.5">
         {nhom.kenh.slice(0, SO_AVATAR_TOI_DA).map((k) => (
           <div key={k.id} className="ring-2 ring-card rounded-lg" title={k.ten}>
-            <AnhKenh ten={k.ten} platform={nhom.platform} size={26} />
+            <ChannelAvatar ten={k.ten} platform={nhom.platform} size={26} />
           </div>
         ))}
         {nhom.kenh.length > SO_AVATAR_TOI_DA && (
@@ -216,11 +216,11 @@ function DongNhom({ nhom }: { nhom: NhomTrung }) {
         </div>
         <div className="text-[11.5px] text-slate-400 dark:text-slate-500 mt-0.5 flex items-center gap-x-2.5 flex-wrap">
           {nhom.giay !== null && <span className="tabular-nums">{nhom.giay}s</span>}
-          <span className="tabular-nums">{soGon(nhom.views)} lượt xem</span>
+          <span className="tabular-nums">{compactNumber(nhom.views)} lượt xem</span>
           <span className="tabular-nums">
             {nhom.ngay_dau.slice(0, 10) === nhom.ngay_cuoi.slice(0, 10)
-              ? ngayNgan(nhom.ngay_dau)
-              : `${ngayNgan(nhom.ngay_dau)} → ${ngayNgan(nhom.ngay_cuoi)}`}
+              ? shortDate(nhom.ngay_dau)
+              : `${shortDate(nhom.ngay_dau)} → ${shortDate(nhom.ngay_cuoi)}`}
           </span>
           {dangLai > 0 && <span>đăng lại {dangLai} lần</span>}
         </div>
@@ -240,23 +240,23 @@ function DongNhom({ nhom }: { nhom: NhomTrung }) {
   );
 }
 
-function BangKenh({ theoKenh }: { theoKenh: TrungTheoKenh[] }) {
-  const duLon = theoKenh.filter((k) => k.tong_video >= SAN_VIDEO_XEP_HANG);
-  const hien = duLon.slice(0, SO_KENH_TOI_DA);
-  const boQua = theoKenh.length - duLon.length;
+function ChannelTable({ byChannel }: { byChannel: DuplicateByChannel[] }) {
+  const largeEnough = byChannel.filter((k) => k.tong_video >= RANKING_VIDEO_FLOOR);
+  const hien = largeEnough.slice(0, SO_KENH_TOI_DA);
+  const skipped = byChannel.length - largeEnough.length;
 
   if (hien.length === 0) return null;
 
   // Mốc chung là kênh nhiều video nhất, để bề rộng thanh so được GIỮA các dòng. Bỏ mốc thì
   // kênh 20/20 video vẽ ra thanh dài bằng kênh 94/113 — cùng gần 100% nhưng khác hẳn quy mô.
-  const moc = Math.max(...hien.map((k) => k.tong_video), 1);
+  const baseline = Math.max(...hien.map((k) => k.tong_video), 1);
 
   return (
     <div>
       <h4 className="text-[13px] font-semibold text-foreground mb-1">Kênh lặp nội dung nhiều nhất</h4>
       <p className="text-[11.5px] text-slate-400 dark:text-slate-500 mb-1">
         Bề rộng thanh theo số video trong kỳ
-        {duLon.length > hien.length && ` · ${hien.length} kênh đầu trong ${duLon.length}`}
+        {largeEnough.length > hien.length && ` · ${hien.length} kênh đầu trong ${largeEnough.length}`}
       </p>
       <div>
         {hien.map((k) => (
@@ -265,30 +265,30 @@ function BangKenh({ theoKenh }: { theoKenh: TrungTheoKenh[] }) {
             className="py-2.5 border-b border-slate-100 dark:border-slate-800 last:border-0"
           >
             <div className="flex items-center gap-2 text-[12.5px]">
-              <AnhKenh ten={k.ten} platform={k.platform} size={22} />
+              <ChannelAvatar ten={k.ten} platform={k.platform} size={22} />
               <span className="font-medium text-foreground truncate" title={k.ten}>
                 {k.ten}
               </span>
-              <b className="ml-auto font-semibold tabular-nums shrink-0">{phanTram(k.ty_le)}</b>
+              <b className="ml-auto font-semibold tabular-nums shrink-0">{percent(k.ty_le)}</b>
             </div>
-            <ThanhChia
+            <SplitBar
               cao={6}
               className="my-1.5"
-              moc={moc}
-              doan={[
-                { gia_tri: k.video_trung, mau: k.ty_le >= NGUONG_DANH_DAU ? '#dd8a3e' : MAU_CHINH, ten: 'Trùng' },
+              baseline={baseline}
+              segments={[
+                { gia_tri: k.video_trung, mau: k.ty_le >= NGUONG_DANH_DAU ? '#dd8a3e' : COLOR_PRIMARY, ten: 'Trùng' },
                 { gia_tri: k.tong_video - k.video_trung, mau: '#e2e8f0', ten: 'Riêng' },
               ]}
             />
             <div className="text-[11.5px] text-slate-400 dark:text-slate-500 tabular-nums">
-              {soDay(k.video_trung)} / {soDay(k.tong_video)} video trùng với kênh khác
+              {fullNumber(k.video_trung)} / {fullNumber(k.tong_video)} video trùng với kênh khác
             </div>
           </div>
         ))}
       </div>
-      {boQua > 0 && (
+      {skipped > 0 && (
         <p className="text-[11.5px] text-slate-400 dark:text-slate-500 mt-2.5">
-          Bỏ qua {boQua} kênh dưới {SAN_VIDEO_XEP_HANG} video trong kỳ — mẫu quá nhỏ để tỷ lệ có
+          Bỏ qua {skipped} kênh dưới {RANKING_VIDEO_FLOOR} video trong kỳ — mẫu quá nhỏ để tỷ lệ có
           nghĩa.
         </p>
       )}
@@ -299,16 +299,16 @@ function BangKenh({ theoKenh }: { theoKenh: TrungTheoKenh[] }) {
 function KhungChoTrungLap() {
   return (
     <The className="mb-5">
-      <Khung className="h-4 w-40" />
-      <Khung className="h-3 w-72 mt-2" />
+      <Frame className="h-4 w-40" />
+      <Frame className="h-3 w-72 mt-2" />
       <div className="grid gap-3 mt-4 grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <Khung key={i} className="h-[74px] w-full" />
+          <Frame key={i} className="h-[74px] w-full" />
         ))}
       </div>
       <div className="grid gap-6 mt-5 grid-cols-1 xl:grid-cols-[1.6fr_1fr]">
-        <Khung className="h-[280px] w-full" />
-        <Khung className="h-[280px] w-full" />
+        <Frame className="h-[280px] w-full" />
+        <Frame className="h-[280px] w-full" />
       </div>
     </The>
   );

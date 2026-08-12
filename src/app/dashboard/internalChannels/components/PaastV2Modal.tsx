@@ -47,19 +47,19 @@ export interface KetQuaV2 {
 
 export default function PaastV2Modal({
   open,
-  ketQua,
+  result,
   kichBan,
   onClose,
 }: {
   open: boolean;
-  ketQua: KetQuaV2;
+  result: KetQuaV2;
   kichBan?: string;
   onClose: () => void;
 }) {
   const [daChep, setDaChep] = useState(false);
   if (!open) return null;
 
-  const { verdict, layers } = ketQua;
+  const { verdict, layers } = result;
   const dat = verdict.passed;
 
   return (
