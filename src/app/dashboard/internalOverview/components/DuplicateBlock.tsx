@@ -6,7 +6,7 @@ import {
   Frame,
   COLOR_PRIMARY,
   Subtitle,
-  The,
+  Card,
   CardTitle,
   SplitBar,
   EmptyState,
@@ -49,24 +49,24 @@ const SO_AVATAR_TOI_DA = 4;
  */
 export default function DuplicateBlock({
   data,
-  dangTai,
+  isLoading,
   loi,
 }: {
   data?: InternalDuplicates;
-  dangTai: boolean;
+  isLoading: boolean;
   loi: boolean;
 }) {
-  if (dangTai && !data) return <KhungChoTrungLap />;
+  if (isLoading && !data) return <KhungChoTrungLap />;
 
   if (loi && !data) {
     return (
-      <The className="mb-5">
+      <Card className="mb-5">
         <CardTitle>Trùng lặp nội dung</CardTitle>
         <EmptyState
           tieu_de="Không tải được số liệu trùng lặp"
           mo_ta="Các khối khác trên trang vẫn dùng bình thường. Tải lại trang để thử lại."
         />
-      </The>
+      </Card>
     );
   }
 
@@ -76,18 +76,18 @@ export default function DuplicateBlock({
 
   if (tom_tat.tong_video === 0) {
     return (
-      <The className="mb-5">
+      <Card className="mb-5">
         <CardTitle hint={CHU_THICH}>Trùng lặp nội dung</CardTitle>
         <EmptyState
           tieu_de="Chưa có video nào trong kỳ"
           mo_ta="Đổi khoảng ngày hoặc chờ lần đồng bộ kế tiếp để hệ thống cào thêm video."
         />
-      </The>
+      </Card>
     );
   }
 
   return (
-    <The className="mb-5">
+    <Card className="mb-5">
       <div className="flex items-start gap-4 flex-wrap">
         <div>
           <CardTitle hint={CHU_THICH}>Trùng lặp nội dung</CardTitle>
@@ -101,7 +101,7 @@ export default function DuplicateBlock({
           nhan="Phủ từ 3 kênh"
           value={fullNumber(tom_tat.so_nhom_tu_3_kenh)}
           phu="nhóm lan ra nhiều kênh"
-          nhanManh={tom_tat.so_nhom_tu_3_kenh > 0}
+          emphasized={tom_tat.so_nhom_tu_3_kenh > 0}
         />
         <O
           nhan="Video trùng"
@@ -122,7 +122,7 @@ export default function DuplicateBlock({
           <ChannelTable byChannel={theo_kenh} />
         </div>
       )}
-    </The>
+    </Card>
   );
 }
 
@@ -134,12 +134,12 @@ function O({
   nhan,
   value,
   phu,
-  nhanManh = false,
+  emphasized = false,
 }: {
   nhan: string;
   value: string;
   phu: string;
-  nhanManh?: boolean;
+  emphasized?: boolean;
 }) {
   return (
     <div className="px-3.5 py-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl">
@@ -148,7 +148,7 @@ function O({
       </div>
       <div
         className={`text-[22px] font-bold tabular-nums mt-1 leading-none ${
-          nhanManh ? 'text-amber-600 dark:text-amber-400' : 'text-foreground'
+          emphasized ? 'text-amber-600 dark:text-amber-400' : 'text-foreground'
         }`}
       >
         {value}
@@ -169,18 +169,18 @@ function BangNhom({ nhom, tongNhom }: { nhom: DuplicateGroup[]; tongNhom: number
       </p>
       <div>
         {nhom.map((g, i) => (
-          <DongNhom key={`${g.platform}-${g.noi_dung}-${g.giay}-${i}`} nhom={g} />
+          <GroupRow key={`${g.platform}-${g.noi_dung}-${g.giay}-${i}`} nhom={g} />
         ))}
       </div>
     </div>
   );
 }
 
-function DongNhom({ nhom }: { nhom: DuplicateGroup }) {
+function GroupRow({ nhom }: { nhom: DuplicateGroup }) {
   const nhieuKenh = nhom.so_kenh >= 3;
   // Một kênh có thể đăng lại cùng nội dung nhiều lần, nên so_video > so_kenh là chuyện thường —
   // hiện thêm phần chênh ra để người đọc không tưởng con số bị đếm sai.
-  const dangLai = nhom.so_video - nhom.so_kenh;
+  const remaining = nhom.so_video - nhom.so_kenh;
 
   return (
     <div className="flex items-start gap-3 py-3 border-b border-slate-100 dark:border-slate-800 last:border-0">
@@ -222,7 +222,7 @@ function DongNhom({ nhom }: { nhom: DuplicateGroup }) {
               ? shortDate(nhom.ngay_dau)
               : `${shortDate(nhom.ngay_dau)} → ${shortDate(nhom.ngay_cuoi)}`}
           </span>
-          {dangLai > 0 && <span>đăng lại {dangLai} lần</span>}
+          {remaining > 0 && <span>đăng lại {remaining} lần</span>}
         </div>
       </div>
 
@@ -298,7 +298,7 @@ function ChannelTable({ byChannel }: { byChannel: DuplicateByChannel[] }) {
 
 function KhungChoTrungLap() {
   return (
-    <The className="mb-5">
+    <Card className="mb-5">
       <Frame className="h-4 w-40" />
       <Frame className="h-3 w-72 mt-2" />
       <div className="grid gap-3 mt-4 grid-cols-2 lg:grid-cols-4">
@@ -310,6 +310,6 @@ function KhungChoTrungLap() {
         <Frame className="h-[280px] w-full" />
         <Frame className="h-[280px] w-full" />
       </div>
-    </The>
+    </Card>
   );
 }

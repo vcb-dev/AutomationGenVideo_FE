@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import type { HashtagThongKe } from '@/services/scraperService';
 import { HorizontalBar } from './BreakdownBlocks';
-import { COLOR_PRIMARY, TabGroup, Subtitle, The, CardTitle, EmptyState, fullNumber, compactNumber } from './shared';
+import { COLOR_PRIMARY, TabGroup, Subtitle, Card, CardTitle, EmptyState, fullNumber, compactNumber } from './shared';
 
 type MetricKey = 'views' | 'posts';
 
@@ -20,7 +20,7 @@ export default function HashtagBlock({ hashtag }: { hashtag: HashtagThongKe[] })
   const maxValue = Math.max(...hashtag.map((h) => h[metric]), 1);
 
   return (
-    <The className="!mb-5">
+    <Card className="!mb-5">
       <CardTitle hint="Bóc trực tiếp từ hashtag trong caption. Một video gắn nhiều thẻ sẽ được tính cho từng thẻ">
         Hiệu quả theo hashtag
       </CardTitle>
@@ -55,6 +55,6 @@ export default function HashtagBlock({ hashtag }: { hashtag: HashtagThongKe[] })
             ))}
         </div>
       )}
-    </The>
+    </Card>
   );
 }

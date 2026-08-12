@@ -11,7 +11,7 @@ import {
   COLOR_ENGAGEMENT,
   Subtitle,
   PlatformCard,
-  The,
+  Card,
   SplitBar,
   CardTitle,
   EmptyState,
@@ -43,7 +43,7 @@ export function MarketBlock({ thiTruong }: { thiTruong: ThiTruongNenTang[] }) {
   const total = vn + global;
 
   return (
-    <The className="!mb-0 flex flex-col">
+    <Card className="!mb-0 flex flex-col">
       <CardTitle hint="Đoán theo dấu tiếng Việt trong caption — caption tiếng Việt không dấu sẽ bị xếp sang Global">
         Thị trường nội dung
       </CardTitle>
@@ -110,7 +110,7 @@ export function MarketBlock({ thiTruong }: { thiTruong: ThiTruongNenTang[] }) {
           </BreakdownFooter>
         </>
       )}
-    </The>
+    </Card>
   );
 }
 
@@ -182,7 +182,7 @@ export function ContentLineBlock({ tuyen }: { tuyen: TuyenNoiDung[] }) {
   const tongVN = tuyen.reduce((s, t) => s + t.views_vn, 0);
 
   return (
-    <The className="!mb-0 flex flex-col">
+    <Card className="!mb-0 flex flex-col">
       <CardTitle hint="Bắt theo hashtag #A1…#A5 sẵn có trong caption. Một video gắn nhiều tuyến sẽ được tính cho từng tuyến">
         Tuyến nội dung
       </CardTitle>
@@ -252,7 +252,7 @@ export function ContentLineBlock({ tuyen }: { tuyen: TuyenNoiDung[] }) {
           </BreakdownFooter>
         </>
       )}
-    </The>
+    </Card>
   );
 }
 
@@ -270,7 +270,7 @@ export function EngagementBlock({ platform }: { platform: PlatformStats[] }) {
   const tongViews = platform.reduce((s, nt) => s + nt.views, 0);
 
   return (
-    <The className="!mb-0 flex flex-col">
+    <Card className="!mb-0 flex flex-col">
       <CardTitle hint="Tỷ trọng thích / bình luận / chia sẻ trong tổng tương tác của các video đăng trong kỳ">
         Cơ cấu tương tác
       </CardTitle>
@@ -351,7 +351,7 @@ export function EngagementBlock({ platform }: { platform: PlatformStats[] }) {
           </BreakdownFooter>
         </>
       )}
-    </The>
+    </Card>
   );
 }
 

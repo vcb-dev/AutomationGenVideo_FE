@@ -1,7 +1,7 @@
 'use client';
 
 import type { ChannelAlert } from '@/services/scraperService';
-import { ChannelAvatar, Subtitle, The, PlatformCard, CardTitle, EmptyState } from './shared';
+import { ChannelAvatar, Subtitle, Card, PlatformCard, CardTitle, EmptyState } from './shared';
 
 /**
  * Ba loại cảnh báo, do BE tính và xếp nặng trước: đồng bộ lỗi → tụt lượt xem → im lặng.
@@ -9,7 +9,7 @@ import { ChannelAvatar, Subtitle, The, PlatformCard, CardTitle, EmptyState } fro
  */
 export default function AlertBlock({ alerts }: { alerts: ChannelAlert[] }) {
   return (
-    <The chim className="!mb-0">
+    <Card chim className="!mb-0">
       <CardTitle hint="Kênh đồng bộ lỗi, tụt hiệu quả hoặc đã lâu không đăng bài">
         Cần chú ý
       </CardTitle>
@@ -48,6 +48,6 @@ export default function AlertBlock({ alerts }: { alerts: ChannelAlert[] }) {
           ))}
         </div>
       )}
-    </The>
+    </Card>
   );
 }

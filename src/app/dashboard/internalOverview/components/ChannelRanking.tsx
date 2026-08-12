@@ -7,7 +7,7 @@ import {
   ChannelAvatar,
   TabGroup,
   Subtitle,
-  The,
+  Card,
   PlatformCard,
   CardTitle,
   EmptyState,
@@ -32,7 +32,7 @@ const COT: { ma: Cot; nhan: string }[] = [
   { ma: 'followers', nhan: 'Người theo dõi' },
 ];
 
-interface DongKenh extends ChannelStats {
+interface ChannelRow extends ChannelStats {
   tb: number;
   er: number;
 }
@@ -50,9 +50,9 @@ export default function ChannelRanking({ kenh }: { kenh: ChannelStats[] }) {
   const [giam, setGiam] = useState(true);
   const [nhom, setNhom] = useState<'0' | '1'>('0');
 
-  const nhieuNenTang = new Set(kenh.map((k) => k.platform)).size > 1;
+  const hasMultiplePlatforms = new Set(kenh.map((k) => k.platform)).size > 1;
 
-  const dong: DongKenh[] = useMemo(
+  const dong: ChannelRow[] = useMemo(
     () =>
       kenh.map((k) => ({
         ...k,
@@ -62,12 +62,12 @@ export default function ChannelRanking({ kenh }: { kenh: ChannelStats[] }) {
     [kenh],
   );
 
-  const daSap = useMemo(
+  const sorted = useMemo(
     () => [...dong].sort((a, b) => (a[cot] - b[cot]) * (giam ? -1 : 1)),
     [dong, cot, giam],
   );
 
-  const lonNhat = Math.max(...dong.map((d) => d.views), 1);
+  const maxValue = Math.max(...dong.map((d) => d.views), 1);
 
   const doiCot = (ma: Cot) => {
     if (ma === cot) setGiam((v) => !v);
@@ -77,18 +77,18 @@ export default function ChannelRanking({ kenh }: { kenh: ChannelStats[] }) {
     }
   };
 
-  const moKenh = (k: DongKenh) =>
+  const moKenh = (k: ChannelRow) =>
     router.push(`/dashboard/internalChannels/all?channel=${encodeURIComponent(k.id)}`);
 
-  const nhomTheoNenTang = nhom === '1' && nhieuNenTang;
-  const cacNenTang = [...new Set(daSap.map((k) => k.platform))];
+  const groupByPlatform = nhom === '1' && hasMultiplePlatforms;
+  const platforms = [...new Set(sorted.map((k) => k.platform))];
 
   return (
-    <The className="!mb-5">
+    <Card className="!mb-5">
       <CardTitle hint="Bấm tiêu đề cột để đổi cách sắp xếp">Xếp hạng kênh</CardTitle>
       <Subtitle>Bấm một dòng để xem toàn bộ video của kênh</Subtitle>
 
-      {nhieuNenTang && (
+      {hasMultiplePlatforms && (
         <TabGroup<'0' | '1'>
           className="my-3.5"
           dang_chon={nhom}
@@ -115,7 +115,7 @@ export default function ChannelRanking({ kenh }: { kenh: ChannelStats[] }) {
                 <th className="text-left pl-1.5 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-border whitespace-nowrap">
                   Kênh
                 </th>
-                {nhieuNenTang && (
+                {hasMultiplePlatforms && (
                   <th className="text-left px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-border whitespace-nowrap">
                     Nền tảng
                   </th>
@@ -135,9 +135,9 @@ export default function ChannelRanking({ kenh }: { kenh: ChannelStats[] }) {
               </tr>
             </thead>
             <tbody>
-              {nhomTheoNenTang
-                ? cacNenTang.map((p) => {
-                    const cua = daSap.filter((k) => k.platform === p);
+              {groupByPlatform
+                ? platforms.map((p) => {
+                    const cua = sorted.filter((k) => k.platform === p);
                     return (
                       <Fragment key={p}>
                         <tr>
@@ -153,23 +153,23 @@ export default function ChannelRanking({ kenh }: { kenh: ChannelStats[] }) {
                           </td>
                         </tr>
                         {cua.map((k) => (
-                          <Dong
+                          <Row
                             key={`${k.platform}-${k.id}`}
                             k={k}
-                            lonNhat={lonNhat}
-                            hienNenTang={nhieuNenTang}
+                            maxValue={maxValue}
+                            hienNenTang={hasMultiplePlatforms}
                             onMo={() => moKenh(k)}
                           />
                         ))}
                       </Fragment>
                     );
                   })
-                : daSap.map((k) => (
-                    <Dong
+                : sorted.map((k) => (
+                    <Row
                       key={`${k.platform}-${k.id}`}
                       k={k}
-                      lonNhat={lonNhat}
-                      hienNenTang={nhieuNenTang}
+                      maxValue={maxValue}
+                      hienNenTang={hasMultiplePlatforms}
                       onMo={() => moKenh(k)}
                     />
                   ))}
@@ -177,18 +177,18 @@ export default function ChannelRanking({ kenh }: { kenh: ChannelStats[] }) {
           </table>
         </div>
       )}
-    </The>
+    </Card>
   );
 }
 
-function Dong({
+function Row({
   k,
-  lonNhat,
+  maxValue,
   hienNenTang,
   onMo,
 }: {
-  k: DongKenh;
-  lonNhat: number;
+  k: ChannelRow;
+  maxValue: number;
   hienNenTang: boolean;
   onMo: () => void;
 }) {
@@ -215,7 +215,7 @@ function Dong({
       <td className={`${o} relative min-w-[130px]`}>
         <span
           className="absolute right-3 top-1/2 -translate-y-1/2 h-6 rounded-md opacity-[0.13]"
-          style={{ width: `${ratio(k.views, lonNhat)}%`, background: platformColor(k.platform) }}
+          style={{ width: `${ratio(k.views, maxValue)}%`, background: platformColor(k.platform) }}
         />
         <span className="relative z-10 font-medium" title={fullNumber(k.views)}>
           {compactNumber(k.views)}
