@@ -7,6 +7,7 @@ import { LuckySpinStore } from '@/hooks/useLuckySpin';
 import { apiErrorMessage } from '@/lib/lucky-spin/api';
 import { isImportError, parseGiftRows } from '@/lib/lucky-spin/import-rows';
 import { SheetRow } from '@/lib/lucky-spin/sheet-io';
+import { giftImportConfirm } from '@/lib/lucky-spin/import-confirm';
 import { Gift } from '@/types/lucky-spin';
 import { ActionButton } from '@/components/lucky-spin/ActionButton';
 import { BulkImportPanel } from '@/components/lucky-spin/BulkImportPanel';
@@ -57,9 +58,15 @@ export function GiftsTab({ store }: { store: LuckySpinStore }) {
       return;
     }
 
+    // Nhập là THAY danh sách quà, không cộng dồn — xem ghi chú cùng loại ở MembersTab.
+    const canHoi = giftImportConfirm(state.gifts.length, parsed.rows.length);
+    if (canHoi && !(await confirm(canHoi))) return;
+
     try {
       const res = await actions.bulkAddGifts(parsed.rows);
-      const parts = [`Đã nhập ${(res as any).data.createdGifts} quà`];
+      const { createdGifts, deletedGifts } = (res as any).data;
+      const parts = [`Đã nhập ${createdGifts} quà`];
+      if (deletedGifts > 0) parts.push(`thay cho ${deletedGifts} quà cũ`);
       if (parsed.skipped > 0) parts.push(`bỏ qua ${parsed.skipped} dòng thiếu dữ liệu`);
       toast.success(parts.join(', ') + '.');
     } catch (err) {

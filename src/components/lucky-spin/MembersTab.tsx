@@ -8,6 +8,7 @@ import { apiErrorMessage } from '@/lib/lucky-spin/api';
 import { isImportError, parseMemberRows } from '@/lib/lucky-spin/import-rows';
 import { keepSelected } from '@/lib/lucky-spin/selection';
 import { SheetRow } from '@/lib/lucky-spin/sheet-io';
+import { memberImportConfirm } from '@/lib/lucky-spin/import-confirm';
 import { Member } from '@/types/lucky-spin';
 import { ActionButton } from '@/components/lucky-spin/ActionButton';
 import { BulkImportPanel } from '@/components/lucky-spin/BulkImportPanel';
@@ -98,12 +99,21 @@ export function MembersTab({ store }: { store: LuckySpinStore }) {
       return;
     }
 
+    // Nhập là THAY danh sách, không cộng dồn — hỏi lại trước khi xoá. Bỏ qua bước hỏi khi
+    // chưa có ai trong danh sách: lần nhập đầu không có gì để mất.
+    const canHoi = memberImportConfirm(
+      { members: state.members.length, teams: state.teams.length },
+      parsed.rows.length,
+    );
+    if (canHoi && !(await confirm(canHoi))) return;
+
     try {
       const res = await actions.bulkAddMembers(parsed.rows);
-      const { createdMembers, createdTeams } = (res as any).data;
+      const { createdMembers, createdTeams, deletedMembers } = (res as any).data;
 
       const parts = [`Đã nhập ${createdMembers} thành viên`];
       if (createdTeams > 0) parts.push(`tạo mới ${createdTeams} team`);
+      if (deletedMembers > 0) parts.push(`thay cho ${deletedMembers} thành viên cũ`);
       if (parsed.skipped > 0) parts.push(`bỏ qua ${parsed.skipped} dòng thiếu dữ liệu`);
       toast.success(parts.join(', ') + '.');
     } catch (err) {
