@@ -19,6 +19,8 @@ import { scraperService, ExternalVideo } from '@/services/scraperService';
 import ContentFilters from '../components/ContentFilters';
 import { FilterDateRange, FilterNumber, FilterReset, FilterSearch, FilterSelect } from '../components/FilterFields';
 import { channelsService, ChannelInfo } from '@/services/channelsService';
+import { scrapeOutcome } from '@/lib/scrape/scrape-outcome';
+import { findPolledPage, pollPageFilters } from '@/lib/scrape/poll-page-lookup';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -55,11 +57,21 @@ function FacebookPageCard({
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden hover:shadow-md transition-shadow">
       {/* Status badges */}
-      {(p.is_scraping || !p.is_active) && (
+      {(p.is_scraping || !p.is_active || p.scrape_error) && (
         <div className="flex items-center gap-1.5 px-3.5 pt-2.5 pb-0">
           {p.is_scraping && (
             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded text-xs font-medium">
               <CircleNotch size={10} weight="bold" className="animate-spin" /> Đang cào
+            </span>
+          )}
+          {/* Chế độ thẻ là mặc định nhưng trước đây chỉ chế độ bảng mới hiện lỗi cào — nên
+              93/95 kênh hỏng ngày 06/08/2026 nằm im không ai thấy. */}
+          {!p.is_scraping && p.scrape_error && (
+            <span
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded text-xs font-medium max-w-full"
+              title={p.scrape_error}
+            >
+              <Warning size={10} weight="bold" /> <span className="truncate">Cào lỗi</span>
             </span>
           )}
           {!p.is_active && (
@@ -230,6 +242,11 @@ export default function FacebookChannelsPage() {
   const [page, setPage] = useState(1);
   const pageSize = 12;
 
+  // Các vòng poll đang chạy. Trước đây interval + timeout nằm trong closure của pollUntilDone,
+  // không ai dọn khi rời trang — bấm cào rồi chuyển trang là chúng còn gọi API thêm 5 phút.
+  const pollTimers = useRef<Set<() => void>>(new Set());
+  useEffect(() => () => { pollTimers.current.forEach(stop => stop()); }, []);
+
   const searchTimer = useRef<NodeJS.Timeout>();
   useEffect(() => {
     searchTimer.current = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 300);
@@ -273,7 +290,7 @@ export default function FacebookChannelsPage() {
     try {
       const res = await facebookService.triggerScrape(token, pg.page_id);
       toast.success(res.message);
-      pollUntilDone(pg.page_id);
+      pollUntilDone(pg.page_id, pg.name);
     } catch (e: any) { toast.error(e.message); }
   };
 
@@ -282,28 +299,52 @@ export default function FacebookChannelsPage() {
     try {
       const res = await facebookService.triggerBackfill(token, pg.page_id);
       toast.success(res.message);
-      pollUntilDone(pg.page_id);
+      pollUntilDone(pg.page_id, pg.name);
     } catch (e: any) { toast.error(e.message); }
   };
 
-  const pollUntilDone = (pageId: string) => {
+  const pollUntilDone = (pageId: string, pageName: string) => {
     setPagesData(prev => prev ? {
       ...prev,
       pages: prev.pages.map(p => p.page_id === pageId ? { ...p, is_scraping: true } : p),
     } : prev);
+
+    const stop = () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+      pollTimers.current.delete(stop);
+    };
+
     const interval = setInterval(async () => {
       if (!token) return;
       try {
-        const all = await facebookService.getPages(token, { page: 1, page_size: 1000 });
-        const target = all.pages.find(p => p.page_id === pageId);
-        if (target && !target.is_scraping) {
-          clearInterval(interval);
+        const found = await facebookService.getPages(token, pollPageFilters(pageName));
+        const target = findPolledPage(found.pages, pageId);
+        // Không thấy kênh trong kết quả lọc = có gì đó sai (đổi tên, bị xoá). Quay tiếp cũng
+        // chỉ ra đúng kết quả đó nên dừng và nói thật, thay vì để thẻ xoay tới lúc hết giờ.
+        if (!target) {
+          stop();
           fetchPages();
-          toast.success(`Cào xong ${target.name}: ${target.video_count || 0} video`);
+          toast.error(`Không tra được trạng thái cào của ${pageName}. Tải lại trang để xem tình hình.`);
+          return;
         }
-      } catch { clearInterval(interval); }
+        const outcome = scrapeOutcome(target);
+        if (outcome.kind === 'running') return;
+
+        stop();
+        fetchPages();
+        // Dừng cào KHÁC với cào xong: có scrape_error thì phải báo đỏ, không bắn toast xanh.
+        if (outcome.kind === 'failed') toast.error(outcome.message);
+        else toast.success(outcome.message);
+      } catch { stop(); }
     }, 5000);
-    setTimeout(() => clearInterval(interval), 300_000);
+
+    const timeout = setTimeout(() => {
+      stop();
+      toast.error(`Cào ${pageName} chạy quá lâu, đã ngừng theo dõi. Tải lại trang để xem kết quả.`);
+    }, 300_000);
+
+    pollTimers.current.add(stop);
   };
 
   const pages = pagesData?.pages || [];
