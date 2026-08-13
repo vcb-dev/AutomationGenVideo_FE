@@ -26,7 +26,7 @@ import {
   fullNumber,
   compactNumber,
   platformName,
-  The,
+  Card,
 } from './shared';
 
 /**
@@ -50,9 +50,9 @@ export default function TrendChart({
   onDoiTach: (v: boolean) => void;
   dayCount: number;
 }) {
-  const nhanChiSo = METRICS.find((c) => c.ma === metric)!.nhan;
-  const nhieuNenTang = platform.length > 1;
-  const tachThat = tach && nhieuNenTang;
+  const metricLabel = METRICS.find((c) => c.ma === metric)!.nhan;
+  const hasMultiplePlatforms = platform.length > 1;
+  const tachThat = tach && hasMultiplePlatforms;
 
   // Tra theo NGÀY chứ không theo vị trí trong mảng: hiện BE trả các nền tảng cùng một dải
   // ngày nên hai cách cho kết quả như nhau, nhưng chỉ cần một nền tảng thiếu vài ngày là cách
@@ -73,8 +73,8 @@ export default function TrendChart({
     : [
         {
           khoa: 'total',
-          mau: nhieuNenTang ? '#5b5bd6' : platformColor(platform[0]?.platform ?? ''),
-          ten: nhieuNenTang ? `Tổng ${platform.length} nền tảng` : platformName(platform[0]?.platform ?? ''),
+          mau: hasMultiplePlatforms ? '#5b5bd6' : platformColor(platform[0]?.platform ?? ''),
+          ten: hasMultiplePlatforms ? `Tổng ${platform.length} nền tảng` : platformName(platform[0]?.platform ?? ''),
         },
       ];
 
@@ -85,7 +85,7 @@ export default function TrendChart({
   const buocNhan = Math.max(0, Math.ceil(data.length / 6) - 1);
 
   return (
-    <The noiBat className="mb-5">
+    <Card highlighted className="mb-5">
       <div className="flex items-baseline gap-3 flex-wrap mb-1">
         <span
           className="text-[32px] font-semibold tracking-tighter tabular-nums leading-none text-foreground"
@@ -93,12 +93,12 @@ export default function TrendChart({
         >
           {compactNumber(total[metric])}
         </span>
-        <span className="text-[14.5px] font-medium text-slate-500 dark:text-slate-400">{nhanChiSo}</span>
+        <span className="text-[14.5px] font-medium text-slate-500 dark:text-slate-400">{metricLabel}</span>
         <Legend tooltip="Tổng của toàn bộ video đăng trong kỳ đang chọn" />
       </div>
       <div className="text-[12.5px] text-slate-400 dark:text-slate-500">
         <PercentDelta delta={delta} /> so với {dayCount} ngày trước đó ·{' '}
-        {nhieuNenTang ? `gộp ${platform.length} nền tảng` : platformName(platform[0]?.platform ?? '')}
+        {hasMultiplePlatforms ? `gộp ${platform.length} nền tảng` : platformName(platform[0]?.platform ?? '')}
       </div>
 
       <div className="mt-3 h-[272px]">
@@ -168,7 +168,7 @@ export default function TrendChart({
         ))}
       </div>
 
-      {nhieuNenTang && (
+      {hasMultiplePlatforms && (
         <div className="flex items-center gap-3 justify-end mt-3.5 text-[13px] font-medium text-slate-500 dark:text-slate-400">
           <span>Tách theo nền tảng</span>
           <button
@@ -209,7 +209,7 @@ export default function TrendChart({
           hint="Số kênh nội bộ có ít nhất một bài trong kỳ, trên tổng số kênh đang quản lý"
         />
       </div>
-    </The>
+    </Card>
   );
 }
 

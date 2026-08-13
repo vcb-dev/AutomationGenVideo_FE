@@ -61,14 +61,14 @@ export function syncDescription(iso: string | null): string {
  * recharts và thuộc tính `fill` của SVG — hai chỗ đó cần mã màu thật. Giữ đúng một bảng ở
  * đây cho phần đồ hoạ, phần còn lại vẫn dùng chung platformStyle().
  */
-const MAU_NEN_TANG: Record<string, string> = {
+const PLATFORM_COLORS: Record<string, string> = {
   facebook: '#3b82f6',
   tiktok: '#64748b',
   instagram: '#d8478f',
   youtube: '#ef4444',
 };
 
-export const platformColor = (platform: string): string => MAU_NEN_TANG[platform] || '#8b93a7';
+export const platformColor = (platform: string): string => PLATFORM_COLORS[platform] || '#8b93a7';
 
 export const platformName = (platform: string): string => platformStyle(platform).label;
 
@@ -81,23 +81,23 @@ export const COLOR_ENGAGEMENT = ['#5b5bd6', '#2f9e8f', '#dd8a3e'];
 
 // ─── Mảnh giao diện ──────────────────────────────────────────────────────────
 
-export function The({
+export function Card({
   children,
   className = '',
-  noiBat = false,
+  highlighted = false,
   chim = false,
 }: {
   children: ReactNode;
   className?: string;
   /** Thẻ hạng 1: bóng đậm hơn, đệm rộng hơn — dành cho biểu đồ chính. */
-  noiBat?: boolean;
+  highlighted?: boolean;
   /** Thẻ hạng 3: nền chìm, không bóng — dành cho khối phụ. */
   chim?: boolean;
 }) {
   const nen = chim ? 'bg-slate-50 dark:bg-slate-900/40' : 'bg-card';
-  const bong = noiBat ? 'shadow-md' : chim ? '' : 'shadow-sm';
+  const bong = highlighted ? 'shadow-md' : chim ? '' : 'shadow-sm';
   return (
-    <div className={`${nen} border border-border rounded-2xl ${noiBat ? 'p-6' : 'p-5'} ${bong} ${className}`}>
+    <div className={`${nen} border border-border rounded-2xl ${highlighted ? 'p-6' : 'p-5'} ${bong} ${className}`}>
       {children}
     </div>
   );
