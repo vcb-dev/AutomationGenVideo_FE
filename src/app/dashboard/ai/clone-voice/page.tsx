@@ -20,6 +20,7 @@ import {
     X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { authFetch } from '@/lib/auth/auth-fetch';
 import {
     isUsableVoice,
     removeVoiceFromList,
@@ -511,7 +512,7 @@ export default function CloneVoicePage() {
     // Fetch voices on mount
     const fetchVoices = async () => {
         try {
-            const res = await fetch(`${getApiUrl()}/ai/voice/list`, {
+            const res = await authFetch(`${getApiUrl()}/ai/voice/list`, {
                 headers: getAuthHeaders(),
             });
             if (!res.ok) throw new Error('Không thể lấy danh sách giọng nói');
@@ -599,6 +600,9 @@ export default function CloneVoicePage() {
             const result = await deleteClonedVoice(voiceId, {
                 apiUrl: getApiUrl(),
                 authHeaders: getAuthHeaders(),
+                // Xoá giọng là thao tác mất hẳn, tính phí — để nó chết vì token hết hạn rồi bắt
+                // người dùng bấm lại là dễ xoá nhầm lần hai. authFetch làm mới phiên rồi gửi lại.
+                fetchImpl: authFetch,
             });
 
             const remaining = removeVoiceFromList(voices, voiceId);
@@ -636,7 +640,7 @@ export default function CloneVoicePage() {
             formData.append('voice_name', cloneVoiceName.trim());
             formData.append('gender', cloneGender);
 
-            const startRes = await fetch(`${getApiUrl()}/ai/voice/clone/start`, {
+            const startRes = await authFetch(`${getApiUrl()}/ai/voice/clone/start`, {
                 method: 'POST',
                 headers: getAuthHeaders(),
                 body: formData,
@@ -663,7 +667,7 @@ export default function CloneVoicePage() {
             while (true) {
                 await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
 
-                const statusRes = await fetch(`${getApiUrl()}/ai/voice/clone/status/${jobId}`, {
+                const statusRes = await authFetch(`${getApiUrl()}/ai/voice/clone/status/${jobId}`, {
                     headers: getAuthHeaders(),
                 });
                 if (!statusRes.ok) {
@@ -707,7 +711,7 @@ export default function CloneVoicePage() {
         const translatingToast = toast.loading(`Đang dịch sang ${translateLang}...`);
 
         try {
-            const res = await fetch(`${getApiUrl()}/ai/voice/translate-text`, {
+            const res = await authFetch(`${getApiUrl()}/ai/voice/translate-text`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -752,7 +756,7 @@ export default function CloneVoicePage() {
         const generatingToast = toast.loading('Đang chuyển văn bản thành giọng nói...');
 
         try {
-            const res = await fetch(`${getApiUrl()}/ai/voice/tts`, {
+            const res = await authFetch(`${getApiUrl()}/ai/voice/tts`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

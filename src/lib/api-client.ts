@@ -35,7 +35,7 @@ const _inFlight = new Map<string, Promise<any>>();
  * còn gọi `fetch` thẳng bằng token lấy từ đó, không đi qua apiClient — bỏ qua thì những chỗ ấy
  * vẫn cầm token đã chết.
  */
-const sessionRefresher = createSessionRefresher(async () => {
+export const sessionRefresher = createSessionRefresher(async () => {
   const { data } = await axios.post(
     `${API_URL}/auth/refresh`,
     null,
