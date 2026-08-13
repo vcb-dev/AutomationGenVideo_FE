@@ -26,6 +26,7 @@ import {
   CheckSquare,
   Bookmark,
   Languages,
+  Camera,
 } from 'lucide-react';
 import { UserRole } from '@/types/auth';
 import { useAuthStore } from '@/store/auth-store';
@@ -244,6 +245,20 @@ function SidebarContent({
             items: [
               { label: 'Bộ sưu tập', href: '/dashboard/video-library', icon: Bookmark },
               { label: 'Dịch Content', href: '/dashboard/content/generate?mode=translate-only', icon: Languages },
+            ]
+          }
+        ]
+      },
+      {
+        id: 'mems',
+        icon: Camera,
+        label: 'Thiết bị Media',
+        menus: [
+          {
+            section: 'KHO THIẾT BỊ',
+            items: [
+              { label: 'Kho thiết bị', href: '/dashboard/equipment', icon: LayoutGrid },
+              { label: 'Tạo phiếu mượn', href: '/dashboard/equipment/new-request', icon: FileText },
             ]
           }
         ]

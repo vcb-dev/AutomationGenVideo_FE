@@ -703,7 +703,7 @@ export interface OwnedHashtag {
 // Khớp với OwnedStatsService bên BE (owned-stats.service.ts). Mọi con số đều là TỔNG của
 // các video ĐĂNG trong kỳ, không phải số phát sinh trong kỳ — xem ghi chú ở trang tổng quan.
 
-export interface SoLieuKy {
+export interface PeriodStats {
   views: number;
   likes: number;
   comments: number;
@@ -711,23 +711,23 @@ export interface SoLieuKy {
   posts: number;
 }
 
-export interface SoLieuNgay extends SoLieuKy {
+export interface DailyStats extends PeriodStats {
   /** 'YYYY-MM-DD' theo giờ Việt Nam. */
   ngay: string;
 }
 
-export interface ThongKeNenTang extends SoLieuKy {
+export interface PlatformStats extends PeriodStats {
   platform: string;
-  truoc: SoLieuKy;
+  truoc: PeriodStats;
   followers: number;
   /** Số kênh có đăng bài trong kỳ. */
   so_kenh: number;
   /** Tổng số kênh nội bộ của nền tảng, kể cả kênh không đăng gì. */
   tong_kenh: number;
-  theo_ngay: SoLieuNgay[];
+  theo_ngay: DailyStats[];
 }
 
-export interface ThongKeKenh extends SoLieuKy {
+export interface ChannelStats extends PeriodStats {
   platform: string;
   id: string;
   ten: string;
@@ -775,7 +775,7 @@ export interface HashtagThongKe {
   views: number;
 }
 
-export interface CanhBaoKenh {
+export interface ChannelAlert {
   platform: string;
   kenh: string;
   noi_dung: string;
@@ -784,16 +784,16 @@ export interface CanhBaoKenh {
   nhan: string;
 }
 
-export interface ThongKeNoiBo {
+export interface InternalStats {
   status: string;
   ky: { tu: string; den: string; so_ngay: number };
-  nen_tang: ThongKeNenTang[];
-  kenh: ThongKeKenh[];
+  nen_tang: PlatformStats[];
+  kenh: ChannelStats[];
   top_video: VideoNoiBat[];
   thi_truong: ThiTruongNenTang[];
   tuyen_noi_dung: TuyenNoiDung[];
   hashtag: HashtagThongKe[];
-  canh_bao: CanhBaoKenh[];
+  canh_bao: ChannelAlert[];
   tong_kenh: number;
 }
 
@@ -801,7 +801,7 @@ export interface ThongKeNoiBo {
 // Khớp với OwnedDuplicateService bên BE.
 
 /** Một nội dung bị đăng trên từ 2 kênh nội bộ trở lên. */
-export interface NhomTrung {
+export interface DuplicateGroup {
   /** Caption đã chuẩn hoá (hạ hoa/thường, gộp khoảng trắng) — dùng luôn làm nhãn hiển thị. */
   noi_dung: string;
   platform: string;
@@ -818,7 +818,7 @@ export interface NhomTrung {
   url_mau: string;
 }
 
-export interface TrungTheoKenh {
+export interface DuplicateByChannel {
   platform: string;
   id: string;
   ten: string;
@@ -827,7 +827,7 @@ export interface TrungTheoKenh {
   ty_le: number;
 }
 
-export interface TrungLapNoiBo {
+export interface InternalDuplicates {
   status: string;
   ky: { tu: string; den: string; so_ngay: number };
   tom_tat: {
@@ -839,9 +839,9 @@ export interface TrungLapNoiBo {
     ty_le: number;
     so_kenh_dinh: number;
   };
-  nhom: NhomTrung[];
-  theo_kenh: TrungTheoKenh[];
-  canh_bao: CanhBaoKenh[];
+  nhom: DuplicateGroup[];
+  theo_kenh: DuplicateByChannel[];
+  canh_bao: ChannelAlert[];
 }
 
 // ─── Chấm điểm PAAST cho video nội bộ ────────────────────────────────────────
@@ -868,7 +868,7 @@ export interface TrangThaiPaast {
   so_ky_tu: number;
 }
 
-export interface KetQuaPaastVideo {
+export interface PaastVideoResult {
   trang_thai: TrangThaiPaastMa;
   nguon?: string;
   ngon_ngu?: string;
@@ -935,7 +935,7 @@ export const scraperService = {
       tu?: string;
       den?: string;
     },
-  ): Promise<ThongKeNoiBo> => {
+  ): Promise<InternalStats> => {
     const res = await fetch(`${API_URL}/scraper/owned/stats/${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -953,7 +953,7 @@ export const scraperService = {
   getOwnedDuplicates: async (
     token: string,
     params: { platform?: string; days?: number; tu?: string; den?: string },
-  ): Promise<TrungLapNoiBo> => {
+  ): Promise<InternalDuplicates> => {
     const res = await fetch(`${API_URL}/scraper/owned/trung-lap/${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -991,7 +991,7 @@ export const scraperService = {
     token: string,
     platform: string,
     postId: string,
-  ): Promise<KetQuaPaastVideo> => {
+  ): Promise<PaastVideoResult> => {
     const res = await fetch(`${API_URL}/scraper/owned/paast/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },

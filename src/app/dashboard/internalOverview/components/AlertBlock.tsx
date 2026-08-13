@@ -1,34 +1,34 @@
 'use client';
 
-import type { CanhBaoKenh } from '@/services/scraperService';
-import { AnhKenh, PhuDe, The, TheNenTang, TieuDeThe, TrangRong } from './shared';
+import type { ChannelAlert } from '@/services/scraperService';
+import { ChannelAvatar, Subtitle, Card, PlatformCard, CardTitle, EmptyState } from './shared';
 
 /**
  * Ba loại cảnh báo, do BE tính và xếp nặng trước: đồng bộ lỗi → tụt lượt xem → im lặng.
  * Chỉ xét kênh đang bật; kênh đã tắt thì im lặng là chuyện đương nhiên, báo lên chỉ gây nhiễu.
  */
-export default function KhoiCanhBao({ canhBao }: { canhBao: CanhBaoKenh[] }) {
+export default function AlertBlock({ alerts }: { alerts: ChannelAlert[] }) {
   return (
-    <The chim className="!mb-0">
-      <TieuDeThe chuThich="Kênh đồng bộ lỗi, tụt hiệu quả hoặc đã lâu không đăng bài">
+    <Card chim className="!mb-0">
+      <CardTitle hint="Kênh đồng bộ lỗi, tụt hiệu quả hoặc đã lâu không đăng bài">
         Cần chú ý
-      </TieuDeThe>
-      <PhuDe className="!mb-2">Cập nhật sau mỗi lần đồng bộ</PhuDe>
+      </CardTitle>
+      <Subtitle className="!mb-2">Cập nhật sau mỗi lần đồng bộ</Subtitle>
 
-      {canhBao.length === 0 ? (
-        <TrangRong tieu_de="Không có cảnh báo" mo_ta="Mọi kênh nội bộ đang chạy đúng nhịp." />
+      {alerts.length === 0 ? (
+        <EmptyState tieu_de="Không có cảnh báo" mo_ta="Mọi kênh nội bộ đang chạy đúng nhịp." />
       ) : (
         <div>
-          {canhBao.map((c, i) => (
+          {alerts.map((c, i) => (
             <div
               key={i}
               className="flex items-center gap-3 py-3 border-b border-slate-100 dark:border-slate-800 last:border-0"
             >
-              <AnhKenh ten={c.kenh} platform={c.platform} size={32} />
+              <ChannelAvatar ten={c.kenh} platform={c.platform} size={32} />
               <div className="flex-1 min-w-0 text-[13.5px]">
                 <div className="flex items-center gap-2 flex-wrap">
                   <b className="font-medium text-foreground">{c.kenh}</b>
-                  <TheNenTang platform={c.platform} />
+                  <PlatformCard platform={c.platform} />
                 </div>
                 <div className="text-slate-400 dark:text-slate-500 text-[12.5px] mt-0.5 font-normal break-words">
                   {c.noi_dung}
@@ -48,6 +48,6 @@ export default function KhoiCanhBao({ canhBao }: { canhBao: CanhBaoKenh[] }) {
           ))}
         </div>
       )}
-    </The>
+    </Card>
   );
 }
