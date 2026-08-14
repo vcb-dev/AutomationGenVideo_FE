@@ -34,8 +34,11 @@ const _inFlight = new Map<string, Promise<any>>();
  * Cập nhật cả `auth_token` trong localStorage vì vài trang (video-library, video-downloader)
  * còn gọi `fetch` thẳng bằng token lấy từ đó, không đi qua apiClient — bỏ qua thì những chỗ ấy
  * vẫn cầm token đã chết.
+ *
+ * Export ra ngoài để `auth-store.ts` và `fetchWithAuth` bên dưới dùng chung đúng MỘT luồng —
+ * không được để mỗi nơi tự gọi `/auth/refresh` riêng (xem lý do ở `createSessionRefresher`).
  */
-const sessionRefresher = createSessionRefresher(async () => {
+export const sessionRefresher = createSessionRefresher(async () => {
   const { data } = await axios.post(
     `${API_URL}/auth/refresh`,
     null,
@@ -131,6 +134,35 @@ export function dedupedGet<T = any>(url: string, params?: Record<string, any>): 
 
   _inFlight.set(key, req);
   return req;
+}
+
+/**
+ * `fetch()` có tự gắn Bearer token + tự làm mới phiên khi ăn 401 — cho các trang không dùng được
+ * `apiClient` (axios) trực tiếp, ví dụ cần theo dõi tiến độ upload hay dùng `FormData` đặc thù.
+ *
+ * Không dùng `apiClient` nội bộ: request interceptor của axios không áp dụng cho `fetch`, nên phải
+ * tự lặp lại đúng 2 bước — gắn token trước khi gửi, và thử refresh đúng MỘT lần nếu ăn 401 — thay
+ * vì để mỗi trang tự chép lại logic này (đó là lỗi cũ: 24 trang gọi `fetch` thẳng, không trang nào
+ * có bước làm mới phiên, nên hết hạn access token là thao tác lỗi thẳng ra ngoài).
+ */
+export async function fetchWithAuth(input: string, init: RequestInit = {}): Promise<Response> {
+  const withToken = (token: string | null): RequestInit => ({
+    ...init,
+    headers: {
+      ...(init.headers || {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  const currentToken = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+  const response = await fetch(input, withToken(currentToken));
+
+  if (response.status !== 401) return response;
+
+  const newToken = await sessionRefresher.refresh().catch(() => null);
+  if (!newToken) return response;
+
+  return fetch(input, withToken(newToken));
 }
 
 export default apiClient;

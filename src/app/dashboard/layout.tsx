@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
 import Header from '@/components/layout/Header';
 import { BackgroundTaskManager } from '@/components/social/BackgroundTaskManager';
+import { fetchWithAuth } from '@/lib/api-client';
 
 export default function DashboardLayout({
   children,
@@ -59,9 +60,8 @@ export default function DashboardLayout({
       } catch { /* ignore */ }
 
       try {
-        const response = await fetch(
+        const response = await fetchWithAuth(
           `${process.env.NEXT_PUBLIC_API_URL}/role-permissions/my-tabs`,
-          { headers: { Authorization: `Bearer ${token}` } }
         );
         if (response.ok) {
           const data = await response.json();
