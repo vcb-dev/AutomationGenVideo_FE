@@ -1,35 +1,40 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import apiClient from '../lib/api-client';
+import apiClient, { sessionRefresher } from '../lib/api-client';
 import type { User, LoginRequest, AuthResponse } from '../types/auth';
 
-const isTokenExpired = (token: string): boolean => {
+const decodeJwtPayload = (token: string): { exp?: number } | null => {
   try {
     const parts = token.split('.');
-    if (parts.length !== 3) return true;
+    if (parts.length !== 3) return null;
 
     const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
     const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
-    const payload = JSON.parse(atob(padded));
-
-    if (!payload || typeof payload.exp !== 'number') {
-      return true;
-    }
-
-    const expiresAtMs = payload.exp * 1000;
-    return Date.now() >= expiresAtMs;
+    return JSON.parse(atob(padded));
   } catch {
-    return true;
+    return null;
   }
+};
+
+/** Token không giải mã được — rác thật sự, không cứu được bằng refresh. */
+const isTokenMalformed = (token: string): boolean => decodeJwtPayload(token) === null;
+
+const isTokenExpired = (token: string): boolean => {
+  const payload = decodeJwtPayload(token);
+  if (!payload || typeof payload.exp !== 'number') return true;
+  return Date.now() >= payload.exp * 1000;
 };
 
 let _loadUserPromise: Promise<void> | null = null;
 
-// Ensure local auth storage is cleared when it is no longer valid.
+// Chỉ dọn ngay ở đây khi token là rác không giải mã được. Access token hết hạn (đúng access
+// token 15 phút) KHÔNG được xoá ở bước này — loadUser() bên dưới sẽ thử làm mới bằng refresh
+// token (cookie 7 ngày) trước khi coi phiên là chết. Xoá sớm ở đây là lỗi cũ: F5/mở tab mới sau
+// mốc 15 phút là mất token trước khi loadUser() kịp thử refresh, kết quả bị đá thẳng về trang chủ.
 if (typeof window !== 'undefined') {
   try {
     const existingToken = localStorage.getItem('auth_token');
-    if (existingToken && isTokenExpired(existingToken)) {
+    if (existingToken && isTokenMalformed(existingToken)) {
       localStorage.removeItem('auth_token');
       localStorage.removeItem('auth_user');
       localStorage.removeItem('auth-storage');
@@ -126,27 +131,38 @@ export const useAuthStore = create<AuthState>()(
               return;
             }
 
-            // Check token expiry on client to avoid showing stale sessions
-            if (isTokenExpired(token)) {
-              localStorage.removeItem('auth_token');
-              localStorage.removeItem('auth_user');
-              set({
-                user: null,
-                token: null,
-                isAuthenticated: false,
-                isLoading: false,
-              });
-              return;
-            }
-
             set({ isLoading: true });
+
+            // Access token hết hạn (đúng mốc 15 phút) không có nghĩa phiên đã chết — refresh
+            // token (cookie vcbi_rt) còn sống tới 7 ngày. Thử làm mới trước, chỉ đăng xuất thật
+            // khi refresh cũng thất bại (refresh token cũng hết hạn/bị thu hồi).
+            if (isTokenExpired(token)) {
+              const refreshed = await sessionRefresher.refresh().catch(() => null);
+              if (!refreshed) {
+                localStorage.removeItem('auth_token');
+                localStorage.removeItem('auth_user');
+                set({
+                  user: null,
+                  token: null,
+                  isAuthenticated: false,
+                  isLoading: false,
+                });
+                return;
+              }
+              // sessionRefresher đã ghi token mới vào localStorage — apiClient bên dưới tự đọc
+              // lại qua request interceptor, không cần truyền tay.
+            }
 
             const response = await apiClient.get<User>('/auth/profile');
             const user = response.data;
 
+            // Đọc lại từ localStorage: nếu vừa refresh ở trên, `token` (biến đầu hàm) vẫn là
+            // access token cũ đã hết hạn — state phải giữ token MỚI mà sessionRefresher đã ghi.
+            const latestToken = localStorage.getItem('auth_token');
+
             set({
               user,
-              token,
+              token: latestToken,
               isAuthenticated: true,
               isLoading: false,
             });
