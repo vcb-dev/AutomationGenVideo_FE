@@ -9,7 +9,7 @@ interface NumberedPaginationProps {
 }
 
 /** Trang 1 ... 4 5 6 ... 20 — giữ tối đa 1 trang liền kề mỗi bên trang hiện tại. */
-function getPageNumbers(current: number, total: number): (number | '...')[] {
+export function getPageNumbers(current: number, total: number): (number | '...')[] {
   if (total <= 7) {
     return Array.from({ length: total }, (_, i) => i + 1);
   }

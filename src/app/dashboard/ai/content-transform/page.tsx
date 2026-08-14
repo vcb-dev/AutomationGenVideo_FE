@@ -29,12 +29,16 @@ import {
 import toast from 'react-hot-toast';
 import apiClient from '@/lib/api-client';
 import type {
-  PaastAnalysisResult,
   PaastCriterion,
   PaastLayerCriteria,
 } from '@/lib/api/paast-analyzer';
 import { NumberedPagination } from '@/components/ui/NumberedPagination';
 import { MemberDropdown } from '@/components/ui/MemberDropdown';
+
+// Giới hạn dung lượng file upload để transcribe — phải khớp đúng limits.fileSize
+// của FileInterceptor ở BE (ai-integration.controller.ts). Lệch nhau sẽ dẫn tới
+// FE cho qua nhưng BE vẫn từ chối (hoặc ngược lại).
+const MAX_UPLOAD_SIZE_BYTES = 200 * 1024 * 1024; // 200MB
 
 interface Character {
   id: string;
@@ -97,16 +101,19 @@ interface TeamMember {
 }
 
 // ── Chấm điểm kịch bản theo khung PAAST ──────────────────────────────────────────────────
-// Type lấy thẳng từ @/lib/api/paast-analyzer (nguồn duy nhất, dùng chung với PaastScoreModal
-// của Task Auto) — BE lưu và trả về ĐÚNG shape mà PaastAnalyzerService sinh ra, không đổi tên
-// field, nên FE không cần lớp map trung gian nào.
-type ScoreResult = PaastAnalysisResult & { total_score: number };
-
-const PAAST_LAYER_KEYS = ['prefer', 'action', 'acknowledge', 'stick', 'trust'] as const;
-type PaastLayerKey = (typeof PAAST_LAYER_KEYS)[number];
-
-/** Điểm tối đa của MỖI lớp PAAST — 5 lớp x 20 = 100. */
-const LAYER_MAX_SCORE = 20;
+// Type + hàm THUẦN sống ở paast-highlight.util.ts (không phải page.tsx): Next.js App Router
+// chỉ cho phép page.tsx export các tên cố định (default, metadata...), export thêm tên tuỳ ý
+// làm lỗi kiểu route ngay ở `next build`/tsc.
+import {
+  getLayerStatus,
+  buildHighlightSegments,
+  computeDefaultOpenLayers,
+  PAAST_LAYER_KEYS,
+  LAYER_MAX_SCORE,
+  type ScoreResult,
+  type PaastLayerKey,
+  type LayerStatus,
+} from './paast-highlight.util';
 
 const LAYER_META: Record<
   PaastLayerKey,
@@ -129,20 +136,6 @@ function getScoreTheme(score: number) {
   return { border: 'border-red-300', bg: 'bg-red-50', text: 'text-red-700' };
 }
 
-/**
- * Trạng thái hiển thị của 1 lớp, suy từ tỷ lệ điểm lớp đó. Đây thuần là quy ước MÀU SẮC/ICON
- * của UI (PAAST không định nghĩa ngưỡng đạt/không đạt cho từng lớp) — không phải luật tính
- * điểm, và không ảnh hưởng con số nào hiển thị cho người dùng.
- */
-type LayerStatus = 'good' | 'warning' | 'error';
-
-function getLayerStatus(score: number): LayerStatus {
-  const ratio = score / LAYER_MAX_SCORE;
-  if (ratio >= 0.8) return 'good';
-  if (ratio >= 0.5) return 'warning';
-  return 'error';
-}
-
 const LAYER_STATUS_STYLES: Record<
   LayerStatus,
   { Icon: typeof CheckCircle2; iconClass: string; barClass: string; label: string }
@@ -152,68 +145,8 @@ const LAYER_STATUS_STYLES: Record<
   error: { Icon: XCircle, iconClass: 'text-red-600', barClass: 'bg-red-500', label: 'Yếu' },
 };
 
-type HighlightMark = { kind: 'cta' } | { kind: 'prefer' };
-
-function sameMark(a: HighlightMark | null, b: HighlightMark | null): boolean {
-  if (a === null && b === null) return true;
-  if (!a || !b) return false;
-  return a.kind === b.kind;
-}
-
-/**
- * Highlight nội dung theo dữ liệu PAAST. Chỉ tô những chuỗi CHẮC CHẮN có mặt nguyên văn trong
- * bài: `evidence_sentences` của các insight Prefer (AI trích nguyên câu) và `matches` của
- * cảnh báo CTA (cụm từ bắt được). Các tiêu chí của 4 lớp còn lại chỉ có `evidence` là lời nhận
- * xét, KHÔNG phải trích dẫn nguyên văn, nên cố ý không dùng để highlight — tô theo nó sẽ trượt
- * hoặc tô nhầm đoạn. Chuỗi không tìm thấy thì bỏ qua, không tô bừa.
- */
-function buildHighlightSegments(text: string, scoreResult: ScoreResult): Array<{ text: string; mark: HighlightMark | null }> {
-  const marks: (HighlightMark | null)[] = new Array(text.length).fill(null);
-
-  const paint = (needle: string, mark: HighlightMark) => {
-    const trimmed = needle.trim();
-    if (!trimmed) return;
-    const idx = text.indexOf(trimmed);
-    if (idx === -1) return;
-    for (let i = idx; i < idx + trimmed.length; i++) marks[i] = mark;
-  };
-
-  scoreResult.layers?.prefer?.insights?.forEach((insight) => {
-    if (insight.status === 'off') return;
-    insight.evidence_sentences?.forEach((s) => paint(s, { kind: 'prefer' }));
-  });
-
-  // CTA tô SAU để luôn thắng khi trùng vị trí — đây là phần người dùng cần thấy rõ nhất.
-  scoreResult.cta_warning?.matches?.forEach((m) => paint(m, { kind: 'cta' }));
-
-  const segments: Array<{ text: string; mark: HighlightMark | null }> = [];
-  let i = 0;
-  while (i < text.length) {
-    const cur = marks[i];
-    let j = i + 1;
-    while (j < text.length && sameMark(marks[j], cur)) j++;
-    segments.push({ text: text.slice(i, j), mark: cur });
-    i = j;
-  }
-  return segments;
-}
-
 // ── Accordion 5 lớp PAAST + khối CTA Compliance — dùng chung cho cả màn hình chuyển đổi
 // (Kết quả chuyển đổi) và modal "Chi tiết kịch bản" ở tab Lịch sử, đọc cùng 1 shape ScoreResult.
-
-/**
- * Lớp mặc định mở khi vừa nhận scoreResult: lớp có điểm thấp nhất trong số các lớp chưa đạt
- * mức 'good'. Mọi lớp đều 'good' thì không mở lớp nào (không có gì cần chú ý ngay).
- */
-function computeDefaultOpenLayers(scoreResult: ScoreResult): Set<PaastLayerKey> {
-  const weak = PAAST_LAYER_KEYS
-    .map((key) => ({ key, score: scoreResult.layers?.[key]?.score ?? 0 }))
-    .filter((l) => getLayerStatus(l.score) !== 'good');
-
-  if (weak.length === 0) return new Set();
-  const lowest = weak.reduce((min, l) => (l.score < min.score ? l : min));
-  return new Set([lowest.key]);
-}
 
 function PaastLayerAccordionItem({
   layerKey,
@@ -590,6 +523,26 @@ export default function ContentTransformPage() {
   const [inputMode, setInputMode] = useState<'text' | 'video' | 'audio'>('text');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isTranscribing, setIsTranscribing] = useState<boolean>(false);
+  // Chỉ có ý nghĩa ở tab Video/Giọng nói: ô "Nhập kịch bản thô" khoá (readOnly) cho tới khi
+  // handleTranscribe() trả transcript thành công, tránh người dùng gõ tay đè lên trước khi
+  // có bản nhận diện thật. Tab Văn bản không đọc state này — luôn gõ tay tự do.
+  const [isTranscriptEditable, setIsTranscriptEditable] = useState<boolean>(false);
+  // Bản transcript GỐC do AI trả về ở lượt transcribe thành công gần nhất của file hiện tại —
+  // dùng để phát hiện người dùng đã sửa tay hay chưa trước khi cho bấm "Chuyển lại" (tránh ghi
+  // đè mất phần sửa tay mà không hỏi). Chỉ cần đọc ở thời điểm bấm nút, không cần re-render khi
+  // đổi nên dùng ref, không dùng state. Rỗng = chưa từng transcribe thành công cho file hiện tại.
+  const originalTranscriptRef = useRef<string>('');
+  // Hộp thoại xác nhận trước khi transcribe lại đè lên nội dung đã sửa tay.
+  const [showRetranscribeConfirm, setShowRetranscribeConfirm] = useState<boolean>(false);
+  // Kịch bản thô (inputText) tại thời điểm bấm "Chuyển đổi nội dung" THÀNH CÔNG gần nhất —
+  // dùng để phát hiện người dùng bấm lại mà chưa hề sửa gì kịch bản thô, tránh chạy lại tốn
+  // token/phí AI và ghi đè kết quả cũ (văn bản + điểm PAAST) một cách âm thầm. Đây là state
+  // RIÊNG cho luồng "Chuyển đổi nội dung", không liên quan tới originalTranscriptRef (so sánh
+  // transcript AI trả về của luồng transcribe). Chỉ cần đọc ở thời điểm bấm nút nên dùng ref,
+  // không dùng state. Rỗng = chưa từng chuyển đổi thành công lần nào.
+  const lastTransformedInputRef = useRef<string>('');
+  // Hộp thoại xác nhận trước khi chuyển đổi lại khi kịch bản thô chưa đổi gì so với lần trước.
+  const [showRetransformConfirm, setShowRetransformConfirm] = useState<boolean>(false);
 
   // Chấm điểm kịch bản — KHÔNG còn đi kèm response /transform (đã tách thành bước riêng qua
   // /rescore), chỉ có sau khi người dùng bấm "Chấm điểm content", hoặc kèm response /upgrade.
@@ -611,6 +564,19 @@ export default function ContentTransformPage() {
   // Khối cuộn của cột "Kết quả chuyển đổi" — cuộn về đầu sau khi chấm điểm xong để người dùng
   // thấy ngay khối điểm PAAST vừa xuất hiện phía trên nội dung, không phải tự cuộn lên tìm.
   const resultScrollRef = useRef<HTMLDivElement | null>(null);
+  // Huỷ request transcribe đang chạy — dùng khi người dùng bấm "Huỷ" hoặc chọn file mới trong
+  // lúc file cũ vẫn đang transcribe, tránh 2 request chạy song song ghi đè kết quả lên nhau.
+  const transcribeAbortControllerRef = useRef<AbortController | null>(null);
+  // Đếm tăng dần mỗi lượt transcribe (giống cơ chế personalHistoryRequestId ở trên) — cho phép
+  // catch/finally của 1 lượt transcribe tự nhận ra mình đã lỗi thời (bị huỷ bởi lượt sau) và bỏ
+  // qua, không ghi đè state (isTranscribing, toast lỗi...) của lượt hiện tại.
+  const transcribeRequestId = useRef(0);
+  // Huỷ request /upgrade đang chạy — ref RIÊNG, không dùng chung với transcribeAbortControllerRef
+  // vì 2 lượt hoàn toàn độc lập (có thể đang transcribe file mới trong lúc vẫn chờ nâng cấp bản cũ).
+  const upgradeAbortControllerRef = useRef<AbortController | null>(null);
+  // Cùng cơ chế "requestId" với transcribeRequestId — cho catch/finally của 1 lượt upgrade tự
+  // nhận ra mình đã lỗi thời khi bị huỷ.
+  const upgradeRequestId = useRef(0);
 
   // History states
   const [historyItems, setHistoryItems] = useState<TransformHistoryItem[]>([]);
@@ -741,8 +707,43 @@ export default function ContentTransformPage() {
     }
   }, [activeTab, selectedMemberId, memberHistoryPage, fetchMemberHistory]);
 
+  // Chuyển tab Văn bản/Video/Giọng nói: luôn xoá sạch ô kịch bản thô + file đã chọn + khoá lại
+  // ô nhập (nếu đang mở khoá từ 1 lượt transcribe trước) — tránh nội dung của tab này lẫn
+  // sang tab khác gây hiểu nhầm (vd transcript của file cũ vẫn còn khi vừa đổi sang Văn bản).
+  const handleInputModeChange = (mode: 'text' | 'video' | 'audio') => {
+    // Đổi tab trong lúc còn 1 lượt transcribe chạy dở (hiếm nhưng có thể) — huỷ luôn, tránh nó
+    // âm thầm trả về sau và ghi đè state của tab vừa mở.
+    cancelActiveTranscribe();
+    setIsTranscribing(false);
+    setInputMode(mode);
+    setSelectedFile(null);
+    setInputText('');
+    setIsTranscriptEditable(false);
+    originalTranscriptRef.current = '';
+    // Kịch bản thô của tab vừa rời khỏi không còn ý nghĩa để so sánh cho tab mới.
+    lastTransformedInputRef.current = '';
+  };
+
+  /**
+   * Huỷ lượt transcribe đang chạy (nếu có): abort request qua AbortController + tăng
+   * transcribeRequestId để lượt cũ tự nhận ra mình đã lỗi thời trong catch/finally bên dưới.
+   * Gọi được nhiều lần an toàn (không có gì để huỷ thì no-op).
+   */
+  const cancelActiveTranscribe = () => {
+    transcribeAbortControllerRef.current?.abort();
+    transcribeAbortControllerRef.current = null;
+    transcribeRequestId.current += 1;
+  };
+
   const handleTranscribe = async () => {
     if (!selectedFile) return;
+    // Phòng hờ còn sót 1 lượt cũ (không nên xảy ra vì nút bị disable khi isTranscribing=true,
+    // nhưng huỷ trước cho chắc thay vì để 2 request chạy song song).
+    cancelActiveTranscribe();
+    const controller = new AbortController();
+    transcribeAbortControllerRef.current = controller;
+    const requestId = transcribeRequestId.current;
+
     setIsTranscribing(true);
     const loadingToast = toast.loading('Đang nghe và chuyển đổi nội dung...');
     try {
@@ -754,20 +755,81 @@ export default function ContentTransformPage() {
           'Content-Type': 'multipart/form-data',
         },
         timeout: 70000, // 70s timeout
+        signal: controller.signal,
       });
+
+      // Lượt này đã bị huỷ/thay bằng lượt mới hơn (đổi file / bấm Huỷ) trong lúc chờ response
+      // — bỏ qua, không ghi đè transcript của lượt hiện tại đang hiển thị trên UI.
+      if (requestId !== transcribeRequestId.current) return;
 
       if (res.data && res.data.transcript) {
         setInputText(res.data.transcript);
+        // Lưu lại bản gốc AI vừa trả về — làm mốc so sánh cho lượt "Chuyển lại" sau này, phát
+        // hiện người dùng đã sửa tay hay chưa trước khi cho ghi đè.
+        originalTranscriptRef.current = res.data.transcript;
+        // Có transcript thật từ AI rồi mới mở khoá cho gõ tay — trước đó ô luôn readOnly.
+        setIsTranscriptEditable(true);
         toast.success('Chuyển đổi âm thanh thành văn bản thành công!', { id: loadingToast });
       } else {
         throw new Error(res.data?.message || 'Không thể transcribe file. Vui lòng kiểm tra lại.');
       }
     } catch (err: any) {
-      const errMsg = err.response?.data?.message || err.message || 'Lỗi khi transcribe file. Hãy đảm bảo file dưới 10 phút và thử lại.';
-      toast.error(errMsg, { id: loadingToast });
+      const isCanceled = err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError';
+      if (isCanceled) {
+        // Người dùng chủ động huỷ (nút "Huỷ" hoặc chọn file khác) — không phải lỗi, chỉ tắt
+        // toast loading, không hiện thông báo lỗi.
+        toast.dismiss(loadingToast);
+      } else if (requestId === transcribeRequestId.current) {
+        // Chỉ hiện lỗi nếu đây vẫn là lượt đang được theo dõi trên UI — kể cả khi timeout 70s
+        // thật sự xảy ra (err.code 'ECONNABORTED'), rơi vào đúng nhánh này nên vẫn báo lỗi rõ
+        // ràng và không để nút biến mất im lặng.
+        const errMsg = err.response?.data?.message || err.message || 'Lỗi khi transcribe file. Hãy đảm bảo file dưới 10 phút và thử lại.';
+        toast.error(errMsg, { id: loadingToast });
+      }
     } finally {
-      setIsTranscribing(false);
+      // Lượt đã bị lượt sau ghi đè thì không đụng vào isTranscribing/abort controller nữa —
+      // chúng đã được lượt sau (hoặc nút "Huỷ") tự quản lý.
+      if (requestId === transcribeRequestId.current) {
+        setIsTranscribing(false);
+        transcribeAbortControllerRef.current = null;
+      }
     }
+  };
+
+  /**
+   * Handler thật của nút "Chuyển thành văn bản" / "Chuyển lại" — đứng trước handleTranscribe()
+   * để chặn lại nếu người dùng đã sửa tay so với bản gốc AI trả về lần transcribe thành công
+   * gần nhất, tránh bấm nhầm làm mất phần đã sửa mà không được hỏi lại.
+   *
+   * originalTranscriptRef rỗng (chưa từng transcribe thành công cho file hiện tại, tức đây là
+   * lần bấm đầu) hoặc nội dung hiện tại vẫn khớp y hệt bản gốc (chưa sửa gì) → chạy thẳng,
+   * không cần hỏi. Chỉ khi đã sửa tay mới hiện hộp thoại xác nhận.
+   */
+  const handleTranscribeClick = () => {
+    if (!originalTranscriptRef.current || inputText === originalTranscriptRef.current) {
+      handleTranscribe();
+      return;
+    }
+    setShowRetranscribeConfirm(true);
+  };
+
+  /**
+   * Handler thật của nút "Chuyển đổi nội dung" — đứng trước handleTransform() để chặn lại nếu
+   * kịch bản thô (inputText) chưa hề đổi gì so với lần chuyển đổi THÀNH CÔNG gần nhất, tránh
+   * bấm nhầm chạy lại toàn bộ (viết + tốn thêm chi phí AI) và ghi đè kết quả cũ (văn bản + điểm
+   * PAAST) mà không được hỏi. Đây là so sánh KỊCH BẢN THÔ ĐẦU VÀO, khác với cơ chế so sánh
+   * transcript đầu ra của handleTranscribeClick().
+   *
+   * lastTransformedInputRef rỗng (chưa từng chuyển đổi thành công) hoặc nội dung hiện tại đã
+   * khác bản lần trước (đây đúng là ý định tạo nội dung mới) → chạy thẳng, không cần hỏi. Chỉ
+   * khi kịch bản thô giữ nguyên y hệt mới hiện hộp thoại xác nhận.
+   */
+  const handleTransformClick = () => {
+    if (!lastTransformedInputRef.current || inputText !== lastTransformedInputRef.current) {
+      handleTransform();
+      return;
+    }
+    setShowRetransformConfirm(true);
   };
 
   const handleTransform = async () => {
@@ -818,6 +880,9 @@ export default function ContentTransformPage() {
         setScoreErrorMsg(null);
         setScoreFromCache(false);
         setCurrentHistoryId(res.data.id || null);
+        // Lưu lại kịch bản thô vừa dùng — làm mốc so sánh cho lượt "Chuyển đổi nội dung" sau
+        // này, phát hiện người dùng bấm lại mà chưa sửa gì kịch bản thô.
+        lastTransformedInputRef.current = inputText;
         toast.success('Chuyển đổi kịch bản thành công! Bấm "Chấm điểm content" để chấm điểm PAAST.', {
           id: loadingToast,
         });
@@ -833,24 +898,45 @@ export default function ContentTransformPage() {
     }
   };
 
+  /**
+   * Huỷ lượt /upgrade đang chạy (nếu có) — cùng cơ chế với cancelActiveTranscribe, nhưng dùng
+   * ref riêng (upgradeAbortControllerRef/upgradeRequestId), không đụng tới lượt transcribe.
+   * Gọi được nhiều lần an toàn (không có gì để huỷ thì no-op).
+   */
+  const cancelActiveUpgrade = () => {
+    upgradeAbortControllerRef.current?.abort();
+    upgradeAbortControllerRef.current = null;
+    upgradeRequestId.current += 1;
+  };
+
   const handleUpgrade = async () => {
     if (isUpgradingRef.current) return;
     if (!currentHistoryId) return;
+
+    cancelActiveUpgrade();
+    const controller = new AbortController();
+    upgradeAbortControllerRef.current = controller;
+    const requestId = upgradeRequestId.current;
 
     isUpgradingRef.current = true;
     setIsUpgrading(true);
     const loadingToast = toast.loading('Đang nâng cấp nội dung theo gợi ý...');
 
     try {
-      // Worst case: chấm điểm baseline (nếu chưa có, hiếm khi xảy ra khi đi từ history_id có sẵn
-      // score_result) 3x120s=360s + viết lại kịch bản (giờ cũng retry) 3x120s=360s + chấm điểm
-      // lại bản mới 3x120s=360s => tối đa ~1080s. Đặt dư lên 1200s (20 phút) để không bị client
-      // huỷ ngang khi BE vẫn xử lý bình thường.
+      // Từ khi gộp viết lại + chấm điểm bản mới thành 1 request HTTP duy nhất tới AI service
+      // (Django tự chia ngân sách thời gian nội bộ 40% viết / 60% chấm — trước đây đây là 2
+      // request BE tự gọi tuần tự, mỗi request lại tự retry riêng, tối đa 6 round-trip), BE chỉ
+      // còn chờ tối đa CONTENT_TRANSFORM_UPGRADE_TIMEOUT_MS = 420s (7 phút) cho request gộp đó.
+      // Đặt dư lên 480s (8 phút) để không bị client huỷ ngang khi BE vẫn xử lý bình thường.
       const res = await apiClient.post(
         '/ai/content-transform/upgrade',
         { history_id: currentHistoryId },
-        { timeout: 1200000 },
+        { timeout: 480000, signal: controller.signal },
       );
+
+      // Lượt này đã bị huỷ/thay bằng lượt mới hơn trong lúc chờ response — bỏ qua, không ghi đè
+      // kết quả của lượt hiện tại đang hiển thị trên UI.
+      if (requestId !== upgradeRequestId.current) return;
 
       const upgraded = res.data?.upgraded;
       if (!upgraded) {
@@ -863,16 +949,27 @@ export default function ContentTransformPage() {
       setScoreResult(upgraded.scoreResult || null);
       setScoreStatus(upgraded.scoreStatus || null);
       setScoreErrorMsg(upgraded.scoreError || null);
-      // /upgrade luôn chấm mới trên kịch bản vừa nâng cấp, không bao giờ dùng lại điểm cũ.
-      setScoreFromCache(false);
+      // /upgrade thường chấm mới trên kịch bản vừa nâng cấp; fromCache chỉ true trong trường hợp
+      // hiếm bản viết lại trùng y hệt một bản đã chấm trước đó (xem comment ở BE upgradeContent).
+      setScoreFromCache(upgraded.fromCache === true);
       setCurrentHistoryId(upgraded.id || null);
       toast.success('Đã nâng cấp nội dung thành công!', { id: loadingToast });
     } catch (err: any) {
-      const errMsg = err.response?.data?.message || err.message || 'Lỗi khi nâng cấp nội dung';
-      toast.error(errMsg, { id: loadingToast });
+      const isCanceled = err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError';
+      if (isCanceled) {
+        // Người dùng chủ động bấm "Huỷ" — không phải lỗi, chỉ tắt toast loading.
+        toast.dismiss(loadingToast);
+      } else if (requestId === upgradeRequestId.current) {
+        const errMsg = err.response?.data?.message || err.message || 'Lỗi khi nâng cấp nội dung';
+        toast.error(errMsg, { id: loadingToast });
+      }
     } finally {
-      setIsUpgrading(false);
-      isUpgradingRef.current = false;
+      // Lượt đã bị lượt sau (hoặc nút "Huỷ") ghi đè thì không đụng state nữa — đã được tự quản lý.
+      if (requestId === upgradeRequestId.current) {
+        setIsUpgrading(false);
+        isUpgradingRef.current = false;
+        upgradeAbortControllerRef.current = null;
+      }
     }
   };
 
@@ -1026,7 +1123,7 @@ export default function ContentTransformPage() {
                       {/* Tab System */}
                       <div className="flex p-0.5 bg-[#f6f3f5] rounded-lg 2xl:rounded-xl w-fit">
                         <button
-                          onClick={() => { setInputMode('text'); setSelectedFile(null); }}
+                          onClick={() => handleInputModeChange('text')}
                           className={`flex items-center space-x-1 px-2.5 py-0.5 2xl:px-3.5 2xl:py-1 rounded-md 2xl:rounded-lg font-semibold text-[10px] 2xl:text-xs transition-all ${inputMode === 'text'
                             ? 'bg-white text-[#4441cc] shadow-sm'
                             : 'text-[#464554] hover:text-[#4441cc]'
@@ -1036,7 +1133,7 @@ export default function ContentTransformPage() {
                           <span>Văn bản</span>
                         </button>
                         <button
-                          onClick={() => { setInputMode('video'); setSelectedFile(null); }}
+                          onClick={() => handleInputModeChange('video')}
                           className={`flex items-center space-x-1 px-2.5 py-0.5 2xl:px-3.5 2xl:py-1 rounded-md 2xl:rounded-lg font-semibold text-[10px] 2xl:text-xs transition-all ${inputMode === 'video'
                             ? 'bg-white text-[#4441cc] shadow-sm'
                             : 'text-[#464554] hover:text-[#4441cc]'
@@ -1046,7 +1143,7 @@ export default function ContentTransformPage() {
                           <span>Video</span>
                         </button>
                         <button
-                          onClick={() => { setInputMode('audio'); setSelectedFile(null); }}
+                          onClick={() => handleInputModeChange('audio')}
                           className={`flex items-center space-x-1 px-2.5 py-0.5 2xl:px-3.5 2xl:py-1 rounded-md 2xl:rounded-lg font-semibold text-[10px] 2xl:text-xs transition-all ${inputMode === 'audio'
                             ? 'bg-white text-[#4441cc] shadow-sm'
                             : 'text-[#464554] hover:text-[#4441cc]'
@@ -1066,8 +1163,38 @@ export default function ContentTransformPage() {
                           id="file-upload"
                           accept={inputMode === 'video' ? 'video/*' : 'audio/*'}
                           onChange={(e) => {
-                            const file = e.target.files?.[0] || null;
+                            const file = e.target.files?.[0];
+                            // Bấm Cancel trên hộp thoại chọn file (không chọn gì) — onChange có
+                            // thể vẫn bắn với files rỗng ở một số trình duyệt. Không được xoá/reset
+                            // bất kỳ state nào trong trường hợp này, giữ nguyên file cũ + trạng
+                            // thái hiện tại.
+                            if (!file) return;
+                            // Chặn sớm file vượt giới hạn ngay tại FE — khớp đúng limits.fileSize
+                            // 200MB của Multer ở BE (ai-integration.controller.ts). Không chặn ở
+                            // đây thì người dùng phải chờ upload xong cả file rồi mới bị BE từ chối.
+                            if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+                              toast.error(
+                                `File "${file.name}" nặng ${(file.size / (1024 * 1024)).toFixed(1)}MB, vượt giới hạn 200MB. Vui lòng chọn file nhỏ hơn.`
+                              );
+                              return;
+                            }
+                            // Đang có request transcribe của file cũ chạy dở — huỷ trước khi nhận
+                            // file mới, tránh 2 request chạy song song ghi đè kết quả lên nhau.
+                            cancelActiveTranscribe();
                             setSelectedFile(file);
+                            // Transcript cũ (nếu có) không còn khớp với file vừa chọn lại — xoá
+                            // và khoá ô nhập cho tới khi bấm "Chuyển thành văn bản" lần nữa.
+                            setInputText('');
+                            setIsTranscriptEditable(false);
+                            // File mới hoàn toàn khác — bản gốc transcript của file cũ không còn
+                            // ý nghĩa để so sánh, reset để không mang nhầm sang file này.
+                            originalTranscriptRef.current = '';
+                            // Tương tự — kịch bản thô của file cũ không còn ý nghĩa để so sánh
+                            // cho lượt "Chuyển đổi nội dung" tiếp theo (file này chưa transcribe).
+                            lastTransformedInputRef.current = '';
+                            // Cô lập trạng thái loading theo đúng lần chọn file này — không để
+                            // dính trạng thái "đang nghe" còn sót lại từ lượt transcribe trước.
+                            setIsTranscribing(false);
                           }}
                           className="hidden"
                         />
@@ -1086,23 +1213,42 @@ export default function ContentTransformPage() {
                           </span>
                         </label>
                         {selectedFile && (
-                          <button
-                            onClick={handleTranscribe}
-                            disabled={isTranscribing}
-                            className="mt-1.5 px-3 py-0.5 bg-[#4441cc] hover:bg-[#4441cc]/90 text-white rounded-lg font-semibold text-[10px] flex items-center space-x-1 transition-all disabled:opacity-50"
-                          >
-                            {isTranscribing ? (
-                              <>
-                                <Loader2 className="w-3 h-3 animate-spin" />
-                                <span>Đang nghe...</span>
-                              </>
-                            ) : (
-                              <>
-                                <Wand2 className="w-3 h-3" />
-                                <span>Chuyển thành văn bản</span>
-                              </>
+                          <div className="mt-1.5 flex items-center gap-1.5">
+                            <button
+                              onClick={handleTranscribeClick}
+                              disabled={isTranscribing}
+                              className="px-3 py-0.5 bg-[#4441cc] hover:bg-[#4441cc]/90 text-white rounded-lg font-semibold text-[10px] flex items-center space-x-1 transition-all disabled:opacity-50"
+                            >
+                              {isTranscribing ? (
+                                <>
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                  <span>Đang nghe...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Wand2 className="w-3 h-3" />
+                                  {/* Đã có bản gốc AI trả về cho file này (transcribe thành công
+                                      ít nhất 1 lần) → đổi label để rõ đây là hành động chuyển lại,
+                                      không phải lần đầu. */}
+                                  <span>{originalTranscriptRef.current ? 'Chuyển lại' : 'Chuyển thành văn bản'}</span>
+                                </>
+                              )}
+                            </button>
+                            {/* Chỉ hiện lúc đang chạy — thoát khỏi "Đang nghe..." mà không cần F5
+                                lại trang, giữ nguyên file đã chọn để bấm chuyển đổi lại nếu muốn. */}
+                            {isTranscribing && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  cancelActiveTranscribe();
+                                  setIsTranscribing(false);
+                                }}
+                                className="px-2.5 py-0.5 border border-[#c7c4d7] hover:border-[#4441cc] text-[#464554] hover:text-[#4441cc] rounded-lg font-semibold text-[10px] transition-all"
+                              >
+                                Huỷ
+                              </button>
                             )}
-                          </button>
+                          </div>
                         )}
                       </div>
                     )}
@@ -1112,12 +1258,14 @@ export default function ContentTransformPage() {
                       <textarea
                         value={inputText}
                         onChange={(e) => setInputText(e.target.value)}
+                        readOnly={inputMode !== 'text' && !isTranscriptEditable}
                         placeholder={
                           inputMode === 'text'
                             ? "Dán hoặc gõ kịch bản thô của bạn vào đây. Ví dụ: nội dung giới thiệu sản phẩm, ý tưởng video, ghi chú nhanh..."
                             : "Văn bản nhận diện từ file video/âm thanh sẽ hiển thị tại đây. Bạn có thể tự do chỉnh sửa trước khi tiến hành chuyển đổi."
                         }
-                        className="w-full flex-1 min-h-[90px] p-2.5 2xl:p-3.5 rounded-xl bg-white border border-[#c7c4d7] focus:border-[#4441cc] focus:ring-2 focus:ring-[#4441cc]/10 transition-all text-xs 2xl:text-sm text-[#1b1b1d] placeholder-[#464554]/60 outline-none custom-scrollbar resize-none"
+                        className={`w-full flex-1 min-h-[90px] p-2.5 2xl:p-3.5 rounded-xl border border-[#c7c4d7] focus:border-[#4441cc] focus:ring-2 focus:ring-[#4441cc]/10 transition-all text-xs 2xl:text-sm text-[#1b1b1d] placeholder-[#464554]/60 outline-none custom-scrollbar resize-none ${inputMode !== 'text' && !isTranscriptEditable ? 'bg-[#f6f3f5] cursor-not-allowed' : 'bg-white'
+                          }`}
                       />
                       <div className="flex justify-between mt-0.5 flex-none px-1 text-[9px] 2xl:text-[10px] text-[#464554]">
                         <span>Hỗ trợ tiếng Việt có dấu</span>
@@ -1369,23 +1517,40 @@ export default function ContentTransformPage() {
                                   <span className="text-lg font-black text-[#4441cc]">{scoreResult.total_score}</span>
                                 </div>
                               )}
-                              <button
-                                onClick={handleUpgrade}
-                                disabled={isUpgrading}
-                                className="w-full bg-[#4441cc] text-white py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-[#4441cc]/20 hover:bg-[#4441cc]/95 active:scale-[0.99] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                {isUpgrading ? (
-                                  <>
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                    <span>Đang nâng cấp...</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Zap className="w-3.5 h-3.5" />
-                                    <span>Nâng cấp content theo gợi ý</span>
-                                  </>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  onClick={handleUpgrade}
+                                  disabled={isUpgrading}
+                                  className="flex-1 bg-[#4441cc] text-white py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-[#4441cc]/20 hover:bg-[#4441cc]/95 active:scale-[0.99] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  {isUpgrading ? (
+                                    <>
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                      <span>Đang nâng cấp...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Zap className="w-3.5 h-3.5" />
+                                      <span>Nâng cấp content theo gợi ý</span>
+                                    </>
+                                  )}
+                                </button>
+                                {/* Chỉ hiện lúc đang chạy — thoát khỏi "Đang nâng cấp..." mà không
+                                    cần chờ hết 480s nếu người dùng đổi ý. */}
+                                {isUpgrading && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      cancelActiveUpgrade();
+                                      setIsUpgrading(false);
+                                      isUpgradingRef.current = false;
+                                    }}
+                                    className="px-3 py-2.5 border border-[#c7c4d7] hover:border-[#4441cc] text-[#464554] hover:text-[#4441cc] rounded-xl font-semibold text-xs transition-all"
+                                  >
+                                    Huỷ
+                                  </button>
                                 )}
-                              </button>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -1411,7 +1576,7 @@ export default function ContentTransformPage() {
               {/* Bottom Action Button Bar */}
               <div className="flex-none pt-1.5 2xl:pt-2 pb-0.5 flex justify-center">
                 <button
-                  onClick={handleTransform}
+                  onClick={handleTransformClick}
                   disabled={isGenerating || !inputText.trim() || !selectedCharacterId}
                   className="max-w-7xl w-full bg-[#4441cc] text-white py-2.5 2xl:py-3.5 px-6 2xl:px-8 rounded-xl font-bold text-xs 2xl:text-sm flex items-center justify-center space-x-2 shadow-md shadow-[#4441cc]/20 hover:bg-[#4441cc]/95 active:scale-[0.99] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -1631,6 +1796,93 @@ export default function ContentTransformPage() {
             )
           )}
         </div>
+
+      {/* Xác nhận "Chuyển lại" khi nội dung đã bị sửa tay so với bản gốc AI — tránh ghi đè mất
+          phần đã sửa mà không hỏi. Chỉ hiện khi handleTranscribeClick() phát hiện có khác biệt. */}
+      {showRetranscribeConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300"
+            onClick={() => setShowRetranscribeConfirm(false)}
+          />
+          <div className="relative bg-white border border-[#c7c4d7] text-[#1b1b1d] w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl p-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-4.5 h-4.5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-[#1b1b1d]">Chuyển lại từ file gốc?</h3>
+                <p className="mt-1 text-xs text-[#464554] leading-relaxed">
+                  Bạn đã chỉnh sửa nội dung so với bản AI nhận diện ban đầu. Chuyển lại sẽ ghi đè
+                  phần đã sửa và không thể khôi phục. Bạn có chắc muốn tiếp tục?
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowRetranscribeConfirm(false)}
+                className="px-3 py-1.5 rounded-lg border border-[#c7c4d7] text-[#464554] hover:text-[#1b1b1d] hover:border-[#4441cc] text-xs font-semibold transition-colors"
+              >
+                Huỷ
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRetranscribeConfirm(false);
+                  handleTranscribe();
+                }}
+                className="px-3 py-1.5 rounded-lg bg-[#4441cc] hover:bg-[#4441cc]/90 text-white text-xs font-semibold transition-colors"
+              >
+                Tiếp tục
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showRetransformConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300"
+            onClick={() => setShowRetransformConfirm(false)}
+          />
+          <div className="relative bg-white border border-[#c7c4d7] text-[#1b1b1d] w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl p-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-4.5 h-4.5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-[#1b1b1d]">Chuyển đổi lại nội dung?</h3>
+                <p className="mt-1 text-xs text-[#464554] leading-relaxed">
+                  Nội dung kịch bản thô chưa thay đổi so với lần chuyển đổi trước. Chuyển đổi lại
+                  sẽ tạo bản mới, ghi đè kết quả hiện tại và tốn thêm chi phí AI. Bạn có chắc muốn
+                  tiếp tục?
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowRetransformConfirm(false)}
+                className="px-3 py-1.5 rounded-lg border border-[#c7c4d7] text-[#464554] hover:text-[#1b1b1d] hover:border-[#4441cc] text-xs font-semibold transition-colors"
+              >
+                Huỷ
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRetransformConfirm(false);
+                  handleTransform();
+                }}
+                className="px-3 py-1.5 rounded-lg bg-[#4441cc] hover:bg-[#4441cc]/90 text-white text-xs font-semibold transition-colors"
+              >
+                Tiếp tục
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* History Detail Modal (Popup drawer) */}
       {selectedItem && (
