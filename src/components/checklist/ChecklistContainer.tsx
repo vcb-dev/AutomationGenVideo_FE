@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
 import { toast } from 'react-hot-toast';
+import { fetchWithAuth } from '@/lib/api-client';
 
 const initialChecks = () => Array(CHECKLIST_ITEMS.length).fill(false);
 const initialDetails = () => Array(DETAIL_ITEMS.length).fill('');
@@ -27,12 +28,6 @@ function localCalendarYMD(d: Date = new Date()): string {
 /** Deadline báo cáo: Đã tạm thời gỡ bỏ mọi logic khoá. */
 function isPastDailyDeadline(): boolean {
     return false;
-}
-
-/** Các route /lark/* giờ yêu cầu đăng nhập (JwtAuthGuard) — phải gắn token cho mọi fetch thủ công. */
-function getAuthHeaders(): Record<string, string> {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-    return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 const ChecklistDatePicker = ({ value, onChange }: { value: string, onChange: (val: string) => void }) => {
@@ -251,7 +246,7 @@ const ChecklistContainer = ({
                     ? `${base}/lark/user-permission?email=${encodeURIComponent(user.email)}`
                     : `${base}/api/lark/user-permission?email=${encodeURIComponent(user.email)}`;
 
-                const response = await fetch(url, { headers: getAuthHeaders() });
+                const response = await fetchWithAuth(url);
                 if (response.ok) {
                     const data = await response.json();
                     if (data && data.role) {
@@ -294,7 +289,7 @@ const ChecklistContainer = ({
                 const beBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
                 const url = `${beBaseUrl}/lark/user-report-details?email=${encodeURIComponent(user.email)}&date=${reportDate}&_t=${Date.now()}`;
 
-                const response = await fetch(url, { cache: 'no-store', headers: getAuthHeaders() });
+                const response = await fetchWithAuth(url, { cache: 'no-store' });
                 if (response.ok) {
                     const data = await response.json();
                     
@@ -611,13 +606,10 @@ const ChecklistContainer = ({
     // Fetch user channels via authenticated endpoint
     useEffect(() => {
         const fetchChannels = async () => {
-            const token = useAuthStore.getState().token;
-            if (!token) return;
+            if (!useAuthStore.getState().token) return;
             try {
                 const beBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
-                const res = await fetch(`${beBaseUrl}/channels/my`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
+                const res = await fetchWithAuth(`${beBaseUrl}/channels/my`);
                 if (res.ok) {
                     const data = await res.json();
                     setAvailableChannels(data);
@@ -832,9 +824,9 @@ const ChecklistContainer = ({
                 // NestJS ghi thẳng vào lüc_reports qua Prisma → đúng DB server luôn
                 const beBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
                 const url = `${beBaseUrl}/lark/checklist-report`;
-                const response = await fetch(url, {
+                const response = await fetchWithAuth(url, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(fullPayload),
                 });
                 const data = await response.json().catch(() => ({}));
@@ -855,9 +847,9 @@ const ChecklistContainer = ({
             const hasTrafficData = Object.values(traffic).some(val => val !== '');
             if (hasTrafficData && !showOnlyWork) {
                 const beBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
-                const trafficRes = await fetch(`${beBaseUrl}/lark/traffic-report`, {
+                const trafficRes = await fetchWithAuth(`${beBaseUrl}/lark/traffic-report`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         email: user.email,
                         name: user.full_name,
@@ -897,9 +889,9 @@ const ChecklistContainer = ({
                 const hasRevenueData = Object.values(revenue).some(val => val !== '');
                 let revenueRes: Response | null = null;
                 if (hasRevenueData) {
-                    revenueRes = await fetch(`${beBaseUrl}/lark/revenue-report`, {
+                    revenueRes = await fetchWithAuth(`${beBaseUrl}/lark/revenue-report`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             email: user.email,
                             name: user.full_name,

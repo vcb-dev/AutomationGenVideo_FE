@@ -1,16 +1,15 @@
+import { fetchWithAuth } from './api-client';
+
 /**
  * Gọi BE làm mới follower / likes / views qua Apify (mọi nền tảng).
  */
 export async function enrichTrackedChannelApify(
   channelId: string,
 ): Promise<{ success: boolean; message?: string }> {
-  const token =
-    typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
-  const res = await fetch(`${apiUrl}/tracked-channels/${channelId}/enrich-apify`, {
+  const res = await fetchWithAuth(`${apiUrl}/tracked-channels/${channelId}/enrich-apify`, {
     method: 'POST',
     headers: {
-      Authorization: token ? `Bearer ${token}` : '',
       'Content-Type': 'application/json',
     },
     signal: AbortSignal.timeout(30_000),
@@ -47,13 +46,11 @@ export async function enrichStaleChannelsIfNeeded(): Promise<{
   const raw = sessionStorage.getItem(STALE_ENRICH_KEY);
   if (raw && Date.now() - parseInt(raw, 10) < STALE_COOLDOWN_MS) return null;
 
-  const token = localStorage.getItem('auth_token');
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
   try {
-    const res = await fetch(`${apiUrl}/tracked-channels/enrich-stale`, {
+    const res = await fetchWithAuth(`${apiUrl}/tracked-channels/enrich-stale`, {
       method: 'POST',
       headers: {
-        Authorization: token ? `Bearer ${token}` : '',
         'Content-Type': 'application/json',
       },
       signal: AbortSignal.timeout(60_000),

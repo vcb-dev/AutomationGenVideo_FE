@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import GenerateContentButton from '@/components/content/GenerateContentButton';
+import { fetchWithAuth } from '@/lib/api-client';
 
 interface InstagramReel {
     id: number;
@@ -113,7 +114,6 @@ export default function InstagramSearchReelPage() {
         }
 
         try {
-            const token = localStorage.getItem('auth_token');
             const keyword = searchMode === 'hashtag'
                 ? normalizeHashtag(searchTerm)
                 : searchTerm.replace(/^#/, '').trim();
@@ -123,11 +123,10 @@ export default function InstagramSearchReelPage() {
                 return;
             }
 
-            const response = await fetch(`${apiUrl}/search`, {
+            const response = await fetchWithAuth(`${apiUrl}/search`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
                 },
                 body: JSON.stringify({
                     platform: 'instagram',

@@ -12,6 +12,7 @@ import { toast } from 'react-hot-toast';
 import SmartMixVideo from '@/components/SmartMixVideo';
 import LanguageSelect from '@/components/content/LanguageSelect';
 import { useAuthStore } from '@/store/auth-store';
+import { fetchWithAuth } from '@/lib/api-client';
 
 const AI_SERVICE_URL = process.env.NEXT_PUBLIC_AI_SERVICE_URL || 'http://localhost:8001';
 const BE_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
@@ -504,12 +505,10 @@ export default function GenerateContentPage() {
         if (!generatedContent) return;
         setIsApproving(true);
         try {
-            const token = localStorage.getItem('auth_token');
-            const res = await fetch(`${BE_API_URL}/approved-content`, {
+            const res = await fetchWithAuth(`${BE_API_URL}/approved-content`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
                 },
                 body: JSON.stringify({
                     script: generatedContent.script,

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
+import { fetchWithAuth } from '@/lib/api-client';
 import {
   AlertCircle,
   CalendarDays,
@@ -273,13 +274,8 @@ export default function ManagerDashboardPage() {
 
     try {
       setLoading(true);
-      const response = await fetch(
+      const response = await fetchWithAuth(
         `${process.env.NEXT_PUBLIC_API_URL}/tracked-channels/manager/all-channels`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
       );
 
       if (!response.ok) throw new Error('Không thể tải danh sách kênh');

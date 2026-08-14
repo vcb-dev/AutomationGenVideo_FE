@@ -38,6 +38,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
 import { videoLibraryService, ScraperVideoProposal, ProposeVideoPayload } from '@/services/videoLibraryService';
 import { useSubmitVideoToLibrary } from '@/hooks/useProposeVideo';
+import { fetchWithAuth } from '@/lib/api-client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -844,10 +845,7 @@ function VideoLibraryInner() {
         setLoading(true);
         try {
             const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
-            const token = localStorage.getItem('auth_token');
-            const res = await fetch(`${apiUrl}/video-library?type=${type}`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
+            const res = await fetchWithAuth(`${apiUrl}/video-library?type=${type}`);
             if (res.ok) {
                 const data = await res.json();
                 setter(Array.isArray(data) ? data : []);
@@ -863,10 +861,7 @@ function VideoLibraryInner() {
         setLoadingContent(true);
         try {
             const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
-            const token = localStorage.getItem('auth_token');
-            const res = await fetch(`${apiUrl}/approved-content`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
+            const res = await fetchWithAuth(`${apiUrl}/approved-content`);
             if (res.ok) {
                 const data = await res.json();
                 setContentItems(Array.isArray(data) ? data : []);
@@ -941,10 +936,8 @@ function VideoLibraryInner() {
     const handleDelete = async (id: string, type: 'TEAM' | 'SHARED') => {
         try {
             const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
-            const token = localStorage.getItem('auth_token');
-            const res = await fetch(`${apiUrl}/video-library/${id}`, {
+            const res = await fetchWithAuth(`${apiUrl}/video-library/${id}`, {
                 method: 'DELETE',
-                headers: { Authorization: `Bearer ${token}` },
             });
             if (res.ok) {
                 if (type === 'TEAM') setTeamVideos((v) => v.filter((x) => x.id !== id));
@@ -958,10 +951,8 @@ function VideoLibraryInner() {
     const handleDeleteContent = async (id: string) => {
         try {
             const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
-            const token = localStorage.getItem('auth_token');
-            const res = await fetch(`${apiUrl}/approved-content/${id}`, {
+            const res = await fetchWithAuth(`${apiUrl}/approved-content/${id}`, {
                 method: 'DELETE',
-                headers: { Authorization: `Bearer ${token}` },
             });
             if (res.ok) {
                 setContentItems((v) => v.filter((x) => x.id !== id));

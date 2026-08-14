@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
+import { fetchWithAuth } from '@/lib/api-client';
 
 interface Channel {
   id: string;
@@ -112,9 +113,7 @@ export default function InternalChannelsPage() {
   const fetchChannels = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${apiUrl}/channels`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetchWithAuth(`${apiUrl}/channels`);
       if (!res.ok) return;
       const data: Channel[] = await res.json();
       const teamFiltered = userTeam
@@ -139,9 +138,7 @@ export default function InternalChannelsPage() {
     if (!showActionsCol) return;
     (async () => {
       try {
-        const res = await fetch(`${apiUrl}/users/team-members`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await fetchWithAuth(`${apiUrl}/users/team-members`);
         if (!res.ok) return;
         setTeamMembers(await res.json());
       } catch { /* không chặn UI nếu tải danh sách member thất bại */ }
@@ -202,10 +199,10 @@ export default function InternalChannelsPage() {
       const body: Record<string, string> = isEdit && owner_id
         ? { ...rest, owner_id }
         : rest;
-      const res = await fetch(
+      const res = await fetchWithAuth(
         isEdit ? `${apiUrl}/channels/${editTarget!.id}` : `${apiUrl}/channels`,
         { method: isEdit ? 'PATCH' : 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body) },
       );
       const data = await res.json();
@@ -220,8 +217,8 @@ export default function InternalChannelsPage() {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      const res = await fetch(`${apiUrl}/channels/${deleteTarget.id}`, {
-        method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+      const res = await fetchWithAuth(`${apiUrl}/channels/${deleteTarget.id}`, {
+        method: 'DELETE',
       });
       const data = await res.json();
       if (!res.ok) { toast.error(data.message || 'Xóa thất bại'); return; }

@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useState, useEffect } from 'react';
 import { Film, Calendar, CheckCircle, AlertTriangle, Clock, TrendingUp } from 'lucide-react';
+import { fetchWithAuth } from '@/lib/api-client';
 
 interface Video {
   id: string;
@@ -34,13 +35,8 @@ export default function MyVideosPage() {
 
   const fetchMyVideos = async () => {
     try {
-      const token = localStorage.getItem('auth_token');
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
-      const response = await fetch(`${baseUrl}/videos/my-videos`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+      const response = await fetchWithAuth(`${baseUrl}/videos/my-videos`);
 
       const data = await response.json();
 

@@ -2,12 +2,7 @@ import Image from "next/image";
 import React, { useEffect, useRef, useState } from 'react';
 import { Activity, ImagePlus, X, Loader2 } from 'lucide-react';
 import { digitsOnly, sumEntryValues } from './report-total';
-
-/** /lark/* yêu cầu đăng nhập (JwtAuthGuard) — phải gắn token cho fetch thủ công. */
-function getAuthHeaders(): Record<string, string> {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-    return token ? { Authorization: `Bearer ${token}` } : {};
-}
+import { fetchWithAuth } from '@/lib/api-client';
 
 export const TRAFFIC_PLATFORMS = [
     { id: 'fb', label: 'Traffic FB' },
@@ -209,9 +204,8 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
             const formData = new FormData();
             files.forEach(f => formData.append('files', f));
 
-            const res = await fetch(`${beBaseUrl}/lark/upload-evidence`, {
+            const res = await fetchWithAuth(`${beBaseUrl}/lark/upload-evidence`, {
                 method: 'POST',
-                headers: getAuthHeaders(),
                 body: formData,
             });
 

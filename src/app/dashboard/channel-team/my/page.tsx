@@ -10,6 +10,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '@/store/auth-store';
+import { fetchWithAuth } from '@/lib/api-client';
 
 interface Channel {
   id: string;
@@ -96,9 +97,7 @@ export default function MyChannelsPage() {
   const fetchChannels = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${apiUrl}/channels/my`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetchWithAuth(`${apiUrl}/channels/my`);
       if (!res.ok) return;
       const data: Channel[] = await res.json();
       setChannels(data);
@@ -140,11 +139,11 @@ export default function MyChannelsPage() {
     setSaving(true);
     try {
       const isEdit = !!editTarget;
-      const res = await fetch(
+      const res = await fetchWithAuth(
         isEdit ? `${apiUrl}/channels/${editTarget!.id}` : `${apiUrl}/channels`,
         {
           method: isEdit ? 'PATCH' : 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(form),
         },
       );
@@ -161,8 +160,8 @@ export default function MyChannelsPage() {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      const res = await fetch(`${apiUrl}/channels/${deleteTarget.id}`, {
-        method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+      const res = await fetchWithAuth(`${apiUrl}/channels/${deleteTarget.id}`, {
+        method: 'DELETE',
       });
       const data = await res.json();
       if (!res.ok) { toast.error(data.message || 'Xóa thất bại'); return; }

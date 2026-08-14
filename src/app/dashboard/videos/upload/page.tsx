@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
+import { fetchWithAuth } from '@/lib/api-client';
 
 interface DuplicateInfo {
   isDuplicate: boolean;
@@ -48,13 +49,8 @@ export default function UploadVideoPage() {
       formData.append('description', description);
       formData.append('channelId', channelId);
 
-      const token = localStorage.getItem('auth_token');
-
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/videos/upload`, {
+      const response = await fetchWithAuth(`${process.env.NEXT_PUBLIC_API_URL}/videos/upload`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
         body: formData,
       });
 

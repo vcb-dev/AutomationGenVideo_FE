@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import SearchAutocomplete from '@/components/SearchAutocomplete';
 import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
+import { fetchWithAuth } from '@/lib/api-client';
 
 type Platform = 'FACEBOOK' | 'INSTAGRAM' | 'TIKTOK' | 'DOUYIN' | 'XIAOHONGSHU';
 type SearchType = 'keyword' | 'hashtag';
@@ -66,10 +67,7 @@ export default function GlobalSearchPage() {
         const fetchSavedIds = async () => {
             try {
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
-                const token = localStorage.getItem('auth_token');
-                const res = await fetch(`${apiUrl}/video-library/saved-ids`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
+                const res = await fetchWithAuth(`${apiUrl}/video-library/saved-ids`);
                 if (res.ok) {
                     const data = await res.json();
                     setLibraryVideoIds(new Set<string>(data.ids ?? []));
@@ -97,10 +95,9 @@ export default function GlobalSearchPage() {
         setSavingIds((prev) => new Set(prev).add(video.video_id));
         try {
             const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
-            const token = localStorage.getItem('auth_token');
-            const res = await fetch(`${apiUrl}/video-library/save`, {
+            const res = await fetchWithAuth(`${apiUrl}/video-library/save`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     video_id: video.video_id,
                     platform: video.platform,
@@ -155,8 +152,6 @@ export default function GlobalSearchPage() {
         }
 
         try {
-            const token = localStorage.getItem('auth_token');
-
             let endpoint = '';
             let body: any = {};
 
@@ -203,11 +198,10 @@ export default function GlobalSearchPage() {
                 };
             }
 
-            const response = await fetch(endpoint, {
+            const response = await fetchWithAuth(endpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
                 },
                 body: JSON.stringify(body),
             });

@@ -10,6 +10,7 @@ import toast from 'react-hot-toast';
 import {
   TeamMember, FormData, RoleBadge, Avatar, SkeletonRows, HRModal, formatDate,
 } from '../shared';
+import { fetchWithAuth } from '@/lib/api-client';
 
 export default function UnassignedTeamPage() {
   const { user, token } = useAuthStore();
@@ -46,12 +47,12 @@ export default function UnassignedTeamPage() {
       // MANAGER needs the full team/leader picker; LEADER's team field is locked, no need.
       // Fire requests concurrently instead of waiting on unassigned before starting team-members.
       const [unassignedRes, teamRes, teamsRes] = await Promise.all([
-        fetch(`${apiBase}/users/unassigned`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetchWithAuth(`${apiBase}/users/unassigned`),
         callerRole === 'MANAGER'
-          ? fetch(`${apiBase}/users/team-members`, { headers: { Authorization: `Bearer ${token}` } })
+          ? fetchWithAuth(`${apiBase}/users/team-members`)
           : Promise.resolve(null),
         callerRole === 'MANAGER'
-          ? fetch(`${apiBase}/task-auto/teams`, { headers: { Authorization: `Bearer ${token}` } })
+          ? fetchWithAuth(`${apiBase}/task-auto/teams`)
           : Promise.resolve(null),
       ]);
       if (!unassignedRes.ok) throw new Error('Không thể tải danh sách nhân sự');
@@ -84,9 +85,9 @@ export default function UnassignedTeamPage() {
     };
     // LEADER can't change roles — backend rejects the request outright if the field is even present.
     if (callerRole === 'MANAGER') payload.roles = formData.roles;
-    const res = await fetch(`${apiBase}/users/${editing!.id}/hr`, {
+    const res = await fetchWithAuth(`${apiBase}/users/${editing!.id}/hr`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
