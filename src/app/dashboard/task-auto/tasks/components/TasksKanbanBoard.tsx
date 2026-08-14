@@ -84,7 +84,7 @@ const PAGE_SIZE = 12
 //   nên không thêm kéo-thả cho chiều này.
 // Nộp bài (…→ SUBMITTED) cần result_url và từ chối cần lý do nên vẫn bắt buộc qua modal riêng
 // (TaskSubmitModal/RejectModal), không cho kéo-thả 2 trường hợp này.
-const DRAG_TRANSITIONS: Partial<Record<TaskStatus, { to: TaskStatus; action: 'move' | 'approve' }>> = {
+export const DRAG_TRANSITIONS: Partial<Record<TaskStatus, { to: TaskStatus; action: 'move' | 'approve' }>> = {
   ASSIGNED:    { to: 'IN_PROGRESS', action: 'move' },
   IN_PROGRESS: { to: 'ASSIGNED',    action: 'move' },
   SUBMITTED:   { to: 'APPROVED',    action: 'approve' },

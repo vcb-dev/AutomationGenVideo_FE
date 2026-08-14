@@ -786,6 +786,7 @@ const T = {
 
       contentReport: 'Báo cáo content',
       systemSettings: 'Cài đặt hệ thống',
+      characterManagement: 'Quản lý nhân vật',
       settings: 'Cài đặt',
       logout: 'Đăng xuất',
       reportPanelTitle: 'Báo cáo',
@@ -1578,6 +1579,7 @@ const T = {
 
       contentReport: 'Content Report',
       systemSettings: 'System Settings',
+      characterManagement: 'Manage Characters',
       settings: 'Settings',
       logout: 'Log out',
       reportPanelTitle: 'Reports',
