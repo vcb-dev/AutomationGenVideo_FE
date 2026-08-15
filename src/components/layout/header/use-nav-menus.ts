@@ -29,6 +29,10 @@ import {
     Wand2,
     DownloadCloud,
     Sparkles,
+    Boxes,
+    PackageCheck,
+    Truck,
+    Undo2,
 } from "lucide-react";
 import { useSocialLang } from "@/contexts/SocialLanguageContext";
 import { NavMenu } from "./types";
@@ -504,6 +508,75 @@ export function useNavMenus(
                                 href: "/dashboard/tools/lucky-spin",
                                 icon: Sparkles,
                                 description: n.luckySpinDesc,
+                            },
+                        ],
+                    },
+                ],
+            },
+            {
+                // MEMS đứng riêng chứ không nằm trong Tiện ích: nó là nghiệp vụ mượn trả có
+                // quy trình và chứng từ, không phải công cụ dùng một lần rồi thôi.
+                id: "mems",
+                label: n.menuEquipment,
+                activePathPrefixes: ["/dashboard/equipment"],
+                sections: [
+                    {
+                        section: n.secEquipmentStock,
+                        color: "blue" as const,
+                        items: [
+                            {
+                                label: n.equipmentOverview,
+                                href: "/dashboard/equipment/overview",
+                                icon: LayoutDashboard,
+                                description: n.equipmentOverviewDesc,
+                            },
+                            {
+                                label: n.equipmentStock,
+                                href: "/dashboard/equipment",
+                                icon: Boxes,
+                                description: n.equipmentStockDesc,
+                            },
+                        ],
+                    },
+                    {
+                        section: n.secEquipmentBorrow,
+                        color: "indigo" as const,
+                        items: [
+                            {
+                                label: n.equipmentNewRequest,
+                                href: "/dashboard/equipment/new-request",
+                                icon: ClipboardList,
+                                description: n.equipmentNewRequestDesc,
+                            },
+                        ],
+                    },
+                    {
+                        section: n.secEquipmentFlow,
+                        color: "violet" as const,
+                        items: [
+                            {
+                                label: n.equipmentApprovals,
+                                href: "/dashboard/equipment/approvals",
+                                icon: CheckSquare,
+                                description: n.equipmentApprovalsDesc,
+                            },
+                            {
+                                label: n.equipmentPrepare,
+                                href: "/dashboard/equipment/prepare",
+                                icon: PackageCheck,
+                                description: n.equipmentPrepareDesc,
+                            },
+                            {
+                                label: n.equipmentHandover,
+                                href: "/dashboard/equipment/handover",
+                                icon: Truck,
+                                description: n.equipmentHandoverDesc,
+                            },
+                            {
+                                label: n.equipmentReturns,
+                                href: "/dashboard/equipment/returns",
+                                icon: Undo2,
+                                description: n.equipmentReturnsDesc,
                             },
                         ],
                     },
