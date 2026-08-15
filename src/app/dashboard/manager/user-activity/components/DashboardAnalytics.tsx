@@ -16,12 +16,7 @@ import {
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TrendingUp, TrendingDown, Video, Activity } from 'lucide-react';
-
-/** /lark/* yêu cầu đăng nhập (JwtAuthGuard) — phải gắn token cho fetch thủ công. */
-function getAuthHeaders(): Record<string, string> {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-    return token ? { Authorization: `Bearer ${token}` } : {};
-}
+import { fetchWithAuth } from '@/lib/api-client';
 
 interface DashboardAnalyticsProps {
     /** ISO date strings — stable references prevent spurious refetches */
@@ -43,7 +38,7 @@ const DashboardAnalytics = ({ startDate, endDate, activeTeam }: DashboardAnalyti
             if (activeTeam !== 'All') params.append('team', activeTeam);
 
             const url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api'}/lark/dashboard-analytics?${params.toString()}`;
-            const response = await fetch(url, { signal, headers: getAuthHeaders() });
+            const response = await fetchWithAuth(url, { signal });
             if (!response.ok) throw new Error('Failed to fetch dashboard analytics');
             return await response.json();
         },

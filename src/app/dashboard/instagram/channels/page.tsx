@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { enrichTrackedChannelApify, enrichStaleChannelsIfNeeded } from '@/lib/enrich-tracked-channel-apify';
 import ChannelsPlatformSwitcher from '@/components/channels/ChannelsPlatformSwitcher';
+import { fetchWithAuth } from '@/lib/api-client';
 
 interface ChannelProfile {
   username: string;
@@ -49,11 +50,8 @@ export default function InstagramChannelsPage() {
   const [newlyImportedUsernames, setNewlyImportedUsernames] = useState<Set<string>>(new Set());
   const bgRefreshZeroRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadInstagramChannels = async (): Promise<ChannelProfile[]> => {
-    const token = localStorage.getItem('auth_token');
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
-    const response = await fetch(`${apiUrl}/tracked-channels/my-channels?platform=INSTAGRAM`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const response = await fetchWithAuth(`${apiUrl}/tracked-channels/my-channels?platform=INSTAGRAM`);
     if (response.status === 401 || !response.ok) return [];
     const data = await response.json();
     let storedPostsCounts: Record<string, number> = {};
@@ -348,12 +346,10 @@ export default function InstagramChannelsPage() {
       console.log('[DEBUG] Saving Payload:', payload);
 
       // Save to Database
-      const token = localStorage.getItem('auth_token');
-      const saveResponse = await fetch(`${apiUrl}/tracked-channels`, {
+      const saveResponse = await fetchWithAuth(`${apiUrl}/tracked-channels`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(payload)
       });

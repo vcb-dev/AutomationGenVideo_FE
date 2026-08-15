@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useState, useCallback } from 'react';
 import { Search, Loader2, Facebook, FileText, ThumbsUp, MessageCircle, Hash, AlertTriangle, Eye, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { fetchWithAuth } from '@/lib/api-client';
 
 interface FacebookPost {
     id: number;
@@ -87,16 +88,14 @@ export default function FacebookSearchPostPage() {
         }
 
         try {
-            const token = localStorage.getItem('auth_token');
             const keyword = searchType === 'hashtag'
                 ? searchTerm.replace(/^#/, '').replace(/\s+/g, '').toLowerCase()
                 : searchTerm.trim();
 
-            const response = await fetch('/api/search', {
+            const response = await fetchWithAuth('/api/search', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
                 },
                 body: JSON.stringify({
                     platform: 'facebook',

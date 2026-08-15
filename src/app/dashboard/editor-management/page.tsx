@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
+import { fetchWithAuth } from '@/lib/api-client';
 import {
   Users,
   Video,
@@ -102,13 +103,8 @@ export default function EditorManagementPage() {
         params.append('platform', selectedPlatform);
       }
 
-      const response = await fetch(
+      const response = await fetchWithAuth(
         `${process.env.NEXT_PUBLIC_API_URL}/users/my-editors?${params}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
       );
 
       if (!response.ok) {

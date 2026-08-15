@@ -5,6 +5,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { Upload, Film, AlertTriangle, CheckCircle, X, FileVideo, Loader2, RefreshCw, Search, ArrowRight } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
+import { fetchWithAuth } from '@/lib/api-client';
 
 // --- Interfaces ---
 interface Channel {
@@ -68,11 +69,9 @@ export default function VideoFilterPage() {
     setLoadingChannels(true);
     setError(null);
     try {
-      const token = localStorage.getItem('auth_token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
-      const response = await fetch(`${apiUrl}/tracked-channels/my-channels?platform=${platform}`, {
+      const response = await fetchWithAuth(`${apiUrl}/tracked-channels/my-channels?platform=${platform}`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
@@ -95,13 +94,11 @@ export default function VideoFilterPage() {
     setUpdatingChannel(true);
     
     try {
-        const token = localStorage.getItem('auth_token');
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
-        
-        const response = await fetch(`${apiUrl}/tracked-channels/${channelId}/check`, {
+
+        const response = await fetchWithAuth(`${apiUrl}/tracked-channels/${channelId}/check`, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
             }
         });
@@ -152,12 +149,10 @@ export default function VideoFilterPage() {
       formData.append('file', selectedFile);
       formData.append('channelId', selectedChannel);
 
-      const token = localStorage.getItem('auth_token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
-      
-      const response = await fetch(`${apiUrl}/videos/upload`, {
+
+      const response = await fetchWithAuth(`${apiUrl}/videos/upload`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
         body: formData,
         signal: abortControllerRef.current.signal // Attach signal
       });

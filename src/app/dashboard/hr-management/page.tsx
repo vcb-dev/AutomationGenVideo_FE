@@ -15,6 +15,7 @@ import {
   TeamMember, FormData, RoleBadge, Avatar, SkeletonRows, HRModal, formatDate,
 } from './shared';
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog';
+import { fetchWithAuth } from '@/lib/api-client';
 
 const STATUS_TABS = [
   { key: '', label: 'Tất cả' },
@@ -90,9 +91,7 @@ export default function HRManagementPage() {
     if (!token) return;
     setLoading(true); setError(null);
     try {
-      const res = await fetch(`${apiBase}/users/team-members`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetchWithAuth(`${apiBase}/users/team-members`);
       if (!res.ok) throw new Error('Không thể tải danh sách nhân sự');
       const data = await res.json();
       setMembers(Array.isArray(data) ? data : []);
@@ -103,7 +102,7 @@ export default function HRManagementPage() {
   const fetchUnassignedCount = useCallback(async () => {
     if (!token) return;
     try {
-      const res = await fetch(`${apiBase}/users/unassigned`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetchWithAuth(`${apiBase}/users/unassigned`);
       const data = res.ok ? await res.json() : [];
       setUnassignedCount(Array.isArray(data) ? data.length : 0);
     } catch { setUnassignedCount(0); }
@@ -112,7 +111,7 @@ export default function HRManagementPage() {
   const fetchLeaders = useCallback(async () => {
     if (!token) return;
     try {
-      const res = await fetch(`${apiBase}/users/available-leaders`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetchWithAuth(`${apiBase}/users/available-leaders`);
       const data = res.ok ? await res.json() : [];
       setLeaders(Array.isArray(data) ? data : []);
     } catch { setLeaders([]); }
@@ -123,7 +122,7 @@ export default function HRManagementPage() {
   const fetchTeams = useCallback(async () => {
     if (!token) return;
     try {
-      const res = await fetch(`${apiBase}/task-auto/teams`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetchWithAuth(`${apiBase}/task-auto/teams`);
       const data = res.ok ? await res.json() : [];
       setTeamNames(Array.isArray(data) ? data.map((t: any) => String(t.name)) : []);
     } catch { setTeamNames([]); }
@@ -191,9 +190,9 @@ export default function HRManagementPage() {
     if (!editing || callerRole === 'MANAGER') payload.roles = formData.roles;
     if (!editing && formData.password) payload.password = formData.password;
 
-    const res = await fetch(editing ? `${apiBase}/users/${editing.id}/hr` : `${apiBase}/users/hr`, {
+    const res = await fetchWithAuth(editing ? `${apiBase}/users/${editing.id}/hr` : `${apiBase}/users/hr`, {
       method: editing ? 'PATCH' : 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
@@ -210,8 +209,8 @@ export default function HRManagementPage() {
     setActionLoading(member.id);
     try {
       const endpoint = member.is_active ? 'deactivate' : 'reactivate';
-      const res = await fetch(`${apiBase}/users/${member.id}/${endpoint}`, {
-        method: 'PATCH', headers: { Authorization: `Bearer ${token}` },
+      const res = await fetchWithAuth(`${apiBase}/users/${member.id}/${endpoint}`, {
+        method: 'PATCH',
       });
       if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.message ?? 'Thao tác thất bại'); return; }
       // is_active doesn't affect team/unassigned status — update locally instead of
@@ -225,8 +224,8 @@ export default function HRManagementPage() {
     if (!deleting) return;
     setDeleteLoading(true);
     try {
-      const res = await fetch(`${apiBase}/users/${deleting.id}/soft`, {
-        method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+      const res = await fetchWithAuth(`${apiBase}/users/${deleting.id}/soft`, {
+        method: 'DELETE',
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));

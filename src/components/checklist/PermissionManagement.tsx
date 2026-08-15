@@ -24,6 +24,7 @@ import {
 import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
 import Button from '@/components/ui/button';
+import { fetchWithAuth } from '@/lib/api-client';
 
 interface RolePermission {
     role: UserRole;
@@ -62,9 +63,7 @@ export default function PermissionManagement() {
         if (!token) return;
         try {
             setLoading(true);
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/role-permissions`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await fetchWithAuth(`${process.env.NEXT_PUBLIC_API_URL}/role-permissions`);
             if (!response.ok) throw new Error('Failed to fetch permissions');
             const data = await response.json();
             setPermissions(data);
@@ -111,11 +110,10 @@ export default function PermissionManagement() {
                 menu_ids: rolePermission.menu_ids
             };
 
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/role-permissions`, {
+            const response = await fetchWithAuth(`${process.env.NEXT_PUBLIC_API_URL}/role-permissions`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
                 },
                 body: JSON.stringify(payload)
             });

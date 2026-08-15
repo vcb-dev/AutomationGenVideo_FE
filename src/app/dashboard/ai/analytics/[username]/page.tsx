@@ -45,6 +45,7 @@ import {
 
 import { motion } from 'framer-motion';
 import dynamic from 'next/dynamic';
+import { fetchWithAuth } from '@/lib/api-client';
 
 // Dynamic imports for improved performance
 const PerformanceChart = dynamic(() => import('./PerformanceChart'), {
@@ -139,8 +140,6 @@ export default function ChannelAnalyticsPage() {
     setLoading(true);
     setError(null);
     try {
-      const token = localStorage.getItem('auth_token');
-
       if (!username) {
         throw new Error('Username is required');
       }
@@ -174,10 +173,9 @@ export default function ChannelAnalyticsPage() {
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
       console.log(`[${platform.toUpperCase()}] API URL: ${baseUrl}/ai/user-videos`);
 
-      const response = await fetch(`${baseUrl}/ai/user-videos`, {
+      const response = await fetchWithAuth(`${baseUrl}/ai/user-videos`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(requestBody)
@@ -264,13 +262,10 @@ export default function ChannelAnalyticsPage() {
   const runAnalyze = useCallback(async () => {
     if (!username || !platform) return;
     try {
-      const token = localStorage.getItem('auth_token');
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
       const aiServiceUrl = process.env.NEXT_PUBLIC_AI_SERVICE_URL || 'http://localhost:8001';
 
-      const res = await fetch(`${baseUrl}/tracked-channels?platform=${platform.toUpperCase()}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const res = await fetchWithAuth(`${baseUrl}/tracked-channels?platform=${platform.toUpperCase()}`);
       if (!res.ok) return;
 
       const channels = await res.json();

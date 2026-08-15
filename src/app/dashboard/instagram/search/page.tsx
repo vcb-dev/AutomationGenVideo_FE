@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Search, Hash, Loader2, Heart, MessageCircle, Eye, ExternalLink, TrendingUp, AlertTriangle, Image as ImageIcon, Film, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import GenerateContentButton from '@/components/content/GenerateContentButton';
+import { fetchWithAuth } from '@/lib/api-client';
 
 interface SearchResult {
     id: number;
@@ -100,16 +101,14 @@ export default function InstagramSearchPage() {
         setError('');
 
         try {
-            const token = localStorage.getItem('auth_token');
             const keyword = searchMode === 'hashtag'
                 ? normalizeHashtag(hashtag)
                 : hashtag.replace(/^#/, '').trim();
 
-            const response = await fetch(`${apiUrl}/search`, {
+            const response = await fetchWithAuth(`${apiUrl}/search`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
                 },
                 body: JSON.stringify({
                     platform: 'instagram',

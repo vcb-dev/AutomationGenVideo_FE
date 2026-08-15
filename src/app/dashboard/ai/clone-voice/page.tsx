@@ -28,6 +28,7 @@ import {
 } from '@/lib/voice/voice-selection';
 import { deleteClonedVoice } from '@/lib/voice/delete-voice';
 import { buildConfirmContent, type VoiceAction } from '@/lib/voice/voice-action-confirm';
+import { fetchWithAuth } from '@/lib/api-client';
 
 /* ────────────────────────── Constants ──────────────────────── */
 const LANGUAGES = [
@@ -511,9 +512,7 @@ export default function CloneVoicePage() {
     // Fetch voices on mount
     const fetchVoices = async () => {
         try {
-            const res = await fetch(`${getApiUrl()}/ai/voice/list`, {
-                headers: getAuthHeaders(),
-            });
+            const res = await fetchWithAuth(`${getApiUrl()}/ai/voice/list`);
             if (!res.ok) throw new Error('Không thể lấy danh sách giọng nói');
             const data = await res.json();
             if (data.success && data.voices) {
@@ -636,9 +635,8 @@ export default function CloneVoicePage() {
             formData.append('voice_name', cloneVoiceName.trim());
             formData.append('gender', cloneGender);
 
-            const startRes = await fetch(`${getApiUrl()}/ai/voice/clone/start`, {
+            const startRes = await fetchWithAuth(`${getApiUrl()}/ai/voice/clone/start`, {
                 method: 'POST',
-                headers: getAuthHeaders(),
                 body: formData,
             });
 
@@ -663,9 +661,7 @@ export default function CloneVoicePage() {
             while (true) {
                 await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
 
-                const statusRes = await fetch(`${getApiUrl()}/ai/voice/clone/status/${jobId}`, {
-                    headers: getAuthHeaders(),
-                });
+                const statusRes = await fetchWithAuth(`${getApiUrl()}/ai/voice/clone/status/${jobId}`);
                 if (!statusRes.ok) {
                     throw new Error('Không thể kiểm tra trạng thái clone');
                 }
@@ -707,11 +703,10 @@ export default function CloneVoicePage() {
         const translatingToast = toast.loading(`Đang dịch sang ${translateLang}...`);
 
         try {
-            const res = await fetch(`${getApiUrl()}/ai/voice/translate-text`, {
+            const res = await fetchWithAuth(`${getApiUrl()}/ai/voice/translate-text`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    ...getAuthHeaders(),
                 },
                 body: JSON.stringify({ text, language: translateLang }),
             });
@@ -752,11 +747,10 @@ export default function CloneVoicePage() {
         const generatingToast = toast.loading('Đang chuyển văn bản thành giọng nói...');
 
         try {
-            const res = await fetch(`${getApiUrl()}/ai/voice/tts`, {
+            const res = await fetchWithAuth(`${getApiUrl()}/ai/voice/tts`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    ...getAuthHeaders(),
                 },
                 body: JSON.stringify({
                     text,
