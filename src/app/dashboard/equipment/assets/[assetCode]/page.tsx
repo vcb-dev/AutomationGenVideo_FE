@@ -4,6 +4,9 @@ import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { AssetDetail, fetchAssetDetail } from '@/lib/equipment/request-api';
+import { AssetPhoto } from '@/lib/equipment/api';
+import { useAuthStore } from '@/store/auth-store';
+import { AssetPhotoGallery } from '@/components/equipment/AssetPhotoGallery';
 import { StatusPill } from '@/components/equipment/StatusPill';
 import { ConditionDot } from '@/components/equipment/ConditionDot';
 
@@ -33,12 +36,19 @@ export default function AssetDetailPage({
   const { assetCode } = use(params);
   const code = decodeURIComponent(assetCode).toUpperCase();
   const [data, setData] = useState<AssetDetail | null>(null);
+  const [photos, setPhotos] = useState<AssetPhoto[]>([]);
+  const roles = useAuthStore((s) => s.user?.roles ?? []);
+  // Chỉ người của kho mới sửa được ảnh; member xem thôi.
+  const canEdit = roles.some((r) => ['LEADER', 'MANAGER', 'ADMIN'].includes(r));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
     fetchAssetDetail(code)
-      .then(setData)
+      .then((d) => {
+        setData(d);
+        setPhotos((d.asset as { photos?: AssetPhoto[] }).photos ?? []);
+      })
       .catch((e: unknown) =>
         setError(
           (e as { response?: { status?: number } })?.response?.status === 404
@@ -142,6 +152,15 @@ export default function AssetDetailPage({
             </p>
           </div>
         </div>
+      </section>
+
+      <section className={cn(cardClass, 'mt-4 p-5')}>
+        <AssetPhotoGallery
+          assetCode={asset.asset_code}
+          photos={photos}
+          canEdit={canEdit}
+          onChanged={setPhotos}
+        />
       </section>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
