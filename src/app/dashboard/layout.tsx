@@ -60,9 +60,11 @@ export default function DashboardLayout({
       } catch { /* ignore */ }
 
       try {
-        const response = await fetchWithAuth(
-          `${process.env.NEXT_PUBLIC_API_URL}/role-permissions/my-tabs`,
-        );
+        // Phải có giá trị mặc định giống api-client.ts. Thiếu nó thì khi .env trống, chuỗi
+        // thành "undefined/role-permissions/my-tabs" và trình duyệt ghép vào đường dẫn hiện
+        // tại — mọi trang dashboard đều ăn một lỗi 404 vô hình.
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+        const response = await fetchWithAuth(`${apiBase}/role-permissions/my-tabs`);
         if (response.ok) {
           const data = await response.json();
           setAllowedMenuIds(data);
