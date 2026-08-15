@@ -11,9 +11,10 @@ import { EmptyState } from '@/components/task-auto/EmptyState'
 import { HeaderFilterDropdown } from '@/components/task-auto/HeaderFilterDropdown'
 import { ContentFormModal, parseMarkets } from '@/components/task-auto/ContentFormModal'
 import {
-  getContents, deleteContent,
+  getContents, getContent, deleteContent,
   getContentLines, createContentLine, deleteContentLine,
   getContentClassifications, createContentClassification, deleteContentClassification,
+  getTeams, isContentTeamMember,
 } from '@/lib/api/task-auto'
 import { useAuthStore } from '@/store/auth-store'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
@@ -130,6 +131,10 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
   const qc = useQueryClient()
   const { user } = useAuthStore()
   const canDelete = user?.roles?.some((r: string) => ['ADMIN', 'MANAGER'].includes(r)) ?? false
+  const { data: teams } = useQuery({ queryKey: ['task-auto', 'teams'], queryFn: getTeams })
+  // Nới quyền tạo/sửa cho content-team member — backend POST/PUT /contents vốn không role-gate,
+  // chỉ FE tự giới hạn qua canDelete trước đây (nhầm dùng chung với quyền Xóa, vốn chặt hơn ở BE).
+  const canCreateOrEdit = canDelete || isContentTeamMember(teams, user?.id)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<ContentUsageStatus | ''>('')
   const [contentLineFilter, setContentLineFilter] = useState('')
@@ -185,7 +190,17 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
   })
 
   const openCreate = () => { setEditing(null); setShowModal(true) }
-  const openEdit = (c: Content) => { setEditing(c); setShowModal(true) }
+  // Danh sách chỉ trả về field rút gọn (không có body/script) để nhẹ payload — mở sửa phải lấy
+  // lại bản đầy đủ, không thì form hiện trống dù content đã có nội dung.
+  const openEdit = (c: Content) => {
+    setEditing(c)
+    setShowModal(true)
+    getContent(c.id).then(setEditing).catch(() => toast.error('Không thể tải nội dung content'))
+  }
+  const openDetail = (c: Content) => {
+    setDetailItem(c)
+    getContent(c.id).then(setDetailItem).catch(() => toast.error('Không thể tải nội dung content'))
+  }
 
   return (
     <div className="flex flex-col lg:flex-row gap-5">
@@ -230,7 +245,7 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
               onChange={e => { onMonthChange(e.target.value); setPage(1) }}
               className="px-3 py-3.5 border border-gray-200 rounded-xl text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             />
-            {canDelete && (
+            {canCreateOrEdit && (
               <button
                 onClick={openCreate}
                 className="ml-auto bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-3.5 text-base font-semibold flex items-center gap-2 transition-colors shrink-0"
@@ -298,7 +313,7 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
                   const rContentLine = c.content_line ?? tc?.content_line ?? tc_ec?.content_line ?? null
                   const rClassification = c.classification ?? tc?.classification ?? tc_ec?.classification ?? null
                   const rMarket = c.market || tc?.market || tc_ec?.market || null
-                  return (<tr key={c.id} className="hover:bg-indigo-50/20 transition-colors group cursor-pointer" onClick={() => setDetailItem(c)}>
+                  return (<tr key={c.id} className="hover:bg-indigo-50/20 transition-colors group cursor-pointer" onClick={() => openDetail(c)}>
 
                     {/* Mã content */}
                     <td className="px-4 py-4 whitespace-nowrap">
@@ -365,33 +380,33 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
                     {/* Hành động */}
                     <td className="px-4 py-4 text-right" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
+                        {canCreateOrEdit && (
+                          <button
+                            onClick={() => openEdit(c)}
+                            className="p-2.5 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors"
+                            title="Chỉnh sửa"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                        )}
                         {canDelete && (
-                          <>
+                          c.status === 'IN_TASK' ? (
                             <button
-                              onClick={() => openEdit(c)}
-                              className="p-2.5 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors"
-                              title="Chỉnh sửa"
+                              disabled
+                              title="Content đang được dùng trong task chưa duyệt"
+                              className="p-2.5 rounded-xl text-slate-200 cursor-not-allowed"
                             >
-                              <Edit2 className="w-4 h-4" />
+                              <Trash2 className="w-4 h-4" />
                             </button>
-                            {c.status === 'IN_TASK' ? (
-                              <button
-                                disabled
-                                title="Content đang được dùng trong task chưa duyệt"
-                                className="p-2.5 rounded-xl text-slate-200 cursor-not-allowed"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => setDeletingId(c.id)}
-                                className="p-2.5 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
-                                title="Xóa"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            )}
-                          </>
+                          ) : (
+                            <button
+                              onClick={() => setDeletingId(c.id)}
+                              className="p-2.5 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
+                              title="Xóa"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )
                         )}
                       </div>
                     </td>
@@ -428,7 +443,7 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
           open
           item={detailItem as any}
           catalogType="global"
-          canEdit={canDelete}
+          canEdit={canCreateOrEdit}
           canDelete={canDelete && detailItem.status !== 'IN_TASK'}
           onClose={() => setDetailItem(null)}
           onEdit={() => { openEdit(detailItem); setDetailItem(null) }}

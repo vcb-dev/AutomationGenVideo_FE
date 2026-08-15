@@ -1,27 +1,48 @@
 "use client";
 
 import Image from "next/image";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
     ArrowRight,
-    CheckCircle,
-    Shield,
     BarChart3,
-    Globe,
-    Database,
-    Video,
-    Search,
-    TrendingUp,
-    Layers,
+    Bot,
+    Calendar,
+    ChevronDown,
+    ClipboardList,
+    LayoutGrid,
+    Lightbulb,
     Moon,
+    Search,
+    Settings,
+    Sparkles,
     Sun,
+    Video,
 } from "lucide-react";
-import { SiGooglecloud, SiAmazonwebservices } from "react-icons/si";
+import { SiGooglecloud, SiAmazonwebservices, SiOpenai, SiClaude } from "react-icons/si";
 import { useAuthStore } from "@/store/auth-store";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLang } from "@/contexts/SocialLanguageContext";
 import { motion } from "framer-motion";
+
+// Tổng quan công việc hiển thị trong khung mockup — số liệu minh hoạ tĩnh,
+// không lấy từ API (trang landing hiển thị trước khi đăng nhập).
+const TASK_STATS = [
+    { label: "Tổng công việc", value: "128", delta: "+18.2%", positive: true },
+    { label: "Hoàn thành", value: "89", delta: "+24.6%", positive: true },
+    { label: "Hiệu suất team", value: "92.4%", delta: "+8.7%", positive: true },
+    { label: "Đang quá hạn", value: "7", delta: "+12.5%", positive: false },
+];
+
+const PROGRESS_SEGMENTS = [
+    { label: "Hoàn thành", count: 89, pct: 69.5, color: "#22c55e" },
+    { label: "Đang làm", count: 28, pct: 21.9, color: "#3b82f6" },
+    { label: "Chờ phản hồi", count: 6, pct: 4.7, color: "#f59e0b" },
+    { label: "Quá hạn", count: 5, pct: 3.9, color: "#ef4444" },
+];
+
+const PERF_TREND = [78, 83, 74, 79, 81, 85, 92.4];
+const PERF_DAYS = ["11/08", "12/08", "13/08", "14/08", "15/08", "16/08", "17/08"];
 
 export default function LandingPage() {
     const { isAuthenticated } = useAuthStore();
@@ -32,6 +53,15 @@ export default function LandingPage() {
     const [scrolled, setScrolled] = useState(false);
 
     const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
+
+    const todayLabel = useMemo(() => {
+        const now = new Date();
+        const dd = String(now.getDate()).padStart(2, "0");
+        const mm = String(now.getMonth() + 1).padStart(2, "0");
+        return `${dd}/${mm}/${now.getFullYear()}`;
+    }, []);
+
+    const enterHref = isAuthenticated ? "/dashboard" : "/login";
 
     // Re-validate auth state on landing page mount.
     // This ensures that after backend restart (dev),
@@ -52,13 +82,31 @@ export default function LandingPage() {
         return () => window.removeEventListener("scroll", handleScroll);
     }, []);
 
+    const toolCards = [
+        { icon: ClipboardList, title: tl.toolWorkTitle, desc: tl.toolWorkDesc, color: "green" as const },
+        { icon: BarChart3, title: tl.toolPerfTitle, desc: tl.toolPerfDesc, color: "cyan" as const },
+        { icon: Search, title: tl.toolContentTitle, desc: tl.toolContentDesc, color: "purple" as const },
+        { icon: Lightbulb, title: tl.toolProductTitle, desc: tl.toolProductDesc, color: "yellow" as const },
+        { icon: Video, title: tl.toolUtilTitle, desc: tl.toolUtilDesc, color: "red" as const },
+        { icon: Bot, title: tl.toolAiTitle, desc: tl.toolAiDesc, color: "indigo" as const },
+    ];
+
+    const colorClasses: Record<string, string> = {
+        green: "bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400",
+        cyan: "bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-400",
+        purple: "bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400",
+        yellow: "bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400",
+        red: "bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400",
+        indigo: "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400",
+    };
+
     return (
         <div className="min-h-screen bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-blue-100 dark:selection:bg-blue-900/30 transition-colors duration-300">
             {/* HEADER */}
             <header
                 className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-white/90 dark:bg-slate-950/90 backdrop-blur-md shadow-sm dark:shadow-slate-900/10 py-4" : "bg-transparent py-6"}`}
             >
-                <div className="container mx-auto px-6 max-w-7xl flex items-center justify-between">
+                <div className="container mx-auto px-6 lg:px-10 max-w-[1680px] flex items-center justify-between">
                     {/* Logo */}
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm">
@@ -69,16 +117,20 @@ export default function LandingPage() {
                         </span>
                     </div>
 
-                    {/* Nav Links (Simplified) */}
+                    {/* Nav Links */}
                     <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600 dark:text-slate-400">
-                        <Link href="#" className="hover:text-blue-600 transition-colors">
+                        <Link href="/" className="text-blue-600 dark:text-blue-400 font-semibold border-b-2 border-blue-600 dark:border-blue-400 pb-1">
                             {tl.navHome}
                         </Link>
-                        <Link href="#" className="hover:text-blue-600 transition-colors">
+                        <Link href="#tinh-nang" className="hover:text-blue-600 transition-colors">
                             {tl.navFeatures}
                         </Link>
                         <Link href="#" className="hover:text-blue-600 transition-colors">
-                            {tl.navPricing}
+                            {tl.navGuide}
+                        </Link>
+                        <Link href="#" className="hover:text-blue-600 transition-colors flex items-center gap-1">
+                            {tl.navResources}
+                            <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />
                         </Link>
                     </nav>
 
@@ -88,12 +140,14 @@ export default function LandingPage() {
                         <div className="flex rounded-full overflow-hidden text-xs font-bold border border-slate-200 dark:border-slate-700">
                             <button
                                 onClick={() => setLang("vi")}
+                                aria-pressed={lang === "vi"}
                                 className={`px-2.5 py-1.5 transition-colors ${lang === "vi" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"}`}
                             >
                                 VI
                             </button>
                             <button
                                 onClick={() => setLang("en")}
+                                aria-pressed={lang === "en"}
                                 className={`px-2.5 py-1.5 transition-colors border-l border-slate-200 dark:border-slate-700 ${lang === "en" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"}`}
                             >
                                 EN
@@ -125,9 +179,9 @@ export default function LandingPage() {
                                 transition={{ type: "spring", stiffness: 500, damping: 30 }}
                             >
                                 {isDarkMode ? (
-                                    <Moon size={12} className="text-slate-900 fill-slate-900/20" />
+                                    <Moon size={12} className="text-slate-900 fill-slate-900/20" aria-hidden="true" />
                                 ) : (
-                                    <Sun size={12} className="text-orange-500 fill-orange-500/20" />
+                                    <Sun size={12} className="text-orange-500 fill-orange-500/20" aria-hidden="true" />
                                 )}
                             </motion.div>
                         </button>
@@ -141,12 +195,12 @@ export default function LandingPage() {
                             >
                                 {navigatingTo === "/dashboard" ? (
                                     <>
-                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" aria-hidden="true" />
                                         {tl.loading}
                                     </>
                                 ) : (
                                     <>
-                                        {tl.goToDashboard} <ArrowRight className="w-4 h-4" />
+                                        {tl.goToDashboard} <ArrowRight className="w-4 h-4" aria-hidden="true" />
                                     </>
                                 )}
                             </Link>
@@ -159,7 +213,7 @@ export default function LandingPage() {
                                     className={`px-6 py-2.5 bg-slate-900 text-white text-sm font-semibold rounded-full hover:bg-slate-800 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex items-center gap-2 ${navigatingTo ? "opacity-80 pointer-events-none" : ""}`}
                                 >
                                     {navigatingTo === "/login" && (
-                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" aria-hidden="true" />
                                     )}
                                     {tl.login}
                                 </Link>
@@ -170,24 +224,24 @@ export default function LandingPage() {
             </header>
 
             {/* HERO SECTION */}
-            <section className="pt-32 pb-20 overflow-hidden relative">
+            <section className="pt-24 pb-10 overflow-hidden relative">
                 {/* Background Decoration */}
                 <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-bl from-blue-50 to-transparent dark:from-blue-900/10 dark:to-transparent -z-10 rounded-bl-[100px]" />
                 <div className="absolute top-40 left-20 w-72 h-72 bg-purple-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob will-change-transform" />
                 <div className="absolute top-40 right-20 w-72 h-72 bg-blue-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000 will-change-transform" />
 
-                <div className="container mx-auto px-6 max-w-7xl">
-                    <div className="flex flex-col lg:flex-row items-center gap-16">
+                <div className="container mx-auto px-6 lg:px-10 max-w-[1680px]">
+                    <div className="flex flex-col lg:flex-row items-center gap-10">
                         {/* Text Content */}
-                        <div className="flex-1 max-w-2xl relative z-10">
+                        <div className="flex-1 max-w-xl relative z-10">
                             <motion.div
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.5 }}
-                                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm mb-8"
+                                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm mb-5"
                             >
-                                <Layers className="w-4 h-4 text-blue-600" />
-                                <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                                <LayoutGrid className="w-4 h-4 text-blue-600" aria-hidden="true" />
+                                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wide">
                                     {tl.badge}
                                 </span>
                             </motion.div>
@@ -196,11 +250,16 @@ export default function LandingPage() {
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.5, delay: 0.1 }}
-                                className="text-5xl lg:text-6xl font-extrabold text-slate-900 dark:text-white leading-[1.15] mb-6 tracking-tight"
+                                className="text-3xl lg:text-4xl font-extrabold text-slate-900 dark:text-white leading-[1.2] mb-4 tracking-tight whitespace-nowrap"
                             >
-                                {tl.heroTitle1} <br />
+                                {tl.heroTitleLine1} <br />
+                                {tl.heroTitlePre}
                                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">
-                                    {tl.heroTitle2}
+                                    {tl.heroTitleHighlight1}
+                                </span>
+                                {tl.heroTitleMid}
+                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">
+                                    {tl.heroTitleHighlight2}
                                 </span>
                             </motion.h1>
 
@@ -208,267 +267,280 @@ export default function LandingPage() {
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.5, delay: 0.2 }}
-                                className="text-lg text-slate-600 dark:text-slate-400 mb-8 leading-relaxed max-w-lg"
+                                className="text-base text-slate-600 dark:text-slate-400 mb-6 leading-relaxed max-w-lg"
                             >
                                 {tl.heroDesc}
                             </motion.p>
 
-                            {/* Removed Buttons as requested */}
-
                             <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.5, delay: 0.3 }}
-                                className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-500 mt-8"
+                                className="flex flex-wrap items-center gap-4"
                             >
-                                <div className="flex items-center gap-1">
-                                    <CheckCircle className="w-4 h-4 text-blue-500" /> {tl.checkRealtime}
-                                </div>
-                                <span className="w-1 h-1 bg-slate-300 rounded-full" />
-                                <div className="flex items-center gap-1">
-                                    <CheckCircle className="w-4 h-4 text-blue-500" /> {tl.checkUnlimited}
-                                </div>
+                                <Link
+                                    href={enterHref}
+                                    prefetch={enterHref === "/login"}
+                                    onClick={() => setNavigatingTo(enterHref)}
+                                    className={`px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-semibold rounded-xl hover:shadow-xl hover:shadow-blue-600/20 hover:-translate-y-0.5 transition-all flex items-center gap-2 ${navigatingTo ? "opacity-80 pointer-events-none" : ""}`}
+                                >
+                                    {navigatingTo === enterHref ? (
+                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" aria-hidden="true" />
+                                    ) : (
+                                        <LayoutGrid className="w-4 h-4" aria-hidden="true" />
+                                    )}
+                                    {tl.ctaEnter}
+                                </Link>
+                                <a
+                                    href="#mockup-preview"
+                                    className="px-5 py-2.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-sm font-semibold rounded-xl border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:-translate-y-0.5 transition-all flex items-center gap-2"
+                                >
+                                    <BarChart3 className="w-4 h-4" aria-hidden="true" />
+                                    {tl.ctaOverview}
+                                </a>
                             </motion.div>
                         </div>
 
-                        {/* Visual Mockup (Right Side) - Animated */}
+                        {/* Visual Mockup (Right Side) — purely illustrative preview, not a real/functional dashboard */}
                         <motion.div
+                            id="mockup-preview"
+                            aria-hidden="true"
                             initial={{ opacity: 0, x: 50 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ duration: 0.8, ease: "easeOut" }}
-                            className="flex-1 w-full relative"
+                            className="flex-1 w-full relative scroll-mt-32"
                         >
                             {/* Main Dashboard Card */}
-                            <div className="relative z-10 bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2 transform perspective-1000 rotate-y-[-5deg] hover:rotate-y-0 transition-transform duration-700">
-                                <div className="bg-slate-50 dark:bg-slate-950/50 rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800 aspect-[16/10] relative">
+                            <div className="relative z-10 bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2">
+                                <div className="bg-slate-50 dark:bg-slate-950/50 rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800">
                                     {/* Mock UI Header */}
-                                    <div className="h-10 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center px-4 gap-2">
+                                    <div className="h-10 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center px-4 gap-2 shrink-0">
                                         <div className="flex gap-1.5">
                                             <div className="w-2.5 h-2.5 rounded-full bg-red-400" />
                                             <div className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
                                             <div className="w-2.5 h-2.5 rounded-full bg-green-400" />
                                         </div>
-                                        <div className="flex-1 bg-slate-100 dark:bg-slate-800 h-5 rounded-md mx-4" />
                                     </div>
 
-                                    {/* Mock UI Body (Animated) */}
-                                    <div className="p-6 grid grid-cols-3 gap-4">
-                                        <div className="col-span-2 space-y-4">
-                                            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden relative">
-                                                {/* Scanning Line Effect */}
-                                                <motion.div
-                                                    animate={{ top: ["0%", "100%", "0%"] }}
-                                                    transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-                                                    className="absolute left-0 right-0 h-0.5 bg-green-400/50 shadow-[0_0_10px_rgba(74,222,128,0.5)] z-20"
-                                                />
-
-                                                <div className="flex items-center gap-3 mb-3">
-                                                    <div className="w-10 h-10 bg-black dark:bg-slate-800 rounded-lg flex items-center justify-center text-white">
-                                                        <BarChart3 size={20} />
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                        <div className="h-2 w-24 bg-slate-200 dark:bg-slate-700 rounded" />
-                                                        <div className="h-1.5 w-16 bg-slate-100 dark:bg-slate-800 rounded" />
-                                                    </div>
-                                                </div>
-                                                <div className="h-24 bg-blue-50/30 dark:bg-blue-900/10 rounded-lg w-full flex items-end justify-between px-2 pb-2 gap-1.5">
-                                                    {[40, 60, 30, 80, 50, 90, 65].map((h, i) => (
-                                                        <motion.div
-                                                            key={i}
-                                                            initial={{ height: 0 }}
-                                                            animate={{
-                                                                height: [`${h}%`, `${Math.min(h + 20, 100)}%`, `${h}%`],
-                                                            }}
-                                                            transition={{
-                                                                duration: 2,
-                                                                repeat: Infinity,
-                                                                delay: i * 0.1,
-                                                            }}
-                                                            className="w-full bg-blue-500 rounded-t-sm opacity-80"
-                                                        />
-                                                    ))}
-                                                </div>
+                                    <div className="flex">
+                                        {/* Sidebar */}
+                                        <div className="hidden sm:flex flex-col items-center gap-2 py-4 px-2.5 border-r border-slate-100 dark:border-slate-800">
+                                            <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center">
+                                                <LayoutGrid size={15} />
                                             </div>
-
-                                            {/* Video Cards Row */}
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <motion.div
-                                                    animate={{ y: [0, -5, 0] }}
-                                                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                                                    className="bg-white dark:bg-slate-900 p-3 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 h-24 flex gap-2 items-center"
+                                            {[ClipboardList, BarChart3, Search, Lightbulb, Video, Bot, Settings].map((Icon, i) => (
+                                                <div
+                                                    key={i}
+                                                    className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-600"
                                                 >
-                                                    <div className="w-12 h-16 bg-slate-200 dark:bg-slate-700 rounded-lg shrink-0" />
-                                                    <div className="space-y-2 w-full">
-                                                        <div className="h-2 w-3/4 bg-slate-200 dark:bg-slate-700 rounded" />
-                                                        <div className="h-2 w-1/2 bg-slate-100 dark:bg-slate-800 rounded" />
-                                                    </div>
-                                                </motion.div>
-
-                                                <motion.div
-                                                    animate={{ y: [0, 5, 0] }}
-                                                    transition={{
-                                                        duration: 3,
-                                                        repeat: Infinity,
-                                                        ease: "easeInOut",
-                                                        delay: 1,
-                                                    }}
-                                                    className="bg-white dark:bg-slate-900 p-3 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 h-24 flex gap-2 items-center"
-                                                >
-                                                    <div className="w-12 h-16 bg-slate-200 dark:bg-slate-700 rounded-lg shrink-0" />
-                                                    <div className="space-y-2 w-full">
-                                                        <div className="h-2 w-3/4 bg-slate-200 dark:bg-slate-700 rounded" />
-                                                        <div className="h-2 w-1/2 bg-slate-100 dark:bg-slate-800 rounded" />
-                                                    </div>
-                                                </motion.div>
-                                            </div>
+                                                    <Icon size={15} />
+                                                </div>
+                                            ))}
                                         </div>
 
-                                        <div className="col-span-1 space-y-4">
-                                            <motion.div
-                                                className="bg-indigo-600 p-4 rounded-xl shadow-lg h-32 flex flex-col justify-between text-white relative overflow-hidden"
-                                                animate={{
-                                                    boxShadow: [
-                                                        "0 10px 15px -3px rgba(79, 70, 229, 0.4)",
-                                                        "0 20px 25px -5px rgba(79, 70, 229, 0.5)",
-                                                        "0 10px 15px -3px rgba(79, 70, 229, 0.4)",
-                                                    ],
-                                                }}
-                                                transition={{ duration: 3, repeat: Infinity }}
-                                            >
-                                                <Globe size={20} className="opacity-80" />
-                                                <div className="space-y-1 relative z-10">
-                                                    <div className="text-xs opacity-70">Engagement</div>
-                                                    <div className="text-2xl font-bold">+128%</div>
-                                                </div>
-                                                {/* Background effect */}
-                                                <div className="absolute -right-4 -bottom-4 w-20 h-20 bg-white/10 rounded-full" />
-                                            </motion.div>
-                                            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 h-full flex flex-col justify-center items-center gap-2">
-                                                <div className="w-10 h-10 bg-red-50 dark:bg-red-900/20 text-red-500 rounded-full flex items-center justify-center">
-                                                    <Video size={20} />
-                                                </div>
-                                                <div className="text-center">
-                                                    <div className="text-xs text-slate-400">Content</div>
-                                                    <div className="font-bold text-slate-900 dark:text-white">
-                                                        Viral
+                                        <div className="flex-1 p-4 sm:p-5 min-w-0">
+                                            {/* Toolbar */}
+                                            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                                                <h3 className="font-bold text-slate-900 dark:text-white text-sm sm:text-base">
+                                                    Tổng quan hôm nay
+                                                </h3>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="hidden sm:flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[11px] font-medium px-2.5 py-1.5 rounded-lg">
+                                                        <Calendar size={12} />
+                                                        Hôm nay: {todayLabel}
+                                                    </div>
+                                                    <div className="hidden md:flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 text-[11px] font-medium px-2.5 py-1.5 rounded-lg">
+                                                        <Sparkles size={12} />
+                                                        AI Assistant
+                                                    </div>
+                                                    <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400">
+                                                        <Settings size={13} />
                                                     </div>
                                                 </div>
+                                            </div>
+
+                                            {/* Stat cards */}
+                                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                                                {TASK_STATS.map((s) => (
+                                                    <div
+                                                        key={s.label}
+                                                        className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-3"
+                                                    >
+                                                        <p className="text-[10px] text-slate-400 dark:text-slate-500 mb-1 truncate">{s.label}</p>
+                                                        <div className="flex items-baseline gap-1.5 flex-wrap">
+                                                            <span className="text-lg font-bold text-slate-900 dark:text-white">{s.value}</span>
+                                                            <span className={`text-[10px] font-semibold ${s.positive ? "text-green-500" : "text-red-500"}`}>
+                                                                {s.delta}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            {/* Progress donut + Perf trend */}
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                                                <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-4">
+                                                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-3">Tiến độ công việc</p>
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="relative w-20 h-20 shrink-0">
+                                                            <svg viewBox="0 0 36 36" className="w-20 h-20 -rotate-90">
+                                                                {(() => {
+                                                                    let cumulative = 0;
+                                                                    return PROGRESS_SEGMENTS.map((seg) => {
+                                                                        const offset = -cumulative;
+                                                                        cumulative += seg.pct;
+                                                                        return (
+                                                                            <circle
+                                                                                key={seg.label}
+                                                                                cx="18"
+                                                                                cy="18"
+                                                                                r="15.5"
+                                                                                fill="none"
+                                                                                stroke={seg.color}
+                                                                                strokeWidth="4"
+                                                                                strokeDasharray={`${seg.pct} ${100 - seg.pct}`}
+                                                                                strokeDashoffset={offset}
+                                                                                pathLength={100}
+                                                                            />
+                                                                        );
+                                                                    });
+                                                                })()}
+                                                            </svg>
+                                                            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                                                <span className="text-sm font-bold text-slate-900 dark:text-white">128</span>
+                                                                <span className="text-[9px] text-slate-400">Tổng</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="space-y-1.5 min-w-0 flex-1">
+                                                            {PROGRESS_SEGMENTS.map((seg) => (
+                                                                <div key={seg.label} className="flex items-baseline gap-1.5 text-[10px] leading-tight">
+                                                                    <span className="w-1.5 h-1.5 rounded-full shrink-0 self-center" style={{ backgroundColor: seg.color }} />
+                                                                    <span className="text-slate-500 dark:text-slate-400 flex-1">{seg.label}</span>
+                                                                    <span className="text-slate-700 dark:text-slate-300 font-medium shrink-0 whitespace-nowrap">
+                                                                        {seg.count} ({seg.pct}%)
+                                                                    </span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-4">
+                                                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-3">Hiệu suất 7 ngày qua</p>
+                                                    <svg viewBox="0 0 280 90" className="w-full h-20" preserveAspectRatio="none">
+                                                        <polyline
+                                                            fill="none"
+                                                            stroke="#4f46e5"
+                                                            strokeWidth="2"
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                            points={PERF_TREND.map((v, i) => `${(i / (PERF_TREND.length - 1)) * 270 + 5},${85 - (v / 100) * 80}`).join(" ")}
+                                                        />
+                                                        {PERF_TREND.map((v, i) => (
+                                                            <circle
+                                                                key={i}
+                                                                cx={(i / (PERF_TREND.length - 1)) * 270 + 5}
+                                                                cy={85 - (v / 100) * 80}
+                                                                r={i === PERF_TREND.length - 1 ? 3 : 1.5}
+                                                                fill="#4f46e5"
+                                                            />
+                                                        ))}
+                                                    </svg>
+                                                    <div className="flex justify-between text-[9px] text-slate-400 mt-1">
+                                                        {PERF_DAYS.map((d) => (
+                                                            <span key={d}>{d}</span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Tool icons row */}
+                                            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                                                {toolCards.map((tool) => (
+                                                    <div
+                                                        key={tool.title}
+                                                        className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-2.5 flex flex-col items-center text-center gap-1.5"
+                                                    >
+                                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${colorClasses[tool.color]}`}>
+                                                            <tool.icon size={15} />
+                                                        </div>
+                                                        <span className="text-[9px] font-semibold text-slate-700 dark:text-slate-200 leading-tight w-full">
+                                                            {tool.title}
+                                                        </span>
+                                                    </div>
+                                                ))}
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-
-                            {/* Floating Elements (Animated) */}
-                            <motion.div
-                                animate={{ y: [-10, 10, -10] }}
-                                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                                className="absolute -top-6 -right-8 bg-white dark:bg-slate-900 p-4 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 z-20 max-w-[200px]"
-                            >
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-600 dark:text-green-400">
-                                        <Shield size={20} />
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-semibold text-slate-500">Video Status</p>
-                                        <p className="text-sm font-bold text-slate-900 dark:text-white">Clean & Safe</p>
-                                    </div>
-                                </div>
-                            </motion.div>
-
-                            <motion.div
-                                animate={{ y: [10, -10, 10] }}
-                                transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-                                className="absolute -bottom-8 -left-8 bg-white dark:bg-slate-900 p-4 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 z-20"
-                            >
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                                        <Search size={20} />
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-semibold text-slate-500">Channels Tracked</p>
-                                        <p className="text-sm font-bold text-slate-900 dark:text-white">2,450+</p>
-                                    </div>
-                                </div>
-                            </motion.div>
                         </motion.div>
                     </div>
                 </div>
             </section>
 
             {/* PARTNERS SECTION */}
-            <section className="py-12 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
-                <div className="container mx-auto px-6 max-w-7xl">
-                    <p className="text-center text-xs font-bold text-slate-400 uppercase tracking-widest mb-10">
+            <section className="py-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+                <div className="container mx-auto px-6 lg:px-10 max-w-[1680px]">
+                    <p className="text-center text-xs font-bold text-slate-400 uppercase tracking-widest mb-5">
                         {tl.partnersTitle}
                     </p>
-                    <div className="flex flex-wrap items-center justify-center gap-12 lg:gap-24 opacity-60 grayscale hover:grayscale-0 transition-all duration-500">
+                    <div className="flex flex-wrap items-center justify-center gap-12 lg:gap-24 opacity-70 hover:opacity-100 transition-opacity duration-500">
                         {/* Google Cloud Logo */}
-                        <div className="flex items-center gap-2 group cursor-pointer hover:opacity-100">
-                            <SiGooglecloud className="w-8 h-8 text-slate-500 group-hover:text-[#4285F4] transition-colors" />
-                            <span className="font-bold text-xl text-slate-500 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">
+                        <div className="flex items-center gap-2 group cursor-pointer">
+                            <SiGooglecloud className="w-7 h-7 text-slate-500 group-hover:text-[#4285F4] transition-colors" aria-hidden="true" />
+                            <span className="font-bold text-lg text-slate-500 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">
                                 Google Cloud
                             </span>
                         </div>
 
                         {/* AWS Logo */}
-                        <div className="flex items-center gap-2 group cursor-pointer hover:opacity-100">
-                            <SiAmazonwebservices className="w-8 h-8 text-slate-500 group-hover:text-[#FF9900] transition-colors" />
-                            <span className="font-bold text-xl text-slate-500 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">
-                                AWS
+                        <div className="flex items-center gap-2 group cursor-pointer">
+                            <SiAmazonwebservices className="w-7 h-7 text-slate-500 group-hover:text-[#FF9900] transition-colors" aria-hidden="true" />
+                            <span className="font-bold text-lg text-slate-500 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">
+                                aws
                             </span>
                         </div>
 
-                        {/* Apify Logo */}
-                        <div className="flex items-center gap-2 group cursor-pointer hover:opacity-100">
-                            <Database className="w-8 h-8 text-slate-500 group-hover:text-[#97D700] transition-colors" />
-                            <span className="font-bold text-xl text-slate-500 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">
-                                Apify
+                        {/* OpenAI Logo */}
+                        <div className="flex items-center gap-2 group cursor-pointer">
+                            <SiOpenai className="w-7 h-7 text-slate-500 group-hover:text-slate-900 dark:group-hover:text-white transition-colors" aria-hidden="true" />
+                            <span className="font-bold text-lg text-slate-500 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">
+                                OpenAI
+                            </span>
+                        </div>
+
+                        {/* Claude Logo */}
+                        <div className="flex items-center gap-2 group cursor-pointer">
+                            <SiClaude className="w-7 h-7 text-slate-500 group-hover:text-[#DA7756] transition-colors" aria-hidden="true" />
+                            <span className="font-bold text-lg text-slate-500 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">
+                                Claude
                             </span>
                         </div>
                     </div>
                 </div>
             </section>
 
-            {/* Additional Features Section */}
-            <section className="py-20">
-                <div className="container mx-auto px-6 max-w-7xl">
-                    <div className="text-center max-w-3xl mx-auto mb-16">
-                        <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-4">
+            {/* TOOLS SECTION */}
+            <section id="tinh-nang" className="py-8 pb-10 scroll-mt-24">
+                <div className="container mx-auto px-6 lg:px-10 max-w-[1680px]">
+                    <div className="text-center max-w-3xl mx-auto mb-6">
+                        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
                             {tl.coreTechTitle}
                         </h2>
-                        <p className="text-slate-600 dark:text-slate-400">
-                            {tl.coreTechDesc}
-                        </p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                        {[
-                            {
-                                icon: Search,
-                                title: tl.feature1Title,
-                                desc: tl.feature1Desc,
-                            },
-                            {
-                                icon: TrendingUp,
-                                title: tl.feature2Title,
-                                desc: tl.feature2Desc,
-                            },
-                            {
-                                icon: Layers,
-                                title: tl.feature3Title,
-                                desc: tl.feature3Desc,
-                            },
-                        ].map((item, i) => (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                        {toolCards.map((tool) => (
                             <div
-                                key={i}
-                                className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all"
+                                key={tool.title}
+                                className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all"
                             >
-                                <div className="w-14 h-14 bg-blue-50 dark:bg-blue-900/20 rounded-2xl flex items-center justify-center text-blue-600 dark:text-blue-400 mb-6">
-                                    <item.icon size={28} />
+                                <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-3 ${colorClasses[tool.color]}`}>
+                                    <tool.icon size={20} aria-hidden="true" />
                                 </div>
-                                <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-3">{item.title}</h3>
-                                <p className="text-slate-600 dark:text-slate-400 leading-relaxed">{item.desc}</p>
+                                <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1">{tool.title}</h3>
+                                <p className="text-sm text-slate-600 dark:text-slate-400 leading-snug">{tool.desc}</p>
                             </div>
                         ))}
                     </div>

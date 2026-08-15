@@ -57,8 +57,8 @@ interface Props {
   statusFilter: TaskStatus | ''
   teamFilter: string
   searchFilter: string
-  deadlineFromFilter: string
-  deadlineToFilter: string
+  dateFromFilter: string
+  dateToFilter: string
   taskTypeFilter: TaskTypeFilter
   assigneeFilter: string
   assigneeOptions: AssigneeOption[]
@@ -67,12 +67,21 @@ interface Props {
   isMember?: boolean
   hideTeamFilter?: boolean
   hideStatusFilter?: boolean
-  hideDeadlineFilter?: boolean
+  hideDateFilter?: boolean
+  /** Nhãn hiển thị trước dấu ":" của bộ lọc ngày — đổi theo tab vì ý nghĩa cột lọc khác nhau
+   * (vd "Ngày" = hạn chót/ngày tạo, "Ngày duyệt" = reviewed_at ở tab "Video đã nộp"). */
+  dateFilterLabel?: string
+  dateFilterTooltip?: string
+  /** Trạng thái "mặc định/chưa lọc" của bộ lọc ngày cho tab đang xem — quyết định khi nào badge
+   * "đang lọc" bật lên và nút "Xoá lọc" trả về đâu. 'today': mặc định là hôm nay (Danh sách task/
+   * Video chờ duyệt). 'all': mặc định là không giới hạn ngày (Video đã nộp — duyệt xong rồi thì
+   * lọc theo "hôm nay" không còn ý nghĩa mặc định như task đang xử lý). */
+  dateFilterDefaultPreset?: 'today' | 'all'
   onStatusChange: (v: TaskStatus | '') => void
   onTeamChange: (v: string) => void
   onSearchChange: (v: string) => void
-  onDeadlineFromChange: (v: string) => void
-  onDeadlineToChange: (v: string) => void
+  onDateFromChange: (v: string) => void
+  onDateToChange: (v: string) => void
   onTaskTypeChange: (v: TaskTypeFilter) => void
   onAssigneeChange: (v: string) => void
   onCreateClick: () => void
@@ -82,8 +91,8 @@ export function TaskFilters({
   statusFilter,
   teamFilter,
   searchFilter,
-  deadlineFromFilter,
-  deadlineToFilter,
+  dateFromFilter,
+  dateToFilter,
   taskTypeFilter,
   assigneeFilter,
   assigneeOptions,
@@ -92,18 +101,22 @@ export function TaskFilters({
   isMember = false,
   hideTeamFilter = false,
   hideStatusFilter = false,
-  hideDeadlineFilter = false,
+  hideDateFilter = false,
+  dateFilterLabel = 'Ngày',
+  dateFilterTooltip = 'Lọc theo hạn chót của task — task chưa đặt hạn thì tính theo ngày tạo',
+  dateFilterDefaultPreset = 'today',
   onStatusChange,
   onTeamChange,
   onSearchChange,
-  onDeadlineFromChange,
-  onDeadlineToChange,
+  onDateFromChange,
+  onDateToChange,
   onTaskTypeChange,
   onAssigneeChange,
   onCreateClick,
 }: Props) {
-  const isToday = deadlineFromFilter === todayString() && deadlineToFilter === todayString()
-  const isSingleDay = !!deadlineFromFilter && deadlineFromFilter === deadlineToFilter
+  const isToday = dateFromFilter === todayString() && dateToFilter === todayString()
+  const isSingleDay = !!dateFromFilter && dateFromFilter === dateToFilter
+  const isAtDefault = dateFilterDefaultPreset === 'today' ? isToday : (!dateFromFilter && !dateToFilter)
   const [datePickerOpen, setDatePickerOpen] = useState(false)
   const datePickerRef = useRef<HTMLDivElement>(null)
 
@@ -118,31 +131,37 @@ export function TaskFilters({
 
   function applyPreset(preset: DatePreset) {
     const [from, to] = preset.range()
-    onDeadlineFromChange(from)
-    onDeadlineToChange(to)
+    onDateFromChange(from)
+    onDateToChange(to)
     setDatePickerOpen(false)
   }
 
   function clearDateFilter() {
-    onDeadlineFromChange('')
-    onDeadlineToChange('')
+    onDateFromChange('')
+    onDateToChange('')
   }
 
-  // Hiển thị dd/MM thay vì yyyy-mm-dd thô, kèm chữ "Ngày:" để người dùng hiểu ngay đây là
+  function resetDateToDefault() {
+    if (dateFilterDefaultPreset === 'today') applyPreset(DATE_PRESETS[0])
+    else clearDateFilter()
+  }
+
+  // Hiển thị dd/MM thay vì yyyy-mm-dd thô, kèm nhãn (vd "Ngày:") để người dùng hiểu ngay đây là
   // bộ lọc thời gian — mặc định trang lọc "Hôm nay" nên nếu không nói rõ, người dùng dễ
-  // tưởng mất task trong khi chỉ là bị bộ lọc ngày che. Không ghi "Hạn:" vì BE lọc theo
-  // hạn chót NHƯNG task chưa đặt hạn thì tính theo ngày tạo thay thế (tasks.service.ts findAll).
+  // tưởng mất task trong khi chỉ là bị bộ lọc ngày che. Nhãn phải trung tính (không ghi "Hạn:")
+  // vì với bộ lọc hạn chót, BE lọc theo hạn chót NHƯNG task chưa đặt hạn thì tính theo ngày tạo
+  // thay thế (tasks.service.ts findAll).
   const formatShortDate = (s: string) => {
     const [, m, d] = s.split('-')
     return m && d ? `${d}/${m}` : s
   }
-  const dateFilterLabel = !deadlineFromFilter && !deadlineToFilter
-    ? 'Ngày: Tất cả'
+  const dateFilterText = !dateFromFilter && !dateToFilter
+    ? `${dateFilterLabel}: Tất cả`
     : isToday
-      ? 'Ngày: Hôm nay'
+      ? `${dateFilterLabel}: Hôm nay`
       : isSingleDay
-        ? `Ngày: ${formatShortDate(deadlineFromFilter)}`
-        : `Ngày: ${deadlineFromFilter ? formatShortDate(deadlineFromFilter) : '…'} → ${deadlineToFilter ? formatShortDate(deadlineToFilter) : '…'}`
+        ? `${dateFilterLabel}: ${formatShortDate(dateFromFilter)}`
+        : `${dateFilterLabel}: ${dateFromFilter ? formatShortDate(dateFromFilter) : '…'} → ${dateToFilter ? formatShortDate(dateToFilter) : '…'}`
 
   // Gõ tìm kiếm phản hồi tức thì trên input, nhưng chỉ bắn query lên cha sau khi
   // ngừng gõ ~300ms — tránh gọi lại getTasks mỗi phím gõ (giật/nháy danh sách).
@@ -159,7 +178,7 @@ export function TaskFilters({
   const hasTeam      = !isMember && !hideTeamFilter && !!teamFilter
   const hasAssignee  = !isMember && assigneeOptions.length > 0 && !!assigneeFilter
   const hasSearch    = !!searchFilter
-  const hasCustomDate = !hideDeadlineFilter && !isToday
+  const hasCustomDate = !hideDateFilter && !isAtDefault
   const activeFilterCount = [hasStatus, hasTeam, hasAssignee, hasSearch, hasCustomDate].filter(Boolean).length
 
   function resetAllFilters() {
@@ -167,7 +186,7 @@ export function TaskFilters({
     if (hasTeam) onTeamChange('')
     if (hasAssignee) onAssigneeChange('')
     if (hasSearch) { setLocalSearch(''); onSearchChange('') }
-    if (hasCustomDate) applyPreset(DATE_PRESETS[0])
+    if (hasCustomDate) resetDateToDefault()
   }
 
   return (
@@ -234,27 +253,27 @@ export function TaskFilters({
         />
       )}
 
-      {/* Deadline date range picker */}
-      {!hideDeadlineFilter && (
+      {/* Date range picker — bộ lọc ngày dùng chung, ý nghĩa cột đổi theo tab (xem dateFilterLabel/dateFilterTooltip) */}
+      {!hideDateFilter && (
       <div className="relative" ref={datePickerRef}>
         <button
           type="button"
           onClick={() => setDatePickerOpen(o => !o)}
-          title="Lọc theo hạn chót của task — task chưa đặt hạn thì tính theo ngày tạo"
+          title={dateFilterTooltip}
           className={cn(
             'flex items-center gap-2 pl-3.5 pr-2.5 py-3 bg-gray-50 border rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-colors',
             isToday
               ? 'border-amber-300 ring-1 ring-amber-100 text-amber-700'
-              : deadlineFromFilter || deadlineToFilter
+              : dateFromFilter || dateToFilter
                 ? 'border-indigo-400 ring-1 ring-indigo-100 text-indigo-700'
                 : 'border-gray-200 text-slate-500'
           )}
         >
           <CalendarDays className={cn(
             'w-4 h-4 flex-shrink-0',
-            isToday ? 'text-amber-500' : (deadlineFromFilter || deadlineToFilter) ? 'text-indigo-500' : 'text-slate-400'
+            isToday ? 'text-amber-500' : (dateFromFilter || dateToFilter) ? 'text-indigo-500' : 'text-slate-400'
           )} />
-          <span className="whitespace-nowrap">{dateFilterLabel}</span>
+          <span className="whitespace-nowrap">{dateFilterText}</span>
           <ChevronDown className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
         </button>
 
@@ -287,9 +306,9 @@ export function TaskFilters({
                 <label className="block text-[11px] font-semibold text-slate-400 mb-1">Từ ngày</label>
                 <input
                   type="date"
-                  value={deadlineFromFilter}
-                  max={deadlineToFilter || undefined}
-                  onChange={e => onDeadlineFromChange(e.target.value)}
+                  value={dateFromFilter}
+                  max={dateToFilter || undefined}
+                  onChange={e => onDateFromChange(e.target.value)}
                   className="w-full px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 />
               </div>
@@ -297,9 +316,9 @@ export function TaskFilters({
                 <label className="block text-[11px] font-semibold text-slate-400 mb-1">Đến ngày</label>
                 <input
                   type="date"
-                  value={deadlineToFilter}
-                  min={deadlineFromFilter || undefined}
-                  onChange={e => onDeadlineToChange(e.target.value)}
+                  value={dateToFilter}
+                  min={dateFromFilter || undefined}
+                  onChange={e => onDateToChange(e.target.value)}
                   className="w-full px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 />
               </div>

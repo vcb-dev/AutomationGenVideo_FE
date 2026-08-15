@@ -668,6 +668,8 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                         productPriceSegment={mergedProduct?.price_segment ?? null}
                         productLine={mergedProduct?.product_line?.name ?? null}
                         productMarket={mergedProduct?.market ?? null}
+                        editorMarket={task.team?.market ?? null}
+                        sourceTranslations={fullContent?.translations}
                         onDirtyChange={setContentDirty}
                       />
 
