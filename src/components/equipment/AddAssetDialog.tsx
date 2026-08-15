@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
+import { CONDITION_OPTIONS } from '@/lib/equipment/status-label';
 import {
   EquipmentCategory,
   EquipmentModel,
@@ -44,6 +45,8 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
   const [locationId, setLocationId] = useState('');
   const [purchaseDate, setPurchaseDate] = useState('');
   const [purchasePrice, setPurchasePrice] = useState('');
+  const [condition, setCondition] = useState('GOOD');
+  const [intakeNote, setIntakeNote] = useState('');
 
   // Khối khai model mới, chỉ hiện khi chọn "Khai model mới".
   const [newCategoryId, setNewCategoryId] = useState('');
@@ -121,6 +124,8 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
         locationId: locationId || undefined,
         purchaseDate: purchaseDate || undefined,
         purchasePrice: purchasePrice ? Number(purchasePrice) : undefined,
+        condition,
+        intakeNote: intakeNote.trim() || undefined,
       });
 
       // Máy đã vào kho rồi. Ảnh lỗi từ đây trở đi KHÔNG được huỷ máy — báo rõ tấm nào hỏng để
@@ -329,6 +334,38 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
             </label>
           </div>
 
+          <label className="block">
+            <span className={labelClass}>
+              Tình trạng lúc nhập <em className="not-italic text-red-600">*</em>
+            </span>
+            <span className={hintClass}>
+              Ghi đúng thực tế lúc mở hộp. Hàng đổi trả hay máy mua lại thường đã có vết — khai
+              là Tốt thì mọi lần đối chiếu về sau đều lệch, và người mượn đầu tiên lãnh oan.
+            </span>
+            <select
+              className={cn(inputClass, 'mt-2')}
+              value={condition}
+              onChange={(e) => setCondition(e.target.value)}
+            >
+              {CONDITION_OPTIONS.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className={labelClass}>Ghi chú lúc nhập</span>
+            <span className={hintClass}>Vào thẳng nhật ký vòng đời của máy, không sửa được sau.</span>
+            <input
+              className={cn(inputClass, 'mt-2')}
+              value={intakeNote}
+              onChange={(e) => setIntakeNote(e.target.value)}
+              placeholder="Ví dụ: hàng đổi trả, xước nhẹ mặt lưng"
+            />
+          </label>
+
           <div>
             <span className={labelClass}>Ảnh thiết bị</span>
             <span className={hintClass}>
@@ -381,8 +418,9 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
           </div>
 
           <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
-            Máy mới vào trạng thái <b>Chờ kiểm tra</b>, chưa cho mượn được cho tới khi kho xác
-            nhận đã kiểm tra xong.
+            Máy mới luôn vào trạng thái <b>Chờ kiểm tra</b> dù khai tình trạng nào — trạng thái
+            nói vị trí trong quy trình, tình trạng nói chất lượng máy. Chưa cho mượn được cho tới
+            khi kho kết luận kiểm tra.
           </p>
 
           {error && (

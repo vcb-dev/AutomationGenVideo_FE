@@ -120,6 +120,9 @@ export async function createAsset(payload: {
   locationId?: string;
   purchaseDate?: string;
   purchasePrice?: number;
+  /** Tình trạng vật lý lúc nhập kho; bỏ trống thì BE hiểu là GOOD. */
+  condition?: string;
+  intakeNote?: string;
 }) {
   const { data } = await apiClient.post<Asset>('/mems/assets', payload);
   return data;
