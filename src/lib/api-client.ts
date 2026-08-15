@@ -157,7 +157,11 @@ export async function fetchWithAuth(input: string, init: RequestInit = {}): Prom
   const currentToken = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
   const response = await fetch(input, withToken(currentToken));
 
-  if (response.status !== 401) return response;
+  // Dùng chung luật với interceptor axios thay vì chỉ so `status !== 401`: 401 ở /auth/login là
+  // SAI MẬT KHẨU, không phải phiên hết hạn — đi làm mới ở đó vừa vô nghĩa (chưa có phiên nào để
+  // mới) vừa nuốt mất thông báo sai mật khẩu đáng ra phải hiện cho người dùng. /auth/refresh cũng
+  // nằm trong danh sách đó để một lần refresh hỏng không tự gọi lại chính nó.
+  if (!shouldAttemptRefresh(response.status, input, false)) return response;
 
   const newToken = await sessionRefresher.refresh().catch(() => null);
   if (!newToken) return response;
