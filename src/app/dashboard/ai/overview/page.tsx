@@ -15,6 +15,7 @@ import {
 import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
 import toast from 'react-hot-toast';
+import { fetchWithAuth } from '@/lib/api-client';
 
 // Helper to get API URL
 const getApiUrl = () => {
@@ -81,7 +82,7 @@ export default function OverviewPage() {
         const fetchUsage = async () => {
             try {
                 const token = getAuthToken();
-                const res = await fetch(
+                const res = await fetchWithAuth(
                     `${getApiUrl()}/ai/voice/usage/stats?date_from=${firstOfMonthStr()}&date_to=${todayStr()}`,
                     { headers: token ? { Authorization: `Bearer ${token}` } : {} },
                 );
@@ -105,7 +106,7 @@ export default function OverviewPage() {
         const fetchVoicesCount = async () => {
             try {
                 const token = getAuthToken();
-                const res = await fetch(`${getApiUrl()}/ai/voice/list`, {
+                const res = await fetchWithAuth(`${getApiUrl()}/ai/voice/list`, {
                     headers: token ? { Authorization: `Bearer ${token}` } : {},
                 });
                 if (!res.ok) throw new Error('Không thể lấy danh sách giọng nói');
@@ -127,7 +128,7 @@ export default function OverviewPage() {
         const fetchTeams = async () => {
             try {
                 const token = getAuthToken();
-                const res = await fetch(`${getApiUrl()}/task-auto/teams`, {
+                const res = await fetchWithAuth(`${getApiUrl()}/task-auto/teams`, {
                     headers: token ? { Authorization: `Bearer ${token}` } : {},
                 });
                 if (!res.ok) throw new Error('Không thể lấy danh sách team');
