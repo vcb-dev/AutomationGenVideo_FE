@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Asset, fetchAssets } from '@/lib/equipment/api';
+import { Asset, fetchAssets, photoSrc } from '@/lib/equipment/api';
 import { listCategories } from '@/lib/equipment/group-models';
 import { CONDITION_OPTIONS, STATUS_OPTIONS } from '@/lib/equipment/status-label';
 import { StatusPill } from '@/components/equipment/StatusPill';
@@ -162,11 +162,27 @@ function EquipmentTable() {
                       </Link>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="font-medium text-slate-900 dark:text-white">
-                        {a.model.name}
-                      </div>
-                      <div className="mt-0.5 font-mono text-xs text-slate-400">
-                        {a.serial_number}
+                      <div className="flex items-center gap-3">
+                        {a.photos?.[0] ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={photoSrc(a.photos[0].url)}
+                            alt={a.model.name}
+                            className="h-10 w-10 shrink-0 rounded-md border border-slate-200 object-cover dark:border-white/[0.08]"
+                          />
+                        ) : (
+                          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-dashed border-slate-300 text-[10px] text-slate-400 dark:border-white/[0.12]">
+                            —
+                          </span>
+                        )}
+                        <span className="min-w-0">
+                          <span className="block truncate font-medium text-slate-900 dark:text-white">
+                            {a.model.name}
+                          </span>
+                          <span className="mt-0.5 block font-mono text-xs text-slate-400">
+                            {a.serial_number}
+                          </span>
+                        </span>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
