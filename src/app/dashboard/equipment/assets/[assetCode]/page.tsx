@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { AssetDetail, fetchAssetDetail } from '@/lib/equipment/request-api';
@@ -28,13 +28,11 @@ const EVENT_DOT: Record<string, string> = {
 
 const fmt = (iso: string) => new Date(iso).toLocaleString('vi-VN');
 
-export default function AssetDetailPage({
-  params,
-}: {
-  params: Promise<{ assetCode: string }>;
-}) {
-  const { assetCode } = use(params);
-  const code = decodeURIComponent(assetCode).toUpperCase();
+// Next 14: params là object thường, KHÔNG phải Promise. Dùng use(params) ở đây làm cả trang
+// chết lúc hydrate với "An unsupported type was passed to use()" — vỏ HTML vẫn trả 200 nên
+// kiểm chứng bằng mã trạng thái không thấy gì.
+export default function AssetDetailPage({ params }: { params: { assetCode: string } }) {
+  const code = decodeURIComponent(params.assetCode).toUpperCase();
   const [data, setData] = useState<AssetDetail | null>(null);
   const [photos, setPhotos] = useState<AssetPhoto[]>([]);
   const roles = useAuthStore((s) => s.user?.roles ?? []);
