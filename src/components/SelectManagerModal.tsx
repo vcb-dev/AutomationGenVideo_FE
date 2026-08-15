@@ -5,6 +5,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
 import { Users, X, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { fetchWithAuth } from '@/lib/api-client';
 
 interface Manager {
   id: string;
@@ -49,13 +50,8 @@ export default function SelectManagerModal() {
 
     try {
       setLoading(true);
-      const response = await fetch(
+      const response = await fetchWithAuth(
         `${process.env.NEXT_PUBLIC_API_URL}/users/available-managers`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
       );
 
       if (response.ok) {
@@ -80,14 +76,9 @@ export default function SelectManagerModal() {
 
     try {
       setSubmitting(true);
-      const response = await fetch(
+      const response = await fetchWithAuth(
         `${process.env.NEXT_PUBLIC_API_URL}/users/select-manager/${selectedManager}`,
-        {
-          method: 'PATCH',
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+        { method: 'PATCH' }
       );
 
       if (response.ok) {

@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { enrichTrackedChannelApify, enrichStaleChannelsIfNeeded } from '@/lib/enrich-tracked-channel-apify';
 import ChannelsPlatformSwitcher from '@/components/channels/ChannelsPlatformSwitcher';
+import { fetchWithAuth } from '@/lib/api-client';
 
 interface ChannelProfile {
   username: string;
@@ -44,12 +45,9 @@ export default function FacebookChannelsPage() {
   const [newlyImportedUsernames, setNewlyImportedUsernames] = useState<Set<string>>(new Set());
   const bgRefreshRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadFacebookChannels = async (): Promise<ChannelProfile[]> => {
-    const token = localStorage.getItem('auth_token');
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
     const apiUrl = baseUrl.replace(/\/$/, '');
-    const response = await fetch(`${apiUrl}/tracked-channels/my-channels?platform=FACEBOOK`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const response = await fetchWithAuth(`${apiUrl}/tracked-channels/my-channels?platform=FACEBOOK`);
     if (response.status === 401 || !response.ok) return [];
     const data = await response.json();
     return data.channels || [];
@@ -313,12 +311,10 @@ export default function FacebookChannelsPage() {
       }
 
       // Save to Database
-      const token = localStorage.getItem('auth_token');
-      const saveResponse = await fetch(`${apiUrl}/tracked-channels`, {
+      const saveResponse = await fetchWithAuth(`${apiUrl}/tracked-channels`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(payload)
       });

@@ -8,6 +8,8 @@ import { useAuthStore } from '@/store/auth-store';
 
 import { Hash, TrendingUp, Video as VideoIcon, Loader2, RefreshCw, AlertCircle, Info } from 'lucide-react';
 
+import { fetchWithAuth } from '@/lib/api-client';
+
 
 
 interface HashtagStats {
@@ -100,21 +102,11 @@ export default function ChannelHashtagStats({ channelId, channelUsername }: Chan
 
       const method = forceRefresh ? 'POST' : 'GET';
 
-      const response = await fetch(
+      const response = await fetchWithAuth(
 
         `${process.env.NEXT_PUBLIC_API_URL}/tracked-channels/manager/channel-hashtag-stats/${channelId}`,
 
-        {
-
-          method,
-
-          headers: {
-
-            'Authorization': `Bearer ${token}`,
-
-          },
-
-        }
+        { method }
 
       );
 

@@ -15,13 +15,12 @@ import {
 import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
 import toast from 'react-hot-toast';
+import { fetchWithAuth } from '@/lib/api-client';
 
 // Helper to get API URL
 const getApiUrl = () => {
     return (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
 };
-
-const getAuthToken = () => (typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null);
 
 interface TeamMemberApi {
     id: string;
@@ -80,10 +79,8 @@ export default function OverviewPage() {
     useEffect(() => {
         const fetchUsage = async () => {
             try {
-                const token = getAuthToken();
-                const res = await fetch(
+                const res = await fetchWithAuth(
                     `${getApiUrl()}/ai/voice/usage/stats?date_from=${firstOfMonthStr()}&date_to=${todayStr()}`,
-                    { headers: token ? { Authorization: `Bearer ${token}` } : {} },
                 );
                 if (!res.ok) throw new Error('Không thể lấy thống kê tiêu dùng');
                 const data = await res.json();
@@ -104,10 +101,7 @@ export default function OverviewPage() {
     useEffect(() => {
         const fetchVoicesCount = async () => {
             try {
-                const token = getAuthToken();
-                const res = await fetch(`${getApiUrl()}/ai/voice/list`, {
-                    headers: token ? { Authorization: `Bearer ${token}` } : {},
-                });
+                const res = await fetchWithAuth(`${getApiUrl()}/ai/voice/list`);
                 if (!res.ok) throw new Error('Không thể lấy danh sách giọng nói');
                 const data = await res.json();
                 if (data.success && data.voices) {
@@ -126,10 +120,7 @@ export default function OverviewPage() {
     useEffect(() => {
         const fetchTeams = async () => {
             try {
-                const token = getAuthToken();
-                const res = await fetch(`${getApiUrl()}/task-auto/teams`, {
-                    headers: token ? { Authorization: `Bearer ${token}` } : {},
-                });
+                const res = await fetchWithAuth(`${getApiUrl()}/task-auto/teams`);
                 if (!res.ok) throw new Error('Không thể lấy danh sách team');
                 const data = await res.json();
                 setTeams(Array.isArray(data) ? data : []);

@@ -5,6 +5,7 @@ import { Suspense } from 'react';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { fetchWithAuth } from '@/lib/api-client';
 import {
   TrendingUp,
   Users,
@@ -87,8 +88,6 @@ function InstagramAnalyticsInner() {
     setLoading(true);
     setError(null);
     try {
-      const token = localStorage.getItem('auth_token');
-
       if (!username) {
         throw new Error('Username is required');
       }
@@ -117,10 +116,9 @@ function InstagramAnalyticsInner() {
       // Use AI service directly
       // Use Backend Proxy
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
-      const response = await fetch(`${baseUrl}/ai/user-videos`, {
+      const response = await fetchWithAuth(`${baseUrl}/ai/user-videos`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(requestBody)

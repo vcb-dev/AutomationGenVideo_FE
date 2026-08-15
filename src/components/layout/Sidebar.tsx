@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { UserRole } from '@/types/auth';
 import { useAuthStore } from '@/store/auth-store';
+import { fetchWithAuth } from '@/lib/api-client';
 
 interface SidebarProps {
   menuItems?: any[];
@@ -49,9 +50,7 @@ function SmartSidebar({ user, onLogout, isPinned, onTogglePin }: SidebarProps) {
     const fetchPermissions = async () => {
       if (!token) return;
       try {
-        const response = await fetch(`${apiBaseUrl}/role-permissions/my-tabs`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const response = await fetchWithAuth(`${apiBaseUrl}/role-permissions/my-tabs`);
         if (response.ok) {
           const data = await response.json();
           setAllowedMenuIds(data);
