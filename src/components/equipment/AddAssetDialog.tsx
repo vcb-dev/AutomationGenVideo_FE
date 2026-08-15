@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import {
   EquipmentCategory,
@@ -8,6 +8,7 @@ import {
   StorageLocation,
   createAsset,
   createModel,
+  uploadAssetPhoto,
   fetchCategories,
   fetchLocations,
   fetchModels,
@@ -51,8 +52,17 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
   const [newPrice, setNewPrice] = useState('');
   const [newAccessories, setNewAccessories] = useState('');
 
+  // Ảnh chọn trước, tải lên sau khi máy đã có mã — endpoint ảnh cần mã máy để gắn vào.
+  const [photos, setPhotos] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
   const [saving, setSaving] = useState(false);
+  const [stage, setStage] = useState('');
   const [error, setError] = useState('');
+
+  // Ảnh xem trước giữ trong bộ nhớ trình duyệt; không thu hồi thì mỗi lần mở hộp thoại lại rò một ít.
+  useEffect(() => () => previews.forEach((u) => URL.revokeObjectURL(u)), [previews]);
 
   useEffect(() => {
     Promise.all([fetchModels(), fetchCategories(), fetchLocations()])
@@ -70,12 +80,27 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
     !saving &&
     (creatingModel ? newCategoryId !== '' && newModelName.trim() !== '' : modelId !== '');
 
+  const addPhotos = (files: FileList | null) => {
+    if (!files?.length) return;
+    const picked = Array.from(files);
+    setPhotos((prev) => [...prev, ...picked]);
+    setPreviews((prev) => [...prev, ...picked.map((f) => URL.createObjectURL(f))]);
+    if (photoInputRef.current) photoInputRef.current.value = '';
+  };
+
+  const dropPhoto = (index: number) => {
+    URL.revokeObjectURL(previews[index]);
+    setPhotos((prev) => prev.filter((_, i) => i !== index));
+    setPreviews((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const submit = async () => {
     setSaving(true);
     setError('');
     try {
       let targetModelId = modelId;
       if (creatingModel) {
+        setStage('Đang khai model…');
         const model = await createModel({
           categoryId: newCategoryId,
           name: newModelName.trim(),
@@ -89,14 +114,37 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
         targetModelId = model.id;
       }
 
-      await createAsset({
+      setStage('Đang nhập kho…');
+      const asset = await createAsset({
         modelId: targetModelId,
         serialNumber: serialNumber.trim(),
         locationId: locationId || undefined,
         purchaseDate: purchaseDate || undefined,
         purchasePrice: purchasePrice ? Number(purchasePrice) : undefined,
       });
+
+      // Máy đã vào kho rồi. Ảnh lỗi từ đây trở đi KHÔNG được huỷ máy — báo rõ tấm nào hỏng để
+      // người dùng bổ sung sau ở màn chi tiết, còn hơn bắt họ nhập lại từ đầu.
+      const failed: string[] = [];
+      for (const [i, file] of photos.entries()) {
+        setStage(`Đang tải ảnh ${i + 1}/${photos.length}…`);
+        try {
+          await uploadAssetPhoto(asset.asset_code, file);
+        } catch {
+          failed.push(file.name);
+        }
+      }
+
       onCreated();
+      if (failed.length > 0) {
+        setError(
+          `Đã nhập kho ${asset.asset_code}, nhưng ${failed.length} ảnh không tải lên được: ` +
+            `${failed.join(', ')}. Thêm lại ở màn chi tiết máy.`,
+        );
+        setSaving(false);
+        setStage('');
+        return;
+      }
       onClose();
     } catch (e: unknown) {
       setError(
@@ -105,6 +153,7 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
       );
     } finally {
       setSaving(false);
+      setStage('');
     }
   };
 
@@ -280,6 +329,57 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
             </label>
           </div>
 
+          <div>
+            <span className={labelClass}>Ảnh thiết bị</span>
+            <span className={hintClass}>
+              Chọn được nhiều tấm. Tấm đầu tiên thành ảnh đại diện hiện ở bảng kho, đổi lại được
+              sau ở màn chi tiết.
+            </span>
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => addPhotos(e.target.files)}
+            />
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => photoInputRef.current?.click()}
+              className="mt-2 w-full rounded-lg border border-dashed border-slate-300 p-3 text-xs text-slate-500 hover:border-blue-500 hover:text-blue-600 disabled:opacity-50 dark:border-white/[0.15] dark:text-slate-400"
+            >
+              {photos.length === 0 ? 'Bấm để chọn ảnh' : '+ Chọn thêm ảnh'}
+            </button>
+
+            {photos.length > 0 && (
+              <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-5">
+                {previews.map((src, i) => (
+                  <div
+                    key={src}
+                    className="group relative aspect-square overflow-hidden rounded-md border border-slate-200 dark:border-white/[0.08]"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={src} alt={photos[i].name} className="h-full w-full object-cover" />
+                    {i === 0 && (
+                      <span className="absolute inset-x-0 bottom-0 bg-blue-600/90 py-0.5 text-center text-[9px] font-bold text-white">
+                        đại diện
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => dropPhoto(i)}
+                      title="Bỏ ảnh này"
+                      className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded bg-white/90 text-xs font-bold text-red-600 opacity-0 transition-opacity group-hover:opacity-100"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
             Máy mới vào trạng thái <b>Chờ kiểm tra</b>, chưa cho mượn được cho tới khi kho xác
             nhận đã kiểm tra xong.
@@ -304,7 +404,7 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
             onClick={submit}
             className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 dark:disabled:bg-white/[0.08]"
           >
-            {saving ? 'Đang nhập kho…' : 'Nhập kho'}
+            {saving ? stage || 'Đang nhập kho…' : photos.length > 0 ? `Nhập kho kèm ${photos.length} ảnh` : 'Nhập kho'}
           </button>
         </div>
       </div>
