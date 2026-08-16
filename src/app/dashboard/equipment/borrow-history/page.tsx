@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { borrowHistoryLabel } from '@/lib/equipment/borrow-history-label';
 import { buildBorrowLogQuery } from '@/lib/equipment/borrow-log-query';
 import { fetchBorrowHistoryLog, type BorrowLogRow } from '@/lib/equipment/request-api';
+import { DatePicker } from '@/components/ui/DatePicker';
 
 const cardClass =
   'rounded-[18px] border border-[#E8EBEF] bg-white shadow-[0_4px_14px_rgba(0,0,0,0.04)] ' +
@@ -111,24 +112,14 @@ export default function BorrowHistoryLogPage() {
                 </option>
               ))}
             </select>
-            <label className="flex items-center gap-2 text-sm text-slate-500">
+            <div className="flex items-center gap-2 text-sm text-slate-500">
               Từ
-              <input
-                type="date"
-                className={inputClass}
-                value={from}
-                onChange={(e) => changeFilter(() => setFrom(e.target.value))}
-              />
-            </label>
-            <label className="flex items-center gap-2 text-sm text-slate-500">
+              <DatePicker value={from} onChange={(v) => changeFilter(() => setFrom(v))} />
+            </div>
+            <div className="flex items-center gap-2 text-sm text-slate-500">
               Đến
-              <input
-                type="date"
-                className={inputClass}
-                value={to}
-                onChange={(e) => changeFilter(() => setTo(e.target.value))}
-              />
-            </label>
+              <DatePicker value={to} onChange={(v) => changeFilter(() => setTo(v))} />
+            </div>
             {(status || from || to) && (
               <button
                 onClick={() => changeFilter(() => { setStatus(''); setFrom(''); setTo(''); })}
