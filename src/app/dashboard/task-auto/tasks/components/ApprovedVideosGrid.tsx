@@ -1,33 +1,27 @@
 'use client'
 
 import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import toast from 'react-hot-toast'
-import { Play, CheckCircle2, XCircle, Loader2, Info } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { Play, Info, CheckCircle2 } from 'lucide-react'
 import { driveImageUrl } from '@/lib/utils'
 import { TaskStatusBadge } from '@/components/task-auto/StatusBadge'
 import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { NumberedPagination } from '@/components/task-auto/NumberedPagination'
 import { formatDateTime } from '@/components/task-auto/helpers'
-import { getTasks, approveTask } from '@/lib/api/task-auto'
-import { RejectModal } from './RejectModal'
+import { getTasks } from '@/lib/api/task-auto'
 import { VideoPreviewOverlay } from './detail/VideoPreviewOverlay'
 import { resolveContentTitle, resolveProductName, resolveProductImage } from './TasksTable'
-import type { Task } from '@/types/task-auto'
 
 interface Props {
   teamId?: string
   search?: string
-  deadlineFrom?: string
-  deadlineTo?: string
-  // Lọc người nộp giờ dùng chung dropdown "Người làm" ở thanh lọc chính (TaskFilters) —
-  // trước đây tab này có dropdown riêng, trùng chức năng và gây hiểu nhầm bộ lọc chính không tác dụng.
+  reviewedFrom?: string
+  reviewedTo?: string
   assigneeId?: string
   page: number
   onPageChange: (page: number) => void
   onViewTask: (id: string) => void
-  canApproveReject: boolean
 }
 
 const LIMIT = 8
@@ -72,34 +66,22 @@ function VideoThumbnail({ resultUrl, productImage, alt }: { resultUrl: string | 
   )
 }
 
-export function SubmittedVideosGrid({ teamId, search, deadlineFrom, deadlineTo, assigneeId, page, onPageChange, onViewTask, canApproveReject }: Props) {
-  const qc = useQueryClient()
-  const [rejectingTask, setRejectingTask] = useState<Task | null>(null)
+export function ApprovedVideosGrid({ teamId, search, reviewedFrom, reviewedTo, assigneeId, page, onPageChange, onViewTask }: Props) {
   const [previewIndex, setPreviewIndex] = useState<number | null>(null)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'tasks', 'submitted', { teamId, search, deadlineFrom, deadlineTo, assigneeId, page }],
+    queryKey: ['task-auto', 'tasks', 'approved', { teamId, search, reviewedFrom, reviewedTo, assigneeId, page }],
     queryFn: () => getTasks({
-      status: 'SUBMITTED',
+      status: 'APPROVED',
       team_id: teamId,
       search: search || undefined,
-      deadline_from: deadlineFrom || undefined,
-      deadline_to: deadlineTo || undefined,
+      reviewed_from: reviewedFrom || undefined,
+      reviewed_to: reviewedTo || undefined,
       assignee_id: assigneeId,
       page,
       limit: LIMIT,
     }),
     refetchOnWindowFocus: true,
-  })
-
-  const approveMut = useMutation({
-    mutationFn: (taskId: string) => approveTask(taskId),
-    onSuccess: (_data, taskId) => {
-      toast.success('Đã duyệt task')
-      qc.invalidateQueries({ queryKey: ['task-auto', 'tasks'] })
-      qc.invalidateQueries({ queryKey: ['task-auto', 'task', taskId] })
-    },
-    onError: () => toast.error('Thao tác thất bại'),
   })
 
   const tasks = data?.data || []
@@ -112,14 +94,13 @@ export function SubmittedVideosGrid({ teamId, search, deadlineFrom, deadlineTo, 
         {isLoading && <SkeletonCards />}
         {!isLoading && tasks.length === 0 && (
           <div className="col-span-full">
-            <EmptyState icon={Play} title="Không có video nào chờ duyệt" description="Video mới nộp sẽ hiện ở đây để duyệt" />
+            <EmptyState icon={CheckCircle2} title="Không có video nào đã duyệt" description="Video sau khi được duyệt sẽ hiện ở đây" />
           </div>
         )}
         {!isLoading && tasks.map((task, index) => {
           const title = resolveContentTitle(task)
           const productName = resolveProductName(task)
           const productImage = resolveProductImage(task)
-          const isApproving = approveMut.isPending && approveMut.variables === task.id
 
           return (
             <div
@@ -158,26 +139,7 @@ export function SubmittedVideosGrid({ teamId, search, deadlineFrom, deadlineTo, 
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-slate-400 mt-1.5">Nộp lúc {formatDateTime(task.submitted_at)}</p>
-
-                {canApproveReject && (
-                  <div className="grid grid-cols-2 gap-2 mt-3" onClick={e => e.stopPropagation()}>
-                    <button
-                      onClick={() => approveMut.mutate(task.id)}
-                      disabled={isApproving}
-                      className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white rounded-xl px-3 py-2 text-sm font-semibold flex items-center justify-center gap-1.5 transition-colors"
-                    >
-                      {isApproving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                      Duyệt
-                    </button>
-                    <button
-                      onClick={() => setRejectingTask(task)}
-                      className="bg-red-600 hover:bg-red-500 text-white rounded-xl px-3 py-2 text-sm font-semibold flex items-center justify-center gap-1.5 transition-colors"
-                    >
-                      <XCircle className="w-4 h-4" /> Từ chối
-                    </button>
-                  </div>
-                )}
+                <p className="text-xs text-slate-400 mt-1.5">Duyệt lúc {formatDateTime(task.reviewed_at)}</p>
               </div>
             </div>
           )
@@ -192,14 +154,6 @@ export function SubmittedVideosGrid({ teamId, search, deadlineFrom, deadlineTo, 
         onPageChange={onPageChange}
         className="px-1"
       />
-
-      {rejectingTask && (
-        <RejectModal
-          task={rejectingTask}
-          onClose={() => setRejectingTask(null)}
-          onSuccess={() => setRejectingTask(null)}
-        />
-      )}
 
       {previewIndex !== null && tasks[previewIndex]?.result_url && (
         <VideoPreviewOverlay

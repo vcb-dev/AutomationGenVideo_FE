@@ -28,27 +28,8 @@ import {
 } from '@/lib/voice/voice-selection';
 import { deleteClonedVoice } from '@/lib/voice/delete-voice';
 import { buildConfirmContent, type VoiceAction } from '@/lib/voice/voice-action-confirm';
+import { TTS_LANGUAGES as LANGUAGES, TTS_LANGUAGE_TO_MINIMAX as LANGUAGE_TO_MINIMAX } from '@/lib/voice/tts-languages';
 import { fetchWithAuth } from '@/lib/api-client';
-
-/* ────────────────────────── Constants ──────────────────────── */
-const LANGUAGES = [
-    'Tiếng Việt', 'English', '日本語', '한국어', '中文 (简体)',
-    'Español', 'Français', 'Deutsch', 'Português', 'ภาษาไทย',
-];
-
-// Maps UI language labels to the `language_boost` value Minimax's TTS API expects.
-const LANGUAGE_TO_MINIMAX: Record<string, string> = {
-    'Tiếng Việt': 'Vietnamese',
-    'English': 'English',
-    '日本語': 'Japanese',
-    '한국어': 'Korean',
-    '中文 (简体)': 'Chinese',
-    'Español': 'Spanish',
-    'Français': 'French',
-    'Deutsch': 'German',
-    'Português': 'Portuguese',
-    'ภาษาไทย': 'Thai',
-};
 
 // Trang nạp tiền / gia hạn gói của MiniMax (mở tab mới, cần đăng nhập tài khoản MiniMax công ty)
 const MINIMAX_RECHARGE_URL = 'https://www.minimax.io/platform/user-center/payment/recharge';

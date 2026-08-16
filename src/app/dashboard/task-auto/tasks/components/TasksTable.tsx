@@ -1,6 +1,6 @@
 'use client'
 
-import { Eye, Zap, AlertTriangle } from 'lucide-react'
+import { Eye, Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { TaskStatusBadge } from '@/components/task-auto/StatusBadge'
 import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
@@ -152,12 +152,7 @@ export function TasksTable({
                       ) : <span className="text-slate-300 text-sm italic">Chưa giao</span>}
                     </td>
                     <td className="px-5 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        <TaskStatusBadge status={task.status} />
-                        {task.status === 'APPROVED' && !task.published_links?.length && (
-                          <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" aria-label="Chưa nộp link bài đăng" />
-                        )}
-                      </div>
+                      <TaskStatusBadge status={task.status} />
                     </td>
                     <td className="px-5 py-4 whitespace-nowrap">
                       {task.deadline ? (

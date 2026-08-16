@@ -4,10 +4,15 @@ import type {
   Task,
   TasksQuery,
   Team,
+  TeamKind,
   EditorApproval,
   TeamKpi,
   EditorKpi,
   EditorDailyKpi,
+  ContentCreatorKpi,
+  ContentCreatorDailyKpi,
+  ContentCreatorReportRow,
+  ContentTranslation,
   ContentLine,
   ProductLine,
   Material,
@@ -171,10 +176,14 @@ export const PRIVILEGED_SOURCE_TEAM_NAMES = ['Scale Data', 'MEDIA']
 export const isPrivilegedSourceTeamMember = (teams: Team[] | undefined, userId: string | undefined) =>
   !!teams?.some(t => PRIVILEGED_SOURCE_TEAM_NAMES.includes(t.name) && t.members?.some((m: any) => m.user_id === userId))
 
+/** True nếu user là thành viên (hoặc leader) của một team có team_kind = CONTENT ("Content Team"). */
+export const isContentTeamMember = (teams: Team[] | undefined, userId: string | undefined) =>
+  !!teams?.some(t => t.team_kind === 'CONTENT' && (t.leader_id === userId || t.members?.some((m: any) => m.user_id === userId)))
+
 export const getTeam = (id: string) =>
   apiClient.get<Team>(`/task-auto/teams/${id}`).then(r => r.data)
 
-export const createTeam = (body: { name: string; leader_id?: string | null; brand_type?: BrandType; member_ids?: string[] }) =>
+export const createTeam = (body: { name: string; leader_id?: string | null; brand_type?: BrandType; team_kind?: TeamKind; member_ids?: string[] }) =>
   apiClient.post<Team>('/task-auto/teams', body).then(r => r.data)
 
 export const updateTeam = (id: string, body: Partial<Team> & { member_ids?: string[] }) =>
@@ -191,6 +200,9 @@ export const removeTeamMember = (teamId: string, userId: string) =>
 
 export const setMemberEditorRole = (teamId: string, userId: string, isEditor: boolean) =>
   apiClient.patch(`/task-auto/teams/${teamId}/members/${userId}/editor`, { is_editor: isEditor }).then(r => r.data)
+
+export const setMemberContentCreatorRole = (teamId: string, userId: string, isContentCreator: boolean) =>
+  apiClient.patch(`/task-auto/teams/${teamId}/members/${userId}/content-creator`, { is_content_creator: isContentCreator }).then(r => r.data)
 
 // ── Team Products (standalone) ────────────────────────────────────────────────
 
@@ -378,6 +390,49 @@ export const upsertEditorDailyKpis = (body: {
 export const deleteEditorDailyKpi = (id: string) =>
   apiClient.delete(`/task-auto/kpi/editors/daily/${id}`).then(r => r.data)
 
+// ── Content Creator KPI (target tháng thủ công + báo cáo tự tính) ──────────────
+
+export const getContentCreatorKpis = (month?: string, userId?: string) =>
+  apiClient.get<ContentCreatorKpi[]>(`/task-auto/kpi/content-creators${qs({ month, user_id: userId })}`).then(r => r.data)
+
+export const upsertContentCreatorKpi = (body: {
+  user_id: string
+  team_id: string
+  month: string
+  content_target: number
+  translation_target: number
+  note?: string
+}) =>
+  apiClient.post<ContentCreatorKpi>('/task-auto/kpi/content-creators', body).then(r => r.data)
+
+export const deleteContentCreatorKpi = (id: string) =>
+  apiClient.delete(`/task-auto/kpi/content-creators/${id}`).then(r => r.data)
+
+// ── Content Creator Daily KPI (KPI ngày set tay) ──────────────────────────────
+
+export const getContentCreatorDailyKpis = (params: {
+  date?: string      // YYYY-MM-DD
+  from?: string
+  to?: string
+  team_id?: string
+  user_id?: string
+}) =>
+  apiClient.get<ContentCreatorDailyKpi[]>(`/task-auto/kpi/content-creators/daily${qs(params)}`).then(r => r.data)
+
+/** Upsert theo lô: cả team cho 1 ngày (target = 0 nghĩa là bỏ set) */
+export const upsertContentCreatorDailyKpis = (body: {
+  team_id: string
+  date: string       // YYYY-MM-DD
+  entries: { user_id: string; target: number; note?: string }[]
+}) =>
+  apiClient.post<ContentCreatorDailyKpi[]>('/task-auto/kpi/content-creators/daily', body).then(r => r.data)
+
+export const deleteContentCreatorDailyKpi = (id: string) =>
+  apiClient.delete(`/task-auto/kpi/content-creators/daily/${id}`).then(r => r.data)
+
+export const getContentCreatorKpiReport = (params: { user_id?: string; team_id?: string; from?: string; to?: string }) =>
+  apiClient.get<ContentCreatorReportRow[]>(`/task-auto/kpi/content-creators/report${qs(params)}`).then(r => r.data)
+
 // ── Catalog — Lookup Tables ────────────────────────────────────────────────────
 
 export const getProductLines = () =>
@@ -478,6 +533,23 @@ export const updateContent = (id: string, body: Partial<Content>) =>
 
 export const deleteContent = (id: string) =>
   apiClient.delete(`/task-auto/contents/${id}`).then(r => r.data)
+
+// ── Content Translations (bản dịch content theo thị trường) ────────────────────
+
+export const getContentTranslations = (contentId: string) =>
+  apiClient.get<ContentTranslation[]>(`/task-auto/contents/${contentId}/translations`).then(r => r.data)
+
+export const upsertContentTranslation = (contentId: string, body: { market: string; title?: string; body?: string; script?: string }) =>
+  apiClient.post<ContentTranslation>(`/task-auto/contents/${contentId}/translations`, body).then(r => r.data)
+
+export const deleteContentTranslation = (contentId: string, market: string) =>
+  apiClient.delete(`/task-auto/contents/${contentId}/translations/${market}`).then(r => r.data)
+
+/** AI dịch nháp title/body/script sang market đích — KHÔNG lưu, chỉ trả bản nháp để sửa rồi tự gọi upsertContentTranslation. */
+export const aiTranslateContent = (contentId: string, market: string) =>
+  apiClient.post<{ market: string; title: string | null; body: string | null; script: string | null }>(
+    `/task-auto/contents/${contentId}/ai-translate`, { market },
+  ).then(r => r.data)
 
 export const uploadVoiceFile = (file: File): Promise<{ url: string }> => {
   const fd = new FormData()
