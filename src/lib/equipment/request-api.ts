@@ -210,3 +210,21 @@ export async function fetchAssetBorrowHistory(assetId: string) {
   );
   return data;
 }
+
+export interface BorrowLogRow extends AssetBorrowHistoryRow {
+  assetId: string;
+  assetCode: string;
+}
+
+export interface BorrowLogResponse {
+  rows: BorrowLogRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/** Nhật ký toàn bộ lượt mượn của kho. BE chặn bằng @Roles — chỉ ADMIN/quản lý kho gọi được. */
+export async function fetchBorrowHistoryLog(query: Record<string, string | number>) {
+  const { data } = await apiClient.get<BorrowLogResponse>('/mems/borrow-history', { params: query });
+  return data;
+}
