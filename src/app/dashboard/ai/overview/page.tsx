@@ -11,11 +11,22 @@ import {
     ChevronRight,
     Building2,
     UserCheck,
+    CalendarRange,
+    Trophy,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
 import toast from 'react-hot-toast';
 import { fetchWithAuth } from '@/lib/api-client';
+import {
+    RANGE_PRESETS,
+    RangePresetId,
+    formatRangeLabel,
+    matchPreset,
+    normalizeRange,
+    resolvePreset,
+} from '@/lib/ai-usage/usage-range';
+import { UsageByUser, rankUsage } from '@/lib/ai-usage/usage-ranking';
 
 // Helper to get API URL
 const getApiUrl = () => {
@@ -41,29 +52,10 @@ interface TeamApi {
     _count: { members: number; tasks: number };
 }
 
-interface UsageByUser {
-    user_id: string;
-    full_name: string;
-    email: string;
-    characters: number;
-    tts_count: number;
-    clone_count: number;
-    last_used_at: string;
-}
-
 interface UsageStats {
     pricing?: { vnd_per_1k_chars: number };
     total: { characters: number; tts_count: number; clone_count: number; cost_vnd?: number };
     by_user: UsageByUser[];
-}
-
-function firstOfMonthStr() {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
-}
-
-function todayStr() {
-    return new Date().toISOString().split('T')[0];
 }
 
 export default function OverviewPage() {
@@ -74,28 +66,46 @@ export default function OverviewPage() {
     const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
     const [usageStats, setUsageStats] = useState<UsageStats | null>(null);
     const [usageLoaded, setUsageLoaded] = useState(false);
+    const [range, setRange] = useState(() => resolvePreset('this_month'));
 
-    // Fetch voice usage stats (điểm TTS + số clone) — tháng hiện tại
+    const rangeLabel = formatRangeLabel(range);
+    const activePreset = matchPreset(range);
+
+    const applyPreset = (preset: RangePresetId) => setRange(resolvePreset(preset));
+
+    // Fetch voice usage stats (điểm TTS + số clone) theo khoảng ngày đang chọn
     useEffect(() => {
+        const { from, to } = normalizeRange(range);
+        if (!from || !to) return;
+
+        let cancelled = false;
         const fetchUsage = async () => {
+            setUsageLoaded(false);
             try {
                 const res = await fetchWithAuth(
-                    `${getApiUrl()}/ai/voice/usage/stats?date_from=${firstOfMonthStr()}&date_to=${todayStr()}`,
+                    `${getApiUrl()}/ai/voice/usage/stats?date_from=${from}&date_to=${to}`,
                 );
                 if (!res.ok) throw new Error('Không thể lấy thống kê tiêu dùng');
                 const data = await res.json();
-                if (data.success) setUsageStats(data);
+                if (!cancelled && data.success) setUsageStats(data);
             } catch (error) {
                 console.error('Lỗi khi tải thống kê tiêu dùng:', error);
-                toast.error('Không thể tải thống kê tiêu dùng AI');
+                if (!cancelled) toast.error('Không thể tải thống kê tiêu dùng AI');
             } finally {
-                setUsageLoaded(true);
+                if (!cancelled) setUsageLoaded(true);
             }
         };
         fetchUsage();
-    }, []);
+        // Đổi khoảng ngày nhanh tay có thể để hai request về không đúng thứ tự gửi đi,
+        // nên bỏ qua kết quả của lần fetch đã bị thay thế.
+        return () => {
+            cancelled = true;
+        };
+    }, [range]);
 
-    const usageByUserId = new Map((usageStats?.by_user ?? []).map(u => [u.user_id, u]));
+    const rankedUsage = rankUsage(usageStats?.by_user ?? []);
+    const usageByUserId = new Map(rankedUsage.map(u => [u.user_id, u]));
+    const vndPer1kChars = usageStats?.pricing?.vnd_per_1k_chars ?? 0;
 
     // Fetch real voices count from backend
     useEffect(() => {
@@ -157,6 +167,13 @@ export default function OverviewPage() {
 
     const totalMembers = teams.reduce((acc, t) => acc + (t._count?.members ?? 0), 0);
 
+    // Admin xem toàn hệ thống, leader chỉ xem người trong team mình. Tỉ trọng vẫn tính
+    // trên tổng đã lọc từ rankUsage nên leader thấy đúng phần của team so với toàn hệ thống.
+    const leaderMemberIds = new Set((leaderTeamData?.members ?? []).map((m) => m.user_id));
+    const visibleRanking = isLeader
+        ? rankedUsage.filter((row) => leaderMemberIds.has(row.user_id) || row.user_id === user?.id)
+        : rankedUsage;
+
     return (
         <div className="min-h-screen bg-gray-50 -m-6 pb-12">
             {/* Header */}
@@ -193,6 +210,50 @@ export default function OverviewPage() {
             {/* Main Content */}
             <div className="max-w-7xl mx-auto px-8 py-8 space-y-6">
 
+                {/* ─────────────────────────── BỘ LỌC KHOẢNG NGÀY ─────────────────────────── */}
+                <div className="bg-white border border-gray-200 rounded-2xl px-6 py-4 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                        <CalendarRange className="w-4 h-4 text-gray-400" />
+                        Doanh thu &amp; tiêu dùng theo ngày
+                        <span className="text-xs font-medium text-gray-400">({rangeLabel})</span>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                        <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-xl p-1">
+                            {RANGE_PRESETS.map((preset) => (
+                                <button
+                                    key={preset.id}
+                                    onClick={() => applyPreset(preset.id)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors
+                                        ${activePreset === preset.id
+                                            ? 'bg-violet-600 text-white shadow-sm'
+                                            : 'text-gray-600 hover:bg-white hover:text-gray-900'}`}
+                                >
+                                    {preset.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="date"
+                                value={range.from}
+                                max={range.to}
+                                onChange={(e) => setRange((prev) => ({ ...prev, from: e.target.value }))}
+                                className="px-3 py-1.5 border border-gray-200 rounded-xl text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-200"
+                            />
+                            <span className="text-xs text-gray-400">đến</span>
+                            <input
+                                type="date"
+                                value={range.to}
+                                min={range.from}
+                                onChange={(e) => setRange((prev) => ({ ...prev, to: e.target.value }))}
+                                className="px-3 py-1.5 border border-gray-200 rounded-xl text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-200"
+                            />
+                        </div>
+                    </div>
+                </div>
+
                 {/* ─────────────────────────── STATS CARDS ─────────────────────────── */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     {/* Điểm âm thanh đã tiêu (usage_characters MiniMax tính phí) */}
@@ -210,7 +271,7 @@ export default function OverviewPage() {
                                 <>
                                     <div className="flex items-baseline gap-1">
                                         <h3 className="text-2xl font-bold text-gray-900">{(usageStats?.total.characters ?? 0).toLocaleString('vi-VN')}</h3>
-                                        <span className="text-xs text-gray-400">điểm (tháng này)</span>
+                                        <span className="text-xs text-gray-400">điểm ({rangeLabel})</span>
                                     </div>
                                     <p className="text-xs text-gray-400 mt-2">= số ký tự MiniMax tính phí khi tạo giọng nói</p>
                                 </>
@@ -229,14 +290,14 @@ export default function OverviewPage() {
                         <div className="mt-4">
                             {!usageLoaded ? (
                                 <h3 className="text-lg font-semibold text-gray-400 italic">Đang tải...</h3>
-                            ) : (usageStats?.pricing?.vnd_per_1k_chars ?? 0) > 0 ? (
+                            ) : vndPer1kChars > 0 ? (
                                 <>
                                     <div className="flex items-baseline gap-1">
                                         <h3 className="text-2xl font-bold text-gray-900">{(usageStats?.total.cost_vnd ?? 0).toLocaleString('vi-VN')}đ</h3>
-                                        <span className="text-xs text-gray-400">(tháng này)</span>
+                                        <span className="text-xs text-gray-400">({rangeLabel})</span>
                                     </div>
                                     <p className="text-xs text-gray-400 mt-2">
-                                        Đơn giá {(usageStats?.pricing?.vnd_per_1k_chars ?? 0).toLocaleString('vi-VN')}đ / 1.000 ký tự
+                                        Đơn giá {vndPer1kChars.toLocaleString('vi-VN')}đ / 1.000 ký tự
                                     </p>
                                 </>
                             ) : (
@@ -263,7 +324,7 @@ export default function OverviewPage() {
                                 <>
                                     <div className="flex items-baseline gap-1">
                                         <h3 className="text-2xl font-bold text-gray-900">{usageStats?.total.tts_count ?? 0}</h3>
-                                        <span className="text-xs text-gray-400">lượt tạo giọng · {usageStats?.total.clone_count ?? 0} giọng clone (tháng này)</span>
+                                        <span className="text-xs text-gray-400">lượt tạo giọng · {usageStats?.total.clone_count ?? 0} giọng clone ({rangeLabel})</span>
                                     </div>
                                     <p className="text-xs text-gray-400 mt-2">Thống kê từ khi bật theo dõi tiêu dùng</p>
                                 </>
@@ -291,6 +352,97 @@ export default function OverviewPage() {
                         </div>
                     </div>
                 </div>
+
+                {/* ─────────── XẾP HẠNG TIÊU DÙNG: ai dùng nhiều, ai dùng ít ─────────── */}
+                {!isMemberOnly && (
+                    <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-5">
+                            <div>
+                                <h3 className="font-bold text-gray-950 text-base flex items-center gap-2">
+                                    <Trophy className="w-4 h-4 text-amber-500" />
+                                    Xếp hạng tiêu dùng ({rangeLabel})
+                                </h3>
+                                <p className="text-xs text-gray-500 mt-0.5">
+                                    {isLeader
+                                        ? 'Thành viên trong team bạn, xếp từ dùng nhiều nhất xuống ít nhất'
+                                        : 'Toàn hệ thống, xếp từ dùng nhiều nhất xuống ít nhất'}
+                                </p>
+                            </div>
+                            <span className="text-xs text-gray-400">
+                                {visibleRanking.length} người có phát sinh trong kỳ
+                            </span>
+                        </div>
+
+                        {!usageLoaded ? (
+                            <p className="text-sm text-gray-400 py-6 text-center">Đang tải thống kê...</p>
+                        ) : visibleRanking.length === 0 ? (
+                            <p className="text-sm text-gray-400 py-6 text-center">
+                                Không có ai dùng tính năng giọng nói trong khoảng ngày này
+                            </p>
+                        ) : (
+                            <div className="overflow-x-auto -mx-6">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider bg-gray-50/50">
+                                            <th className="pl-6 py-3">#</th>
+                                            <th className="py-3">Người dùng</th>
+                                            <th className="py-3 text-right">Điểm đã tiêu</th>
+                                            <th className="py-3">Tỉ trọng</th>
+                                            <th className="py-3 text-right">Lượt TTS</th>
+                                            <th className="py-3 text-right">Giọng clone</th>
+                                            {vndPer1kChars > 0 && <th className="py-3 text-right">Tiền</th>}
+                                            <th className="pr-6 py-3 text-right">Dùng lần cuối</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {visibleRanking.map((row) => (
+                                            <tr key={row.user_id} className="hover:bg-gray-50/50 transition-colors">
+                                                <td className="pl-6 py-4">
+                                                    <span className={`inline-flex items-center justify-center w-6 h-6 rounded-lg text-[11px] font-bold
+                                                        ${row.rank === 1
+                                                            ? 'bg-amber-100 text-amber-700'
+                                                            : 'bg-gray-100 text-gray-500'}`}>
+                                                        {row.rank}
+                                                    </span>
+                                                </td>
+                                                <td className="py-4">
+                                                    <p className="text-xs font-semibold text-gray-800">{row.full_name}</p>
+                                                    <p className="text-[11px] text-gray-400">{row.email}</p>
+                                                </td>
+                                                <td className="py-4 text-right text-xs font-bold text-green-700">
+                                                    {row.characters.toLocaleString('vi-VN')}
+                                                </td>
+                                                <td className="py-4 pr-4 min-w-[140px]">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                                            <div
+                                                                className="h-full bg-violet-500 rounded-full"
+                                                                style={{ width: `${row.share_percent}%` }}
+                                                            />
+                                                        </div>
+                                                        <span className="text-[11px] text-gray-500 font-medium w-10 text-right">
+                                                            {row.share_percent.toFixed(1)}%
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="py-4 text-right text-xs font-semibold text-violet-700">{row.tts_count}</td>
+                                                <td className="py-4 text-right text-xs font-semibold text-cyan-700">{row.clone_count}</td>
+                                                {vndPer1kChars > 0 && (
+                                                    <td className="py-4 text-right text-xs font-semibold text-amber-700">
+                                                        {(row.cost_vnd ?? 0).toLocaleString('vi-VN')}đ
+                                                    </td>
+                                                )}
+                                                <td className="pr-6 py-4 text-right text-xs text-gray-500">
+                                                    {new Date(row.last_used_at).toLocaleDateString('vi-VN')}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* ─────────────────────────── INTERACTIVE SECTIONS BY ROLE ─────────────────────────── */}
 
@@ -500,11 +652,11 @@ export default function OverviewPage() {
                     </div>
                 )}
 
-                {/* 3. MEMBER LAYOUT (Tiêu dùng cá nhân tháng này) */}
+                {/* 3. MEMBER LAYOUT (Tiêu dùng cá nhân trong khoảng ngày đang chọn) */}
                 {isMemberOnly && (
                     <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
                         <div className="flex items-center justify-between mb-6">
-                            <h3 className="font-bold text-gray-950 text-base">Tiêu dùng của bạn (tháng này)</h3>
+                            <h3 className="font-bold text-gray-950 text-base">Tiêu dùng của bạn ({rangeLabel})</h3>
                             <span className="text-xs text-gray-400">Chỉ tính các tác vụ của bạn</span>
                         </div>
 
@@ -519,7 +671,7 @@ export default function OverviewPage() {
                                         <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center mb-3">
                                             <Volume2 className="w-5 h-5 text-gray-300" />
                                         </div>
-                                        <p className="text-sm text-gray-400 italic">Bạn chưa dùng tính năng giọng nói tháng này</p>
+                                        <p className="text-sm text-gray-400 italic">Bạn chưa dùng tính năng giọng nói trong khoảng ngày này</p>
                                     </div>
                                 );
                             }
