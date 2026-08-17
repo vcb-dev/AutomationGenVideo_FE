@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { fetchWithAuth } from '@/lib/api-client';
+import { useAuthStore } from '@/store/auth-store';
 
 // Gọi qua proxy same-origin /api/video-downloader/* (route.ts) thay vì thẳng AI_SERVICE_URL,
 // vì trang này có thể được mở từ máy khác qua Cloudflare Tunnel (extension VCB) — nếu gọi thẳng
@@ -208,6 +209,7 @@ function VideoDownloaderInner() {
         targetUrl: string,
         targetFormat: 'mp4' | 'mp3',
         targetQuality: 'best' | '1080' | '720'
+    ): Promise<boolean> => {
         if (!useAuthStore.getState().isAuthenticated && !useAuthStore.getState().user) {
             toast.error('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.');
             return false;
