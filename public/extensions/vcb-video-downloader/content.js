@@ -1192,27 +1192,21 @@
         }
     });
 
-    /** Gọi API đề xuất bằng token của trang web hệ thống (chạy trên chính origin đó). */
+    /** Gọi API đề xuất bằng cookie phiên của trang web hệ thống (chạy trên chính origin đó). */
     async function proposeViaApp(payload) {
         if (!document.querySelector('meta[name="vcb-app"]')) {
             return { ok: false, error: 'Tab này không phải trang hệ thống.' };
         }
-        let token = '';
-        try {
-            token = localStorage.getItem('auth_token') || '';
-        } catch {
-            return { ok: false, error: 'Không đọc được phiên đăng nhập.' };
-        }
-        if (!token) return { ok: false, error: 'Bạn chưa đăng nhập hệ thống. Mở trang VCBI và đăng nhập trước.' };
 
         try {
             const res = await fetch(`${location.origin}/api/extension/propose`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
                 body: JSON.stringify(payload),
             });
             const data = await res.json().catch(() => ({}));
-            if (res.status === 401) return { ok: false, error: 'Phiên đăng nhập đã hết hạn, đăng nhập lại giúp tôi.' };
+            if (res.status === 401) return { ok: false, error: 'Phiên đăng nhập đã hết hạn hoặc chưa đăng nhập, vui lòng đăng nhập trước.' };
             if (!res.ok) return { ok: false, error: data.message || 'Hệ thống từ chối đề xuất này.' };
             return { ok: true, message: data.message || 'Đã gửi đề xuất ✓', direct: !!data.direct };
         } catch {

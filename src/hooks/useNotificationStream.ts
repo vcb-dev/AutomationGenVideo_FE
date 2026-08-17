@@ -28,11 +28,9 @@ export function useNotificationStream(
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const token = localStorage.getItem('auth_token')
-    if (!token) return
 
-    const url = `${API_URL}${path}?access_token=${encodeURIComponent(token)}`
-    const es = new EventSource(url)
+    const url = `${API_URL}${path}`
+    const es = new EventSource(url, { withCredentials: true })
     let isFirstOpen = true
 
     es.addEventListener('open', () => {

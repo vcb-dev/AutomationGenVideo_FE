@@ -33,14 +33,9 @@ export default function LandingPage() {
 
     const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
 
-    // Re-validate auth state on landing page mount.
-    // This ensures that after backend restart (dev),
-    // any old tokens are checked against /auth/profile
-    // and cleared if no longer valid.
+    // Re-validate auth state on landing page mount via HttpOnly cookie
     useEffect(() => {
-        const token = localStorage.getItem("auth_token");
-        if (token && typeof window !== "undefined") {
-            // Use store's loadUser to validate token with backend.
+        if (typeof window !== "undefined") {
             // eslint-disable-next-line @typescript-eslint/no-floating-promises
             useAuthStore.getState().loadUser();
         }
