@@ -1,3 +1,14 @@
+/** Origin Railway, không kèm /api — nếu dán nhầm .../api thì login thành /api/api/auth/login (404). */
+function proxyTarget() {
+  const raw = (process.env.API_PROXY_TARGET || '').trim().replace(/\/$/, '');
+  const fromEnv = raw.replace(/\/api$/i, '');
+  if (fromEnv) return fromEnv;
+  if (process.env.VERCEL) {
+    return 'https://automationgenvideo-be-production-9770.up.railway.app';
+  }
+  return '';
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -42,12 +53,22 @@ const nextConfig = {
       '@radix-ui/react-tabs',
     ],
   },
-  // Safari + SameSite=lax: trình duyệt gọi cùng origin www.vcbi.vn/api, Vercel proxy sang Railway.
-  // Route handler trong src/app/api/* vẫn thắng rewrite (Next kiểm tra filesystem trước).
+  // Safari + SameSite=lax: trình duyệt gọi cùng origin /api, Vercel proxy sang Railway.
+  // KHÔNG dùng mảng rewrite thường: folder src/app/api/* khiến Next 404 /api/auth/login
+  // trước khi afterFiles chạy. beforeFiles cho auth; fallback cho các path Nest còn lại
+  // (search/media/... vẫn thắng vì có route handler).
   async rewrites() {
-    const target = (process.env.API_PROXY_TARGET || '').replace(/\/$/, '');
+    const target = proxyTarget();
     if (!target) return [];
-    return [{ source: '/api/:path*', destination: `${target}/api/:path*` }];
+    const nest = `${target}/api`;
+    return {
+      beforeFiles: [
+        { source: '/api/auth/:path*', destination: `${nest}/auth/:path*` },
+      ],
+      fallback: [
+        { source: '/api/:path*', destination: `${nest}/:path*` },
+      ],
+    };
   },
   async headers() {
     const isDev = process.env.NODE_ENV !== 'production';
