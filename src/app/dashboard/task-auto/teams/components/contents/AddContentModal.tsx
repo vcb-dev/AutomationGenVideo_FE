@@ -3,11 +3,11 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { FileText, Search, Check, Loader2, X, Sparkles } from 'lucide-react'
+import { FileText, Search, Check, Loader2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { addTeamContent, getContents } from '@/lib/api/task-auto'
-import type { BrandType, Content, ContentOrigin } from '@/types/task-auto'
+import type { BrandType, Content } from '@/types/task-auto'
 
 interface Props {
   open: boolean
@@ -17,16 +17,13 @@ interface Props {
   onSuccess: () => void
   initialBrandType?: BrandType
   initialMarket?: string
-  /** Hiện picker sưu tầm/tự nghĩ — chỉ khi người dùng hiện tại là content creator của team này. */
-  showOriginPicker?: boolean
 }
 
-export function AddContentModal({ open, teamId, existingContentIds, onClose, onSuccess, initialBrandType = 'DO_DA', initialMarket, showOriginPicker }: Props) {
+export function AddContentModal({ open, teamId, existingContentIds, onClose, onSuccess, initialBrandType = 'DO_DA', initialMarket }: Props) {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [brandType, setBrandType] = useState<BrandType>(initialBrandType)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [origin, setOrigin] = useState<ContentOrigin | null>(null)
 
   const { data: contentsData, isLoading } = useQuery({
     queryKey: ['task-auto', 'contents-catalog', brandType, initialMarket, search],
@@ -62,9 +59,7 @@ export function AddContentModal({ open, teamId, existingContentIds, onClose, onS
   const mutation = useMutation({
     mutationFn: async () => {
       const ids = Array.from(selectedIds)
-      const results = await Promise.allSettled(
-        ids.map(id => addTeamContent(teamId, { source_content_id: id, origin: showOriginPicker ? (origin ?? undefined) : undefined })),
-      )
+      const results = await Promise.allSettled(ids.map(id => addTeamContent(teamId, { source_content_id: id })))
       const failed = results.filter(r => r.status === 'rejected').length
       if (failed > 0) throw new Error(`${failed} content thêm thất bại`)
     },
@@ -78,7 +73,7 @@ export function AddContentModal({ open, teamId, existingContentIds, onClose, onS
   })
 
   useEffect(() => {
-    if (!open) { setSearch(''); setSelectedIds(new Set()); setBrandType(initialBrandType); setOrigin(null) }
+    if (!open) { setSearch(''); setSelectedIds(new Set()); setBrandType(initialBrandType) }
   }, [open, initialBrandType])
 
   const allSelected = available.length > 0 && selectedIds.size === available.length
@@ -114,23 +109,6 @@ export function AddContentModal({ open, teamId, existingContentIds, onClose, onS
         </>
       }
     >
-      {showOriginPicker && (
-        <div className="flex items-center gap-1.5 mb-3 bg-emerald-50 border border-emerald-200 rounded-xl p-1 w-fit">
-          <Sparkles className="w-3.5 h-3.5 text-emerald-500 ml-1.5" />
-          {(['COLLECTED', 'SELF_CREATED'] as ContentOrigin[]).map(o => (
-            <button
-              key={o}
-              onClick={() => setOrigin(o)}
-              className={cn(
-                'px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors',
-                origin === o ? 'bg-emerald-600 text-white' : 'text-emerald-700 hover:bg-emerald-100',
-              )}
-            >
-              {o === 'COLLECTED' ? 'Sưu tầm' : 'Tự nghĩ'}
-            </button>
-          ))}
-        </div>
-      )}
       <div className="flex items-center justify-between mb-3">
         <div className="flex gap-2">
           {(['DO_DA', 'TRANG_SUC'] as BrandType[]).map(b => (

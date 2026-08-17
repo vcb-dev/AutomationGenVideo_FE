@@ -10,9 +10,4 @@ export interface LeaderStyleCardData {
   kpi_day_completed: number;
   kpi_day_target: number;
   traffic_month: number;
-  /** Chỉ set ở leader dashboard (không set ở admin "tất cả team") — true = card content creator,
-   * đổi ô "Traffic" thành 2 số Sưu tầm/Tự nghĩ và đổi label gauge trên cùng thành "Content tháng". */
-  is_content_creator?: boolean;
-  content_collected_month?: number;
-  content_original_month?: number;
 }

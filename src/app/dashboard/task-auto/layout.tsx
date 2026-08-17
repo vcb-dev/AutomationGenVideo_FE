@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ListTodo, Users, Package, FileText, Target, Settings, LayoutDashboard, Zap, BookUser } from 'lucide-react'
+import { ListTodo, Users, Package, Target, Settings, LayoutDashboard, Zap, BookUser } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth-store'
 import { UserRole } from '@/types/auth'
@@ -33,11 +33,6 @@ const NAV_ITEMS = [
     href: '/dashboard/task-auto/catalog',
     label: 'Danh mục',
     icon: Package,
-  },
-  {
-    href: '/dashboard/task-auto/content',
-    label: 'Content',
-    icon: FileText,
   },
   {
     // Kho cá nhân — Editor/Leader nhập hàng từ danh mục toàn cục
@@ -80,18 +75,18 @@ export default function TaskAutoLayout({ children }: { children: React.ReactNode
     <div className="min-h-screen bg-gray-50">
       {/* Sub-header — sticky on scroll */}
       <div className="bg-white border-b border-gray-200 shadow-sm sticky top-16 z-20">
-        <div className="px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-4 h-16">
+        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6">
+          <div className="flex items-center gap-4 h-20">
             {/* Brand mark */}
-            <div className="flex items-center gap-2.5 mr-2 shrink-0">
-              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-sm">
+            <div className="flex items-center gap-3 mr-2 shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-sm">
                 <Zap className="w-5 h-5 text-white" />
               </div>
               <span className="font-extrabold text-lg text-slate-800 hidden sm:block tracking-tight">Task Auto</span>
             </div>
 
             {/* Divider */}
-            <div className="w-px h-7 bg-gray-200 mr-2 shrink-0 hidden sm:block" />
+            <div className="w-px h-8 bg-gray-200 mr-2 shrink-0 hidden sm:block" />
 
             {/* Nav links — cuộn ngang trên mobile, fade mép phải gợi ý còn item ẩn */}
             <div className="relative flex-1 min-w-0">
@@ -105,9 +100,9 @@ export default function TaskAutoLayout({ children }: { children: React.ReactNode
                       key={item.href}
                       href={item.href}
                       className={cn(
-                        'flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold whitespace-nowrap transition-all duration-150 shrink-0',
+                        'flex items-center gap-2.5 px-5 py-3 rounded-xl text-base font-medium whitespace-nowrap transition-all duration-150 shrink-0',
                         isActive
-                          ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+                          ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200 font-semibold'
                           : 'text-slate-500 hover:text-slate-900 hover:bg-gray-100'
                       )}
                     >
@@ -124,7 +119,7 @@ export default function TaskAutoLayout({ children }: { children: React.ReactNode
       </div>
 
       {/* Page content */}
-      <div className="px-4 sm:px-6 lg:px-8 py-5">
+      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 py-8">
         {children}
       </div>
     </div>

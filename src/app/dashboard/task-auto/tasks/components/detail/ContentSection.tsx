@@ -3,14 +3,11 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   FileText, Link2, Mic, Download, X, ChevronDown, ChevronUp,
-  Sparkles, Loader2, Copy, Check, Languages, Save, Send, Clock, CheckCircle2, XCircle, PenLine, Wand2, AudioLines, Gauge,
+  Sparkles, Loader2, Copy, Check, Languages, Save, Send, Clock, CheckCircle2, XCircle, Gauge, PenLine, Wand2,
 } from 'lucide-react'
 import { cn, drivePreviewUrl, cleanContentText } from '@/lib/utils'
 import { ServerSearchSelect } from '@/components/task-auto/DarkInput'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
-import { TtsVoiceModal } from '@/components/task-auto/TtsVoiceModal'
-import { PaastScoreModal } from '@/components/task-auto/PaastScoreModal'
-import type { PaastAnalysisHistory } from '@/lib/api/paast-analyzer'
 import { Section } from './Section'
 import {
   getTaskVideoScript,
@@ -22,11 +19,11 @@ import {
   reviewTaskContentApproval,
   type VideoScript,
 } from '@/lib/api/task-auto'
-import type { TaskContentApproval, ContentTranslation } from '@/types/task-auto'
+import type { TaskContentApproval } from '@/types/task-auto'
+import { PaastScoreModal } from '@/components/task-auto/PaastScoreModal'
+import type { PaastAnalysisHistory } from '@/lib/api/paast-analyzer'
 
 const PAAST_MIN_LENGTH = 100
-
-const MARKET_LABEL: Record<string, string> = { VIETNAM: 'Việt Nam', INDONESIA: 'Indonesia', JAPAN: 'Nhật Bản', THAILAND: 'Thái Lan' }
 
 function arraysEqual(a: string[], b: string[]) {
   return a.length === b.length && a.every((v, i) => v === b[i])
@@ -66,12 +63,6 @@ function isForeignMarket(market?: string | null): boolean {
   return !parts.every(m => m === 'VIETNAM' || m === 'VN')
 }
 
-function isVNMarket(market?: string | null): boolean {
-  if (!market) return true
-  const v = market.trim().toUpperCase()
-  return v === 'VIETNAM' || v === 'VN'
-}
-
 interface EditContentProps {
   contentId: string
   onChange: (id: string) => void
@@ -107,10 +98,6 @@ interface Props {
   productPriceSegment?: string | null
   productLine?: string | null
   productMarket?: string | null
-  /** Thị trường của team đang xử lý task (Team.market) — dùng để gợi ý/dịch content nguồn (VN) sang đúng thị trường editor đang làm. */
-  editorMarket?: string | null
-  /** Bản dịch đã lưu sẵn ở tab Content (ContentTranslation) của content nguồn — chỉ có khi content lấy từ kho tổng. */
-  sourceTranslations?: ContentTranslation[]
   /** Báo cho parent (TaskDetailPanel) biết còn thay đổi chưa lưu — để chặn đóng panel mất dữ liệu. */
   onDirtyChange?: (dirty: boolean) => void
 }
@@ -118,7 +105,6 @@ interface Props {
 export function ContentSection({
   editMode, edit, view, taskId, isAssignee, canApproveReject,
   productName, productSku, productPrice, productMaterial, productPriceSegment, productLine, productMarket,
-  editorMarket, sourceTranslations,
   onDirtyChange,
 }: Props) {
   const [voiceOpen, setVoiceOpen] = useState(false)
@@ -152,17 +138,8 @@ export function ContentSection({
   const [showScoreModal, setShowScoreModal] = useState(false)
   const [scoreCache, setScoreCache] = useState<{ content: string; result: PaastAnalysisHistory } | null>(null)
 
-  // Tạo voice nhanh từ content hiện tại (tái dùng TTS Minimax của Tiện ích → Clone Voice) — chỉ
-  // tạo để nghe/tải tại chỗ, không lưu lại vào task.
-  const [showVoiceModal, setShowVoiceModal] = useState(false)
-
   // "Sinh lại" ghi đè toàn bộ ô content — hỏi lại nếu đang có sửa tay chưa lưu để tránh mất trắng.
   const [showRegenConfirm, setShowRegenConfirm] = useState(false)
-
-  // "Dùng bản dịch này" (từ tab Content) ghi đè toàn bộ ô content — hỏi lại nếu đang có sửa tay chưa lưu.
-  const [showApplyTranslationConfirm, setShowApplyTranslationConfirm] = useState(false)
-  // Bản dịch có sẵn ở tab Content — mặc định rút gọn, cho "Xem thêm" để đọc hết trước khi quyết định dùng.
-  const [translationPreviewExpanded, setTranslationPreviewExpanded] = useState(false)
 
   const contentTextareaRef = useRef<HTMLTextAreaElement | null>(null)
   const translationTextareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -388,35 +365,9 @@ export function ContentSection({
   const hasContent = !!(view.contentTitle || view.scriptText || view.fileUrl)
   const hasProduct = !!productName
   const canGenerate = hasContent && hasProduct
-  // Ưu tiên market gắn thẳng vào content/sản phẩm nếu là thị trường nước ngoài (content/sản phẩm
-  // được gắn nhãn rõ cho thị trường đó); nếu cả hai đều trống hoặc là VN (vd. content lấy từ kho
-  // tổng vốn mặc định VIETNAM) thì rơi về market của team đang xử lý task (editorMarket) — đây là
-  // trường hợp editor ở thị trường khác đang dùng content gốc tiếng Việt, vẫn cần dịch.
-  const targetMarket = !isVNMarket(view.contentMarket) ? view.contentMarket
-    : !isVNMarket(productMarket) ? productMarket
-    : !isVNMarket(editorMarket) ? editorMarket
-    : (view.contentMarket || productMarket || editorMarket || null)
+  const targetMarket = view.contentMarket || productMarket || null
   const foreignMarket = isForeignMarket(targetMarket)
   const canSubmitApproval = isAssignee && (!approval || approval.status === 'REJECTED')
-
-  // Content nguồn (kho tổng) là tiếng Việt nhưng editor đang làm task cho thị trường khác —
-  // gợi ý dùng bản dịch đã có sẵn ở tab Content (ContentTranslation) thay vì dịch AI lại từ đầu.
-  const needsEditorMarketTranslation = !isVNMarket(editorMarket) && isVNMarket(view.contentMarket)
-  const savedMarketTranslation = needsEditorMarketTranslation
-    ? sourceTranslations?.find(t => t.market === editorMarket && (t.body || t.script || t.title))
-    : undefined
-
-  function applySavedTranslation() {
-    if (!savedMarketTranslation) return
-    userTouchedRef.current = true
-    setRewriteMode(true)
-    setEditedContent(savedMarketTranslation.body || savedMarketTranslation.script || '')
-  }
-
-  function handleApplySavedTranslationClick() {
-    if (dirty) { setShowApplyTranslationConfirm(true); return }
-    applySavedTranslation()
-  }
 
   return (
     <Section icon={<FileText className="w-4 h-4" />} title="Nội dung" bgColor="bg-indigo-50" iconColor="text-indigo-600">
@@ -464,48 +415,6 @@ export function ContentSection({
             </div>
           </div>
 
-          {/* Content nguồn tiếng Việt (kho tổng) nhưng editor đang làm cho thị trường khác — nếu tab
-              Content đã có sẵn bản dịch cho đúng thị trường này, gợi ý dùng luôn thay vì dịch AI lại. */}
-          {needsEditorMarketTranslation && savedMarketTranslation && (
-            <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 space-y-2">
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <Languages className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <p className="text-sm font-semibold text-emerald-800">
-                    Đã có bản dịch {MARKET_LABEL[editorMarket!] ?? editorMarket} cho content này trong tab Content
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleApplySavedTranslationClick}
-                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shrink-0"
-                >
-                  Dùng bản dịch này
-                </button>
-              </div>
-              {(savedMarketTranslation.body || savedMarketTranslation.script) && (
-                <>
-                  <p className={cn(
-                    'text-sm text-emerald-900 whitespace-pre-wrap leading-relaxed',
-                    !translationPreviewExpanded && 'line-clamp-2',
-                  )}>
-                    {savedMarketTranslation.body || savedMarketTranslation.script}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setTranslationPreviewExpanded(v => !v)}
-                    className="flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-900 transition-colors"
-                  >
-                    {translationPreviewExpanded
-                      ? <><ChevronUp className="w-3.5 h-3.5" /> Thu gọn</>
-                      : <><ChevronDown className="w-3.5 h-3.5" /> Xem thêm</>
-                    }
-                  </button>
-                </>
-              )}
-            </div>
-          )}
-
           {/* Thanh hành động: gửi duyệt / lưu / chấm điểm / dịch / copy / viết lại */}
           <div className="flex items-center gap-2 flex-wrap">
             {canSubmitApproval && (
@@ -551,20 +460,6 @@ export function ContentSection({
               )}
             >
               <Gauge className="w-3.5 h-3.5" /> Chấm điểm content
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowVoiceModal(true)}
-              disabled={!editedContent.trim()}
-              title={!editedContent.trim() ? 'Cần có content để tạo voice' : undefined}
-              className={cn(
-                'flex items-center gap-1.5 text-sm font-medium px-3.5 py-2 rounded-lg border transition-colors',
-                editedContent.trim()
-                  ? 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                  : 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed',
-              )}
-            >
-              <AudioLines className="w-3.5 h-3.5" /> Tạo voice
             </button>
             {(foreignMarket || script?.translation) && (
               <button
@@ -956,12 +851,6 @@ export function ContentSection({
         }}
       />
 
-      <TtsVoiceModal
-        open={showVoiceModal}
-        content={editedContent}
-        onClose={() => setShowVoiceModal(false)}
-      />
-
       <ConfirmDialog
         open={showRegenConfirm}
         title="Sinh lại content bằng AI?"
@@ -970,16 +859,6 @@ export function ContentSection({
         danger
         onConfirm={() => { setShowRegenConfirm(false); generate(true) }}
         onCancel={() => setShowRegenConfirm(false)}
-      />
-
-      <ConfirmDialog
-        open={showApplyTranslationConfirm}
-        title="Dùng bản dịch có sẵn?"
-        message="Bạn đang có nội dung sửa tay chưa lưu. Áp dụng bản dịch từ tab Content sẽ ghi đè toàn bộ nội dung đang gõ và không thể hoàn tác."
-        confirmLabel="Dùng bản dịch, ghi đè"
-        danger
-        onConfirm={() => { setShowApplyTranslationConfirm(false); applySavedTranslation() }}
-        onCancel={() => setShowApplyTranslationConfirm(false)}
       />
     </Section>
   )

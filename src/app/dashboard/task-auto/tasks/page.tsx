@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Users, User, LayoutGrid, Kanban, FileClock, Rows3, Gauge, CheckCircle2 } from 'lucide-react'
+import { Users, User, LayoutGrid, Kanban, FileClock, Rows3 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth-store'
 
@@ -12,9 +12,7 @@ import { TaskFilters } from './components/TaskFilters'
 import { TasksKanbanBoard } from './components/TasksKanbanBoard'
 import { TasksTable } from './components/TasksTable'
 import { SubmittedVideosGrid } from './components/SubmittedVideosGrid'
-import { ApprovedVideosGrid } from './components/ApprovedVideosGrid'
 import { ContentApprovalList } from './components/ContentApprovalList'
-import { ContentScoringTab } from './components/ContentScoringTab'
 import { TaskDetailPanel } from './components/TaskDetailPanel'
 import { CreateTaskModal } from './components/TaskModals'
 import { getApprovals, getContentApprovals, getTasks, getTeams } from '@/lib/api/task-auto'
@@ -22,10 +20,7 @@ import { TaskStatus } from '@/types/task-auto'
 import { UserRole } from '@/types/auth'
 
 type ViewMode = 'team' | 'mine'
-// 'pending' = video đã nộp đang chờ duyệt (status SUBMITTED) · 'approved' = video đã nộp VÀ đã
-// được duyệt (status APPROVED) — 2 tab tách biệt vì trước đây gộp chung "Video đã nộp" khiến
-// người dùng không phân biệt được việc gì còn cần xử lý.
-type PageTab = 'table' | 'pending' | 'approved' | 'content-approval' | 'content-scoring'
+type PageTab = 'table' | 'submitted' | 'content-approval'
 type TaskLayout = 'kanban' | 'list'
 
 const TABLE_LIMIT = 20
@@ -73,15 +68,9 @@ export default function TasksPage() {
   const [search, setSearch]           = useState('')
   const [deadlineFrom, setDeadlineFrom] = useState(todayString())
   const [deadlineTo, setDeadlineTo]     = useState(todayString())
-  // Bộ lọc ngày riêng cho tab "Video đã nộp" (status APPROVED) — lọc theo reviewed_at, không dùng
-  // chung deadlineFrom/To vì đó là hạn chót/ngày tạo, không phải ngày duyệt. Mặc định để trống
-  // (không giới hạn ngày) vì đây là tab xem lại lịch sử, không như deadlineFrom/To mặc định "hôm nay".
-  const [approvedFrom, setApprovedFrom] = useState('')
-  const [approvedTo, setApprovedTo]     = useState('')
   const [taskType, setTaskType]       = useState<'auto' | 'manual' | ''>('')
   const [assigneeId, setAssigneeId]   = useState('')
   const [submittedPage, setSubmittedPage] = useState(1)
-  const [approvedPage, setApprovedPage] = useState(1)
   const [contentApprovalPage, setContentApprovalPage] = useState(1)
   const [tablePage, setTablePage] = useState(1)
 
@@ -146,7 +135,7 @@ export default function TasksPage() {
 
   const total = data?.total || 0
 
-  // Badge đếm trên 2 tab "Video chờ duyệt" / "Content chờ duyệt" — thấy ngay có bao nhiêu việc
+  // Badge đếm trên 2 tab "Video đã nộp" / "Content chờ duyệt" — thấy ngay có bao nhiêu việc
   // chờ xử lý mà không phải bấm vào từng tab. Tham số phải khớp đúng query bên trong
   // SubmittedVideosGrid / ContentApprovalList để con số không lệch với nội dung khi chuyển tab.
   const { data: submittedCountData } = useQuery({
@@ -218,48 +207,46 @@ export default function TasksPage() {
   }
 
   // Mỗi filter reset về trang 1 cho MỌI tab mà nó thực sự ảnh hưởng tới — team/search/assignee
-  // đều được truyền xuống cả "Video chờ duyệt"/"Video đã nộp" lẫn "Content chờ duyệt" (xem props
-  // truyền cho SubmittedVideosGrid/ApprovedVideosGrid/ContentApprovalList bên dưới), nên thiếu
-  // reset 1 trong các tab sẽ để lại trang cũ và hiện danh sách trống dù có kết quả ở trang 1.
-  // Tab "Danh sách task" giờ là Kanban (TasksKanbanBoard) tự phân trang riêng theo từng cột nên
-  // không cần reset page ở đây nữa.
+  // đều được truyền xuống cả "Video đã nộp" lẫn "Content chờ duyệt" (xem props truyền cho
+  // SubmittedVideosGrid/ContentApprovalList bên dưới), nên thiếu reset 1 trong 2 sẽ để lại
+  // trang cũ và hiện danh sách trống dù có kết quả ở trang 1. Tab "Danh sách task" giờ là Kanban
+  // (TasksKanbanBoard) tự phân trang riêng theo từng cột nên không cần reset page ở đây nữa.
   function handleStatusChange(v: TaskStatus | '')                    { setStatus(v);       setTablePage(1) }
-  function handleTeamChange(v: string)                               { setTeamId(v);       setSubmittedPage(1); setApprovedPage(1); setContentApprovalPage(1); setTablePage(1) }
-  function handleSearchChange(v: string)                             { setSearch(v);       setSubmittedPage(1); setApprovedPage(1); setContentApprovalPage(1); setTablePage(1) }
+  function handleTeamChange(v: string)                               { setTeamId(v);       setSubmittedPage(1); setContentApprovalPage(1); setTablePage(1) }
+  function handleSearchChange(v: string)                             { setSearch(v);       setSubmittedPage(1); setContentApprovalPage(1); setTablePage(1) }
   function handleDeadlineFromChange(v: string)                       { setDeadlineFrom(v); setSubmittedPage(1); setTablePage(1) }
   function handleDeadlineToChange(v: string)                         { setDeadlineTo(v);   setSubmittedPage(1); setTablePage(1) }
-  function handleApprovedFromChange(v: string)                       { setApprovedFrom(v); setApprovedPage(1) }
-  function handleApprovedToChange(v: string)                         { setApprovedTo(v);   setApprovedPage(1) }
   function handleTaskTypeChange(v: 'auto' | 'manual' | '')           { setTaskType(v);     setTablePage(1) }
-  function handleAssigneeChange(v: string)                           { setAssigneeId(v);  setSubmittedPage(1); setApprovedPage(1); setContentApprovalPage(1); setTablePage(1) }
+  function handleAssigneeChange(v: string)                           { setAssigneeId(v);  setSubmittedPage(1); setContentApprovalPage(1); setTablePage(1) }
 
   const pageTitle = isMember || (isLeaderEditor && viewMode === 'mine')
     ? 'Nhiệm vụ của tôi'
     : 'Quản lý Task'
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-5">
       {/* Header + Filter bar */}
-      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm px-6 pt-4 pb-3.5 space-y-3">
-        {/* Hàng 1: Tiêu đề (kèm số task inline, gọn 1 dòng) + toggle phạm vi (LeaderEditor) */}
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-baseline gap-2.5 min-w-[160px]">
-            <h1 className="text-xl font-black text-slate-900 leading-tight">{pageTitle}</h1>
-            <span className="text-sm text-slate-400 whitespace-nowrap">
+      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm px-7 pt-5 pb-4 space-y-4">
+        {/* Hàng 1: Tiêu đề + toggle phạm vi (LeaderEditor) — tách khỏi hàng tab để header
+            không dồn hết điều khiển vào một hàng, đỡ rối khi màn hình hẹp */}
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="min-w-[160px]">
+            <h1 className="text-2xl font-black text-slate-900 leading-tight">{pageTitle}</h1>
+            <p className="text-sm text-slate-400 mt-0.5">
               {leaderTeam && !isMineView
                 ? `${leaderTeam.name} · ${total > 0 ? `${total} task` : 'Danh sách task'}`
                 : total > 0 ? `${total} task` : 'Danh sách task'
               }
-            </span>
+            </p>
           </div>
 
           {/* View mode toggle (LeaderEditor) — kiểu pill để phân biệt với tab nội dung bên dưới */}
           {isLeaderEditor && (
-            <div className="flex rounded-lg overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0">
+            <div className="flex rounded-xl overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0">
               <button
                 onClick={() => switchView('team')}
                 className={cn(
-                  'flex items-center gap-2 px-3.5 py-2 text-sm font-semibold transition-colors',
+                  'flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors',
                   viewMode === 'team' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-gray-100'
                 )}
               >
@@ -269,7 +256,7 @@ export default function TasksPage() {
               <button
                 onClick={() => switchView('mine')}
                 className={cn(
-                  'flex items-center gap-2 px-3.5 py-2 text-sm font-semibold transition-colors border-l border-gray-200',
+                  'flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors border-l border-gray-200',
                   viewMode === 'mine' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-gray-100'
                 )}
               >
@@ -282,13 +269,11 @@ export default function TasksPage() {
 
         {/* Hàng 2: tab nội dung (kèm badge số việc chờ xử lý) + toggle bố cục Kanban/List
             cùng nằm trên một đường kẻ chân để nhóm điều khiển "đang xem gì" về một chỗ */}
-        <div className="flex items-end gap-x-5 gap-y-1.5 flex-wrap border-b border-gray-100">
+        <div className="flex items-end gap-x-5 gap-y-2 flex-wrap border-b border-gray-100">
           {([
             { key: 'table' as const, label: 'Danh sách task', icon: Kanban, count: null },
-            { key: 'pending' as const, label: 'Video chờ duyệt', icon: LayoutGrid, count: submittedTotal },
-            { key: 'approved' as const, label: 'Video đã nộp', icon: CheckCircle2, count: null },
+            { key: 'submitted' as const, label: 'Video đã nộp', icon: LayoutGrid, count: submittedTotal },
             { key: 'content-approval' as const, label: 'Content chờ duyệt', icon: FileClock, count: contentApprovalTotal },
-            { key: 'content-scoring' as const, label: 'Chấm điểm content', icon: Gauge, count: null },
           ]).map(tab => {
             const Icon = tab.icon
             const active = activeTab === tab.key
@@ -348,14 +333,13 @@ export default function TasksPage() {
           )}
         </div>
 
-        {/* Hàng 3: bộ lọc + nút Tạo task — không áp dụng cho tab chấm điểm content (công cụ độc lập, không lọc theo task) */}
-        {activeTab !== 'content-scoring' && (
+        {/* Hàng 3: bộ lọc + nút Tạo task */}
         <TaskFilters
           statusFilter={status}
           teamFilter={teamId}
           searchFilter={search}
-          dateFromFilter={activeTab === 'approved' ? approvedFrom : deadlineFrom}
-          dateToFilter={activeTab === 'approved' ? approvedTo : deadlineTo}
+          deadlineFromFilter={deadlineFrom}
+          deadlineToFilter={deadlineTo}
           taskTypeFilter={taskType}
           assigneeFilter={assigneeId}
           assigneeOptions={assigneeOptions}
@@ -364,29 +348,21 @@ export default function TasksPage() {
           isMember={isMineView}
           hideTeamFilter={isLeader}
           // Chỉ layout "Danh sách" (bảng phẳng, không tự chia cột theo trạng thái) mới cần bộ lọc
-          // Trạng thái — Kanban đã tự chia cột, còn tab "Video chờ duyệt"/"Video đã nộp"/"Content chờ duyệt" không hỗ trợ lọc này.
+          // Trạng thái — Kanban đã tự chia cột, còn tab "Video đã nộp"/"Content chờ duyệt" không hỗ trợ lọc này.
           hideStatusFilter={!(activeTab === 'table' && taskLayout === 'list')}
-          hideDateFilter={activeTab === 'content-approval'}
-          // Tab "Video đã nộp" lọc theo ngày duyệt (reviewed_at) — khác hạn chót/ngày tạo của các tab
-          // còn lại, và không có mặc định "hôm nay" vì đây là tab xem lại lịch sử.
-          dateFilterLabel={activeTab === 'approved' ? 'Ngày duyệt' : 'Ngày'}
-          dateFilterTooltip={activeTab === 'approved'
-            ? 'Lọc theo thời điểm video được duyệt'
-            : 'Lọc theo hạn chót của task — task chưa đặt hạn thì tính theo ngày tạo'}
-          dateFilterDefaultPreset={activeTab === 'approved' ? 'all' : 'today'}
+          hideDeadlineFilter={activeTab === 'content-approval'}
           onStatusChange={handleStatusChange}
           onTeamChange={handleTeamChange}
           onSearchChange={handleSearchChange}
-          onDateFromChange={activeTab === 'approved' ? handleApprovedFromChange : handleDeadlineFromChange}
-          onDateToChange={activeTab === 'approved' ? handleApprovedToChange : handleDeadlineToChange}
+          onDeadlineFromChange={handleDeadlineFromChange}
+          onDeadlineToChange={handleDeadlineToChange}
           onTaskTypeChange={handleTaskTypeChange}
           onAssigneeChange={handleAssigneeChange}
           onCreateClick={() => setShowCreate(true)}
         />
-        )}
       </div>
 
-      {isMineView && activeTab !== 'content-scoring' && <WarehouseEmptyBanner enabled={isMineView} />}
+      {isMineView && <WarehouseEmptyBanner enabled={isMineView} />}
 
       {activeTab === 'table' ? (
         taskLayout === 'kanban' ? (
@@ -414,7 +390,7 @@ export default function TasksPage() {
             onPageChange={setTablePage}
           />
         )
-      ) : activeTab === 'pending' ? (
+      ) : activeTab === 'submitted' ? (
         <SubmittedVideosGrid
           teamId={effectiveTeamId}
           search={search || undefined}
@@ -426,18 +402,7 @@ export default function TasksPage() {
           onViewTask={setSelectedTaskId}
           canApproveReject={canApproveReject}
         />
-      ) : activeTab === 'approved' ? (
-        <ApprovedVideosGrid
-          teamId={effectiveTeamId}
-          search={search || undefined}
-          reviewedFrom={approvedFrom || undefined}
-          reviewedTo={approvedTo || undefined}
-          assigneeId={effectiveAssigneeId}
-          page={approvedPage}
-          onPageChange={setApprovedPage}
-          onViewTask={setSelectedTaskId}
-        />
-      ) : activeTab === 'content-approval' ? (
+      ) : (
         <ContentApprovalList
           teamId={effectiveTeamId}
           search={search || undefined}
@@ -446,8 +411,6 @@ export default function TasksPage() {
           onPageChange={setContentApprovalPage}
           canApproveReject={canApproveReject}
         />
-      ) : (
-        <ContentScoringTab />
       )}
 
       {selectedTaskId && (

@@ -7,7 +7,7 @@ import { Check, Loader2, Search, X, Crown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { createTeam, getUsers } from '@/lib/api/task-auto'
-import type { BrandType, Team, TeamKind } from '@/types/task-auto'
+import type { BrandType, Team } from '@/types/task-auto'
 
 interface Props {
   open: boolean
@@ -19,7 +19,6 @@ export function CreateTeamModal({ open, onClose, onSuccess }: Props) {
   const qc = useQueryClient()
   const [name, setName] = useState('')
   const [brandType, setBrandType] = useState<BrandType>('TRANG_SUC')
-  const [teamKind, setTeamKind] = useState<TeamKind>('PRODUCTION')
   const [leaderId, setLeaderId] = useState('')
   const [memberIds, setMemberIds] = useState<Set<string>>(new Set())
   const [search, setSearch] = useState('')
@@ -50,7 +49,6 @@ export function CreateTeamModal({ open, onClose, onSuccess }: Props) {
     mutationFn: () => createTeam({
       name: name.trim(),
       brand_type: brandType,
-      team_kind: teamKind,
       leader_id: leaderId || undefined,
       member_ids: Array.from(memberIds),
     }),
@@ -68,7 +66,7 @@ export function CreateTeamModal({ open, onClose, onSuccess }: Props) {
   const canSubmit = name.trim() !== '' && !nameError && !createMut.isPending
 
   useEffect(() => {
-    if (!open) { setName(''); setBrandType('TRANG_SUC'); setTeamKind('PRODUCTION'); setLeaderId(''); setMemberIds(new Set()); setSearch('') }
+    if (!open) { setName(''); setBrandType('TRANG_SUC'); setLeaderId(''); setMemberIds(new Set()); setSearch('') }
   }, [open])
 
   return (
@@ -110,36 +108,17 @@ export function CreateTeamModal({ open, onClose, onSuccess }: Props) {
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-1.5">Loại team</label>
+          <label className="block text-sm font-semibold text-slate-700 mb-1.5">Thương hiệu</label>
           <div className="flex gap-2">
-            {(['PRODUCTION', 'CONTENT'] as TeamKind[]).map(k => (
-              <button key={k} type="button" onClick={() => setTeamKind(k)}
+            {(['TRANG_SUC', 'DO_DA'] as BrandType[]).map(b => (
+              <button key={b} type="button" onClick={() => setBrandType(b)}
                 className={cn('px-4 py-2.5 rounded-full text-xs font-semibold border transition-all',
-                  teamKind === k ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-slate-500 hover:border-slate-400')}>
-                {k === 'CONTENT' ? 'Content Team' : 'Sản xuất video'}
+                  brandType === b ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-slate-500 hover:border-slate-400')}>
+                {b === 'DO_DA' ? 'Đồ da' : 'Trang sức'}
               </button>
             ))}
           </div>
         </div>
-
-        {teamKind === 'PRODUCTION' ? (
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Thương hiệu</label>
-            <div className="flex gap-2">
-              {(['TRANG_SUC', 'DO_DA'] as BrandType[]).map(b => (
-                <button key={b} type="button" onClick={() => setBrandType(b)}
-                  className={cn('px-4 py-2.5 rounded-full text-xs font-semibold border transition-all',
-                    brandType === b ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-slate-500 hover:border-slate-400')}>
-                  {b === 'DO_DA' ? 'Đồ da' : 'Trang sức'}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <p className="text-xs text-slate-400 italic -mt-1">
-            Content Team làm content cho cả Đồ da và Trang sức, không gắn cố định 1 thương hiệu.
-          </p>
-        )}
 
         <div>
           <label className="block text-sm font-semibold text-slate-700 mb-1.5">Leader</label>

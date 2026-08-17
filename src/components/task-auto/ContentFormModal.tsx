@@ -3,20 +3,16 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Loader2, Mic, X, Play, Pause, FileText, Upload, Gauge } from 'lucide-react'
+import { Loader2, Mic, X, Play, Pause, FileText, Upload } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { DarkInput, DarkTextarea, CustomSelect, CreatableSelect } from '@/components/task-auto/DarkInput'
-import { PaastScoreModal } from '@/components/task-auto/PaastScoreModal'
-import type { PaastAnalysisHistory } from '@/lib/api/paast-analyzer'
 import {
   createContent, updateContent, createEditorContent, updateTeamContent,
   getContentLines, uploadVoiceFile, uploadContentFile,
   getContentClassifications, createContentClassification,
 } from '@/lib/api/task-auto'
 import type { Content } from '@/types/task-auto'
-
-const PAAST_MIN_LENGTH = 100
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -355,11 +351,6 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
   const [resolvingVoice, setResolvingVoice] = useState(false)
   const voicePickerRef = useRef<VoicePickerHandle>(null)
 
-  // Chấm điểm PAAST ngay khi paste nội dung — giúp điều chỉnh content trước khi thêm mới, không phải
-  // thêm xong rồi mới biết đạt/chưa đạt chuẩn.
-  const [showScoreModal, setShowScoreModal] = useState(false)
-  const [scoreCache, setScoreCache] = useState<{ content: string; result: PaastAnalysisHistory } | null>(null)
-
   useEffect(() => {
     if (open) {
       if (editing) {
@@ -369,7 +360,6 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
         setForm({ code: '', title: '', body: '', script: '', file_content_url: '', voice_url: '', content_line_id: '', classification_id: '' })
         setMarket(initialMarket ?? 'VIETNAM')
       }
-      setScoreCache(null)
     }
   }, [open, editing, initialMarket])
 
@@ -450,7 +440,7 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
       open={open}
       onClose={onClose}
       title={isEdit ? 'Chỉnh sửa content' : 'Thêm content mới'}
-      size="2xl"
+      size="xl"
       footer={
         <>
           <button
@@ -523,36 +513,16 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
 
         {/* ── Nội dung văn bản ── */}
         <div className="space-y-4">
-          <div className="flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest shrink-0">
-              Nội dung văn bản
-            </p>
-          </div>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <label className="block text-base font-semibold text-slate-700">Nội dung / Script</label>
-              <button
-                type="button"
-                onClick={() => setShowScoreModal(true)}
-                disabled={(form.body ?? '').trim().length < PAAST_MIN_LENGTH}
-                title={(form.body ?? '').trim().length < PAAST_MIN_LENGTH ? `Cần ít nhất ${PAAST_MIN_LENGTH} ký tự để chấm điểm` : undefined}
-                className={cn(
-                  'flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors shrink-0',
-                  (form.body ?? '').trim().length >= PAAST_MIN_LENGTH
-                    ? 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                    : 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed',
-                )}
-              >
-                <Gauge className="w-3.5 h-3.5" /> Chấm điểm content
-              </button>
-            </div>
-            <DarkTextarea
-              rows={12}
-              placeholder="Nhập nội dung hoặc kịch bản..."
-              value={form.body ?? ''}
-              onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
-            />
-          </div>
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
+            Nội dung văn bản
+          </p>
+          <DarkTextarea
+            label="Nội dung / Script"
+            rows={4}
+            placeholder="Nhập nội dung hoặc kịch bản..."
+            value={form.body ?? ''}
+            onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
+          />
           <ContentFilePicker
             value={form.file_content_url ?? ''}
             onChange={url => setForm(f => ({ ...f, file_content_url: url }))}
@@ -572,18 +542,6 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
         </div>
 
       </div>
-
-      <PaastScoreModal
-        open={showScoreModal}
-        content={form.body ?? ''}
-        onClose={() => setShowScoreModal(false)}
-        cachedResult={scoreCache && scoreCache.content === (form.body ?? '') ? scoreCache.result : null}
-        onAnalyzed={result => setScoreCache({ content: form.body ?? '', result })}
-        onApply={(upgradedContent, result) => {
-          setForm(f => ({ ...f, body: upgradedContent }))
-          setScoreCache({ content: upgradedContent, result })
-        }}
-      />
     </DarkModal>
   )
 }

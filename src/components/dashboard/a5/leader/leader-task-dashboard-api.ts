@@ -24,12 +24,6 @@ export interface LeaderDashboardMember {
   traffic_month: number;
   /** Tổng doanh thu tự báo cáo hằng ngày, cộng dồn trong tháng hiện tại. Chưa có KPI/mục tiêu doanh thu. */
   revenue_month: number;
-  is_editor: boolean;
-  /** true = member này hiển thị dạng card content creator (KPI ngày/tháng tính theo số content,
-   * ô "Traffic" đổi thành content_collected_month/content_original_month). */
-  is_content_creator: boolean;
-  content_collected_month: number;
-  content_original_month: number;
 }
 
 export interface LeaderTaskDashboard {

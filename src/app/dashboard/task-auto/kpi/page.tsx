@@ -10,17 +10,13 @@ import { UserRole } from '@/types/auth'
 import { TeamKpiTab } from './components/TeamKpiTab'
 import { EditorKpiTab } from './components/EditorKpiTab'
 import { DailyKpiTab } from './components/DailyKpiTab'
-import { ContentCreatorKpiTab } from './components/ContentCreatorKpiTab'
-import { ContentCreatorDailyKpiTab } from './components/ContentCreatorDailyKpiTab'
 
-type KpiTab = 'team' | 'editor' | 'daily' | 'content-creator' | 'content-creator-daily'
+type KpiTab = 'team' | 'editor' | 'daily'
 
 const TAB_LABELS: Record<KpiTab, string> = {
   team: 'KPI Team',
   editor: 'KPI Editor',
   daily: 'KPI Ngày',
-  'content-creator': 'KPI Content',
-  'content-creator-daily': 'KPI Ngày Content',
 }
 
 export default function KpiPage() {
@@ -66,7 +62,7 @@ export default function KpiPage() {
       )}
 
       <div className="border-b border-gray-200 flex gap-1 overflow-x-auto scrollbar-none">
-        {(['team', 'editor', 'daily', 'content-creator', 'content-creator-daily'] as KpiTab[]).map(tab => (
+        {(['team', 'editor', 'daily'] as KpiTab[]).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             className={cn('flex items-center gap-2 px-6 py-3 text-base font-medium rounded-t-lg transition-colors shrink-0 whitespace-nowrap',
               activeTab === tab ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-slate-500 hover:text-slate-800 hover:bg-gray-100')}>
@@ -98,25 +94,6 @@ export default function KpiPage() {
       )}
       {activeTab === 'daily' && (
         <DailyKpiTab
-          canEdit={canEditEditorKpi}
-          isLeader={isLeader && !isAdminOrManager}
-          userId={user?.id}
-          selectedTeamId={selectedTeamId}
-          onTeamChange={setSelectedTeamId}
-        />
-      )}
-      {activeTab === 'content-creator' && (
-        <ContentCreatorKpiTab
-          month={month}
-          canEdit={canEditEditorKpi}
-          isLeader={isLeader && !isAdminOrManager}
-          userId={user?.id}
-          selectedTeamId={selectedTeamId}
-          onTeamChange={setSelectedTeamId}
-        />
-      )}
-      {activeTab === 'content-creator-daily' && (
-        <ContentCreatorDailyKpiTab
           canEdit={canEditEditorKpi}
           isLeader={isLeader && !isAdminOrManager}
           userId={user?.id}

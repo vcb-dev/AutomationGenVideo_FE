@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { FileText, Plus, Search, X, BookOpen, Mic, Globe, Trash2, Edit2, Loader2, Sparkles } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { FileText, Plus, Search, X, BookOpen, Mic, Globe, Trash2, Edit2, Loader2 } from 'lucide-react'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
@@ -15,7 +14,7 @@ import {
   getTeams, getTeamContents, addTeamContent, removeTeamContent,
   pushTeamContentToGlobal, getContentLines, getContentClassifications,
 } from '@/lib/api/task-auto'
-import type { Content, TeamContent, ContentOrigin } from '@/types/task-auto'
+import type { Content, TeamContent } from '@/types/task-auto'
 import { AddContentModal } from './contents/AddContentModal'
 import { ContentViewModal } from '@/components/task-auto/ContentViewModal'
 
@@ -39,7 +38,6 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
   const [contentLineFilter, setContentLineFilter] = useState('')
   const [classificationFilter, setClassificationFilter] = useState('')
   const [page, setPage] = useState(1)
-  const [pendingOrigin, setPendingOrigin] = useState<ContentOrigin | null>(null)
 
   const { data: teams } = useQuery({
     queryKey: ['task-auto', 'teams'],
@@ -50,9 +48,8 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
   const teamMarket: string = selectedTeam?.market ?? 'VIETNAM'
   const isLeaderOfSelected = selectedTeam?.leader_id === userId
   //const isMemberOfSelected = selectedTeam?.members?.some(m => m.user_id === userId) ?? false
-  const canManageSelected = isAdminOrManager || isLeaderOfSelected
+  const canManageSelected = isAdminOrManager || isLeaderOfSelected 
   const canPushToGlobal = isAdminOrManager || isLeaderOfSelected
-  const isContentCreatorOfSelected = selectedTeam?.members?.some(m => m.user_id === userId && m.is_content_creator) ?? false
 
   const myTeams = (teams ?? []).filter(t =>
     t.leader_id === userId || t.members?.some((m: any) => m.user_id === userId)
@@ -116,7 +113,6 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
   const [pushingContent, setPushingContent] = useState<TeamContent | null>(null)
 
   useEffect(() => { setPage(1) }, [selectedTeamId, brandType, month, search, contentLineFilter, classificationFilter])
-  useEffect(() => { setPendingOrigin(null) }, [selectedTeamId])
 
   return (
     <div className="space-y-5">
@@ -166,24 +162,6 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
             <span className="text-sm text-slate-400 font-medium whitespace-nowrap">
               {total} content
             </span>
-          )}
-
-          {selectedTeamId && isContentCreatorOfSelected && (
-            <div className="flex items-center gap-1.5 shrink-0 bg-emerald-50 border border-emerald-200 rounded-xl p-1">
-              <Sparkles className="w-3.5 h-3.5 text-emerald-500 ml-1.5" />
-              {(['COLLECTED', 'SELF_CREATED'] as ContentOrigin[]).map(o => (
-                <button
-                  key={o}
-                  onClick={() => setPendingOrigin(o)}
-                  className={cn(
-                    'px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors',
-                    pendingOrigin === o ? 'bg-emerald-600 text-white' : 'text-emerald-700 hover:bg-emerald-100',
-                  )}
-                >
-                  {o === 'COLLECTED' ? 'Sưu tầm' : 'Tự nghĩ'}
-                </button>
-              ))}
-            </div>
           )}
 
           {selectedTeamId && canManageSelected && (
@@ -482,7 +460,6 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
                 voice_url: content.voice_url,
                 content_line_id: content.content_line_id,
                 classification_id: content.classification_id,
-                origin: isContentCreatorOfSelected ? (pendingOrigin ?? undefined) : undefined,
               })
               qc.invalidateQueries({ queryKey: ['task-auto', 'team-contents', selectedTeamId, brandType] })
             } catch (e: any) {
@@ -499,7 +476,6 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
           existingContentIds={existingContentIds}
           initialBrandType={brandType}
           initialMarket={teamMarket}
-          showOriginPicker={isContentCreatorOfSelected}
           onClose={() => setShowAdd(false)}
           onSuccess={() => setShowAdd(false)}
         />

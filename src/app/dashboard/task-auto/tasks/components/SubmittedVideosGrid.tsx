@@ -112,7 +112,7 @@ export function SubmittedVideosGrid({ teamId, search, deadlineFrom, deadlineTo, 
         {isLoading && <SkeletonCards />}
         {!isLoading && tasks.length === 0 && (
           <div className="col-span-full">
-            <EmptyState icon={Play} title="Không có video nào chờ duyệt" description="Video mới nộp sẽ hiện ở đây để duyệt" />
+            <EmptyState icon={Play} title="Không có video nào chờ duyệt" description="Video đã nộp sẽ hiện ở đây để duyệt" />
           </div>
         )}
         {!isLoading && tasks.map((task, index) => {

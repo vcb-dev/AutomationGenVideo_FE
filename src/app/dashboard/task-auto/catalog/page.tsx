@@ -1,18 +1,19 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Package, Radio, Archive } from 'lucide-react'
+import { Package, FileText, Radio, Archive } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth-store'
 import { getTeams, isPrivilegedSourceTeamMember } from '@/lib/api/task-auto'
 import { UserRole } from '@/types/auth'
 import { ProductsTab } from './components/ProductsTab/ProductsTab'
+import { ContentsTab } from './components/ContentsTab'
 import { SourcesTab } from './components/SourcesTab'
 import { WarehouseTab } from './components/WarehouseTab'
 import type { BrandType } from '@/types/task-auto'
 
-type CatalogTab = 'products' | 'sources' | 'warehouse'
+type CatalogTab = 'products' | 'contents' | 'sources' | 'warehouse'
 
 const BRANDS: { key: BrandType; label: string; color: string }[] = [
   { key: 'DO_DA',     label: 'Đồ da',     color: 'amber' },
@@ -21,6 +22,7 @@ const BRANDS: { key: BrandType; label: string; color: string }[] = [
 
 const TABS: { key: CatalogTab; label: string; icon: React.ElementType }[] = [
   { key: 'products',  label: 'Sản phẩm', icon: Package },
+  { key: 'contents',  label: 'Content',  icon: FileText },
   { key: 'sources',   label: 'Sources',  icon: Radio },
   { key: 'warehouse', label: 'Kho tháng', icon: Archive },
 ]
@@ -115,6 +117,7 @@ export default function CatalogPage() {
 
       {/* Tab content — key={brand} reset state khi đổi nhóm */}
       {activeTab === 'products'  && <ProductsTab  key={brand} brandType={brand} month={month} onMonthChange={setMonth} />}
+      {activeTab === 'contents'  && <ContentsTab  key={brand} brandType={brand} month={month} onMonthChange={setMonth} />}
       {activeTab === 'sources'   && <SourcesTab   key={brand} brandType={brand} isScaleData={isScaleData || isAdminOrManager} month={month} onMonthChange={setMonth} />}
       {activeTab === 'warehouse' && <WarehouseTab key={brand} brandType={brand} isAdminOrManager={isAdminOrManager} isScaleData={isScaleData} />}
     </div>

@@ -2,16 +2,13 @@
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ListTodo, Users, User, Loader2, CalendarDays, Sparkles } from 'lucide-react'
+import { ListTodo, Users, User, Loader2, CalendarDays } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
-import { getDashboard, getTeams, isContentTeamMember } from '@/lib/api/task-auto'
-import { useAuthStore } from '@/store/auth-store'
+import { getDashboard } from '@/lib/api/task-auto'
 import { GlobalDashboard, buildGlobal } from './components/GlobalDashboard'
 import { TeamDashboard } from './components/TeamDashboard'
 import { PersonalDashboard } from './components/PersonalDashboard'
-import { ContentCreatorDashboard } from './components/ContentCreatorDashboard'
-import { ContentTeamLeaderDashboard } from './components/ContentTeamLeaderDashboard'
 
 // ── Date filter ───────────────────────────────────────────────────────────────
 
@@ -148,30 +145,15 @@ export default function TaskAutoDashboard() {
     enabled: !!(from && to),
   })
 
-  // Content Team (team_kind=CONTENT) có Tổng quan riêng — không dùng dashboard theo task/KPI video
-  // vì content creator không nhận task sản xuất video theo cách thông thường.
-  const { user } = useAuthStore()
-  const { data: teams, isLoading: teamsLoading } = useQuery({
-    queryKey: ['task-auto', 'teams'],
-    queryFn: getTeams,
-  })
-  const contentTeamsLed = (teams ?? []).filter(t => t.team_kind === 'CONTENT' && t.leader_id === user?.id)
-  const isContentLeader = contentTeamsLed.length > 0
-  const isContentMember = !isContentLeader && isContentTeamMember(teams, user?.id)
-
-  const scopeLabel = isContentLeader ? (contentTeamsLed.length === 1 ? `Content Team: ${contentTeamsLed[0].name}` : 'Content Team')
-    : isContentMember ? 'Content Creator'
-    : data?.scope === 'global' ? 'Toàn hệ thống'
+  const scopeLabel = data?.scope === 'global' ? 'Toàn hệ thống'
     : data?.scope === 'team' ? (data.team ? `Team: ${data.team.name}` : 'Team của tôi')
     : 'Cá nhân'
 
-  const scopeIcon = isContentLeader || isContentMember
-    ? <Sparkles className="w-4 h-4" />
-    : data?.scope === 'personal'
+  const scopeIcon = data?.scope === 'personal'
     ? <User className="w-4 h-4" />
     : <Users className="w-4 h-4" />
 
-  const showDateFilter = isContentLeader || isContentMember || data?.scope === 'global' || data?.scope === 'team'
+  const showDateFilter = data?.scope === 'global' || data?.scope === 'team'
 
   return (
     <div className="space-y-6">
@@ -220,19 +202,10 @@ export default function TaskAutoDashboard() {
       )}
 
       {/* Content */}
-      {(isLoading || teamsLoading) ? (
+      {isLoading ? (
         <div className="flex items-center justify-center py-32">
           <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
         </div>
-      ) : isContentLeader ? (
-        <ContentTeamLeaderDashboard teams={contentTeamsLed} from={from} to={to} periodLabel={periodLabel} />
-      ) : isContentMember && user?.id ? (
-        <ContentCreatorDashboard
-          userId={user.id}
-          from={from}
-          to={to}
-          teamName={teams?.find(t => t.team_kind === 'CONTENT' && t.members?.some(m => m.user_id === user.id))?.name}
-        />
       ) : !data ? null
         : data.scope === 'global' ? <GlobalDashboard d={buildGlobal(data)} periodLabel={periodLabel} />
         : data.scope === 'team'   ? <TeamDashboard d={data} periodLabel={periodLabel} />

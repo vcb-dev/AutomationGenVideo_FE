@@ -43,14 +43,10 @@ export function LeaderDashboard() {
     }
   };
 
-  // "Video tháng" chỉ tổng hợp editor — content creator dùng kpi_completed/kpi_target cho SỐ CONTENT
-  // (không phải video), gộp chung vào đây sẽ làm sai lệch tổng.
-  const videoTotals = members
-    .filter((m) => !m.is_content_creator)
-    .reduce(
-      (acc, m) => ({ current: acc.current + m.kpi_completed, target: acc.target + m.kpi_target }),
-      { current: 0, target: 0 },
-    );
+  const videoTotals = members.reduce(
+    (acc, m) => ({ current: acc.current + m.kpi_completed, target: acc.target + m.kpi_target }),
+    { current: 0, target: 0 },
+  );
   const trafficTotal = members.reduce((sum, m) => sum + m.traffic_month, 0);
   const revenueTotal = members.reduce((sum, m) => sum + m.revenue_month, 0);
 
@@ -113,9 +109,6 @@ export function LeaderDashboard() {
                     kpi_day_completed: m.kpi_day_completed,
                     kpi_day_target: m.kpi_day_target,
                     traffic_month: m.traffic_month,
-                    is_content_creator: m.is_content_creator,
-                    content_collected_month: m.content_collected_month,
-                    content_original_month: m.content_original_month,
                   }}
                 />
               ))}

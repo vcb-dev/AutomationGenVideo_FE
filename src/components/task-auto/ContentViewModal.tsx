@@ -1,21 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import toast from 'react-hot-toast'
+import { useState } from 'react'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import {
   FileText, X, Trash2, Mic, AlignLeft, Clapperboard,
   ExternalLink, Edit2, SendHorizontal, Globe,
-  User, Calendar, Tag, Languages, Loader2, Check, Plus, Gauge, Sparkles,
+  User, Calendar, Tag,
 } from 'lucide-react'
 import { cn, drivePreviewUrl } from '@/lib/utils'
-import { CustomSelect } from './DarkInput'
-import { getContentTranslations, upsertContentTranslation, deleteContentTranslation, aiTranslateContent } from '@/lib/api/task-auto'
-import { PaastScoreModal } from './PaastScoreModal'
-import type { PaastAnalysisHistory } from '@/lib/api/paast-analyzer'
-
-const PAAST_MIN_LENGTH = 100
 
 const STATUS_LABELS: Record<string, string> = {
   AVAILABLE: 'Sẵn sàng',
@@ -45,172 +37,6 @@ const CATALOG_COLORS: Record<string, string> = {
   global: 'bg-violet-50 text-violet-600',
   team:   'bg-blue-50 text-blue-600',
   editor: 'bg-indigo-50 text-indigo-600',
-}
-
-const TRANSLATION_MARKETS = ['VIETNAM', 'INDONESIA', 'JAPAN', 'THAILAND']
-const LANGUAGE_OPTIONS = [
-  { value: 'ORIGINAL', label: 'Content gốc' },
-  ...TRANSLATION_MARKETS.map(m => ({ value: m, label: MARKET_LABEL[m] ?? m })),
-]
-
-/**
- * Panel nội dung theo ngôn ngữ — chỉ áp dụng cho content kho tổng (catalogType='global').
- * Mặc định hiện content gốc; chọn 1 thị trường ở dropdown để xem/dịch/sửa bản dịch riêng của
- * thị trường đó (thay nội dung hiển thị theo ngôn ngữ đã chọn, không hiện đồng thời cả 4 bản).
- */
-function ContentLanguagePanel({
-  contentId, canEdit, originalBody,
-}: {
-  contentId: string
-  canEdit?: boolean
-  originalBody: string | null
-}) {
-  const qc = useQueryClient()
-  const [lang, setLang] = useState('ORIGINAL')
-  const [editing, setEditing] = useState(false)
-  const [draftBody, setDraftBody] = useState('')
-  const [aiTranslating, setAiTranslating] = useState(false)
-  const [showScoreModal, setShowScoreModal] = useState(false)
-  const [scoreCache, setScoreCache] = useState<{ content: string; result: PaastAnalysisHistory } | null>(null)
-
-  const { data: translations, isLoading } = useQuery({
-    queryKey: ['task-auto', 'contents', contentId, 'translations'],
-    queryFn: () => getContentTranslations(contentId),
-  })
-  const invalidate = () => qc.invalidateQueries({ queryKey: ['task-auto', 'contents', contentId, 'translations'] })
-
-  const isOriginal = lang === 'ORIGINAL'
-  const existing = !isOriginal ? (translations ?? []).find(t => t.market === lang) ?? null : null
-
-  // Đổi ngôn ngữ → thoát chế độ sửa dở dang, hiện lại bản đã lưu của ngôn ngữ mới chọn.
-  useEffect(() => { setEditing(false) }, [lang])
-
-  const viewBody = isOriginal ? originalBody : (existing?.body ?? null)
-  const scoreText = (editing ? draftBody : viewBody) ?? ''
-
-  const saveMut = useMutation({
-    mutationFn: (body: { market: string; body?: string }) =>
-      upsertContentTranslation(contentId, body),
-    onSuccess: () => { invalidate(); setEditing(false); toast.success('Đã lưu bản dịch') },
-    onError: () => toast.error('Không thể lưu bản dịch'),
-  })
-
-  const deleteMut = useMutation({
-    mutationFn: (market: string) => deleteContentTranslation(contentId, market),
-    onSuccess: () => { invalidate(); toast.success('Đã xóa bản dịch') },
-    onError: () => toast.error('Không thể xóa bản dịch'),
-  })
-
-  const startManualEdit = () => {
-    setDraftBody(existing?.body ?? '')
-    setEditing(true)
-  }
-
-  const handleAiTranslate = async () => {
-    setAiTranslating(true)
-    try {
-      const result = await aiTranslateContent(contentId, lang)
-      setDraftBody(result.body ?? '')
-      setEditing(true)
-      toast.success('Đã dịch bằng AI — kiểm tra rồi bấm Lưu để áp dụng')
-    } catch {
-      toast.error('Không thể dịch bằng AI')
-    } finally {
-      setAiTranslating(false)
-    }
-  }
-
-  return (
-    <div>
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <Languages className="w-4 h-4 text-slate-400 shrink-0" />
-        <p className="text-base font-semibold text-slate-700 shrink-0">Nội dung</p>
-        <CustomSelect value={lang} onChange={setLang} options={LANGUAGE_OPTIONS} compact className="min-w-[160px]" />
-        {isLoading && <Loader2 className="w-3.5 h-3.5 text-slate-300 animate-spin" />}
-
-        <div className="ml-auto flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={() => setShowScoreModal(true)}
-            disabled={scoreText.trim().length < PAAST_MIN_LENGTH}
-            title={scoreText.trim().length < PAAST_MIN_LENGTH ? `Cần ít nhất ${PAAST_MIN_LENGTH} ký tự để chấm điểm` : undefined}
-            className={cn(
-              'flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-colors',
-              scoreText.trim().length >= PAAST_MIN_LENGTH
-                ? 'bg-white border-gray-200 text-slate-600 hover:bg-gray-50'
-                : 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed',
-            )}
-          >
-            <Gauge className="w-3.5 h-3.5" /> Chấm điểm content
-          </button>
-
-          {!isOriginal && canEdit && (
-            <button
-              type="button"
-              onClick={handleAiTranslate}
-              disabled={aiTranslating}
-              className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-violet-200 bg-white text-violet-700 hover:bg-violet-50 transition-colors disabled:opacity-60"
-            >
-              {aiTranslating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-              {existing ? 'Dịch lại bằng AI' : 'Dịch bằng AI'}
-            </button>
-          )}
-          {!isOriginal && canEdit && !editing && (
-            <button
-              type="button"
-              onClick={startManualEdit}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
-              title={existing ? 'Sửa bản dịch' : 'Nhập tay bản dịch'}
-            >
-              {existing ? <Edit2 className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-            </button>
-          )}
-          {!isOriginal && canEdit && existing && (
-            <button
-              type="button"
-              onClick={() => deleteMut.mutate(lang)}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-              title="Xóa bản dịch"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {editing ? (
-        <div className="space-y-2">
-          <textarea value={draftBody} onChange={e => setDraftBody(e.target.value)}
-            placeholder="Nội dung..." rows={14} className="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y" />
-          <div className="flex justify-end gap-2 pt-1">
-            <button onClick={() => setEditing(false)} className="px-4 py-2 text-sm font-semibold text-slate-500 hover:bg-gray-100 rounded-xl transition-colors">Hủy</button>
-            <button
-              onClick={() => saveMut.mutate({ market: lang, body: draftBody || undefined })}
-              disabled={saveMut.isPending}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors disabled:opacity-60">
-              {saveMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Lưu
-            </button>
-          </div>
-        </div>
-      ) : viewBody ? (
-        <div className="bg-gray-50 rounded-2xl px-5 py-4 text-base text-slate-700 whitespace-pre-wrap leading-relaxed border border-gray-100">
-          {viewBody}
-        </div>
-      ) : !isOriginal && (
-        <p className="text-sm text-slate-400 italic">
-          Chưa có bản dịch cho thị trường này — bấm &quot;Dịch bằng AI&quot; hoặc nhập tay.
-        </p>
-      )}
-
-      <PaastScoreModal
-        open={showScoreModal}
-        content={scoreText}
-        onClose={() => setShowScoreModal(false)}
-        cachedResult={scoreCache?.content === scoreText ? scoreCache.result : null}
-        onAnalyzed={result => setScoreCache({ content: scoreText, result })}
-      />
-    </div>
-  )
 }
 
 export interface ContentViewItem {
@@ -276,8 +102,6 @@ export function ContentViewModal({
 }: Props) {
   useScrollLock()
   const [fileOpen, setFileOpen] = useState(false)
-  const [showScoreModal, setShowScoreModal] = useState(false)
-  const [scoreCache, setScoreCache] = useState<{ content: string; result: PaastAnalysisHistory } | null>(null)
 
   // Resolve FK-reference fields: own → source_editor_content (team FK) → source_team_content → source_team_content.source_editor_content (global FK)
   const ec = item.source_editor_content
@@ -320,7 +144,7 @@ export function ContentViewModal({
 
       <div className="fixed inset-0 z-[1002] flex items-center justify-center p-4 sm:p-6" onClick={onClose}>
         <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-        <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden ring-1 ring-black/8"
+        <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden ring-1 ring-black/8"
           onClick={e => e.stopPropagation()}>
 
           {/* Header */}
@@ -398,54 +222,28 @@ export function ContentViewModal({
 
           {/* Body */}
           <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6">
-            {catalogType === 'global' ? (
-              (itemBody || itemScript || itemTitle) && (
-                <ContentLanguagePanel
-                  contentId={item.id}
-                  canEdit={canEdit}
-                  originalBody={itemBody}
-                />
-              )
-            ) : (
-              <>
-                {itemBody && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <AlignLeft className="w-4 h-4 text-slate-400" />
-                      <p className="text-base font-semibold text-slate-700">Nội dung</p>
-                      <button
-                        type="button"
-                        onClick={() => setShowScoreModal(true)}
-                        disabled={itemBody.trim().length < PAAST_MIN_LENGTH}
-                        title={itemBody.trim().length < PAAST_MIN_LENGTH ? `Cần ít nhất ${PAAST_MIN_LENGTH} ký tự để chấm điểm` : undefined}
-                        className={cn(
-                          'ml-auto flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-colors',
-                          itemBody.trim().length >= PAAST_MIN_LENGTH
-                            ? 'bg-white border-gray-200 text-slate-600 hover:bg-gray-50'
-                            : 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed',
-                        )}
-                      >
-                        <Gauge className="w-3.5 h-3.5" /> Chấm điểm content
-                      </button>
-                    </div>
-                    <div className="bg-gray-50 rounded-2xl px-5 py-4 text-base text-slate-700 whitespace-pre-wrap leading-relaxed border border-gray-100">
-                      {itemBody}
-                    </div>
-                  </div>
-                )}
+            {itemBody && (
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <AlignLeft className="w-4 h-4 text-slate-400" />
+                  <p className="text-base font-semibold text-slate-700">Nội dung</p>
+                </div>
+                <div className="bg-gray-50 rounded-2xl px-5 py-4 text-base text-slate-700 whitespace-pre-wrap max-h-60 overflow-y-auto leading-relaxed border border-gray-100">
+                  {itemBody}
+                </div>
+              </div>
+            )}
 
-                {itemScript && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <Clapperboard className="w-4 h-4 text-slate-400" />
-                      <p className="text-base font-semibold text-slate-700">Script</p>
-                    </div>
-                    <div className="bg-gray-50 rounded-2xl px-5 py-4 text-base text-slate-700 whitespace-pre-wrap leading-relaxed border border-gray-100">
-                      {itemScript}
-                    </div>
-                  </div>
-                )}
-              </>
+            {itemScript && (
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Clapperboard className="w-4 h-4 text-slate-400" />
+                  <p className="text-base font-semibold text-slate-700">Script</p>
+                </div>
+                <div className="bg-gray-50 rounded-2xl px-5 py-4 text-base text-slate-700 whitespace-pre-wrap max-h-60 overflow-y-auto leading-relaxed border border-gray-100">
+                  {itemScript}
+                </div>
+              </div>
             )}
 
             {(itemVoiceUrl || itemFileContentUrl) && (
@@ -524,14 +322,6 @@ export function ContentViewModal({
           </div>
         </div>
       </div>
-
-      <PaastScoreModal
-        open={showScoreModal}
-        content={itemBody ?? ''}
-        onClose={() => setShowScoreModal(false)}
-        cachedResult={scoreCache?.content === itemBody ? scoreCache.result : null}
-        onAnalyzed={result => setScoreCache({ content: itemBody ?? '', result })}
-      />
     </>
   )
 }

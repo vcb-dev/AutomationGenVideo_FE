@@ -57,7 +57,7 @@ export function ContentApprovalList({ teamId, search, assigneeId, page, onPageCh
   const [rejectingId, setRejectingId] = useState<string | null>(null)
   const [rejectReason, setRejectReason] = useState('')
   // Xem nội dung đầy đủ của 1 yêu cầu duyệt — chỉ hiện đúng phần content cần duyệt,
-  // không mở TaskDetailPanel đầy đủ (khác với click ở "Danh sách task"/"Video chờ duyệt"/"Video đã nộp").
+  // không mở TaskDetailPanel đầy đủ (khác với click ở "Danh sách task"/"Video đã nộp").
   const [viewing, setViewing] = useState<TaskContentApproval | null>(null)
 
   const { data, isLoading } = useQuery({
