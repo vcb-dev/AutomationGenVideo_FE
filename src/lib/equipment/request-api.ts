@@ -184,3 +184,47 @@ export async function fetchAssetDetail(assetCode: string) {
   );
   return data;
 }
+
+/** Một lượt mượn của máy — BE đã tính sẵn số ngày giữ và số ngày trễ. */
+export interface AssetBorrowHistoryRow {
+  borrowerId: string;
+  borrowerName: string | null;
+  project: string | null;
+  handedOverAt: string | null;
+  dueAt: string | null;
+  returnedAt: string | null;
+  status: 'HOLDING' | 'OVERDUE' | 'RETURNED' | 'UNKNOWN';
+  heldDays: number | null;
+  lateDays: number | null;
+}
+
+/**
+ * Lịch sử máy này từng ai mượn.
+ *
+ * BE tự lọc theo quyền người gọi: thành viên thường chỉ nhận về lượt mượn của chính mình,
+ * ADMIN/quản lý kho nhận toàn bộ. FE không tự lọc lại — lọc hai nơi là sớm muộn lệch nhau.
+ */
+export async function fetchAssetBorrowHistory(assetId: string) {
+  const { data } = await apiClient.get<AssetBorrowHistoryRow[]>(
+    `/mems/assets/${encodeURIComponent(assetId)}/borrow-history`,
+  );
+  return data;
+}
+
+export interface BorrowLogRow extends AssetBorrowHistoryRow {
+  assetId: string;
+  assetCode: string;
+}
+
+export interface BorrowLogResponse {
+  rows: BorrowLogRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/** Nhật ký toàn bộ lượt mượn của kho. BE chặn bằng @Roles — chỉ ADMIN/quản lý kho gọi được. */
+export async function fetchBorrowHistoryLog(query: Record<string, string | number>) {
+  const { data } = await apiClient.get<BorrowLogResponse>('/mems/borrow-history', { params: query });
+  return data;
+}

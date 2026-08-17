@@ -93,10 +93,11 @@ export function useLuckySpin() {
       addTeam: (name: string) => run(() => api.createTeam(activeWorkspace, name)),
       removeTeam: (teamId: string) => run(() => api.deleteTeam(activeWorkspace, teamId)),
 
-      addMember: (name: string, teamId: string) => run(() => api.createMember(activeWorkspace, name, teamId)),
-      bulkAddMembers: (members: { name: string; teamName: string }[]) =>
+      addMember: (name: string, teamId: string, avatarUrl?: string) =>
+        run(() => api.createMember(activeWorkspace, name, teamId, avatarUrl)),
+      bulkAddMembers: (members: { name: string; teamName: string; avatarUrl?: string }[]) =>
         mutation.mutateAsync(() => api.bulkCreateMembers(activeWorkspace, members)),
-      editMember: (memberId: string, patch: { name?: string; teamId?: string }) =>
+      editMember: (memberId: string, patch: { name?: string; teamId?: string; avatarUrl?: string }) =>
         run(() => api.updateMember(activeWorkspace, memberId, patch)),
       removeMember: (memberId: string) => run(() => api.deleteMember(activeWorkspace, memberId)),
 

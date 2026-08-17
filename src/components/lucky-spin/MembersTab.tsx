@@ -25,11 +25,12 @@ export function MembersTab({ store }: { store: LuckySpinStore }) {
   const { state, actions, winCountFor, giftCountFor } = store;
   const [newTeamName, setNewTeamName] = useState('');
   const [newMemberName, setNewMemberName] = useState('');
+  const [newMemberAvatarUrl, setNewMemberAvatarUrl] = useState('');
   const [newMemberTeamId, setNewMemberTeamId] = useState('');
   const [filterName, setFilterName] = useState('');
   const [filterTeam, setFilterTeam] = useState(ALL_TEAMS);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState({ name: '', teamId: '' });
+  const [draft, setDraft] = useState({ name: '', teamId: '', avatarUrl: '' });
   const { confirm, dialog } = useConfirmDialog();
 
   const teamIds = state.teams.map((t) => t.id);
@@ -80,8 +81,9 @@ export function MembersTab({ store }: { store: LuckySpinStore }) {
       return;
     }
     try {
-      await actions.addMember(name, selectedTeamId);
+      await actions.addMember(name, selectedTeamId, newMemberAvatarUrl.trim() || undefined);
       setNewMemberName('');
+      setNewMemberAvatarUrl('');
       toast.success('Đã thêm thành viên.');
     } catch (err) {
       toast.error(apiErrorMessage(err, 'Không thêm được thành viên.'));
@@ -127,7 +129,7 @@ export function MembersTab({ store }: { store: LuckySpinStore }) {
       return;
     }
     setEditingId(member.id);
-    setDraft({ name: member.name, teamId: member.teamId });
+    setDraft({ name: member.name, teamId: member.teamId, avatarUrl: member.avatarUrl ?? '' });
   };
 
   const saveEdit = async (id: string) => {
@@ -137,7 +139,11 @@ export function MembersTab({ store }: { store: LuckySpinStore }) {
       return;
     }
     try {
-      await actions.editMember(id, { name, teamId: draft.teamId });
+      await actions.editMember(id, {
+        name,
+        teamId: draft.teamId,
+        avatarUrl: draft.avatarUrl.trim() || undefined,
+      });
       setEditingId(null);
       toast.success('Đã cập nhật thành viên.');
     } catch (err) {
@@ -212,11 +218,17 @@ export function MembersTab({ store }: { store: LuckySpinStore }) {
 
         <PanelCard title="Thêm thành viên">
           <input
-            className={`${inputClass} mb-4`}
+            className={`${inputClass} mb-3`}
             placeholder="Họ và tên"
             value={newMemberName}
             onChange={(e) => setNewMemberName(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && addMember()}
+          />
+          <input
+            className={`${inputClass} mb-3`}
+            placeholder="Link ảnh đại diện (tùy chọn)"
+            value={newMemberAvatarUrl}
+            onChange={(e) => setNewMemberAvatarUrl(e.target.value)}
           />
           <select
             className={`${selectClass} mb-4`}
@@ -244,7 +256,7 @@ export function MembersTab({ store }: { store: LuckySpinStore }) {
           onRows={importRows}
           hint={
             <>
-              File cần có dòng tiêu đề với cột <b>Tên</b> và <b>Team</b>. Team chưa tồn tại sẽ được tự động tạo mới.
+              File có thể gồm các cột <b>Tên</b>, <b>Team</b> và <b>Ảnh/Avatar</b> (tùy chọn). Team chưa tồn tại sẽ được tự động tạo mới.
             </>
           }
         />
@@ -276,7 +288,7 @@ export function MembersTab({ store }: { store: LuckySpinStore }) {
           <table className="w-full border-separate border-spacing-0">
             <thead>
               <tr>
-                <th className={thClass}>Tên</th>
+                <th className={thClass}>Thành viên</th>
                 <th className={thClass}>Team</th>
                 <th className={thClass}>Trạng thái</th>
                 <th className={thClass}>Số lần trúng</th>
@@ -298,9 +310,16 @@ export function MembersTab({ store }: { store: LuckySpinStore }) {
                       <tr key={m.id}>
                         <td className={tdClass}>
                           <input
-                            className={inputClass}
+                            className={`${inputClass} mb-1.5`}
+                            placeholder="Tên thành viên"
                             value={draft.name}
                             onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                          />
+                          <input
+                            className={`${inputClass} text-[12px]`}
+                            placeholder="Link ảnh avatar"
+                            value={draft.avatarUrl}
+                            onChange={(e) => setDraft({ ...draft, avatarUrl: e.target.value })}
                           />
                         </td>
                         <td className={tdClass}>
@@ -327,7 +346,25 @@ export function MembersTab({ store }: { store: LuckySpinStore }) {
 
                   return (
                     <tr key={m.id} className={trClass}>
-                      <td className={tdClass}>{m.name}</td>
+                      <td className={tdClass}>
+                        <div className="flex items-center gap-2.5">
+                          {m.avatarUrl ? (
+                            <img
+                              src={m.avatarUrl}
+                              alt={m.name}
+                              className="h-8 w-8 rounded-full object-cover border border-[#F4B63D]/60 flex-shrink-0"
+                              onError={(e) => {
+                                (e.target as HTMLElement).style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FFF8E7] text-[13px] font-bold text-[#B98311] dark:bg-[#F4B63D]/15 flex-shrink-0">
+                              {m.name.trim().charAt(0).toUpperCase()}
+                            </span>
+                          )}
+                          <span className="font-medium text-[#111827] dark:text-white">{m.name}</span>
+                        </div>
+                      </td>
                       <td className={tdClass}>
                         {team ? <TeamTag name={team.name} /> : '—'}
                       </td>
