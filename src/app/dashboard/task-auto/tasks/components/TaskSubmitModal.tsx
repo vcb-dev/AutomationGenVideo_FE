@@ -7,7 +7,7 @@ import { Film, CheckCircle2, Loader2, Link, ChevronDown, Upload, X } from 'lucid
 import { cn } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { DarkInput } from '@/components/task-auto/DarkInput'
-import { apiClient, fetchWithAuth } from '@/lib/api-client'
+import { apiClient } from '@/lib/api-client'
 import { Task } from '@/types/task-auto'
 import { submitTask, updateTask } from '@/lib/api/task-auto'
 
@@ -46,8 +46,9 @@ async function uploadVideoToServer(
     formData.append('chunkIndex', String(i))
     formData.append('chunk', blob, file.name)
 
-    const res = await fetchWithAuth(`${API_BASE}/task-auto/tasks/${taskId}/upload-video/chunk`, {
-      method: 'POST', // NO Content-Type — browser sets multipart boundary automatically
+    const res = await fetch(`${API_BASE}/task-auto/tasks/${taskId}/upload-video/chunk`, {
+      method: 'POST',
+      credentials: 'include', // sends HttpOnly cookies automatically
       body: formData,
     })
     if (!res.ok) {
