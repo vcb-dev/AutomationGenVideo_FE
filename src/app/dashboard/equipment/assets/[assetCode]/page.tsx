@@ -9,6 +9,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { AssetPhotoGallery } from '@/components/equipment/AssetPhotoGallery';
 import { StatusPill } from '@/components/equipment/StatusPill';
 import { ConditionDot } from '@/components/equipment/ConditionDot';
+import { AssetBorrowHistory } from '@/components/equipment/AssetBorrowHistory';
 
 const cardClass =
   'rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/[0.08] dark:bg-white/[0.03]';
@@ -243,6 +244,10 @@ export default function AssetDetailPage({ params }: { params: { assetCode: strin
           </div>
         </section>
       </div>
+
+      <section className={cn(cardClass, 'mt-4')}>
+        <AssetBorrowHistory assetId={asset.id} />
+      </section>
     </div>
   );
 }
