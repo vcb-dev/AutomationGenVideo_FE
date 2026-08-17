@@ -10,7 +10,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
 import { fetchWithAuth } from '@/lib/api-client';
 
-type Platform = 'FACEBOOK' | 'INSTAGRAM' | 'TIKTOK' | 'DOUYIN' | 'XIAOHONGSHU';
+type Platform = 'FACEBOOK' | 'INSTAGRAM' | 'TIKTOK' | 'DOUYIN' | 'XIAOHONGSHU' | 'BILIBILI' | 'KUAISHOU';
 type SearchType = 'keyword' | 'hashtag';
 
 interface UnifiedVideo {
@@ -127,10 +127,12 @@ export default function GlobalSearchPage() {
 
     const platforms: { id: Platform; label: string; icon: any; color: string; glow: string; bg: string; disabled?: boolean }[] = [
         { id: 'TIKTOK', label: 'TikTok', icon: Music2, color: 'from-[#00f2ea] to-[#ff0050]', glow: 'shadow-[#00f2ea]/20', bg: 'bg-[#00f2ea]' },
-        { id: 'FACEBOOK', label: 'Facebook', icon: Facebook, color: 'from-[#1877F2] to-[#0052D4]', glow: 'shadow-[#1877F2]/20', bg: 'bg-[#1877F2]', disabled: true },
+        { id: 'DOUYIN', label: 'Douyin', icon: Music, color: 'from-[#25F4EE] to-[#FE2C55]', glow: 'shadow-[#fe2c55]/20', bg: 'bg-[#FE2C55]' },
+        { id: 'XIAOHONGSHU', label: 'Xiaohongshu', icon: BookOpen, color: 'from-[#ff2741] to-[#eb3349]', glow: 'shadow-[#ff2741]/20', bg: 'bg-[#ff2741]' },
+        { id: 'BILIBILI', label: 'Bilibili', icon: Play, color: 'from-[#00a1d6] to-[#00b5e5]', glow: 'shadow-[#00a1d6]/20', bg: 'bg-[#00a1d6]' },
+        { id: 'KUAISHOU', label: 'Kuaishou', icon: Play, color: 'from-[#ff5000] to-[#ff8400]', glow: 'shadow-[#ff5000]/20', bg: 'bg-[#ff5000]' },
         { id: 'INSTAGRAM', label: 'Instagram', icon: Instagram, color: 'from-[#833ab4] via-[#fd1d1d] to-[#fcb045]', glow: 'shadow-[#fd1d1d]/20', bg: 'bg-[#fd1d1d]' },
-        { id: 'DOUYIN', label: 'Douyin', icon: Music, color: 'from-[#25F4EE] to-[#FE2C55]', glow: 'shadow-[#fe2c55]/20', bg: 'bg-[#FE2C55]', disabled: true },
-        { id: 'XIAOHONGSHU', label: 'Xiaohongshu', icon: BookOpen, color: 'from-[#ff2741] to-[#eb3349]', glow: 'shadow-[#ff2741]/20', bg: 'bg-[#ff2741]', disabled: true },
+        { id: 'FACEBOOK', label: 'Facebook', icon: Facebook, color: 'from-[#1877F2] to-[#0052D4]', glow: 'shadow-[#1877F2]/20', bg: 'bg-[#1877F2]', disabled: true },
     ];
 
     const handleSearch = async (appendMode = false, nextBatchIndex = 0, currentSeenIds?: Set<string>) => {
@@ -152,51 +154,15 @@ export default function GlobalSearchPage() {
         }
 
         try {
-            let endpoint = '';
-            let body: any = {};
-
-            // Douyin & Xiaohongshu still call NestJS directly (they have dedicated controllers).
-            // TikTok / Facebook / Instagram go through the local Next.js proxy (/api/search)
-            // which forwards server-side to NestJS → Django, avoiding all CORS / cache issues.
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
-
-            if (platform === 'DOUYIN') {
-                endpoint = `${apiUrl}/douyin/search/`;
-                const ids = currentSeenIds ?? seenIds;
-                body = {
-                    searchTerm: searchTerm.trim(),
-                    searchType: searchType,
-                    maxPosts: 30,
-                    batchIndex: nextBatchIndex,
-                    seenIds: Array.from(ids),
-                };
-            } else if (platform === 'XIAOHONGSHU') {
-                endpoint = `${apiUrl}/xiaohongshu/search/`;
-                body = {
-                    searchTerm: searchTerm.trim(),
-                    maxPosts: 20,
-                };
-            } else if (platform === 'TIKTOK') {
-                endpoint = '/api/search';
-                body = {
-                    platform: 'tiktok',
-                    keyword: searchType === 'hashtag' ? `#${searchTerm.replace(/#/g, '')}` : searchTerm,
-                    max_results: 30,
-                    search_type: 'posts',
-                    search_mode: searchType,
-                    page: appendMode ? nextBatchIndex + 1 : 1,
-                };
-            } else {
-                endpoint = '/api/search';
-                body = {
-                    platform: platform.toLowerCase(),
-                    keyword: searchTerm,
-                    max_results: 30,
-                    search_type: platform === 'INSTAGRAM' ? instagramPostType : 'posts',
-                    search_mode: searchType,
-                    page: appendMode ? nextBatchIndex + 1 : 1,
-                };
-            }
+            const endpoint = '/api/search';
+            const body: any = {
+                platform: platform.toLowerCase(),
+                keyword: searchType === 'hashtag' ? `#${searchTerm.replace(/#/g, '')}` : searchTerm,
+                max_results: 30,
+                search_type: platform === 'INSTAGRAM' ? instagramPostType : 'posts',
+                search_mode: searchType,
+                page: appendMode ? nextBatchIndex + 1 : 1,
+            };
 
             const response = await fetchWithAuth(endpoint, {
                 method: 'POST',
@@ -206,8 +172,6 @@ export default function GlobalSearchPage() {
                 body: JSON.stringify(body),
             });
 
-            // Safely parse JSON — if server returns HTML (e.g. 404 page) Safari throws
-            // "The string did not match the expected pattern." which is misleading.
             let data: any = {};
             try {
                 data = await response.json();
@@ -222,21 +186,8 @@ export default function GlobalSearchPage() {
                 );
             }
 
-            // Normalize results based on platform
-            let rawList: any[] = [];
-            if (platform === 'DOUYIN') {
-                rawList = data.data?.videos || [];
-                // Cập nhật hasMore từ response
-                setHasMore(data.data?.hasMore ?? false);
-            } else if (platform === 'XIAOHONGSHU') {
-                rawList = data.data?.notes || [];
-            } else {
-                rawList = data.results || [];
-                // Instagram/TikTok: đọc has_more từ SearchView response
-                if (platform === 'INSTAGRAM') {
-                    setHasMore(data.has_more ?? (rawList.length >= 30));
-                }
-            }
+            const rawList: any[] = data.results || data.data?.videos || data.data?.notes || [];
+            setHasMore(data.has_more ?? (rawList.length >= 20));
 
             const normalized: UnifiedVideo[] = rawList.map((item: any) => ({
                 id: item.video_id || item.id || Math.random().toString(36).substr(2, 9),
