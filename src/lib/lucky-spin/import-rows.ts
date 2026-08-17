@@ -10,6 +10,7 @@ import { findColumn, SheetRow } from '@/lib/lucky-spin/sheet-io';
 export interface MemberRow {
   name: string;
   teamName: string;
+  avatarUrl?: string;
 }
 
 export interface GiftRow {
@@ -32,6 +33,8 @@ export function parseMemberRows(rows: SheetRow[]): ParsedRows<MemberRow> | Impor
 
   const nameKey = findColumn(rows, ['tên', 'ten', 'name']);
   const teamKey = findColumn(rows, ['team']);
+  const avatarKey = findColumn(rows, ['ảnh', 'anh', 'avatar', 'image', 'photo', 'hình', 'hinh', 'link ảnh', 'link anh', 'url', 'link']);
+
   if (!nameKey) return { error: 'Không tìm thấy cột "Tên" trong dữ liệu.' };
   if (!teamKey) return { error: 'Không tìm thấy cột "Team" trong dữ liệu.' };
 
@@ -41,11 +44,14 @@ export function parseMemberRows(rows: SheetRow[]): ParsedRows<MemberRow> | Impor
   for (const row of rows) {
     const name = String(row[nameKey] ?? '').trim();
     const teamName = String(row[teamKey] ?? '').trim();
+    const rawAvatar = avatarKey ? String(row[avatarKey] ?? '').trim() : '';
+    const avatarUrl = rawAvatar || undefined;
+
     if (!name || !teamName) {
       skipped++;
       continue;
     }
-    parsed.push({ name, teamName });
+    parsed.push({ name, teamName, ...(avatarUrl ? { avatarUrl } : {}) });
   }
 
   return { rows: parsed, skipped };

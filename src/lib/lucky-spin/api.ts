@@ -39,17 +39,24 @@ export function deleteTeam(workspace: string, teamId: string) {
 
 /* ──────────────────────────── Members ──────────────────────────── */
 
-export function createMember(workspace: string, name: string, teamId: string) {
-  return apiClient.post(`${BASE}/${workspace}/members`, { name, teamId });
+export function createMember(workspace: string, name: string, teamId: string, avatarUrl?: string) {
+  return apiClient.post(`${BASE}/${workspace}/members`, { name, teamId, avatarUrl });
 }
 
-export function bulkCreateMembers(workspace: string, members: { name: string; teamName: string }[]) {
+export function bulkCreateMembers(
+  workspace: string,
+  members: { name: string; teamName: string; avatarUrl?: string }[],
+) {
   return apiClient.post<{ createdMembers: number; createdTeams: number }>(`${BASE}/${workspace}/members/bulk`, {
     members,
   });
 }
 
-export function updateMember(workspace: string, memberId: string, patch: { name?: string; teamId?: string }) {
+export function updateMember(
+  workspace: string,
+  memberId: string,
+  patch: { name?: string; teamId?: string; avatarUrl?: string },
+) {
   return apiClient.patch(`${BASE}/${workspace}/members/${memberId}`, patch);
 }
 

@@ -47,25 +47,25 @@ describe('nextRotation — ô trúng phải dừng đúng dưới mũi tên', ()
     }
   });
 
-  it('quay ít nhất 6 vòng để chuyển động nhìn ra là đang quay', () => {
+  it('quay ít nhất 9 vòng để chuyển động nhìn ra là đang quay', () => {
     for (let i = 0; i < 100; i++) {
       const rotation = nextRotation(0, 2, 10);
-      expect(rotation).toBeGreaterThanOrEqual(6 * 360);
-      expect(rotation).toBeLessThan(9 * 360);
+      expect(rotation).toBeGreaterThanOrEqual(9 * 360);
+      expect(rotation).toBeLessThan(14 * 360);
     }
   });
 
   it('trúng lại chính ô đang dừng thì vẫn quay trọn vòng chứ không đứng im', () => {
     const dung = nextRotation(0, 4, 10);
-    expect(nextRotation(dung, 4, 10) - dung).toBeGreaterThanOrEqual(6 * 360);
+    expect(nextRotation(dung, 4, 10) - dung).toBeGreaterThanOrEqual(9 * 360);
   });
 
   it('vòng quay một ô luôn trả về ô đó', () => {
     expect(segmentUnderPointer(nextRotation(0, 0, 1), 1)).toBe(0);
   });
 
-  it('quay đúng 5 giây, và còn một nhịp lặng trước khi công bố', () => {
-    expect(SPIN_DURATION_MS).toBe(5000);
+  it('quay đúng 10 giây, và còn một nhịp lặng trước khi công bố', () => {
+    expect(SPIN_DURATION_MS).toBe(10000);
     expect(REVEAL_DELAY_MS).toBeGreaterThan(0);
   });
 });
