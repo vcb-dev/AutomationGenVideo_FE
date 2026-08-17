@@ -22,6 +22,24 @@ describe('parseMemberRows — đọc danh sách thành viên từ Excel', () => 
     expect(result.skipped).toBe(0);
   });
 
+  it('lấy đúng cột ảnh hoặc avatar nếu có', () => {
+    const resultWithAnh = parseMemberRows([
+      { Tên: 'Nguyễn Văn A', Team: 'Team Sales', Ảnh: 'https://example.com/a.jpg' },
+    ]);
+    if (isImportError(resultWithAnh)) throw new Error(resultWithAnh.error);
+    expect(resultWithAnh.rows).toEqual([
+      { name: 'Nguyễn Văn A', teamName: 'Team Sales', avatarUrl: 'https://example.com/a.jpg' },
+    ]);
+
+    const resultWithAvatar = parseMemberRows([
+      { Tên: 'Trần Thị B', Team: 'Team Marketing', Avatar: 'https://example.com/b.png' },
+    ]);
+    if (isImportError(resultWithAvatar)) throw new Error(resultWithAvatar.error);
+    expect(resultWithAvatar.rows).toEqual([
+      { name: 'Trần Thị B', teamName: 'Team Marketing', avatarUrl: 'https://example.com/b.png' },
+    ]);
+  });
+
   it('cắt khoảng trắng thừa quanh tên người và tên team', () => {
     const result = parseMemberRows([{ Tên: '  Nguyễn Văn A  ', Team: '  Team Sales  ' }]);
     if (isImportError(result)) throw new Error(result.error);

@@ -19,7 +19,7 @@ const SIZE = CX * 2;
  * hình để MC không phải cuộn trang giữa lúc đang chạy sự kiện. Chữ trên ô phóng to theo vì
  * font tính theo hệ toạ độ viewBox.
  */
-const WHEEL_BOX = 'w-full max-w-[min(560px,calc(100vh-330px))] aspect-square';
+const WHEEL_BOX = 'w-full max-w-[min(565px,calc(100vh-325px))] aspect-square';
 
 interface Props {
   segments: WheelSegment[];
@@ -40,31 +40,20 @@ interface Props {
 }
 
 function labelFontSize(count: number): number {
-  if (count > 40) return 6;
-  if (count > 24) return 7.5;
-  if (count > 14) return 9;
-  if (count > 8) return 11;
+  if (count > 50) return 7;
+  if (count > 30) return 8.5;
+  if (count > 20) return 9.5;
+  if (count > 10) return 11;
   return 13;
 }
 
-/**
- * Chữ nằm ngang đọc dễ hơn chữ xoay theo nan quạt, nhưng bù lại chỉ dùng được bề ngang của ô
- * thay vì chiều dài nan, nên càng nhiều ô càng phải cắt ngắn tên.
- */
 function labelMaxChars(count: number): number {
-  if (count > 40) return 3;
-  if (count > 24) return 4;
-  if (count > 16) return 6;
-  if (count > 10) return 8;
-  if (count > 6) return 11;
-  return 14;
+  if (count > 50) return 12;
+  if (count > 30) return 15;
+  if (count > 20) return 18;
+  return 22;
 }
 
-/**
- * Bánh xe dừng ở góc bất kỳ nên chữ vẽ thẳng sẽ nghiêng theo. Xoay ngược mỗi nhãn đúng bằng góc
- * bánh xe để chữ luôn nằm ngang trên màn hình, dùng cùng transition nên chữ và bánh xe chuyển
- * động khớp nhau trong lúc quay.
- */
 const SPIN_TRANSITION = 'transition-transform will-change-transform';
 
 export function SpinWheel({
@@ -85,12 +74,6 @@ export function SpinWheel({
   const readOnly = useSpinReadOnly();
   const interactive = !!onSpin && !readOnly && !spinDisabled && !spinning;
   const motion = { transitionDuration: `${transitionMs}ms`, transitionTimingFunction: SPIN_EASING };
-
-  const uprightAt = (x: number, y: number) => ({
-    transform: `rotate(${-rotation}deg)`,
-    transformOrigin: `${x}px ${y}px`,
-    ...motion,
-  });
 
   const pointer = (
     <div className="relative z-10 -mb-1.5 h-0 w-0 border-l-[16px] border-r-[16px] border-t-[26px] border-l-transparent border-r-transparent border-t-[#F4B63D] drop-shadow-[0_3px_5px_rgba(244,182,61,0.35)]" />
@@ -142,19 +125,17 @@ export function SpinWheel({
             <g>
               <circle cx={CX} cy={CY} r={R} fill={singleFill.css} stroke="#FFFFFF" strokeWidth={2} />
               {showNames && (
-                <g className={SPIN_TRANSITION} style={uprightAt(CX, CY - R * 0.55)}>
-                  <text
-                    x={CX}
-                    y={CY - R * 0.55}
-                    fill={textColorFor(singleFill.rgb)}
-                    fontSize={14}
-                    fontWeight={600}
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                  >
-                    {truncate(segments[0].name, 18)}
-                  </text>
-                </g>
+                <text
+                  x={CX}
+                  y={CY - R * 0.55}
+                  fill={textColorFor(singleFill.rgb)}
+                  fontSize={14}
+                  fontWeight={600}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                >
+                  {truncate(segments[0].name, 22)}
+                </text>
               )}
             </g>
           ) : (
@@ -168,8 +149,6 @@ export function SpinWheel({
               const largeArc = segAngle > 180 ? 1 : 0;
               const seg = segFill(i + colorOffset);
               const mid = start + segAngle / 2;
-              const lx = CX + R * 0.62 * Math.cos((mid * Math.PI) / 180);
-              const ly = CY + R * 0.62 * Math.sin((mid * Math.PI) / 180);
 
               return (
                 <g key={item.id}>
@@ -180,15 +159,16 @@ export function SpinWheel({
                     strokeWidth={2}
                   />
                   {showLabels && (
-                    <g className={SPIN_TRANSITION} style={uprightAt(lx, ly)}>
+                    <g transform={`rotate(${mid} ${CX} ${CY})`}>
                       <text
-                        x={lx.toFixed(2)}
-                        y={ly.toFixed(2)}
+                        x={CX + R * 0.88}
+                        y={CY}
                         fill={textColorFor(seg.rgb)}
                         fontSize={fontSize}
                         fontWeight={600}
-                        textAnchor="middle"
-                        dominantBaseline="middle"
+                        textAnchor="end"
+                        dominantBaseline="central"
+                        letterSpacing="0.01em"
                       >
                         {truncate(item.name, maxChars)}
                       </text>

@@ -330,14 +330,43 @@ export const socialApi = {
 };
 
 /** Lấy URL bài đã đăng từ result trả về bởi platform publisher */
-export function getPostUrl(result?: SocialPostResult | Record<string, unknown> | null, platform?: string): string | null {
-  if (!result) return null;
-  if (typeof result.url === 'string' && result.url) return result.url;
-  if (typeof result.videoId === 'string') return `https://youtube.com/watch?v=${result.videoId}`;
-  // Fallback: construct URL from postId (covers old Facebook posts without url field)
-  if (typeof result.postId === 'string' && result.postId) {
-    if (!platform || platform === 'FACEBOOK') return `https://www.facebook.com/${result.postId}`;
+export function getPostUrl(
+  result?: SocialPostResult | Record<string, unknown> | null,
+  platform?: string,
+  accountUsername?: string,
+): string | null {
+  if (!result && !accountUsername) return null;
+
+  if (result) {
+    if (typeof result.url === 'string' && result.url) return result.url;
+    if (typeof result.permalink === 'string' && result.permalink) return result.permalink;
+    if (typeof result.link === 'string' && result.link) return result.link;
+    if (typeof result.videoId === 'string' && result.videoId) return `https://youtube.com/watch?v=${result.videoId}`;
+
+    const postId = (typeof result.postId === 'string' && result.postId) || (typeof result.id === 'string' && result.id) || null;
+    const plat = (platform || '').toUpperCase();
+
+    if (postId) {
+      if (!plat || plat === 'FACEBOOK') return `https://www.facebook.com/${postId}`;
+      if (plat === 'THREADS') {
+        if (accountUsername) return `https://www.threads.net/@${accountUsername}/post/${postId}`;
+        return `https://www.threads.net/t/${postId}`;
+      }
+      if (plat === 'INSTAGRAM') {
+        if (accountUsername) return `https://www.instagram.com/${accountUsername}`;
+        return `https://www.instagram.com/p/${postId}`;
+      }
+      if (plat === 'YOUTUBE') return `https://youtube.com/watch?v=${postId}`;
+    }
   }
+
+  const plat = (platform || '').toUpperCase();
+  if (accountUsername) {
+    if (plat === 'INSTAGRAM') return `https://www.instagram.com/${accountUsername}`;
+    if (plat === 'THREADS') return `https://www.threads.net/@${accountUsername}`;
+    if (plat === 'FACEBOOK') return `https://www.facebook.com/${accountUsername}`;
+  }
+
   return null;
 }
 

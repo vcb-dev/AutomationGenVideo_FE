@@ -26,7 +26,7 @@ export const apiClient = axios.create({
 const _inFlight = new Map<string, Promise<any>>();
 
 /**
- * Xin access token mới bằng cookie refresh 7 ngày.
+ * Xin access token mới bằng cookie refresh.
  *
  * Gọi bằng `axios` trần chứ KHÔNG qua `apiClient`: đi qua apiClient thì chính request này lại
  * rơi vào interceptor bên dưới, và một lần refresh hỏng sẽ tự gọi lại chính nó.
@@ -46,9 +46,21 @@ export const sessionRefresher = createSessionRefresher(async () => {
   );
 
   const token: string | null = data?.access_token ?? null;
-  if (token) localStorage.setItem('auth_token', token);
+  if (token) {
+    localStorage.setItem('auth_token', token);
+    // Lên lịch proactive refresh cho token vừa nhận
+    sessionRefresher.scheduleProactiveRefresh(token);
+  }
   return token;
 });
+
+// Khởi động proactive refresh cho token hiện có (nếu đã đăng nhập)
+if (typeof window !== 'undefined') {
+  const existingToken = localStorage.getItem('auth_token');
+  if (existingToken) {
+    sessionRefresher.scheduleProactiveRefresh(existingToken);
+  }
+}
 
 // Request interceptor - add auth token
 apiClient.interceptors.request.use(
@@ -83,10 +95,11 @@ apiClient.interceptors.response.use(
       }
     }
 
-    // 401: access token sống 15 phút, refresh token sống 7 ngày. Xin token mới rồi gửi lại
-    // chính request vừa hỏng — người dùng không thấy gì. Chỉ khi xin không được mới coi là
-    // phiên đã chết. Trước đây bỏ hẳn bước này nên cứ đúng 15 phút là văng ra /login giữa lúc
-    // đang làm việc, dù phiên còn hiệu lực tới một tuần.
+    // 401: access token hết hạn. Xin token mới rồi gửi lại chính request vừa hỏng —
+    // người dùng không thấy gì. Chỉ khi xin không được mới coi là phiên đã chết.
+    // Proactive refresh sẽ làm mới token trước khi hết hạn, nhưng nếu tab bị trình duyệt cho
+    // ngủ (background tab throttling) thì timer không chạy và request đầu tiên lúc thức dậy
+    // vẫn có thể ăn 401 — interceptor này là tuyến phòng thủ cuối.
     if (
       typeof window !== 'undefined' &&
       config &&

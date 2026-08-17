@@ -14,6 +14,7 @@ export interface Team {
 export interface Member {
   id: string;
   name: string;
+  avatarUrl?: string;
   teamId: string;
   /** 'done' = đã trúng và được xác nhận loại khỏi vòng quay */
   status: 'active' | 'done';
@@ -33,6 +34,7 @@ export interface WinRecord {
   memberId: string;
   name: string;
   team: string;
+  avatarUrl?: string;
   time: string;
   /** Người bấm xác nhận, do server ghi lại. */
   by?: string;
@@ -68,6 +70,7 @@ export interface ControlState {
 export interface WheelSegment {
   id: string;
   name: string;
+  avatarUrl?: string;
 }
 
 /** Một lượt quay do server bốc — mọi màn hình dựng lại cùng một bánh xe từ đây. */

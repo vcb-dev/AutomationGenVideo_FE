@@ -59,7 +59,7 @@ export function MemberSpinTab({ store }: { store: LuckySpinStore }) {
     }
     return state.members
       .filter((m) => m.status === 'active' && (activeScope === ALL_SCOPE || m.teamId === activeScope))
-      .map((m) => ({ id: m.id, name: m.name }));
+      .map((m) => ({ id: m.id, name: m.name, avatarUrl: m.avatarUrl }));
   }, [spinMode, activeScope, state.teams, state.members]);
 
   const segments = round ? round.pool : idlePool;
@@ -89,6 +89,33 @@ export function MemberSpinTab({ store }: { store: LuckySpinStore }) {
   };
 
   const winners = result ? result.winnerIndexes.map((i) => result.pool[i]).filter(Boolean) : [];
+
+  const winnersWithDetails = useMemo(() => {
+    if (!result) return [];
+    return result.winnerIndexes
+      .map((i) => {
+        const item = result.pool[i];
+        if (!item) return null;
+        if (spinMode === 'team') {
+          const team = state.teams.find((t) => t.id === item.id);
+          const memberCount = state.members.filter((m) => m.teamId === item.id).length;
+          return {
+            id: item.id,
+            name: item.name,
+            teamName: `${memberCount} thành viên`,
+          };
+        }
+        const member = state.members.find((m) => m.id === item.id);
+        const team = state.teams.find((t) => t.id === member?.teamId);
+        return {
+          id: item.id,
+          name: item.name,
+          avatarUrl: member?.avatarUrl || item.avatarUrl,
+          teamName: team?.name,
+        };
+      })
+      .filter(Boolean) as { id: string; name: string; avatarUrl?: string; teamName?: string }[];
+  }, [result, spinMode, state.members, state.teams]);
 
   const closeResult = () => {
     // Bấm nút là xong khoảnh khắc công bố — cắt tiếng vỗ tay ngay thay vì để chạy hết file.
@@ -266,6 +293,8 @@ export function MemberSpinTab({ store }: { store: LuckySpinStore }) {
         eyebrow={winners.length > 1 ? `Kết quả — ${winners.length} người` : 'Kết quả quay'}
         name={winners.length > 1 ? winners.map((w) => w.name).join(', ') : (winners[0]?.name ?? '')}
         subtitle={winnerSubtitle}
+        avatarUrl={winnersWithDetails[0]?.avatarUrl}
+        winners={winnersWithDetails}
       >
         <ResultAction variant="confirm" onClick={() => confirmWin(true)}>
           Xác nhận, xóa khỏi vòng quay

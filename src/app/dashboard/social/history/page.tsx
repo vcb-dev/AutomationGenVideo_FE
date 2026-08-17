@@ -154,6 +154,7 @@ function GridItem({
   const isPending = post.status === 'PENDING';
   const statusLabel = isOk ? t.history.statusSuccess : isFail ? t.history.statusFailed : isPending ? t.history.statusPending : t.history.statusCancelled;
 
+  const postUrl = isOk ? getPostUrl(post.result as Record<string, unknown> | null, post.platform, post.account?.username) : null;
   const message = (post.message || '').trim();
 
   return (
@@ -206,14 +207,28 @@ function GridItem({
           {statusLabel}
         </span>
 
-        {/* Nút xem chi tiết (modal) — click card thì phát video nên cần lối vào riêng */}
-        <button
-          onClick={e => { e.stopPropagation(); onOpenDetail(post); }}
-          title={t.history.viewPostDetail}
-          className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition-colors"
-        >
-          <Info className="w-4 h-4" />
-        </button>
+        {/* Action buttons: Mở link trực tiếp & xem chi tiết modal */}
+        <div className="absolute top-2 right-2 flex items-center gap-1 z-10">
+          {postUrl && (
+            <a
+              href={postUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={e => e.stopPropagation()}
+              title="Mở bài viết trực tiếp trên mạng xã hội"
+              className="w-7 h-7 rounded-full bg-blue-600/90 hover:bg-blue-600 text-white flex items-center justify-center transition-colors shadow-sm"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          )}
+          <button
+            onClick={e => { e.stopPropagation(); onOpenDetail(post); }}
+            title={t.history.viewPostDetail}
+            className="w-7 h-7 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition-colors"
+          >
+            <Info className="w-4 h-4" />
+          </button>
+        </div>
 
         {/* Bottom gradient: nền tảng + số file đính kèm */}
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent px-2.5 pb-2 pt-6 flex items-center justify-between">
@@ -246,6 +261,21 @@ function GridItem({
             </span>
           )}
         </div>
+
+        {/* Link bài viết trực tiếp */}
+        {postUrl && (
+          <a
+            href={postUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            className="mt-2.5 flex items-center gap-1 text-[11px] font-medium text-blue-600 hover:text-blue-700 bg-blue-50/80 hover:bg-blue-100/80 px-2 py-1 rounded-lg border border-blue-200/60 truncate transition-colors group/link"
+            title={postUrl}
+          >
+            <ExternalLink className="w-3 h-3 flex-shrink-0 group-hover/link:scale-110 transition-transform" />
+            <span className="truncate">{postUrl}</span>
+          </a>
+        )}
 
         <p className="text-[11px] text-slate-400 mt-1.5">
           {post.source === 'SCHEDULED' ? '🗓' : '⚡'} {new Date(post.created_at).toLocaleString('vi')}
@@ -386,7 +416,7 @@ function PostDetailModal({
 
             {/* Link bài đã đăng */}
             {isOk && (() => {
-              const postUrl = getPostUrl(post.result as Record<string, unknown> | null);
+              const postUrl = getPostUrl(post.result as Record<string, unknown> | null, post.platform, post.account?.username);
               return postUrl ? (
                 <a
                   href={postUrl}
@@ -1094,7 +1124,7 @@ export default function HistoryPage() {
 
                     {/* Link bài đã đăng */}
                     {isOk && (() => {
-                      const postUrl = getPostUrl(post.result as Record<string, unknown> | null);
+                      const postUrl = getPostUrl(post.result as Record<string, unknown> | null, post.platform, post.account?.username);
                       return postUrl ? (
                         <a
                           href={postUrl}
@@ -1127,7 +1157,7 @@ export default function HistoryPage() {
                           </button>
                         )}
                         {isOk && (() => {
-                          const postUrl = getPostUrl(post.result as Record<string, unknown> | null);
+                          const postUrl = getPostUrl(post.result as Record<string, unknown> | null, post.platform, post.account?.username);
                           return postUrl ? (
                             <button
                               onClick={() => { navigator.clipboard.writeText(postUrl); toast.success(t.history.copiedPostLink); }}
