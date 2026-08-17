@@ -14,23 +14,24 @@ function GoogleCallbackContent() {
 
     useEffect(() => {
         const handleGoogleCallback = async () => {
-            const token = searchParams.get("token");
+            const errorParam = searchParams.get("error");
+            if (errorParam) {
+                router.push(`/login?error=${encodeURIComponent(errorParam)}`);
+                return;
+            }
 
-            if (token) {
-                // Save token to localStorage
-                localStorage.setItem("auth_token", token);
-
-                // Load user profile to update Zustand store
-                try {
-                    await loadUser();
-                    const { user } = useAuthStore.getState();
-                    router.push(getDashboardPathForRoles(user?.roles));
-                } catch (error) {
-                    console.error("Failed to load user after Google login:", error);
+            // Backend đã set HttpOnly Cookie khi redirect về. Gọi loadUser() để lấy profile.
+            try {
+                await loadUser();
+                const { user, isAuthenticated } = useAuthStore.getState();
+                if (isAuthenticated && user) {
+                    router.push(getDashboardPathForRoles(user.roles));
+                } else {
                     router.push("/login?error=Failed to load user profile");
                 }
-            } else {
-                router.push("/login?error=Google login failed");
+            } catch (error) {
+                console.error("Failed to load user after Google login:", error);
+                router.push("/login?error=Failed to load user profile");
             }
         };
 

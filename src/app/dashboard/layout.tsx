@@ -13,11 +13,10 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const { user, isAuthenticated, logout, token } = useAuthStore(s => ({
+  const { user, isAuthenticated, logout } = useAuthStore(s => ({
     user: s.user,
     isAuthenticated: s.isAuthenticated,
     logout: s.logout,
-    token: s.token,
   }));
   const [isHydrated, setIsHydrated] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -32,12 +31,15 @@ export default function DashboardLayout({
   }, [router]);
 
   useEffect(() => {
-    if (!isHydrated || isAuthenticated || user || isLoggingOut) return;
-    const storedToken = localStorage.getItem('auth_token');
-    if (!storedToken) {
-      router.push('/');
-    } else if (!useAuthStore.getState().isLoading) {
-      useAuthStore.getState().loadUser();
+    if (!isHydrated || isLoggingOut) return;
+    if (!user && !isAuthenticated && !useAuthStore.getState().isLoading) {
+      useAuthStore.getState().loadUser().then(() => {
+        if (!useAuthStore.getState().isAuthenticated) {
+          router.push('/');
+        }
+      }).catch(() => {
+        router.push('/');
+      });
     }
   }, [isHydrated, isAuthenticated, user, router, isLoggingOut]);
 
@@ -46,7 +48,7 @@ export default function DashboardLayout({
     const CACHE_TTL = 5 * 60 * 1000;
 
     const fetchPermissions = async () => {
-      if (!token) return;
+      if (!user) return;
 
       try {
         const cached = sessionStorage.getItem(CACHE_KEY);
@@ -75,15 +77,13 @@ export default function DashboardLayout({
       }
     };
     fetchPermissions();
-  }, [token]);
+  }, [user]);
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try { sessionStorage.removeItem('perm_menu_ids'); } catch { /* ignore */ }
+    await logout();
     router.replace('/');
-    setTimeout(() => {
-      logout();
-    }, 500);
   };
 
   if (!isHydrated || !user) {

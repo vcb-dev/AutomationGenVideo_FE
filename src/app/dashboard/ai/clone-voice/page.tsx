@@ -54,10 +54,9 @@ const getApiUrl = () => {
     return (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
 };
 
-// Helper to build auth header (voice endpoints require a logged-in user)
+// Helper to build auth header
 const getAuthHeaders = (): Record<string, string> => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-    return token ? { Authorization: `Bearer ${token}` } : {};
+    return {};
 };
 
 /* ────────────────────────── Sub-components ─────────────────── */

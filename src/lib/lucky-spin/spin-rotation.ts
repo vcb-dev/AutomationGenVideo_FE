@@ -9,7 +9,7 @@
  */
 
 /** Thời gian bánh xe chuyển động. Server dùng đúng con số này để đồng bộ cho người xem. */
-export const SPIN_DURATION_MS = 5000;
+export const SPIN_DURATION_MS = 10000;
 
 /**
  * Đường cong giảm tốc.
@@ -32,6 +32,6 @@ export function nextRotation(currentRotation: number, winnerIndex: number, count
   const winnerCenter = winnerIndex * segAngle + segAngle / 2;
   const curMod = ((currentRotation % 360) + 360) % 360;
   const delta = (((360 - winnerCenter) % 360) - curMod + 360) % 360;
-  const extraSpins = 6 + Math.floor(Math.random() * 3);
+  const extraSpins = 9 + Math.floor(Math.random() * 4);
   return currentRotation + delta + extraSpins * 360;
 }

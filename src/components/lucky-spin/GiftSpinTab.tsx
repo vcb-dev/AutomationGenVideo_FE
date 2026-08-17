@@ -267,7 +267,8 @@ export function GiftSpinTab({ store }: { store: LuckySpinStore }) {
         open={!!result}
         eyebrow="Kết quả quay quà"
         name={wonGift?.name ?? ''}
-        subtitle={recipientSubtitle}
+        subtitle={`Trao cho: ${recipientSubtitle}`}
+        avatarUrl={recipientMode === 'member' ? state.members.find((m) => m.id === activeRecipientId)?.avatarUrl : undefined}
       >
         <ResultAction variant="confirm" onClick={confirmGift}>
           Xác nhận, trao quà

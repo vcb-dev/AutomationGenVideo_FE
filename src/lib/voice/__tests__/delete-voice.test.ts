@@ -33,6 +33,7 @@ describe('deleteClonedVoice', () => {
         expect(fetchImpl).toHaveBeenCalledWith('http://localhost:3000/api/ai/voice/v1', {
             method: 'DELETE',
             headers: { Authorization: 'Bearer t' },
+            credentials: 'include',
         });
     });
 

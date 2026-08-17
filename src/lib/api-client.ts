@@ -11,6 +11,7 @@ interface RetryConfig extends InternalAxiosRequestConfig {
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+const MUTATING = new Set(['post', 'put', 'patch', 'delete']);
 
 export const apiClient = axios.create({
   baseURL: API_URL,
@@ -26,14 +27,10 @@ export const apiClient = axios.create({
 const _inFlight = new Map<string, Promise<any>>();
 
 /**
- * Xin access token mới bằng cookie refresh 7 ngày.
+ * Xin access token mới bằng cookie refresh 7 ngày (HttpOnly).
  *
  * Gọi bằng `axios` trần chứ KHÔNG qua `apiClient`: đi qua apiClient thì chính request này lại
  * rơi vào interceptor bên dưới, và một lần refresh hỏng sẽ tự gọi lại chính nó.
- *
- * Cập nhật cả `auth_token` trong localStorage vì vài trang (video-library, video-downloader)
- * còn gọi `fetch` thẳng bằng token lấy từ đó, không đi qua apiClient — bỏ qua thì những chỗ ấy
- * vẫn cầm token đã chết.
  *
  * Export ra ngoài để `auth-store.ts` và `fetchWithAuth` bên dưới dùng chung đúng MỘT luồng —
  * không được để mỗi nơi tự gọi `/auth/refresh` riêng (xem lý do ở `createSessionRefresher`).
@@ -45,19 +42,20 @@ export const sessionRefresher = createSessionRefresher(async () => {
     { withCredentials: true, headers: csrfHeader(document.cookie) },
   );
 
-  const token: string | null = data?.access_token ?? null;
-  if (token) localStorage.setItem('auth_token', token);
+  const token: string | null = data?.access_token ?? 'valid';
   return token;
 });
 
-// Request interceptor - add auth token
+// Double-submit CSRF: cookie vcbi_csrf (không HttpOnly) gửi lại qua x-csrf-token.
+// CsrfGuard trên POST /auth/logout và /auth/refresh từ chối nếu thiếu header này.
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('auth_token');
-      if (token && config.headers) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
+    if (typeof window === 'undefined') return config;
+    const method = (config.method || 'get').toLowerCase();
+    if (!MUTATING.has(method) || !config.headers) return config;
+    const headers = csrfHeader(document.cookie);
+    for (const [key, value] of Object.entries(headers)) {
+      config.headers[key] = value;
     }
     return config;
   },
@@ -83,10 +81,8 @@ apiClient.interceptors.response.use(
       }
     }
 
-    // 401: access token sống 15 phút, refresh token sống 7 ngày. Xin token mới rồi gửi lại
-    // chính request vừa hỏng — người dùng không thấy gì. Chỉ khi xin không được mới coi là
-    // phiên đã chết. Trước đây bỏ hẳn bước này nên cứ đúng 15 phút là văng ra /login giữa lúc
-    // đang làm việc, dù phiên còn hiệu lực tới một tuần.
+    // 401: access token sống 15 phút, refresh token sống 7 ngày. Xin token mới qua cookie rồi gửi lại
+    // chính request vừa hỏng — người dùng không thấy gì. Chỉ khi xin không được mới coi là phiên đã chết.
     if (
       typeof window !== 'undefined' &&
       config &&
@@ -94,18 +90,14 @@ apiClient.interceptors.response.use(
     ) {
       config._retriedAfterRefresh = true;
 
-      const token = await sessionRefresher.refresh().catch(() => null);
-      if (token) {
-        // Gắn lại tay: request interceptor đã chạy từ trước khi có token mới.
-        if (config.headers) config.headers.Authorization = `Bearer ${token}`;
+      const refreshed = await sessionRefresher.refresh().catch(() => null);
+      if (refreshed) {
         return apiClient(config);
       }
     }
 
     if (error.response?.status === 401) {
       if (typeof window !== 'undefined') {
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('auth_user');
         if (!config?.url?.includes('/auth/login')) {
           window.location.href = '/login';
         }
@@ -137,36 +129,27 @@ export function dedupedGet<T = any>(url: string, params?: Record<string, any>): 
 }
 
 /**
- * `fetch()` có tự gắn Bearer token + tự làm mới phiên khi ăn 401 — cho các trang không dùng được
- * `apiClient` (axios) trực tiếp, ví dụ cần theo dõi tiến độ upload hay dùng `FormData` đặc thù.
- *
- * Không dùng `apiClient` nội bộ: request interceptor của axios không áp dụng cho `fetch`, nên phải
- * tự lặp lại đúng 2 bước — gắn token trước khi gửi, và thử refresh đúng MỘT lần nếu ăn 401 — thay
- * vì để mỗi trang tự chép lại logic này (đó là lỗi cũ: 24 trang gọi `fetch` thẳng, không trang nào
- * có bước làm mới phiên, nên hết hạn access token là thao tác lỗi thẳng ra ngoài).
+ * `fetch()` tự động gửi cookie (`credentials: 'include'`) + tự làm mới phiên khi ăn 401.
  */
 export async function fetchWithAuth(input: string, init: RequestInit = {}): Promise<Response> {
-  const withToken = (token: string | null): RequestInit => ({
+  const method = (init.method || 'GET').toLowerCase();
+  const csrf = typeof document !== 'undefined' && MUTATING.has(method)
+    ? csrfHeader(document.cookie)
+    : {};
+  const fetchInit: RequestInit = {
     ...init,
-    headers: {
-      ...(init.headers || {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
+    credentials: init.credentials || 'include',
+    headers: { ...csrf, ...(init.headers as Record<string, string> | undefined) },
+  };
 
-  const currentToken = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-  const response = await fetch(input, withToken(currentToken));
+  const response = await fetch(input, fetchInit);
 
-  // Dùng chung luật với interceptor axios thay vì chỉ so `status !== 401`: 401 ở /auth/login là
-  // SAI MẬT KHẨU, không phải phiên hết hạn — đi làm mới ở đó vừa vô nghĩa (chưa có phiên nào để
-  // mới) vừa nuốt mất thông báo sai mật khẩu đáng ra phải hiện cho người dùng. /auth/refresh cũng
-  // nằm trong danh sách đó để một lần refresh hỏng không tự gọi lại chính nó.
   if (!shouldAttemptRefresh(response.status, input, false)) return response;
 
-  const newToken = await sessionRefresher.refresh().catch(() => null);
-  if (!newToken) return response;
+  const refreshed = await sessionRefresher.refresh().catch(() => null);
+  if (!refreshed) return response;
 
-  return fetch(input, withToken(newToken));
+  return fetch(input, fetchInit);
 }
 
 export default apiClient;
