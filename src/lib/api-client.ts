@@ -11,6 +11,7 @@ interface RetryConfig extends InternalAxiosRequestConfig {
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+const MUTATING = new Set(['post', 'put', 'patch', 'delete']);
 
 export const apiClient = axios.create({
   baseURL: API_URL,
@@ -44,6 +45,22 @@ export const sessionRefresher = createSessionRefresher(async () => {
   const token: string | null = data?.access_token ?? 'valid';
   return token;
 });
+
+// Double-submit CSRF: cookie vcbi_csrf (không HttpOnly) gửi lại qua x-csrf-token.
+// CsrfGuard trên POST /auth/logout và /auth/refresh từ chối nếu thiếu header này.
+apiClient.interceptors.request.use(
+  (config: InternalAxiosRequestConfig) => {
+    if (typeof window === 'undefined') return config;
+    const method = (config.method || 'get').toLowerCase();
+    if (!MUTATING.has(method) || !config.headers) return config;
+    const headers = csrfHeader(document.cookie);
+    for (const [key, value] of Object.entries(headers)) {
+      config.headers[key] = value;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error),
+);
 
 // Response interceptor - 429 auto-retry + 401 redirect
 apiClient.interceptors.response.use(
@@ -115,9 +132,14 @@ export function dedupedGet<T = any>(url: string, params?: Record<string, any>): 
  * `fetch()` tự động gửi cookie (`credentials: 'include'`) + tự làm mới phiên khi ăn 401.
  */
 export async function fetchWithAuth(input: string, init: RequestInit = {}): Promise<Response> {
+  const method = (init.method || 'GET').toLowerCase();
+  const csrf = typeof document !== 'undefined' && MUTATING.has(method)
+    ? csrfHeader(document.cookie)
+    : {};
   const fetchInit: RequestInit = {
     ...init,
     credentials: init.credentials || 'include',
+    headers: { ...csrf, ...(init.headers as Record<string, string> | undefined) },
   };
 
   const response = await fetch(input, fetchInit);

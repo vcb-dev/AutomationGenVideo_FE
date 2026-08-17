@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
+import { nestApiBase } from '@/lib/nest-api-base';
 
-const NESTJS_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+const NESTJS_BASE = nestApiBase();
 
 async function proxyToNestJS(target: string, init: RequestInit) {
     try {

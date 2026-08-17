@@ -82,10 +82,8 @@ export default function DashboardLayout({
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try { sessionStorage.removeItem('perm_menu_ids'); } catch { /* ignore */ }
+    await logout();
     router.replace('/');
-    setTimeout(() => {
-      logout();
-    }, 500);
   };
 
   if (!isHydrated || !user) {

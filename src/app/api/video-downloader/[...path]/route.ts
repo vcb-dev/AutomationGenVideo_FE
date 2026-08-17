@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { nestApiBase } from '@/lib/nest-api-base';
 
 /**
  * Proxy same-origin cho trang Tải video (dashboard/tools/video-downloader)
@@ -11,11 +12,8 @@ import { NextResponse } from 'next/server';
  * /api/ai/tools/video-downloader/*) — BE mới là bên gọi AI service (yt-dlp),
  * FE không nối thẳng AI nữa.
  */
-const BE_API_URL = (
-    process.env.BE_API_URL ||
-    process.env.NEXT_PUBLIC_API_URL ||
-    'http://localhost:3000/api'
-).replace(/\/$/, '');
+
+const BE_API_URL = nestApiBase();
 
 function buildTargetUrl(path: string[]): string {
     const segments = path.map((s) => encodeURIComponent(s)).join('/');

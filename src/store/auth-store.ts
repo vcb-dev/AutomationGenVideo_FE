@@ -24,7 +24,7 @@ interface AuthState {
 
   // Actions
   login: (credentials: LoginRequest) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   loadUser: () => Promise<void>;
   clearError: () => void;
   setUser: (user: User) => void;
@@ -77,11 +77,12 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      logout: () => {
-        // Gọi backend xóa cookie HttpOnly
-        apiClient.post('/auth/logout').catch(() => {
-          // Bỏ qua lỗi mạng khi logout
-        });
+      logout: async () => {
+        try {
+          await apiClient.post('/auth/logout');
+        } catch {
+          // 403 CSRF / mạng: vẫn xóa state local; cookie chỉ mất khi BE trả 200 + Set-Cookie xoá
+        }
         set({
           user: null,
           token: null,

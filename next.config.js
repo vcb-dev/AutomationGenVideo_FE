@@ -42,6 +42,13 @@ const nextConfig = {
       '@radix-ui/react-tabs',
     ],
   },
+  // Safari + SameSite=lax: trình duyệt gọi cùng origin www.vcbi.vn/api, Vercel proxy sang Railway.
+  // Route handler trong src/app/api/* vẫn thắng rewrite (Next kiểm tra filesystem trước).
+  async rewrites() {
+    const target = (process.env.API_PROXY_TARGET || '').replace(/\/$/, '');
+    if (!target) return [];
+    return [{ source: '/api/:path*', destination: `${target}/api/:path*` }];
+  },
   async headers() {
     const isDev = process.env.NODE_ENV !== 'production';
     return [
