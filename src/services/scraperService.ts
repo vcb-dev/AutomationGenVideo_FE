@@ -1,3 +1,4 @@
+import { fetchWithAuth } from '@/lib/api-client';
 // Đi qua BE (proxy sang AI ở src/modules/scraper-proxy), không gọi thẳng AI nữa.
 import type { PlatformKey } from '@/lib/platform-config';
 
@@ -893,7 +894,7 @@ export const scraperService = {
     page?: number; page_size?: number; q?: string; sort?: string; platform?: string;
     min_plays?: number; date_from?: string; date_to?: string;
   }): Promise<PaginatedExternalVideos> => {
-    const res = await fetch(`${API_URL}/scraper/all-videos/${buildParams(params)}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/all-videos/${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải videos');
@@ -912,7 +913,7 @@ export const scraperService = {
     /** Hashtag bất kỳ, có hay không có dấu # đều được. */
     hashtag?: string;
   }): Promise<PaginatedExternalVideos> => {
-    const res = await fetch(`${API_URL}/scraper/owned/videos/${buildParams(params)}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/owned/videos/${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải videos');
@@ -936,7 +937,7 @@ export const scraperService = {
       den?: string;
     },
   ): Promise<InternalStats> => {
-    const res = await fetch(`${API_URL}/scraper/owned/stats/${buildParams(params)}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/owned/stats/${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải số liệu tổng quan');
@@ -954,7 +955,7 @@ export const scraperService = {
     token: string,
     params: { platform?: string; days?: number; tu?: string; den?: string },
   ): Promise<InternalDuplicates> => {
-    const res = await fetch(`${API_URL}/scraper/owned/trung-lap/${buildParams(params)}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/owned/trung-lap/${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải số liệu trùng lặp');
@@ -972,7 +973,7 @@ export const scraperService = {
     khoas: string[],
   ): Promise<Record<string, TrangThaiPaast>> => {
     if (!khoas.length) return {};
-    const res = await fetch(
+    const res = await fetchWithAuth(
       `${API_URL}/scraper/owned/paast/status/${buildParams({ ids: khoas.join(',') })}`,
       { headers: { Authorization: `Bearer ${token}` } },
     );
@@ -992,7 +993,7 @@ export const scraperService = {
     platform: string,
     postId: string,
   ): Promise<PaastVideoResult> => {
-    const res = await fetch(`${API_URL}/scraper/owned/paast/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/owned/paast/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ platform, post_id: postId }),
@@ -1003,7 +1004,7 @@ export const scraperService = {
 
   /** Danh sách kênh nội bộ để đổ vào ô chọn (kèm số video từng kênh). */
   getOwnedChannels: async (token: string): Promise<OwnedChannel[]> => {
-    const res = await fetch(`${API_URL}/scraper/owned/channels/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/owned/channels/`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];
@@ -1012,7 +1013,7 @@ export const scraperService = {
 
   /** Hashtag đang thực sự có trong dữ liệu, sắp theo số video giảm dần. */
   getOwnedHashtags: async (token: string, limit = 60): Promise<OwnedHashtag[]> => {
-    const res = await fetch(`${API_URL}/scraper/owned/hashtags/${buildParams({ limit })}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/owned/hashtags/${buildParams({ limit })}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];
@@ -1020,7 +1021,7 @@ export const scraperService = {
   },
 
   suggestKeywords: async (token: string, q: string): Promise<KeywordSuggestion[]> => {
-    const res = await fetch(`${API_URL}/scraper/keywords/suggest/${buildParams({ q })}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/keywords/suggest/${buildParams({ q })}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];
@@ -1028,7 +1029,7 @@ export const scraperService = {
   },
 
   hitKeyword: async (token: string, keyword: string): Promise<void> => {
-    await fetch(`${API_URL}/scraper/keywords/hit/`, {
+    await fetchWithAuth(`${API_URL}/scraper/keywords/hit/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ keyword }),
@@ -1043,7 +1044,7 @@ export const scraperService = {
     token: string,
     text: string,
   ): Promise<{ original: string; translated: string; source: string }> => {
-    const res = await fetch(`${API_URL}/scraper/keywords/translate`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/keywords/translate`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ text }),
@@ -1053,7 +1054,7 @@ export const scraperService = {
   },
 
   triggerDiscovery: async (token: string, keyword: string): Promise<{ status: string; message: string }> => {
-    const res = await fetch(`${API_URL}/scraper/discover/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/discover/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ keyword }),
@@ -1067,7 +1068,7 @@ export const scraperService = {
     page?: number; page_size?: number; search?: string;
     bookmarked?: string; periodic?: string;
   }): Promise<PaginatedFanpages> => {
-    const res = await fetch(`${API_URL}/scraper/fanpages/${buildParams(params || {})}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải fanpages');
@@ -1076,7 +1077,7 @@ export const scraperService = {
 
   // Fanpage detail
   getFanpageDetail: async (token: string, id: number): Promise<ScrapedFanpage> => {
-    const res = await fetch(`${API_URL}/scraper/fanpages/${id}/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/${id}/`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không tìm thấy fanpage');
@@ -1085,7 +1086,7 @@ export const scraperService = {
 
   // Toggle bookmark / periodic crawl
   toggleFanpage: async (token: string, id: number, field: 'is_bookmarked' | 'is_periodic_crawl'): Promise<any> => {
-    const res = await fetch(`${API_URL}/scraper/fanpages/${id}/toggle/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/${id}/toggle/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ field }),
@@ -1100,7 +1101,7 @@ export const scraperService = {
     min_views?: number; fanpage_id?: number;
     date_from?: string; date_to?: string; sort?: string;
   }): Promise<PaginatedReels> => {
-    const res = await fetch(`${API_URL}/scraper/reels/search/${buildParams(params)}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/reels/search/${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải reels');
@@ -1111,7 +1112,7 @@ export const scraperService = {
 
   // TikTok keyword autocomplete (keywords đã cào)
   tiktokKeywordSuggest: async (token: string, q: string): Promise<{ keyword: string; count: number }[]> => {
-    const res = await fetch(`${API_URL}/scraper/tiktok/keywords/suggest/${buildParams({ q })}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/tiktok/keywords/suggest/${buildParams({ q })}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];
@@ -1120,7 +1121,7 @@ export const scraperService = {
 
   // Trigger TikTok keyword search (async)
   tiktokSearch: async (token: string, keyword: string, numOfPosts: number = 30, country: string = 'VN'): Promise<{ message: string; created?: number; updated?: number }> => {
-    const res = await fetch(`${API_URL}/scraper/tiktok/search/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/tiktok/search/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ keyword, num_of_posts: numOfPosts, country }),
@@ -1135,7 +1136,7 @@ export const scraperService = {
     min_plays?: number; date_from?: string; date_to?: string; sort?: string;
     search_keyword?: string;
   }): Promise<PaginatedTikTokVideos> => {
-    const res = await fetch(`${API_URL}/scraper/tiktok/videos/${buildParams(params)}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/tiktok/videos/${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải TikTok videos');
@@ -1145,7 +1146,7 @@ export const scraperService = {
   // ─── TIKTOK PROFILE ────────────────────────────────────
 
   tiktokProfileScrape: async (token: string, username: string, isOwned?: boolean, numOfPosts?: number): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; profile_id: number }> => {
-    const res = await fetch(`${API_URL}/scraper/tiktok/profiles/scrape/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/tiktok/profiles/scrape/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, ...(isOwned !== undefined ? { is_owned: isOwned } : {}), ...(numOfPosts ? { num_of_posts: numOfPosts } : {}) }),
@@ -1160,7 +1161,7 @@ export const scraperService = {
   getTiktokProfiles: async (token: string, params?: {
     page?: number; page_size?: number; search?: string; sort_by?: 'followers' | 'recent'; is_owned?: boolean;
   }): Promise<PaginatedTikTokProfiles> => {
-    const res = await fetch(`${API_URL}/scraper/tiktok/profiles/${buildParams(params || {})}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/tiktok/profiles/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải profiles');
@@ -1168,7 +1169,7 @@ export const scraperService = {
   },
 
   getTiktokProfileDetail: async (token: string, id: number): Promise<TikTokProfile> => {
-    const res = await fetch(`${API_URL}/scraper/tiktok/profiles/${id}/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/tiktok/profiles/${id}/`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không tìm thấy profile');
@@ -1179,7 +1180,7 @@ export const scraperService = {
     page?: number; page_size?: number; q?: string;
     min_plays?: number; sort?: string;
   }): Promise<PaginatedTikTokProfileVideos> => {
-    const res = await fetch(`${API_URL}/scraper/tiktok/profiles/${profileId}/videos/${buildParams(params)}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/tiktok/profiles/${profileId}/videos/${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải videos');
@@ -1187,7 +1188,7 @@ export const scraperService = {
   },
 
   toggleTiktokProfile: async (token: string, id: number, field: 'is_bookmarked' | 'is_tracked'): Promise<any> => {
-    const res = await fetch(`${API_URL}/scraper/tiktok/profiles/${id}/toggle/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/tiktok/profiles/${id}/toggle/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ field }),
@@ -1197,7 +1198,7 @@ export const scraperService = {
   },
 
   tiktokLookalikes: async (token: string, profileId: number): Promise<{ lookalikes: LookalikeChannel[] }> => {
-    const res = await fetch(`${API_URL}/scraper/tiktok/profiles/${profileId}/lookalikes/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/tiktok/profiles/${profileId}/lookalikes/`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return { lookalikes: [] };
@@ -1207,7 +1208,7 @@ export const scraperService = {
   // ─── INSTAGRAM PROFILE ─────────────────────────────────
 
   instagramProfileScrape: async (token: string, username: string, isOwned?: boolean, numOfPosts?: number): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; profile_id: number }> => {
-    const res = await fetch(`${API_URL}/scraper/instagram/profiles/scrape/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/instagram/profiles/scrape/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, ...(isOwned !== undefined ? { is_owned: isOwned } : {}), ...(numOfPosts ? { num_of_posts: numOfPosts } : {}) }),
@@ -1222,7 +1223,7 @@ export const scraperService = {
   getInstagramProfiles: async (token: string, params?: {
     page?: number; page_size?: number; search?: string; is_owned?: boolean;
   }): Promise<PaginatedInstagramProfiles> => {
-    const res = await fetch(`${API_URL}/scraper/instagram/profiles/${buildParams(params || {})}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/instagram/profiles/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải profiles');
@@ -1230,7 +1231,7 @@ export const scraperService = {
   },
 
   getInstagramProfileDetail: async (token: string, id: number): Promise<InstagramProfile> => {
-    const res = await fetch(`${API_URL}/scraper/instagram/profiles/${id}/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/instagram/profiles/${id}/`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không tìm thấy profile');
@@ -1241,7 +1242,7 @@ export const scraperService = {
     page?: number; page_size?: number; q?: string;
     min_plays?: number; sort?: string;
   }): Promise<PaginatedInstagramReels> => {
-    const res = await fetch(`${API_URL}/scraper/instagram/profiles/${profileId}/reels/${buildParams(params)}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/instagram/profiles/${profileId}/reels/${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải reels');
@@ -1249,7 +1250,7 @@ export const scraperService = {
   },
 
   toggleInstagramProfile: async (token: string, id: number, field: 'is_bookmarked' | 'is_tracked'): Promise<any> => {
-    const res = await fetch(`${API_URL}/scraper/instagram/profiles/${id}/toggle/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/instagram/profiles/${id}/toggle/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ field }),
@@ -1263,7 +1264,7 @@ export const scraperService = {
     profile_id?: number; min_plays?: number;
     date_from?: string; date_to?: string; sort?: string;
   }): Promise<PaginatedInstagramReels> => {
-    const res = await fetch(`${API_URL}/scraper/instagram/reels/${buildParams(params || {})}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/instagram/reels/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải reels');
@@ -1271,7 +1272,7 @@ export const scraperService = {
   },
 
   instagramLookalikes: async (token: string, profileId: number): Promise<{ lookalikes: LookalikeChannel[] }> => {
-    const res = await fetch(`${API_URL}/scraper/instagram/profiles/${profileId}/lookalikes/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/instagram/profiles/${profileId}/lookalikes/`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return { lookalikes: [] };
@@ -1281,7 +1282,7 @@ export const scraperService = {
   // ─── YOUTUBE ──────────────────────────────────────────
 
   youtubeChannelScrape: async (token: string, channelId: string, isOwned?: boolean, numOfPosts?: number): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; newly_scraped?: boolean; profile_id: number }> => {
-    const res = await fetch(`${API_URL}/scraper/youtube/profiles/scrape/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/youtube/profiles/scrape/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ channel_id: channelId, ...(isOwned !== undefined ? { is_owned: isOwned } : {}), ...(numOfPosts ? { num_of_posts: numOfPosts } : {}) }),
@@ -1296,7 +1297,7 @@ export const scraperService = {
   getYoutubeProfiles: async (token: string, params?: {
     page?: number; page_size?: number; search?: string; sort_by?: string; is_owned?: boolean;
   }): Promise<PaginatedYoutubeProfiles> => {
-    const res = await fetch(`${API_URL}/scraper/youtube/profiles/${buildParams(params || {})}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/youtube/profiles/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải profiles');
@@ -1304,7 +1305,7 @@ export const scraperService = {
   },
 
   getYoutubeProfileDetail: async (token: string, id: number): Promise<YoutubeProfile> => {
-    const res = await fetch(`${API_URL}/scraper/youtube/profiles/${id}/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/youtube/profiles/${id}/`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không tìm thấy profile');
@@ -1315,7 +1316,7 @@ export const scraperService = {
     page?: number; page_size?: number; q?: string;
     min_views?: number; sort?: string;
   }): Promise<PaginatedYoutubeShorts> => {
-    const res = await fetch(`${API_URL}/scraper/youtube/profiles/${profileId}/shorts/${buildParams(params)}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/youtube/profiles/${profileId}/shorts/${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải shorts');
@@ -1323,7 +1324,7 @@ export const scraperService = {
   },
 
   toggleYoutubeProfile: async (token: string, id: number, field: 'is_bookmarked' | 'is_tracked'): Promise<any> => {
-    const res = await fetch(`${API_URL}/scraper/youtube/profiles/${id}/toggle/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/youtube/profiles/${id}/toggle/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ field }),
@@ -1336,7 +1337,7 @@ export const scraperService = {
     page?: number; page_size?: number; q?: string;
     profile_id?: number; min_views?: number; sort?: string;
   }): Promise<PaginatedYoutubeShortsList> => {
-    const res = await fetch(`${API_URL}/scraper/youtube/shorts/${buildParams(params || {})}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/youtube/shorts/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải shorts');
@@ -1344,7 +1345,7 @@ export const scraperService = {
   },
 
   youtubeLookalikes: async (token: string, profileId: number): Promise<{ lookalikes: LookalikeChannel[] }> => {
-    const res = await fetch(`${API_URL}/scraper/youtube/profiles/${profileId}/lookalikes/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/youtube/profiles/${profileId}/lookalikes/`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return { lookalikes: [] };
@@ -1355,7 +1356,7 @@ export const scraperService = {
   // Không có is_owned — Kuaishou chỉ có kênh ngoài (external).
 
   kuaishouSearch: async (token: string, keyword: string, numOfPosts = 30, displayKeyword?: string): Promise<{ message: string; created: number; updated: number }> => {
-    const res = await fetch(`${API_URL}/scraper/kuaishou/search/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/kuaishou/search/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ keyword, num_of_posts: numOfPosts, ...(displayKeyword ? { display_keyword: displayKeyword } : {}) }),
@@ -1368,7 +1369,7 @@ export const scraperService = {
     page?: number; page_size?: number; q?: string; search_keyword?: string;
     min_views?: number; sort?: string; date_from?: string; date_to?: string;
   }): Promise<PaginatedKuaishouSearchVideos> => {
-    const res = await fetch(`${API_URL}/scraper/kuaishou/videos/${buildParams(params)}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/kuaishou/videos/${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải videos');
@@ -1376,7 +1377,7 @@ export const scraperService = {
   },
 
   kuaishouKeywordSuggest: async (token: string, q: string): Promise<{ keyword: string; count: number }[]> => {
-    const res = await fetch(`${API_URL}/scraper/kuaishou/keywords/suggest/${buildParams({ q })}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/kuaishou/keywords/suggest/${buildParams({ q })}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];
@@ -1384,7 +1385,7 @@ export const scraperService = {
   },
 
   kuaishouProfileScrape: async (token: string, eid: string, numOfPosts?: number): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; newly_scraped?: boolean; profile_id: number }> => {
-    const res = await fetch(`${API_URL}/scraper/kuaishou/profiles/scrape/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/kuaishou/profiles/scrape/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ eid, ...(numOfPosts ? { num_of_posts: numOfPosts } : {}) }),
@@ -1399,7 +1400,7 @@ export const scraperService = {
   getKuaishouProfiles: async (token: string, params?: {
     page?: number; page_size?: number; search?: string; sort_by?: string;
   }): Promise<PaginatedKuaishouProfiles> => {
-    const res = await fetch(`${API_URL}/scraper/kuaishou/profiles/${buildParams(params || {})}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/kuaishou/profiles/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải profiles');
@@ -1407,7 +1408,7 @@ export const scraperService = {
   },
 
   getKuaishouProfileDetail: async (token: string, id: number): Promise<KuaishouProfile> => {
-    const res = await fetch(`${API_URL}/scraper/kuaishou/profiles/${id}/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/kuaishou/profiles/${id}/`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không tìm thấy profile');
@@ -1418,7 +1419,7 @@ export const scraperService = {
     page?: number; page_size?: number; q?: string;
     min_views?: number; sort?: string;
   }): Promise<PaginatedKuaishouVideos> => {
-    const res = await fetch(`${API_URL}/scraper/kuaishou/profiles/${profileId}/videos/${buildParams(params)}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/kuaishou/profiles/${profileId}/videos/${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải videos');
@@ -1426,7 +1427,7 @@ export const scraperService = {
   },
 
   toggleKuaishouProfile: async (token: string, id: number, field: 'is_bookmarked' | 'is_tracked'): Promise<any> => {
-    const res = await fetch(`${API_URL}/scraper/kuaishou/profiles/${id}/toggle/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/kuaishou/profiles/${id}/toggle/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ field }),
@@ -1436,7 +1437,7 @@ export const scraperService = {
   },
 
   kuaishouLookalikes: async (token: string, profileId: number): Promise<{ lookalikes: LookalikeChannel[] }> => {
-    const res = await fetch(`${API_URL}/scraper/kuaishou/profiles/${profileId}/lookalikes/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/kuaishou/profiles/${profileId}/lookalikes/`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return { lookalikes: [] };
@@ -1448,7 +1449,7 @@ export const scraperService = {
   // nhất (numeric), không có vấn đề 2 không gian ID như Kuaishou.
 
   bilibiliSearch: async (token: string, keyword: string, numOfPosts = 30, displayKeyword?: string): Promise<{ message: string; created: number; updated: number }> => {
-    const res = await fetch(`${API_URL}/scraper/bilibili/search/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/bilibili/search/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ keyword, num_of_posts: numOfPosts, ...(displayKeyword ? { display_keyword: displayKeyword } : {}) }),
@@ -1461,7 +1462,7 @@ export const scraperService = {
     page?: number; page_size?: number; q?: string; search_keyword?: string;
     min_views?: number; sort?: string; date_from?: string; date_to?: string;
   }): Promise<PaginatedBilibiliSearchVideos> => {
-    const res = await fetch(`${API_URL}/scraper/bilibili/videos/${buildParams(params)}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/bilibili/videos/${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải videos');
@@ -1469,7 +1470,7 @@ export const scraperService = {
   },
 
   bilibiliKeywordSuggest: async (token: string, q: string): Promise<{ keyword: string; count: number }[]> => {
-    const res = await fetch(`${API_URL}/scraper/bilibili/keywords/suggest/${buildParams({ q })}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/bilibili/keywords/suggest/${buildParams({ q })}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];
@@ -1477,7 +1478,7 @@ export const scraperService = {
   },
 
   bilibiliProfileScrape: async (token: string, mid: string, numOfPosts?: number): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; newly_scraped?: boolean; profile_id: number }> => {
-    const res = await fetch(`${API_URL}/scraper/bilibili/profiles/scrape/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/bilibili/profiles/scrape/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ mid, ...(numOfPosts ? { num_of_posts: numOfPosts } : {}) }),
@@ -1492,7 +1493,7 @@ export const scraperService = {
   getBilibiliProfiles: async (token: string, params?: {
     page?: number; page_size?: number; search?: string; sort_by?: string;
   }): Promise<PaginatedBilibiliProfiles> => {
-    const res = await fetch(`${API_URL}/scraper/bilibili/profiles/${buildParams(params || {})}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/bilibili/profiles/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải profiles');
@@ -1500,7 +1501,7 @@ export const scraperService = {
   },
 
   getBilibiliProfileDetail: async (token: string, id: number): Promise<BilibiliProfile> => {
-    const res = await fetch(`${API_URL}/scraper/bilibili/profiles/${id}/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/bilibili/profiles/${id}/`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không tìm thấy profile');
@@ -1511,7 +1512,7 @@ export const scraperService = {
     page?: number; page_size?: number; q?: string;
     min_views?: number; sort?: string;
   }): Promise<PaginatedBilibiliVideos> => {
-    const res = await fetch(`${API_URL}/scraper/bilibili/profiles/${profileId}/videos/${buildParams(params)}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/bilibili/profiles/${profileId}/videos/${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải videos');
@@ -1519,7 +1520,7 @@ export const scraperService = {
   },
 
   toggleBilibiliProfile: async (token: string, id: number, field: 'is_bookmarked' | 'is_tracked'): Promise<any> => {
-    const res = await fetch(`${API_URL}/scraper/bilibili/profiles/${id}/toggle/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/bilibili/profiles/${id}/toggle/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ field }),
@@ -1532,7 +1533,7 @@ export const scraperService = {
 
   // Trigger scrape reels (auto 300/10)
   triggerScrapeReels: async (token: string, fanpageId: number): Promise<{ message: string; is_scraping?: boolean }> => {
-    const res = await fetch(`${API_URL}/scraper/fanpages/scrape-reels/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/scrape-reels/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ fanpage_id: fanpageId }),
@@ -1545,7 +1546,7 @@ export const scraperService = {
   },
 
   fanpageScrapeByUrl: async (token: string, url: string): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; fanpage_id: number }> => {
-    const res = await fetch(`${API_URL}/scraper/fanpages/scrape-by-url/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/scrape-by-url/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ url }),
@@ -1562,7 +1563,7 @@ export const scraperService = {
   // displayKeyword = tiếng Việt user gõ (khi `keyword` là bản dịch tiếng Trung) — BE lưu
   // bản tiếng Việt vào search_keyword cho dễ đọc ở bộ lọc/gợi ý.
   douyinSearch: async (token: string, keyword: string, numOfPosts = 30, displayKeyword?: string): Promise<{ message: string; created?: number; updated?: number }> => {
-    const res = await fetch(`${API_URL}/scraper/douyin/search/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/douyin/search/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ keyword, num_of_posts: numOfPosts, ...(displayKeyword ? { display_keyword: displayKeyword } : {}) }),
@@ -1576,7 +1577,7 @@ export const scraperService = {
     min_digg?: number; date_from?: string; date_to?: string; sort?: string;
     search_keyword?: string;
   }): Promise<PaginatedDouyinVideos> => {
-    const res = await fetch(`${API_URL}/scraper/douyin/videos/${buildParams(params)}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/douyin/videos/${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải Douyin videos');
@@ -1584,7 +1585,7 @@ export const scraperService = {
   },
 
   douyinKeywordSuggest: async (token: string, q: string): Promise<{ keyword: string; count: number }[]> => {
-    const res = await fetch(`${API_URL}/scraper/douyin/keywords/suggest/${buildParams({ q })}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/douyin/keywords/suggest/${buildParams({ q })}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];
@@ -1594,7 +1595,7 @@ export const scraperService = {
   // numOfPosts để trống = dùng mặc định của BE (300). Trước đây BE bỏ qua tham số này
   // nên số truyền vào vô tác dụng; nay BE đã tôn trọng nên KHÔNG đặt mặc định cứng ở FE.
   douyinProfileScrape: async (token: string, secUserId: string, numOfPosts?: number, isOwned?: boolean): Promise<{ status: string; message: string; profile_id: number; already_exists?: boolean; newly_scraped?: boolean }> => {
-    const res = await fetch(`${API_URL}/scraper/douyin/profile/scrape/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/douyin/profile/scrape/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ sec_user_id: secUserId, ...(numOfPosts ? { num_of_posts: numOfPosts } : {}), ...(isOwned !== undefined ? { is_owned: isOwned } : {}) }),
@@ -1609,7 +1610,7 @@ export const scraperService = {
   getDouyinProfiles: async (token: string, params?: {
     page?: number; page_size?: number; search?: string; sort_by?: 'followers' | 'recent'; is_owned?: boolean;
   }): Promise<PaginatedDouyinProfiles> => {
-    const res = await fetch(`${API_URL}/scraper/douyin/profiles/${buildParams(params || {})}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/douyin/profiles/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải danh sách profiles');
@@ -1617,7 +1618,7 @@ export const scraperService = {
   },
 
   getDouyinProfileDetail: async (token: string, id: number): Promise<DouyinProfile> => {
-    const res = await fetch(`${API_URL}/scraper/douyin/profiles/${id}/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/douyin/profiles/${id}/`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải profile');
@@ -1627,7 +1628,7 @@ export const scraperService = {
   getDouyinProfileVideos: async (token: string, id: number, params?: {
     page?: number; page_size?: number; sort?: string; q?: string; min_digg?: number;
   }): Promise<{ count: number; page: number; page_size: number; total_pages: number; videos: any[] }> => {
-    const res = await fetch(`${API_URL}/scraper/douyin/profiles/${id}/videos/${buildParams(params || {})}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/douyin/profiles/${id}/videos/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải videos');
@@ -1635,7 +1636,7 @@ export const scraperService = {
   },
 
   toggleDouyinProfile: async (token: string, id: number, field: 'is_bookmarked' | 'is_tracked'): Promise<any> => {
-    const res = await fetch(`${API_URL}/scraper/douyin/profiles/${id}/toggle/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/douyin/profiles/${id}/toggle/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ field }),
@@ -1645,7 +1646,7 @@ export const scraperService = {
   },
 
   douyinLookalikes: async (token: string, profileId: number): Promise<{ lookalikes: LookalikeChannel[] }> => {
-    const res = await fetch(`${API_URL}/scraper/douyin/profiles/${profileId}/lookalikes/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/douyin/profiles/${profileId}/lookalikes/`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return { lookalikes: [] };
@@ -1655,7 +1656,7 @@ export const scraperService = {
   // ─── XIAOHONGSHU ───────────────────────────────────────
 
   xiaohongshuSearch: async (token: string, keyword: string, numOfPosts = 20, displayKeyword?: string): Promise<{ status: string; message: string; created?: number; updated?: number }> => {
-    const res = await fetch(`${API_URL}/scraper/xiaohongshu/search/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/xiaohongshu/search/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ keyword, num_of_posts: numOfPosts, ...(displayKeyword ? { display_keyword: displayKeyword } : {}) }),
@@ -1669,7 +1670,7 @@ export const scraperService = {
     min_likes?: number; date_from?: string; date_to?: string;
     sort?: string; keyword?: string;
   }): Promise<PaginatedXiaohongshuVideos> => {
-    const res = await fetch(`${API_URL}/scraper/xiaohongshu/videos/${buildParams(params)}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/xiaohongshu/videos/${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải Xiaohongshu videos');
@@ -1677,7 +1678,7 @@ export const scraperService = {
   },
 
   xiaohongshuKeywordSuggest: async (token: string, q: string): Promise<{ keyword: string; count: number }[]> => {
-    const res = await fetch(`${API_URL}/scraper/xiaohongshu/keywords/suggest/${buildParams({ q })}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/xiaohongshu/keywords/suggest/${buildParams({ q })}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];
@@ -1688,7 +1689,7 @@ export const scraperService = {
 
   // numOfPosts để trống = dùng mặc định của BE (300) — xem ghi chú ở douyinProfileScrape.
   xhsProfileScrape: async (token: string, userId: string, numOfPosts?: number, isOwned?: boolean): Promise<{ status: string; message: string; profile: XiaohongshuProfile; created: boolean }> => {
-    const res = await fetch(`${API_URL}/scraper/xiaohongshu/profiles/scrape/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/xiaohongshu/profiles/scrape/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_id: userId, ...(numOfPosts ? { num_of_posts: numOfPosts } : {}), ...(isOwned !== undefined ? { is_owned: isOwned } : {}) }),
@@ -1704,7 +1705,7 @@ export const scraperService = {
     q?: string; page?: number; page_size?: number;
     bookmarked?: boolean; tracked?: boolean; is_owned?: boolean;
   } = {}): Promise<PaginatedXhsProfiles> => {
-    const res = await fetch(`${API_URL}/scraper/xiaohongshu/profiles/${buildParams(params)}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/xiaohongshu/profiles/${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải XHS profiles');
@@ -1712,7 +1713,7 @@ export const scraperService = {
   },
 
   getXhsProfileDetail: async (token: string, profileId: number): Promise<XiaohongshuProfile> => {
-    const res = await fetch(`${API_URL}/scraper/xiaohongshu/profiles/${profileId}/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/xiaohongshu/profiles/${profileId}/`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Profile không tồn tại');
@@ -1722,7 +1723,7 @@ export const scraperService = {
   getXhsProfileVideos: async (token: string, profileId: number, params: {
     page?: number; page_size?: number; sort?: string; q?: string; min_likes?: number;
   } = {}): Promise<PaginatedXiaohongshuVideos & { profile: XiaohongshuProfile }> => {
-    const res = await fetch(`${API_URL}/scraper/xiaohongshu/profiles/${profileId}/videos/${buildParams(params)}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/xiaohongshu/profiles/${profileId}/videos/${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải videos của profile');
@@ -1730,7 +1731,7 @@ export const scraperService = {
   },
 
   xhsProfileToggle: async (token: string, profileId: number, patch: { is_tracked?: boolean; is_bookmarked?: boolean }): Promise<XiaohongshuProfile> => {
-    const res = await fetch(`${API_URL}/scraper/xiaohongshu/profiles/${profileId}/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/xiaohongshu/profiles/${profileId}/`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(patch),
@@ -1740,7 +1741,7 @@ export const scraperService = {
   },
 
   xhsLookalikes: async (token: string, profileId: number): Promise<{ lookalikes: LookalikeChannel[] }> => {
-    const res = await fetch(`${API_URL}/scraper/xiaohongshu/profiles/${profileId}/lookalikes/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/xiaohongshu/profiles/${profileId}/lookalikes/`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return { lookalikes: [] };

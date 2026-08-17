@@ -8,6 +8,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { fetchFeedPage, type FeedVideo } from '@/lib/feed-source';
 import { planPlayback } from '@/lib/video-playback';
 import { dedupeById } from '@/lib/dedupe-pages';
+import { fetchWithAuth } from '@/lib/api-client';
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
 
@@ -274,7 +275,7 @@ function Slide({
 function WatchInner() {
     const params = useSearchParams();
     const router = useRouter();
-    const { token } = useAuthStore();
+    const { token, isAuthenticated } = useAuthStore();
 
     const platform = (params?.get('platform') || 'douyin').toLowerCase();
     const startId = params?.get('start') || '';
@@ -296,20 +297,20 @@ function WatchInner() {
     const [lyDoChung, setLyDoChung] = useState('');
     const daHoiLyDo = useRef(false);
     const hoiLyDo = useCallback(() => {
-        if (daHoiLyDo.current || !token) return;
+        if (daHoiLyDo.current) return;
         daHoiLyDo.current = true;
-        fetch(`${API_URL}/scraper/stream/trang-thai?t=${encodeURIComponent(token)}`)
+        fetchWithAuth(`${API_URL}/scraper/stream/trang-thai`)
             .then((r) => (r.status === 402 ? r.json() : null))
             .then((j) => { if (j?.message) setLyDoChung(j.message); })
             .catch(() => {});
-    }, [token]);
+    }, []);
 
     const query = useInfiniteQuery({
         queryKey: ['watch-feed', platform],
         initialPageParam: 1,
-        queryFn: ({ pageParam }) => fetchFeedPage(platform, token!, pageParam as number),
+        queryFn: ({ pageParam }) => fetchFeedPage(platform, token || '', pageParam as number),
         getNextPageParam: (last) => (last.page < last.totalPages ? last.page + 1 : undefined),
-        enabled: !!token,
+        enabled: isAuthenticated,
     });
 
     // Lọc trùng vì phân trang LIMIT/OFFSET: video mới cào về sẽ đẩy danh sách và làm trang

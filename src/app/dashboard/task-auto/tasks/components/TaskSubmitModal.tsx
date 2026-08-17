@@ -21,6 +21,31 @@ interface Props {
 const CHUNK_SIZE = 8 * 1024 * 1024 // 8 MB
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api'
 
+async function uploadVideoToServer(
+  taskId: string,
+  file: File,
+  onProgress: (pct: number) => void,
+): Promise<{ url: string; filename: string; originalname: string; mimetype: string; size: number; storage: string }> {
+  // 1. Init — backend tạo upload session cục bộ
+  const { uploadId, chunkSize, totalChunks } = await apiClient
+    .post<{ uploadId: string; chunkSize: number; totalChunks: number }>(
+      `/task-auto/tasks/${taskId}/upload-video/init`,
+      { filename: file.name, mimetype: file.type || 'video/mp4', totalSize: file.size },
+    )
+    .then(r => r.data)
+
+  const effectiveChunkSize = chunkSize || CHUNK_SIZE
+
+  // 2. Gửi từng chunk — dùng fetch để browser tự set Content-Type multipart/form-data + boundary
+  for (let i = 0; i < totalChunks; i++) {
+    const start = i * effectiveChunkSize
+    const blob = file.slice(start, Math.min(start + effectiveChunkSize, file.size))
+
+    const formData = new FormData()
+    formData.append('uploadId', uploadId)
+    formData.append('chunkIndex', String(i))
+    formData.append('chunk', blob, file.name)
+
     const res = await fetchWithAuth(`${API_BASE}/task-auto/tasks/${taskId}/upload-video/chunk`, {
       method: 'POST', // NO Content-Type — browser sets multipart boundary automatically
       body: formData,

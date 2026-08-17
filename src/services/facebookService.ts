@@ -1,3 +1,4 @@
+import { fetchWithAuth } from '@/lib/api-client';
 import { FacebookPage, PaginatedPages, PaginatedVideos, PageFilters, VideoFilters } from '@/types/facebook';
 
 // Đi qua BE (proxy sang AI ở src/modules/scraper-proxy), không gọi thẳng AI nữa.
@@ -16,13 +17,13 @@ function buildParams(filters: Record<string, any>): string {
 export const facebookService = {
   // Import pages metadata từ Facebook (nhẹ, không cào video)
   syncAndGetPages: async (token: string): Promise<FacebookPage[]> => {
-    const importRes = await fetch(`${API_URL}/facebook/import/`, {
+    const importRes = await fetchWithAuth(`${API_URL}/facebook/import/`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
     });
     if (!importRes.ok) throw new Error('Không thể import kênh từ Facebook');
 
-    const listRes = await fetch(`${API_URL}/facebook/manage-pages/`, {
+    const listRes = await fetchWithAuth(`${API_URL}/facebook/manage-pages/`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!listRes.ok) throw new Error('Không thể tải danh sách kênh');
@@ -33,7 +34,7 @@ export const facebookService = {
   // Lấy danh sách pages với pagination + filter + search
   getPages: async (token: string, filters?: PageFilters): Promise<PaginatedPages> => {
     const qs = filters ? buildParams(filters) : '';
-    const res = await fetch(`${API_URL}/facebook/manage-pages/${qs ? '?' + qs : ''}`, {
+    const res = await fetchWithAuth(`${API_URL}/facebook/manage-pages/${qs ? '?' + qs : ''}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải danh sách kênh');
@@ -43,7 +44,7 @@ export const facebookService = {
   // Lấy videos với pagination + filter + search
   getPageVideos: async (token: string, pageId: string, filters?: VideoFilters): Promise<PaginatedVideos> => {
     const qs = filters ? buildParams(filters) : '';
-    const res = await fetch(`${API_URL}/facebook/page-videos/${pageId}/${qs ? '?' + qs : ''}`, {
+    const res = await fetchWithAuth(`${API_URL}/facebook/page-videos/${pageId}/${qs ? '?' + qs : ''}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải danh sách video');
@@ -52,7 +53,7 @@ export const facebookService = {
 
   // Trigger delta sync (cào bài mới)
   triggerScrape: async (token: string, pageId: string): Promise<{ message: string; is_scraping: boolean }> => {
-    const res = await fetch(`${API_URL}/facebook/sync/`, {
+    const res = await fetchWithAuth(`${API_URL}/facebook/sync/`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ page_id: pageId }),
@@ -63,7 +64,7 @@ export const facebookService = {
 
   // Trigger backfill (cào lượt đầu)
   triggerBackfill: async (token: string, pageId: string): Promise<{ message: string; is_scraping: boolean }> => {
-    const res = await fetch(`${API_URL}/facebook/backfill/`, {
+    const res = await fetchWithAuth(`${API_URL}/facebook/backfill/`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ page_id: pageId }),
