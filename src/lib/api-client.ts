@@ -9,6 +9,18 @@ interface RetryConfig extends InternalAxiosRequestConfig {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
 
+const CSRF_COOKIE = 'vcbi_csrf';
+const CSRF_HEADER = 'x-csrf-token';
+const MUTATING = new Set(['post', 'put', 'patch', 'delete']);
+
+function readCookie(name: string): string | undefined {
+  if (typeof document === 'undefined') return undefined;
+  const prefix = `${name}=`;
+  const raw = document.cookie.split('; ').find((c) => c.startsWith(prefix));
+  if (!raw) return undefined;
+  return decodeURIComponent(raw.slice(prefix.length));
+}
+
 export const apiClient = axios.create({
   baseURL: API_URL,
   withCredentials: true,
@@ -22,13 +34,18 @@ export const apiClient = axios.create({
 // Key = method + url + serialized params. Value = the shared Promise.
 const _inFlight = new Map<string, Promise<any>>();
 
-// Request interceptor - add auth token
+// Request interceptor - Bearer (nếu còn) + CSRF double-submit cho POST/PUT/PATCH/DELETE
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('auth_token');
       if (token && config.headers) {
         config.headers.Authorization = `Bearer ${token}`;
+      }
+      const method = (config.method || 'get').toLowerCase();
+      if (MUTATING.has(method) && config.headers) {
+        const csrf = readCookie(CSRF_COOKIE);
+        if (csrf) config.headers[CSRF_HEADER] = csrf;
       }
     }
     return config;
