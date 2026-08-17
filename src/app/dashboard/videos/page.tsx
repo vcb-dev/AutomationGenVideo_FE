@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { fetchWithAuth } from '@/lib/api-client';
 
 interface Video {
   id: string;
@@ -30,12 +31,7 @@ export default function VideosListPage() {
 
   const fetchVideos = async () => {
     try {
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/videos/my-videos`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+      const response = await fetchWithAuth(`${process.env.NEXT_PUBLIC_API_URL}/videos/my-videos`);
 
       const result = await response.json();
       if (result.success) {

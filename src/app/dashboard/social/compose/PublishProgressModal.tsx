@@ -31,10 +31,10 @@ interface Props {
 }
 
 const PLATFORM_AVG: Record<string, number> = {
-  FACEBOOK: 25, INSTAGRAM: 65, TIKTOK: 50, YOUTUBE: 100, THREADS: 20, ZALO: 30,
+  FACEBOOK: 25, INSTAGRAM: 65, YOUTUBE: 100, THREADS: 20,
 };
 const PLATFORM_SLOTS: Record<string, number> = {
-  FACEBOOK: 6, INSTAGRAM: 3, TIKTOK: 2, YOUTUBE: 2, THREADS: 4, ZALO: 5,
+  FACEBOOK: 6, INSTAGRAM: 3, YOUTUBE: 2, THREADS: 4,
 };
 
 function fmtTime(s: number) {

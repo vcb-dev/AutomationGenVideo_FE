@@ -21,10 +21,6 @@ interface Props {
 const CHUNK_SIZE = 8 * 1024 * 1024 // 8 MB
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api'
 
-function authHeaders(): Record<string, string> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
 
 async function uploadVideoToServer(
   taskId: string,
@@ -53,7 +49,7 @@ async function uploadVideoToServer(
 
     const res = await fetch(`${API_BASE}/task-auto/tasks/${taskId}/upload-video/chunk`, {
       method: 'POST',
-      headers: authHeaders(), // NO Content-Type — browser sets multipart boundary automatically
+      credentials: 'include', // sends HttpOnly cookies automatically
       body: formData,
     })
     if (!res.ok) {

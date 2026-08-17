@@ -1,4 +1,6 @@
 // Đi qua BE (proxy sang AI ở src/modules/scraper-proxy), không gọi thẳng AI nữa.
+import type { PlatformKey } from '@/lib/platform-config';
+
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
 
 function buildParams(filters: Record<string, any>): string {
@@ -620,6 +622,24 @@ export interface KeywordSuggestion {
   hits: number;
 }
 
+// Lookalike Creator — shape chung, mỗi platform chỉ điền field định danh của
+// mình (username/channel_id/user_id/sec_user_id/eid), field còn lại undefined.
+export interface LookalikeChannel {
+  id: number;
+  username?: string;
+  nickname?: string;
+  full_name?: string;
+  title?: string;
+  channel_id?: string;
+  user_id?: string;
+  sec_user_id?: string;
+  eid?: string;
+  avatar_url: string;
+  followers_count?: number;
+  subscriber_count?: number;
+  overlap_count: number;
+}
+
 export interface PaginatedFanpages {
   status: string;
   count: number;
@@ -639,7 +659,17 @@ export interface PaginatedReels {
 }
 
 export interface ExternalVideo {
-  platform: 'facebook' | 'tiktok' | 'instagram';
+  /**
+   * TÁM nền tảng, không phải ba.
+   *
+   * Trước đây endpoint gộp chỉ trả facebook/tiktok/instagram nên kiểu này khai đúng ba cái.
+   * Từ khi thêm 5 nhánh douyin/xiaohongshu/kuaishou/bilibili/youtube vào truy vấn gộp, thực
+   * tế trả về tới 6 nền tảng — mà kiểu vẫn khai 3, nên TypeScript tưởng mọi tra cứu
+   * `platformConfig[video.platform]` đều chắc chắn có, không cảnh báo gì, và trang
+   * /externalChannels/all vỡ ngay khi gặp video Douyin. Khai đủ ở đây để trình biên dịch
+   * bắt lỗi thay vì để người dùng gặp.
+   */
+  platform: PlatformKey;
   post_id: string;
   url: string;
   description: string;
@@ -653,6 +683,200 @@ export interface ExternalVideo {
   author_name: string;
   author_avatar: string;
   author_username: string;
+}
+
+export interface OwnedChannel {
+  platform: string;
+  /** page_id / username / channel_id tuỳ nền tảng — chính là giá trị gửi lên khi lọc. */
+  id: string;
+  ten: string;
+  so_video: number;
+}
+
+export interface OwnedHashtag {
+  /** Không kèm dấu #. */
+  the: string;
+  so_video: number;
+}
+
+// ─── Tổng quan kênh nội bộ ───────────────────────────────────────────────────
+// Khớp với OwnedStatsService bên BE (owned-stats.service.ts). Mọi con số đều là TỔNG của
+// các video ĐĂNG trong kỳ, không phải số phát sinh trong kỳ — xem ghi chú ở trang tổng quan.
+
+export interface PeriodStats {
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  posts: number;
+}
+
+export interface DailyStats extends PeriodStats {
+  /** 'YYYY-MM-DD' theo giờ Việt Nam. */
+  ngay: string;
+}
+
+export interface PlatformStats extends PeriodStats {
+  platform: string;
+  truoc: PeriodStats;
+  followers: number;
+  /** Số kênh có đăng bài trong kỳ. */
+  so_kenh: number;
+  /** Tổng số kênh nội bộ của nền tảng, kể cả kênh không đăng gì. */
+  tong_kenh: number;
+  theo_ngay: DailyStats[];
+}
+
+export interface ChannelStats extends PeriodStats {
+  platform: string;
+  id: string;
+  ten: string;
+  avatar: string;
+  followers: number;
+  /** ISO, null nếu chưa đồng bộ lần nào. */
+  dong_bo: string | null;
+  views_truoc: number;
+}
+
+export interface VideoNoiBat {
+  platform: string;
+  post_id: string;
+  url: string;
+  mo_ta: string;
+  thumbnail: string;
+  kenh_ten: string;
+  views: number;
+  likes: number;
+  comments: number;
+  /** ISO. */
+  ngay: string;
+}
+
+export interface ThiTruongNenTang {
+  platform: string;
+  vn: number;
+  global: number;
+  posts_vn: number;
+  posts_global: number;
+}
+
+export interface TuyenNoiDung {
+  /** 'A1'…'A5'. */
+  ma: string;
+  posts: number;
+  views: number;
+  views_vn: number;
+  views_global: number;
+}
+
+export interface HashtagThongKe {
+  the: string;
+  posts: number;
+  views: number;
+}
+
+export interface ChannelAlert {
+  platform: string;
+  kenh: string;
+  noi_dung: string;
+  /** 'w' = cảnh báo nhẹ (vàng), 'b' = nặng (đỏ). */
+  muc: 'w' | 'b';
+  nhan: string;
+}
+
+export interface InternalStats {
+  status: string;
+  ky: { tu: string; den: string; so_ngay: number };
+  nen_tang: PlatformStats[];
+  kenh: ChannelStats[];
+  top_video: VideoNoiBat[];
+  thi_truong: ThiTruongNenTang[];
+  tuyen_noi_dung: TuyenNoiDung[];
+  hashtag: HashtagThongKe[];
+  canh_bao: ChannelAlert[];
+  tong_kenh: number;
+}
+
+// ─── Video đăng trùng giữa các kênh nội bộ ───────────────────────────────────
+// Khớp với OwnedDuplicateService bên BE.
+
+/** Một nội dung bị đăng trên từ 2 kênh nội bộ trở lên. */
+export interface DuplicateGroup {
+  /** Caption đã chuẩn hoá (hạ hoa/thường, gộp khoảng trắng) — dùng luôn làm nhãn hiển thị. */
+  noi_dung: string;
+  platform: string;
+  /** Độ dài video, giây. `null` với YouTube Shorts — bảng đó không có trường độ dài. */
+  giay: number | null;
+  so_kenh: number;
+  /** Có thể lớn hơn `so_kenh`: một kênh đăng lại cùng nội dung nhiều lần trong kỳ. */
+  so_video: number;
+  views: number;
+  kenh: { id: string; ten: string }[];
+  ngay_dau: string;
+  ngay_cuoi: string;
+  /** Link tới bài nhiều lượt xem nhất trong nhóm. */
+  url_mau: string;
+}
+
+export interface DuplicateByChannel {
+  platform: string;
+  id: string;
+  ten: string;
+  video_trung: number;
+  tong_video: number;
+  ty_le: number;
+}
+
+export interface InternalDuplicates {
+  status: string;
+  ky: { tu: string; den: string; so_ngay: number };
+  tom_tat: {
+    so_nhom: number;
+    so_nhom_tu_3_kenh: number;
+    so_video_trung: number;
+    /** Chỉ đếm video có caption từ 20 ký tự — dưới ngưỡng đó không đủ để nhận diện trùng. */
+    tong_video: number;
+    ty_le: number;
+    so_kenh_dinh: number;
+  };
+  nhom: DuplicateGroup[];
+  theo_kenh: DuplicateByChannel[];
+  canh_bao: ChannelAlert[];
+}
+
+// ─── Chấm điểm PAAST cho video nội bộ ────────────────────────────────────────
+// Khớp với OwnedScriptService bên BE.
+
+/**
+ * - `da_cham`           — có kịch bản và đã có điểm
+ * - `co_kich_ban`       — có kịch bản nhưng chưa chấm (hoặc chấm lỗi)
+ * - `chua_co_kich_ban`  — Facebook chưa sinh phụ đề cho video này (~2/3 số video)
+ * - `qua_ngan`          — kịch bản dưới 100 ký tự, PAAST không nhận
+ * - `khong_ho_tro`      — nền tảng chưa lấy được kịch bản
+ */
+export type TrangThaiPaastMa =
+  | 'da_cham'
+  | 'co_kich_ban'
+  | 'chua_co_kich_ban'
+  | 'qua_ngan'
+  | 'khong_ho_tro';
+
+export interface TrangThaiPaast {
+  trang_thai: TrangThaiPaastMa;
+  /** Bản 2 bỏ thang điểm 0–100, chỉ còn kết luận đạt/chưa đạt chuẩn PAAST. */
+  dat: boolean | null;
+  so_ky_tu: number;
+}
+
+export interface PaastVideoResult {
+  trang_thai: TrangThaiPaastMa;
+  nguon?: string;
+  ngon_ngu?: string;
+  so_ky_tu?: number;
+  kich_ban?: string;
+  /** Bản ghi PaastAnalysisHistory — đưa thẳng vào PaastScoreModal qua prop `cachedResult`. */
+  phan_tich?: any;
+  ghi_chu?: string;
 }
 
 export interface PaginatedExternalVideos {
@@ -679,12 +903,120 @@ export const scraperService = {
   getOwnedChannelVideos: async (token: string, params: {
     page?: number; page_size?: number; q?: string; sort?: string; platform?: string;
     min_plays?: number; date_from?: string; date_to?: string;
+    /** 'vn' | 'global' — server đoán theo dấu tiếng Việt trong caption. */
+    market?: string;
+    /** 'A1'..'A5' — server bắt theo hashtag #A1..#A5 sẵn có trong caption. */
+    content_line?: string;
+    /** Định danh kênh: page_id (Facebook) / username / channel_id tuỳ nền tảng. */
+    channel?: string;
+    /** Hashtag bất kỳ, có hay không có dấu # đều được. */
+    hashtag?: string;
   }): Promise<PaginatedExternalVideos> => {
     const res = await fetch(`${API_URL}/scraper/owned/videos/${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Không thể tải videos');
     return res.json();
+  },
+
+  /**
+   * Số liệu tổng hợp cho trang Tổng quan kênh nội bộ.
+   *
+   * KHÔNG cộng lại từ getOwnedChannelVideos(): kỳ 28 ngày có ~3.800 video, kéo hết về rồi
+   * cộng ở trình duyệt thì vừa chậm vừa sai vì API vốn chỉ trả tối đa 100 video mỗi trang.
+   */
+  getOwnedStats: async (
+    token: string,
+    params: {
+      platform?: string;
+      /** Preset nhanh. Có `tu` thì server bỏ qua `days`. */
+      days?: number;
+      /** 'YYYY-MM-DD' — khoảng ngày người dùng tự chọn. */
+      tu?: string;
+      den?: string;
+    },
+  ): Promise<InternalStats> => {
+    const res = await fetch(`${API_URL}/scraper/owned/stats/${buildParams(params)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Không thể tải số liệu tổng quan');
+    return res.json();
+  },
+
+  /**
+   * Video bị đăng trùng trên nhiều kênh nội bộ.
+   *
+   * Endpoint RIÊNG chứ không gộp vào getOwnedStats(): gộp vào thì cả trang tổng quan phải
+   * chờ thêm ba truy vấn nữa mới vẽ được ô số đầu tiên. Nhận cùng bộ tham số kỳ ngày nên
+   * hai khối luôn nói về cùng một khoảng thời gian.
+   */
+  getOwnedDuplicates: async (
+    token: string,
+    params: { platform?: string; days?: number; tu?: string; den?: string },
+  ): Promise<InternalDuplicates> => {
+    const res = await fetch(`${API_URL}/scraper/owned/trung-lap/${buildParams(params)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Không thể tải số liệu trùng lặp');
+    return res.json();
+  },
+
+  /**
+   * Trạng thái chấm điểm PAAST của một loạt video — gọi MỘT lần cho cả lưới.
+   *
+   * Chỉ đọc bảng đã lưu, không kích hoạt lấy phụ đề, nên gọi thoải mái khi mở trang.
+   * Video chưa từng chấm sẽ không có mặt trong kết quả.
+   */
+  getPaastStatus: async (
+    token: string,
+    khoas: string[],
+  ): Promise<Record<string, TrangThaiPaast>> => {
+    if (!khoas.length) return {};
+    const res = await fetch(
+      `${API_URL}/scraper/owned/paast/status/${buildParams({ ids: khoas.join(',') })}`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (!res.ok) return {};
+    return res.json();
+  },
+
+  /**
+   * Lấy kịch bản và chấm điểm PAAST cho một video.
+   *
+   * Lần đầu mỗi video mất ~15 giây (hỏi phụ đề Facebook rồi gọi LLM chấm) và tốn một lượt
+   * LLM, nên CHỈ gọi khi người dùng chủ động bấm. Từ lần sau lấy từ bảng, ~35ms, và cả team
+   * dùng chung một điểm.
+   */
+  chamDiemPaast: async (
+    token: string,
+    platform: string,
+    postId: string,
+  ): Promise<PaastVideoResult> => {
+    const res = await fetch(`${API_URL}/scraper/owned/paast/`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ platform, post_id: postId }),
+    });
+    if (!res.ok) throw new Error('Không chấm điểm được video này');
+    return res.json();
+  },
+
+  /** Danh sách kênh nội bộ để đổ vào ô chọn (kèm số video từng kênh). */
+  getOwnedChannels: async (token: string): Promise<OwnedChannel[]> => {
+    const res = await fetch(`${API_URL}/scraper/owned/channels/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    return (await res.json()).channels || [];
+  },
+
+  /** Hashtag đang thực sự có trong dữ liệu, sắp theo số video giảm dần. */
+  getOwnedHashtags: async (token: string, limit = 60): Promise<OwnedHashtag[]> => {
+    const res = await fetch(`${API_URL}/scraper/owned/hashtags/${buildParams({ limit })}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    return (await res.json()).hashtags || [];
   },
 
   suggestKeywords: async (token: string, q: string): Promise<KeywordSuggestion[]> => {
@@ -701,6 +1033,23 @@ export const scraperService = {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ keyword }),
     });
+  },
+
+  /**
+   * Dịch từ khoá sang tiếng Trung để xem trước, dùng cho các nền tảng Trung Quốc.
+   * BE tự bỏ qua nếu text vốn đã là tiếng Trung (source='already_chinese').
+   */
+  translateKeyword: async (
+    token: string,
+    text: string,
+  ): Promise<{ original: string; translated: string; source: string }> => {
+    const res = await fetch(`${API_URL}/scraper/keywords/translate`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) throw new Error('Không dịch được từ khoá');
+    return res.json();
   },
 
   triggerDiscovery: async (token: string, keyword: string): Promise<{ status: string; message: string }> => {
@@ -795,11 +1144,11 @@ export const scraperService = {
 
   // ─── TIKTOK PROFILE ────────────────────────────────────
 
-  tiktokProfileScrape: async (token: string, username: string, isOwned?: boolean): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; profile_id: number }> => {
+  tiktokProfileScrape: async (token: string, username: string, isOwned?: boolean, numOfPosts?: number): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; profile_id: number }> => {
     const res = await fetch(`${API_URL}/scraper/tiktok/profiles/scrape/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, ...(isOwned !== undefined ? { is_owned: isOwned } : {}) }),
+      body: JSON.stringify({ username, ...(isOwned !== undefined ? { is_owned: isOwned } : {}), ...(numOfPosts ? { num_of_posts: numOfPosts } : {}) }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
@@ -847,13 +1196,21 @@ export const scraperService = {
     return res.json();
   },
 
+  tiktokLookalikes: async (token: string, profileId: number): Promise<{ lookalikes: LookalikeChannel[] }> => {
+    const res = await fetch(`${API_URL}/scraper/tiktok/profiles/${profileId}/lookalikes/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return { lookalikes: [] };
+    return res.json();
+  },
+
   // ─── INSTAGRAM PROFILE ─────────────────────────────────
 
-  instagramProfileScrape: async (token: string, username: string, isOwned?: boolean): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; profile_id: number }> => {
+  instagramProfileScrape: async (token: string, username: string, isOwned?: boolean, numOfPosts?: number): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; profile_id: number }> => {
     const res = await fetch(`${API_URL}/scraper/instagram/profiles/scrape/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, ...(isOwned !== undefined ? { is_owned: isOwned } : {}) }),
+      body: JSON.stringify({ username, ...(isOwned !== undefined ? { is_owned: isOwned } : {}), ...(numOfPosts ? { num_of_posts: numOfPosts } : {}) }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
@@ -913,13 +1270,21 @@ export const scraperService = {
     return res.json();
   },
 
+  instagramLookalikes: async (token: string, profileId: number): Promise<{ lookalikes: LookalikeChannel[] }> => {
+    const res = await fetch(`${API_URL}/scraper/instagram/profiles/${profileId}/lookalikes/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return { lookalikes: [] };
+    return res.json();
+  },
+
   // ─── YOUTUBE ──────────────────────────────────────────
 
-  youtubeChannelScrape: async (token: string, channelId: string, isOwned?: boolean): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; newly_scraped?: boolean; profile_id: number }> => {
+  youtubeChannelScrape: async (token: string, channelId: string, isOwned?: boolean, numOfPosts?: number): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; newly_scraped?: boolean; profile_id: number }> => {
     const res = await fetch(`${API_URL}/scraper/youtube/profiles/scrape/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ channel_id: channelId, ...(isOwned !== undefined ? { is_owned: isOwned } : {}) }),
+      body: JSON.stringify({ channel_id: channelId, ...(isOwned !== undefined ? { is_owned: isOwned } : {}), ...(numOfPosts ? { num_of_posts: numOfPosts } : {}) }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
@@ -978,14 +1343,22 @@ export const scraperService = {
     return res.json();
   },
 
+  youtubeLookalikes: async (token: string, profileId: number): Promise<{ lookalikes: LookalikeChannel[] }> => {
+    const res = await fetch(`${API_URL}/scraper/youtube/profiles/${profileId}/lookalikes/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return { lookalikes: [] };
+    return res.json();
+  },
+
   // ─── KUAISHOU ─────────────────────────────────────────
   // Không có is_owned — Kuaishou chỉ có kênh ngoài (external).
 
-  kuaishouSearch: async (token: string, keyword: string, numOfPosts = 30): Promise<{ message: string; created: number; updated: number }> => {
+  kuaishouSearch: async (token: string, keyword: string, numOfPosts = 30, displayKeyword?: string): Promise<{ message: string; created: number; updated: number }> => {
     const res = await fetch(`${API_URL}/scraper/kuaishou/search/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keyword, num_of_posts: numOfPosts }),
+      body: JSON.stringify({ keyword, num_of_posts: numOfPosts, ...(displayKeyword ? { display_keyword: displayKeyword } : {}) }),
     });
     if (!res.ok) throw new Error('Không thể tìm kiếm');
     return res.json();
@@ -1010,11 +1383,11 @@ export const scraperService = {
     return (await res.json()).suggestions || [];
   },
 
-  kuaishouProfileScrape: async (token: string, eid: string): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; newly_scraped?: boolean; profile_id: number }> => {
+  kuaishouProfileScrape: async (token: string, eid: string, numOfPosts?: number): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; newly_scraped?: boolean; profile_id: number }> => {
     const res = await fetch(`${API_URL}/scraper/kuaishou/profiles/scrape/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ eid }),
+      body: JSON.stringify({ eid, ...(numOfPosts ? { num_of_posts: numOfPosts } : {}) }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
@@ -1062,15 +1435,23 @@ export const scraperService = {
     return res.json();
   },
 
+  kuaishouLookalikes: async (token: string, profileId: number): Promise<{ lookalikes: LookalikeChannel[] }> => {
+    const res = await fetch(`${API_URL}/scraper/kuaishou/profiles/${profileId}/lookalikes/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return { lookalikes: [] };
+    return res.json();
+  },
+
   // ─── BILIBILI ─────────────────────────────────────────
   // Không có is_owned — Bilibili chỉ có kênh ngoài (external). mid là ID duy
   // nhất (numeric), không có vấn đề 2 không gian ID như Kuaishou.
 
-  bilibiliSearch: async (token: string, keyword: string, numOfPosts = 30): Promise<{ message: string; created: number; updated: number }> => {
+  bilibiliSearch: async (token: string, keyword: string, numOfPosts = 30, displayKeyword?: string): Promise<{ message: string; created: number; updated: number }> => {
     const res = await fetch(`${API_URL}/scraper/bilibili/search/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keyword, num_of_posts: numOfPosts }),
+      body: JSON.stringify({ keyword, num_of_posts: numOfPosts, ...(displayKeyword ? { display_keyword: displayKeyword } : {}) }),
     });
     if (!res.ok) throw new Error('Không thể tìm kiếm');
     return res.json();
@@ -1095,11 +1476,11 @@ export const scraperService = {
     return (await res.json()).suggestions || [];
   },
 
-  bilibiliProfileScrape: async (token: string, mid: string): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; newly_scraped?: boolean; profile_id: number }> => {
+  bilibiliProfileScrape: async (token: string, mid: string, numOfPosts?: number): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; newly_scraped?: boolean; profile_id: number }> => {
     const res = await fetch(`${API_URL}/scraper/bilibili/profiles/scrape/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mid }),
+      body: JSON.stringify({ mid, ...(numOfPosts ? { num_of_posts: numOfPosts } : {}) }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
@@ -1178,11 +1559,13 @@ export const scraperService = {
 
   // ─── DOUYIN ────────────────────────────────────────────
 
-  douyinSearch: async (token: string, keyword: string, numOfPosts = 30): Promise<{ message: string; created?: number; updated?: number }> => {
+  // displayKeyword = tiếng Việt user gõ (khi `keyword` là bản dịch tiếng Trung) — BE lưu
+  // bản tiếng Việt vào search_keyword cho dễ đọc ở bộ lọc/gợi ý.
+  douyinSearch: async (token: string, keyword: string, numOfPosts = 30, displayKeyword?: string): Promise<{ message: string; created?: number; updated?: number }> => {
     const res = await fetch(`${API_URL}/scraper/douyin/search/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keyword, num_of_posts: numOfPosts }),
+      body: JSON.stringify({ keyword, num_of_posts: numOfPosts, ...(displayKeyword ? { display_keyword: displayKeyword } : {}) }),
     });
     if (!res.ok) throw new Error('Không thể tìm kiếm Douyin');
     return res.json();
@@ -1208,11 +1591,13 @@ export const scraperService = {
     return (await res.json()).suggestions || [];
   },
 
-  douyinProfileScrape: async (token: string, secUserId: string, numOfPosts = 30, isOwned?: boolean): Promise<{ status: string; message: string; profile_id: number; already_exists?: boolean; newly_scraped?: boolean }> => {
+  // numOfPosts để trống = dùng mặc định của BE (300). Trước đây BE bỏ qua tham số này
+  // nên số truyền vào vô tác dụng; nay BE đã tôn trọng nên KHÔNG đặt mặc định cứng ở FE.
+  douyinProfileScrape: async (token: string, secUserId: string, numOfPosts?: number, isOwned?: boolean): Promise<{ status: string; message: string; profile_id: number; already_exists?: boolean; newly_scraped?: boolean }> => {
     const res = await fetch(`${API_URL}/scraper/douyin/profile/scrape/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sec_user_id: secUserId, num_of_posts: numOfPosts, ...(isOwned !== undefined ? { is_owned: isOwned } : {}) }),
+      body: JSON.stringify({ sec_user_id: secUserId, ...(numOfPosts ? { num_of_posts: numOfPosts } : {}), ...(isOwned !== undefined ? { is_owned: isOwned } : {}) }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
@@ -1259,13 +1644,21 @@ export const scraperService = {
     return res.json();
   },
 
+  douyinLookalikes: async (token: string, profileId: number): Promise<{ lookalikes: LookalikeChannel[] }> => {
+    const res = await fetch(`${API_URL}/scraper/douyin/profiles/${profileId}/lookalikes/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return { lookalikes: [] };
+    return res.json();
+  },
+
   // ─── XIAOHONGSHU ───────────────────────────────────────
 
-  xiaohongshuSearch: async (token: string, keyword: string, numOfPosts = 20): Promise<{ status: string; message: string; created?: number; updated?: number }> => {
+  xiaohongshuSearch: async (token: string, keyword: string, numOfPosts = 20, displayKeyword?: string): Promise<{ status: string; message: string; created?: number; updated?: number }> => {
     const res = await fetch(`${API_URL}/scraper/xiaohongshu/search/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keyword, num_of_posts: numOfPosts }),
+      body: JSON.stringify({ keyword, num_of_posts: numOfPosts, ...(displayKeyword ? { display_keyword: displayKeyword } : {}) }),
     });
     if (!res.ok) throw new Error('Tìm kiếm Xiaohongshu thất bại');
     return res.json();
@@ -1293,11 +1686,12 @@ export const scraperService = {
 
   // ─── XIAOHONGSHU PROFILES ──────────────────────────────
 
-  xhsProfileScrape: async (token: string, userId: string, numOfPosts = 100, isOwned?: boolean): Promise<{ status: string; message: string; profile: XiaohongshuProfile; created: boolean }> => {
+  // numOfPosts để trống = dùng mặc định của BE (300) — xem ghi chú ở douyinProfileScrape.
+  xhsProfileScrape: async (token: string, userId: string, numOfPosts?: number, isOwned?: boolean): Promise<{ status: string; message: string; profile: XiaohongshuProfile; created: boolean }> => {
     const res = await fetch(`${API_URL}/scraper/xiaohongshu/profiles/scrape/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: userId, num_of_posts: numOfPosts, ...(isOwned !== undefined ? { is_owned: isOwned } : {}) }),
+      body: JSON.stringify({ user_id: userId, ...(numOfPosts ? { num_of_posts: numOfPosts } : {}), ...(isOwned !== undefined ? { is_owned: isOwned } : {}) }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -1342,6 +1736,14 @@ export const scraperService = {
       body: JSON.stringify(patch),
     });
     if (!res.ok) throw new Error('Cập nhật thất bại');
+    return res.json();
+  },
+
+  xhsLookalikes: async (token: string, profileId: number): Promise<{ lookalikes: LookalikeChannel[] }> => {
+    const res = await fetch(`${API_URL}/scraper/xiaohongshu/profiles/${profileId}/lookalikes/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return { lookalikes: [] };
     return res.json();
   },
 };

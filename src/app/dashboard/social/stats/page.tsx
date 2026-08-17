@@ -23,10 +23,8 @@ import { useSocialLang } from '@/contexts/SocialLanguageContext';
 const PLATFORM_COLORS: Record<string, string> = {
   FACEBOOK:  '#1877F2',
   INSTAGRAM: '#E1306C',
-  TIKTOK:    '#010101',
   THREADS:   '#000000',
   YOUTUBE:   '#FF0000',
-  ZALO:      '#0068FF',
 };
 
 function fmt(n: number) { return n.toLocaleString('vi'); }

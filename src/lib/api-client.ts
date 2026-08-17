@@ -1,25 +1,17 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import { createSessionRefresher, csrfHeader, shouldAttemptRefresh } from './auth/refresh-session';
 
 const _sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 // Extend config type to track 429 retry attempts
 interface RetryConfig extends InternalAxiosRequestConfig {
   _retry429?: number;
+  /** Đã thử làm mới phiên cho request này chưa — chặn thử đi thử lại vô hạn. */
+  _retriedAfterRefresh?: boolean;
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
-
-const CSRF_COOKIE = 'vcbi_csrf';
-const CSRF_HEADER = 'x-csrf-token';
 const MUTATING = new Set(['post', 'put', 'patch', 'delete']);
-
-function readCookie(name: string): string | undefined {
-  if (typeof document === 'undefined') return undefined;
-  const prefix = `${name}=`;
-  const raw = document.cookie.split('; ').find((c) => c.startsWith(prefix));
-  if (!raw) return undefined;
-  return decodeURIComponent(raw.slice(prefix.length));
-}
 
 export const apiClient = axios.create({
   baseURL: API_URL,
@@ -34,19 +26,36 @@ export const apiClient = axios.create({
 // Key = method + url + serialized params. Value = the shared Promise.
 const _inFlight = new Map<string, Promise<any>>();
 
-// Request interceptor - Bearer (nếu còn) + CSRF double-submit cho POST/PUT/PATCH/DELETE
+/**
+ * Xin access token mới bằng cookie refresh 7 ngày (HttpOnly).
+ *
+ * Gọi bằng `axios` trần chứ KHÔNG qua `apiClient`: đi qua apiClient thì chính request này lại
+ * rơi vào interceptor bên dưới, và một lần refresh hỏng sẽ tự gọi lại chính nó.
+ *
+ * Export ra ngoài để `auth-store.ts` và `fetchWithAuth` bên dưới dùng chung đúng MỘT luồng —
+ * không được để mỗi nơi tự gọi `/auth/refresh` riêng (xem lý do ở `createSessionRefresher`).
+ */
+export const sessionRefresher = createSessionRefresher(async () => {
+  const { data } = await axios.post(
+    `${API_URL}/auth/refresh`,
+    null,
+    { withCredentials: true, headers: csrfHeader(document.cookie) },
+  );
+
+  const token: string | null = data?.access_token ?? 'valid';
+  return token;
+});
+
+// Double-submit CSRF: cookie vcbi_csrf (không HttpOnly) gửi lại qua x-csrf-token.
+// CsrfGuard trên POST /auth/logout và /auth/refresh từ chối nếu thiếu header này.
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('auth_token');
-      if (token && config.headers) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-      const method = (config.method || 'get').toLowerCase();
-      if (MUTATING.has(method) && config.headers) {
-        const csrf = readCookie(CSRF_COOKIE);
-        if (csrf) config.headers[CSRF_HEADER] = csrf;
-      }
+    if (typeof window === 'undefined') return config;
+    const method = (config.method || 'get').toLowerCase();
+    if (!MUTATING.has(method) || !config.headers) return config;
+    const headers = csrfHeader(document.cookie);
+    for (const [key, value] of Object.entries(headers)) {
+      config.headers[key] = value;
     }
     return config;
   },
@@ -72,10 +81,23 @@ apiClient.interceptors.response.use(
       }
     }
 
+    // 401: access token sống 15 phút, refresh token sống 7 ngày. Xin token mới qua cookie rồi gửi lại
+    // chính request vừa hỏng — người dùng không thấy gì. Chỉ khi xin không được mới coi là phiên đã chết.
+    if (
+      typeof window !== 'undefined' &&
+      config &&
+      shouldAttemptRefresh(error.response?.status, config.url, !!config._retriedAfterRefresh)
+    ) {
+      config._retriedAfterRefresh = true;
+
+      const refreshed = await sessionRefresher.refresh().catch(() => null);
+      if (refreshed) {
+        return apiClient(config);
+      }
+    }
+
     if (error.response?.status === 401) {
       if (typeof window !== 'undefined') {
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('auth_user');
         if (!config?.url?.includes('/auth/login')) {
           window.location.href = '/login';
         }
@@ -104,6 +126,30 @@ export function dedupedGet<T = any>(url: string, params?: Record<string, any>): 
 
   _inFlight.set(key, req);
   return req;
+}
+
+/**
+ * `fetch()` tự động gửi cookie (`credentials: 'include'`) + tự làm mới phiên khi ăn 401.
+ */
+export async function fetchWithAuth(input: string, init: RequestInit = {}): Promise<Response> {
+  const method = (init.method || 'GET').toLowerCase();
+  const csrf = typeof document !== 'undefined' && MUTATING.has(method)
+    ? csrfHeader(document.cookie)
+    : {};
+  const fetchInit: RequestInit = {
+    ...init,
+    credentials: init.credentials || 'include',
+    headers: { ...csrf, ...(init.headers as Record<string, string> | undefined) },
+  };
+
+  const response = await fetch(input, fetchInit);
+
+  if (!shouldAttemptRefresh(response.status, input, false)) return response;
+
+  const refreshed = await sessionRefresher.refresh().catch(() => null);
+  if (!refreshed) return response;
+
+  return fetch(input, fetchInit);
 }
 
 export default apiClient;

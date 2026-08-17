@@ -59,21 +59,25 @@ function PickItemsModal({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [quantities, setQuantities] = useState<Record<string, number>>({})
 
-  const { data: editorProductsData } = useQuery({
+  const { data: editorProductsData, isLoading: loadingEditorProducts } = useQuery({
     queryKey: ['task-auto', 'editor-products', userId],
     queryFn: () => getEditorProducts(userId, {}),
     enabled: open && subTab === 'products',
   })
-  const { data: editorContentsData } = useQuery({
+  const { data: editorContentsData, isLoading: loadingEditorContents } = useQuery({
     queryKey: ['task-auto', 'editor-contents', userId],
     queryFn: () => getEditorContents(userId, {}),
     enabled: open && subTab === 'contents',
   })
-  const { data: editorSourcesData } = useQuery({
+  const { data: editorSourcesData, isLoading: loadingEditorSources } = useQuery({
     queryKey: ['task-auto', 'editor-sources', userId],
     queryFn: () => getEditorSources(userId, {}),
     enabled: open && subTab === 'sources',
   })
+  const loadingItems =
+    subTab === 'products' ? loadingEditorProducts :
+    subTab === 'contents' ? loadingEditorContents :
+    loadingEditorSources
 
   const allItems = useMemo(() => {
     if (subTab === 'products') return editorProductsData?.data ?? []
@@ -132,8 +136,12 @@ function PickItemsModal({
           </div>
         </div>
         <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
-          {filtered.length === 0 && <div className="py-10 text-center text-slate-400 text-sm">Không có mục nào</div>}
-          {(filtered as any[]).map((item: any) => (
+          {loadingItems ? (
+            <div className="py-10 flex justify-center"><Loader2 className="w-6 h-6 text-indigo-400 animate-spin" /></div>
+          ) : filtered.length === 0 ? (
+            <div className="py-10 text-center text-slate-400 text-sm">Không có mục nào</div>
+          ) : null}
+          {!loadingItems && (filtered as any[]).map((item: any) => (
             <label key={item.id} className="flex items-center gap-3 px-6 py-3 hover:bg-gray-50 cursor-pointer">
               <input type="checkbox" className="w-4 h-4 accent-indigo-600" checked={selected.has(item.id)} onChange={() => toggle(item.id)} />
               <span className="text-sm text-slate-700 flex-1">{item.name ?? item.title ?? item.sku ?? item.id}</span>
@@ -265,10 +273,12 @@ export function MyWarehouseTab({
   userId,
   brandType,
   teamMarket,
+  readOnly = false,
 }: {
   userId: string
   brandType: BrandType
   teamMarket?: string
+  readOnly?: boolean
 }) {
   const qc = useQueryClient()
   const [month, setMonth] = useState(currentMonth())
@@ -361,22 +371,24 @@ export function MyWarehouseTab({
             {isLoading ? '...' : `${warehouseItems.length} mục trong kho`}
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setConfirmPush(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 text-sm text-slate-600 hover:bg-gray-50 transition-colors"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Copy từ {prev}
-          </button>
-          <button
-            onClick={() => setShowPickModal(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Thêm vào kho
-          </button>
-        </div>
+        {!readOnly && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setConfirmPush(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 text-sm text-slate-600 hover:bg-gray-50 transition-colors"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Copy từ {prev}
+            </button>
+            <button
+              onClick={() => setShowPickModal(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Thêm vào kho
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Sub-tabs */}
@@ -412,6 +424,7 @@ export function MyWarehouseTab({
             description='Nhấn "Thêm vào kho" hoặc "Copy từ tháng trước" để bắt đầu'
           />
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
@@ -424,7 +437,7 @@ export function MyWarehouseTab({
                 {subTab === 'products' && (
                   <th className="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide w-28">SL video</th>
                 )}
-                <th className="px-5 py-3 w-16"></th>
+                {!readOnly && <th className="px-5 py-3 w-16"></th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -439,25 +452,32 @@ export function MyWarehouseTab({
                   <td className="px-5 py-3.5 text-slate-500">{subOf(item)}</td>
                   {subTab === 'products' && (
                     <td className="px-5 py-3.5 text-right">
-                      <ProductQuantityCell
-                        value={item.warehouses?.[0]?.target_quantity ?? 1}
-                        onSave={v => updateQuantityMut.mutate({ id: item.id, target_quantity: v })}
-                      />
+                      {readOnly ? (
+                        <span className="text-slate-500 font-semibold">{item.warehouses?.[0]?.target_quantity ?? 1}</span>
+                      ) : (
+                        <ProductQuantityCell
+                          value={item.warehouses?.[0]?.target_quantity ?? 1}
+                          onSave={v => updateQuantityMut.mutate({ id: item.id, target_quantity: v })}
+                        />
+                      )}
                     </td>
                   )}
-                  <td className="px-5 py-3.5 text-right">
-                    <button
-                      onClick={() => removeMut.mutate(item.id)}
-                      disabled={removeMut.isPending}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
+                  {!readOnly && (
+                    <td className="px-5 py-3.5 text-right">
+                      <button
+                        onClick={() => removeMut.mutate(item.id)}
+                        disabled={removeMut.isPending}
+                        className="p-2.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 

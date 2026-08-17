@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Settings, LogOut, Menu, X, Video, Sun, Moon } from "lucide-react";
+import { Settings, LogOut, Menu, X, Video, Sun, Moon, UserCog } from "lucide-react";
 import { UserRole } from "@/types/auth";
 import { HeaderProps } from "./types";
 import { useNavMenus } from "./use-nav-menus";
@@ -238,6 +238,17 @@ export default function HeaderInner({ user, onLogout, allowedMenuIds }: HeaderPr
                         <div className="hidden lg:flex items-center">
                             <NotificationBell />
                         </div>
+
+                        {/* Character management (nhân vật AI content-transform) — chỉ ADMIN/MANAGER */}
+                        {isManagerOrAdmin && (
+                            <Link
+                                href="/dashboard/ai/content-transform/characters"
+                                title={t.nav.characterManagement}
+                                className="hidden lg:flex w-8 h-8 items-center justify-center rounded-md text-slate-500 hover:text-slate-200 hover:bg-white/[0.07] transition-colors duration-150"
+                            >
+                                <UserCog className="w-4 h-4" />
+                            </Link>
+                        )}
 
                         <div className="hidden lg:block w-px h-5 bg-white/10 mx-1.5" />
 

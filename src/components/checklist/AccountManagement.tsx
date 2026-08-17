@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/dialog';
 import Button from '@/components/ui/button';
 import Input from '@/components/ui/input';
+import { fetchWithAuth } from '@/lib/api-client';
 
 interface User {
     id: string;
@@ -101,11 +102,7 @@ export default function AccountManagement() {
         if (!token) return;
         try {
             setLoading(true);
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users`, {
-                headers: {
-                    Authorization: `Bearer ${token}`
-                }
-            });
+            const response = await fetchWithAuth(`${process.env.NEXT_PUBLIC_API_URL}/users`);
             if (!response.ok) throw new Error('Failed to fetch users');
             const data = await response.json();
             setUsers(data);
@@ -149,11 +146,10 @@ export default function AccountManagement() {
             if (team.trim() !== (selectedUser.team || '').trim()) {
                 payload.team = team.trim();
             }
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/${selectedUser.id}`, {
+            const response = await fetchWithAuth(`${process.env.NEXT_PUBLIC_API_URL}/users/${selectedUser.id}`, {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
                 },
                 body: JSON.stringify(payload)
             });
@@ -177,11 +173,8 @@ export default function AccountManagement() {
     const handleConfirmDelete = async () => {
         if (!userToDelete || !token) return;
         try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/${userToDelete.id}`, {
+            const response = await fetchWithAuth(`${process.env.NEXT_PUBLIC_API_URL}/users/${userToDelete.id}`, {
                 method: 'DELETE',
-                headers: {
-                    Authorization: `Bearer ${token}`
-                }
             });
             if (!response.ok) throw new Error('Failed to delete user');
 

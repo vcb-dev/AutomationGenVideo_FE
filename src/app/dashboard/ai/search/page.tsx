@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import GenerateContentButton from '@/components/content/GenerateContentButton';
 import SearchAutocomplete from '@/components/SearchAutocomplete';
 import { useTikTokSearchStore, ScrapedVideo } from '@/store/tiktok-search-store';
+import { fetchWithAuth } from '@/lib/api-client';
 
 export default function TikTokSearchPage() {
   // ── Zustand store — persist khi navigate sang trang khác và quay lại ──
@@ -45,13 +46,7 @@ export default function TikTokSearchPage() {
       if (!taskId) return;
 
       try {
-        const token = localStorage.getItem('auth_token');
-
-        const response = await fetch(`/api/search/status/${taskId}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        const response = await fetchWithAuth(`/api/search/status/${taskId}`);
 
         if (!response.ok) {
           throw new Error('Failed to check status');
@@ -132,8 +127,6 @@ export default function TikTokSearchPage() {
     }
 
     try {
-      const token = localStorage.getItem('auth_token');
-
       const limitToUse = overrideMaxResult || (reset ? 30 : maxPosts);
 
       let currentSessionId = searchSessionId;
@@ -176,11 +169,10 @@ export default function TikTokSearchPage() {
         // Wait, the API body logic below USES `searchTerm`. I need to change that to use `finalKeyword`.
       }
 
-      const response = await fetch('/api/search', {
+      const response = await fetchWithAuth('/api/search', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           platform: platform,

@@ -6,8 +6,9 @@ import { useScrollLock } from '@/hooks/useScrollLock'
 import toast from 'react-hot-toast'
 import { Loader2, XCircle, CheckCircle2, Play, ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
 import {
-  getTask, approveTask, cancelTask, getSources, getTeamSources,
+  getTask, approveTask, deleteTask, getSources, getTeamSources,
   getProduct, getContent, startTask,
   updateTask, getProducts, getContents, getTeam, getApprovals,
   getEditorProducts, getEditorContents, getTeamProducts, getTeamContents,
@@ -22,8 +23,8 @@ import { ContentSection } from './detail/ContentSection'
 import { SourcesSection } from './detail/SourcesSection'
 import { ProductSection } from './detail/ProductSection'
 import { VideoPreviewOverlay } from './detail/VideoPreviewOverlay'
-import { VideoScriptSection } from './detail/VideoScriptSection'
 import { TaskSchedulePostModal } from './detail/TaskSchedulePostModal'
+import { PublishedLinksSection } from './detail/PublishedLinksSection'
 import type { Source, TeamSource } from '@/types/task-auto'
 
 type CatalogScope = 'personal' | 'global' | 'team'
@@ -78,7 +79,12 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
   const [showResubmit, setShowResubmit]     = useState(false)
   const [showVideoPreview, setShowVideoPreview] = useState(false)
   const [showSchedule, setShowSchedule]     = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [editMode, setEditMode]             = useState(false)
+  // ContentSection báo lên đây khi có content/bản dịch sửa tay chưa lưu — chặn đóng panel
+  // (backdrop, Esc, nút Đóng) mất trắng thay đổi mà không hỏi lại.
+  const [contentDirty, setContentDirty]     = useState(false)
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false)
   const [editForm, setEditForm] = useState({
     product_id: '',
     content_id: '',
@@ -93,6 +99,26 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
   const [productScope, setProductScope] = useState<'personal' | 'global' | 'team'>('global')
   const [contentScope, setContentScope] = useState<'personal' | 'global' | 'team'>('global')
   const [sourceScope, setSourceScope] = useState<SourceScope>('all')
+
+  // Esc đóng panel — nhưng nếu đang có modal con (nộp/từ chối/preview/lên lịch/xác nhận xoá)
+  // hoặc đang sửa, chỉ đóng lớp đó trước (giống hành vi đã có ở VideoPreviewOverlay).
+  const hasChildOverlay = showSubmit || showReject || showResubmit || showVideoPreview || showSchedule || showDeleteConfirm || showCloseConfirm
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape' || hasChildOverlay) return
+      if (editMode) { setEditMode(false); setProductSearch(''); setContentSearch(''); return }
+      requestClose()
+    }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasChildOverlay, editMode, contentDirty, onClose])
+
+  // Nội dung content sửa tay chưa lưu (dirty) sẽ mất nếu đóng panel — hỏi lại thay vì đóng thẳng.
+  function requestClose() {
+    if (contentDirty) { setShowCloseConfirm(true); return }
+    onClose()
+  }
 
   const { data: task, isLoading } = useQuery({
     queryKey: ['task-auto', 'task', taskId],
@@ -349,21 +375,22 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
 
   const isAssignee       = task?.assignee_id === currentUserId
   const canApproveReject = userRoles.some(r => ['ADMIN', 'MANAGER', 'LEADER'].includes(r))
-  const canCancel        = userRoles.some(r => ['ADMIN', 'MANAGER'].includes(r))
+  const canDelete        = userRoles.some(r => ['ADMIN', 'MANAGER', 'LEADER'].includes(r))
   const canAssign        = userRoles.some(r => ['ADMIN', 'MANAGER', 'LEADER'].includes(r))
   const canStart         = task?.status === 'ASSIGNED' && isAssignee
 
   const assignEnabled = editMode && canAssign && task?.status === 'PENDING'
-  const { data: taskTeam } = useQuery({
+  const { data: taskTeam, isLoading: loadingTaskTeam } = useQuery({
     queryKey: ['task-auto', 'team', task?.team_id],
     queryFn: () => getTeam(task!.team_id!),
     enabled: assignEnabled && !!task?.team_id,
   })
-  const { data: approvedEditors } = useQuery({
+  const { data: approvedEditors, isLoading: loadingApprovedEditors } = useQuery({
     queryKey: ['task-auto', 'approvals', 'APPROVED'],
     queryFn: () => getApprovals('APPROVED'),
     enabled: assignEnabled,
   })
+  const loadingEditorUsers = loadingTaskTeam || loadingApprovedEditors
   const editorUsers = useMemo(() => {
     if (!taskTeam?.members || !approvedEditors) return []
     const approvedIds = new Set(approvedEditors.map(a => a.user_id))
@@ -390,14 +417,18 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
     },
     onError: () => toast.error('Thao tác thất bại'),
   })
-  const cancelMut = useMutation({
-    mutationFn: () => cancelTask(taskId),
+  const deleteMut = useMutation({
+    mutationFn: () => deleteTask(taskId),
     onSuccess: () => {
-      toast.success('Đã huỷ task')
+      toast.success('Đã xoá task')
       qc.invalidateQueries({ queryKey: ['task-auto', 'tasks'] })
-      qc.invalidateQueries({ queryKey: ['task-auto', 'task', taskId] })
+      qc.removeQueries({ queryKey: ['task-auto', 'task', taskId] })
+      onClose()
     },
-    onError: () => toast.error('Huỷ task thất bại'),
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message ?? 'Xoá task thất bại')
+      setShowDeleteConfirm(false)
+    },
   })
 
   // ✅ Content fallback chain: fullContent → editor → team (own→FK) → global (own→team FK→editor FK)
@@ -518,10 +549,10 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
 
   return (
     <>
-      <div className="fixed inset-0 z-[1001] bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 z-[1001] bg-black/50 backdrop-blur-sm" onClick={requestClose} />
 
       <div className="fixed inset-0 z-[1002] flex items-center justify-center p-4 sm:p-6">
-        <div className="relative w-full max-w-5xl max-h-[92vh] bg-gray-50 rounded-2xl shadow-2xl flex flex-col overflow-hidden ring-1 ring-black/8">
+        <div className="relative w-full max-w-6xl max-h-[95vh] bg-gray-50 rounded-2xl shadow-2xl flex flex-col overflow-hidden ring-1 ring-black/8">
 
           <TaskPanelHeader
             task={task}
@@ -531,7 +562,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
             productName={productName}
             productSku={productSku}
             onToggleEdit={() => setEditMode(v => !v)}
-            onClose={onClose}
+            onClose={requestClose}
           />
 
           {task && (
@@ -627,6 +658,17 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                           fileUrl,
                           voiceUrl,
                         }}
+                        taskId={task.id}
+                        isAssignee={isAssignee}
+                        canApproveReject={canApproveReject}
+                        productName={productName}
+                        productSku={productSku}
+                        productPrice={mergedProduct?.price ?? null}
+                        productMaterial={mergedProduct?.material?.name ?? null}
+                        productPriceSegment={mergedProduct?.price_segment ?? null}
+                        productLine={mergedProduct?.product_line?.name ?? null}
+                        productMarket={mergedProduct?.market ?? null}
+                        onDirtyChange={setContentDirty}
                       />
 
                       <SourcesSection
@@ -704,30 +746,23 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                     />
                   </div>
 
-                  <VideoScriptSection
-                    taskId={task.id}
-                    fileUrl={fileUrl}
-                    scriptText={scriptText}
-                    contentTitle={contentTitle}
-                    contentLine={contentLine}
-                    contentMarket={contentMarket}
-                    productName={productName}
-                    productSku={productSku}
-                    productPrice={mergedProduct?.price ?? null}
-                    productMaterial={mergedProduct?.material?.name ?? null}
-                    productPriceSegment={mergedProduct?.price_segment ?? null}
-                    productLine={mergedProduct?.product_line?.name ?? null}
-                    productMarket={mergedProduct?.market ?? null}
-                  />
-
                   <TaskMetaStrip
                     task={task}
                     assigneeEdit={editMode && canAssign && task.status === 'PENDING' ? {
                       value: editForm.assignee_id,
                       onChange: v => setEditForm(f => ({ ...f, assignee_id: v })),
                       options: editorUsers ?? [],
+                      loading: loadingEditorUsers,
                     } : undefined}
                   />
+
+                  {task.status === 'APPROVED' && (
+                    <PublishedLinksSection
+                      taskId={task.id}
+                      publishedLinks={task.published_links}
+                      canEdit={isAssignee || canApproveReject}
+                    />
+                  )}
                 </div>
               </div>
             )}
@@ -739,21 +774,21 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
               editMode={editMode}
               isAssignee={isAssignee}
               canApproveReject={canApproveReject}
-              canCancel={canCancel}
+              canDelete={canDelete}
               canStart={!!canStart}
               canSchedulePost={!!canSchedulePost}
               isPendingStart={startMut.isPending}
               isPendingApprove={approveMut.isPending}
-              isPendingCancel={cancelMut.isPending}
+              isPendingDelete={deleteMut.isPending}
               isPendingUpdate={updateMut.isPending}
-              onClose={onClose}
+              onClose={requestClose}
               onCancelEdit={() => { setEditMode(false); setProductSearch(''); setContentSearch('') }}
               onSaveEdit={() => updateMut.mutate()}
               onStart={() => startMut.mutate()}
               onSubmit={() => setShowSubmit(true)}
               onApprove={() => approveMut.mutate()}
               onReject={() => setShowReject(true)}
-              onCancel={() => cancelMut.mutate()}
+              onDelete={() => setShowDeleteConfirm(true)}
               onResubmit={() => setShowResubmit(true)}
               onSchedulePost={() => setShowSchedule(true)}
             />
@@ -782,6 +817,25 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
           onClose={() => setShowSchedule(false)}
         />
       )}
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title="Xoá task này?"
+        message="Bạn có chắc muốn xoá task này? Hành động này không thể hoàn tác."
+        confirmLabel="Xoá task"
+        danger
+        isLoading={deleteMut.isPending}
+        onConfirm={() => deleteMut.mutate()}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
+      <ConfirmDialog
+        open={showCloseConfirm}
+        title="Đóng và bỏ qua thay đổi?"
+        message="Content bạn vừa sửa chưa được lưu. Nếu đóng bây giờ, các thay đổi này sẽ mất."
+        confirmLabel="Đóng, bỏ qua"
+        danger
+        onConfirm={() => { setShowCloseConfirm(false); onClose() }}
+        onCancel={() => setShowCloseConfirm(false)}
+      />
     </>
   )
 }

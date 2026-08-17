@@ -217,7 +217,64 @@ export interface EditorKpiAllocation {
   product_line?: ProductLine | null
 }
 
+// ── Editor Daily KPI (KPI ngày set tay, từng ngày một con số) ──
+
+export interface EditorDailyKpi {
+  id: string
+  user_id: string
+  team_id: string
+  date: string            // ISO — ngày áp dụng (DATE, UTC midnight)
+  target: number          // 0 = chưa set → BE fallback logic cũ
+  note: string | null
+  set_by_id: string
+  created_at: string
+  updated_at: string
+  user?: UserBasic
+  set_by?: UserBasic
+  team?: { id: string; name: string }
+}
+
 // ── Team Push Request (duyệt đẩy kho cá nhân → kho team) ──
+
+export interface TaskContentApproval {
+  id: string
+  task_id: string
+  status: ApprovalStatus
+  content: string
+  requested_by_id: string
+  reviewed_by_id: string | null
+  reviewed_at: string | null
+  reject_reason: string | null
+  created_at: string
+  requested_by?: UserBasic
+  reviewed_by?: UserBasic | null
+  // Chỉ có khi lấy qua getContentApprovals() (tab "Content chờ duyệt") — dùng để hiển thị
+  // tiêu đề/team/người làm mà không cần gọi thêm request riêng cho từng dòng.
+  task?: {
+    id: string
+    deadline: string | null
+    team?: { id: string; name: string } | null
+    assignee?: { id: string; full_name: string } | null
+    content?: {
+      title: string | null
+      source_team_content?: { title: string | null; source_editor_content?: { title: string | null } | null } | null
+    } | null
+    editor_content?: { title: string | null } | null
+    team_content?: {
+      title: string | null
+      source_editor_content?: { title: string | null } | null
+    } | null
+  }
+}
+
+export interface ContentApprovalsQuery {
+  status?: ApprovalStatus | ''
+  team_id?: string
+  assignee_id?: string
+  search?: string
+  page?: number
+  limit?: number
+}
 
 export interface TeamPushRequest {
   id: string
@@ -434,6 +491,25 @@ export interface TeamSource {
 
 // ── Tasks ────────────────────────────────────────
 
+export interface PublishedLinkStats {
+  views: number
+  likes: number
+  comments: number
+  shares: number
+  status: 'success' | 'failed' | 'unsupported'
+  fetched_at: string
+  error?: string
+}
+
+export interface PublishedLink {
+  id: string
+  /** Tên nền tảng tự do; "FACEBOOK"/"TIKTOK"/"INSTAGRAM"/"YOUTUBE" được nhận icon thương hiệu, còn lại dùng icon mặc định */
+  platform: string
+  url: string
+  /** Số liệu tương tác do BE tự kéo — hiện chỉ Facebook (page nội bộ) được hỗ trợ, platform khác có status 'unsupported' */
+  stats?: PublishedLinkStats | null
+}
+
 export interface Task {
   id: string
   team_id: string
@@ -467,6 +543,7 @@ export interface Task {
   task_type: TaskTypeValue
   run_id: string | null
   result_url: string | null
+  published_links?: PublishedLink[] | null
   submitted_at: string | null
   reviewed_by_id: string | null
   reviewed_at: string | null
@@ -579,12 +656,25 @@ export interface AutoAssignSetting {
 
 // ── Notifications ───────────────────────────────
 
+/** meta của Notification type=AUTO_ASSIGN_EMPTY_WAREHOUSE — xem warehouse-empty-notice.ts (BE) */
+export interface EmptyWarehouseNoticeMeta {
+  videosNeededToday: number
+  productKpi: {
+    planned: number
+    pushedThisMonth: number
+    remaining: number
+    pendingProducts?: { id: string; name: string }[]
+  } | null
+  contentLines: { id: string; name: string; count: number }[]
+}
+
 export interface Notification {
   id: string
   user_id: string
   type: string
   title: string
   body: string | null
+  meta?: EmptyWarehouseNoticeMeta | null
   task_id: string | null
   is_read: boolean
   created_at: string
@@ -609,10 +699,13 @@ export interface TasksQuery {
   assignee_id?: string
   month?: string
   deadline_date?: string
+  deadline_from?: string
+  deadline_to?: string
   task_type?: 'auto' | 'extra' | 'manual' | ''
   page?: number
   limit?: number
   search?: string
+  sort?: 'created_at' | 'updated_at'
 }
 
 export type BrandType = 'DO_DA' | 'TRANG_SUC'

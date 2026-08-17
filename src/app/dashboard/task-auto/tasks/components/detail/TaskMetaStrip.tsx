@@ -9,13 +9,14 @@ interface AssigneeEditProps {
   value: string
   onChange: (id: string) => void
   options: UserBasic[]
+  loading?: boolean
 }
 
 export function TaskMetaStrip({ task, assigneeEdit }: { task: Task; assigneeEdit?: AssigneeEditProps }) {
   const overdue = isOverdue(task.deadline) && !['APPROVED', 'CANCELLED'].includes(task.status)
   return (
     <div className="border border-gray-200 rounded-2xl overflow-hidden bg-white">
-      <div className="grid grid-cols-3 divide-x divide-gray-100">
+      <div className="grid grid-cols-1 sm:grid-cols-3 divide-y divide-gray-100 sm:divide-y-0 sm:divide-x">
         <div className="px-5 py-3.5">
           <div className="flex items-center gap-1.5 mb-2">
             <User className="w-3 h-3 text-gray-400" />
@@ -26,6 +27,7 @@ export function TaskMetaStrip({ task, assigneeEdit }: { task: Task; assigneeEdit
               value={assigneeEdit.value}
               onChange={assigneeEdit.onChange}
               compact
+              loading={assigneeEdit.loading}
               options={[
                 { value: '', label: '— Chưa giao —' },
                 ...assigneeEdit.options.map(u => ({ value: u.id, label: u.full_name })),

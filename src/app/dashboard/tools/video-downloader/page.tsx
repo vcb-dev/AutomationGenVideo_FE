@@ -16,6 +16,8 @@ import {
     Layers,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { fetchWithAuth } from '@/lib/api-client';
+import { useAuthStore } from '@/store/auth-store';
 
 // Gọi qua proxy same-origin /api/video-downloader/* (route.ts) thay vì thẳng AI_SERVICE_URL,
 // vì trang này có thể được mở từ máy khác qua Cloudflare Tunnel (extension VCB) — nếu gọi thẳng
@@ -64,8 +66,7 @@ function formatBytes(bytes?: number | null) {
 }
 
 function getAuthHeaders(): Record<string, string> {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-    return token ? { Authorization: `Bearer ${token}` } : {};
+    return {};
 }
 
 function sleep(ms: number) {
@@ -138,9 +139,9 @@ function VideoDownloaderInner() {
         setLoadingInfo(true);
         setInfo(null);
         try {
-            const res = await fetch(`${PROXY_BASE}/info`, {
+            const res = await fetchWithAuth(`${PROXY_BASE}/info`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ url: u }),
             });
             const data = await res.json();
@@ -163,9 +164,7 @@ function VideoDownloaderInner() {
 
     const fetchFinishedFile = async (jobId: string, fallbackFormat: 'mp4' | 'mp3'): Promise<boolean> => {
         try {
-            const res = await fetch(`${PROXY_BASE}/jobs/${jobId}/file`, {
-                headers: getAuthHeaders(),
-            });
+            const res = await fetchWithAuth(`${PROXY_BASE}/jobs/${jobId}/file`);
             if (!res.ok) {
                 let msg = 'Tải thất bại';
                 try { msg = (await res.json()).error || msg; } catch { /* binary response */ }
@@ -194,9 +193,7 @@ function VideoDownloaderInner() {
 
     const pollJobUntilSettled = async (jobId: string): Promise<JobProgress> => {
         while (!cancelledRef.current) {
-            const sres = await fetch(`${PROXY_BASE}/jobs/${jobId}`, {
-                headers: getAuthHeaders(),
-            });
+            const sres = await fetchWithAuth(`${PROXY_BASE}/jobs/${jobId}`);
             const sdata = await sres.json();
             if (!sres.ok) throw new Error(sdata.error || 'Không kiểm tra được tiến trình');
             if (!cancelledRef.current) setJob(sdata);
@@ -213,15 +210,15 @@ function VideoDownloaderInner() {
         targetFormat: 'mp4' | 'mp3',
         targetQuality: 'best' | '1080' | '720'
     ): Promise<boolean> => {
-        if (!getAuthHeaders().Authorization) {
+        if (!useAuthStore.getState().isAuthenticated && !useAuthStore.getState().user) {
             toast.error('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.');
             return false;
         }
         setJob({ status: 'queued', percent: 0, message: 'Đang khởi tạo...' });
         try {
-            const res = await fetch(`${PROXY_BASE}/jobs`, {
+            const res = await fetchWithAuth(`${PROXY_BASE}/jobs`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ url: targetUrl, type: targetFormat, quality: targetQuality }),
             });
             const data = await res.json();
@@ -445,8 +442,8 @@ function VideoDownloaderInner() {
                         'Mở chrome://extensions (Chrome/Edge/Brave đều được).',
                         'Bật "Chế độ dành cho nhà phát triển" (Developer mode) ở góc phải.',
                         'Bấm "Tải tiện ích đã giải nén" (Load unpacked) và chọn thư mục vừa giải nén.',
-                        'Bấm icon extension trên thanh công cụ → "Cài đặt nâng cao" → dán đúng địa chỉ trang web này rồi Lưu.',
-                        'Xong! Rê chuột vào video bất kỳ để hiện nút tải, hoặc chuột phải chọn "Tải video này qua VCB".',
+                        'Tải lại (F5) trang này một lần — extension tự nhận địa chỉ hệ thống, bạn không phải nhập gì.',
+                        'Xong! Rê chuột vào video bất kỳ để hiện nút tải, hoặc chuột phải chọn "Tải video này qua VCB" / "Đề xuất video này vào VCB".',
                     ].map((step, i) => (
                         <li key={i} className="flex gap-2">
                             <CheckCircle2 className="w-4 h-4 text-violet-500 flex-shrink-0 mt-0.5" />

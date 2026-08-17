@@ -215,7 +215,7 @@ export function ProductViewModal({
         <div className="relative bg-white w-full max-w-4xl max-h-[94vh] sm:max-h-[92vh] rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden">
 
           {/* Header */}
-          <div className="px-8 pt-7 pb-5 shrink-0">
+          <div className="px-5 sm:px-8 pt-7 pb-5 shrink-0">
             <div className="flex items-start justify-between gap-4">
               <h2 className="text-2xl font-bold text-slate-900 leading-snug flex-1">{itemName}</h2>
               <button onClick={onClose} className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0 mt-0.5">
@@ -401,7 +401,7 @@ export function ProductViewModal({
           </div>
 
           {/* Footer */}
-          <div className="flex items-center gap-2 px-8 py-5 border-t border-slate-100 shrink-0 bg-gray-50/50">
+          <div className="flex flex-wrap items-center gap-2 gap-y-2 px-5 sm:px-8 py-5 border-t border-slate-100 shrink-0 bg-gray-50/50">
             <div className="flex gap-2">
               {canPushToTeam && onPushToTeam && (
                 <button onClick={() => { onPushToTeam(); onClose() }}

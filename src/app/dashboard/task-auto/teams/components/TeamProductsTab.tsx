@@ -399,7 +399,7 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
                             {canEditSelected && isTeamCreated && (
                               <button
                                 onClick={() => setViewProduct(tp)}
-                                className="p-2 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors"
+                                className="p-2.5 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors"
                                 title="Chỉnh sửa"
                               >
                                 <Edit2 className="w-4 h-4" />
@@ -408,7 +408,7 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
                             {canEditSelected && (
                               <button
                                 onClick={() => setPushingProduct(tp)}
-                                className="p-2 rounded-xl hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition-colors"
+                                className="p-2.5 rounded-xl hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition-colors"
                                 title="Đẩy ra kho tổng"
                               >
                                 <Upload className="w-4 h-4" />
@@ -420,7 +420,7 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
                                   setDeletingProductId(tp.id)
                                   setDeletingProductName(tpName)
                                 }}
-                                className="p-2 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
+                                className="p-2.5 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
                                 title="Xóa khỏi kho team"
                               >
                                 <Trash2 className="w-4 h-4" />

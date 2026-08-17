@@ -7,6 +7,7 @@ import type {
   EditorApproval,
   TeamKpi,
   EditorKpi,
+  EditorDailyKpi,
   ContentLine,
   ProductLine,
   Material,
@@ -27,7 +28,10 @@ import type {
   TeamProduct,
   TeamContent,
   TeamPushRequest,
+  TaskContentApproval,
+  ContentApprovalsQuery,
   Notification,
+  PublishedLink,
 } from '@/types/task-auto'
 
 function qs(params: Record<string, string | number | boolean | undefined | null>): string {
@@ -63,6 +67,16 @@ export const approveTask = (id: string) =>
 
 export const rejectTask = (id: string, reason: string) =>
   apiClient.post<Task>(`/task-auto/tasks/${id}/review`, { action: 'REJECTED', reject_reason: reason }).then(r => r.data)
+
+// stats là dữ liệu server tự tính (không cho client ghi) — chỉ gửi lên id/platform/url,
+// BE tự quyết định giữ lại stats cũ hay fetch mới dựa trên có đổi url/platform hay không.
+export const updateTaskPublishedLinks = (id: string, links: PublishedLink[]) =>
+  apiClient.patch<Task>(`/task-auto/tasks/${id}/published-links`, {
+    links: links.map(({ id, platform, url }) => ({ id, platform, url })),
+  }).then(r => r.data)
+
+export const refreshPublishedLinkStats = (taskId: string, linkId: string) =>
+  apiClient.post<Task>(`/task-auto/tasks/${taskId}/published-links/${linkId}/refresh-stats`).then(r => r.data)
 
 export const startTask = (id: string) =>
   apiClient.put<Task>(`/task-auto/tasks/${id}`, { status: 'IN_PROGRESS' }).then(r => r.data)
@@ -130,6 +144,20 @@ export const translateTaskVideoScript = (taskId: string, market?: string | null)
   apiClient
     .post<{ script: VideoScript }>(`/task-auto/tasks/${taskId}/video-script/translate`, { market })
     .then(r => r.data.script)
+
+// ── Content Approval (duyệt content mới trước khi làm task) ─────────────────
+
+export const getTaskContentApproval = (taskId: string) =>
+  apiClient.get<TaskContentApproval | null>(`/task-auto/tasks/${taskId}/content-approval`).then(r => r.data)
+
+export const requestTaskContentApproval = (taskId: string) =>
+  apiClient.post<TaskContentApproval>(`/task-auto/tasks/${taskId}/content-approval`, {}).then(r => r.data)
+
+export const reviewTaskContentApproval = (approvalId: string, action: 'APPROVED' | 'REJECTED', reject_reason?: string) =>
+  apiClient.post<TaskContentApproval>(`/task-auto/content-approvals/${approvalId}/review`, { action, reject_reason }).then(r => r.data)
+
+export const getContentApprovals = (q: ContentApprovalsQuery = {}) =>
+  apiClient.get<PaginatedResult<TaskContentApproval>>(`/task-auto/content-approvals${qs(q as any)}`).then(r => r.data)
 
 // ── Teams ─────────────────────────────────────────────────────────────────────
 
@@ -262,12 +290,12 @@ export type TaskAutoDashboard = {
   today_deadline?: number
   overdue?: number
   monthly_completed?: number
-  contents?: { available: number; in_task: number; used: number; archived: number }
   editors?: { total: number; approved: number; pending_approval: number }
   team?: { id: string; name: string; member_count: number } | null
   members?: Array<{
     user_id: string; full_name: string; email: string
     pending: number; in_progress: number; submitted: number; approved: number
+    kpi_completed: number
     kpi_target: number; kpi_video_win: number; kpi_content_new: number; kpi_product_planned: number
   }>
   kpi?: {
@@ -327,6 +355,28 @@ export const updateEditorKpi = (_id: string, body: Partial<EditorKpi>) =>
 
 export const deleteEditorKpi = (id: string) =>
   apiClient.delete(`/task-auto/kpi/editors/${id}`).then(r => r.data)
+
+// ── Editor Daily KPI (KPI ngày set tay) ───────────────────────────────────────
+
+export const getEditorDailyKpis = (params: {
+  date?: string      // YYYY-MM-DD
+  from?: string
+  to?: string
+  team_id?: string
+  user_id?: string
+}) =>
+  apiClient.get<EditorDailyKpi[]>(`/task-auto/kpi/editors/daily${qs(params)}`).then(r => r.data)
+
+/** Upsert theo lô: cả team cho 1 ngày (target = 0 nghĩa là bỏ set → BE fallback logic cũ) */
+export const upsertEditorDailyKpis = (body: {
+  team_id: string
+  date: string       // YYYY-MM-DD
+  entries: { user_id: string; target: number; note?: string }[]
+}) =>
+  apiClient.post<EditorDailyKpi[]>('/task-auto/kpi/editors/daily', body).then(r => r.data)
+
+export const deleteEditorDailyKpi = (id: string) =>
+  apiClient.delete(`/task-auto/kpi/editors/daily/${id}`).then(r => r.data)
 
 // ── Catalog — Lookup Tables ────────────────────────────────────────────────────
 
@@ -669,7 +719,7 @@ export const getTeamMonthlyPushStats = (teamId: string, month?: string) =>
 
 // ── Notifications ────────────────────────────────────────────────────────────
 
-export const getTaskNotifications = (q: { unread_only?: boolean; page?: number; limit?: number } = {}) =>
+export const getTaskNotifications = (q: { unread_only?: boolean; type?: string; page?: number; limit?: number } = {}) =>
   apiClient.get<PaginatedResult<Notification>>(`/task-auto/notifications${qs(q as any)}`).then(r => r.data)
 
 export const getTaskNotificationUnreadCount = () =>
@@ -680,3 +730,14 @@ export const markTaskNotificationRead = (id: string) =>
 
 export const markAllTaskNotificationsRead = () =>
   apiClient.post<{ updated: number }>('/task-auto/notifications/read-all').then(r => r.data)
+
+// ── Web Push ─────────────────────────────────────────────────────────────
+
+export const getPushPublicKey = () =>
+  apiClient.get<{ publicKey: string | null }>('/task-auto/notifications/push/public-key').then(r => r.data)
+
+export const subscribePush = (sub: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
+  apiClient.post('/task-auto/notifications/push/subscribe', sub).then(r => r.data)
+
+export const unsubscribePush = (endpoint: string) =>
+  apiClient.post('/task-auto/notifications/push/unsubscribe', { endpoint }).then(r => r.data)

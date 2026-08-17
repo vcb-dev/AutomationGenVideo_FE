@@ -16,7 +16,11 @@ import { useAuthStore } from '@/store/auth-store';
 import { FacebookPage, PaginatedPages, PageFilters } from '@/types/facebook';
 import { facebookService } from '@/services/facebookService';
 import { scraperService, ExternalVideo } from '@/services/scraperService';
+import ContentFilters from '../components/ContentFilters';
+import { FilterDateRange, FilterNumber, FilterReset, FilterSearch, FilterSelect } from '../components/FilterFields';
 import { channelsService, ChannelInfo } from '@/services/channelsService';
+import { scrapeOutcome } from '@/lib/scrape/scrape-outcome';
+import { findPolledPage, pollPageFilters } from '@/lib/scrape/poll-page-lookup';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -53,11 +57,21 @@ function FacebookPageCard({
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden hover:shadow-md transition-shadow">
       {/* Status badges */}
-      {(p.is_scraping || !p.is_active) && (
+      {(p.is_scraping || !p.is_active || p.scrape_error) && (
         <div className="flex items-center gap-1.5 px-3.5 pt-2.5 pb-0">
           {p.is_scraping && (
             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded text-xs font-medium">
               <CircleNotch size={10} weight="bold" className="animate-spin" /> Đang cào
+            </span>
+          )}
+          {/* Chế độ thẻ là mặc định nhưng trước đây chỉ chế độ bảng mới hiện lỗi cào — nên
+              93/95 kênh hỏng ngày 06/08/2026 nằm im không ai thấy. */}
+          {!p.is_scraping && p.scrape_error && (
+            <span
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded text-xs font-medium max-w-full"
+              title={p.scrape_error}
+            >
+              <Warning size={10} weight="bold" /> <span className="truncate">Cào lỗi</span>
             </span>
           )}
           {!p.is_active && (
@@ -228,6 +242,11 @@ export default function FacebookChannelsPage() {
   const [page, setPage] = useState(1);
   const pageSize = 12;
 
+  // Các vòng poll đang chạy. Trước đây interval + timeout nằm trong closure của pollUntilDone,
+  // không ai dọn khi rời trang — bấm cào rồi chuyển trang là chúng còn gọi API thêm 5 phút.
+  const pollTimers = useRef<Set<() => void>>(new Set());
+  useEffect(() => () => { pollTimers.current.forEach(stop => stop()); }, []);
+
   const searchTimer = useRef<NodeJS.Timeout>();
   useEffect(() => {
     searchTimer.current = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 300);
@@ -271,7 +290,7 @@ export default function FacebookChannelsPage() {
     try {
       const res = await facebookService.triggerScrape(token, pg.page_id);
       toast.success(res.message);
-      pollUntilDone(pg.page_id);
+      pollUntilDone(pg.page_id, pg.name);
     } catch (e: any) { toast.error(e.message); }
   };
 
@@ -280,28 +299,52 @@ export default function FacebookChannelsPage() {
     try {
       const res = await facebookService.triggerBackfill(token, pg.page_id);
       toast.success(res.message);
-      pollUntilDone(pg.page_id);
+      pollUntilDone(pg.page_id, pg.name);
     } catch (e: any) { toast.error(e.message); }
   };
 
-  const pollUntilDone = (pageId: string) => {
+  const pollUntilDone = (pageId: string, pageName: string) => {
     setPagesData(prev => prev ? {
       ...prev,
       pages: prev.pages.map(p => p.page_id === pageId ? { ...p, is_scraping: true } : p),
     } : prev);
+
+    const stop = () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+      pollTimers.current.delete(stop);
+    };
+
     const interval = setInterval(async () => {
       if (!token) return;
       try {
-        const all = await facebookService.getPages(token, { page: 1, page_size: 1000 });
-        const target = all.pages.find(p => p.page_id === pageId);
-        if (target && !target.is_scraping) {
-          clearInterval(interval);
+        const found = await facebookService.getPages(token, pollPageFilters(pageName));
+        const target = findPolledPage(found.pages, pageId);
+        // Không thấy kênh trong kết quả lọc = có gì đó sai (đổi tên, bị xoá). Quay tiếp cũng
+        // chỉ ra đúng kết quả đó nên dừng và nói thật, thay vì để thẻ xoay tới lúc hết giờ.
+        if (!target) {
+          stop();
           fetchPages();
-          toast.success(`Cào xong ${target.name}: ${target.video_count || 0} video`);
+          toast.error(`Không tra được trạng thái cào của ${pageName}. Tải lại trang để xem tình hình.`);
+          return;
         }
-      } catch { clearInterval(interval); }
+        const outcome = scrapeOutcome(target);
+        if (outcome.kind === 'running') return;
+
+        stop();
+        fetchPages();
+        // Dừng cào KHÁC với cào xong: có scrape_error thì phải báo đỏ, không bắn toast xanh.
+        if (outcome.kind === 'failed') toast.error(outcome.message);
+        else toast.success(outcome.message);
+      } catch { stop(); }
     }, 5000);
-    setTimeout(() => clearInterval(interval), 300_000);
+
+    const timeout = setTimeout(() => {
+      stop();
+      toast.error(`Cào ${pageName} chạy quá lâu, đã ngừng theo dõi. Tải lại trang để xem kết quả.`);
+    }, 300_000);
+
+    pollTimers.current.add(stop);
   };
 
   const pages = pagesData?.pages || [];
@@ -341,10 +384,14 @@ export default function FacebookChannelsPage() {
   // ── Videos state ─────────────────────────────────────────
   const [videoSearch, setVideoSearch] = useState('');
   const [debouncedVideoSearch, setDebouncedVideoSearch] = useState('');
-  const [sortBy, setSortBy] = useState('date');
+  const [sortBy, setSortBy] = useState('plays');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [minPlays, setMinPlays] = useState('');
+  const [market, setMarket] = useState('');
+  const [contentLine, setContentLine] = useState('');
+  const [channel, setChannel] = useState('');
+  const [hashtag, setHashtag] = useState('');
   const videoSearchTimer = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
@@ -353,7 +400,7 @@ export default function FacebookChannelsPage() {
   }, [videoSearch]);
 
   const videosQuery = useInfiniteQuery({
-    queryKey: ['owned-fb-videos', debouncedVideoSearch, sortBy, dateFrom, dateTo, minPlays],
+    queryKey: ['owned-fb-videos', debouncedVideoSearch, sortBy, dateFrom, dateTo, minPlays, market, contentLine, channel, hashtag],
     queryFn: ({ pageParam = 1 }) => {
       if (!token) return Promise.reject('No token');
       return scraperService.getOwnedChannelVideos(token, {
@@ -365,6 +412,10 @@ export default function FacebookChannelsPage() {
         date_from: dateFrom || undefined,
         date_to: dateTo || undefined,
         min_plays: minPlays ? Number(minPlays) : undefined,
+        market: market || undefined,
+        content_line: contentLine || undefined,
+        channel: channel || undefined,
+        hashtag: hashtag || undefined,
       });
     },
     getNextPageParam: (last) => last.page < last.total_pages ? last.page + 1 : undefined,
@@ -385,7 +436,7 @@ export default function FacebookChannelsPage() {
     if (node) observerRef.current.observe(node);
   }, [videosQuery.isFetchingNextPage, videosQuery.hasNextPage, videosQuery.fetchNextPage]);
 
-  const hasVideoFilters = !!debouncedVideoSearch || !!dateFrom || !!dateTo || !!minPlays || sortBy !== 'date';
+  const hasVideoFilters = !!debouncedVideoSearch || !!dateFrom || !!dateTo || !!minPlays || sortBy !== 'plays';
 
   return (
     <div className="flex flex-col gap-5">
@@ -527,36 +578,27 @@ export default function FacebookChannelsPage() {
       {/* ── Videos Section ───────────────────────────────── */}
       <div>
         {/* Filter bar */}
-        <div className="flex flex-wrap items-center gap-3 bg-card border border-border rounded-xl p-4 mb-4">
-          <input
-            type="text"
-            value={videoSearch}
-            onChange={e => setVideoSearch(e.target.value)}
-            placeholder="Tìm theo caption, hashtag..."
-            className="flex-1 min-w-[180px] max-w-sm px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          />
-          <select
-            value={sortBy}
-            onChange={e => setSortBy(e.target.value)}
-            className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          >
+        <div className="flex flex-wrap items-center gap-2 bg-card border border-border rounded-xl p-3 mb-4">
+          <FilterSearch value={videoSearch} onChange={setVideoSearch} />
+          <FilterSelect value={sortBy} onChange={setSortBy} className="w-[160px]" title="Sắp xếp">
             <option value="date">Mới nhất</option>
             <option value="plays">Nhiều views nhất</option>
             <option value="likes">Nhiều likes nhất</option>
-          </select>
-          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none" title="Từ ngày" />
-          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none" title="Đến ngày" />
-          <input
-            type="number"
-            value={minPlays}
-            onChange={e => setMinPlays(e.target.value)}
-            placeholder="Min views"
-            className="w-28 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          </FilterSelect>
+          <FilterDateRange from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
+          <FilterNumber value={minPlays} onChange={setMinPlays} />
+          <ContentFilters
+            value={{ channel, hashtag, market, contentLine }}
+            onChange={(v) => {
+              if (v.channel !== undefined) setChannel(v.channel);
+              if (v.hashtag !== undefined) setHashtag(v.hashtag);
+              if (v.market !== undefined) setMarket(v.market);
+              if (v.contentLine !== undefined) setContentLine(v.contentLine);
+            }}
+            platform="facebook"
           />
           {hasVideoFilters && (
-            <button onClick={() => { setVideoSearch(''); setSortBy('date'); setDateFrom(''); setDateTo(''); setMinPlays(''); }} className="px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50 dark:hover:bg-slate-800">
-              Xóa bộ lọc
-            </button>
+            <FilterReset onClick={() => { setVideoSearch(''); setSortBy('plays'); setDateFrom(''); setDateTo(''); setMinPlays(''); }} />
           )}
         </div>
 

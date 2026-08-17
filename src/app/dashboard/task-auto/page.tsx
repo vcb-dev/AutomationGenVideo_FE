@@ -26,6 +26,16 @@ function fmt(d: Date) {
   return d.toISOString().split('T')[0]
 }
 
+function formatVNDate(iso: string) {
+  const [y, m, d] = iso.split('-')
+  return `${d}/${m}/${y}`
+}
+
+function getPeriodLabel(preset: DatePreset, from: string, to: string): string {
+  if (preset !== 'custom') return PRESETS.find(p => p.key === preset)?.label ?? ''
+  return from === to ? formatVNDate(from) : `${formatVNDate(from)} → ${formatVNDate(to)}`
+}
+
 function getPresetRange(preset: DatePreset): { from: string; to: string } {
   const today = new Date()
   switch (preset) {
@@ -126,6 +136,8 @@ export default function TaskAutoDashboard() {
     ? { from: customFrom, to: customTo }
     : getPresetRange(preset)
 
+  const periodLabel = getPeriodLabel(preset, from, to)
+
   const { data, isLoading } = useQuery({
     queryKey: ['task-auto', 'dashboard', from, to],
     queryFn:  () => getDashboard({ date_from: from, date_to: to }),
@@ -195,8 +207,8 @@ export default function TaskAutoDashboard() {
           <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
         </div>
       ) : !data ? null
-        : data.scope === 'global' ? <GlobalDashboard d={buildGlobal(data)} />
-        : data.scope === 'team'   ? <TeamDashboard d={data} />
+        : data.scope === 'global' ? <GlobalDashboard d={buildGlobal(data)} periodLabel={periodLabel} />
+        : data.scope === 'team'   ? <TeamDashboard d={data} periodLabel={periodLabel} />
         : <PersonalDashboard d={data} />
       }
 

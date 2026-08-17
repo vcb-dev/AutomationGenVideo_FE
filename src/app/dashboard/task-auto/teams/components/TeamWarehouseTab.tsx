@@ -61,21 +61,25 @@ function PickItemsModal({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [quantities, setQuantities] = useState<Record<string, number>>({})
 
-  const { data: teamProducts } = useQuery({
+  const { data: teamProducts, isLoading: loadingTeamProducts } = useQuery({
     queryKey: ['task-auto', 'team-products', teamId],
     queryFn: () => getTeamProducts(teamId),
     enabled: open && subTab === 'products' && !!teamId,
   })
-  const { data: teamContents } = useQuery({
+  const { data: teamContents, isLoading: loadingTeamContents } = useQuery({
     queryKey: ['task-auto', 'team-contents', teamId],
     queryFn: () => getTeamContents(teamId),
     enabled: open && subTab === 'contents' && !!teamId,
   })
-  const { data: teamSources } = useQuery({
+  const { data: teamSources, isLoading: loadingTeamSources } = useQuery({
     queryKey: ['task-auto', 'team-sources', teamId],
     queryFn: () => getTeamSources(teamId),
     enabled: open && subTab === 'sources' && !!teamId,
   })
+  const loadingItems =
+    subTab === 'products' ? loadingTeamProducts :
+    subTab === 'contents' ? loadingTeamContents :
+    loadingTeamSources
 
   const allItems = useMemo(() => {
     if (subTab === 'products') return teamProducts ?? []
@@ -134,8 +138,12 @@ function PickItemsModal({
           </div>
         </div>
         <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
-          {filtered.length === 0 && <div className="py-10 text-center text-slate-400 text-sm">Không có mục nào</div>}
-          {(filtered as any[]).map((item: any) => (
+          {loadingItems ? (
+            <div className="py-10 flex justify-center"><Loader2 className="w-6 h-6 text-indigo-400 animate-spin" /></div>
+          ) : filtered.length === 0 ? (
+            <div className="py-10 text-center text-slate-400 text-sm">Không có mục nào</div>
+          ) : null}
+          {!loadingItems && (filtered as any[]).map((item: any) => (
             <label key={item.id} className="flex items-center gap-3 px-6 py-3 hover:bg-gray-50 cursor-pointer">
               <input type="checkbox" className="w-4 h-4 accent-indigo-600" checked={selected.has(item.id)} onChange={() => toggle(item.id)} />
               <span className="text-sm text-slate-700 flex-1">{item.name ?? item.title ?? item.sku ?? item.id}</span>
@@ -427,13 +435,13 @@ export function TeamWarehouseTab({
       </div>
 
       {/* Sub-tabs */}
-      <div className="flex gap-1 border-b border-gray-200">
+      <div className="flex gap-1 border-b border-gray-200 overflow-x-auto scrollbar-none">
         {SUB_TABS.map(t => (
           <button
             key={t.key}
             onClick={() => setSubTab(t.key)}
             className={cn(
-              'flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors',
+              'flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors shrink-0 whitespace-nowrap',
               subTab === t.key ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-slate-500 hover:text-slate-800 hover:bg-gray-100',
             )}
           >
@@ -462,6 +470,7 @@ export function TeamWarehouseTab({
           />
         ) : (
           <>
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
@@ -499,7 +508,7 @@ export function TeamWarehouseTab({
                       <button
                         onClick={() => removeMut.mutate(item.id)}
                         disabled={removeMut.isPending}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        className="p-2.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -508,6 +517,7 @@ export function TeamWarehouseTab({
                 ))}
               </tbody>
             </table>
+            </div>
             <Pagination page={page} totalItems={warehouseItems.length} onPageChange={setPage} />
           </>
         )}

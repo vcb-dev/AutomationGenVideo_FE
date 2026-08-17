@@ -1,26 +1,28 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Play, CheckCircle2, XCircle, Loader2, ChevronLeft, ChevronRight, Info } from 'lucide-react'
-import { CustomSelect } from '@/components/task-auto/DarkInput'
+import { Play, CheckCircle2, XCircle, Loader2, Info } from 'lucide-react'
 import { driveImageUrl } from '@/lib/utils'
 import { TaskStatusBadge } from '@/components/task-auto/StatusBadge'
 import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
 import { EmptyState } from '@/components/task-auto/EmptyState'
+import { NumberedPagination } from '@/components/task-auto/NumberedPagination'
 import { formatDateTime } from '@/components/task-auto/helpers'
 import { getTasks, approveTask } from '@/lib/api/task-auto'
 import { RejectModal } from './RejectModal'
 import { VideoPreviewOverlay } from './detail/VideoPreviewOverlay'
 import { resolveContentTitle, resolveProductName, resolveProductImage } from './TasksTable'
-import type { Task, Team } from '@/types/task-auto'
+import type { Task } from '@/types/task-auto'
 
 interface Props {
   teamId?: string
-  teams: Team[]
   search?: string
-  deadlineDate?: string
+  deadlineFrom?: string
+  deadlineTo?: string
+  // Lọc người nộp giờ dùng chung dropdown "Người làm" ở thanh lọc chính (TaskFilters) —
+  // trước đây tab này có dropdown riêng, trùng chức năng và gây hiểu nhầm bộ lọc chính không tác dụng.
   assigneeId?: string
   page: number
   onPageChange: (page: number) => void
@@ -70,30 +72,20 @@ function VideoThumbnail({ resultUrl, productImage, alt }: { resultUrl: string | 
   )
 }
 
-export function SubmittedVideosGrid({ teamId, teams, search, deadlineDate, assigneeId, page, onPageChange, onViewTask, canApproveReject }: Props) {
+export function SubmittedVideosGrid({ teamId, search, deadlineFrom, deadlineTo, assigneeId, page, onPageChange, onViewTask, canApproveReject }: Props) {
   const qc = useQueryClient()
   const [rejectingTask, setRejectingTask] = useState<Task | null>(null)
   const [previewIndex, setPreviewIndex] = useState<number | null>(null)
-  const [submitterFilter, setSubmitterFilter] = useState('')
-
-  // Danh sách người nộp để lọc: thành viên của team đang chọn, hoặc tất cả nếu chưa chọn team
-  const memberOptions = useMemo(() => {
-    const relevantTeams = teamId ? teams.filter(t => t.id === teamId) : teams
-    const map = new Map<string, string>()
-    for (const t of relevantTeams) for (const m of t.members ?? []) if (m.user) map.set(m.user_id, m.user.full_name)
-    return Array.from(map, ([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, 'vi'))
-  }, [teams, teamId])
-
-  const effectiveAssigneeId = assigneeId ?? (submitterFilter || undefined)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'tasks', 'submitted', { teamId, search, deadlineDate, effectiveAssigneeId, page }],
+    queryKey: ['task-auto', 'tasks', 'submitted', { teamId, search, deadlineFrom, deadlineTo, assigneeId, page }],
     queryFn: () => getTasks({
       status: 'SUBMITTED',
       team_id: teamId,
       search: search || undefined,
-      deadline_date: deadlineDate || undefined,
-      assignee_id: effectiveAssigneeId,
+      deadline_from: deadlineFrom || undefined,
+      deadline_to: deadlineTo || undefined,
+      assignee_id: assigneeId,
       page,
       limit: LIMIT,
     }),
@@ -116,17 +108,6 @@ export function SubmittedVideosGrid({ teamId, teams, search, deadlineDate, assig
 
   return (
     <div className="space-y-5">
-      {!assigneeId && memberOptions.length > 0 && (
-        <div className="w-56">
-          <CustomSelect
-            value={submitterFilter}
-            onChange={v => { setSubmitterFilter(v); onPageChange(1) }}
-            options={[{ value: '', label: 'Tất cả người nộp' }, ...memberOptions.map(m => ({ value: m.id, label: m.name }))]}
-            compact
-          />
-        </div>
-      )}
-
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5">
         {isLoading && <SkeletonCards />}
         {!isLoading && tasks.length === 0 && (
@@ -203,31 +184,14 @@ export function SubmittedVideosGrid({ teamId, teams, search, deadlineDate, assig
         })}
       </div>
 
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between px-1">
-          <span className="text-sm text-slate-500">
-            Trang <span className="font-semibold text-slate-700">{page}</span> / {totalPages}
-            {' '}·{' '}
-            <span className="font-semibold text-slate-700">{total}</span> video
-          </span>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => onPageChange(page - 1)}
-              disabled={page <= 1}
-              className="p-2 rounded-lg hover:bg-gray-200 text-slate-500 disabled:opacity-30 transition-colors"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => onPageChange(page + 1)}
-              disabled={page >= totalPages}
-              className="p-2 rounded-lg hover:bg-gray-200 text-slate-500 disabled:opacity-30 transition-colors"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      )}
+      <NumberedPagination
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        itemLabel="video"
+        onPageChange={onPageChange}
+        className="px-1"
+      />
 
       {rejectingTask && (
         <RejectModal

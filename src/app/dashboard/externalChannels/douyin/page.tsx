@@ -12,17 +12,20 @@ import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import TikTokVideoCard from '../components/TikTokVideoCard';
 import DouyinProfileCard from '../components/DouyinProfileCard';
+import KeywordTranslateHint from '../components/KeywordTranslateHint';
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService, DouyinVideo } from '@/services/scraperService';
 import { useScrapingStore } from '@/store/scraping-store';
 import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
 import { UserRole } from '@/types/auth';
+import { dedupeById } from '@/lib/dedupe-pages';
+import WatchFeedButton from '../components/WatchFeedButton';
 
 type Tab = 'videos' | 'profiles';
 
 export default function DouyinExternalPage() {
   const { token, user } = useAuthStore();
-  const isAdmin = user?.roles?.includes(UserRole.ADMIN) ?? false;
+  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
   const { addNotification, updateNotification } = useScrapingStore();
   const { start: startProfileScrapeNotif } = useProfileScrapeNotification('douyin');
   const router = useRouter();
@@ -31,6 +34,8 @@ export default function DouyinExternalPage() {
 
   // ─── Search state ─────────────────────────────────────
   const [keyword, setKeyword] = useState('');
+  // Bản dịch tiếng Trung của `keyword` (do KeywordTranslateHint trả về). Rỗng = không dịch được / đã là tiếng Trung.
+  const [translatedKeyword, setTranslatedKeyword] = useState('');
   const [numPosts, setNumPosts] = useState('30');
 
   // ─── Autocomplete ─────────────────────────────────────
@@ -107,7 +112,12 @@ export default function DouyinExternalPage() {
     mutationFn: () => {
       if (!token || !keyword.trim()) throw new Error('Keyword required');
       const num = Math.min(200, Math.max(1, parseInt(numPosts) || 30));
-      return scraperService.douyinSearch(token, keyword.trim(), num);
+      // Có bản dịch tiếng Trung → query bằng tiếng Trung nhưng LƯU tiếng Việt user gõ.
+      const vi = keyword.trim();
+      const zh = translatedKeyword.trim();
+      return zh
+        ? scraperService.douyinSearch(token, zh, num, vi)
+        : scraperService.douyinSearch(token, vi, num);
     },
     onMutate: () => {
       const nId = addNotification({
@@ -162,7 +172,7 @@ export default function DouyinExternalPage() {
     enabled: !!token,
   });
 
-  const allVideos = videosQuery.data?.pages.flatMap(p => p.videos) || [];
+  const allVideos = dedupeById(videosQuery.data?.pages.flatMap(p => p.videos) || []);
   const totalVideos = videosQuery.data?.pages[0]?.count || 0;
 
   // ─── Profile tab state ────────────────────────────────
@@ -303,10 +313,15 @@ export default function DouyinExternalPage() {
         </button>
       </div>
 
+      <div className="-mt-2">
+        <WatchFeedButton platform="douyin" label="Xem ngay tại đây" />
+      </div>
+
       {/* ─── Videos Tab ──────────────────────────────────── */}
       {activeTab === 'videos' && (
         <>
-          {/* Search bar */}
+          {/* Search bar — chỉ leader/admin được cào kênh mới */}
+          {canManageChannels && (
           <div className="bg-card border border-border rounded-xl p-4 space-y-3">
             <div className="flex items-center gap-3">
               <div className="relative flex-1 max-w-lg">
@@ -358,7 +373,9 @@ export default function DouyinExternalPage() {
               </button>
             </div>
 
+            <KeywordTranslateHint keyword={keyword} onTranslated={setTranslatedKeyword} />
           </div>
+          )}
 
           {/* Filter bar */}
           <div className="flex flex-wrap items-center gap-3 border border-border rounded-xl p-4">
@@ -449,7 +466,7 @@ export default function DouyinExternalPage() {
           {allVideos.length > 0 && (
             <>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                {allVideos.map(v => <TikTokVideoCard key={v.post_id} video={mapVideo(v)} />)}
+                {allVideos.map(v => <TikTokVideoCard key={v.post_id} video={mapVideo(v)} platform="douyin" />)}
                 {videosQuery.isFetchingNextPage && Array.from({ length: 6 }).map((_, i) => (
                   <div key={`skel-${i}`} className="bg-card border border-border rounded-lg overflow-hidden animate-pulse">
                     <div className="aspect-[9/16] max-h-[280px] bg-slate-200 dark:bg-slate-700" />
@@ -474,8 +491,8 @@ export default function DouyinExternalPage() {
       {/* ─── Profiles Tab ────────────────────────────────── */}
       {activeTab === 'profiles' && (
         <>
-          {/* Input sec_user_id — admin only */}
-          {isAdmin && (
+          {/* Input sec_user_id — chỉ leader/admin */}
+          {canManageChannels && (
             <div className="bg-card border border-border rounded-xl p-4">
               <div className="flex items-center gap-3">
                 <div className="relative flex-1 max-w-xl">
@@ -555,9 +572,9 @@ export default function DouyinExternalPage() {
                 <DouyinProfileCard
                   key={p.id}
                   profile={p}
-                  onScrape={isAdmin ? () => profileRescrape.mutate({ secUserId: p.sec_user_id, label: p.nickname || p.username }) : undefined}
+                  onScrape={canManageChannels ? () => profileRescrape.mutate({ secUserId: p.sec_user_id, label: p.nickname || p.username }) : undefined}
                   onToggleBookmark={() => profileToggleMutation.mutate({ id: p.id, field: 'is_bookmarked' })}
-                  onToggleTracked={() => profileToggleMutation.mutate({ id: p.id, field: 'is_tracked' })}
+                  onToggleTracked={canManageChannels ? () => profileToggleMutation.mutate({ id: p.id, field: 'is_tracked' }) : undefined}
                   onViewDetail={() => router.push(`/dashboard/externalChannels/douyin/${p.id}`)}
                 />
               ))}

@@ -14,12 +14,16 @@ import FilterPanel from '../components/FilterPanel';
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService, ScrapedFanpage } from '@/services/scraperService';
 import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
+import { UserRole } from '@/types/auth';
+import { dedupeById } from '@/lib/dedupe-pages';
+import WatchFeedButton from '../components/WatchFeedButton';
 
 const PAGE_SIZE_FANPAGES = 12;
 const PAGE_SIZE_REELS = 24;
 
 export default function FacebookExternalPage() {
-  const { token } = useAuthStore();
+  const { token, user } = useAuthStore();
+  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
   const queryClient = useQueryClient();
   const router = useRouter();
   const { start: startProfileScrapeNotif } = useProfileScrapeNotification('facebook');
@@ -178,12 +182,16 @@ export default function FacebookExternalPage() {
     prevProcessingRef.current = processingCount;
   }, [processingCount]);
 
-  const allReels = reelsQuery.data?.pages.flatMap(p => p.reels) || [];
+  const allReels = dedupeById(reelsQuery.data?.pages.flatMap(p => p.reels) || []);
   const totalReels = reelsQuery.data?.pages[0]?.count || 0;
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Scrape by URL */}
+      <div>
+        <WatchFeedButton platform="facebook" label="Xem ngay tại đây" />
+      </div>
+      {/* Scrape by URL — chỉ leader/admin được cào kênh mới */}
+      {canManageChannels && (
       <div className="bg-card border border-border rounded-xl p-4">
         <div className="flex items-center gap-3">
           <div className="relative flex-1 max-w-xl">
@@ -211,6 +219,7 @@ export default function FacebookExternalPage() {
           </button>
         </div>
       </div>
+      )}
 
       {/* Discovery Bar */}
       {/* <div className="bg-card border border-border rounded-xl p-4">
@@ -251,9 +260,9 @@ export default function FacebookExternalPage() {
                   <FanpageCard
                     key={fp.id}
                     fanpage={fp}
-                    onScrapeReels={() => scrapeMutation.mutate(fp)}
+                    onScrapeReels={canManageChannels ? () => scrapeMutation.mutate(fp) : undefined}
                     onToggleBookmark={() => toggleMutation.mutate({ id: fp.id, field: 'is_bookmarked' })}
-                    onTogglePeriodic={() => toggleMutation.mutate({ id: fp.id, field: 'is_periodic_crawl' })}
+                    onTogglePeriodic={canManageChannels ? () => toggleMutation.mutate({ id: fp.id, field: 'is_periodic_crawl' }) : undefined}
                     onViewDetail={() => router.push(`/dashboard/externalChannels/facebook/${fp.id}`)}
                   />
                 ))}

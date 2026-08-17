@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
 import Header from '@/components/layout/Header';
 import { BackgroundTaskManager } from '@/components/social/BackgroundTaskManager';
+import { fetchWithAuth } from '@/lib/api-client';
 
 export default function DashboardLayout({
   children,
@@ -12,11 +13,10 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const { user, isAuthenticated, logout, token } = useAuthStore(s => ({
+  const { user, isAuthenticated, logout } = useAuthStore(s => ({
     user: s.user,
     isAuthenticated: s.isAuthenticated,
     logout: s.logout,
-    token: s.token,
   }));
   const [isHydrated, setIsHydrated] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -31,12 +31,15 @@ export default function DashboardLayout({
   }, [router]);
 
   useEffect(() => {
-    if (!isHydrated || isAuthenticated || user || isLoggingOut) return;
-    const storedToken = localStorage.getItem('auth_token');
-    if (!storedToken) {
-      router.push('/');
-    } else if (!useAuthStore.getState().isLoading) {
-      useAuthStore.getState().loadUser();
+    if (!isHydrated || isLoggingOut) return;
+    if (!user && !isAuthenticated && !useAuthStore.getState().isLoading) {
+      useAuthStore.getState().loadUser().then(() => {
+        if (!useAuthStore.getState().isAuthenticated) {
+          router.push('/');
+        }
+      }).catch(() => {
+        router.push('/');
+      });
     }
   }, [isHydrated, isAuthenticated, user, router, isLoggingOut]);
 
@@ -45,7 +48,7 @@ export default function DashboardLayout({
     const CACHE_TTL = 5 * 60 * 1000;
 
     const fetchPermissions = async () => {
-      if (!token) return;
+      if (!user) return;
 
       try {
         const cached = sessionStorage.getItem(CACHE_KEY);
@@ -59,10 +62,11 @@ export default function DashboardLayout({
       } catch { /* ignore */ }
 
       try {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/role-permissions/my-tabs`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        // Phải có giá trị mặc định giống api-client.ts. Thiếu nó thì khi .env trống, chuỗi
+        // thành "undefined/role-permissions/my-tabs" và trình duyệt ghép vào đường dẫn hiện
+        // tại — mọi trang dashboard đều ăn một lỗi 404 vô hình.
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+        const response = await fetchWithAuth(`${apiBase}/role-permissions/my-tabs`);
         if (response.ok) {
           const data = await response.json();
           setAllowedMenuIds(data);
@@ -73,7 +77,7 @@ export default function DashboardLayout({
       }
     };
     fetchPermissions();
-  }, [token]);
+  }, [user]);
 
   const handleLogout = async () => {
     setIsLoggingOut(true);

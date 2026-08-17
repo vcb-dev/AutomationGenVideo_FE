@@ -3,37 +3,13 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import apiClient from '../lib/api-client';
 import type { User, LoginRequest, AuthResponse } from '../types/auth';
 
-const isTokenExpired = (token: string): boolean => {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return true;
-
-    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
-    const payload = JSON.parse(atob(padded));
-
-    if (!payload || typeof payload.exp !== 'number') {
-      return true;
-    }
-
-    const expiresAtMs = payload.exp * 1000;
-    return Date.now() >= expiresAtMs;
-  } catch {
-    return true;
-  }
-};
-
 let _loadUserPromise: Promise<void> | null = null;
 
-// Ensure local auth storage is cleared when it is no longer valid.
+// Dọn dẹp các key token cũ trong localStorage nếu còn sót lại từ phiên bản trước
 if (typeof window !== 'undefined') {
   try {
-    const existingToken = localStorage.getItem('auth_token');
-    if (existingToken && isTokenExpired(existingToken)) {
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('auth_user');
-      localStorage.removeItem('auth-storage');
-    }
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_user');
   } catch {
     // Ignore storage access errors
   }
@@ -70,14 +46,11 @@ export const useAuthStore = create<AuthState>()(
         for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
           try {
             const response = await apiClient.post<AuthResponse>('/auth/login', credentials);
-            const { access_token, user } = response.data;
-
-            localStorage.setItem('auth_token', access_token);
-            localStorage.setItem('auth_user', JSON.stringify(user));
+            const { user } = response.data;
 
             set({
               user,
-              token: access_token,
+              token: null,
               isAuthenticated: true,
               isLoading: false,
             });
@@ -110,8 +83,6 @@ export const useAuthStore = create<AuthState>()(
         } catch {
           // 403 CSRF / mạng: vẫn xóa state local; cookie chỉ mất khi BE trả 200 + Set-Cookie xoá
         }
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('auth_user');
         set({
           user: null,
           token: null,
@@ -124,42 +95,19 @@ export const useAuthStore = create<AuthState>()(
         if (_loadUserPromise) return _loadUserPromise;
         _loadUserPromise = (async () => {
           try {
-            const token = localStorage.getItem('auth_token');
-
-            if (!token) {
-              set({ isAuthenticated: false, user: null, token: null });
-              return;
-            }
-
-            // Check token expiry on client to avoid showing stale sessions
-            if (isTokenExpired(token)) {
-              localStorage.removeItem('auth_token');
-              localStorage.removeItem('auth_user');
-              set({
-                user: null,
-                token: null,
-                isAuthenticated: false,
-                isLoading: false,
-              });
-              return;
-            }
-
             set({ isLoading: true });
 
+            // apiClient tự động gửi cookie vcbi_at và tự động refresh bằng vcbi_rt nếu 401
             const response = await apiClient.get<User>('/auth/profile');
             const user = response.data;
 
             set({
               user,
-              token,
+              token: null,
               isAuthenticated: true,
               isLoading: false,
             });
           } catch {
-            // Token invalid or expired
-            localStorage.removeItem('auth_token');
-            localStorage.removeItem('auth_user');
-
             set({
               user: null,
               token: null,
@@ -177,16 +125,13 @@ export const useAuthStore = create<AuthState>()(
 
       setUser: (user: User) => {
         set({ user });
-        localStorage.setItem('auth_user', JSON.stringify(user));
       },
     }),
     {
       name: 'auth-storage',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
-        token: state.token,
         user: state.user,
-        // Do not persist isAuthenticated; derive it from a valid token + profile
       }),
       // Ngăn Zustand gọi setState trong lúc React đang hydrate (gây hydration mismatch).
       // Rehydrate thủ công trong AuthHydration component sau khi React hydrate xong.

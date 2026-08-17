@@ -2,12 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-
-/** /lark/* yêu cầu đăng nhập (JwtAuthGuard) — phải gắn token cho fetch thủ công. */
-function getAuthHeaders(): Record<string, string> {
-    const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
-    return token ? { Authorization: `Bearer ${token}` } : {};
-}
+import { fetchWithAuth } from "@/lib/api-client";
 
 interface PersonalHistory {
     history: any[];
@@ -98,6 +93,7 @@ const mapReportItem = (item: any) => {
             ? `${new Date(item.date).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} ${new Date(item.date).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" }).replace(/\//g, "-")}`
             : "Chưa báo cáo",
         dailyGoal: item.dailyGoal || 0,
+        dailyGoalSource: item.dailyGoalSource || 'derived',
         done: item.done || 0,
         kpi_month: item.kpi_month || 0,
         completed_month: item.completed_month || 0,
@@ -240,7 +236,7 @@ export function useActivityData({
             if (debouncedFilter.timeType) params.append("timeType", debouncedFilter.timeType);
 
             const url = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api"}/lark/user-activity?${params.toString()}`;
-            const response = await fetch(url, { cache: "no-store", signal, headers: getAuthHeaders() });
+            const response = await fetchWithAuth(url, { cache: "no-store", signal });
             if (!response.ok) throw new Error("Failed to fetch user activity reports");
             let data = await response.json();
 
@@ -252,11 +248,11 @@ export function useActivityData({
 
             if (isSuspiciousEmptyFirstLoad) {
                 try {
-                    await fetch(
+                    await fetchWithAuth(
                         `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api"}/lark/clear-activity-cache`,
-                        { method: "POST", cache: "no-store", signal, headers: getAuthHeaders() },
+                        { method: "POST", cache: "no-store", signal },
                     );
-                    const retryResponse = await fetch(url, { cache: "no-store", signal, headers: getAuthHeaders() });
+                    const retryResponse = await fetchWithAuth(url, { cache: "no-store", signal });
                     if (retryResponse.ok) {
                         data = await retryResponse.json();
                     }
@@ -287,7 +283,7 @@ export function useActivityData({
                 params.append("name", debouncedSearchName);
             }
             const url = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api"}/lark/personal-history?${params.toString()}`;
-            const response = await fetch(url, { cache: "no-store", signal, headers: getAuthHeaders() });
+            const response = await fetchWithAuth(url, { cache: "no-store", signal });
             if (!response.ok) throw new Error("Failed to fetch personal history");
             return await response.json();
         },
@@ -344,11 +340,11 @@ export function useActivityData({
     // Handle updating outstanding report status
     const handleUpdateStatus = useCallback(async (id: string, status: string) => {
         try {
-            const response = await fetch(
+            const response = await fetchWithAuth(
                 `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api"}/lark/update-outstanding-status`,
                 {
                     method: "POST",
-                    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ id, status, approvedBy: user?.full_name }),
                 },
             );

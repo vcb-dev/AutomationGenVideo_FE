@@ -29,8 +29,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY) as Theme | null;
-    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const initial: Theme = saved === 'dark' || saved === 'light' ? saved : systemPrefersDark ? 'dark' : 'light';
+    // Mặc định luôn là sáng: chỉ chuyển sang tối khi người dùng tự bấm nút đổi giao diện
+    // (giá trị đã lưu trong localStorage). Không còn dò prefers-color-scheme của hệ điều hành.
+    const initial: Theme = saved === 'dark' || saved === 'light' ? saved : 'light';
     setThemeState(initial);
     applyTheme(initial);
   }, []);

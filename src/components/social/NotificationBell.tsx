@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Bell, CheckCircle, XCircle, Clock, X, RotateCcw, ExternalLink,
-  ClipboardList, Upload, Inbox,
+  Bell, BellOff, BellRing, CheckCircle, XCircle, Clock, X, RotateCcw, ExternalLink,
+  ClipboardList, Upload, Inbox, PackageX, AlertTriangle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { socialApi, PLATFORM_META, SocialPlatform } from '@/lib/api/social';
@@ -18,6 +18,9 @@ import type { Notification as TaskNotification } from '@/types/task-auto';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { useSocialLang } from '@/contexts/SocialLanguageContext';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { useNotificationStream } from '@/hooks/useNotificationStream';
+import { playNotificationSound } from '@/lib/notificationSound';
 
 interface Notification {
   id: string;
@@ -32,19 +35,23 @@ interface Notification {
 
 type BellTab = 'system' | 'task';
 
-const POLL_INTERVAL = 30_000;
-
 const TASK_NOTIF_META: Record<string, { icon: typeof ClipboardList; color: string }> = {
   TASK_ASSIGNED: { icon: ClipboardList, color: 'bg-blue-500' },
   TASK_SUBMITTED: { icon: Upload, color: 'bg-violet-500' },
   TASK_APPROVED: { icon: CheckCircle, color: 'bg-emerald-500' },
   TASK_REJECTED: { icon: XCircle, color: 'bg-red-500' },
+  TASK_MISSING_PUBLISHED_LINK: { icon: AlertTriangle, color: 'bg-red-500' },
   TEAM_PUSH_REQUEST: { icon: Inbox, color: 'bg-amber-500' },
+  AUTO_ASSIGN_EMPTY_WAREHOUSE: { icon: PackageX, color: 'bg-amber-500' },
+  CONTENT_APPROVAL_REQUESTED: { icon: Inbox, color: 'bg-violet-500' },
+  CONTENT_APPROVED: { icon: CheckCircle, color: 'bg-emerald-500' },
+  CONTENT_REJECTED: { icon: XCircle, color: 'bg-red-500' },
 };
 
 export default function NotificationBell() {
   const { t } = useSocialLang();
   const router = useRouter();
+  const push = usePushNotifications();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<BellTab>('system');
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -79,12 +86,20 @@ export default function NotificationBell() {
     } catch {}
   }, []);
 
+  // Tab "system" (social) — load lần đầu, các lần cập nhật sau đó do SSE đẩy.
   useEffect(() => {
     load();
+  }, [load]);
+  // Tham số thứ 3 chỉ bắn ở đúng sự kiện "có noti mới" (không bắn lúc resync sau
+  // reconnect) — dùng để phát âm thanh nhắc khi tab đang mở (đóng tab thì hệ thống đã
+  // tự phát âm mặc định của OS qua Notification API trong sw.js, không cần custom ở đây).
+  useNotificationStream('/social/history/notifications/stream', load, playNotificationSound);
+
+  // Tab "task" (task-auto) — load lần đầu, các lần cập nhật sau đó do SSE đẩy.
+  useEffect(() => {
     loadTasks();
-    const timer = setInterval(() => { load(); loadTasks(); }, POLL_INTERVAL);
-    return () => clearInterval(timer);
-  }, [load, loadTasks]);
+  }, [loadTasks]);
+  useNotificationStream('/task-auto/notifications/stream', loadTasks, playNotificationSound);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -151,6 +166,23 @@ export default function NotificationBell() {
     if (n.task_id) router.push(`/dashboard/task-auto/tasks?taskId=${n.task_id}`);
   };
 
+  const handleTogglePush = async () => {
+    if (push.loading) return;
+    try {
+      if (push.subscribed) {
+        await push.unsubscribe();
+        toast.success(t.pushDisabled);
+      } else {
+        const ok = await push.subscribe();
+        if (ok) toast.success(t.pushEnabled);
+        else toast.error(t.pushPermissionDenied);
+      }
+    } catch (err) {
+      console.error('[push] toggle failed:', err);
+      toast.error(t.pushToggleFailed);
+    }
+  };
+
   const handleRetry = async (id: string) => {
     try {
       await socialApi.schedule.retry(id);
@@ -193,9 +225,23 @@ export default function NotificationBell() {
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
               <h3 className="font-bold text-slate-800 text-sm">{t.notifTitle}</h3>
-              <button onClick={() => setOpen(false)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-400">
-                <X className="w-3.5 h-3.5" />
-              </button>
+              <div className="flex items-center gap-1">
+                {push.supported && (
+                  <button
+                    onClick={handleTogglePush}
+                    disabled={push.loading}
+                    title={push.subscribed ? t.pushDisabled : t.pushEnabled}
+                    className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 disabled:opacity-50"
+                  >
+                    {push.subscribed
+                      ? <BellRing className="w-3.5 h-3.5 text-blue-600" />
+                      : <BellOff className="w-3.5 h-3.5" />}
+                  </button>
+                )}
+                <button onClick={() => setOpen(false)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-400">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
 
             {/* Tabs */}

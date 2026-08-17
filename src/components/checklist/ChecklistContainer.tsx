@@ -5,11 +5,13 @@ import ChecklistSection, { CHECKLIST_ITEMS } from './ChecklistSection';
 import DetailSection, { DETAIL_ITEMS } from './DetailSection';
 import LeaderEvaluationSection, { LEADER_QUESTIONS } from './LeaderEvaluationSection';
 import TrafficReportSection, { TrafficData, initialTrafficData, initialTrafficChannels } from './TrafficReportSection';
-import { Send, AlertCircle, Calendar, ChevronDown, Check, ChevronLeft, ChevronRight, Layers } from 'lucide-react';
+import RevenueReportSection, { RevenueData, initialRevenueData, initialRevenueChannels } from './RevenueReportSection';
+import { Send, AlertCircle, Calendar, ChevronDown, Check, ChevronLeft, ChevronRight, Layers, Pencil } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
 import { toast } from 'react-hot-toast';
+import { fetchWithAuth } from '@/lib/api-client';
 
 const initialChecks = () => Array(CHECKLIST_ITEMS.length).fill(false);
 const initialDetails = () => Array(DETAIL_ITEMS.length).fill('');
@@ -26,12 +28,6 @@ function localCalendarYMD(d: Date = new Date()): string {
 /** Deadline báo cáo: Đã tạm thời gỡ bỏ mọi logic khoá. */
 function isPastDailyDeadline(): boolean {
     return false;
-}
-
-/** Các route /lark/* giờ yêu cầu đăng nhập (JwtAuthGuard) — phải gắn token cho mọi fetch thủ công. */
-function getAuthHeaders(): Record<string, string> {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-    return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 const ChecklistDatePicker = ({ value, onChange }: { value: string, onChange: (val: string) => void }) => {
@@ -210,6 +206,9 @@ const ChecklistContainer = ({
     const [trafficChannels, setTrafficChannels] = useState<TrafficData>(initialTrafficChannels());
     const [entryDetails, setEntryDetails] = useState<Record<string, any>>({});
     const [platformEvidences, setPlatformEvidences] = useState<Record<string, string[]>>({});
+    const [revenue, setRevenue] = useState<RevenueData>(initialRevenueData());
+    const [revenueChannels, setRevenueChannels] = useState<RevenueData>(initialRevenueChannels());
+    const [revenueEntryDetails, setRevenueEntryDetails] = useState<Record<string, any>>({});
 
     const [reportDate, setReportDate] = useState<string>(() => localCalendarYMD());
     const [submitCount, setSubmitCount] = useState(0);
@@ -228,6 +227,8 @@ const ChecklistContainer = ({
     const [hasReportData, setHasReportData] = useState(false);          // có dữ liệu báo cáo chưa?
     const [reportedTeams, setReportedTeams] = useState<string[]>([]);  // Các team đã báo cáo traffic
     const [serverTrafficRecords, setServerTrafficRecords] = useState<any[]>([]); // Lưu raw records từ BE để lọc theo team
+    const [reportedRevenueTeams, setReportedRevenueTeams] = useState<string[]>([]);  // Các team đã báo cáo doanh thu
+    const [serverRevenueRecords, setServerRevenueRecords] = useState<any[]>([]); // Lưu raw records từ BE để lọc theo team
 
     // Deadline 10h: Đã bỏ logic khoá.
     const isDeadlinePassed = false;
@@ -245,7 +246,7 @@ const ChecklistContainer = ({
                     ? `${base}/lark/user-permission?email=${encodeURIComponent(user.email)}`
                     : `${base}/api/lark/user-permission?email=${encodeURIComponent(user.email)}`;
 
-                const response = await fetch(url, { headers: getAuthHeaders() });
+                const response = await fetchWithAuth(url);
                 if (response.ok) {
                     const data = await response.json();
                     if (data && data.role) {
@@ -278,12 +279,17 @@ const ChecklistContainer = ({
             setHistoricalEvidences({} as any);
             setReportedTeams([]);
             setServerTrafficRecords([]);
+            setRevenue(initialRevenueData());
+            setRevenueChannels(initialRevenueChannels());
+            setRevenueEntryDetails({});
+            setReportedRevenueTeams([]);
+            setServerRevenueRecords([]);
 
             try {
                 const beBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
                 const url = `${beBaseUrl}/lark/user-report-details?email=${encodeURIComponent(user.email)}&date=${reportDate}&_t=${Date.now()}`;
 
-                const response = await fetch(url, { cache: 'no-store', headers: getAuthHeaders() });
+                const response = await fetchWithAuth(url, { cache: 'no-store' });
                 if (response.ok) {
                     const data = await response.json();
                     
@@ -296,9 +302,11 @@ const ChecklistContainer = ({
                     // } else if (data && (data.report || data.traffic)) {
                         let shouldBeReadOnly = false;
                         if (showOnlyTraffic) {
-                            // Traffic is now team-aware, we handle its readOnly status separately
+                            // Traffic/Revenue is now team-aware, we handle its readOnly status separately
                             // but for the global lock, we check if ALL user's teams have been reported
-                            const allTeamsReported = (user?.team || '').split(',').every(t => (data.reportedTeams || []).includes(t.trim()));
+                            // (cả 2 loại — nộp cùng lúc, team coi như "đã báo cáo" khi 1 trong 2 đã ghi nhận)
+                            const reportedEither = new Set([...(data.reportedTeams || []), ...(data.reportedRevenueTeams || [])]);
+                            const allTeamsReported = (user?.team || '').split(',').every(t => reportedEither.has(t.trim()));
                             shouldBeReadOnly = allTeamsReported;
                         } else if (showOnlyWork) {
                             shouldBeReadOnly = !!data.report;
@@ -313,8 +321,14 @@ const ChecklistContainer = ({
                     if (data?.trafficRecords) {
                         setServerTrafficRecords(data.trafficRecords);
                     }
+                    if (data?.reportedRevenueTeams) {
+                        setReportedRevenueTeams(data.reportedRevenueTeams);
+                    }
+                    if (data?.revenueRecords) {
+                        setServerRevenueRecords(data.revenueRecords);
+                    }
 
-                    if (data && (data.report || data.traffic)) {
+                    if (data && (data.report || data.traffic || data.revenue)) {
                         setHasReportData(true);
                         if (data.report) {
                             const answers = (data.report.answers || {}) as Record<string, any>;
@@ -423,7 +437,38 @@ const ChecklistContainer = ({
                             }
                         }
 
+                        if (data.revenue) {
+                            const newRevenue = initialRevenueData();
+                            const newRevenueChannels = initialRevenueChannels();
+                            const platforms = ['fb', 'ig', 'tiktok', 'yt', 'thread', 'zalo'];
 
+                            platforms.forEach(p => {
+                                const revenueKey = `revenue_${p}` as keyof any;
+                                if (data.revenue[revenueKey] !== undefined && data.revenue[revenueKey] !== null) {
+                                    newRevenue[p as keyof RevenueData] = String(data.revenue[revenueKey]);
+                                }
+                                const channelKey = `channel_${p}` as keyof any;
+                                if (data.revenue[channelKey] !== undefined && data.revenue[channelKey] !== null) {
+                                    newRevenueChannels[p as keyof RevenueData] = data.revenue[channelKey];
+                                }
+                            });
+
+                            setRevenue(newRevenue);
+                            setRevenueChannels(newRevenueChannels);
+                            if (data.revenue.details && Array.isArray(data.revenue.details)) {
+                                const grouped = data.revenue.details.reduce((acc: any, item: any) => {
+                                    const pid = item.platform || 'unknown';
+                                    if (!acc[pid]) acc[pid] = [];
+                                    acc[pid].push({
+                                        ...item,
+                                        id: item.id || `hist_rev_${pid}_${acc[pid].length}_${Math.random().toString(36).substr(2, 4)}`,
+                                        value: String(item.value || '')
+                                    });
+                                    return acc;
+                                }, {} as Record<string, any[]>);
+                                setRevenueEntryDetails(grouped);
+                            }
+                        }
                     }
                 }
             } catch (err) {
@@ -505,6 +550,53 @@ const ChecklistContainer = ({
         }
     }, [selectedTeam, serverTrafficRecords]);
 
+    // Switch revenue data when selectedTeam changes (Isolation) — mirror traffic, không có evidence
+    useEffect(() => {
+        if (!selectedTeam) return;
+
+        const teamRecords = serverRevenueRecords.filter(r => r.team === selectedTeam);
+
+        if (teamRecords.length > 0) {
+            const newRevenue = initialRevenueData();
+            const newChannels = initialRevenueChannels();
+            const newEntries: Record<string, any[]> = {};
+
+            const platforms = ['fb', 'ig', 'tiktok', 'yt', 'thread', 'zalo'];
+
+            teamRecords.forEach(rec => {
+                platforms.forEach(p => {
+                    const rk = `revenue_${p}`;
+                    const ck = `channel_${p}`;
+
+                    if (rec[rk] && Number(rec[rk]) > 0) {
+                        newRevenue[p as keyof RevenueData] = (Number(newRevenue[p as keyof RevenueData] || 0) + Number(rec[rk])).toString();
+
+                        if (rec[ck]) {
+                            newChannels[p as keyof RevenueData] = newChannels[p as keyof RevenueData]
+                                ? `${newChannels[p as keyof RevenueData]}, ${rec[ck]}`
+                                : rec[ck];
+                        }
+
+                        if (!newEntries[p]) newEntries[p] = [];
+                        newEntries[p].push({
+                            id: rec.id,
+                            value: String(rec[rk]),
+                            channel: rec[ck] || '',
+                        });
+                    }
+                });
+            });
+
+            setRevenue(newRevenue);
+            setRevenueChannels(newChannels);
+            setRevenueEntryDetails(newEntries);
+        } else {
+            setRevenue(initialRevenueData());
+            setRevenueChannels(initialRevenueChannels());
+            setRevenueEntryDetails({});
+        }
+    }, [selectedTeam, serverRevenueRecords]);
+
     // Parse user teams for multi-team selector
     const userTeams = React.useMemo(() => {
         if (!user?.team) return [];
@@ -514,13 +606,10 @@ const ChecklistContainer = ({
     // Fetch user channels via authenticated endpoint
     useEffect(() => {
         const fetchChannels = async () => {
-            const token = useAuthStore.getState().token;
-            if (!token) return;
+            if (!useAuthStore.getState().token) return;
             try {
                 const beBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
-                const res = await fetch(`${beBaseUrl}/channels/my`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
+                const res = await fetchWithAuth(`${beBaseUrl}/channels/my`);
                 if (res.ok) {
                     const data = await res.json();
                     setAvailableChannels(data);
@@ -577,6 +666,16 @@ const ChecklistContainer = ({
         setTrafficChannels((prev) => ({ ...prev, [platformId]: value }));
     }, [isReadOnly]);
 
+    const handleRevenueChange = useCallback((platformId: keyof RevenueData, value: string) => {
+        if (isReadOnly) return;
+        setRevenue((prev) => ({ ...prev, [platformId]: value }));
+    }, [isReadOnly]);
+
+    const handleRevenueChannelChange = useCallback((platformId: keyof RevenueData, value: string) => {
+        if (isReadOnly) return;
+        setRevenueChannels((prev) => ({ ...prev, [platformId]: value }));
+    }, [isReadOnly]);
+
     const buildPayload = useCallback((): Record<string, boolean | string> => {
         const payload: Record<string, boolean | string> = {
             isLate: false,
@@ -618,6 +717,12 @@ const ChecklistContainer = ({
             const hasTrafficData = Object.values(traffic).some(val => val !== '');
             if (!hasTrafficData) {
                 toast.error('Vui lòng nhập số liệu báo cáo Traffic tối thiểu 1 nền tảng (nếu không có hãy nhập số 0).');
+                return;
+            }
+
+            const hasRevenueDataCheck = Object.values(revenue).some(val => val !== '');
+            if (!hasRevenueDataCheck) {
+                toast.error('Vui lòng nhập số liệu báo cáo Doanh thu tối thiểu 1 nền tảng (nếu không có hãy nhập số 0).');
                 return;
             }
 
@@ -719,9 +824,9 @@ const ChecklistContainer = ({
                 // NestJS ghi thẳng vào lüc_reports qua Prisma → đúng DB server luôn
                 const beBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
                 const url = `${beBaseUrl}/lark/checklist-report`;
-                const response = await fetch(url, {
+                const response = await fetchWithAuth(url, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(fullPayload),
                 });
                 const data = await response.json().catch(() => ({}));
@@ -742,9 +847,9 @@ const ChecklistContainer = ({
             const hasTrafficData = Object.values(traffic).some(val => val !== '');
             if (hasTrafficData && !showOnlyWork) {
                 const beBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
-                const trafficRes = await fetch(`${beBaseUrl}/lark/traffic-report`, {
+                const trafficRes = await fetchWithAuth(`${beBaseUrl}/lark/traffic-report`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         email: user.email,
                         name: user.full_name,
@@ -773,25 +878,61 @@ const ChecklistContainer = ({
 
                 });
 
-                if (showOnlyTraffic) {
-                    if (trafficRes.ok) {
-                        toast.success(`Gửi báo cáo ${currentSelectedTeam} thành công`);
-                        if (currentSelectedTeam) {
-                            setReportedTeams(prev => [...prev, currentSelectedTeam]);
-                        }
-                    } else {
-                        const errData = await trafficRes.json().catch(() => ({}));
-                        toast.error(errData.message || 'Gửi báo cáo traffic thất bại');
+                if (!trafficRes.ok) {
+                    const errData = await trafficRes.json().catch(() => ({}));
+                    toast.error(errData.message || 'Gửi báo cáo traffic thất bại');
+                    setLoading(false);
+                    return;
+                }
+
+                // Gửi báo cáo doanh thu cùng lúc — nộp chung 1 form với traffic
+                const hasRevenueData = Object.values(revenue).some(val => val !== '');
+                let revenueRes: Response | null = null;
+                if (hasRevenueData) {
+                    revenueRes = await fetchWithAuth(`${beBaseUrl}/lark/revenue-report`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            email: user.email,
+                            name: user.full_name,
+                            roles: user.roles,
+                            revenue: revenue,
+                            channels: revenueChannels,
+                            team: currentSelectedTeam,
+                            revenueDetails: {
+                                breakdown: Object.keys(revenueEntryDetails).reduce((acc, platformId) => {
+                                    acc[platformId] = (revenueEntryDetails[platformId] || []).map((entry: any) => ({ ...entry }));
+                                    return acc;
+                                }, {} as Record<string, any>),
+                            },
+                            reportDate: reportDate,
+                        }),
+                    });
+
+                    if (!revenueRes.ok) {
+                        const errData = await revenueRes.json().catch(() => ({}));
+                        toast.error(errData.message || 'Gửi báo cáo doanh thu thất bại');
                         setLoading(false);
                         return;
                     }
                 }
 
-                // Reset form
+                if (showOnlyTraffic) {
+                    toast.success(`Gửi báo cáo ${currentSelectedTeam} thành công`);
+                    if (currentSelectedTeam) {
+                        setReportedTeams(prev => [...prev, currentSelectedTeam]);
+                        if (hasRevenueData) setReportedRevenueTeams(prev => [...prev, currentSelectedTeam]);
+                    }
+                }
+
+                // Reset form (giữ nguyên revenueEntryDetails — giống traffic không reset entryDetails —
+                // để section remount theo key mới vẫn hiển thị đúng dữ liệu vừa gửi ở chế độ readOnly)
                 setTraffic(initialTrafficData());
                 setTrafficChannels(initialTrafficChannels());
                 setPlatformEvidences({});
-                
+                setRevenue(initialRevenueData());
+                setRevenueChannels(initialRevenueChannels());
+
                 // Do not lock globally if user has other teams to report
                 if (showOnlyTraffic) {
                     const allTeams = (user?.team || '').split(',').map(t => t.trim()).filter(Boolean);
@@ -802,7 +943,7 @@ const ChecklistContainer = ({
                 } else {
                     setIsReadOnly(true);
                 }
-                
+
                 setSubmitCount(prev => prev + 1);
                 if (onSuccess) onSuccess();
             } else {
@@ -875,6 +1016,17 @@ const ChecklistContainer = ({
                             <div>
                                 <p className="text-sm font-black text-purple-700 uppercase tracking-tight">Chưa báo cáo traffic {selectedTeam}</p>
                                 <p className="text-xs text-purple-500 font-medium">Bạn chưa gửi số liệu traffic cho {selectedTeam} hôm nay. Hãy nhập số liệu vào form bên dưới!</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Số liệu doanh thu chưa báo cáo */}
+                    {hasFetchedReport && !reportedRevenueTeams.includes(selectedTeam) && !isReadOnly && reportDate >= localCalendarYMD() && showOnlyTraffic && (
+                        <div className="flex items-center gap-3 bg-emerald-50 border-2 border-emerald-200 rounded-2xl px-5 py-4 animate-in slide-in-from-top duration-300">
+                            <span className="text-2xl">💰</span>
+                            <div>
+                                <p className="text-sm font-black text-emerald-700 uppercase tracking-tight">Chưa báo cáo doanh thu {selectedTeam}</p>
+                                <p className="text-xs text-emerald-500 font-medium">Bạn chưa gửi số liệu doanh thu cho {selectedTeam} hôm nay. Hãy nhập số liệu vào form bên dưới!</p>
                             </div>
                         </div>
                     )}
@@ -953,12 +1105,29 @@ const ChecklistContainer = ({
                             />
                         </div>
                     )}
+
+                    {/* Revenue Section - nộp chung form với Traffic, cùng team đang chọn */}
+                    {(showForm12 || showForm3) && !showOnlyWork && (
+                        <div className="bg-slate-50/50 backdrop-blur-sm rounded-2xl p-3 shadow-lg shadow-emerald-500/5 lg:col-span-2 border-2 border-emerald-500/30">
+                            <RevenueReportSection
+                                key={`${submitCount}-${reportDate}-${selectedTeam}`}
+                                values={revenue}
+                                channels={revenueChannels}
+                                availableChannels={availableChannels}
+                                onChange={handleRevenueChange}
+                                onChannelChange={handleRevenueChannelChange}
+                                onEntriesChange={setRevenueEntryDetails}
+                                readOnly={isReadOnly || reportedRevenueTeams.includes(selectedTeam)}
+                                initialEntries={revenueEntryDetails}
+                            />
+                        </div>
+                    )}
                 </div>
             )}
 
             {/* Nút submit — Luôn hiện */}
             {!(showOnlyTraffic && availableChannels.length === 0) && (
-                <div className="flex justify-center pt-8 border-t border-gray-100">
+                <div className="flex justify-center items-center gap-3 pt-8 border-t border-gray-100">
                     <button
                         type="button"
                         onClick={handleSubmit}
@@ -966,11 +1135,27 @@ const ChecklistContainer = ({
                         className="flex items-center gap-2 bg-[#dbeafe] text-blue-600 px-8 py-4 rounded-full font-bold uppercase tracking-wider hover:bg-blue-200 transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                         <Send className="w-4 h-4" />
-                        {loading ? 'Đang gửi...' : 
-                         (isReadOnly || reportedTeams.includes(selectedTeam)) ? 
-                         (reportDate < localCalendarYMD() ? 'CHỈ XEM (NGÀY ĐÃ QUA)' : `ĐÃ BÁO CÁO XONG ${selectedTeam || ''}`) : 
+                        {loading ? 'Đang gửi...' :
+                         (isReadOnly || reportedTeams.includes(selectedTeam)) ?
+                         (reportDate < localCalendarYMD() ? 'CHỈ XEM (NGÀY ĐÃ QUA)' : `ĐÃ BÁO CÁO XONG ${selectedTeam || ''}`) :
                          'GỬI BÁO CÁO'}
                     </button>
+                    {/* Cho phép tự sửa & nộp lại báo cáo hôm nay (không áp dụng cho ngày quá khứ —
+                        vẫn giữ nguyên chỉ-xem để không sửa lại lịch sử cũ). Bấm xong form mở khoá,
+                        gửi lại sẽ UPDATE bản ghi cũ (backend đã upsert theo email/tên, không tạo trùng). */}
+                    {!loading && isReadOnly && reportDate >= localCalendarYMD() && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setIsReadOnly(false);
+                                setReportedTeams(prev => prev.filter(t => t !== selectedTeam));
+                            }}
+                            className="flex items-center gap-2 bg-amber-50 text-amber-700 px-6 py-4 rounded-full font-bold uppercase tracking-wider hover:bg-amber-100 transition-all shadow-sm border-2 border-amber-200"
+                        >
+                            <Pencil className="w-4 h-4" />
+                            Sửa báo cáo
+                        </button>
+                    )}
                 </div>
             )}
         </div>

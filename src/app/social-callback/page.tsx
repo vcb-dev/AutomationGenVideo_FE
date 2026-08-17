@@ -1,7 +1,17 @@
 'use client';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function SocialCallbackPage() {
+  // Popup này nằm ngoài SocialLanguageProvider → đọc thẳng ngôn ngữ đã lưu.
+  // Mặc định EN cho tới khi hydrate xong để không nháy chữ tiếng Việt.
+  const [label, setLabel] = useState('Completing connection...');
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('social_lang') === 'vi') setLabel('Đang hoàn tất kết nối...');
+    } catch {}
+  }, []);
+
   useEffect(() => {
     if (window.opener) {
       try {
@@ -29,7 +39,7 @@ export default function SocialCallbackPage() {
     <div className="min-h-screen flex items-center justify-center bg-slate-50">
       <div className="text-center">
         <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-slate-600">Đang hoàn tất kết nối...</p>
+        <p className="text-slate-600">{label}</p>
       </div>
     </div>
   );

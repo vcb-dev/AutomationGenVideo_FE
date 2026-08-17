@@ -363,12 +363,12 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
     }
   }, [open, editing, initialMarket])
 
-  const { data: contentLines } = useQuery({
+  const { data: contentLines, isLoading: loadingContentLines } = useQuery({
     queryKey: ['task-auto', 'content-lines'],
     queryFn: getContentLines,
     enabled: open,
   })
-  const { data: contentClassifications } = useQuery({
+  const { data: contentClassifications, isLoading: loadingContentClassifications } = useQuery({
     queryKey: ['task-auto', 'content-classifications'],
     queryFn: getContentClassifications,
     enabled: open,
@@ -491,6 +491,7 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
                 ...(contentLines?.map(l => ({ value: l.id, label: l.name })) ?? []),
               ]}
               searchable
+              loading={loadingContentLines}
             />
             <CreatableSelect
               label="Phân loại nội dung"
@@ -498,6 +499,7 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
               onChange={v => setForm(f => ({ ...f, classification_id: v }))}
               options={contentClassifications?.map(c => ({ value: c.id, label: c.name })) ?? []}
               createLabel="Thêm phân loại nội dung"
+              loading={loadingContentClassifications}
               onCreate={async (name) => {
                 const created = await createContentClassification(name)
                 qc.setQueryData<typeof contentClassifications>(['task-auto', 'content-classifications'], old => [...(old ?? []), created])

@@ -2,7 +2,6 @@
 
 import Image from "next/image";
 import { useState } from 'react';
-import { useAuthStore } from '@/store/auth-store';
 import {
   Search,
   Hash,
@@ -18,6 +17,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import GenerateContentButton from '@/components/content/GenerateContentButton';
+import { fetchWithAuth } from '@/lib/api-client';
 
 interface Video {
   id: string;
@@ -47,7 +47,6 @@ interface SearchResult {
 }
 
 export default function HashtagSearchSection() {
-  const { token } = useAuthStore();
   const [hashtag, setHashtag] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,13 +64,8 @@ export default function HashtagSearchSection() {
     setError(null);
 
     try {
-      const response = await fetch(
+      const response = await fetchWithAuth(
         `${process.env.NEXT_PUBLIC_API_URL}/tracked-channels/manager/search-hashtag?hashtag=${encodeURIComponent(hashtag)}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        }
       );
 
       if (!response.ok) {
