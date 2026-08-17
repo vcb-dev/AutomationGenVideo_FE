@@ -65,8 +65,7 @@ function formatBytes(bytes?: number | null) {
 }
 
 function getAuthHeaders(): Record<string, string> {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-    return token ? { Authorization: `Bearer ${token}` } : {};
+    return {};
 }
 
 function sleep(ms: number) {
@@ -209,8 +208,7 @@ function VideoDownloaderInner() {
         targetUrl: string,
         targetFormat: 'mp4' | 'mp3',
         targetQuality: 'best' | '1080' | '720'
-    ): Promise<boolean> => {
-        if (!getAuthHeaders().Authorization) {
+        if (!useAuthStore.getState().isAuthenticated && !useAuthStore.getState().user) {
             toast.error('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.');
             return false;
         }
