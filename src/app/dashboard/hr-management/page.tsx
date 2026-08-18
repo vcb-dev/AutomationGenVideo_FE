@@ -75,7 +75,7 @@ export default function HRManagementPage() {
   const [deleting, setDeleting] = useState<TeamMember | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const apiBase = process.env.NEXT_PUBLIC_API_URL;
+  const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
 
   const callerRole: 'MANAGER' | 'LEADER' =
     (user?.roles?.includes(UserRole.ADMIN) || user?.roles?.includes(UserRole.MANAGER))
@@ -88,7 +88,7 @@ export default function HRManagementPage() {
   }, [user, router]);
 
   const fetchMembers = useCallback(async () => {
-    if (!token) return;
+    if (!user) return;
     setLoading(true); setError(null);
     try {
       const res = await fetchWithAuth(`${apiBase}/users/team-members`);
@@ -97,36 +97,36 @@ export default function HRManagementPage() {
       setMembers(Array.isArray(data) ? data : []);
     } catch (err: any) { setError(err.message); }
     finally { setLoading(false); }
-  }, [token, apiBase]);
+  }, [user, apiBase]);
 
   const fetchUnassignedCount = useCallback(async () => {
-    if (!token) return;
+    if (!user) return;
     try {
       const res = await fetchWithAuth(`${apiBase}/users/unassigned`);
       const data = res.ok ? await res.json() : [];
       setUnassignedCount(Array.isArray(data) ? data.length : 0);
     } catch { setUnassignedCount(0); }
-  }, [token, apiBase]);
+  }, [user, apiBase]);
 
   const fetchLeaders = useCallback(async () => {
-    if (!token) return;
+    if (!user) return;
     try {
       const res = await fetchWithAuth(`${apiBase}/users/available-leaders`);
       const data = res.ok ? await res.json() : [];
       setLeaders(Array.isArray(data) ? data : []);
     } catch { setLeaders([]); }
-  }, [token, apiBase]);
+  }, [user, apiBase]);
 
   // Danh sách team lấy từ bảng Team thật (không suy từ leaders) — team chưa/không còn leader
   // vẫn phải chọn được trong multi-select khi gán member.
   const fetchTeams = useCallback(async () => {
-    if (!token) return;
+    if (!user) return;
     try {
       const res = await fetchWithAuth(`${apiBase}/task-auto/teams`);
       const data = res.ok ? await res.json() : [];
       setTeamNames(Array.isArray(data) ? data.map((t: any) => String(t.name)) : []);
     } catch { setTeamNames([]); }
-  }, [token, apiBase]);
+  }, [user, apiBase]);
 
   useEffect(() => { fetchMembers(); fetchUnassignedCount(); fetchLeaders(); fetchTeams(); }, [fetchMembers, fetchUnassignedCount, fetchLeaders, fetchTeams]);
 

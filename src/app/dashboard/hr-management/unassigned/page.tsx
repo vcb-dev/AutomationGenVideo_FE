@@ -26,7 +26,7 @@ export default function UnassignedTeamPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<TeamMember | null>(null);
 
-  const apiBase = process.env.NEXT_PUBLIC_API_URL;
+  const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
 
   // /users/unassigned is a shared pool (not scoped by team_leader_id), since a fresh
   // signup hasn't been claimed by anyone yet — any ADMIN/MANAGER/LEADER can see it.
@@ -41,7 +41,7 @@ export default function UnassignedTeamPage() {
   }, [user, router]);
 
   const fetchMembers = useCallback(async () => {
-    if (!token) return;
+    if (!user) return;
     setLoading(true); setError(null);
     try {
       // MANAGER needs the full team/leader picker; LEADER's team field is locked, no need.
@@ -72,7 +72,7 @@ export default function UnassignedTeamPage() {
       }
     } catch (err: any) { setError(err.message); }
     finally { setLoading(false); }
-  }, [token, apiBase, callerRole]);
+  }, [user, apiBase, callerRole]);
 
   useEffect(() => { fetchMembers(); }, [fetchMembers]);
 

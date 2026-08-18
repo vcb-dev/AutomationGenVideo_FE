@@ -59,11 +59,13 @@ export default function PermissionManagement() {
         fetchPermissions();
     }, [token]);
 
+    const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
+
     const fetchPermissions = async () => {
         if (!token) return;
         try {
             setLoading(true);
-            const response = await fetchWithAuth(`${process.env.NEXT_PUBLIC_API_URL}/role-permissions`);
+            const response = await fetchWithAuth(`${apiBaseUrl}/role-permissions`);
             if (!response.ok) throw new Error('Failed to fetch permissions');
             const data = await response.json();
             setPermissions(data);
@@ -110,7 +112,7 @@ export default function PermissionManagement() {
                 menu_ids: rolePermission.menu_ids
             };
 
-            const response = await fetchWithAuth(`${process.env.NEXT_PUBLIC_API_URL}/role-permissions`, {
+            const response = await fetchWithAuth(`${apiBaseUrl}/role-permissions`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

@@ -235,7 +235,8 @@ export function useActivityData({
             params.append("requesterEmail", user.email);
             if (debouncedFilter.timeType) params.append("timeType", debouncedFilter.timeType);
 
-            const url = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api"}/lark/user-activity?${params.toString()}`;
+            const apiBase = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api").replace(/\/$/, '');
+            const url = `${apiBase}/lark/user-activity?${params.toString()}`;
             const response = await fetchWithAuth(url, { cache: "no-store", signal });
             if (!response.ok) throw new Error("Failed to fetch user activity reports");
             let data = await response.json();
@@ -249,7 +250,7 @@ export function useActivityData({
             if (isSuspiciousEmptyFirstLoad) {
                 try {
                     await fetchWithAuth(
-                        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api"}/lark/clear-activity-cache`,
+                        `${apiBase}/lark/clear-activity-cache`,
                         { method: "POST", cache: "no-store", signal },
                     );
                     const retryResponse = await fetchWithAuth(url, { cache: "no-store", signal });
@@ -282,7 +283,8 @@ export function useActivityData({
             if (debouncedSearchName && (userRole === "admin" || userRole === "manager" || userRole === "leader")) {
                 params.append("name", debouncedSearchName);
             }
-            const url = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api"}/lark/personal-history?${params.toString()}`;
+            const apiBase = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api").replace(/\/$/, '');
+            const url = `${apiBase}/lark/personal-history?${params.toString()}`;
             const response = await fetchWithAuth(url, { cache: "no-store", signal });
             if (!response.ok) throw new Error("Failed to fetch personal history");
             return await response.json();
@@ -340,8 +342,9 @@ export function useActivityData({
     // Handle updating outstanding report status
     const handleUpdateStatus = useCallback(async (id: string, status: string) => {
         try {
+            const apiBase = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api").replace(/\/$/, '');
             const response = await fetchWithAuth(
-                `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api"}/lark/update-outstanding-status`,
+                `${apiBase}/lark/update-outstanding-status`,
                 {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },

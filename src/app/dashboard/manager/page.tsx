@@ -267,15 +267,16 @@ export default function ManagerDashboardPage() {
     }
 
     fetchAllChannels();
-  }, [user, token]);
+  }, [user]);
 
   const fetchAllChannels = async () => {
-    if (!token) return;
+    if (!user) return;
 
     try {
       setLoading(true);
+      const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
       const response = await fetchWithAuth(
-        `${process.env.NEXT_PUBLIC_API_URL}/tracked-channels/manager/all-channels`,
+        `${apiBaseUrl}/tracked-channels/manager/all-channels`,
       );
 
       if (!response.ok) throw new Error('Không thể tải danh sách kênh');
