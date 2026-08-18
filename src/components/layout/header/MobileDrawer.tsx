@@ -322,8 +322,8 @@ export default function MobileDrawer({
                                 );
                             })}
 
-                            {/* New Dashboard Thống kê tab */}
-                            <div>
+                            {/* Mục Báo cáo Content (/dashboard/thong-ke) - Ẩn theo yêu cầu */}
+                            {/* <div>
                                 <Link
                                     href="/dashboard/thong-ke"
                                     onClick={onClose}
@@ -336,7 +336,7 @@ export default function MobileDrawer({
                                     </span>
                                 </Link>
                                 <div className="mx-5 border-t border-white/[0.05]" />
-                            </div>
+                            </div> */}
 
                             {/* Settings */}
                             {(allowedMenuIds.includes("settings") || isManagerOrAdmin) && (

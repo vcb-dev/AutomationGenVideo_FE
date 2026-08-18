@@ -174,7 +174,8 @@ export default function HeaderInner({ user, onLogout, allowedMenuIds }: HeaderPr
                                 isItemActive={isItemActive}
                             />
                         ))}
-                        <Link
+                        {/* Mục Báo cáo Content (/dashboard/thong-ke) - Ẩn theo yêu cầu */}
+                        {/* <Link
                             href="/dashboard/thong-ke"
                             className={`
                                 relative flex items-center gap-1.5 px-3 text-sm font-medium
@@ -186,7 +187,7 @@ export default function HeaderInner({ user, onLogout, allowedMenuIds }: HeaderPr
                             {pathname.startsWith("/dashboard/thong-ke") && (
                                 <span className="absolute bottom-0 left-2 right-2 h-[2px] rounded-full bg-blue-500" />
                             )}
-                        </Link>
+                        </Link> */}
 
                     </nav>
 
