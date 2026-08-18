@@ -210,9 +210,7 @@ function SidebarContent({
               ] : []),
               { label: 'Bảng xếp hạng', href: '/dashboard/manager/user-activity?tab=ranking', icon: Layout },
               { label: 'Tiến độ', href: '/dashboard/manager/user-activity?tab=personal', icon: User },
-              ...(isAdminRole
-                ? []
-                : [{ label: 'Báo cáo', href: '/dashboard/manager/user-activity?tab=daily_report', icon: FileText }]),
+              { label: 'Báo cáo', href: '/dashboard/manager/user-activity?tab=daily_report', icon: FileText },
               { label: isAdminRole ? 'Xem báo cáo' : 'Checklist', href: '/dashboard/manager/user-activity?tab=daily_checklist', icon: CheckSquare },
               { label: isAdminRole ? 'Duyệt vấn đề & win' : 'Vấn đề & Win', href: '/dashboard/manager/user-activity?tab=daily_outstanding', icon: ClipboardList },
             ]
@@ -227,8 +225,7 @@ function SidebarContent({
           {
             section: 'PHÂN TÍCH',
             items: [
-              // { label: 'Channels', href: '/dashboard/facebook/channels', icon: Users },
-              { label: 'Phân tích kênh', href: '/dashboard/channel-analysis', icon: BarChart3 },
+              { label: 'Tổng quan kênh', href: '/dashboard/internalOverview', icon: LayoutDashboard },
               { label: 'Kênh nội bộ', href: '/dashboard/internalChannels', icon: BookOpen },
               { label: 'Khám phá kênh', href: '/dashboard/externalChannels', icon: Users },
             ]

@@ -103,8 +103,9 @@ export default function EditorManagementPage() {
         params.append('platform', selectedPlatform);
       }
 
+      const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
       const response = await fetchWithAuth(
-        `${process.env.NEXT_PUBLIC_API_URL}/users/my-editors?${params}`,
+        `${apiBaseUrl}/users/my-editors?${params}`,
       );
 
       if (!response.ok) {

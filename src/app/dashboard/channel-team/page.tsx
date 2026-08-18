@@ -116,13 +116,13 @@ export default function InternalChannelsPage() {
       const res = await fetchWithAuth(`${apiUrl}/channels`);
       if (!res.ok) return;
       const data: Channel[] = await res.json();
-      const teamFiltered = userTeam
+      const teamFiltered = (!isAdmin && !isManager && userTeam)
         ? data.filter(c => c.team?.name?.toLowerCase() === userTeam.toLowerCase())
         : data;
       setChannels(teamFiltered);
     } catch { toast.error('Không thể tải danh sách kênh'); }
     finally { setLoading(false); }
-  }, [apiUrl, token, userTeam]);
+  }, [apiUrl, userTeam, isAdmin, isManager]);
 
   useEffect(() => { fetchChannels(); }, [fetchChannels]);
 

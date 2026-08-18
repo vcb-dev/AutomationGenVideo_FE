@@ -200,7 +200,7 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
         setUploadErrors(prev => ({ ...prev, [platformId]: '' }));
 
         try {
-            const beBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+            const beBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
             const formData = new FormData();
             files.forEach(f => formData.append('files', f));
 

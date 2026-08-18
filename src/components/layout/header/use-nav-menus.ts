@@ -124,42 +124,38 @@ export function useNavMenus(
                         section: n.secDailyReport,
                         color: "violet",
                         items: [
-                            ...(isAdmin
-                                ? []
-                                : [
+                            {
+                                label: n.report,
+                                href: "",
+                                icon: FileText,
+                                description: n.reportDesc,
+                                subPanel: [
                                     {
-                                        label: n.report,
-                                        href: "",
-                                        icon: FileText,
-                                        description: n.reportDesc,
-                                        subPanel: [
-                                            {
-                                                label: n.reportTraffic,
-                                                href: "/dashboard/manager/user-activity?tab=daily_report&report=daily&type=traffic",
-                                                icon: BarChart3,
-                                                description: n.reportTrafficDesc,
-                                                cta: n.reportTrafficCta,
-                                                accentColor: "blue" as const,
-                                            },
-                                            {
-                                                label: n.todayTasks,
-                                                href: "/dashboard/manager/user-activity?tab=daily_report&report=daily&type=tasks",
-                                                icon: ClipboardList,
-                                                description: n.todayTasksDesc,
-                                                cta: n.todayTasksCta,
-                                                accentColor: "blue" as const,
-                                            },
-                                            {
-                                                label: n.monthlyReport,
-                                                href: "/dashboard/manager/user-activity?tab=daily_report&report=monthly",
-                                                icon: CalendarDays,
-                                                description: n.monthlyReportDesc,
-                                                cta: n.monthlyReportCta,
-                                                accentColor: "indigo" as const,
-                                            },
-                                        ],
+                                        label: n.reportTraffic,
+                                        href: "/dashboard/manager/user-activity?tab=daily_report&report=daily&type=traffic",
+                                        icon: BarChart3,
+                                        description: n.reportTrafficDesc,
+                                        cta: n.reportTrafficCta,
+                                        accentColor: "blue" as const,
                                     },
-                                ]),
+                                    {
+                                        label: n.todayTasks,
+                                        href: "/dashboard/manager/user-activity?tab=daily_report&report=daily&type=tasks",
+                                        icon: ClipboardList,
+                                        description: n.todayTasksDesc,
+                                        cta: n.todayTasksCta,
+                                        accentColor: "blue" as const,
+                                    },
+                                    {
+                                        label: n.monthlyReport,
+                                        href: "/dashboard/manager/user-activity?tab=daily_report&report=monthly",
+                                        icon: CalendarDays,
+                                        description: n.monthlyReportDesc,
+                                        cta: n.monthlyReportCta,
+                                        accentColor: "indigo" as const,
+                                    },
+                                ],
+                            },
                             {
                                 label: isAdmin ? n.checklistView : n.checklist,
                                 href: "/dashboard/manager/user-activity?tab=daily_checklist",
@@ -206,12 +202,13 @@ export function useNavMenus(
                                 section: n.secManagement,
                                 color: "slate" as const,
                                 items: [
-                                    {
-                                        label: n.editors,
-                                        href: "/dashboard/editor-management",
-                                        icon: Users,
-                                        description: n.editorsDesc,
-                                    },
+                                    // Ẩn mục Quản lý Editor theo yêu cầu:
+                                    // {
+                                    //     label: n.editors,
+                                    //     href: "/dashboard/editor-management",
+                                    //     icon: Users,
+                                    //     description: n.editorsDesc,
+                                    // },
                                     {
                                         label: n.hr,
                                         href: "/dashboard/hr-management",
@@ -312,18 +309,6 @@ export function useNavMenus(
                         color: "blue",
                         items: [
                             {
-                                label: n.channels,
-                                href: "/dashboard/facebook/channels",
-                                icon: Users,
-                                description: n.channelsDesc,
-                            },
-                            {
-                                label: n.channelAnalysis,
-                                href: "/dashboard/channel-analysis",
-                                icon: BarChart3,
-                                description: n.channelAnalysisDesc,
-                            },
-                            {
                                 label: n.internalOverview,
                                 href: "/dashboard/internalOverview",
                                 icon: LayoutDashboard,
@@ -343,22 +328,18 @@ export function useNavMenus(
                             },
                         ],
                     },
-                    ...(isManagement
-                        ? [
+                    {
+                        section: n.secDiscover,
+                        color: "slate" as const,
+                        items: [
                             {
-                                section: n.secDiscover,
-                                color: "slate" as const,
-                                items: [
-                                    {
-                                        label: n.searchHub,
-                                        href: "/dashboard/search-video",
-                                        icon: Search,
-                                        description: n.searchHubDesc,
-                                    },
-                                ],
+                                label: n.searchHub,
+                                href: "/dashboard/search-video",
+                                icon: Search,
+                                description: n.searchHubDesc,
                             },
-                        ]
-                        : []),
+                        ],
+                    },
                     {
                         section: n.secCollections,
                         color: "violet" as const,
@@ -446,73 +427,7 @@ export function useNavMenus(
                     },
                 ],
             },
-            {
-                id: "tien-ich",
-                label: n.menuUtilities,
-                activePathPrefixes: [
-                    "/dashboard/ai/clone-voice",
-                    "/dashboard/ai/overview",
-                    "/dashboard/ai/content-transform",
-                    "/dashboard/tools/video-downloader",
-                    "/dashboard/tools/lucky-spin",
-                ] as string[],
-                sections: [
-                    {
-                        section: n.secAiVoice,
-                        color: "violet" as const,
-                        items: [
-                            {
-                                label: n.aiOverview,
-                                href: "/dashboard/ai/overview",
-                                icon: LayoutDashboard,
-                                description: n.aiOverviewDesc,
-                            },
-                            {
-                                label: n.cloneVoice,
-                                href: "/dashboard/ai/clone-voice",
-                                icon: AudioLines,
-                                description: n.cloneVoiceDesc,
-                            },
-                        ],
-                    },
-                    {
-                        section: n.secAiContent,
-                        color: "indigo" as const,
-                        items: [
-                            {
-                                label: n.contentTransform,
-                                href: "/dashboard/ai/content-transform",
-                                icon: Wand2,
-                                description: n.contentTransformDesc,
-                            },
-                        ],
-                    },
-                    {
-                        section: n.secDownloadTools,
-                        color: "violet" as const,
-                        items: [
-                            {
-                                label: n.videoDownloader,
-                                href: "/dashboard/tools/video-downloader",
-                                icon: DownloadCloud,
-                                description: n.videoDownloaderDesc,
-                            },
-                        ],
-                    },
-                    {
-                        section: n.secInternalEvent,
-                        color: "indigo" as const,
-                        items: [
-                            {
-                                label: n.luckySpin,
-                                href: "/dashboard/tools/lucky-spin",
-                                icon: Sparkles,
-                                description: n.luckySpinDesc,
-                            },
-                        ],
-                    },
-                ],
-            },
+
             {
                 // MEMS đứng riêng chứ không nằm trong Tiện ích: nó là nghiệp vụ mượn trả có
                 // quy trình và chứng từ, không phải công cụ dùng một lần rồi thôi.
@@ -587,6 +502,73 @@ export function useNavMenus(
                                 href: "/dashboard/equipment/returns",
                                 icon: Undo2,
                                 description: n.equipmentReturnsDesc,
+                            },
+                        ],
+                    },
+                ],
+            },
+            {
+                id: "tien-ich",
+                label: n.menuUtilities,
+                activePathPrefixes: [
+                    "/dashboard/ai/clone-voice",
+                    "/dashboard/ai/overview",
+                    "/dashboard/ai/content-transform",
+                    "/dashboard/tools/video-downloader",
+                    "/dashboard/tools/lucky-spin",
+                ] as string[],
+                sections: [
+                    {
+                        section: n.secAiVoice,
+                        color: "violet" as const,
+                        items: [
+                            {
+                                label: n.aiOverview,
+                                href: "/dashboard/ai/overview",
+                                icon: LayoutDashboard,
+                                description: n.aiOverviewDesc,
+                            },
+                            {
+                                label: n.cloneVoice,
+                                href: "/dashboard/ai/clone-voice",
+                                icon: AudioLines,
+                                description: n.cloneVoiceDesc,
+                            },
+                        ],
+                    },
+                    {
+                        section: n.secAiContent,
+                        color: "indigo" as const,
+                        items: [
+                            {
+                                label: n.contentTransform,
+                                href: "/dashboard/ai/content-transform",
+                                icon: Wand2,
+                                description: n.contentTransformDesc,
+                            },
+                        ],
+                    },
+                    {
+                        section: n.secDownloadTools,
+                        color: "violet" as const,
+                        items: [
+                            {
+                                label: n.videoDownloader,
+                                href: "/dashboard/tools/video-downloader",
+                                icon: DownloadCloud,
+                                description: n.videoDownloaderDesc,
+                            },
+                        ],
+                    },
+                    {
+                        section: n.secInternalEvent,
+                        color: "indigo" as const,
+                        items: [
+                            {
+                                label: n.luckySpin,
+                                href: "/dashboard/tools/lucky-spin",
+                                icon: Sparkles,
+                                description: n.luckySpinDesc,
                             },
                         ],
                     },
