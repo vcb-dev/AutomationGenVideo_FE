@@ -170,7 +170,7 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
 
   let visibleKpis = editorKpis ?? []
   if (!isManagerOrAdmin) {
-    // Non-admin (Leader, Editor, Member): Chỉ xem các KPI thuộc team của mình
+    // Non-admin (Leader, Editor, Member): Only view KPIs of their own team(s)
     if (teamFilter) {
       visibleKpis = visibleKpis.filter(k => k.team_id === teamFilter)
     } else if (myTeamIds.size > 0) {
