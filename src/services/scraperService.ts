@@ -688,21 +688,26 @@ export interface ExternalVideo {
 
 export interface OwnedChannel {
   platform: string;
-  /** page_id / username / channel_id tuỳ nền tảng — chính là giá trị gửi lên khi lọc. */
+  /** page_id / username / channel_id depending on platform. */
   id: string;
-  ten: string;
-  so_video: number;
+  name: string;
+  videoCount: number;
+  // Backward compatibility:
+  ten?: string;
+  so_video?: number;
 }
 
 export interface OwnedHashtag {
-  /** Không kèm dấu #. */
-  the: string;
-  so_video: number;
+  /** Tag string without '#' prefix. */
+  tag: string;
+  videoCount: number;
+  // Backward compatibility:
+  the?: string;
+  so_video?: number;
 }
 
-// ─── Tổng quan kênh nội bộ ───────────────────────────────────────────────────
-// Khớp với OwnedStatsService bên BE (owned-stats.service.ts). Mọi con số đều là TỔNG của
-// các video ĐĂNG trong kỳ, không phải số phát sinh trong kỳ — xem ghi chú ở trang tổng quan.
+// ─── Internal Channel Overview ────────────────────────────────────────────────
+// Matches OwnedStatsService in BE (owned-stats.service.ts).
 
 export interface PeriodStats {
   views: number;
@@ -713,47 +718,69 @@ export interface PeriodStats {
 }
 
 export interface DailyStats extends PeriodStats {
-  /** 'YYYY-MM-DD' theo giờ Việt Nam. */
-  ngay: string;
+  /** 'YYYY-MM-DD' in Vietnam timezone. */
+  date: string;
+  // Backward compatibility:
+  ngay?: string;
 }
 
 export interface PlatformStats extends PeriodStats {
   platform: string;
-  truoc: PeriodStats;
+  previous: PeriodStats;
   followers: number;
-  /** Số kênh có đăng bài trong kỳ. */
-  so_kenh: number;
-  /** Tổng số kênh nội bộ của nền tảng, kể cả kênh không đăng gì. */
-  tong_kenh: number;
-  theo_ngay: DailyStats[];
+  /** Active channels with posts in period. */
+  channelCount: number;
+  /** Total owned channels for platform. */
+  totalChannels: number;
+  dailySeries: DailyStats[];
+
+  // Backward compatibility:
+  truoc?: PeriodStats;
+  so_kenh?: number;
+  tong_kenh?: number;
+  theo_ngay?: DailyStats[];
 }
 
 export interface ChannelStats extends PeriodStats {
   platform: string;
   id: string;
-  ten: string;
+  name: string;
   avatar: string;
   followers: number;
-  /** ISO, null nếu chưa đồng bộ lần nào. */
-  dong_bo: string | null;
-  views_truoc: number;
+  /** ISO string, null if never synced. */
+  lastSyncedAt: string | null;
+  previousViews: number;
+
+  // Backward compatibility:
+  ten?: string;
+  dong_bo?: string | null;
+  views_truoc?: number;
 }
 
-export interface VideoNoiBat {
+export interface FeaturedVideo {
   platform: string;
-  post_id: string;
+  postId: string;
   url: string;
-  mo_ta: string;
+  description: string;
   thumbnail: string;
-  kenh_ten: string;
+  channelName: string;
   views: number;
   likes: number;
   comments: number;
-  /** ISO. */
-  ngay: string;
+  /** ISO string. */
+  date: string;
+
+  // Backward compatibility:
+  post_id?: string;
+  mo_ta?: string;
+  kenh_ten?: string;
+  ngay?: string;
 }
 
-export interface ThiTruongNenTang {
+// Backward compatibility alias
+export type VideoNoiBat = FeaturedVideo;
+
+export interface PlatformMarketStats {
   platform: string;
   vn: number;
   global: number;
@@ -761,121 +788,202 @@ export interface ThiTruongNenTang {
   posts_global: number;
 }
 
-export interface TuyenNoiDung {
+// Backward compatibility alias
+export type ThiTruongNenTang = PlatformMarketStats;
+
+export interface ContentLineStats {
   /** 'A1'…'A5'. */
-  ma: string;
+  code: string;
   posts: number;
   views: number;
-  views_vn: number;
-  views_global: number;
+  viewsVn: number;
+  viewsGlobal: number;
+
+  // Backward compatibility:
+  ma?: string;
+  views_vn?: number;
+  views_global?: number;
 }
 
-export interface HashtagThongKe {
-  the: string;
+// Backward compatibility alias
+export type TuyenNoiDung = ContentLineStats;
+
+export interface HashtagStats {
+  tag: string;
   posts: number;
   views: number;
+
+  // Backward compatibility:
+  the?: string;
 }
+
+// Backward compatibility alias
+export type HashtagThongKe = HashtagStats;
 
 export interface ChannelAlert {
   platform: string;
-  kenh: string;
-  noi_dung: string;
-  /** 'w' = cảnh báo nhẹ (vàng), 'b' = nặng (đỏ). */
-  muc: 'w' | 'b';
-  nhan: string;
+  channel: string;
+  content: string;
+  /** 'w' = warning (yellow), 'b' = error/drop (red). */
+  level: 'w' | 'b';
+  label: string;
+
+  // Backward compatibility:
+  kenh?: string;
+  noi_dung?: string;
+  muc?: 'w' | 'b';
+  nhan?: string;
 }
 
 export interface InternalStats {
   status: string;
-  ky: { tu: string; den: string; so_ngay: number };
-  nen_tang: PlatformStats[];
-  kenh: ChannelStats[];
-  top_video: VideoNoiBat[];
-  thi_truong: ThiTruongNenTang[];
-  tuyen_noi_dung: TuyenNoiDung[];
-  hashtag: HashtagThongKe[];
-  canh_bao: ChannelAlert[];
-  tong_kenh: number;
+  period: { startDate: string; endDate: string; dayCount: number };
+  platforms: PlatformStats[];
+  channels: ChannelStats[];
+  topVideos: FeaturedVideo[];
+  markets: PlatformMarketStats[];
+  contentLines: ContentLineStats[];
+  hashtags: HashtagStats[];
+  alerts: ChannelAlert[];
+  totalChannels: number;
+
+  // Backward compatibility:
+  ky?: { tu: string; den: string; so_ngay: number };
+  nen_tang?: PlatformStats[];
+  kenh?: ChannelStats[];
+  top_video?: FeaturedVideo[];
+  thi_truong?: PlatformMarketStats[];
+  tuyen_noi_dung?: ContentLineStats[];
+  hashtag?: HashtagStats[];
+  canh_bao?: ChannelAlert[];
+  tong_kenh?: number;
 }
 
-// ─── Video đăng trùng giữa các kênh nội bộ ───────────────────────────────────
-// Khớp với OwnedDuplicateService bên BE.
+// ─── Duplicate Videos Across Internal Channels ───────────────────────────────
+// Matches OwnedDuplicateService in BE.
 
-/** Một nội dung bị đăng trên từ 2 kênh nội bộ trở lên. */
+export interface DuplicateGroupChannel {
+  id: string;
+  name: string;
+  url?: string;
+  views?: number;
+  // Backward compatibility:
+  ten?: string;
+}
+
 export interface DuplicateGroup {
-  /** Caption đã chuẩn hoá (hạ hoa/thường, gộp khoảng trắng) — dùng luôn làm nhãn hiển thị. */
-  noi_dung: string;
+  content: string;
   platform: string;
-  /** Độ dài video, giây. `null` với YouTube Shorts — bảng đó không có trường độ dài. */
-  giay: number | null;
-  so_kenh: number;
-  /** Có thể lớn hơn `so_kenh`: một kênh đăng lại cùng nội dung nhiều lần trong kỳ. */
-  so_video: number;
+  durationSeconds: number | null;
+  channelCount: number;
+  videoCount: number;
   views: number;
-  kenh: { id: string; ten: string }[];
-  ngay_dau: string;
-  ngay_cuoi: string;
-  /** Link tới bài nhiều lượt xem nhất trong nhóm. */
-  url_mau: string;
+  channels: DuplicateGroupChannel[];
+  startDate: string;
+  endDate: string;
+  sampleUrl: string;
+
+  // Backward compatibility:
+  noi_dung?: string;
+  giay?: number | null;
+  so_kenh?: number;
+  so_video?: number;
+  kenh?: DuplicateGroupChannel[];
+  ngay_dau?: string;
+  ngay_cuoi?: string;
+  url_mau?: string;
 }
 
 export interface DuplicateByChannel {
   platform: string;
   id: string;
-  ten: string;
-  video_trung: number;
-  tong_video: number;
-  ty_le: number;
+  name: string;
+  duplicateVideos: number;
+  totalVideos: number;
+  duplicateRatio: number;
+
+  // Backward compatibility:
+  ten?: string;
+  video_trung?: number;
+  tong_video?: number;
+  ty_le?: number;
+}
+
+export interface DuplicateSummary {
+  groupCount: number;
+  groupsWithAtLeast3Channels: number;
+  duplicateVideoCount: number;
+  totalVideos: number;
+  duplicateRatio: number;
+  affectedChannelCount: number;
+
+  // Backward compatibility:
+  so_nhom?: number;
+  so_nhom_tu_3_kenh?: number;
+  so_video_trung?: number;
+  tong_video?: number;
+  ty_le?: number;
+  so_kenh_dinh?: number;
 }
 
 export interface InternalDuplicates {
   status: string;
-  ky: { tu: string; den: string; so_ngay: number };
-  tom_tat: {
-    so_nhom: number;
-    so_nhom_tu_3_kenh: number;
-    so_video_trung: number;
-    /** Chỉ đếm video có caption từ 20 ký tự — dưới ngưỡng đó không đủ để nhận diện trùng. */
-    tong_video: number;
-    ty_le: number;
-    so_kenh_dinh: number;
-  };
-  nhom: DuplicateGroup[];
-  theo_kenh: DuplicateByChannel[];
-  canh_bao: ChannelAlert[];
+  period: { startDate: string; endDate: string; dayCount: number };
+  summary: DuplicateSummary;
+  groups: DuplicateGroup[];
+  byChannel: DuplicateByChannel[];
+  alerts: ChannelAlert[];
+
+  // Backward compatibility:
+  ky?: { tu: string; den: string; so_ngay: number };
+  tom_tat?: DuplicateSummary;
+  nhom?: DuplicateGroup[];
+  theo_kenh?: DuplicateByChannel[];
+  canh_bao?: ChannelAlert[];
 }
 
-// ─── Chấm điểm PAAST cho video nội bộ ────────────────────────────────────────
-// Khớp với OwnedScriptService bên BE.
+// ─── PAAST Video Script & Scoring ───────────────────────────────────────────
+// Matches OwnedScriptService in BE.
 
-/**
- * - `da_cham`           — có kịch bản và đã có điểm
- * - `co_kich_ban`       — có kịch bản nhưng chưa chấm (hoặc chấm lỗi)
- * - `chua_co_kich_ban`  — Facebook chưa sinh phụ đề cho video này (~2/3 số video)
- * - `qua_ngan`          — kịch bản dưới 100 ký tự, PAAST không nhận
- * - `khong_ho_tro`      — nền tảng chưa lấy được kịch bản
- */
-export type TrangThaiPaastMa =
+export type PaastStatusCode =
   | 'da_cham'
   | 'co_kich_ban'
   | 'chua_co_kich_ban'
   | 'qua_ngan'
   | 'khong_ho_tro';
 
-export interface TrangThaiPaast {
-  trang_thai: TrangThaiPaastMa;
-  /** Bản 2 bỏ thang điểm 0–100, chỉ còn kết luận đạt/chưa đạt chuẩn PAAST. */
-  dat: boolean | null;
-  so_ky_tu: number;
+// Backward compatibility alias
+export type TrangThaiPaastMa = PaastStatusCode;
+
+export interface PaastStatus {
+  statusCode: PaastStatusCode;
+  passed: boolean | null;
+  charCount: number;
+
+  // Backward compatibility:
+  trang_thai?: PaastStatusCode;
+  dat?: boolean | null;
+  so_ky_tu?: number;
 }
 
+// Backward compatibility alias
+export type TrangThaiPaast = PaastStatus;
+
 export interface PaastVideoResult {
-  trang_thai: TrangThaiPaastMa;
+  statusCode: PaastStatusCode;
+  source?: string;
+  language?: string;
+  charCount?: number;
+  script?: string;
+  analysis?: any;
+  note?: string;
+
+  // Backward compatibility:
+  trang_thai?: PaastStatusCode;
   nguon?: string;
   ngon_ngu?: string;
   so_ky_tu?: number;
   kich_ban?: string;
-  /** Bản ghi PaastAnalysisHistory — đưa thẳng vào PaastScoreModal qua prop `cachedResult`. */
   phan_tich?: any;
   ghi_chu?: string;
 }
@@ -894,87 +1002,71 @@ export const scraperService = {
     page?: number; page_size?: number; q?: string; sort?: string; platform?: string;
     min_plays?: number; date_from?: string; date_to?: string;
   }): Promise<PaginatedExternalVideos> => {
-    const res = await fetchWithAuth(`${API_URL}/scraper/all-videos/${buildParams(params)}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/all-videos${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!res.ok) throw new Error('Không thể tải videos');
+    if (!res.ok) throw new Error('Failed to load videos');
     return res.json();
   },
 
   getOwnedChannelVideos: async (token: string, params: {
     page?: number; page_size?: number; q?: string; sort?: string; platform?: string;
     min_plays?: number; date_from?: string; date_to?: string;
-    /** 'vn' | 'global' — server đoán theo dấu tiếng Việt trong caption. */
     market?: string;
-    /** 'A1'..'A5' — server bắt theo hashtag #A1..#A5 sẵn có trong caption. */
     content_line?: string;
-    /** Định danh kênh: page_id (Facebook) / username / channel_id tuỳ nền tảng. */
     channel?: string;
-    /** Hashtag bất kỳ, có hay không có dấu # đều được. */
     hashtag?: string;
   }): Promise<PaginatedExternalVideos> => {
-    const res = await fetchWithAuth(`${API_URL}/scraper/owned/videos/${buildParams(params)}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/owned/videos${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!res.ok) throw new Error('Không thể tải videos');
+    if (!res.ok) throw new Error('Failed to load owned videos');
     return res.json();
   },
 
   /**
-   * Số liệu tổng hợp cho trang Tổng quan kênh nội bộ.
-   *
-   * KHÔNG cộng lại từ getOwnedChannelVideos(): kỳ 28 ngày có ~3.800 video, kéo hết về rồi
-   * cộng ở trình duyệt thì vừa chậm vừa sai vì API vốn chỉ trả tối đa 100 video mỗi trang.
+   * Aggregate statistics for Internal Channel Overview dashboard.
    */
   getOwnedStats: async (
     token: string,
     params: {
       platform?: string;
-      /** Preset nhanh. Có `tu` thì server bỏ qua `days`. */
       days?: number;
-      /** 'YYYY-MM-DD' — khoảng ngày người dùng tự chọn. */
       tu?: string;
       den?: string;
     },
   ): Promise<InternalStats> => {
-    const res = await fetchWithAuth(`${API_URL}/scraper/owned/stats/${buildParams(params)}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/owned/stats${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!res.ok) throw new Error('Không thể tải số liệu tổng quan');
+    if (!res.ok) throw new Error('Failed to load internal channel statistics');
     return res.json();
   },
 
   /**
-   * Video bị đăng trùng trên nhiều kênh nội bộ.
-   *
-   * Endpoint RIÊNG chứ không gộp vào getOwnedStats(): gộp vào thì cả trang tổng quan phải
-   * chờ thêm ba truy vấn nữa mới vẽ được ô số đầu tiên. Nhận cùng bộ tham số kỳ ngày nên
-   * hai khối luôn nói về cùng một khoảng thời gian.
+   * Duplicate video detection across internal channels.
    */
   getOwnedDuplicates: async (
     token: string,
     params: { platform?: string; days?: number; tu?: string; den?: string },
   ): Promise<InternalDuplicates> => {
-    const res = await fetchWithAuth(`${API_URL}/scraper/owned/trung-lap/${buildParams(params)}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/owned/trung-lap${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!res.ok) throw new Error('Không thể tải số liệu trùng lặp');
+    if (!res.ok) throw new Error('Failed to load duplicate video statistics');
     return res.json();
   },
 
   /**
-   * Trạng thái chấm điểm PAAST của một loạt video — gọi MỘT lần cho cả lưới.
-   *
-   * Chỉ đọc bảng đã lưu, không kích hoạt lấy phụ đề, nên gọi thoải mái khi mở trang.
-   * Video chưa từng chấm sẽ không có mặt trong kết quả.
+   * Bulk retrieves PAAST scoring status for multiple video keys.
    */
   getPaastStatus: async (
     token: string,
-    khoas: string[],
-  ): Promise<Record<string, TrangThaiPaast>> => {
-    if (!khoas.length) return {};
+    keys: string[],
+  ): Promise<Record<string, PaastStatus>> => {
+    if (!keys.length) return {};
     const res = await fetchWithAuth(
-      `${API_URL}/scraper/owned/paast/status/${buildParams({ ids: khoas.join(',') })}`,
+      `${API_URL}/scraper/owned/paast/status${buildParams({ ids: keys.join(',') })}`,
       { headers: { Authorization: `Bearer ${token}` } },
     );
     if (!res.ok) return {};
@@ -982,42 +1074,61 @@ export const scraperService = {
   },
 
   /**
-   * Lấy kịch bản và chấm điểm PAAST cho một video.
-   *
-   * Lần đầu mỗi video mất ~15 giây (hỏi phụ đề Facebook rồi gọi LLM chấm) và tốn một lượt
-   * LLM, nên CHỈ gọi khi người dùng chủ động bấm. Từ lần sau lấy từ bảng, ~35ms, và cả team
-   * dùng chung một điểm.
+   * Fetches transcript and scores PAAST for a specific video.
    */
+  scorePaast: async (
+    token: string,
+    platform: string,
+    postId: string,
+  ): Promise<PaastVideoResult> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/owned/paast`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ platform, post_id: postId }),
+    });
+    if (!res.ok) throw new Error('Failed to score video with PAAST');
+    return res.json();
+  },
+
+  // Backward compatibility alias
   chamDiemPaast: async (
     token: string,
     platform: string,
     postId: string,
   ): Promise<PaastVideoResult> => {
-    const res = await fetchWithAuth(`${API_URL}/scraper/owned/paast/`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ platform, post_id: postId }),
-    });
-    if (!res.ok) throw new Error('Không chấm điểm được video này');
-    return res.json();
+    return scraperService.scorePaast(token, platform, postId);
   },
 
-  /** Danh sách kênh nội bộ để đổ vào ô chọn (kèm số video từng kênh). */
+  /** Retrieves list of owned channels. */
   getOwnedChannels: async (token: string): Promise<OwnedChannel[]> => {
-    const res = await fetchWithAuth(`${API_URL}/scraper/owned/channels/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/owned/channels`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];
-    return (await res.json()).channels || [];
+    const raw = (await res.json()).channels || [];
+    return raw.map((c: any) => ({
+      ...c,
+      name: c.name || c.ten,
+      videoCount: c.videoCount ?? c.so_video ?? 0,
+      ten: c.name || c.ten,
+      so_video: c.videoCount ?? c.so_video ?? 0,
+    }));
   },
 
-  /** Hashtag đang thực sự có trong dữ liệu, sắp theo số video giảm dần. */
+  /** Retrieves hashtags present in owned videos. */
   getOwnedHashtags: async (token: string, limit = 60): Promise<OwnedHashtag[]> => {
-    const res = await fetchWithAuth(`${API_URL}/scraper/owned/hashtags/${buildParams({ limit })}`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/owned/hashtags${buildParams({ limit })}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return [];
-    return (await res.json()).hashtags || [];
+    const raw = (await res.json()).hashtags || [];
+    return raw.map((h: any) => ({
+      ...h,
+      tag: h.tag || h.the,
+      videoCount: h.videoCount ?? h.so_video ?? 0,
+      the: h.tag || h.the,
+      so_video: h.videoCount ?? h.so_video ?? 0,
+    }));
   },
 
   suggestKeywords: async (token: string, q: string): Promise<KeywordSuggestion[]> => {
