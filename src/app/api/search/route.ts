@@ -40,12 +40,14 @@ export async function POST(request: Request) {
 
     const target = `${NESTJS_BASE}/ai/search`;
     const authHeader = request.headers.get('Authorization') || '';
+    const cookieHeader = request.headers.get('cookie') || '';
 
     return proxyToNestJS(target, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             ...(authHeader ? { Authorization: authHeader } : {}),
+            ...(cookieHeader ? { cookie: cookieHeader } : {}),
         },
         body: JSON.stringify(body),
     });
@@ -56,6 +58,7 @@ export async function GET(request: Request) {
     const platform = searchParams.get('platform') || '';
     const limit = searchParams.get('limit') || '50';
     const authHeader = request.headers.get('Authorization') || '';
+    const cookieHeader = request.headers.get('cookie') || '';
 
     const target = `${NESTJS_BASE}/ai/search/history?platform=${encodeURIComponent(platform)}&limit=${encodeURIComponent(limit)}`;
 
@@ -63,6 +66,7 @@ export async function GET(request: Request) {
         method: 'GET',
         headers: {
             ...(authHeader ? { Authorization: authHeader } : {}),
+            ...(cookieHeader ? { cookie: cookieHeader } : {}),
         },
     });
 }

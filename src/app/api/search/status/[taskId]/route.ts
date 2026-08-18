@@ -10,11 +10,13 @@ export async function GET(
     const { taskId } = params;
     const target = `${NESTJS_BASE}/ai/search/status/${taskId}`;
     const authHeader = request.headers.get('Authorization') || '';
+    const cookieHeader = request.headers.get('cookie') || '';
 
     try {
         const res = await fetch(target, {
             headers: {
                 ...(authHeader ? { Authorization: authHeader } : {}),
+                ...(cookieHeader ? { cookie: cookieHeader } : {}),
             },
             signal: AbortSignal.timeout(30_000),
         });
