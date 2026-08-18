@@ -19,10 +19,10 @@ export interface Summary extends PeriodStats {
   dailySeries: DailyStats[];
 
   // Backward compatibility aliases:
-  truoc?: PeriodStats;
-  so_kenh?: number;
-  tong_kenh?: number;
-  theo_ngay?: DailyStats[];
+  truoc: PeriodStats;
+  so_kenh: number;
+  tong_kenh: number;
+  theo_ngay: DailyStats[];
 }
 
 const EMPTY_STATS: PeriodStats = { views: 0, likes: 0, comments: 0, shares: 0, posts: 0 };
