@@ -64,7 +64,6 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
   const { data: teams } = useQuery({
     queryKey: ['task-auto', 'teams'],
     queryFn: getTeams,
-    enabled: isManagerOrAdmin || !!isLeader,
   })
 
   // Tất cả team user thuộc (leader hoặc member) — cho non-admin
@@ -167,13 +166,20 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
     })
   }
 
+  const myTeamIds = new Set(myTeams.map(t => t.id))
+
   let visibleKpis = editorKpis ?? []
-  if (isLeader) {
-    // Filter theo team_id trực tiếp → chính xác ngay cả khi editor thuộc nhiều team
-    if (teamFilter)
+  if (!isManagerOrAdmin) {
+    // Non-admin (Leader, Editor, Member): Chỉ xem các KPI thuộc team của mình
+    if (teamFilter) {
       visibleKpis = visibleKpis.filter(k => k.team_id === teamFilter)
-    else if (allMyTeamMemberIds && allMyTeamMemberIds.size > 0)
-      visibleKpis = visibleKpis.filter(k => k.team_id && allMyTeamMemberIds.has(k.user_id))
+    } else if (myTeamIds.size > 0) {
+      visibleKpis = visibleKpis.filter(k => k.team_id && myTeamIds.has(k.team_id))
+    } else if (userId) {
+      visibleKpis = visibleKpis.filter(k => k.user_id === userId)
+    } else {
+      visibleKpis = []
+    }
   } else if (teamFilter) {
     visibleKpis = visibleKpis.filter(k => k.team_id === teamFilter)
   }
@@ -202,13 +208,13 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
             />
           </div>
         )}
-        {isLeader && myTeams.length === 1 && myTeams[0] && (
+        {!isManagerOrAdmin && myTeams.length === 1 && myTeams[0] && (
           <p className="text-sm text-slate-500">
-            Đặt KPI cho editor trong team{' '}
+            {isLeader ? 'Đặt KPI cho editor trong team' : 'KPI editor trong team'}{' '}
             <span className="font-semibold text-slate-700">{myTeams[0].name}</span>
           </p>
         )}
-        {isLeader && myTeams.length > 1 && (
+        {!isManagerOrAdmin && myTeams.length > 1 && (
           <div className="flex items-center gap-2">
             <Users className="w-5 h-5 text-slate-400 shrink-0" />
             <CustomSelect
