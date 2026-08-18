@@ -935,8 +935,28 @@ export default function ComposePage() {
 
                               <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white ${meta.color} shadow-sm text-sm relative overflow-hidden flex-shrink-0`}>
                                 {account.avatar_url ? (
-                                  <img src={account.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
-                                ) : meta.emoji}
+                                  <img
+                                    src={account.avatar_url}
+                                    alt=""
+                                    referrerPolicy="no-referrer"
+                                    className="w-full h-full rounded-full object-cover"
+                                    onError={(e) => {
+                                      const cleanId = (account.extra_data as any)?.pageId || (account.platform_id?.startsWith('page_') ? account.platform_id.replace('page_', '') : null);
+                                      if (cleanId && !e.currentTarget.dataset.fallback) {
+                                        e.currentTarget.dataset.fallback = '1';
+                                        e.currentTarget.src = `https://graph.facebook.com/${cleanId}/picture?type=large`;
+                                        return;
+                                      }
+                                      e.currentTarget.style.display = 'none';
+                                      const fallbackSpan = e.currentTarget.nextElementSibling as HTMLElement;
+                                      if (fallbackSpan) fallbackSpan.style.display = 'flex';
+                                    }}
+                                  />
+                                ) : null}
+                                <span className={`w-full h-full flex items-center justify-center text-white font-bold text-xs ${account.avatar_url ? 'hidden' : ''}`}>
+                                  {meta.emoji}
+                                </span>
+
 
                                 {isChild && (
                                   <div className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border border-white flex items-center justify-center text-[7px] ${meta.color}`}>
@@ -956,11 +976,12 @@ export default function ComposePage() {
                                     {t.compose.unsupportedForMode}
                                   </div>
                                 )}
-                                {account.token_expires_soon && (
+                                {account.token_expires_soon && account.platform !== 'YOUTUBE' && (
                                   <div className="text-[10px] text-amber-500 font-semibold mt-0.5">
                                     {t.compose.tokenExpiresIn(account.token_expires_in_days ?? 0)}
                                   </div>
                                 )}
+
                               </div>
                               {!isDisabled && (
                                 <motion.div

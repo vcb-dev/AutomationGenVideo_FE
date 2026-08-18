@@ -292,7 +292,7 @@ const ChecklistContainer = ({
                 const response = await fetchWithAuth(url, { cache: 'no-store' });
                 if (response.ok) {
                     const data = await response.json();
-                    
+
                     // Logic: Nếu ngày chọn < ngày hiện tại -> Luôn ReadOnly
                     const todayStr = localCalendarYMD();
                     // const isPastDate = reportDate < todayStr;
@@ -300,20 +300,20 @@ const ChecklistContainer = ({
                     // if (isPastDate) {
                     //     setIsReadOnly(true);
                     // } else if (data && (data.report || data.traffic)) {
-                        let shouldBeReadOnly = false;
-                        if (showOnlyTraffic) {
-                            // Traffic/Revenue is now team-aware, we handle its readOnly status separately
-                            // but for the global lock, we check if ALL user's teams have been reported
-                            // (cả 2 loại — nộp cùng lúc, team coi như "đã báo cáo" khi 1 trong 2 đã ghi nhận)
-                            const reportedEither = new Set([...(data.reportedTeams || []), ...(data.reportedRevenueTeams || [])]);
-                            const allTeamsReported = (user?.team || '').split(',').every(t => reportedEither.has(t.trim()));
-                            shouldBeReadOnly = allTeamsReported;
-                        } else if (showOnlyWork) {
-                            shouldBeReadOnly = !!data.report;
-                        } else {
-                            shouldBeReadOnly = !!data.report && !!data.traffic;
-                        }
-                        setIsReadOnly(shouldBeReadOnly);
+                    let shouldBeReadOnly = false;
+                    if (showOnlyTraffic) {
+                        // Traffic/Revenue is now team-aware, we handle its readOnly status separately
+                        // but for the global lock, we check if ALL user's teams have been reported
+                        // (cả 2 loại — nộp cùng lúc, team coi như "đã báo cáo" khi 1 trong 2 đã ghi nhận)
+                        const reportedEither = new Set([...(data.reportedTeams || []), ...(data.reportedRevenueTeams || [])]);
+                        const allTeamsReported = (user?.team || '').split(',').every(t => reportedEither.has(t.trim()));
+                        shouldBeReadOnly = allTeamsReported;
+                    } else if (showOnlyWork) {
+                        shouldBeReadOnly = !!data.report;
+                    } else {
+                        shouldBeReadOnly = !!data.report && !!data.traffic;
+                    }
+                    setIsReadOnly(shouldBeReadOnly);
 
                     if (data?.reportedTeams) {
                         setReportedTeams(data.reportedTeams);
@@ -487,7 +487,7 @@ const ChecklistContainer = ({
 
         // If this team has already reported, load its data
         const teamRecords = serverTrafficRecords.filter(r => r.team === selectedTeam);
-        
+
         if (teamRecords.length > 0) {
             const newTraffic = initialTrafficData();
             const newChannels = initialTrafficChannels();
@@ -495,19 +495,19 @@ const ChecklistContainer = ({
             const newEntries: Record<string, any[]> = {};
 
             const platforms = ['fb', 'ig', 'tiktok', 'yt', 'thread', 'zalo'];
-            
+
             teamRecords.forEach(rec => {
                 platforms.forEach(p => {
                     const tk = `traffic_${p}`;
                     const ck = `channel_${p}`;
                     const ek = `evidence_${p}`;
-                    
+
                     if (rec[tk] && Number(rec[tk]) > 0) {
                         newTraffic[p as keyof TrafficData] = (Number(newTraffic[p as keyof TrafficData] || 0) + Number(rec[tk])).toString();
-                        
+
                         if (rec[ck]) {
-                            newChannels[p as keyof TrafficData] = newChannels[p as keyof TrafficData] 
-                                ? `${newChannels[p as keyof TrafficData]}, ${rec[ck]}` 
+                            newChannels[p as keyof TrafficData] = newChannels[p as keyof TrafficData]
+                                ? `${newChannels[p as keyof TrafficData]}, ${rec[ck]}`
                                 : rec[ck];
                         }
 
@@ -522,7 +522,7 @@ const ChecklistContainer = ({
                                     }));
                                     newEvidences[p] = [...(newEvidences[p] || []), ...processedEvs];
                                 }
-                            } catch(e){}
+                            } catch (e) { }
                         }
 
                         // Reconstruct entries
@@ -754,7 +754,7 @@ const ChecklistContainer = ({
                         hypothesisId: 'H1',
                         runId: 'post-fix',
                     }),
-                }).catch(() => {});
+                }).catch(() => { });
             }
             // #endregion
 
@@ -838,7 +838,7 @@ const ChecklistContainer = ({
                     return;
                 }
                 toast.success(data.message || 'Báo cáo thành công');
-                
+
                 setIsReadOnly(true); // Khóa form ngay lập tức sau khi gửi thành công
 
             }
@@ -1078,11 +1078,10 @@ const ChecklistContainer = ({
                                             <button
                                                 key={team}
                                                 onClick={() => setSelectedTeam(team)}
-                                                className={`px-5 py-2 text-sm font-black rounded-lg transition-all whitespace-nowrap ${
-                                                    selectedTeam === team
+                                                className={`px-5 py-2 text-sm font-black rounded-lg transition-all whitespace-nowrap ${selectedTeam === team
                                                         ? 'bg-blue-600 text-white shadow-md'
                                                         : 'text-slate-500 hover:text-blue-600 hover:bg-blue-50'
-                                                }`}
+                                                    }`}
                                             >
                                                 {team}
                                             </button>
@@ -1136,9 +1135,9 @@ const ChecklistContainer = ({
                     >
                         <Send className="w-4 h-4" />
                         {loading ? 'Đang gửi...' :
-                         (isReadOnly || reportedTeams.includes(selectedTeam)) ?
-                         (reportDate < localCalendarYMD() ? 'CHỈ XEM (NGÀY ĐÃ QUA)' : `ĐÃ BÁO CÁO XONG ${selectedTeam || ''}`) :
-                         'GỬI BÁO CÁO'}
+                            (isReadOnly || reportedTeams.includes(selectedTeam)) ?
+                                (reportDate < localCalendarYMD() ? 'CHỈ XEM (NGÀY ĐÃ QUA)' : `ĐÃ BÁO CÁO XONG ${selectedTeam || ''}`) :
+                                'GỬI BÁO CÁO'}
                     </button>
                     {/* Cho phép tự sửa & nộp lại báo cáo hôm nay (không áp dụng cho ngày quá khứ —
                         vẫn giữ nguyên chỉ-xem để không sửa lại lịch sử cũ). Bấm xong form mở khoá,

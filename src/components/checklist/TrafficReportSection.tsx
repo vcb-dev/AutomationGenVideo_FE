@@ -60,11 +60,11 @@ interface TrafficReportSectionProps {
     initialEntries?: Record<string, TrafficEntry[]>;
 }
 
-const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({ 
-    values, 
+const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
+    values,
     channels,
     availableChannels = [],
-    onChange, 
+    onChange,
     onChannelChange,
     onPlatformEvidenceChange,
     onEntriesChange,
@@ -93,12 +93,12 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
     useEffect(() => {
         if (initialEntries && Object.keys(initialEntries).length > 0) {
             setEntries(initialEntries);
-            
+
             // Re-sync platform evidences for parent compatibility
             const platformEvidences: Record<string, string[]> = {};
             Object.keys(initialEntries).forEach(pid => {
                 if (Array.isArray(initialEntries[pid])) {
-                    const allTokens = initialEntries[pid].reduce((acc, row) => 
+                    const allTokens = initialEntries[pid].reduce((acc, row) =>
                         [...acc, ...(row.evidences || []).map(ev => ev.token)], [] as string[]
                     );
                     platformEvidences[pid] = allTokens;
@@ -115,7 +115,7 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
         // sumEntryValues phân biệt "chưa nhập gì" ('') với "đã nhập số 0" ('0') — xem
         // report-total.ts. Trả sai chỗ này thì người dùng không nộp nổi báo cáo.
         onChange(platformId as keyof TrafficData, sumEntryValues(currentEntries.map(e => e.value)));
-        
+
         // Joined channel names
         const joinedChannels = currentEntries
             .map(e => e.channel)
@@ -126,7 +126,7 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
         // Reconstruct all platform tokens from allEntries
         const fullPlatformTokens: Record<string, string[]> = {};
         Object.keys(allEntries).forEach(pid => {
-            fullPlatformTokens[pid] = (allEntries[pid] || []).reduce((acc, row) => 
+            fullPlatformTokens[pid] = (allEntries[pid] || []).reduce((acc, row) =>
                 [...acc, ...(row.evidences || []).map(ev => ev.token)], [] as string[]
             );
         });
@@ -163,14 +163,14 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
     const updateRow = (platformId: string, entryId: string, data: Partial<TrafficEntry>) => {
         if (readOnly) return;
         const currentEntries = entries[platformId] || [];
-        const newRows = currentEntries.map(e => 
+        const newRows = currentEntries.map(e =>
             e.id === entryId ? { ...e, ...data } : e
         );
         const nextEntries = { ...entries, [platformId]: newRows };
         setEntries(nextEntries);
         updateParent(platformId, newRows, nextEntries);
     };
-    
+
     const isPlatformMatch = (platformId: string, channelPlatform: string | null | undefined): boolean => {
         if (!channelPlatform) return false;
         const p = channelPlatform.toLowerCase().trim();
@@ -229,7 +229,7 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
             const nextEntries = { ...entries, [platformId]: updatedRows };
             setEntries(nextEntries);
             updateParent(platformId, updatedRows, nextEntries);
-            
+
         } catch (err) {
             setUploadErrors(prev => ({ ...prev, [platformId]: 'Lỗi upload ảnh' }));
         } finally {
@@ -367,7 +367,7 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
                                                     </button>
                                                 )
                                             )}
-                                            
+
                                             {!readOnly && (entries[platform.id]?.length > 1) && (
                                                 <button
                                                     type="button"
