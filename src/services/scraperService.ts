@@ -715,6 +715,8 @@ export interface PeriodStats {
   comments: number;
   shares: number;
   posts: number;
+  views_vn?: number;
+  views_global?: number;
 }
 
 export interface DailyStats extends PeriodStats {
@@ -726,55 +728,55 @@ export interface DailyStats extends PeriodStats {
 
 export interface PlatformStats extends PeriodStats {
   platform: string;
-  previous: PeriodStats;
+  previous?: PeriodStats;
   followers: number;
   /** Active channels with posts in period. */
-  channelCount: number;
+  channelCount?: number;
   /** Total owned channels for platform. */
-  totalChannels: number;
-  dailySeries: DailyStats[];
+  totalChannels?: number;
+  dailySeries?: DailyStats[];
 
   // Backward compatibility:
-  truoc?: PeriodStats;
-  so_kenh?: number;
-  tong_kenh?: number;
-  theo_ngay?: DailyStats[];
+  truoc: PeriodStats;
+  so_kenh: number;
+  tong_kenh: number;
+  theo_ngay: DailyStats[];
 }
 
 export interface ChannelStats extends PeriodStats {
   platform: string;
   id: string;
-  name: string;
+  name?: string;
   avatar: string;
   followers: number;
   /** ISO string, null if never synced. */
-  lastSyncedAt: string | null;
-  previousViews: number;
+  lastSyncedAt?: string | null;
+  previousViews?: number;
 
   // Backward compatibility:
-  ten?: string;
-  dong_bo?: string | null;
-  views_truoc?: number;
+  ten: string;
+  dong_bo: string | null;
+  views_truoc: number;
 }
 
 export interface FeaturedVideo {
   platform: string;
-  postId: string;
+  postId?: string;
   url: string;
-  description: string;
+  description?: string;
   thumbnail: string;
-  channelName: string;
+  channelName?: string;
   views: number;
   likes: number;
   comments: number;
   /** ISO string. */
-  date: string;
+  date?: string;
 
   // Backward compatibility:
-  post_id?: string;
-  mo_ta?: string;
-  kenh_ten?: string;
-  ngay?: string;
+  post_id: string;
+  mo_ta: string;
+  kenh_ten: string;
+  ngay: string;
 }
 
 // Backward compatibility alias
@@ -793,16 +795,18 @@ export type ThiTruongNenTang = PlatformMarketStats;
 
 export interface ContentLineStats {
   /** 'A1'…'A5'. */
-  code: string;
+  code?: string;
   posts: number;
   views: number;
-  viewsVn: number;
-  viewsGlobal: number;
+  viewsVn?: number;
+  viewsGlobal?: number;
 
   // Backward compatibility:
-  ma?: string;
-  views_vn?: number;
-  views_global?: number;
+  ma: string;
+  ten?: string;
+  name?: string;
+  views_vn: number;
+  views_global: number;
 }
 
 // Backward compatibility alias
@@ -822,11 +826,11 @@ export type HashtagThongKe = HashtagStats;
 
 export interface ChannelAlert {
   platform: string;
-  channel: string;
-  content: string;
+  channel?: string;
+  content?: string;
   /** 'w' = warning (yellow), 'b' = error/drop (red). */
-  level: 'w' | 'b';
-  label: string;
+  level?: 'w' | 'b';
+  label?: string;
 
   // Backward compatibility:
   kenh?: string;
@@ -837,18 +841,18 @@ export interface ChannelAlert {
 
 export interface InternalStats {
   status: string;
-  period: { startDate: string; endDate: string; dayCount: number };
-  platforms: PlatformStats[];
-  channels: ChannelStats[];
-  topVideos: FeaturedVideo[];
-  markets: PlatformMarketStats[];
-  contentLines: ContentLineStats[];
-  hashtags: HashtagStats[];
-  alerts: ChannelAlert[];
-  totalChannels: number;
+  period?: { startDate?: string; endDate?: string; dayCount?: number; tu?: string; den?: string; so_ngay?: number };
+  platforms?: PlatformStats[];
+  channels?: ChannelStats[];
+  topVideos?: FeaturedVideo[];
+  markets?: PlatformMarketStats[];
+  contentLines?: ContentLineStats[];
+  hashtags?: HashtagStats[];
+  alerts?: ChannelAlert[];
+  totalChannels?: number;
 
   // Backward compatibility:
-  ky?: { tu: string; den: string; so_ngay: number };
+  ky?: { tu?: string; den?: string; so_ngay?: number; startDate?: string; endDate?: string; dayCount?: number };
   nen_tang?: PlatformStats[];
   kenh?: ChannelStats[];
   top_video?: FeaturedVideo[];
@@ -956,9 +960,9 @@ export type PaastStatusCode =
 export type TrangThaiPaastMa = PaastStatusCode;
 
 export interface PaastStatus {
-  statusCode: PaastStatusCode;
-  passed: boolean | null;
-  charCount: number;
+  statusCode?: PaastStatusCode;
+  passed?: boolean | null;
+  charCount?: number;
 
   // Backward compatibility:
   trang_thai?: PaastStatusCode;

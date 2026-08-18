@@ -90,7 +90,7 @@ export default function InternalOverviewPage() {
   const hashtags = data?.hashtags || data?.hashtag || [];
   const alerts = data?.alerts || data?.canh_bao || [];
   const period = data?.period || data?.ky;
-  const dayCount = period?.dayCount ?? period?.so_ngay;
+  const dayCount = (period as any)?.dayCount ?? (period as any)?.so_ngay ?? 28;
 
   const total = useMemo(() => mergePlatforms(platforms), [platforms]);
 
