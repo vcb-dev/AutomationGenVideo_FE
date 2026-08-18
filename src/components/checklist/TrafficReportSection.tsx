@@ -277,7 +277,93 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
         updateParent(platformId, updatedRows, nextEntries);
     };
 
-    // Tự động kéo traffic từ Meta Graph API / Backend Insights
+    const [fetchingAll, setFetchingAll] = useState(false);
+
+    // Tự động kéo traffic cho TOÀN BỘ các kênh trên tất cả các nền tảng (1-Click)
+    const handleAutoFetchAllTraffic = async () => {
+        const allEntriesList = Object.entries(entries);
+        const hasAnyChannel = allEntriesList.some(([_, list]) =>
+            list.some(e => e.channel && e.channel.trim() !== '')
+        );
+
+        if (!hasAnyChannel) {
+            toast.error('Vui lòng chọn hoặc nhập tên kênh trước khi lấy số liệu.');
+            return;
+        }
+
+        setFetchingAll(true);
+        const beBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
+        const dateParam = selectedDate || new Date().toISOString().slice(0, 10);
+
+        try {
+            let totalFetchedCount = 0;
+            let totalViewsFetched = 0;
+            const updatedEntries: Record<string, TrafficEntry[]> = {};
+
+            await Promise.all(
+                allEntriesList.map(async ([platformId, list]) => {
+                    const updatedList = await Promise.all(
+                        list.map(async (entry) => {
+                            if (!entry.channel.trim()) return entry;
+
+                            const matchedSocial = socialAccounts.find(
+                                sa => sa.name?.toLowerCase() === entry.channel.toLowerCase() ||
+                                      sa.platform_id === entry.channel ||
+                                      sa.username === entry.channel
+                            );
+                            const matchedAvailable = availableChannels.find(
+                                c => c.name?.toLowerCase() === entry.channel.toLowerCase() ||
+                                     c.channel_id === entry.channel
+                            );
+                            const channelId = matchedSocial?.platform_id || matchedSocial?.id || matchedAvailable?.channel_id || entry.channel;
+
+                            try {
+                                const res = await fetchWithAuth(`${beBaseUrl}/oauth/traffic-insights?channelId=${encodeURIComponent(channelId)}&date=${dateParam}`);
+                                if (res.ok) {
+                                    const data = await res.json();
+                                    const views = data.views ?? data.impressions ?? 0;
+                                    if (views > 0) {
+                                        totalFetchedCount++;
+                                        totalViewsFetched += Number(views);
+                                        return {
+                                            ...entry,
+                                            value: String(views),
+                                            isAutoFetched: true,
+                                        };
+                                    }
+                                }
+                            } catch {
+                                /* continue */
+                            }
+                            return entry;
+                        })
+                    );
+                    updatedEntries[platformId] = updatedList;
+                })
+            );
+
+            const nextEntries = { ...entries, ...updatedEntries };
+            setEntries(nextEntries);
+
+            // Cập nhật lên parent cho toàn bộ platforms
+            TRAFFIC_PLATFORMS.forEach(p => {
+                const pList = nextEntries[p.id] || [];
+                updateParent(p.id, pList, nextEntries);
+            });
+
+            if (totalFetchedCount > 0) {
+                toast.success(`Đã tự động lấy số liệu cho ${totalFetchedCount} kênh (tổng ${totalViewsFetched.toLocaleString('vi-VN')} views)!`);
+            } else {
+                toast.error(`Chưa tìm thấy số liệu traffic ngày ${dateParam} cho các kênh đã chọn.`);
+            }
+        } catch {
+            toast.error('Không thể kết nối máy chủ lấy số liệu.');
+        } finally {
+            setFetchingAll(false);
+        }
+    };
+
+    // Tự động kéo traffic từ Meta Graph API / Backend Insights cho từng nền tảng
     const handleAutoFetchTraffic = async (platformId: string) => {
         const platformObj = TRAFFIC_PLATFORMS.find(p => p.id === platformId);
         const list = entries[platformId] || [];
@@ -373,12 +459,27 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
                         <p className="text-sm text-slate-500 font-medium">Nhập hoặc lấy số liệu traffic tự động theo từng kênh bạn quản lý</p>
                     </div>
                 </div>
-                {selectedDate && (
-                    <span className="text-xs font-bold px-3 py-1.5 bg-purple-50 text-purple-700 rounded-full border border-purple-200 self-start sm:self-auto">
-                        📅 Ngày: {selectedDate}
-                    </span>
-                )}
+                <div className="flex items-center gap-2.5 flex-wrap">
+                    {selectedDate && (
+                        <span className="text-xs font-bold px-3 py-2 bg-purple-50 text-purple-700 rounded-xl border border-purple-200">
+                            📅 {selectedDate}
+                        </span>
+                    )}
+                    {!readOnly && (
+                        <button
+                            type="button"
+                            onClick={handleAutoFetchAllTraffic}
+                            disabled={fetchingAll}
+                            className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-xs font-black transition-all shadow-md shadow-purple-200 active:scale-95 flex items-center gap-2 disabled:opacity-50"
+                            title="Tự động cào/lấy số liệu traffic cho toàn bộ các kênh trong 1 click"
+                        >
+                            {fetchingAll ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-amber-300" />}
+                            {fetchingAll ? 'Đang cào tất cả...' : '⚡ Lấy toàn bộ số liệu Traffic (1-Click)'}
+                        </button>
+                    )}
+                </div>
             </div>
+
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {TRAFFIC_PLATFORMS.filter(platform => {
