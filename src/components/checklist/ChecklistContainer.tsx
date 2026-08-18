@@ -286,7 +286,7 @@ const ChecklistContainer = ({
             setServerRevenueRecords([]);
 
             try {
-                const beBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+                const beBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
                 const url = `${beBaseUrl}/lark/user-report-details?email=${encodeURIComponent(user.email)}&date=${reportDate}&_t=${Date.now()}`;
 
                 const response = await fetchWithAuth(url, { cache: 'no-store' });
@@ -606,20 +606,20 @@ const ChecklistContainer = ({
     // Fetch user channels via authenticated endpoint
     useEffect(() => {
         const fetchChannels = async () => {
-            if (!useAuthStore.getState().token) return;
+            if (!user?.email && !user?.id) return;
             try {
                 const beBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
                 const res = await fetchWithAuth(`${beBaseUrl}/channels/my`);
                 if (res.ok) {
                     const data = await res.json();
-                    setAvailableChannels(data);
+                    setAvailableChannels(Array.isArray(data) ? data : []);
                 }
             } catch (err) {
                 console.error('Failed to fetch channels:', err);
             }
         };
         fetchChannels();
-    }, [user?.id]);
+    }, [user?.id, user?.email]);
 
     const roles = user?.roles || [];
     const isAdmin = roles.includes(UserRole.ADMIN) || roles.includes(UserRole.MANAGER) || larkRole?.toLowerCase() === 'admin';
@@ -822,7 +822,7 @@ const ChecklistContainer = ({
 
                 // Checklist API được chuyển sang NestJS BE (NEXT_PUBLIC_API_URL) thay vì Django AI
                 // NestJS ghi thẳng vào lüc_reports qua Prisma → đúng DB server luôn
-                const beBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+                const beBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
                 const url = `${beBaseUrl}/lark/checklist-report`;
                 const response = await fetchWithAuth(url, {
                     method: 'POST',
@@ -846,7 +846,7 @@ const ChecklistContainer = ({
             // Gửi báo cáo traffic tới AutomationGenVideo_BE nếu có nhập dữ liệu traffic
             const hasTrafficData = Object.values(traffic).some(val => val !== '');
             if (hasTrafficData && !showOnlyWork) {
-                const beBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+                const beBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
                 const trafficRes = await fetchWithAuth(`${beBaseUrl}/lark/traffic-report`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },

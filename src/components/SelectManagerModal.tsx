@@ -48,10 +48,12 @@ export default function SelectManagerModal() {
   const fetchManagers = async () => {
     if (!token) return;
 
+    const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
+
     try {
       setLoading(true);
       const response = await fetchWithAuth(
-        `${process.env.NEXT_PUBLIC_API_URL}/users/available-managers`,
+        `${apiBaseUrl}/users/available-managers`,
       );
 
       if (response.ok) {
@@ -76,8 +78,9 @@ export default function SelectManagerModal() {
 
     try {
       setSubmitting(true);
+      const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
       const response = await fetchWithAuth(
-        `${process.env.NEXT_PUBLIC_API_URL}/users/select-manager/${selectedManager}`,
+        `${apiBaseUrl}/users/select-manager/${selectedManager}`,
         { method: 'PATCH' }
       );
 

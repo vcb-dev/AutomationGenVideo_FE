@@ -98,11 +98,13 @@ export default function AccountManagement() {
         fetchUsers();
     }, [token]);
 
+    const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
+
     const fetchUsers = async () => {
         if (!token) return;
         try {
             setLoading(true);
-            const response = await fetchWithAuth(`${process.env.NEXT_PUBLIC_API_URL}/users`);
+            const response = await fetchWithAuth(`${apiBaseUrl}/users`);
             if (!response.ok) throw new Error('Failed to fetch users');
             const data = await response.json();
             setUsers(data);
@@ -146,7 +148,7 @@ export default function AccountManagement() {
             if (team.trim() !== (selectedUser.team || '').trim()) {
                 payload.team = team.trim();
             }
-            const response = await fetchWithAuth(`${process.env.NEXT_PUBLIC_API_URL}/users/${selectedUser.id}`, {
+            const response = await fetchWithAuth(`${apiBaseUrl}/users/${selectedUser.id}`, {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
@@ -173,7 +175,7 @@ export default function AccountManagement() {
     const handleConfirmDelete = async () => {
         if (!userToDelete || !token) return;
         try {
-            const response = await fetchWithAuth(`${process.env.NEXT_PUBLIC_API_URL}/users/${userToDelete.id}`, {
+            const response = await fetchWithAuth(`${apiBaseUrl}/users/${userToDelete.id}`, {
                 method: 'DELETE',
             });
             if (!response.ok) throw new Error('Failed to delete user');
