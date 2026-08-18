@@ -50,7 +50,7 @@ export const useAuthStore = create<AuthState>()(
 
             set({
               user,
-              token: null,
+              token: 'valid',
               isAuthenticated: true,
               isLoading: false,
             });
@@ -103,7 +103,7 @@ export const useAuthStore = create<AuthState>()(
 
             set({
               user,
-              token: null,
+              token: 'valid',
               isAuthenticated: true,
               isLoading: false,
             });
@@ -124,7 +124,7 @@ export const useAuthStore = create<AuthState>()(
       clearError: () => set({ error: null }),
 
       setUser: (user: User) => {
-        set({ user });
+        set({ user, token: user ? 'valid' : null, isAuthenticated: !!user });
       },
     }),
     {
@@ -132,7 +132,15 @@ export const useAuthStore = create<AuthState>()(
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         user: state.user,
+        isAuthenticated: !!state.user,
+        token: state.user ? 'valid' : null,
       }),
+      onRehydrateStorage: () => (state) => {
+        if (state && state.user) {
+          state.isAuthenticated = true;
+          state.token = 'valid';
+        }
+      },
       // Ngăn Zustand gọi setState trong lúc React đang hydrate (gây hydration mismatch).
       // Rehydrate thủ công trong AuthHydration component sau khi React hydrate xong.
       skipHydration: true,
