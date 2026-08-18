@@ -102,12 +102,10 @@ export default function ChannelHashtagStats({ channelId, channelUsername }: Chan
 
       const method = forceRefresh ? 'POST' : 'GET';
 
+      const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
       const response = await fetchWithAuth(
-
-        `${process.env.NEXT_PUBLIC_API_URL}/tracked-channels/manager/channel-hashtag-stats/${channelId}`,
-
+        `${apiBaseUrl}/tracked-channels/manager/channel-hashtag-stats/${channelId}`,
         { method }
-
       );
 
 

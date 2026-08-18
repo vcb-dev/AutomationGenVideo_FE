@@ -1,68 +1,91 @@
 import type { PeriodStats, DailyStats, PlatformStats } from '@/services/scraperService';
 
-/** Năm chỉ số hiện trên hàng thẻ đầu trang, đúng thứ tự của bản thiết kế. */
+/** Five primary metrics displayed in the top card row. */
 export const METRICS = [
-  { ma: 'views', nhan: 'Lượt xem' },
-  { ma: 'likes', nhan: 'Lượt thích' },
-  { ma: 'comments', nhan: 'Bình luận' },
-  { ma: 'shares', nhan: 'Chia sẻ' },
-  { ma: 'posts', nhan: 'Bài đã đăng' },
+  { code: 'views', label: 'Lượt xem', ma: 'views', nhan: 'Lượt xem' },
+  { code: 'likes', label: 'Lượt thích', ma: 'likes', nhan: 'Lượt thích' },
+  { code: 'comments', label: 'Bình luận', ma: 'comments', nhan: 'Bình luận' },
+  { code: 'shares', label: 'Chia sẻ', ma: 'shares', nhan: 'Chia sẻ' },
+  { code: 'posts', label: 'Bài đã đăng', ma: 'posts', nhan: 'Bài đã đăng' },
 ] as const;
 
-export type MetricCode = (typeof METRICS)[number]['ma'];
+export type MetricCode = (typeof METRICS)[number]['code'];
 
 export interface Summary extends PeriodStats {
-  truoc: PeriodStats;
+  previous: PeriodStats;
   followers: number;
-  so_kenh: number;
-  tong_kenh: number;
-  theo_ngay: DailyStats[];
+  channelCount: number;
+  totalChannels: number;
+  dailySeries: DailyStats[];
+
+  // Backward compatibility aliases:
+  truoc?: PeriodStats;
+  so_kenh?: number;
+  tong_kenh?: number;
+  theo_ngay?: DailyStats[];
 }
 
-const RONG: PeriodStats = { views: 0, likes: 0, comments: 0, shares: 0, posts: 0 };
+const EMPTY_STATS: PeriodStats = { views: 0, likes: 0, comments: 0, shares: 0, posts: 0 };
 
 /**
- * Cộng nhiều nền tảng thành một bộ số cho chế độ "Tất cả nền tảng".
- *
- * Chuỗi theo ngày cộng theo NGÀY chứ không theo vị trí trong mảng: BE đã bơm đủ mọi ngày
- * cho từng nền tảng nên hai mảng vốn dài bằng nhau, nhưng cộng theo ngày thì kể cả sau này
- * BE đổi cách trả về, biểu đồ vẫn không bị lệch cột.
+ * Merges platform stats across multiple platforms for "All Platforms" summary mode.
  */
 export function mergePlatforms(list: PlatformStats[]): Summary {
-  const theoNgay = new Map<string, DailyStats>();
-  for (const nt of list) {
-    for (const d of nt.theo_ngay) {
-      const cur = theoNgay.get(d.ngay) ?? { ngay: d.ngay, ...RONG };
+  const dailyMap = new Map<string, DailyStats>();
+  for (const p of list) {
+    const series = p.dailySeries || p.theo_ngay || [];
+    for (const d of series) {
+      const dateKey = d.date || d.ngay || '';
+      const cur = dailyMap.get(dateKey) ?? {
+        date: dateKey,
+        ngay: dateKey,
+        ...EMPTY_STATS,
+      };
       cur.views += d.views;
       cur.likes += d.likes;
       cur.comments += d.comments;
       cur.shares += d.shares;
       cur.posts += d.posts;
-      theoNgay.set(d.ngay, cur);
+      dailyMap.set(dateKey, cur);
     }
   }
 
-  const cong = (lay: (nt: PlatformStats) => PeriodStats): PeriodStats =>
+  const sumStats = (getter: (p: PlatformStats) => PeriodStats): PeriodStats =>
     list.reduce(
-      (s, nt) => {
-        const v = lay(nt);
+      (s, p) => {
+        const v = getter(p);
         return {
-          views: s.views + v.views,
-          likes: s.likes + v.likes,
-          comments: s.comments + v.comments,
-          shares: s.shares + v.shares,
-          posts: s.posts + v.posts,
+          views: s.views + (v?.views ?? 0),
+          likes: s.likes + (v?.likes ?? 0),
+          comments: s.comments + (v?.comments ?? 0),
+          shares: s.shares + (v?.shares ?? 0),
+          posts: s.posts + (v?.posts ?? 0),
         };
       },
-      { ...RONG },
+      { ...EMPTY_STATS },
     );
 
+  const current = sumStats((p) => p);
+  const previous = sumStats((p) => p.previous || p.truoc || EMPTY_STATS);
+  const followers = list.reduce((s, p) => s + (p.followers ?? 0), 0);
+  const channelCount = list.reduce((s, p) => s + (p.channelCount ?? p.so_kenh ?? 0), 0);
+  const totalChannels = list.reduce((s, p) => s + (p.totalChannels ?? p.tong_kenh ?? 0), 0);
+  const dailySeries = [...dailyMap.values()].sort((a, b) =>
+    (a.date || a.ngay || '').localeCompare(b.date || b.ngay || ''),
+  );
+
   return {
-    ...cong((nt) => nt),
-    truoc: cong((nt) => nt.truoc),
-    followers: list.reduce((s, nt) => s + nt.followers, 0),
-    so_kenh: list.reduce((s, nt) => s + nt.so_kenh, 0),
-    tong_kenh: list.reduce((s, nt) => s + nt.tong_kenh, 0),
-    theo_ngay: [...theoNgay.values()].sort((a, b) => a.ngay.localeCompare(b.ngay)),
+    ...current,
+    previous,
+    followers,
+    channelCount,
+    totalChannels,
+    dailySeries,
+
+    // Backward compatibility aliases
+    truoc: previous,
+    so_kenh: channelCount,
+    tong_kenh: totalChannels,
+    theo_ngay: dailySeries,
   };
 }
