@@ -1,16 +1,17 @@
 import Image from "next/image";
 import React, { useEffect, useRef, useState } from 'react';
-import { Activity, ImagePlus, X, Loader2 } from 'lucide-react';
+import { Activity, ImagePlus, X, Loader2, Sparkles } from 'lucide-react';
 import { digitsOnly, sumEntryValues } from './report-total';
 import { fetchWithAuth } from '@/lib/api-client';
+import toast from 'react-hot-toast';
 
 export const TRAFFIC_PLATFORMS = [
-    { id: 'fb', label: 'Traffic FB' },
-    { id: 'ig', label: 'Traffic IG' },
-    { id: 'tiktok', label: 'Traffic Tiktok' },
-    { id: 'yt', label: 'Traffic YT' },
-    { id: 'thread', label: 'Traffic Thread' },
-    { id: 'zalo', label: 'Traffic Zalo' },
+    { id: 'fb', label: 'Traffic FB', platform: 'FACEBOOK' },
+    { id: 'ig', label: 'Traffic IG', platform: 'INSTAGRAM' },
+    { id: 'tiktok', label: 'Traffic Tiktok', platform: 'TIKTOK' },
+    { id: 'yt', label: 'Traffic YT', platform: 'YOUTUBE' },
+    { id: 'thread', label: 'Traffic Thread', platform: 'THREADS' },
+    { id: 'zalo', label: 'Traffic Zalo', platform: 'ZALO' },
 ];
 
 export interface TrafficData {
@@ -40,17 +41,19 @@ export const initialTrafficChannels = (): TrafficData => ({
     zalo: '',
 });
 
-interface TrafficEntry {
+export interface TrafficEntry {
     id: string;
     value: string;
     channel: string;
     evidences?: { url: string; name: string; token: string }[];
+    isAutoFetched?: boolean;
 }
 
 interface TrafficReportSectionProps {
     values: TrafficData;
     channels: TrafficData;
     availableChannels?: any[];
+    selectedDate?: string;
     onChange: (platformId: keyof TrafficData, value: string) => void;
     onChannelChange: (platformId: keyof TrafficData, value: string) => void;
     onPlatformEvidenceChange?: (platformEvidences: Record<string, string[]>) => void;
@@ -64,6 +67,7 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
     values,
     channels,
     availableChannels = [],
+    selectedDate,
     onChange,
     onChannelChange,
     onPlatformEvidenceChange,
@@ -76,6 +80,27 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
     const [uploadingPlatform, setUploadingPlatform] = useState<string | null>(null);
     const [activeTarget, setActiveTarget] = useState<{ platformId: string; entryId: string } | null>(null);
     const [uploadErrors, setUploadErrors] = useState<Record<string, string>>({});
+    const [fetchingPlatform, setFetchingPlatform] = useState<string | null>(null);
+    const [socialAccounts, setSocialAccounts] = useState<any[]>([]);
+
+    // Tự động tải các kênh kết nối từ Social Accounts
+    useEffect(() => {
+        const loadSocial = async () => {
+            try {
+                const beBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
+                const res = await fetchWithAuth(`${beBaseUrl}/social/accounts`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data)) {
+                        setSocialAccounts(data);
+                    }
+                }
+            } catch {
+                /* silent */
+            }
+        };
+        loadSocial();
+    }, []);
 
     // Internal state to track multiple entries per platform
     const [entries, setEntries] = useState<Record<string, TrafficEntry[]>>(() => {
@@ -89,6 +114,7 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
         });
         return initial;
     });
+
 
     useEffect(() => {
         if (initialEntries && Object.keys(initialEntries).length > 0) {
@@ -251,6 +277,76 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
         updateParent(platformId, updatedRows, nextEntries);
     };
 
+    // Tự động kéo traffic từ Meta Graph API / Backend Insights
+    const handleAutoFetchTraffic = async (platformId: string) => {
+        const platformObj = TRAFFIC_PLATFORMS.find(p => p.id === platformId);
+        const list = entries[platformId] || [];
+        const channelsToFetch = list.filter(e => e.channel.trim() !== '');
+
+        if (channelsToFetch.length === 0) {
+            toast.error('Vui lòng chọn hoặc nhập tên kênh trước khi lấy số liệu.');
+            return;
+        }
+
+        setFetchingPlatform(platformId);
+        const beBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
+        const dateParam = selectedDate || new Date().toISOString().slice(0, 10);
+
+        try {
+            let fetchedCount = 0;
+            const updatedList = await Promise.all(
+                list.map(async (entry) => {
+                    if (!entry.channel.trim()) return entry;
+
+                    // Match ID from socialAccounts or availableChannels
+                    const matchedSocial = socialAccounts.find(
+                        sa => sa.name?.toLowerCase() === entry.channel.toLowerCase() ||
+                              sa.platform_id === entry.channel ||
+                              sa.username === entry.channel
+                    );
+                    const matchedAvailable = availableChannels.find(
+                        c => c.name?.toLowerCase() === entry.channel.toLowerCase() ||
+                             c.channel_id === entry.channel
+                    );
+                    const channelId = matchedSocial?.platform_id || matchedSocial?.id || matchedAvailable?.channel_id || entry.channel;
+
+                    try {
+                        const res = await fetchWithAuth(`${beBaseUrl}/oauth/traffic-insights?channelId=${encodeURIComponent(channelId)}&date=${dateParam}`);
+                        if (res.ok) {
+                            const data = await res.json();
+                            const views = data.views ?? data.impressions ?? 0;
+                            if (views > 0) {
+                                fetchedCount++;
+                                return {
+                                    ...entry,
+                                    value: String(views),
+                                    isAutoFetched: true,
+                                };
+                            }
+                        }
+                    } catch {
+                        /* continue */
+                    }
+                    return entry;
+                })
+            );
+
+            const nextEntries = { ...entries, [platformId]: updatedList };
+            setEntries(nextEntries);
+            updateParent(platformId, updatedList, nextEntries);
+
+            if (fetchedCount > 0) {
+                toast.success(`Đã tự động lấy số liệu traffic cho ${fetchedCount} kênh ${platformObj?.label}!`);
+            } else {
+                toast.error(`Chưa tìm thấy số liệu traffic ngày ${dateParam} cho kênh đã chọn.`);
+            }
+        } catch {
+            toast.error('Không thể kết nối máy chủ lấy số liệu.');
+        } finally {
+            setFetchingPlatform(null);
+        }
+    };
+
     const triggerUpload = (platformId: string, entryId: string) => {
         setActiveTarget({ platformId, entryId });
         setTimeout(() => fileInputRef.current?.click(), 0);
@@ -267,19 +363,27 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
                 onChange={handleFileChange}
             />
 
-            <div className="flex items-center gap-3 pb-4 border-b border-purple-100">
-                <div className="p-2.5 bg-purple-100/50 rounded-xl">
-                    <Activity className="w-5 h-5 text-purple-600" />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-purple-100">
+                <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-purple-100/50 rounded-xl">
+                        <Activity className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight mb-0.5">Báo cáo Traffic</h3>
+                        <p className="text-sm text-slate-500 font-medium">Nhập hoặc lấy số liệu traffic tự động theo từng kênh bạn quản lý</p>
+                    </div>
                 </div>
-                <div>
-                    <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight mb-0.5">Báo cáo Traffic</h3>
-                    <p className="text-sm text-slate-500 font-medium">Nhập số lượt traffic theo từng kênh bạn quản lý</p>
-                </div>
+                {selectedDate && (
+                    <span className="text-xs font-bold px-3 py-1.5 bg-purple-50 text-purple-700 rounded-full border border-purple-200 self-start sm:self-auto">
+                        📅 Ngày: {selectedDate}
+                    </span>
+                )}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {TRAFFIC_PLATFORMS.filter(platform => {
-                    const hasAccess = availableChannels.some(c => isPlatformMatch(platform.id, c.platform));
+                    const hasAccess = availableChannels.some(c => isPlatformMatch(platform.id, c.platform)) ||
+                                      socialAccounts.some(sa => isPlatformMatch(platform.id, sa.platform));
                     const hasData = (entries[platform.id] || []).some(e => e.value !== '' || e.channel !== '');
                     return hasAccess || hasData || readOnly;
                 }).map((platform) => (
@@ -292,6 +396,18 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
                                 </label>
                             </div>
                             <div className="flex items-center gap-2">
+                                {!readOnly && (platform.id === 'fb' || platform.id === 'ig' || platform.id === 'thread' || platform.id === 'yt') && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleAutoFetchTraffic(platform.id)}
+                                        disabled={fetchingPlatform === platform.id}
+                                        className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-xl text-xs font-black transition-all active:scale-95 flex items-center gap-1.5 disabled:opacity-50"
+                                        title="Tự động lấy số liệu traffic từ API"
+                                    >
+                                        {fetchingPlatform === platform.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-purple-600" />}
+                                        {fetchingPlatform === platform.id ? 'Đang lấy...' : 'Lấy số liệu tự động'}
+                                    </button>
+                                )}
                                 {!readOnly && (
                                     <button
                                         type="button"
@@ -313,19 +429,28 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
                                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Số Traffic</label>
                                                 {idx > 0 && <span className="text-[10px] font-black text-purple-400 uppercase tracking-widest">Kênh #{idx + 1}</span>}
                                             </div>
-                                            <input
-                                                type="text"
-                                                inputMode="numeric"
-                                                autoComplete="off"
-                                                placeholder="Số lượt..."
-                                                readOnly={readOnly}
-                                                value={digitsOnly(entry.value)}
-                                                onChange={(e) => {
-                                                    const rawValue = digitsOnly(e.target.value);
-                                                    updateRow(platform.id, entry.id, { value: rawValue });
-                                                }}
-                                                className="w-full h-12 px-4 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-800 text-base font-black focus:border-purple-400 focus:bg-white focus:ring-4 focus:ring-purple-100 transition-all outline-none"
-                                            />
+                                            <div className="relative">
+                                                <input
+                                                    type="text"
+                                                    inputMode="numeric"
+                                                    autoComplete="off"
+                                                    placeholder="Số lượt..."
+                                                    readOnly={readOnly}
+                                                    value={digitsOnly(entry.value)}
+                                                    onChange={(e) => {
+                                                        const rawValue = digitsOnly(e.target.value);
+                                                        updateRow(platform.id, entry.id, { value: rawValue, isAutoFetched: false });
+                                                    }}
+                                                    className={`w-full h-12 px-4 rounded-xl border ${
+                                                        entry.isAutoFetched ? 'border-purple-400 bg-purple-50/40 text-purple-800' : 'border-slate-200 bg-slate-50/50 text-slate-800'
+                                                    } text-base font-black focus:border-purple-400 focus:bg-white focus:ring-4 focus:ring-purple-100 transition-all outline-none`}
+                                                />
+                                                {entry.isAutoFetched && (
+                                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-purple-600 bg-purple-100/90 px-2 py-0.5 rounded-md border border-purple-200">
+                                                        ✓ Auto
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
 
                                         <div className="col-span-12 sm:col-span-5 space-y-1.5">
@@ -346,11 +471,28 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
                                                         return !alreadySelected;
                                                     })
                                                     .map((c, cIdx) => (
-                                                        <option key={c.id || cIdx} value={c.name}>{c.name}</option>
+                                                        <option key={`team-${c.id || cIdx}`} value={c.name}>{c.name}</option>
+                                                    ))
+                                                }
+                                                {socialAccounts
+                                                    ?.filter(sa => isPlatformMatch(platform.id, sa.platform))
+                                                    .filter(sa => {
+                                                        const name = sa.name || sa.username;
+                                                        if (!name) return false;
+                                                        if (availableChannels?.some(ac => ac.name?.toLowerCase() === name.toLowerCase())) return false;
+                                                        if (name === entry.channel) return true;
+                                                        const alreadySelected = (entries[platform.id] || []).some(e => e.channel === name);
+                                                        return !alreadySelected;
+                                                    })
+                                                    .map((sa, saIdx) => (
+                                                        <option key={`oauth-${sa.id || saIdx}`} value={sa.name || sa.username}>
+                                                            {sa.name || sa.username} ★ (OAuth)
+                                                        </option>
                                                     ))
                                                 }
                                             </select>
                                         </div>
+
 
                                         <div className="col-span-12 sm:col-span-2 flex items-center justify-end gap-2 mb-1">
                                             {uploadingPlatform === platform.id && activeTarget?.entryId === entry.id ? (

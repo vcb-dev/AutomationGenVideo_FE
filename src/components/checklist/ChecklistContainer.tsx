@@ -1094,6 +1094,7 @@ const ChecklistContainer = ({
                                 values={traffic}
                                 channels={trafficChannels}
                                 availableChannels={availableChannels}
+                                selectedDate={reportDate}
                                 onChange={handleTrafficChange}
                                 onChannelChange={handleChannelChange}
                                 onPlatformEvidenceChange={(evMap) => setPlatformEvidences(evMap)}
@@ -1102,6 +1103,7 @@ const ChecklistContainer = ({
                                 initialEvidences={historicalEvidences}
                                 initialEntries={entryDetails}
                             />
+
                         </div>
                     )}
 
