@@ -1,5 +1,7 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
+import { ArrowSquareOut } from '@phosphor-icons/react';
 import type { DuplicateGroup, InternalDuplicates, DuplicateByChannel } from '@/services/scraperService';
 import {
   ChannelAvatar,
@@ -16,49 +18,33 @@ import {
   compactNumber,
 } from './shared';
 
-/** Kênh trùng từ ngưỡng này trở lên bị đánh dấu — khớp đúng ngưỡng cảnh báo bên BE. */
-const NGUONG_DANH_DAU = 90;
+/** High duplicate threshold percentage for warning highlights. */
+const WARNING_RATIO_THRESHOLD = 90;
 
-/**
- * Kênh dưới ngần này video trong kỳ thì không xếp hạng — cùng sàn với cảnh báo bên BE.
- *
- * Không có sàn thì tỷ lệ trên mẫu quá nhỏ chiếm đầu bảng và nói sai chuyện: đo trên dữ liệu
- * thật, "HUYK - Trang Sức Viễn Chí Bảo" có 1/1 video trùng ra 100%, đứng trên cả "Huyk thợ
- * kim hoàn trang sức" 93/99 video — trong khi kênh sau mới là chỗ thật sự lặp nội dung.
- */
+/** Minimum video count floor for duplicate channel rankings. */
 const RANKING_VIDEO_FLOOR = 20;
 
-/** Cắt bảng xếp hạng kênh cho cân với cột nhóm bên trái; 27 dòng thì khối dài quá đọc. */
-const SO_KENH_TOI_DA = 12;
+/** Maximum channels displayed in ranking table. */
+const MAX_RANKING_CHANNELS = 12;
 
-/** Số kênh hiện avatar trong một dòng nhóm trước khi rút thành "+N". */
-const SO_AVATAR_TOI_DA = 4;
+/** Maximum channel avatars displayed per group row before "+N". */
+const MAX_GROUP_AVATARS = 4;
 
-/**
- * Video được đăng trùng trên nhiều kênh nội bộ.
- *
- * ── Cách nhận diện, và vì sao phải nói rõ giới hạn ──────────────────────────────
- * BE khớp theo (caption chuẩn hoá + độ dài video), KHÔNG so file video — bảng không lưu
- * mã băm nào, và link fbcdn đã lưu thì trả HTTP 403 nên cũng không tải về mà so được.
- * Hệ quả: video bị sửa lại caption sẽ lọt lưới. Ghi thẳng vào chú thích tiêu đề để người
- * đọc không tưởng đây là con số tuyệt đối.
- *
- * ── Vì sao khối này tự tải, tách khỏi số liệu tổng quan ─────────────────────────
- * Gọi endpoint riêng /scraper/owned/trung-lap. Query lỗi hay đang tải thì chỉ khối này
- * hiện khung chờ, phần còn lại của trang vẫn vẽ đủ.
- */
 export default function DuplicateBlock({
   data,
   isLoading,
+  error,
   loi,
 }: {
   data?: InternalDuplicates;
   isLoading: boolean;
-  loi: boolean;
+  error?: boolean;
+  loi?: boolean;
 }) {
-  if (isLoading && !data) return <KhungChoTrungLap />;
+  const isError = error ?? loi ?? false;
+  if (isLoading && !data) return <DuplicateSkeleton />;
 
-  if (loi && !data) {
+  if (isError && !data) {
     return (
       <Card className="mb-5">
         <CardTitle>Trùng lặp nội dung</CardTitle>
@@ -72,12 +58,28 @@ export default function DuplicateBlock({
 
   if (!data) return null;
 
-  const { tom_tat, nhom, theo_kenh } = data;
+  const summary = data.summary || data.tom_tat || {
+    groupCount: 0,
+    groupsWithAtLeast3Channels: 0,
+    duplicateVideoCount: 0,
+    totalVideos: 0,
+    duplicateRatio: 0,
+    affectedChannelCount: 0,
+  };
+  const groups = data.groups || data.nhom || [];
+  const byChannel = data.byChannel || data.theo_kenh || [];
 
-  if (tom_tat.tong_video === 0) {
+  const totalVideos = summary.totalVideos ?? summary.tong_video ?? 0;
+  const groupCount = summary.groupCount ?? summary.so_nhom ?? 0;
+  const groupsWithAtLeast3 = summary.groupsWithAtLeast3Channels ?? summary.so_nhom_tu_3_kenh ?? 0;
+  const duplicateVideos = summary.duplicateVideoCount ?? summary.so_video_trung ?? 0;
+  const duplicateRatio = summary.duplicateRatio ?? summary.ty_le ?? 0;
+  const affectedChannels = summary.affectedChannelCount ?? summary.so_kenh_dinh ?? 0;
+
+  if (totalVideos === 0) {
     return (
       <Card className="mb-5">
-        <CardTitle hint={CHU_THICH}>Trùng lặp nội dung</CardTitle>
+        <CardTitle hint={NOTE_DUPLICATE_DETECTION}>Trùng lặp nội dung</CardTitle>
         <EmptyState
           tieu_de="Chưa có video nào trong kỳ"
           mo_ta="Đổi khoảng ngày hoặc chờ lần đồng bộ kế tiếp để hệ thống cào thêm video."
@@ -90,61 +92,61 @@ export default function DuplicateBlock({
     <Card className="mb-5">
       <div className="flex items-start gap-4 flex-wrap">
         <div>
-          <CardTitle hint={CHU_THICH}>Trùng lặp nội dung</CardTitle>
+          <CardTitle hint={NOTE_DUPLICATE_DETECTION}>Trùng lặp nội dung</CardTitle>
           <Subtitle>Cùng một video được đăng trên nhiều kênh nội bộ khác nhau</Subtitle>
         </div>
       </div>
 
       <div className="grid gap-3 mt-4 mb-1 grid-cols-2 lg:grid-cols-4">
-        <O nhan="Nội dung bị trùng" value={fullNumber(tom_tat.so_nhom)} phu="nhóm video giống nhau" />
-        <O
-          nhan="Phủ từ 3 kênh"
-          value={fullNumber(tom_tat.so_nhom_tu_3_kenh)}
-          phu="nhóm lan ra nhiều kênh"
-          emphasized={tom_tat.so_nhom_tu_3_kenh > 0}
+        <MetricCard label="Nội dung bị trùng" value={fullNumber(groupCount)} subText="nhóm video giống nhau" />
+        <MetricCard
+          label="Phủ từ 3 kênh"
+          value={fullNumber(groupsWithAtLeast3)}
+          subText="nhóm lan ra nhiều kênh"
+          emphasized={groupsWithAtLeast3 > 0}
         />
-        <O
-          nhan="Video trùng"
-          value={percent(tom_tat.ty_le)}
-          phu={`${fullNumber(tom_tat.so_video_trung)} / ${fullNumber(tom_tat.tong_video)} video trong kỳ`}
+        <MetricCard
+          label="Video trùng"
+          value={percent(duplicateRatio)}
+          subText={`${fullNumber(duplicateVideos)} / ${fullNumber(totalVideos)} video trong kỳ`}
         />
-        <O nhan="Kênh dính trùng" value={fullNumber(tom_tat.so_kenh_dinh)} phu="kênh có video lặp" />
+        <MetricCard label="Kênh dính trùng" value={fullNumber(affectedChannels)} subText="kênh có video lặp" />
       </div>
 
-      {tom_tat.so_nhom === 0 ? (
+      {groupCount === 0 ? (
         <EmptyState
           tieu_de="Không có nội dung nào bị đăng trùng"
           mo_ta="Mỗi kênh nội bộ đang đăng nội dung riêng trong kỳ này."
         />
       ) : (
         <div className="grid gap-6 mt-5 grid-cols-1 xl:grid-cols-[1.6fr_1fr]">
-          <BangNhom nhom={nhom} tongNhom={tom_tat.so_nhom} />
-          <ChannelTable byChannel={theo_kenh} />
+          <GroupTable groups={groups} totalGroups={groupCount} />
+          <ChannelTable byChannel={byChannel} />
         </div>
       )}
     </Card>
   );
 }
 
-const CHU_THICH =
+const NOTE_DUPLICATE_DETECTION =
   'Nhận diện bằng caption trùng khớp và độ dài video bằng nhau — không so file video, ' +
   'nên video bị sửa lại caption sẽ không được tính là trùng.';
 
-function O({
-  nhan,
+function MetricCard({
+  label,
   value,
-  phu,
+  subText,
   emphasized = false,
 }: {
-  nhan: string;
+  label: string;
   value: string;
-  phu: string;
+  subText: string;
   emphasized?: boolean;
 }) {
   return (
     <div className="px-3.5 py-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl">
       <div className="text-[11.5px] text-slate-400 dark:text-slate-500 uppercase tracking-wide">
-        {nhan}
+        {label}
       </div>
       <div
         className={`text-[22px] font-bold tabular-nums mt-1 leading-none ${
@@ -153,74 +155,122 @@ function O({
       >
         {value}
       </div>
-      <div className="text-[11.5px] text-slate-400 dark:text-slate-500 mt-1.5">{phu}</div>
+      <div className="text-[11.5px] text-slate-400 dark:text-slate-500 mt-1.5">{subText}</div>
     </div>
   );
 }
 
-function BangNhom({ nhom, tongNhom }: { nhom: DuplicateGroup[]; tongNhom: number }) {
+function GroupTable({ groups, totalGroups }: { groups: DuplicateGroup[]; totalGroups: number }) {
   return (
     <div>
       <h4 className="text-[13px] font-semibold text-foreground mb-1">Nội dung phủ nhiều kênh nhất</h4>
       <p className="text-[11.5px] text-slate-400 dark:text-slate-500 mb-1">
-        {tongNhom > nhom.length
-          ? `${nhom.length} nhóm hàng đầu trong tổng số ${fullNumber(tongNhom)}`
-          : `${nhom.length} nhóm`}
+        {totalGroups > groups.length
+          ? `${groups.length} nhóm hàng đầu trong tổng số ${fullNumber(totalGroups)}`
+          : `${groups.length} nhóm`}
       </p>
       <div>
-        {nhom.map((g, i) => (
-          <GroupRow key={`${g.platform}-${g.noi_dung}-${g.giay}-${i}`} nhom={g} />
-        ))}
+        {groups.map((g, i) => {
+          const content = g.content || g.noi_dung || '';
+          const duration = g.durationSeconds ?? g.giay ?? null;
+          return (
+            <GroupRow key={`${g.platform}-${content}-${duration}-${i}`} group={g} />
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function GroupRow({ nhom }: { nhom: DuplicateGroup }) {
-  const nhieuKenh = nhom.so_kenh >= 3;
-  // Một kênh có thể đăng lại cùng nội dung nhiều lần, nên so_video > so_kenh là chuyện thường —
-  // hiện thêm phần chênh ra để người đọc không tưởng con số bị đếm sai.
-  const remaining = nhom.so_video - nhom.so_kenh;
+function GroupRow({ group }: { group: DuplicateGroup }) {
+  const channelCount = group.channelCount ?? group.so_kenh ?? 0;
+  const videoCount = group.videoCount ?? group.so_video ?? 0;
+  const channels = group.channels || group.kenh || [];
+  const content = group.content || group.noi_dung || '';
+  const sampleUrl = group.sampleUrl || group.url_mau || '';
+  const duration = group.durationSeconds ?? group.giay ?? null;
+  const startDate = group.startDate || group.ngay_dau || '';
+  const endDate = group.endDate || group.ngay_cuoi || '';
+
+  const isMultiChannel = channelCount >= 3;
+  const remaining = videoCount - channelCount;
 
   return (
     <div className="flex items-start gap-3 py-3 border-b border-slate-100 dark:border-slate-800 last:border-0">
       <div className="flex -space-x-2 shrink-0 pt-0.5">
-        {nhom.kenh.slice(0, SO_AVATAR_TOI_DA).map((k) => (
-          <div key={k.id} className="ring-2 ring-card rounded-lg" title={k.ten}>
-            <ChannelAvatar ten={k.ten} platform={nhom.platform} size={26} />
-          </div>
-        ))}
-        {nhom.kenh.length > SO_AVATAR_TOI_DA && (
+        {channels.slice(0, MAX_GROUP_AVATARS).map((k) => {
+          const channelName = k.name || k.ten || k.id;
+          return (
+            <div key={k.id} className="ring-2 ring-card rounded-lg" title={channelName}>
+              <ChannelAvatar ten={channelName} platform={group.platform} size={26} />
+            </div>
+          );
+        })}
+        {channels.length > MAX_GROUP_AVATARS && (
           <div
             className="ring-2 ring-card rounded-lg grid place-items-center bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-semibold"
             style={{ width: 26, height: 26 }}
-            title={nhom.kenh.slice(SO_AVATAR_TOI_DA).map((k) => k.ten).join(', ')}
+            title={channels.slice(MAX_GROUP_AVATARS).map((k) => k.name || k.ten || k.id).join(', ')}
           >
-            +{nhom.kenh.length - SO_AVATAR_TOI_DA}
+            +{channels.length - MAX_GROUP_AVATARS}
           </div>
         )}
       </div>
 
       <div className="flex-1 min-w-0">
         <a
-          href={nhom.url_mau || undefined}
+          href={sampleUrl || undefined}
           target="_blank"
           rel="noreferrer"
-          className="text-[13px] text-foreground font-medium leading-snug line-clamp-2 hover:underline"
-          title={nhom.noi_dung}
+          className="text-[13px] text-foreground font-medium leading-snug line-clamp-2 hover:underline inline-block"
+          title={content}
         >
-          {nhom.noi_dung}
+          {content}
         </a>
-        <div className="text-[11.5px] text-slate-400 dark:text-slate-500 mt-1 flex items-center gap-x-2.5 gap-y-1 flex-wrap">
-          <span className="truncate max-w-full">{nhom.kenh.map((k) => k.ten).join(' · ')}</span>
+
+        {/* Channels posting this video */}
+        <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+          {channels.map((k) => {
+            const hasUrl = !!k.url;
+            const channelName = k.name || k.ten || k.id;
+            return (
+              <a
+                key={k.id}
+                href={k.url || undefined}
+                target="_blank"
+                rel="noreferrer"
+                title={
+                  hasUrl
+                    ? `Bấm để xem video trên ${channelName}${k.views ? ` (${compactNumber(k.views)} lượt xem)` : ''}`
+                    : channelName
+                }
+                className={[
+                  'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[11.5px] border transition-all duration-150',
+                  hasUrl
+                    ? 'bg-slate-50 hover:bg-primary/10 dark:bg-slate-800/80 dark:hover:bg-primary/20 text-foreground hover:text-primary border-slate-200 dark:border-slate-700 hover:border-primary/40'
+                    : 'bg-slate-50 dark:bg-slate-800 text-slate-500 border-border pointer-events-none',
+                ].join(' ')}
+              >
+                <ChannelAvatar ten={channelName} platform={group.platform} size={15} />
+                <span className="font-medium truncate max-w-[130px]">{channelName}</span>
+                {k.views !== undefined && k.views > 0 && (
+                  <span className="text-[10.5px] text-slate-400 dark:text-slate-500 tabular-nums">
+                    {compactNumber(k.views)}
+                  </span>
+                )}
+                {hasUrl && <ArrowSquareOut size={11} className="shrink-0 opacity-60" />}
+              </a>
+            );
+          })}
         </div>
-        <div className="text-[11.5px] text-slate-400 dark:text-slate-500 mt-0.5 flex items-center gap-x-2.5 flex-wrap">
-          {nhom.giay !== null && <span className="tabular-nums">{nhom.giay}s</span>}
-          <span className="tabular-nums">{compactNumber(nhom.views)} lượt xem</span>
+
+        <div className="text-[11.5px] text-slate-400 dark:text-slate-500 mt-1.5 flex items-center gap-x-2.5 flex-wrap">
+          {duration !== null && <span className="tabular-nums">{duration}s</span>}
+          <span className="tabular-nums">{compactNumber(group.views)} tổng lượt xem</span>
           <span className="tabular-nums">
-            {nhom.ngay_dau.slice(0, 10) === nhom.ngay_cuoi.slice(0, 10)
-              ? shortDate(nhom.ngay_dau)
-              : `${shortDate(nhom.ngay_dau)} → ${shortDate(nhom.ngay_cuoi)}`}
+            {startDate.slice(0, 10) === endDate.slice(0, 10)
+              ? shortDate(startDate)
+              : `${shortDate(startDate)} → ${shortDate(endDate)}`}
           </span>
           {remaining > 0 && <span>đăng lại {remaining} lần</span>}
         </div>
@@ -229,62 +279,78 @@ function GroupRow({ nhom }: { nhom: DuplicateGroup }) {
       <span
         className={[
           'text-[11.5px] font-medium px-2.5 py-1 rounded-full whitespace-nowrap border shrink-0 tabular-nums',
-          nhieuKenh
+          isMultiChannel
             ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-900'
             : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-border',
         ].join(' ')}
       >
-        {nhom.so_kenh} kênh
+        {channelCount} kênh
       </span>
     </div>
   );
 }
 
 function ChannelTable({ byChannel }: { byChannel: DuplicateByChannel[] }) {
-  const largeEnough = byChannel.filter((k) => k.tong_video >= RANKING_VIDEO_FLOOR);
-  const hien = largeEnough.slice(0, SO_KENH_TOI_DA);
+  const router = useRouter();
+  const largeEnough = byChannel.filter((k) => (k.totalVideos ?? k.tong_video ?? 0) >= RANKING_VIDEO_FLOOR);
+  const displayed = largeEnough.slice(0, MAX_RANKING_CHANNELS);
   const skipped = byChannel.length - largeEnough.length;
 
-  if (hien.length === 0) return null;
-
-  // Mốc chung là kênh nhiều video nhất, để bề rộng thanh so được GIỮA các dòng. Bỏ mốc thì
-  // kênh 20/20 video vẽ ra thanh dài bằng kênh 94/113 — cùng gần 100% nhưng khác hẳn quy mô.
-  const baseline = Math.max(...hien.map((k) => k.tong_video), 1);
+  if (displayed.length === 0) return null;
 
   return (
     <div>
       <h4 className="text-[13px] font-semibold text-foreground mb-1">Kênh lặp nội dung nhiều nhất</h4>
       <p className="text-[11.5px] text-slate-400 dark:text-slate-500 mb-1">
-        Bề rộng thanh theo số video trong kỳ
-        {largeEnough.length > hien.length && ` · ${hien.length} kênh đầu trong ${largeEnough.length}`}
+        Tỷ lệ video trùng trên tổng bài đăng trong kỳ
+        {largeEnough.length > displayed.length && ` · ${displayed.length} kênh đầu trong ${largeEnough.length}`}
       </p>
       <div>
-        {hien.map((k) => (
-          <div
-            key={`${k.platform}-${k.id}`}
-            className="py-2.5 border-b border-slate-100 dark:border-slate-800 last:border-0"
-          >
-            <div className="flex items-center gap-2 text-[12.5px]">
-              <ChannelAvatar ten={k.ten} platform={k.platform} size={22} />
-              <span className="font-medium text-foreground truncate" title={k.ten}>
-                {k.ten}
-              </span>
-              <b className="ml-auto font-semibold tabular-nums shrink-0">{percent(k.ty_le)}</b>
+        {displayed.map((k) => {
+          const ratio = k.duplicateRatio ?? k.ty_le ?? 0;
+          const duplicateVideos = k.duplicateVideos ?? k.video_trung ?? 0;
+          const totalVideos = k.totalVideos ?? k.tong_video ?? 0;
+          const channelName = k.name || k.ten || k.id;
+          const isWarning = ratio >= WARNING_RATIO_THRESHOLD;
+
+          return (
+            <div
+              key={`${k.platform}-${k.id}`}
+              onClick={() => router.push(`/dashboard/internalChannels/all?channel=${encodeURIComponent(k.id)}`)}
+              className="py-2.5 px-2.5 -mx-2.5 rounded-xl border-b border-slate-100 dark:border-slate-800 last:border-0 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group"
+            >
+              <div className="flex items-center gap-2 text-[12.5px]">
+                <ChannelAvatar ten={channelName} platform={k.platform} size={22} />
+                <span className="font-medium text-foreground group-hover:text-primary transition-colors truncate" title={channelName}>
+                  {channelName}
+                </span>
+                <b
+                  className={`ml-auto font-semibold tabular-nums shrink-0 ${
+                    isWarning ? 'text-amber-600 dark:text-amber-400' : 'text-foreground'
+                  }`}
+                >
+                  {percent(ratio)}
+                </b>
+              </div>
+              <SplitBar
+                cao={6}
+                className="my-1.5"
+                segments={[
+                  { gia_tri: duplicateVideos, mau: isWarning ? '#dd8a3e' : COLOR_PRIMARY, ten: 'Trùng' },
+                  { gia_tri: Math.max(0, totalVideos - duplicateVideos), mau: '#e2e8f0', ten: 'Riêng' },
+                ]}
+              />
+              <div className="text-[11.5px] text-slate-400 dark:text-slate-500 tabular-nums flex items-center justify-between">
+                <span>
+                  {fullNumber(duplicateVideos)} / {fullNumber(totalVideos)} video trùng với kênh khác
+                </span>
+                <span className="text-[10.5px] opacity-0 group-hover:opacity-100 text-primary transition-opacity font-medium">
+                  Xem video kênh →
+                </span>
+              </div>
             </div>
-            <SplitBar
-              cao={6}
-              className="my-1.5"
-              baseline={baseline}
-              segments={[
-                { gia_tri: k.video_trung, mau: k.ty_le >= NGUONG_DANH_DAU ? '#dd8a3e' : COLOR_PRIMARY, ten: 'Trùng' },
-                { gia_tri: k.tong_video - k.video_trung, mau: '#e2e8f0', ten: 'Riêng' },
-              ]}
-            />
-            <div className="text-[11.5px] text-slate-400 dark:text-slate-500 tabular-nums">
-              {fullNumber(k.video_trung)} / {fullNumber(k.tong_video)} video trùng với kênh khác
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       {skipped > 0 && (
         <p className="text-[11.5px] text-slate-400 dark:text-slate-500 mt-2.5">
@@ -296,7 +362,7 @@ function ChannelTable({ byChannel }: { byChannel: DuplicateByChannel[] }) {
   );
 }
 
-function KhungChoTrungLap() {
+function DuplicateSkeleton() {
   return (
     <Card className="mb-5">
       <Frame className="h-4 w-40" />

@@ -64,8 +64,9 @@ export default function HashtagSearchSection() {
     setError(null);
 
     try {
+      const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
       const response = await fetchWithAuth(
-        `${process.env.NEXT_PUBLIC_API_URL}/tracked-channels/manager/search-hashtag?hashtag=${encodeURIComponent(hashtag)}`,
+        `${apiBaseUrl}/tracked-channels/manager/search-hashtag?hashtag=${encodeURIComponent(hashtag)}`,
       );
 
       if (!response.ok) {

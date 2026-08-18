@@ -62,7 +62,7 @@ export default function TrendChart({
       platform.map((nt) => [nt.platform, new Map(nt.theo_ngay.map((d) => [d.ngay, d[metric]]))]),
     );
     return total.theo_ngay.map((d) => {
-      const dong: Record<string, number | string> = { ngay: d.ngay, total: d[metric] };
+      const dong: Record<string, number | string> = { ngay: d.ngay || d.date || '', total: d[metric] };
       for (const nt of platform) dong[nt.platform] = bang.get(nt.platform)?.get(d.ngay) ?? 0;
       return dong;
     });

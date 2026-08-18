@@ -27,72 +27,52 @@ import {
   platformName,
 } from './components/shared';
 
-/** 'YYYY-MM-DD' theo giờ máy người dùng — không dùng toISOString(), nó quy về UTC và lùi ngày. */
-function ngayISO(d: Date): string {
+function toIsoDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-/** Mặc định: 28 ngày gần nhất, tính cả hôm nay. */
 function defaultRange(): { tu: string; den: string } {
   const den = new Date();
   const tu = new Date(den);
   tu.setDate(tu.getDate() - 27);
-  return { tu: ngayISO(tu), den: ngayISO(den) };
+  return { tu: toIsoDate(tu), den: toIsoDate(den) };
 }
 
 /**
- * Tổng quan kênh nội bộ — dựng theo bản thiết kế dashboard-v13.html, số liệu lấy thật từ
- * /scraper/owned/stats.
- *
- * ── Một chỗ dễ đọc nhầm, cố ý ghi rõ ra ở giao diện ─────────────────────────────
- * Mọi con số ở đây là TỔNG của những video ĐĂNG TRONG KỲ, không phải lượt xem phát sinh
- * trong kỳ — dữ liệu cào về chỉ là ảnh chụp tổng luỹ kế của mỗi video tại lần cào gần nhất,
- * không có chuỗi lượt xem theo ngày. Vì thế video đăng ở kỳ trước đã có nhiều thời gian tích
- * luỹ lượt xem hơn, và phép so "kỳ này với kỳ trước" luôn hơi thiệt cho kỳ này. Không có
- * cách nào sửa ở tầng hiển thị; chỉ nói rõ để người đọc không kết luận sai.
+ * Internal Channel Overview Dashboard.
+ * Displays aggregated views, engagement, content line analysis, and duplicate detection.
  */
 export default function InternalOverviewPage() {
   const { token } = useAuthStore();
 
-  // `range` là thứ bộ chọn ngày đang hiển thị, `appliedRange` là khoảng thật sự đem đi hỏi server.
-  //
-  // Phải tách đôi: bấm ngày ĐẦU trong lịch, DateRangeFilter gọi onChange(ngay, '') để đánh dấu
-  // mới chọn được một đầu. Nếu đem thẳng khoảng dở dang đó đi truy vấn thì trang nháy một lần
-  // với khoảng sai, và tệ hơn là lịch bị gỡ khỏi DOM nên không bấm được ngày thứ hai nữa.
   const [range, setRange] = useState(defaultRange);
   const [appliedRange, setAppliedRange] = useState(range);
   useEffect(() => {
     if (range.tu && range.den) setAppliedRange(range);
   }, [range]);
 
-  const [nenTangChon, setNenTangChon] = useState('');
+  const [selectedPlatform, setSelectedPlatform] = useState('');
   const [metric, setMetric] = useState<MetricCode>('views');
-  const [tach, setTach] = useState(true);
+  const [splitByPlatform, setSplitByPlatform] = useState(true);
 
   const query = useQuery({
-    queryKey: ['owned-stats', nenTangChon, appliedRange.tu, appliedRange.den],
+    queryKey: ['owned-stats', selectedPlatform, appliedRange.tu, appliedRange.den],
     queryFn: () =>
       scraperService.getOwnedStats(token!, {
-        platform: nenTangChon || undefined,
+        platform: selectedPlatform || undefined,
         tu: appliedRange.tu,
         den: appliedRange.den,
       }),
     enabled: !!token,
     staleTime: 5 * 60 * 1000,
-    // Giữ số liệu của kỳ trước trong lúc tải kỳ mới. Không có nó thì mỗi lần đổi ngày hay đổi
-    // nền tảng, query.isLoading bật lên và cả trang bị thay bằng khung chờ — kể cả bộ chọn ngày
-    // mà người dùng đang thao tác dở.
     placeholderData: keepPreviousData,
   });
 
-  // Query RIÊNG cho khối trùng lặp, cùng bộ tham số kỳ ngày nên hai khối luôn nói về cùng
-  // một khoảng thời gian. Tách ra để trang không phải chờ ba truy vấn gộp nhóm mới vẽ được
-  // ô số đầu tiên — và để khối này hỏng thì phần còn lại vẫn dùng bình thường.
   const duplicateQuery = useQuery({
-    queryKey: ['owned-dup', nenTangChon, appliedRange.tu, appliedRange.den],
+    queryKey: ['owned-dup', selectedPlatform, appliedRange.tu, appliedRange.den],
     queryFn: () =>
       scraperService.getOwnedDuplicates(token!, {
-        platform: nenTangChon || undefined,
+        platform: selectedPlatform || undefined,
         tu: appliedRange.tu,
         den: appliedRange.den,
       }),
@@ -102,27 +82,30 @@ export default function InternalOverviewPage() {
   });
 
   const data = query.data;
-  const platform = data?.nen_tang ?? [];
-  const total = useMemo(() => mergePlatforms(platform), [platform]);
+  const platforms = data?.platforms || data?.nen_tang || [];
+  const channels = data?.channels || data?.kenh || [];
+  const topVideos = data?.topVideos || data?.top_video || [];
+  const markets = data?.markets || data?.thi_truong || [];
+  const contentLines = data?.contentLines || data?.tuyen_noi_dung || [];
+  const hashtags = data?.hashtags || data?.hashtag || [];
+  const alerts = data?.alerts || data?.canh_bao || [];
+  const period = data?.period || data?.ky;
+  const dayCount = (period as any)?.dayCount ?? (period as any)?.so_ngay ?? 28;
 
-  // Danh sách tab chỉ dựng từ lần tải "tất cả nền tảng": sau khi người dùng lọc riêng một nền
-  // tảng thì phản hồi chỉ còn nền tảng đó, lấy thẳng ra thì các tab khác biến mất và không bấm
-  // về được nữa.
-  //
-  // Phải là state chứ không phải ref: ghi vào ref trong useEffect KHÔNG kích hoạt vẽ lại, nên
-  // ngay lần tải đầu hàng tab sẽ không hiện — chỉ lộ ra khi có từ 2 nền tảng nội bộ trở lên.
-  const [platforms, setCacNenTang] = useState<string[]>([]);
+  const total = useMemo(() => mergePlatforms(platforms), [platforms]);
+
+  const [availablePlatforms, setAvailablePlatforms] = useState<string[]>([]);
   useEffect(() => {
-    if (nenTangChon || !data) return;
-    const ds = data.nen_tang.map((nt) => nt.platform);
-    setCacNenTang((cu) => (cu.join() === ds.join() ? cu : ds));
-  }, [data, nenTangChon]);
+    if (selectedPlatform || !data) return;
+    const currentList = (data.platforms || data.nen_tang || []).map((nt) => nt.platform);
+    setAvailablePlatforms((prev) => (prev.join() === currentList.join() ? prev : currentList));
+  }, [data, selectedPlatform]);
 
-  if (query.isLoading) return <KhungCho />;
+  if (query.isLoading) return <OverviewSkeleton />;
 
   if (query.isError) {
     return (
-      <Vo>
+      <PageContainer>
         <div className="flex flex-col items-center gap-4 py-16 bg-card border border-border rounded-2xl">
           <Warning size={32} className="text-amber-500" />
           <p className="text-sm text-foreground">Không tải được số liệu tổng quan.</p>
@@ -133,34 +116,34 @@ export default function InternalOverviewPage() {
             Thử lại
           </button>
         </div>
-      </Vo>
+      </PageContainer>
     );
   }
 
-  if (!data || platform.length === 0) {
+  if (!data || platforms.length === 0) {
     return (
-      <Vo>
-        <PageHeader range={range} onRangeChange={setRange} dayCount={data?.ky.so_ngay} />
+      <PageContainer>
+        <PageHeader range={range} onRangeChange={setRange} dayCount={dayCount} />
         <EmptyState
           tieu_de="Chưa có kênh nội bộ nào"
           mo_ta="Thêm fanpage hoặc kênh vào mục Kênh nội bộ, hệ thống sẽ cào video và dựng số liệu ở đây từ lần đồng bộ kế tiếp."
         />
-      </Vo>
+      </PageContainer>
     );
   }
 
   return (
-    <Vo>
-      <PageHeader range={range} onRangeChange={setRange} dayCount={data.ky.so_ngay} />
+    <PageContainer>
+      <PageHeader range={range} onRangeChange={setRange} dayCount={dayCount} />
 
-      {platforms.length > 1 && (
+      {availablePlatforms.length > 1 && (
         <TabGroup
           className="mb-5"
-          dang_chon={nenTangChon}
-          onSelect={setNenTangChon}
+          dang_chon={selectedPlatform}
+          onSelect={setSelectedPlatform}
           cac_tab={[
             { ma: '', nhan: 'Tất cả nền tảng' },
-            ...platforms.map((p) => ({
+            ...availablePlatforms.map((p) => ({
               ma: p,
               nhan: (
                 <>
@@ -173,56 +156,40 @@ export default function InternalOverviewPage() {
         />
       )}
 
-      <MetricCards total={total} platform={platform} selected={metric} onSelect={setMetric} />
+      <MetricCards total={total} platform={platforms} selected={metric} onSelect={setMetric} />
 
       <TrendChart
         total={total}
-        platform={platform}
+        platform={platforms}
         metric={metric}
-        tach={tach}
-        onDoiTach={setTach}
-        dayCount={data.ky.so_ngay}
+        tach={splitByPlatform}
+        onDoiTach={setSplitByPlatform}
+        dayCount={dayCount ?? 28}
       />
 
       <div className="grid gap-5 mb-5 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 items-stretch">
-        <MarketBlock thiTruong={data.thi_truong} />
-        <ContentLineBlock tuyen={data.tuyen_noi_dung} />
-        <EngagementBlock platform={platform} />
+        <MarketBlock thiTruong={markets} />
+        <ContentLineBlock tuyen={contentLines} />
+        <EngagementBlock platform={platforms} />
       </div>
 
-      <HashtagBlock hashtag={data.hashtag} />
-      <ChannelRanking kenh={data.kenh} />
+      <HashtagBlock hashtag={hashtags} />
+      <ChannelRanking kenh={channels} />
       <DuplicateBlock
         data={duplicateQuery.data}
         isLoading={duplicateQuery.isLoading}
-        loi={duplicateQuery.isError}
+        error={duplicateQuery.isError}
       />
-      <TopContent video={data.top_video} />
-      {/*
-        Trộn hai nguồn cảnh báo: OwnedStatsService lo đồng bộ lỗi / tụt lượt xem / im lặng,
-        OwnedDuplicateService lo kênh không có nội dung riêng. Cùng kiểu ChannelAlert nên nối
-        thẳng được.
-
-        Cảnh báo trùng đặt SAU và KHÔNG cắt bớt: đo trên dữ liệu thật, owned/stats đã trả
-        đủ 12 mục (trần của nó) và toàn là lỗi đồng bộ, nên nếu cắt tổng danh sách lại thì
-        phần trùng lặp biến mất sạch. Khối này vẽ hết những gì được truyền vào, 12 + 5 dòng
-        vẫn đọc được, và khối Trùng lặp phía trên mới là chỗ trình bày chính.
-      */}
-      <AlertBlock alerts={[...data.canh_bao, ...(duplicateQuery.data?.canh_bao ?? [])]} />
-    </Vo>
+      <TopContent video={topVideos} />
+      <AlertBlock alerts={[...alerts, ...(duplicateQuery.data?.alerts || duplicateQuery.data?.canh_bao || [])]} />
+    </PageContainer>
   );
 }
 
-function Vo({ children }: { children: React.ReactNode }) {
+function PageContainer({ children }: { children: React.ReactNode }) {
   return <div className="max-w-[1400px] mx-auto w-full">{children}</div>;
 }
 
-/**
- * Dùng lại đúng bộ chọn ngày của trang Kênh nội bộ (`DateRangeFilter`): lịch tự vẽ, có sẵn
- * preset 7 ngày / 30 ngày / tháng này / tháng trước / năm nay, và vẫn chọn được ngày bất kỳ.
- * Bản thiết kế gốc chỉ có ba mốc cứng — không đủ dùng, và tự dựng lịch thứ hai thì hai trang
- * lại lệch nhau về cách hiển thị lẫn cách hiểu "từ / đến".
- */
 function PageHeader({
   range,
   onRangeChange,
@@ -230,7 +197,6 @@ function PageHeader({
 }: {
   range: { tu: string; den: string };
   onRangeChange: (k: { tu: string; den: string }) => void;
-  /** Số ngày server thực sự dùng — có thể khác khoảng đã chọn khi bị chặn trần. */
   dayCount?: number;
 }) {
   return (
@@ -262,9 +228,9 @@ function PageHeader({
   );
 }
 
-function KhungCho() {
+function OverviewSkeleton() {
   return (
-    <Vo>
+    <PageContainer>
       <div className="flex items-center gap-4 mb-5">
         <div className="flex-1">
           <Frame className="h-6 w-56" />
@@ -304,6 +270,6 @@ function KhungCho() {
           ))}
         </div>
       </div>
-    </Vo>
+    </PageContainer>
   );
 }
