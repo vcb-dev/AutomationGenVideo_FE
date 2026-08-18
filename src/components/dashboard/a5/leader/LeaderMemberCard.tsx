@@ -57,7 +57,7 @@ export function LeaderMemberCard({ entity, index, showDailyKpi }: LeaderMemberCa
         </div>
         <div className="min-w-0">
           <div className="truncate text-base font-bold text-gray-900">{name}</div>
-          <div className="text-xs text-gray-400">Video tháng</div>
+          <div className="text-xs text-gray-400">{entity.is_content_creator ? "Content tháng" : "Video tháng"}</div>
         </div>
       </div>
 
@@ -65,7 +65,7 @@ export function LeaderMemberCard({ entity, index, showDailyKpi }: LeaderMemberCa
         <LeaderGaugeRing pct={videoPct} size={160} current={entity.kpi_completed} target={entity.kpi_target} />
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3 border-t border-gray-100 pt-4">
+      <div className={cn("mt-4 grid gap-3 border-t border-gray-100 pt-4", entity.is_content_creator ? "grid-cols-3" : "grid-cols-2")}>
         <div className="rounded-xl bg-gray-50 px-3 py-2.5 text-center">
           <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">KPI ngày</div>
           {showDailyKpi ? (
@@ -80,12 +80,29 @@ export function LeaderMemberCard({ entity, index, showDailyKpi }: LeaderMemberCa
             <div className="mt-1 text-xs text-gray-400">Tháng hiện tại</div>
           )}
         </div>
-        <div className="rounded-xl bg-gray-50 px-3 py-2.5 text-center">
-          <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Traffic</div>
-          <div className="mt-0.5 text-base font-bold text-gray-800">
-            {entity.traffic_month.toLocaleString("vi-VN")}
+        {entity.is_content_creator ? (
+          <>
+            <div className="rounded-xl bg-gray-50 px-3 py-2.5 text-center">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Sưu tầm</div>
+              <div className="mt-0.5 text-base font-bold text-gray-800">
+                {(entity.content_collected_month ?? 0).toLocaleString("vi-VN")}
+              </div>
+            </div>
+            <div className="rounded-xl bg-gray-50 px-3 py-2.5 text-center">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Tự nghĩ</div>
+              <div className="mt-0.5 text-base font-bold text-gray-800">
+                {(entity.content_original_month ?? 0).toLocaleString("vi-VN")}
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="rounded-xl bg-gray-50 px-3 py-2.5 text-center">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Traffic</div>
+            <div className="mt-0.5 text-base font-bold text-gray-800">
+              {entity.traffic_month.toLocaleString("vi-VN")}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

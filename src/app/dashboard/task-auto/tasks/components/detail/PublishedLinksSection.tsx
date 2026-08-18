@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Link2, Plus, Pencil, Trash2, Check, X, Loader2, AlertTriangle, Eye, Heart, MessageCircle, Share2, RefreshCw } from 'lucide-react'
+import { Link2, Plus, Pencil, Trash2, Check, X, Loader2, Eye, Heart, MessageCircle, Share2, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { updateTaskPublishedLinks, refreshPublishedLinkStats } from '@/lib/api/task-auto'
 import type { PublishedLink } from '@/types/task-auto'
@@ -127,13 +127,6 @@ export function PublishedLinksSection({ taskId, publishedLinks, canEdit }: Props
   return (
     <Section icon={<Link2 className="w-4 h-4" />} title="Link bài đăng" bgColor="bg-emerald-50" iconColor="text-emerald-600">
       <div className="p-4 space-y-2">
-        {links.length === 0 && !formOpen && (
-          <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl border border-amber-200 bg-amber-50 text-amber-700">
-            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-            <p className="text-sm font-medium">Task đã duyệt nhưng chưa có link bài đăng nào được nộp</p>
-          </div>
-        )}
-
         {links.map(link => {
           const meta = getPlatformMeta(link.platform)
           const isEditing = editingId === link.id

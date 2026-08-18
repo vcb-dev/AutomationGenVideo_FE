@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
@@ -14,7 +14,7 @@ import { Send, Play, Upload, CheckCircle2, XCircle, AlertTriangle, ChevronDown, 
 import type { LucideIcon } from 'lucide-react'
 import { cn, driveImageUrl } from '@/lib/utils'
 import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
-import { formatDateTime, isOverdue } from '@/components/task-auto/helpers'
+import { formatDate, formatDateTime } from '@/components/task-auto/helpers'
 import { getTasks, updateTask, approveTask } from '@/lib/api/task-auto'
 import { RejectModal } from './RejectModal'
 import { VideoPreviewOverlay } from './detail/VideoPreviewOverlay'
@@ -51,8 +51,18 @@ interface CardActions {
   onReject: (task: Task) => void
 }
 
+// "Quá hạn" không phải 1 giá trị TaskStatus — đây là view riêng gom mọi task đang xử lý
+// (Đã giao/Đang làm/Đã nộp) đã trễ hạn, xem thêm ghi chú ở BE (tasks.service.ts findAll `q.overdue`).
+type ColumnKey = TaskStatus | 'OVERDUE'
+type CardVariant = 'assigned' | 'in_progress' | 'submitted' | 'approved' | 'overdue'
+
 interface ColumnDef {
-  status: TaskStatus
+  key: ColumnKey
+  // undefined cho cột "Quá hạn" — cột này không lọc theo 1 status cố định (xem `overdue` bên dưới)
+  status?: TaskStatus
+  // true = cột "Quá hạn": query bằng tham số overdue=true thay vì status, bỏ qua lọc khoảng ngày
+  overdue?: boolean
+  variant: CardVariant
   label: string
   accent: string
   countBadge: string
@@ -61,14 +71,17 @@ interface ColumnDef {
   icon: LucideIcon
 }
 
-// 4 cột khớp đúng bộ trạng thái đã hiển thị trong dropdown lọc "Trạng thái" trước đây
+// 5 cột: 4 cột khớp bộ trạng thái đã hiển thị trong dropdown lọc "Trạng thái" trước đây
 // (STATUS_OPTIONS ở TaskFilters.tsx) — PENDING/REJECTED/CANCELLED vốn cũng chưa từng lọc được
 // ở đó nên không có cột riêng, vẫn xem đủ qua "Tất cả trạng thái" nếu quay lại view khác.
+// Cột "Quá hạn" thứ 5 cắt ngang 3 cột đầu: task trễ hạn bị kéo ra khỏi cột trạng thái gốc,
+// CHỈ còn hiện ở đây (xem exclude_overdue truyền cho 3 cột kia trong KanbanColumn bên dưới).
 const COLUMNS: ColumnDef[] = [
-  { status: 'ASSIGNED',    label: 'Đã giao',  accent: 'border-t-blue-400',    countBadge: 'bg-blue-50 text-blue-700',    iconBg: 'bg-blue-100 text-blue-600',    cardBar: 'border-l-blue-400',    icon: Send },
-  { status: 'IN_PROGRESS', label: 'Đang làm', accent: 'border-t-amber-400',   countBadge: 'bg-amber-50 text-amber-700',  iconBg: 'bg-amber-100 text-amber-600',  cardBar: 'border-l-amber-400',   icon: Play },
-  { status: 'SUBMITTED',   label: 'Đã nộp',   accent: 'border-t-purple-400',  countBadge: 'bg-purple-50 text-purple-700', iconBg: 'bg-purple-100 text-purple-600', cardBar: 'border-l-purple-400',  icon: Upload },
-  { status: 'APPROVED',    label: 'Đã duyệt', accent: 'border-t-emerald-400', countBadge: 'bg-emerald-50 text-emerald-700', iconBg: 'bg-emerald-100 text-emerald-600', cardBar: 'border-l-emerald-400', icon: CheckCircle2 },
+  { key: 'ASSIGNED',    status: 'ASSIGNED',    variant: 'assigned',    label: 'Đã giao',  accent: 'border-t-blue-400',    countBadge: 'bg-blue-50 text-blue-700',    iconBg: 'bg-blue-100 text-blue-600',    cardBar: 'border-l-blue-400',    icon: Send },
+  { key: 'IN_PROGRESS', status: 'IN_PROGRESS', variant: 'in_progress', label: 'Đang làm', accent: 'border-t-amber-400',   countBadge: 'bg-amber-50 text-amber-700',  iconBg: 'bg-amber-100 text-amber-600',  cardBar: 'border-l-amber-400',   icon: Play },
+  { key: 'SUBMITTED',   status: 'SUBMITTED',   variant: 'submitted',   label: 'Đã nộp',   accent: 'border-t-purple-400',  countBadge: 'bg-purple-50 text-purple-700', iconBg: 'bg-purple-100 text-purple-600', cardBar: 'border-l-purple-400',  icon: Upload },
+  { key: 'APPROVED',    status: 'APPROVED',    variant: 'approved',    label: 'Đã duyệt', accent: 'border-t-emerald-400', countBadge: 'bg-emerald-50 text-emerald-700', iconBg: 'bg-emerald-100 text-emerald-600', cardBar: 'border-l-emerald-400', icon: CheckCircle2 },
+  { key: 'OVERDUE',     overdue: true,          variant: 'overdue',     label: 'Quá hạn',  accent: 'border-t-red-400',     countBadge: 'bg-red-50 text-red-700',      iconBg: 'bg-red-100 text-red-600',      cardBar: 'border-l-red-400',      icon: AlertTriangle },
 ]
 
 const PAGE_SIZE = 12
@@ -84,20 +97,119 @@ const PAGE_SIZE = 12
 //   nên không thêm kéo-thả cho chiều này.
 // Nộp bài (…→ SUBMITTED) cần result_url và từ chối cần lý do nên vẫn bắt buộc qua modal riêng
 // (TaskSubmitModal/RejectModal), không cho kéo-thả 2 trường hợp này.
+// "Quá hạn" không nằm trong map này — không phải trạng thái thật nên không phải đích thả hợp lệ,
+// nhưng task hiện trong cột đó vẫn kéo được bình thường vì logic dựa trên task.status, không phải cột.
 export const DRAG_TRANSITIONS: Partial<Record<TaskStatus, { to: TaskStatus; action: 'move' | 'approve' }>> = {
   ASSIGNED:    { to: 'IN_PROGRESS', action: 'move' },
   IN_PROGRESS: { to: 'ASSIGNED',    action: 'move' },
   SUBMITTED:   { to: 'APPROVED',    action: 'approve' },
 }
 
-function TaskCardBody({ task, onOpenPreview }: { task: Task; onOpenPreview?: () => void }) {
+function statusToVariant(status: TaskStatus): CardVariant {
+  switch (status) {
+    case 'IN_PROGRESS': return 'in_progress'
+    case 'SUBMITTED':   return 'submitted'
+    case 'APPROVED':    return 'approved'
+    default:             return 'assigned'
+  }
+}
+
+function daysOverdue(deadline: string): number {
+  const ms = Date.now() - new Date(deadline).getTime()
+  return Math.max(1, Math.ceil(ms / 86_400_000))
+}
+
+// Mức độ trễ càng nặng, màu càng gắt — giúp phân biệt nhanh task cần xử lý gấp nhất trong cột.
+function overdueBadgeClass(days: number): string {
+  if (days <= 1) return 'bg-amber-50 text-amber-600'
+  if (days === 2) return 'bg-orange-50 text-orange-600'
+  return 'bg-red-50 text-red-600'
+}
+
+function CategoryTag({ name }: { name: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-600">
+      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+      {name}
+    </span>
+  )
+}
+
+function TaskCardBody({ task, variant, onOpenPreview }: { task: Task; variant: CardVariant; onOpenPreview?: () => void }) {
   const title = resolveContentTitle(task)
   const productName = resolveProductName(task)
   const productImage = driveImageUrl(resolveProductImage(task), 120)
-  const overdue = isOverdue(task.deadline) && !['APPROVED', 'CANCELLED'].includes(task.status)
+  // Tag phân loại lấy theo tuyến nội dung (content_line) của content gắn trên task.
+  const categoryTag = task.content_line?.name ?? null
   const missingLink = task.status === 'APPROVED' && !task.published_links?.length
   // Cùng convention với TaskDetailPanel: link Drive mở preview trong app (popup), link khác mở tab mới
   const isDriveUrl = task.result_url?.includes('drive.google.com')
+
+  const resultLink = task.result_url && (
+    isDriveUrl ? (
+      onOpenPreview && (
+        <button
+          type="button"
+          onClick={e => { e.stopPropagation(); onOpenPreview() }}
+          onPointerDown={e => e.stopPropagation()}
+          className="ml-auto inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-700 hover:text-indigo-900 underline underline-offset-2 transition-colors shrink-0"
+        >
+          <Play className="w-3 h-3 shrink-0" /> Xem kết quả
+        </button>
+      )
+    ) : (
+      <a
+        href={task.result_url}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={e => e.stopPropagation()}
+        onPointerDown={e => e.stopPropagation()}
+        className="ml-auto inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-700 hover:text-indigo-900 underline underline-offset-2 transition-colors shrink-0"
+      >
+        <ExternalLink className="w-3 h-3 shrink-0" /> Xem kết quả
+      </a>
+    )
+  )
+
+  const assigneeRow = (
+    <div className="flex items-center justify-between gap-2">
+      {task.assignee ? (
+        <div className="flex items-center gap-1.5 min-w-0">
+          <AvatarInitials name={task.assignee.full_name} size="xs" />
+          <span className="text-xs font-medium text-gray-600 truncate max-w-[110px]">{task.assignee.full_name}</span>
+        </div>
+      ) : (
+        <span className="text-xs text-gray-300 italic">Chưa giao</span>
+      )}
+      {task.team && (
+        <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-full shrink-0 truncate max-w-[100px]">
+          {task.team.name}
+        </span>
+      )}
+    </div>
+  )
+
+  // Card gọn cho cột "Đã duyệt": khối lượng thường lớn nhất trong board nên bỏ tiêu đề/tag,
+  // chỉ giữ ai làm, duyệt lúc nào, xem lại kết quả ở đâu để lướt nhanh qua nhiều task.
+  if (variant === 'approved') {
+    return (
+      <>
+        {assigneeRow}
+        <div className="flex items-center flex-wrap gap-2 mt-2.5">
+          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-400 shrink-0">
+            <Clock className="w-3 h-3 shrink-0" />
+            {formatDateTime(task.reviewed_at ?? task.updated_at)}
+          </span>
+          {missingLink && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold bg-red-50 text-red-600">
+              <AlertTriangle className="w-3 h-3 shrink-0" /> Thiếu link
+            </span>
+          )}
+          {resultLink}
+        </div>
+      </>
+    )
+  }
 
   return (
     <>
@@ -126,71 +238,44 @@ function TaskCardBody({ task, onOpenPreview }: { task: Task; onOpenPreview?: () 
         </div>
       </div>
 
-      <div className="flex items-center justify-between mt-3 gap-2">
-        {task.assignee ? (
-          <div className="flex items-center gap-1.5 min-w-0">
-            <AvatarInitials name={task.assignee.full_name} size="xs" />
-            <span className="text-xs font-medium text-gray-600 truncate max-w-[100px]">{task.assignee.full_name}</span>
-          </div>
-        ) : (
-          <span className="text-xs text-gray-300 italic">Chưa giao</span>
-        )}
-        {task.team && (
-          <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-full shrink-0 truncate max-w-[90px]">
-            {task.team.name}
+      <div className="mt-3">{assigneeRow}</div>
+
+      <div className="flex items-center flex-wrap gap-1.5 mt-2.5">
+        {variant === 'overdue' && task.deadline && (
+          <span className={cn('inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold', overdueBadgeClass(daysOverdue(task.deadline)))}>
+            <AlertTriangle className="w-3 h-3 shrink-0" /> Quá hạn {daysOverdue(task.deadline)} ngày
           </span>
         )}
-      </div>
 
-      {(task.deadline || missingLink || task.result_url) && (
-        <div className="flex items-center flex-wrap gap-1.5 mt-2.5">
-          {task.deadline && (
-            <span className={cn(
-              'inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold',
-              overdue ? 'bg-red-50 text-red-600' : 'bg-gray-50 text-gray-500',
-            )}>
-              {overdue ? <AlertTriangle className="w-3 h-3 shrink-0" /> : <Clock className="w-3 h-3 shrink-0" />}
-              {formatDateTime(task.deadline)}
-            </span>
-          )}
-          {missingLink && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold bg-red-50 text-red-600">
-              <AlertTriangle className="w-3 h-3 shrink-0" /> Thiếu link
-            </span>
-          )}
-          {task.result_url && (
-            isDriveUrl ? (
-              onOpenPreview && (
-                <button
-                  type="button"
-                  onClick={e => { e.stopPropagation(); onOpenPreview() }}
-                  onPointerDown={e => e.stopPropagation()}
-                  className="ml-auto inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-700 hover:text-indigo-900 underline underline-offset-2 transition-colors"
-                >
-                  <Play className="w-3 h-3 shrink-0" /> Xem kết quả
-                </button>
-              )
-            ) : (
-              <a
-                href={task.result_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={e => e.stopPropagation()}
-                onPointerDown={e => e.stopPropagation()}
-                className="ml-auto inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-700 hover:text-indigo-900 underline underline-offset-2 transition-colors"
-              >
-                <ExternalLink className="w-3 h-3 shrink-0" /> Xem kết quả
-              </a>
-            )
-          )}
-        </div>
-      )}
+        {variant === 'submitted' && (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold bg-gray-50 text-gray-500">
+            <Send className="w-3 h-3 shrink-0" /> Nộp: {formatDateTime(task.submitted_at ?? task.updated_at)}
+          </span>
+        )}
+
+        {(variant === 'assigned' || variant === 'in_progress' || variant === 'overdue') && task.deadline && (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold bg-gray-50 text-gray-500">
+            <Clock className="w-3 h-3 shrink-0" /> Hạn: {formatDate(task.deadline)}
+          </span>
+        )}
+
+        {categoryTag && <CategoryTag name={categoryTag} />}
+
+        {variant === 'submitted' && (
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700">
+            Chờ duyệt
+          </span>
+        )}
+
+        {resultLink}
+      </div>
     </>
   )
 }
 
-function TaskCard({ task, cardBar, actions, onViewTask }: {
+function TaskCard({ task, variant, cardBar, actions, onViewTask }: {
   task: Task
+  variant: CardVariant
   cardBar: string
   actions: CardActions
   onViewTask: (id: string) => void
@@ -231,7 +316,7 @@ function TaskCard({ task, cardBar, actions, onViewTask }: {
       {draggable && (
         <GripVertical className="absolute top-2.5 right-2.5 w-3.5 h-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
       )}
-      <TaskCardBody task={task} onOpenPreview={() => setShowPreview(true)} />
+      <TaskCardBody task={task} variant={variant} onOpenPreview={() => setShowPreview(true)} />
 
       {showPreview && task.result_url && createPortal(
         // Portal ra document.body: card có hover:-translate-y-0.5 (transform khi hover) làm ancestor
@@ -291,7 +376,7 @@ function TaskCard({ task, cardBar, actions, onViewTask }: {
 }
 
 function KanbanColumn({
-  column, filters, isDropDisabled, isValidTarget, actions, hasDateFilter, onClearDateFilter, onViewTask,
+  column, filters, isDropDisabled, isValidTarget, actions, hasDateFilter, onClearDateFilter, onViewTask, onTotalChange,
 }: {
   column: ColumnDef
   filters: Filters
@@ -301,25 +386,41 @@ function KanbanColumn({
   hasDateFilter: boolean
   onClearDateFilter?: () => void
   onViewTask: (id: string) => void
+  onTotalChange: (key: ColumnKey, total: number) => void
 }) {
   const [limit, setLimit] = useState(PAGE_SIZE)
-  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: column.status, disabled: isDropDisabled })
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: column.key, disabled: isDropDisabled })
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['task-auto', 'tasks', 'kanban', column.status, filters, limit],
-    queryFn: () => getTasks({
-      status: column.status,
-      team_id: filters.teamId,
-      search: filters.search,
-      deadline_from: filters.deadlineFrom,
-      deadline_to: filters.deadlineTo,
-      task_type: filters.taskType || undefined,
-      assignee_id: filters.assigneeId,
-      page: 1,
-      limit,
-      // Task vừa được kéo sang cột này cần nổi lên đầu chứ không kẹt theo created_at gốc
-      sort: 'updated_at',
-    }),
+    queryKey: ['task-auto', 'tasks', 'kanban', column.key, filters, limit],
+    queryFn: () => getTasks(column.overdue
+      ? {
+        // Cột "Quá hạn": bỏ qua deadline_from/to — khái niệm trễ hạn tự nó đã là mốc so với hiện tại,
+        // áp thêm khoảng ngày mặc định "hôm nay" của trang sẽ luôn cho kết quả rỗng.
+        overdue: true,
+        team_id: filters.teamId,
+        search: filters.search,
+        task_type: filters.taskType || undefined,
+        assignee_id: filters.assigneeId,
+        page: 1,
+        limit,
+        sort: 'updated_at',
+      }
+      : {
+        status: column.status,
+        team_id: filters.teamId,
+        search: filters.search,
+        deadline_from: filters.deadlineFrom,
+        deadline_to: filters.deadlineTo,
+        task_type: filters.taskType || undefined,
+        assignee_id: filters.assigneeId,
+        // Task trễ hạn giờ chỉ hiện ở cột "Quá hạn" riêng — trừ cột Đã duyệt: task đã duyệt
+        // không còn được tính "trễ hạn" nữa (isOverdue loại APPROVED) dù deadline có ở quá khứ.
+        exclude_overdue: column.status !== 'APPROVED' ? true : undefined,
+        page: 1,
+        limit,
+        sort: 'updated_at',
+      }),
     refetchOnWindowFocus: true,
   })
 
@@ -327,6 +428,13 @@ function KanbanColumn({
   const total = data?.total ?? 0
   const hasMore = tasks.length < total
   const Icon = column.icon
+
+  useEffect(() => {
+    if (!isLoading) onTotalChange(column.key, total)
+  }, [column.key, total, isLoading, onTotalChange])
+
+  // Cột "Quá hạn" tự bỏ qua bộ lọc ngày nên gợi ý "bỏ lọc ngày" ở empty state không áp dụng ở đây.
+  const showDateFilterHint = hasDateFilter && !column.overdue
 
   return (
     <div
@@ -356,7 +464,7 @@ function KanbanColumn({
         </span>
       </div>
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar px-3 pb-3 space-y-2.5 max-h-[calc(100vh-360px)] min-h-[140px]">
+      <div className="flex-1 overflow-y-auto custom-scrollbar px-3 pb-3 space-y-2.5 max-h-[calc(100vh-290px)] min-h-[140px]">
         {isLoading ? (
           Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="bg-white rounded-xl border border-gray-100 p-3.5 space-y-2 animate-pulse">
@@ -369,9 +477,9 @@ function KanbanColumn({
           <div className="flex flex-col items-center justify-center gap-1.5 py-10 px-3 text-center border border-dashed border-gray-200 rounded-xl bg-white/40">
             <Inbox className="w-6 h-6 text-gray-300" />
             <p className="text-xs text-gray-400">
-              {hasDateFilter ? 'Không có task trong khoảng ngày đang lọc' : 'Không có task'}
+              {showDateFilterHint ? 'Không có task trong khoảng ngày đang lọc' : 'Không có task'}
             </p>
-            {hasDateFilter && onClearDateFilter && (
+            {showDateFilterHint && onClearDateFilter && (
               <button
                 type="button"
                 onClick={onClearDateFilter}
@@ -383,7 +491,9 @@ function KanbanColumn({
           </div>
         ) : (
           <>
-            {tasks.map(task => <TaskCard key={task.id} task={task} cardBar={column.cardBar} actions={actions} onViewTask={onViewTask} />)}
+            {tasks.map(task => (
+              <TaskCard key={task.id} task={task} variant={column.variant} cardBar={column.cardBar} actions={actions} onViewTask={onViewTask} />
+            ))}
             {hasMore && (
               <button
                 type="button"
@@ -402,6 +512,41 @@ function KanbanColumn({
   )
 }
 
+function StatItem({ label, value, valueClass }: { label: string; value: number; valueClass: string }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-xs font-medium text-slate-400">{label}</span>
+      <span className={cn('text-2xl font-black', valueClass)}>{value}</span>
+    </div>
+  )
+}
+
+function KanbanStatsBar({ totals }: { totals: Partial<Record<ColumnKey, number>> }) {
+  const grandTotal = COLUMNS.reduce((sum, c) => sum + (totals[c.key] ?? 0), 0)
+  const approvedTotal = totals.APPROVED ?? 0
+  const progressPct = grandTotal > 0 ? Math.round((approvedTotal / grandTotal) * 100) : 0
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4 bg-white border border-gray-100 rounded-2xl shadow-sm px-6 py-3.5">
+      <StatItem label="Tổng công việc" value={grandTotal} valueClass="text-slate-900" />
+      <StatItem label="Đã giao" value={totals.ASSIGNED ?? 0} valueClass="text-blue-600" />
+      <StatItem label="Đang làm" value={totals.IN_PROGRESS ?? 0} valueClass="text-amber-600" />
+      <StatItem label="Đã nộp" value={totals.SUBMITTED ?? 0} valueClass="text-purple-600" />
+      <StatItem label="Đã duyệt" value={totals.APPROVED ?? 0} valueClass="text-emerald-600" />
+      <StatItem label="Quá hạn" value={totals.OVERDUE ?? 0} valueClass="text-red-600" />
+      <div className="col-span-2 sm:col-span-4 lg:col-span-1 flex flex-col gap-1 lg:border-l lg:border-gray-100 lg:pl-5">
+        <span className="text-xs font-medium text-slate-400">Tiến độ chung</span>
+        <div className="flex items-center gap-2.5">
+          <span className="text-2xl font-black text-emerald-600 shrink-0">{progressPct}%</span>
+          <div className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+            <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${progressPct}%` }} />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function TasksKanbanBoard({
   teamId, search, deadlineFrom, deadlineTo, taskType, assigneeId,
   currentUserId, canApproveReject, onViewTask, onClearDateFilter,
@@ -410,12 +555,17 @@ export function TasksKanbanBoard({
   const queryClient = useQueryClient()
   const [draggingTask, setDraggingTask] = useState<Task | null>(null)
   const [rejectingTask, setRejectingTask] = useState<Task | null>(null)
+  const [columnTotals, setColumnTotals] = useState<Partial<Record<ColumnKey, number>>>({})
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
   function invalidateTasks() {
     queryClient.invalidateQueries({ queryKey: ['task-auto', 'tasks'] })
   }
+
+  const handleTotalChange = useCallback((key: ColumnKey, total: number) => {
+    setColumnTotals(prev => (prev[key] === total ? prev : { ...prev, [key]: total }))
+  }, [])
 
   // Dùng chung cho nút "Bắt đầu làm" lẫn kéo-thả (cả 2 chiều ASSIGNED ⇄ IN_PROGRESS) — cùng
   // gọi update() thường, chỉ khác trạng thái đích nên gộp 1 mutation nhận kèm { id, to }.
@@ -472,31 +622,37 @@ export function TasksKanbanBoard({
       onDragEnd={handleDragEnd}
       onDragCancel={() => setDraggingTask(null)}
     >
-      <div className="space-y-2">
-        {/* Gợi ý thao tác — kéo-thả vốn khó tự phát hiện nếu không nói ra */}
-        <p className="flex items-center gap-1.5 text-xs text-slate-400">
-          <GripVertical className="w-3.5 h-3.5 shrink-0" />
-          Bấm thẻ để xem chi tiết · kéo thẻ sang cột bên để chuyển nhanh trạng thái
-          (Đã giao ⇄ Đang làm{canApproveReject ? ', Đã nộp → Đã duyệt' : ''})
-        </p>
+      <div className="space-y-3">
+        <KanbanStatsBar totals={columnTotals} />
 
-        <div className="flex gap-4 overflow-x-auto custom-scrollbar pb-2 items-start">
-          {COLUMNS.map(col => {
-            const isValidTarget = activeTransition?.to === col.status
-            return (
-              <KanbanColumn
-                key={col.status}
-                column={col}
-                filters={filters}
-                isValidTarget={isValidTarget}
-                isDropDisabled={!!draggingStatus && !isValidTarget}
-                actions={cardActions}
-                hasDateFilter={hasDateFilter}
-                onClearDateFilter={onClearDateFilter}
-                onViewTask={onViewTask}
-              />
-            )
-          })}
+        <div className="space-y-2">
+          {/* Gợi ý thao tác — kéo-thả vốn khó tự phát hiện nếu không nói ra */}
+          <p className="flex items-center gap-1.5 text-xs text-slate-400">
+            <GripVertical className="w-3.5 h-3.5 shrink-0" />
+            Bấm thẻ để xem chi tiết · kéo thẻ sang cột bên để chuyển nhanh trạng thái
+            (Đã giao ⇄ Đang làm{canApproveReject ? ', Đã nộp → Đã duyệt' : ''}) · cột Quá hạn gom mọi task
+            đang xử lý đã trễ hạn
+          </p>
+
+          <div className="flex gap-4 overflow-x-auto custom-scrollbar pb-2 items-start">
+            {COLUMNS.map(col => {
+              const isValidTarget = activeTransition?.to === col.status
+              return (
+                <KanbanColumn
+                  key={col.key}
+                  column={col}
+                  filters={filters}
+                  isValidTarget={isValidTarget}
+                  isDropDisabled={!!draggingStatus && !isValidTarget}
+                  actions={cardActions}
+                  hasDateFilter={hasDateFilter}
+                  onClearDateFilter={onClearDateFilter}
+                  onViewTask={onViewTask}
+                  onTotalChange={handleTotalChange}
+                />
+              )
+            })}
+          </div>
         </div>
       </div>
 
@@ -506,7 +662,7 @@ export function TasksKanbanBoard({
             'w-[260px] bg-white border border-indigo-300 border-l-4 rounded-xl p-3.5 shadow-2xl rotate-2 cursor-grabbing',
             COLUMNS.find(c => c.status === draggingTask.status)?.cardBar,
           )}>
-            <TaskCardBody task={draggingTask} />
+            <TaskCardBody task={draggingTask} variant={statusToVariant(draggingTask.status)} />
           </div>
         )}
       </DragOverlay>

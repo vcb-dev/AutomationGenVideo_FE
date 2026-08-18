@@ -21,7 +21,6 @@ interface Props {
 const CHUNK_SIZE = 8 * 1024 * 1024 // 8 MB
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api'
 
-
 async function uploadVideoToServer(
   taskId: string,
   file: File,

@@ -16,6 +16,8 @@ export type TaskTypeValue = 'AUTO' | 'EXTRA'
 export type ContentUsageStatus = 'AVAILABLE' | 'IN_TASK' | 'USED' | 'ARCHIVED'
 export type ContentMarket = 'VIETNAM' | 'INDONESIA' | 'JAPAN' | 'THAILAND'
 export type TeamMarket = 'VIETNAM' | 'INDONESIA' | 'JAPAN' | 'THAILAND'
+export type TeamKind = 'PRODUCTION' | 'CONTENT'
+export type ContentOrigin = 'COLLECTED' | 'SELF_CREATED'
 export type SourceType = 'PRODUCT_STOCK' | 'COLLECTED' | 'OUTRO' | 'WORKSHOP' | 'HUYK'
 export type KpiAllocationType = 'CONTENT_LINE' | 'PRODUCT_LINE'
 export type AssignmentOutcome = 'COMPLETED' | 'OVERDUE' | 'REASSIGNED' | 'CANCELLED'
@@ -40,6 +42,7 @@ export interface Team {
   leader_id: string | null
   brand_type: BrandType
   market: TeamMarket
+  team_kind: TeamKind
   is_active: boolean
   created_at: string
   updated_at: string
@@ -52,6 +55,8 @@ export interface TeamMember {
   id: string
   team_id: string
   user_id: string
+  /** Đánh dấu thành viên là content creator của team này — không loại trừ editor, không giới hạn số lượng. */
+  is_content_creator: boolean
   joined_at: string
   user?: UserBasic
   team?: Pick<Team, 'id' | 'name'>
@@ -123,6 +128,8 @@ export interface TeamContent {
   source_content_id: string | null
   /** có giá trị = đẩy từ kho cá nhân (FK reference) */
   source_editor_content_id: string | null
+  /** Sưu tầm hay tự nghĩ — content creator tự chọn khi thêm; null cho content không do content creator thêm. */
+  origin: ContentOrigin | null
   added_by_id: string
   added_at: string
   updated_at: string
@@ -232,6 +239,62 @@ export interface EditorDailyKpi {
   user?: UserBasic
   set_by?: UserBasic
   team?: { id: string; name: string }
+}
+
+// ── Content Creator Daily KPI (KPI ngày set tay, từng ngày một con số) ──
+
+export interface ContentCreatorDailyKpi {
+  id: string
+  user_id: string
+  team_id: string
+  date: string            // ISO — ngày áp dụng (DATE, UTC midnight)
+  target: number          // 0 = chưa set
+  note: string | null
+  set_by_id: string
+  created_at: string
+  updated_at: string
+  user?: UserBasic
+  set_by?: UserBasic
+  team?: { id: string; name: string }
+}
+
+// ── Content Creator KPI (target tháng thủ công cho content creator) ──
+
+export interface ContentCreatorKpi {
+  id: string
+  user_id: string
+  team_id: string
+  month: string
+  content_target: number      // Target số content sưu tầm/tạo mới trong tháng; 0 = chưa set
+  translation_target: number  // Target số bản dịch trong tháng; 0 = chưa set
+  note: string | null
+  set_by_id: string
+  created_at: string
+  updated_at: string
+  user?: UserBasic
+  set_by?: UserBasic
+  team?: { id: string; name: string }
+}
+
+/** 1 video/task được tạo từ content của 1 content creator — dùng trong báo cáo tự tính. */
+export interface ContentCreatorReportVideo {
+  task_id: string
+  status: TaskStatus
+  content_id: string
+  content_code: string | null
+  content_title: string | null
+  editor: Pick<UserBasic, 'id' | 'full_name'> | null
+  published_links: PublishedLink[] | null
+}
+
+/** 1 dòng báo cáo tự tính theo content creator — trả về từ GET /kpi/content-creators/report. */
+export interface ContentCreatorReportRow {
+  user_id: string
+  user: Pick<UserBasic, 'id' | 'full_name'> | null
+  content_collected: number
+  translations_count: number
+  videos_made: number
+  videos: ContentCreatorReportVideo[]
 }
 
 // ── Team Push Request (duyệt đẩy kho cá nhân → kho team) ──
@@ -421,6 +484,23 @@ export interface Content {
       classification?: { id: string; name: string } | null
     } | null
   } | null
+  translations?: ContentTranslation[]
+  _count?: { translations: number }
+}
+
+// ── Content Translations (bản dịch content theo thị trường) ────────────
+
+export interface ContentTranslation {
+  id: string
+  content_id: string
+  market: string
+  title: string | null
+  body: string | null
+  script: string | null
+  translated_by_id: string
+  translated_by?: Pick<UserBasic, 'id' | 'full_name'>
+  created_at: string
+  updated_at: string
 }
 
 export interface Source {
@@ -552,7 +632,7 @@ export interface Task {
   created_at: string
   updated_at: string
   // Relations
-  team?: Pick<Team, 'id' | 'name'>
+  team?: Pick<Team, 'id' | 'name' | 'market'>
   content?: Pick<Content, 'id' | 'code' | 'title' | 'script' | 'file_content_url' | 'market'> & {
     content_line?: ContentLine | null
     source_team_content?: {
@@ -701,11 +781,18 @@ export interface TasksQuery {
   deadline_date?: string
   deadline_from?: string
   deadline_to?: string
+  /** Lọc theo thời điểm task được duyệt/từ chối (reviewed_at) — dùng cho tab "Video đã nộp" (status APPROVED) */
+  reviewed_from?: string
+  reviewed_to?: string
   task_type?: 'auto' | 'extra' | 'manual' | ''
   page?: number
   limit?: number
   search?: string
   sort?: 'created_at' | 'updated_at'
+  /** Cột "Quá hạn" (Kanban) — chỉ lấy task đang xử lý đã trễ hạn, bỏ qua deadline_from/to */
+  overdue?: boolean
+  /** Loại task đã trễ hạn khỏi kết quả — dùng cho các cột trạng thái khác để không hiện trùng với cột "Quá hạn" */
+  exclude_overdue?: boolean
 }
 
 export type BrandType = 'DO_DA' | 'TRANG_SUC'
