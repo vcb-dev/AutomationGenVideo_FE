@@ -31,7 +31,8 @@ export default function VideosListPage() {
 
   const fetchVideos = async () => {
     try {
-      const response = await fetchWithAuth(`${process.env.NEXT_PUBLIC_API_URL}/videos/my-videos`);
+      const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
+      const response = await fetchWithAuth(`${apiBaseUrl}/videos/my-videos`);
 
       const result = await response.json();
       if (result.success) {

@@ -49,7 +49,8 @@ export default function UploadVideoPage() {
       formData.append('description', description);
       formData.append('channelId', channelId);
 
-      const response = await fetchWithAuth(`${process.env.NEXT_PUBLIC_API_URL}/videos/upload`, {
+      const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
+      const response = await fetchWithAuth(`${apiBaseUrl}/videos/upload`, {
         method: 'POST',
         body: formData,
       });

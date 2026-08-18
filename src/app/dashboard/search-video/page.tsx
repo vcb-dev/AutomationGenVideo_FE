@@ -30,7 +30,14 @@ interface UnifiedVideo {
     raw_data?: any;
 }
 
-const ALLOWED_ROLES = [UserRole.ADMIN, UserRole.MANAGER, UserRole.LEADER];
+const ALLOWED_ROLES = [
+    UserRole.ADMIN,
+    UserRole.MANAGER,
+    UserRole.LEADER,
+    UserRole.EDITOR,
+    UserRole.CONTENT,
+    UserRole.MEMBER,
+];
 
 export default function GlobalSearchPage() {
     const router = useRouter();
@@ -39,7 +46,7 @@ export default function GlobalSearchPage() {
     const hasAccess = user?.roles?.some((r) => ALLOWED_ROLES.includes(r)) ?? false;
 
     useEffect(() => {
-        if (user !== undefined && !hasAccess) {
+        if (user && !hasAccess) {
             router.replace('/dashboard');
         }
     }, [user, hasAccess, router]);
