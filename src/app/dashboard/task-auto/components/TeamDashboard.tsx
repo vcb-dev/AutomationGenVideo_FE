@@ -215,10 +215,10 @@ export function TeamDashboard({ d, periodLabel }: { d: any; periodLabel: string 
         )}
       </div>
 
-      {/* ── Video theo tuyến nội dung ── */}
+      {/* ── Video theo tuyến nội dung — theo đúng bộ lọc ngày ở trên, không khoá cứng theo tháng KPI ── */}
       <VideoByLineCard
         data={d.video_by_line}
-        periodLabel={kpi ? formatMonth(kpi.month) : undefined}
+        periodLabel={periodLabel}
         subtitle={d.team?.name}
       />
 
