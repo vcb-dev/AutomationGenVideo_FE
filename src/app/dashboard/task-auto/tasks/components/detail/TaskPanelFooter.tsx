@@ -100,7 +100,7 @@ export function TaskPanelFooter({
                 <CalendarClock className="w-4 h-4" /> Lên lịch đăng bài
               </button>
             )}
-            {!['APPROVED', 'IN_PROGRESS'].includes(task.status) && canDelete && (
+            {task.status !== 'IN_PROGRESS' && canDelete && (
               <button
                 onClick={onDelete}
                 disabled={isPendingDelete}
