@@ -3,12 +3,13 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Loader2, Package, FileText, Users, Check, X, Inbox } from 'lucide-react'
+import { Loader2, Package, FileText, Users, Check, X, Inbox, Eye } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { Pagination, PAGE_SIZE } from '@/components/task-auto/Pagination'
+import { ContentViewModal } from '@/components/task-auto/ContentViewModal'
 import { getTeams, getTeamPushRequests, reviewPushRequest } from '@/lib/api/task-auto'
 import type { TeamPushRequest } from '@/types/task-auto'
 
@@ -76,6 +77,7 @@ export function TeamPushRequestsTab({ isAdminOrManager, userId, selectedTeamId, 
   const [statusFilter, setStatusFilter] = useState<'PENDING' | 'APPROVED' | 'REJECTED' | ''>('PENDING')
   const [page, setPage] = useState(1)
   const [rejecting, setRejecting] = useState<TeamPushRequest | null>(null)
+  const [viewing, setViewing] = useState<TeamPushRequest | null>(null)
 
   const { data: teams } = useQuery({ queryKey: ['task-auto', 'teams'], queryFn: getTeams })
   // Leader chỉ được xem team mình là leader
@@ -201,25 +203,36 @@ export function TeamPushRequestsTab({ isAdminOrManager, userId, selectedTeamId, 
                       <span className={cn('text-xs font-bold px-2.5 py-1 rounded-full', badge.cls)}>{badge.label}</span>
                     </td>
                     <td className="px-4 py-4 text-right">
-                      {r.status === 'PENDING' && (
-                        <div className="flex items-center justify-end gap-1">
+                      <div className="flex items-center justify-end gap-1">
+                        {!isProduct && (
                           <button
-                            disabled={approve.isPending}
-                            onClick={() => approve.mutate(r.id)}
-                            title="Duyệt"
-                            className="p-2.5 rounded-xl text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-50"
+                            onClick={() => setViewing(r)}
+                            title="Xem nội dung / kịch bản"
+                            className="p-2.5 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
                           >
-                            <Check className="w-4 h-4" />
+                            <Eye className="w-4 h-4" />
                           </button>
-                          <button
-                            onClick={() => setRejecting(r)}
-                            title="Từ chối"
-                            className="p-2.5 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      )}
+                        )}
+                        {r.status === 'PENDING' && (
+                          <>
+                            <button
+                              disabled={approve.isPending}
+                              onClick={() => approve.mutate(r.id)}
+                              title="Duyệt"
+                              className="p-2.5 rounded-xl text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-50"
+                            >
+                              <Check className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => setRejecting(r)}
+                              title="Từ chối"
+                              className="p-2.5 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )
@@ -233,6 +246,15 @@ export function TeamPushRequestsTab({ isAdminOrManager, userId, selectedTeamId, 
       </div>
 
       {rejecting && <RejectModal request={rejecting} onClose={() => setRejecting(null)} />}
+
+      {viewing?.editor_content && (
+        <ContentViewModal
+          open
+          item={viewing.editor_content}
+          catalogType="editor"
+          onClose={() => setViewing(null)}
+        />
+      )}
     </div>
   )
 }
