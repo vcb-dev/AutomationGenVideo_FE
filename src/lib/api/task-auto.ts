@@ -302,7 +302,10 @@ export type TaskAutoDashboard = {
   today_deadline?: number
   overdue?: number
   monthly_completed?: number
+  daily_kpi_target?: number
   editors?: { total: number; approved: number; pending_approval: number }
+  /** Số video (task đã duyệt) trong kỳ, gộp theo tuyến nội dung A1-A5. */
+  video_by_line?: { line: string; count: number }[]
   team?: { id: string; name: string; member_count: number } | null
   members?: Array<{
     user_id: string; full_name: string; email: string

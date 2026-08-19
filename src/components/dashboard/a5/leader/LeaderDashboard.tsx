@@ -2,9 +2,11 @@
 
 import { Camera } from "lucide-react";
 import { useRef, useState } from "react";
+import { LeaderContentFreshnessChart } from "./LeaderContentFreshnessChart";
 import { LeaderHeader } from "./LeaderHeader";
 import { LeaderMemberCard } from "./LeaderMemberCard";
 import { currentMonthKey, LeaderMonthFilter, monthLabelOf } from "./LeaderMonthFilter";
+import { LeaderProductCategoryChart } from "./LeaderProductCategoryChart";
 import { LeaderRevenueTotalCard } from "./LeaderRevenueTotalCard";
 import { LeaderTrafficTotalCard } from "./LeaderTrafficTotalCard";
 import { LeaderVideoByLineChart } from "./LeaderVideoByLineChart";
@@ -53,6 +55,10 @@ export function LeaderDashboard() {
     );
   const trafficTotal = members.reduce((sum, m) => sum + m.traffic_month, 0);
   const revenueTotal = members.reduce((sum, m) => sum + m.revenue_month, 0);
+  const contentFreshnessTotal = members.reduce(
+    (acc, m) => ({ new: acc.new + m.content_new, old: acc.old + m.content_old }),
+    { new: 0, old: 0 },
+  );
 
   if (isLoading) {
     return (
@@ -122,7 +128,13 @@ export function LeaderDashboard() {
             </div>
           )}
 
-          <LeaderVideoByLineChart data={data.video_by_line} />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="sm:col-span-2">
+              <LeaderVideoByLineChart data={data.video_by_line} />
+            </div>
+            <LeaderProductCategoryChart data={data.product_by_category} />
+            <LeaderContentFreshnessChart data={contentFreshnessTotal} />
+          </div>
         </div>
       </div>
     </div>

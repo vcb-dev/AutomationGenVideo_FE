@@ -15,6 +15,7 @@ import type { Task, TaskStatus } from '@/types/task-auto'
 import { StatCard } from './StatCard'
 import { StatusBar } from './StatusBar'
 import { DashboardCard, MetricStat } from './DashboardUI'
+import { VideoByLineCard } from './VideoByLineCard'
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -453,6 +454,9 @@ export function PersonalDashboard({ d }: { d: any }) {
     ? Math.round(((kpi?.video_win ?? 0) / videoTotal) * 100)
     : null
 
+  const now = new Date()
+  const currentMonthLabel = formatMonth(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
+
   const firstName = user?.full_name?.trim().split(/\s+/).pop() ?? 'bạn'
   const insight = getInsight({ overdue, todayDeadline, rejected: tasks.rejected ?? 0, hasKpi: !!kpi, remaining })
   const inProgressTotal = (tasks.in_progress ?? 0) + (tasks.assigned ?? 0)
@@ -645,6 +649,9 @@ export function PersonalDashboard({ d }: { d: any }) {
           )}
         </DashboardCard>
       </div>
+
+      {/* ── Video theo tuyến nội dung ── */}
+      <VideoByLineCard data={d.video_by_line} periodLabel={currentMonthLabel} title="Video của tôi theo tuyến nội dung" />
 
       {/* ── Lifetime performance ── */}
       <PerformanceSummary tasks={tasks} />

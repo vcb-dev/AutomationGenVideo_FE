@@ -1,7 +1,9 @@
 "use client";
 
 import { DashboardFilters } from "../shared/DashboardFilters";
+import { LeaderContentFreshnessChart } from "../leader/LeaderContentFreshnessChart";
 import { LeaderMemberCard } from "../leader/LeaderMemberCard";
+import { LeaderProductCategoryChart } from "../leader/LeaderProductCategoryChart";
 import { LeaderRevenueTotalCard } from "../leader/LeaderRevenueTotalCard";
 import { LeaderTrafficTotalCard } from "../leader/LeaderTrafficTotalCard";
 import { LeaderVideoByLineChart } from "../leader/LeaderVideoByLineChart";
@@ -34,8 +36,10 @@ export function AdminOverviewTab() {
       target: acc.target + r.kpi_target,
       traffic: acc.traffic + r.traffic_month,
       revenue: acc.revenue + r.revenue_month,
+      contentNew: acc.contentNew + r.content_new,
+      contentOld: acc.contentOld + r.content_old,
     }),
-    { current: 0, target: 0, traffic: 0, revenue: 0 },
+    { current: 0, target: 0, traffic: 0, revenue: 0, contentNew: 0, contentOld: 0 },
   );
 
   const periodLabel = !isAllTeams && data?.team ? data.team.name : "Toàn công ty";
@@ -88,7 +92,13 @@ export function AdminOverviewTab() {
           </div>
         )}
 
-        <LeaderVideoByLineChart data={data?.video_by_line ?? []} />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="sm:col-span-2">
+            <LeaderVideoByLineChart data={data?.video_by_line ?? []} />
+          </div>
+          <LeaderProductCategoryChart data={data?.product_by_category ?? []} />
+          <LeaderContentFreshnessChart data={{ new: totals.contentNew, old: totals.contentOld }} />
+        </div>
       </div>
     </div>
   );

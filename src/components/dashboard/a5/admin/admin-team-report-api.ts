@@ -13,6 +13,10 @@ export interface AdminTeamReportRow {
   kpi_day_target: number;
   traffic_month: number;
   revenue_month: number;
+  /** Số task trong kỳ dùng content được thêm vào kho VÀ gắn vào task cũng trong kỳ này ("content mới"). */
+  content_new: number;
+  /** Số task còn lại trong kỳ, không gắn với content mới ("content cũ"). */
+  content_old: number;
 }
 
 export interface AdminTeamReport {
@@ -20,6 +24,8 @@ export interface AdminTeamReport {
   team: { id: string; name: string; member_count: number } | null;
   rows: AdminTeamReportRow[];
   video_by_line: { line: string; count: number }[];
+  /** Số video (task đã duyệt) trong kỳ, gộp theo dòng sản phẩm (GMV/Traffic/Profit). */
+  product_by_category: { category: string; count: number }[];
 }
 
 /**
