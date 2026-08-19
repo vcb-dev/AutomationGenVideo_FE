@@ -157,7 +157,7 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
   const activeTeamForWarehouse = selectedTeam ?? lockedTeam
 
   const [contentScope, setContentScope] = useState<Scope>('personal')
-  const [productScope, setProductScope] = useState<Scope>('personal')
+  const [productScope, setProductScope] = useState<Scope>('global')
   const [contentSearch, setContentSearch] = useState('')
   const [productSearch, setProductSearch] = useState('')
   const [showContentModal, setShowContentModal] = useState(false)
