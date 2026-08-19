@@ -574,6 +574,49 @@ export function useNavMenus(
                     },
                 ],
             },
+            {
+                id: "huong-dan-su-dung",
+                label: n.userGuide,
+                activePathPrefixes: ["/dashboard/huong-dan"],
+                sections: [
+                    {
+                        section: n.secGuideTopics,
+                        color: "blue",
+                        items: [
+                            {
+                                label: n.menuTasks,
+                                href: "/dashboard/huong-dan/nhiem-vu",
+                                icon: ClipboardList,
+                                description: n.guideTasksDesc,
+                            },
+                            {
+                                label: n.menuSocial,
+                                href: "/dashboard/huong-dan/dang-bai-mxh",
+                                icon: Send,
+                                description: n.guideComingSoon,
+                            },
+                            {
+                                label: n.menuDiscovery,
+                                href: "/dashboard/huong-dan/kham-pha-video",
+                                icon: Search,
+                                description: n.guideComingSoon,
+                            },
+                            {
+                                label: n.menuUtilities,
+                                href: "/dashboard/huong-dan/tien-ich",
+                                icon: Zap,
+                                description: n.guideComingSoon,
+                            },
+                            {
+                                label: "VCB Portal",
+                                href: "/dashboard/huong-dan/vcb-portal",
+                                icon: LayoutGrid,
+                                description: n.guideComingSoon,
+                            },
+                        ],
+                    },
+                ],
+            },
         ],
         [isManagerOrAdmin, isManagement, isAdmin, isLeader, isManager, n],
     );
