@@ -19,6 +19,7 @@ import { StatusTimeline } from './detail/StatusTimeline'
 import { TaskPanelHeader } from './detail/TaskPanelHeader'
 import { TaskPanelFooter } from './detail/TaskPanelFooter'
 import { TaskMetaStrip } from './detail/TaskMetaStrip'
+import { toVNDatetimeLocalInput } from '@/components/task-auto/helpers'
 import { ContentSection } from './detail/ContentSection'
 import { SourcesSection } from './detail/SourcesSection'
 import { ProductSection } from './detail/ProductSection'
@@ -93,6 +94,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
     source_workshop_id: '',
     source_huyk_id: '',
     assignee_id: '',
+    deadline: '',
   })
   const [productSearch, setProductSearch] = useState('')
   const [contentSearch, setContentSearch] = useState('')
@@ -176,6 +178,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
         source_workshop_id:  task.source_workshop_id  ?? '',
         source_huyk_id:      task.source_huyk_id      ?? '',
         assignee_id:         task.assignee_id         ?? '',
+        deadline:            toVNDatetimeLocalInput(task.deadline),
       })
     }
   }, [task?.id, editMode])
@@ -359,6 +362,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
         source_extra_id:    editForm.source_collected_id || null,
         source_workshop_id: editForm.source_workshop_id || null,
         source_huyk_id:     editForm.source_huyk_id     || null,
+        deadline:           editForm.deadline || undefined,
         ...(canAssign && task?.status === 'PENDING' && {
           assignee_id: editForm.assignee_id || null,
         }),
@@ -755,6 +759,10 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                       onChange: v => setEditForm(f => ({ ...f, assignee_id: v })),
                       options: editorUsers ?? [],
                       loading: loadingEditorUsers,
+                    } : undefined}
+                    deadlineEdit={editMode ? {
+                      value: editForm.deadline,
+                      onChange: v => setEditForm(f => ({ ...f, deadline: v })),
                     } : undefined}
                   />
 

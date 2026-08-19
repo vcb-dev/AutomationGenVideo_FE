@@ -23,6 +23,19 @@ export function isOverdue(deadline?: string | null): boolean {
   return new Date(deadline) < new Date()
 }
 
+// Chuyển ISO deadline (UTC) sang chuỗi cho <input type="datetime-local"> theo giờ VN
+// (UTC+7) — dùng formatToParts với timeZone cố định để không phụ thuộc múi giờ trình duyệt.
+export function toVNDatetimeLocalInput(dt?: string | null): string {
+  if (!dt) return ''
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(new Date(dt))
+  const get = (t: string) => parts.find(p => p.type === t)?.value ?? '00'
+  return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`
+}
+
 export function currentMonth(): string {
   const now = new Date()
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
