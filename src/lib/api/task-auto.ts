@@ -334,6 +334,10 @@ export const getDashboard = (params?: { date_from?: string; date_to?: string }) 
 export const getApprovals = (status?: string) =>
   apiClient.get<EditorApproval[]>(`/task-auto/editor-approvals${qs({ status })}`).then(r => r.data)
 
+// Ai cũng gọi được (không cần role ADMIN/MANAGER/LEADER) — chỉ trả trạng thái approval của chính mình
+export const getMyEditorApproval = () =>
+  apiClient.get<{ status: 'PENDING' | 'APPROVED' | 'REJECTED' | null }>('/task-auto/editor-approvals/me').then(r => r.data)
+
 export const requestEditorApproval = () =>
   apiClient.post<EditorApproval>('/task-auto/editor-approvals', {}).then(r => r.data)
 
