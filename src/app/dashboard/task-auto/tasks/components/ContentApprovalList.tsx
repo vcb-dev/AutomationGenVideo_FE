@@ -8,6 +8,7 @@ import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { NumberedPagination } from '@/components/task-auto/NumberedPagination'
 import { DarkModal } from '@/components/task-auto/DarkModal'
+import { DarkTextarea } from '@/components/task-auto/DarkInput'
 import { formatDateTime } from '@/components/task-auto/helpers'
 import { getContentApprovals, reviewTaskContentApproval } from '@/lib/api/task-auto'
 import type { TaskContentApproval } from '@/types/task-auto'
@@ -114,29 +115,33 @@ export function ContentApprovalList({ teamId, search, assigneeId, page, onPageCh
         </button>
       </div>
     ) : (
-      <div className="flex items-center gap-2 w-full min-w-[280px]">
-        <input
-          type="text"
+      <div className="w-96 max-w-full space-y-2">
+        <DarkTextarea
           autoFocus
+          rows={2}
+          autoGrow
+          maxHeight={200}
           value={rejectReason}
           onChange={e => setRejectReason(e.target.value)}
           placeholder="Lý do từ chối (tuỳ chọn)..."
-          className="flex-1 text-sm bg-white border border-red-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-300"
+          className="text-sm px-3 py-2 border-red-200 focus:ring-red-300 focus:border-red-300"
         />
-        <button
-          onClick={() => reviewMut.mutate({ id: approvalId, action: 'REJECTED', reason: rejectReason.trim() || undefined })}
-          disabled={isReviewing}
-          className="bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white rounded-lg px-3 py-2 text-sm font-semibold flex items-center gap-1.5 transition-colors shrink-0"
-        >
-          {isReviewing && reviewMut.variables?.action === 'REJECTED' && <Loader2 className="w-4 h-4 animate-spin" />}
-          Xác nhận
-        </button>
-        <button
-          onClick={() => setRejectingId(null)}
-          className="text-sm font-semibold px-2 py-2 text-slate-500 hover:bg-gray-100 rounded-lg transition-colors shrink-0"
-        >
-          Huỷ
-        </button>
+        <div className="flex items-center justify-end gap-2">
+          <button
+            onClick={() => setRejectingId(null)}
+            className="text-sm font-semibold px-2 py-2 text-slate-500 hover:bg-gray-100 rounded-lg transition-colors shrink-0"
+          >
+            Huỷ
+          </button>
+          <button
+            onClick={() => reviewMut.mutate({ id: approvalId, action: 'REJECTED', reason: rejectReason.trim() || undefined })}
+            disabled={isReviewing}
+            className="bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white rounded-lg px-3 py-2 text-sm font-semibold flex items-center gap-1.5 transition-colors shrink-0"
+          >
+            {isReviewing && reviewMut.variables?.action === 'REJECTED' && <Loader2 className="w-4 h-4 animate-spin" />}
+            Xác nhận
+          </button>
+        </div>
       </div>
     )
   }
