@@ -110,18 +110,25 @@ export default function TasksPage() {
   })
   const teams = teamsData || []
 
-  // Team mà user đang là LEADER
-  const leaderTeam = isLeader ? teams.find(t => t.leader_id === user?.id) ?? null : null
-  const leaderTeamId = leaderTeam?.id ?? null
+  // TẤT CẢ team mà user đang là LEADER — 1 leader có thể quản lý nhiều team cùng lúc (khớp
+  // getLeaderDashboard ở BE dùng findMany cùng lý do), trước đây dùng .find() nên chỉ lấy được
+  // đúng 1 team, làm mất hẳn task/thành viên của các team còn lại.
+  const leaderTeams = isLeader ? teams.filter(t => t.leader_id === user?.id) : []
+  const leaderTeamIds = leaderTeams.map(t => t.id)
+  // Team cụ thể đang chọn lọc trong số các team leader quản lý (rỗng = xem gộp tất cả team của mình)
+  const selectedLeaderTeam = isLeader ? leaderTeams.find(t => t.id === teamId) ?? null : null
 
   const isMineView = isMember || (isLeaderEditor && viewMode === 'mine')
 
-  // team_id thực sự dùng cho query
+  // team_id thực sự dùng cho query — với LEADER quản lý nhiều team mà chưa chọn lọc 1 team cụ
+  // thể, gộp tất cả id team của họ (phân cách dấu phẩy, BE parse ở parseTeamIdFilter) để không
+  // còn bị khoá cứng vào đúng 1 team như trước.
   const effectiveTeamId = isMineView
     ? undefined
     : isLeader
-      ? (leaderTeamId ?? undefined)
+      ? (teamId || (leaderTeamIds.length ? leaderTeamIds.join(',') : undefined))
       : (teamId || undefined)
+  const effectiveTeamIds = effectiveTeamId ? effectiveTeamId.split(',') : []
 
   // assignee_id thực sự dùng cho mọi query bên dưới: ở view "của tôi" khóa cứng về chính user
   const effectiveAssigneeId = isMineView ? (user?.id || undefined) : (assigneeId || undefined)
@@ -201,7 +208,7 @@ export default function TasksPage() {
   // Danh sách người làm để lọc — lấy từ toàn bộ thành viên team (đúng phạm vi team đang xem),
   // không lấy từ kết quả task vì mỗi cột Kanban chỉ tải một phần nên sẽ thiếu người.
   // Ở isMineView, assignee_id đã bị khóa cứng về chính user nên không cần (và không nên) cho chọn người khác.
-  const assigneeScopeTeams = effectiveTeamId ? teams.filter(t => t.id === effectiveTeamId) : teams
+  const assigneeScopeTeams = effectiveTeamIds.length ? teams.filter(t => effectiveTeamIds.includes(t.id)) : teams
   const assigneeOptionsMap = new Map<string, { id: string; name: string }>()
   if (!isMineView) {
     for (const t of assigneeScopeTeams) {
@@ -246,8 +253,8 @@ export default function TasksPage() {
           <div className="flex items-baseline gap-2.5 min-w-[160px]">
             <h1 className="text-xl font-black text-slate-900 leading-tight">{pageTitle}</h1>
             <span className="text-sm text-slate-400 whitespace-nowrap">
-              {leaderTeam && !isMineView
-                ? `${leaderTeam.name} · ${total > 0 ? `${total} task` : 'Danh sách task'}`
+              {leaderTeams.length > 0 && !isMineView
+                ? `${selectedLeaderTeam ? selectedLeaderTeam.name : leaderTeams.map(t => t.name).join(', ')} · ${total > 0 ? `${total} task` : 'Danh sách task'}`
                 : total > 0 ? `${total} task` : 'Danh sách task'
               }
             </span>
@@ -359,10 +366,12 @@ export default function TasksPage() {
           taskTypeFilter={taskType}
           assigneeFilter={assigneeId}
           assigneeOptions={assigneeOptions}
-          teams={teams}
+          teams={isLeader ? leaderTeams : teams}
           canCreate={canCreate}
           isMember={isMineView}
-          hideTeamFilter={isLeader}
+          // Leader chỉ quản lý 1 team thì không có gì để lọc thêm (ẩn như cũ); quản lý ≥2 team thì
+          // hiện bộ lọc nhưng giới hạn lựa chọn về đúng các team của họ (options = leaderTeams ở trên).
+          hideTeamFilter={isLeader && leaderTeams.length <= 1}
           // Chỉ layout "Danh sách" (bảng phẳng, không tự chia cột theo trạng thái) mới cần bộ lọc
           // Trạng thái — Kanban đã tự chia cột, còn tab "Video chờ duyệt"/"Video đã nộp"/"Content chờ duyệt" không hỗ trợ lọc này.
           hideStatusFilter={!(activeTab === 'table' && taskLayout === 'list')}
