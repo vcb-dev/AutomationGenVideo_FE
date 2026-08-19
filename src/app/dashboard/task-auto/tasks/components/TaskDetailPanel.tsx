@@ -379,7 +379,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
 
   const isAssignee       = task?.assignee_id === currentUserId
   const canApproveReject = userRoles.some(r => ['ADMIN', 'MANAGER', 'LEADER'].includes(r))
-  const canDelete        = userRoles.some(r => ['ADMIN', 'MANAGER', 'LEADER'].includes(r))
+  const canDelete        = isAssignee || userRoles.some(r => ['ADMIN', 'MANAGER', 'LEADER'].includes(r))
   const canAssign        = userRoles.some(r => ['ADMIN', 'MANAGER', 'LEADER'].includes(r))
   const canStart         = task?.status === 'ASSIGNED' && isAssignee
 
