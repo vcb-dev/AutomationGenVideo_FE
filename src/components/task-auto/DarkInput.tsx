@@ -16,6 +16,9 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
 
 interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   label?: string
+  /** Tự giãn chiều cao theo độ dài nội dung thay vì cố định `rows`, cho tới `maxHeight` (mặc định 320px) rồi cuộn. */
+  autoGrow?: boolean
+  maxHeight?: number
 }
 
 const baseInput = 'w-full bg-white border border-gray-200 rounded-xl px-4 py-3.5 text-base text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors disabled:opacity-50 disabled:bg-gray-50'
@@ -41,11 +44,23 @@ export function DarkSelect({ label, className, children, ...props }: SelectProps
   )
 }
 
-export function DarkTextarea({ label, className, ...props }: TextareaProps) {
+export function DarkTextarea({ label, className, autoGrow, maxHeight = 320, ...props }: TextareaProps) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    if (!autoGrow || !ref.current) return
+    ref.current.style.height = 'auto'
+    ref.current.style.height = `${Math.min(ref.current.scrollHeight, maxHeight)}px`
+  }, [autoGrow, maxHeight, props.value])
+
   return (
     <div>
       {label && <label className={labelClass}>{label}</label>}
-      <textarea className={cn(baseInput, 'resize-none', className)} {...props} />
+      <textarea
+        ref={ref}
+        className={cn(baseInput, 'resize-none', autoGrow && 'overflow-y-auto transition-[height]', className)}
+        {...props}
+      />
     </div>
   )
 }

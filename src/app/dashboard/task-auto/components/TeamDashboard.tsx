@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { StatusBar } from './StatusBar'
 import { KpiProgress } from './KpiProgress'
 import { DashboardCard, MetricStat, PeriodBadge } from './DashboardUI'
+import { VideoByLineCard } from './VideoByLineCard'
 
 function formatMonth(yyyymm: string) {
   const [y, m] = yyyymm.split('-')
@@ -213,6 +214,13 @@ export function TeamDashboard({ d, periodLabel }: { d: any; periodLabel: string 
           </DashboardCard>
         )}
       </div>
+
+      {/* ── Video theo tuyến nội dung ── */}
+      <VideoByLineCard
+        data={d.video_by_line}
+        periodLabel={kpi ? formatMonth(kpi.month) : undefined}
+        subtitle={d.team?.name}
+      />
 
       {/* ── Member table ── */}
       <DashboardCard

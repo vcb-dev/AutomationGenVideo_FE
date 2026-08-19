@@ -8,6 +8,7 @@ import {
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { DashboardCard, MetricStat, PeriodBadge } from './DashboardUI'
+import { VideoByLineCard } from './VideoByLineCard'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -17,6 +18,7 @@ interface GlobalData {
   overdue:           number
   monthly_completed: number
   editors:           { total: number; approved: number; pending_approval: number }
+  video_by_line:     { line: string; count: number }[]
 }
 
 export function buildGlobal(d: any): GlobalData {
@@ -26,6 +28,7 @@ export function buildGlobal(d: any): GlobalData {
     overdue:           d.overdue           ?? 0,
     monthly_completed: d.monthly_completed ?? 0,
     editors:           d.editors           ?? { total: 0, approved: 0, pending_approval: 0 },
+    video_by_line:     d.video_by_line     ?? [],
   }
 }
 
@@ -296,6 +299,13 @@ export function GlobalDashboard({ d, periodLabel }: { d: GlobalData; periodLabel
         <EditorPipelineCard editors={d.editors} />
 
       </div>
+
+      {/* ── Video theo tuyến nội dung ── */}
+      <VideoByLineCard
+        data={d.video_by_line}
+        periodLabel={periodLabel}
+        subtitle="Toàn hệ thống"
+      />
 
     </div>
   )

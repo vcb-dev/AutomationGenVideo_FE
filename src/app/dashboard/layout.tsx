@@ -82,6 +82,10 @@ export default function DashboardLayout({
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try { sessionStorage.removeItem('perm_menu_ids'); } catch { /* ignore */ }
+    // PHẢI await xong logout() rồi mới router.replace(): gọi rồi điều hướng ngay trong cùng
+    // tick (kể cả gọi trước) vẫn khiến Next.js huỷ request /auth/logout đang bay giữa chừng
+    // (net::ERR_FAILED — đã tự test bằng Playwright), nên cookie/refresh_token_hash phía
+    // server không bao giờ bị xoá dù UI đã báo đăng xuất thành công.
     await logout();
     router.replace('/');
   };

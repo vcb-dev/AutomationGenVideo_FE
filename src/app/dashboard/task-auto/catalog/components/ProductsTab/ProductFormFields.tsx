@@ -248,6 +248,8 @@ export const MultiImagePicker = forwardRef<MultiImagePickerHandle, { values: str
     const fileRef = useRef<HTMLInputElement>(null)
     const [showUrl, setShowUrl] = useState(false)
     const [urlInput, setUrlInput] = useState('')
+    const [isDragging, setIsDragging] = useState(false)
+    const dragCounter = useRef(0)
 
     // blob URL -> File chưa tải lên
     const pendingFiles = useRef<Map<string, File>>(new Map())
@@ -268,15 +270,49 @@ export const MultiImagePicker = forwardRef<MultiImagePickerHandle, { values: str
       onChange(values.filter((_, idx) => idx !== i))
     }
 
+    const processFiles = (fileList: FileList | null) => {
+      if (!fileList || fileList.length === 0) return
+      const newUrls: string[] = []
+      Array.from(fileList).forEach(file => {
+        if (!file.type.startsWith('image/')) return toast.error(`${file.name}: chỉ chấp nhận file ảnh`)
+        if (file.size > 5 * 1024 * 1024) return toast.error(`${file.name}: ảnh tối đa 5MB`)
+        const blobUrl = URL.createObjectURL(file)
+        pendingFiles.current.set(blobUrl, file)
+        newUrls.push(blobUrl)
+      })
+      if (newUrls.length > 0) onChange([...values, ...newUrls])
+    }
+
     const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0]
+      processFiles(e.target.files)
       if (fileRef.current) fileRef.current.value = ''
-      if (!file) return
-      if (!file.type.startsWith('image/')) return toast.error('Chỉ chấp nhận file ảnh')
-      if (file.size > 5 * 1024 * 1024) return toast.error('Ảnh tối đa 5MB')
-      const blobUrl = URL.createObjectURL(file)
-      pendingFiles.current.set(blobUrl, file)
-      onChange([...values, blobUrl])
+    }
+
+    // dragCounter theo dõi số lần dragenter/dragleave lồng nhau (ảnh, nút X, ...)
+    // để tránh isDragging bị tắt sớm khi con trỏ đi qua phần tử con.
+    const handleDragEnter = (e: React.DragEvent) => {
+      e.preventDefault(); e.stopPropagation()
+      if (!e.dataTransfer.types.includes('Files')) return
+      dragCounter.current += 1
+      setIsDragging(true)
+    }
+    const handleDragLeave = (e: React.DragEvent) => {
+      e.preventDefault(); e.stopPropagation()
+      dragCounter.current -= 1
+      if (dragCounter.current <= 0) {
+        dragCounter.current = 0
+        setIsDragging(false)
+      }
+    }
+    const handleDragOver = (e: React.DragEvent) => {
+      e.preventDefault(); e.stopPropagation()
+      e.dataTransfer.dropEffect = 'copy'
+    }
+    const handleDrop = (e: React.DragEvent) => {
+      e.preventDefault(); e.stopPropagation()
+      dragCounter.current = 0
+      setIsDragging(false)
+      processFiles(e.dataTransfer.files)
     }
 
     const addUrl = () => {
@@ -300,8 +336,14 @@ export const MultiImagePicker = forwardRef<MultiImagePickerHandle, { values: str
     }), [])
 
     return (
-      <div className="space-y-3">
-        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+      <div
+        className="relative space-y-3"
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFile} />
 
         <label className="block text-base font-semibold text-slate-700">
           Ảnh sản phẩm
@@ -310,17 +352,27 @@ export const MultiImagePicker = forwardRef<MultiImagePickerHandle, { values: str
           )}
         </label>
 
+        {isDragging && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-indigo-500 bg-indigo-50/90 text-indigo-600 pointer-events-none">
+            <Upload className="w-8 h-8" />
+            <p className="text-sm font-semibold">Thả ảnh vào đây để tải lên</p>
+          </div>
+        )}
+
         {values.length === 0 && (
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="w-full flex flex-col items-center justify-center gap-3 border-2 border-dashed border-gray-200 hover:border-indigo-400 hover:bg-indigo-50/30 rounded-2xl py-10 transition-colors group"
+            className={cn(
+              'w-full flex flex-col items-center justify-center gap-3 border-2 border-dashed rounded-2xl py-10 transition-colors group',
+              isDragging ? 'border-indigo-400 bg-indigo-50/30' : 'border-gray-200 hover:border-indigo-400 hover:bg-indigo-50/30'
+            )}
           >
             <div className="w-12 h-12 rounded-2xl bg-gray-100 group-hover:bg-indigo-100 flex items-center justify-center transition-colors">
               <Upload className="w-6 h-6 text-slate-400 group-hover:text-indigo-500 transition-colors" />
             </div>
             <div className="text-center">
-              <p className="text-sm font-semibold text-slate-600 group-hover:text-indigo-600 transition-colors">Nhấn để chọn ảnh</p>
+              <p className="text-sm font-semibold text-slate-600 group-hover:text-indigo-600 transition-colors">Kéo thả hoặc nhấn để chọn ảnh</p>
               <p className="text-xs text-slate-400 mt-0.5">JPG, PNG, WebP — tối đa 5MB. Ảnh sẽ được tải lên khi lưu.</p>
             </div>
           </button>
