@@ -24,7 +24,7 @@ const hintClass = 'mt-0.5 block text-xs text-slate-500 dark:text-slate-400';
 const NEW_CATEGORY = '__new_category__';
 const NEW_MODEL = '__new_model__';
 
-function formatCategoryName(cat: EquipmentCategory) {
+export function formatCategoryName(cat: EquipmentCategory) {
   const map: Record<string, string> = {
     CAM: 'Máy ảnh (Camera)',
     LEN: 'Ống kính (Lens)',
@@ -36,7 +36,7 @@ function formatCategoryName(cat: EquipmentCategory) {
   return map[cat.code] || `${cat.name} (${cat.code})`;
 }
 
-function suggestCode(name: string) {
+export function suggestCode(name: string) {
   const clean = name
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
