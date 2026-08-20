@@ -359,13 +359,24 @@ async function proposeVideo({ url, platform, videoId, meta }) {
     return openProposeVideo(url);
 }
 
-/** Tìm 1 tab đang mở trang web hệ thống. */
 async function findAppTab(base) {
     try {
-        const tabs = await chrome.tabs.query({ url: `${base}/*` });
-        // Ưu tiên tab đang hiển thị — nhiều khả năng là tab người dùng vừa đăng nhập.
-        const pick = tabs.find((t) => t.active) || tabs[0];
-        return pick?.id ?? null;
+        const candidateBases = Array.from(new Set([
+            base,
+            'https://app.vienchibao.com',
+            'http://localhost:3001',
+            DEFAULT_APP_BASE
+        ].filter(Boolean)));
+
+        for (const b of candidateBases) {
+            const clean = b.replace(/\/$/, '');
+            const tabs = await chrome.tabs.query({ url: `${clean}/*` });
+            if (tabs && tabs.length > 0) {
+                const pick = tabs.find((t) => t.active) || tabs[0];
+                if (pick?.id != null) return pick.id;
+            }
+        }
+        return null;
     } catch {
         return null;
     }

@@ -32,8 +32,17 @@ function clampText(raw: unknown, max: number): string {
 }
 
 export async function POST(request: Request) {
-    const auth = request.headers.get('authorization');
-    if (!auth) {
+    let auth = request.headers.get('authorization');
+    const cookieHeader = request.headers.get('cookie') || '';
+
+    if (!auth && cookieHeader) {
+        const match = cookieHeader.match(/(?:^|;\s*)(?:vcbi_at|access_token|token)=([^;]+)/);
+        if (match) {
+            auth = `Bearer ${decodeURIComponent(match[1])}`;
+        }
+    }
+
+    if (!auth && !cookieHeader) {
         return NextResponse.json({ message: 'Thiếu phiên đăng nhập.' }, { status: 401 });
     }
 
@@ -85,10 +94,14 @@ export async function POST(request: Request) {
         source: 'MANUAL' as const,
     };
 
+    const forwardHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (auth) forwardHeaders['Authorization'] = auth;
+    if (cookieHeader) forwardHeaders['Cookie'] = cookieHeader;
+
     const callBe = (path: string) =>
         fetch(`${BE_API_URL}${path}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: auth },
+            headers: forwardHeaders,
             body: JSON.stringify(payload),
             // Phải DÀI HƠN toàn bộ chuỗi phía sau (lấy chi tiết video 30s + AI sinh script
             // tối đa 120s). Trước đây để 30s nên khi leader thêm video, FE bỏ cuộc giữa chừng

@@ -1199,9 +1199,14 @@
         }
 
         try {
+            const token = localStorage.getItem('token') || localStorage.getItem('access_token') || localStorage.getItem('vcbi_token');
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
             const res = await fetch(`${location.origin}/api/extension/propose`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers,
                 credentials: 'include',
                 body: JSON.stringify(payload),
             });
