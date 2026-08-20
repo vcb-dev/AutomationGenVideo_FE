@@ -1862,4 +1862,31 @@ export const scraperService = {
     if (!res.ok) return { lookalikes: [] };
     return res.json();
   },
+
+  getOwnedThreadsProfiles: async (token: string): Promise<any[]> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/threads/owned/profiles`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  syncOwnedThreads: async (token: string): Promise<{ accounts: number; createdProfiles: number; updatedProfiles: number; syncedPosts: number; failed: number }> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/threads/owned/sync`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Đồng bộ kênh Threads thất bại');
+    return res.json();
+  },
+
+  toggleThreadsOwned: async (token: string, username: string, is_owned: boolean): Promise<any> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/threads/owned/toggle-owned`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, is_owned }),
+    });
+    if (!res.ok) throw new Error('Cập nhật trạng thái thất bại');
+    return res.json();
+  },
 };

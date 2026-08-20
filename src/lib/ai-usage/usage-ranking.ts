@@ -10,6 +10,7 @@ export interface UsageByUser {
     user_id: string;
     full_name: string;
     email: string;
+    team?: string | null;
     characters: number;
     tts_count: number;
     clone_count: number;
