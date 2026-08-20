@@ -17,9 +17,9 @@ import {
 } from '@/lib/equipment/api';
 
 const inputClass =
-  'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-white';
+  'w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-white';
 const labelClass = 'text-sm font-semibold text-slate-900 dark:text-white';
-const hintClass = 'mt-0.5 block text-xs text-slate-400';
+const hintClass = 'mt-0.5 block text-xs text-slate-500 dark:text-slate-400';
 
 const NEW_CATEGORY = '__new_category__';
 const NEW_MODEL = '__new_model__';
@@ -80,7 +80,8 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
   // Ảnh tải lên
   const [photos, setPhotos] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
-  const photoInputRef = useRef<HTMLInputElement>(null);
+  const photoLibraryInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const [saving, setSaving] = useState(false);
   const [stage, setStage] = useState('');
@@ -140,7 +141,8 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
     const picked = Array.from(files);
     setPhotos((prev) => [...prev, ...picked]);
     setPreviews((prev) => [...prev, ...picked.map((f) => URL.createObjectURL(f))]);
-    if (photoInputRef.current) photoInputRef.current.value = '';
+    if (photoLibraryInputRef.current) photoLibraryInputRef.current.value = '';
+    if (cameraInputRef.current) cameraInputRef.current.value = '';
   };
 
   const dropPhoto = (index: number) => {
@@ -231,33 +233,35 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/60 p-0 sm:p-4 backdrop-blur-sm animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="my-8 w-full max-w-xl rounded-xl border border-slate-200 bg-white shadow-xl dark:border-white/[0.1] dark:bg-slate-900"
+        className="w-full max-w-xl max-h-[92vh] sm:max-h-[88vh] flex flex-col rounded-t-2xl sm:rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-white/[0.1] dark:bg-slate-900 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-slate-100 p-5 dark:border-white/[0.06]">
+        {/* HEADER (Sticky) */}
+        <div className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-100 bg-white/95 px-4 py-3.5 sm:px-5 sm:py-4 backdrop-blur dark:border-white/[0.06] dark:bg-slate-900/95">
           <div>
-            <h2 className="text-base font-semibold text-slate-900 dark:text-white">
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
               Thêm thiết bị vào kho
             </h2>
-            <p className="mt-0.5 text-xs text-slate-400">
-              Chọn danh mục và model để hệ thống tự động sinh mã thiết bị theo chuẩn.
+            <p className="text-xs text-slate-400">
+              Chọn danh mục và model để hệ thống tự động sinh mã máy chuẩn.
             </p>
           </div>
           <button
             onClick={onClose}
-            className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 text-slate-400 hover:text-slate-700 dark:border-white/[0.1]"
+            className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-white/[0.08] dark:text-slate-300"
           >
-            ×
+            ✕
           </button>
         </div>
 
-        <div className="flex flex-col gap-4 p-5">
+        {/* BODY (Scrollable) */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
           {/* BƯỚC 1: CHỌN HOẶC TẠO DANH MỤC */}
-          <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/50 p-4 dark:border-white/[0.08] dark:bg-white/[0.02]">
+          <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 sm:p-4 dark:border-white/[0.08] dark:bg-white/[0.02]">
             <label className="block">
               <span className={labelClass}>
                 1. Danh mục thiết bị <em className="not-italic text-red-600">*</em>
@@ -288,7 +292,7 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
             </label>
 
             {isCreatingCategory && (
-              <div className="flex flex-col gap-3 rounded-lg border border-blue-200 bg-blue-50/60 p-3.5 dark:border-blue-500/30 dark:bg-blue-500/[0.08]">
+              <div className="flex flex-col gap-3 rounded-xl border border-blue-200 bg-blue-50/80 p-3.5 dark:border-blue-500/30 dark:bg-blue-500/[0.08]">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300">
                     Khai báo danh mục mới
@@ -296,7 +300,7 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
                   <button
                     type="button"
                     onClick={() => setSelectedCategoryId(categories[0]?.id || '')}
-                    className="text-xs text-blue-600 hover:underline dark:text-blue-400"
+                    className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
                   >
                     ← Chọn danh mục có sẵn
                   </button>
@@ -336,7 +340,7 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
 
                   <label className="block">
                     <span className={labelClass}>Thời gian kiểm tra (phút)</span>
-                    <span className={hintClass}>Buffer kiểm tra sau khi trả máy</span>
+                    <span className={hintClass}>Buffer kiểm tra sau khi trả</span>
                     <input
                       type="number"
                       min={0}
@@ -352,7 +356,7 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
           </div>
 
           {/* BƯỚC 2: CHỌN HOẶC KHAI BÁO MODEL THIẾT BỊ */}
-          <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/50 p-4 dark:border-white/[0.08] dark:bg-white/[0.02]">
+          <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 sm:p-4 dark:border-white/[0.08] dark:bg-white/[0.02]">
             {!isCreatingCategory && (
               <label className="block">
                 <span className={labelClass}>
@@ -375,7 +379,7 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
             )}
 
             {isCreatingModel && (
-              <div className="flex flex-col gap-3 rounded-lg border border-emerald-200 bg-emerald-50/50 p-3.5 dark:border-emerald-500/30 dark:bg-emerald-500/[0.08]">
+              <div className="flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50/80 p-3.5 dark:border-emerald-500/30 dark:bg-emerald-500/[0.08]">
                 <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
                   Thông tin model thiết bị mới
                 </span>
@@ -437,9 +441,9 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
               <span className={labelClass}>
                 Số serial máy <em className="not-italic text-red-600">*</em>
               </span>
-              <span className={hintClass}>Số serial vật lý duy nhất in trên thân máy.</span>
+              <span className={hintClass}>Số serial vật lý in trên thân máy.</span>
               <input
-                className={cn(inputClass, 'mt-2 font-mono')}
+                className={cn(inputClass, 'mt-2 font-mono font-medium')}
                 value={serialNumber}
                 onChange={(e) => setSerialNumber(e.target.value)}
                 placeholder="3821992-F"
@@ -516,49 +520,74 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
               />
             </label>
 
-            <div>
-              <span className={labelClass}>Ảnh thiết bị</span>
+            {/* KHỐI ẢNH THIẾT BỊ (HỖ TRỢ CAMERA & THƯ VIỆN ẢNH ĐIỆN THOẠI) */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 sm:p-4 dark:border-white/[0.08] dark:bg-white/[0.02]">
+              <span className={labelClass}>Ảnh chụp thiết bị</span>
               <span className={hintClass}>
-                Tấm đầu tiên sẽ là ảnh đại diện hiển thị ở danh sách kho thiết bị.
+                Chụp trực tiếp bằng camera điện thoại hoặc tải ảnh từ thư viện. Tấm đầu tiên là ảnh đại diện.
               </span>
+
+              {/* ẨN CÁC INPUT FILE NATIVE */}
+              {/* 1. Mở thẳng Camera sau trên điện thoại */}
               <input
-                ref={photoInputRef}
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(e) => addPhotos(e.target.files)}
+              />
+              {/* 2. Mở Thư viện / Album ảnh */}
+              <input
+                ref={photoLibraryInputRef}
                 type="file"
                 accept="image/*"
                 multiple
                 className="hidden"
                 onChange={(e) => addPhotos(e.target.files)}
               />
-              <button
-                type="button"
-                disabled={saving}
-                onClick={() => photoInputRef.current?.click()}
-                className="mt-2 w-full rounded-lg border border-dashed border-slate-300 p-3 text-xs text-slate-500 hover:border-blue-500 hover:text-blue-600 disabled:opacity-50 dark:border-white/[0.15] dark:text-slate-400"
-              >
-                {photos.length === 0 ? 'Bấm để chọn ảnh từ máy' : '+ Chọn thêm ảnh'}
-              </button>
+
+              {/* 2 NÚT THAO TÁC RÕ RÀNG TRÊN ĐIỆN THOẠI & MÁY TÍNH */}
+              <div className="mt-3 grid grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => cameraInputRef.current?.click()}
+                  className="flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs font-semibold text-blue-700 shadow-sm hover:bg-blue-100 active:scale-95 transition-all dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300"
+                >
+                  <span className="text-base">📸</span> Chụp ảnh ngay
+                </button>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => photoLibraryInputRef.current?.click()}
+                  className="flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 active:scale-95 transition-all dark:border-white/[0.12] dark:bg-white/[0.06] dark:text-slate-200"
+                >
+                  <span className="text-base">🖼️</span> Chọn từ thư viện
+                </button>
+              </div>
 
               {photos.length > 0 && (
-                <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-5">
+                <div className="mt-3.5 grid grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-5">
                   {previews.map((src, i) => (
                     <div
                       key={src}
-                      className="group relative aspect-square overflow-hidden rounded-md border border-slate-200 dark:border-white/[0.08]"
+                      className="group relative aspect-square overflow-hidden rounded-xl border border-slate-200 dark:border-white/[0.08] shadow-sm bg-black/5"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={src} alt={photos[i].name} className="h-full w-full object-cover" />
                       {i === 0 && (
-                        <span className="absolute inset-x-0 bottom-0 bg-blue-600/90 py-0.5 text-center text-[9px] font-bold text-white">
-                          đại diện
+                        <span className="absolute inset-x-0 bottom-0 bg-blue-600/90 py-0.5 text-center text-[9px] font-bold text-white tracking-wider uppercase">
+                          Ảnh đại diện
                         </span>
                       )}
                       <button
                         type="button"
                         onClick={() => dropPhoto(i)}
                         title="Bỏ ảnh này"
-                        className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded bg-white/90 text-xs font-bold text-red-600 opacity-0 transition-opacity group-hover:opacity-100"
+                        className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full bg-slate-900/80 text-xs font-bold text-white shadow-md active:scale-90 transition-transform"
                       >
-                        ×
+                        ✕
                       </button>
                     </div>
                   ))}
@@ -567,30 +596,31 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
             </div>
           </div>
 
-          <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
+          <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
             Máy mới luôn vào trạng thái <b>Chờ kiểm tra</b> để bảo đảm quy trình kiểm kê trước khi sẵn sàng cho mượn.
           </p>
 
           {error && (
-            <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
+            <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
               {error}
             </p>
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-3 border-t border-slate-100 p-5 dark:border-white/[0.06]">
+        {/* FOOTER (Sticky) */}
+        <div className="sticky bottom-0 z-20 flex items-center justify-end gap-2.5 border-t border-slate-100 bg-white/95 px-4 py-3 sm:px-5 sm:py-3.5 backdrop-blur dark:border-white/[0.06] dark:bg-slate-900/95">
           <button
             onClick={onClose}
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-white/[0.12] dark:text-slate-300 dark:hover:bg-white/[0.05]"
+            className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 active:scale-95 transition-all dark:border-white/[0.12] dark:text-slate-300 dark:hover:bg-white/[0.05]"
           >
             Huỷ
           </button>
           <button
             disabled={!canSubmit}
             onClick={submit}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 dark:disabled:bg-white/[0.08]"
+            className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 active:scale-95 transition-all disabled:cursor-not-allowed disabled:bg-slate-300 dark:disabled:bg-white/[0.08]"
           >
-            {saving ? stage || 'Đang nhập kho…' : photos.length > 0 ? `Nhập kho kèm ${photos.length} ảnh` : 'Nhập kho'}
+            {saving ? stage || 'Đang nhập kho…' : photos.length > 0 ? `Nhập kho (${photos.length} ảnh)` : 'Nhập kho'}
           </button>
         </div>
       </div>
