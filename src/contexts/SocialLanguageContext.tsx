@@ -672,7 +672,6 @@ const T = {
       menuSocial: 'Đăng bài MXH',
       menuDiscovery: 'Khám phá Video',
       menuTasks: 'Nhiệm vụ',
-      menuEquipment: 'Thiết bị Media',
       menuUtilities: 'Tiện ích',
 
       secOverview: 'TỔNG QUAN',
@@ -1508,7 +1507,6 @@ const T = {
       menuSocial: 'Social Publishing',
       menuDiscovery: 'Video Discovery',
       menuTasks: 'Tasks',
-      menuEquipment: 'Media Equipment',
       menuUtilities: 'Utilities',
 
       secOverview: 'OVERVIEW',
