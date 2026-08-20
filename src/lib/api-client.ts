@@ -98,7 +98,14 @@ apiClient.interceptors.response.use(
 
     if (error.response?.status === 401) {
       if (typeof window !== 'undefined') {
-        if (!config?.url?.includes('/auth/login')) {
+        const url = config?.url || '';
+        const isAuthEndpoint =
+          url.includes('/auth/login') ||
+          url.includes('/auth/me') ||
+          url.includes('/auth/refresh') ||
+          url.includes('/auth/logout');
+
+        if (!isAuthEndpoint && window.location.pathname.startsWith('/dashboard')) {
           window.location.href = '/login';
         }
       }
