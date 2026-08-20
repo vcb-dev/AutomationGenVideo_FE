@@ -5,8 +5,9 @@ import {
   Search, Plus, X, Loader2, Link as LinkIcon,
   Facebook, Instagram, Music2, Youtube, Globe,
   Pencil, Trash2, ExternalLink, Building2,
-  ChevronDown, Tag, SlidersHorizontal,
+  ChevronDown, Tag, SlidersHorizontal, Sparkles, CheckCircle2
 } from 'lucide-react';
+
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '@/store/auth-store';
@@ -99,6 +100,71 @@ export default function InternalChannelsPage() {
   const [deleteTarget,  setDeleteTarget]  = useState<Channel | null>(null);
   const [deleting,      setDeleting]      = useState(false);
   const [teamMembers,   setTeamMembers]   = useState<OwnerOption[]>([]);
+
+  const [showMetaModal, setShowMetaModal] = useState(false);
+  const [metaAccounts,  setMetaAccounts]  = useState<any[]>([]);
+  const [loadingMeta,   setLoadingMeta]   = useState(false);
+  const [selectedMetaIds, setSelectedMetaIds] = useState<string[]>([]);
+  const [importingMeta, setImportingMeta] = useState(false);
+
+  const openMetaImport = async () => {
+    setShowMetaModal(true);
+    setLoadingMeta(true);
+    try {
+      const res = await fetchWithAuth(`${apiUrl}/channels/meta-connected`);
+      if (res.ok) {
+        const data = await res.json();
+        setMetaAccounts(data || []);
+      }
+    } catch {
+      toast.error('Không thể tải danh sách kênh Meta');
+    } finally {
+      setLoadingMeta(false);
+    }
+  };
+
+  const toggleSelectMeta = (id: string) => {
+    setSelectedMetaIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleImportMetaSubmit = async () => {
+    if (selectedMetaIds.length === 0) {
+      toast.error('Vui lòng chọn ít nhất 1 kênh để nhập');
+      return;
+    }
+    setImportingMeta(true);
+    try {
+      const selected = metaAccounts
+        .filter(a => selectedMetaIds.includes(a.id))
+        .map(a => ({
+          platform: a.platform,
+          name: a.name,
+          channel_id: a.platform_id || a.id,
+          link_channel: a.extra_data?.link || (a.platform === 'FACEBOOK' ? `https://facebook.com/${a.platform_id?.replace(/^page_/, '')}` : null),
+        }));
+      const res = await fetchWithAuth(`${apiUrl}/channels/import-from-meta`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channels: selected }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(`Đã nhập thành công ${data.count} kênh vào đội nhóm!`);
+        setShowMetaModal(false);
+        setSelectedMetaIds([]);
+        fetchChannels();
+      } else {
+        toast.error(data.message || 'Lỗi nhập kênh');
+      }
+    } catch {
+      toast.error('Có lỗi xảy ra khi nhập kênh');
+    } finally {
+      setImportingMeta(false);
+    }
+  };
+
 
   const statusDropRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -270,13 +336,21 @@ export default function InternalChannelsPage() {
                   </button>
                 )}
               </div>
-              {isLeader && (
-                <button onClick={openCreate}
-                  className="flex items-center gap-2.5 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-base font-bold rounded-xl transition-all shadow-lg shadow-indigo-200 active:scale-95 whitespace-nowrap">
-                  <Plus className="w-5 h-5" />
-                  Thêm kênh
-                </button>
+              {canManage && (
+                <div className="flex items-center gap-2">
+                  <button onClick={openMetaImport}
+                    className="flex items-center gap-2 px-4 py-3 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-sm font-bold rounded-xl transition-all active:scale-95 whitespace-nowrap">
+                    <Sparkles className="w-4 h-4 text-blue-600" />
+                    Nhập từ Meta
+                  </button>
+                  <button onClick={openCreate}
+                    className="flex items-center gap-2.5 px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-indigo-200 active:scale-95 whitespace-nowrap">
+                    <Plus className="w-4 h-4" />
+                    Thêm kênh
+                  </button>
+                </div>
               )}
+
             </div>
           </div>
 
@@ -667,6 +741,104 @@ export default function InternalChannelsPage() {
                   {deleting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
                   {deleting ? 'Đang xóa...' : 'Xóa kênh'}
                 </button>
+              </div>
+
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── META IMPORT MODAL ─── */}
+
+      <AnimatePresence>
+        {showMetaModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => !importingMeta && setShowMetaModal(false)}>
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }} onClick={e => e.stopPropagation()}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-xl p-6 sm:p-8 flex flex-col max-h-[85vh]">
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-900">Nhập kênh từ Meta OAuth</h3>
+                    <p className="text-xs text-slate-500">Chọn các Fanpage hoặc Instagram đã kết nối để đưa vào danh sách Kênh Đội Nhóm</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowMetaModal(false)} className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto py-4 space-y-2.5">
+                {loadingMeta ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                    <Loader2 className="w-8 h-8 animate-spin mb-2 text-blue-600" />
+                    <p className="text-sm font-semibold">Đang tải danh sách kênh Meta...</p>
+                  </div>
+                ) : metaAccounts.length === 0 ? (
+                  <div className="text-center py-12 text-slate-500">
+                    <p className="font-semibold">Chưa tìm thấy tài khoản Meta nào đã kết nối.</p>
+                    <p className="text-xs text-slate-400 mt-1">Vui lòng vào trang Kênh Social để kết nối Facebook/Instagram trước.</p>
+                  </div>
+                ) : (
+                  metaAccounts.map(a => {
+                    const isSelected = selectedMetaIds.includes(a.id);
+                    return (
+                      <div
+                        key={a.id}
+                        onClick={() => toggleSelectMeta(a.id)}
+                        className={`flex items-center gap-3 p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
+                          isSelected ? 'border-blue-500 bg-blue-50/50 shadow-sm' : 'border-slate-200 hover:border-slate-300 bg-white'
+                        }`}
+                      >
+                        <div className="w-10 h-10 rounded-full bg-slate-100 overflow-hidden flex-shrink-0 flex items-center justify-center font-bold text-slate-600">
+                          {a.avatar_url ? (
+                            <img src={a.avatar_url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          ) : (
+                            a.name?.charAt(0) || 'M'
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-slate-900 truncate">{a.name}</p>
+                          <p className="text-xs text-blue-600 font-semibold">{a.platform} {a.username ? `· @${a.username}` : ''}</p>
+                        </div>
+                        <div className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center ${
+                          isSelected ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white'
+                        }`}>
+                          {isSelected && <span className="text-xs font-bold">✓</span>}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                <p className="text-xs font-semibold text-slate-500">
+                  Đã chọn <span className="text-blue-600 font-bold">{selectedMetaIds.length}</span> kênh
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowMetaModal(false)}
+                    disabled={importingMeta}
+                    className="px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+                  >
+                    Đóng
+                  </button>
+                  <button
+                    onClick={handleImportMetaSubmit}
+                    disabled={importingMeta || selectedMetaIds.length === 0}
+                    className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-all shadow-md shadow-blue-200 flex items-center gap-2"
+                  >
+                    {importingMeta ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                    {importingMeta ? 'Đang nhập...' : 'Nhập kênh đã chọn'}
+                  </button>
+                </div>
               </div>
             </motion.div>
           </motion.div>

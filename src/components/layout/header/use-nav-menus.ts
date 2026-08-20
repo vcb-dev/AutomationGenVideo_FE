@@ -575,9 +575,9 @@ export function useNavMenus(
                 ],
             },
             {
-                id: "huong-dan-su-dung",
+                id: "user-guide",
                 label: n.userGuide,
-                activePathPrefixes: ["/dashboard/huong-dan"],
+                activePathPrefixes: ["/dashboard/user-guide"],
                 sections: [
                     {
                         section: n.secGuideTopics,
@@ -585,33 +585,39 @@ export function useNavMenus(
                         items: [
                             {
                                 label: n.menuTasks,
-                                href: "/dashboard/huong-dan/nhiem-vu",
+                                href: "/dashboard/user-guide/tasks",
                                 icon: ClipboardList,
                                 description: n.guideTasksDesc,
                             },
                             {
                                 label: n.menuSocial,
-                                href: "/dashboard/huong-dan/dang-bai-mxh",
+                                href: "/dashboard/user-guide/social-publishing",
                                 icon: Send,
-                                description: n.guideComingSoon,
+                                description: n.guideSocialDesc,
                             },
                             {
                                 label: n.menuDiscovery,
-                                href: "/dashboard/huong-dan/kham-pha-video",
+                                href: "/dashboard/user-guide/video-discovery",
                                 icon: Search,
-                                description: n.guideComingSoon,
+                                description: n.guideDiscoveryDesc,
+                            },
+                            {
+                                label: n.menuEquipment,
+                                href: "/dashboard/user-guide/equipment",
+                                icon: Zap,
+                                description: n.guideEquipmentDesc,
                             },
                             {
                                 label: n.menuUtilities,
-                                href: "/dashboard/huong-dan/tien-ich",
-                                icon: Zap,
-                                description: n.guideComingSoon,
+                                href: "/dashboard/user-guide/utilities",
+                                icon: Sparkles,
+                                description: n.guideUtilitiesDesc,
                             },
                             {
                                 label: "VCB Portal",
-                                href: "/dashboard/huong-dan/vcb-portal",
+                                href: "/dashboard/user-guide/vcb-portal",
                                 icon: LayoutGrid,
-                                description: n.guideComingSoon,
+                                description: n.guidePortalDesc,
                             },
                         ],
                     },

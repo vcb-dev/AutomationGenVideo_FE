@@ -7,6 +7,7 @@ export interface SocialAccount {
   id: string;
   user_id?: string;
   platform: SocialPlatform;
+  platform_id?: string;
   name: string;
   username?: string;
   avatar_url?: string;
