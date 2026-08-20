@@ -34,7 +34,7 @@ export function RejectModal({ task, onClose, onSuccess }: Props) {
       open
       onClose={onClose}
       title="Từ chối task"
-      size="sm"
+      size="md"
       footer={
         <>
           <button
@@ -56,6 +56,7 @@ export function RejectModal({ task, onClose, onSuccess }: Props) {
       <DarkTextarea
         label="Lý do từ chối *"
         rows={3}
+        autoGrow
         placeholder="Nhập lý do từ chối..."
         value={reason}
         onChange={e => setReason(e.target.value)}

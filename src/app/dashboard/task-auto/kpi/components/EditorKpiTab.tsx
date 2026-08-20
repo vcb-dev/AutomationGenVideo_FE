@@ -169,8 +169,8 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
   const myTeamIds = new Set(myTeams.map(t => t.id))
 
   let visibleKpis = editorKpis ?? []
-  if (!isManagerOrAdmin) {
-    // Non-admin (Leader, Editor, Member): Only view KPIs of their own team(s)
+  if (isLeader) {
+    // Leader: xem KPI của cả team mình quản lý
     if (teamFilter) {
       visibleKpis = visibleKpis.filter(k => k.team_id === teamFilter)
     } else if (myTeamIds.size > 0) {
@@ -179,6 +179,12 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
       visibleKpis = visibleKpis.filter(k => k.user_id === userId)
     } else {
       visibleKpis = []
+    }
+  } else if (!isManagerOrAdmin) {
+    // Member/Editor thường: chỉ xem KPI của chính mình, không xem của người khác trong team
+    visibleKpis = userId ? visibleKpis.filter(k => k.user_id === userId) : []
+    if (teamFilter) {
+      visibleKpis = visibleKpis.filter(k => k.team_id === teamFilter)
     }
   } else if (teamFilter) {
     visibleKpis = visibleKpis.filter(k => k.team_id === teamFilter)

@@ -12,7 +12,16 @@ interface AssigneeEditProps {
   loading?: boolean
 }
 
-export function TaskMetaStrip({ task, assigneeEdit }: { task: Task; assigneeEdit?: AssigneeEditProps }) {
+interface DeadlineEditProps {
+  value: string
+  onChange: (value: string) => void
+}
+
+export function TaskMetaStrip({ task, assigneeEdit, deadlineEdit }: {
+  task: Task
+  assigneeEdit?: AssigneeEditProps
+  deadlineEdit?: DeadlineEditProps
+}) {
   const overdue = isOverdue(task.deadline) && !['APPROVED', 'CANCELLED'].includes(task.status)
   return (
     <div className="border border-gray-200 rounded-2xl overflow-hidden bg-white">
@@ -48,12 +57,21 @@ export function TaskMetaStrip({ task, assigneeEdit }: { task: Task; assigneeEdit
             <CalendarDays className={cn('w-3 h-3', overdue ? 'text-red-400' : 'text-gray-400')} />
             <p className={cn('text-xs font-medium', overdue ? 'text-red-400' : 'text-gray-400')}>Deadline</p>
           </div>
-          <div className="flex items-center gap-1.5">
-            {overdue && <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />}
-            <p className={cn('text-sm font-semibold', overdue ? 'text-red-600' : 'text-gray-800')}>
-              {formatDateTime(task.deadline) || '—'}
-            </p>
-          </div>
+          {deadlineEdit ? (
+            <input
+              type="datetime-local"
+              value={deadlineEdit.value}
+              onChange={e => deadlineEdit.onChange(e.target.value)}
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+            />
+          ) : (
+            <div className="flex items-center gap-1.5">
+              {overdue && <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />}
+              <p className={cn('text-sm font-semibold', overdue ? 'text-red-600' : 'text-gray-800')}>
+                {formatDateTime(task.deadline) || '—'}
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="px-5 py-3.5">

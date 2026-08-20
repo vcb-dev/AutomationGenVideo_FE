@@ -174,21 +174,6 @@ export default function HeaderInner({ user, onLogout, allowedMenuIds }: HeaderPr
                                 isItemActive={isItemActive}
                             />
                         ))}
-                        {/* Mục Báo cáo Content (/dashboard/thong-ke) - Ẩn theo yêu cầu */}
-                        {/* <Link
-                            href="/dashboard/thong-ke"
-                            className={`
-                                relative flex items-center gap-1.5 px-3 text-sm font-medium
-                                transition-colors duration-150 rounded-md my-1.5
-                                ${pathname.startsWith("/dashboard/thong-ke") ? "text-white bg-white/[0.08]" : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.05]"}
-                            `}
-                        >
-                            {t.nav.contentReport}
-                            {pathname.startsWith("/dashboard/thong-ke") && (
-                                <span className="absolute bottom-0 left-2 right-2 h-[2px] rounded-full bg-blue-500" />
-                            )}
-                        </Link> */}
-
                     </nav>
 
                     {/* Portal slot */}

@@ -166,6 +166,7 @@ export function ContentSection({
 
   const contentTextareaRef = useRef<HTMLTextAreaElement | null>(null)
   const translationTextareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const rejectReasonRef = useRef<HTMLTextAreaElement | null>(null)
   // true khi người dùng đã tự gõ tay — chặn không cho pre-fill mặc định ghi đè lên bản đang gõ dở.
   const userTouchedRef = useRef(false)
 
@@ -191,6 +192,7 @@ export function ContentSection({
   // Co giãn textarea theo nội dung — chạy lại cả khi gõ tay lẫn khi content được nạp/sinh AI/dịch.
   useEffect(() => { autoResize(contentTextareaRef.current) }, [editedContent, rewriteMode])
   useEffect(() => { autoResize(translationTextareaRef.current) }, [editedTranslationContent])
+  useEffect(() => { autoResize(rejectReasonRef.current) }, [rejectReason, showRejectInput])
 
   // So với baseline hiện có (bản đã lưu, hoặc mặc định = script gốc nếu chưa từng lưu) — không phải
   // so với '' — để tránh báo "Chưa lưu" ngay khi vừa mở task mới chưa ai đụng vào.
@@ -645,30 +647,33 @@ export function ContentSection({
                 </div>
               )}
               {canApproveReject && showRejectInput && (
-                <div className="flex items-center gap-2 w-full pt-1">
-                  <input
-                    type="text"
+                <div className="w-full space-y-2 pt-1">
+                  <textarea
+                    ref={rejectReasonRef}
                     autoFocus
+                    rows={2}
                     value={rejectReason}
                     onChange={e => setRejectReason(e.target.value)}
                     placeholder="Lý do từ chối (tuỳ chọn)..."
-                    className="flex-1 text-sm bg-white border border-red-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-300"
+                    className="w-full text-sm bg-white border border-red-200 rounded-lg px-3 py-2 resize-none overflow-y-auto max-h-[200px] focus:outline-none focus:ring-2 focus:ring-red-300"
                   />
-                  <button
-                    type="button"
-                    onClick={() => handleReview('REJECTED')}
-                    disabled={!!reviewing}
-                    className="flex items-center gap-1.5 text-sm font-semibold px-3.5 py-2 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white transition-colors shrink-0"
-                  >
-                    {reviewing === 'REJECTED' && <Loader2 className="w-4 h-4 animate-spin" />} Xác nhận từ chối
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setShowRejectInput(false); setRejectReason('') }}
-                    className="text-sm font-semibold px-3.5 py-2 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors shrink-0"
-                  >
-                    Huỷ
-                  </button>
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleReview('REJECTED')}
+                      disabled={!!reviewing}
+                      className="flex items-center gap-1.5 text-sm font-semibold px-3.5 py-2 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white transition-colors shrink-0"
+                    >
+                      {reviewing === 'REJECTED' && <Loader2 className="w-4 h-4 animate-spin" />} Xác nhận từ chối
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setShowRejectInput(false); setRejectReason('') }}
+                      className="text-sm font-semibold px-3.5 py-2 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors shrink-0"
+                    >
+                      Huỷ
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

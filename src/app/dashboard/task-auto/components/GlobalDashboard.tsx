@@ -3,11 +3,11 @@
 import { PieChart, Pie, Tooltip, ResponsiveContainer } from 'recharts'
 import {
   ListTodo, Clock, AlertTriangle, CheckCircle2, XCircle, Send,
-  CalendarCheck2, Users, UserCheck, BarChart3, UserPlus, ArrowRight,
+  CalendarCheck2, BarChart3,
 } from 'lucide-react'
-import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { DashboardCard, MetricStat, PeriodBadge } from './DashboardUI'
+import { VideoByLineCard } from './VideoByLineCard'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -16,7 +16,7 @@ interface GlobalData {
   today_deadline:    number
   overdue:           number
   monthly_completed: number
-  editors:           { total: number; approved: number; pending_approval: number }
+  video_by_line:     { line: string; count: number }[]
 }
 
 export function buildGlobal(d: any): GlobalData {
@@ -25,7 +25,7 @@ export function buildGlobal(d: any): GlobalData {
     today_deadline:    d.today_deadline    ?? 0,
     overdue:           d.overdue           ?? 0,
     monthly_completed: d.monthly_completed ?? 0,
-    editors:           d.editors           ?? { total: 0, approved: 0, pending_approval: 0 },
+    video_by_line:     d.video_by_line     ?? [],
   }
 }
 
@@ -120,65 +120,6 @@ function SystemPerformanceSummary({ tasks, today_deadline, overdue, monthly_comp
   )
 }
 
-// ─── Editor Pipeline Card ─────────────────────────────────────────────────────
-
-function EditorPipelineCard({ editors }: { editors: GlobalData['editors'] }) {
-  return (
-    <DashboardCard
-      icon={Users} iconColor="text-indigo-600" iconBg="bg-indigo-50"
-      title="Editor" subtitle="Tài khoản hệ thống"
-      right={<span className="text-2xl font-black text-slate-700 tracking-tight">{editors.total}</span>}
-      className="flex flex-col"
-    >
-      <div className="px-5 py-4 space-y-3 flex-1">
-        {/* Approved editors */}
-        <div className="flex items-center gap-3 p-3 bg-emerald-50 rounded-xl">
-          <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
-            <UserCheck className="w-4 h-4 text-emerald-600" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-emerald-700 font-semibold">Đã phê duyệt</p>
-            <p className="text-xs text-emerald-500">editor đang hoạt động</p>
-          </div>
-          <span className="text-xl font-black text-emerald-600 tracking-tight">{editors.approved}</span>
-        </div>
-
-        {/* Pending approval */}
-        <div className={cn(
-          'flex items-center gap-3 p-3 rounded-xl',
-          editors.pending_approval > 0 ? 'bg-amber-50' : 'bg-slate-50',
-        )}>
-          <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0',
-            editors.pending_approval > 0 ? 'bg-amber-100' : 'bg-slate-100',
-          )}>
-            <UserPlus className={cn('w-4 h-4', editors.pending_approval > 0 ? 'text-amber-600' : 'text-slate-400')} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className={cn('text-xs font-semibold', editors.pending_approval > 0 ? 'text-amber-700' : 'text-slate-500')}>
-              Chờ phê duyệt
-            </p>
-            <p className={cn('text-xs', editors.pending_approval > 0 ? 'text-amber-500' : 'text-slate-400')}>
-              {editors.pending_approval > 0 ? 'Cần xem xét và phê duyệt' : 'Không có yêu cầu nào'}
-            </p>
-          </div>
-          <span className={cn('text-xl font-black tracking-tight', editors.pending_approval > 0 ? 'text-amber-600' : 'text-slate-300')}>
-            {editors.pending_approval}
-          </span>
-        </div>
-      </div>
-
-      {editors.pending_approval > 0 && (
-        <div className="px-4 pb-4">
-          <Link href="/dashboard/task-auto/teams"
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition-colors shadow-sm shadow-amber-500/20">
-            Xem yêu cầu phê duyệt <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
-      )}
-    </DashboardCard>
-  )
-}
-
 // ─── GlobalDashboard ──────────────────────────────────────────────────────────
 
 export function GlobalDashboard({ d, periodLabel }: { d: GlobalData; periodLabel: string }) {
@@ -207,7 +148,7 @@ export function GlobalDashboard({ d, periodLabel }: { d: GlobalData; periodLabel
         periodLabel={periodLabel}
       />
 
-      {/* ── 2-col: Task donut | Editor ── */}
+      {/* ── 2-col: Task donut | Video theo tuyến nội dung ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
         {/* Task distribution */}
@@ -273,7 +214,7 @@ export function GlobalDashboard({ d, periodLabel }: { d: GlobalData; periodLabel
             )}
           </div>
 
-          {/* Urgent alerts — pinned footer band, mirrors EditorPipelineCard's action band */}
+          {/* Urgent alerts — pinned footer band */}
           {taskChartData.length > 0 && (d.overdue > 0 || d.today_deadline > 0) && (
             <div className="mx-4 mb-4 space-y-1.5">
               {d.overdue > 0 && (
@@ -292,8 +233,12 @@ export function GlobalDashboard({ d, periodLabel }: { d: GlobalData; periodLabel
           )}
         </DashboardCard>
 
-        {/* Editor pipeline */}
-        <EditorPipelineCard editors={d.editors} />
+        {/* Video theo tuyến nội dung */}
+        <VideoByLineCard
+          data={d.video_by_line}
+          periodLabel={periodLabel}
+          subtitle="Toàn hệ thống"
+        />
 
       </div>
 

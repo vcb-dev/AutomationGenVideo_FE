@@ -1,12 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Target, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MonthPicker } from '@/components/task-auto'
 import { currentMonth } from '@/components/task-auto/helpers'
 import { useAuthStore } from '@/store/auth-store'
 import { UserRole } from '@/types/auth'
+import { getTeams, getMyEditorApproval } from '@/lib/api/task-auto'
 import { TeamKpiTab } from './components/TeamKpiTab'
 import { EditorKpiTab } from './components/EditorKpiTab'
 import { DailyKpiTab } from './components/DailyKpiTab'
@@ -34,10 +36,44 @@ export default function KpiPage() {
   const canEditTeamKpi = isAdminOrManager
   const canEditEditorKpi = isAdminOrManager || isLeader
 
+  // Member thường (không admin/manager/leader): chỉ thấy nhóm tab ứng với vai trò thực tế của mình
+  // (editor và/hoặc content creator), suy ra từ EditorApproval + TeamMember.is_content_creator.
+  const isPlainMember = !isAdminOrManager && !isLeader
+
+  const { data: teamsForRoleCheck, isLoading: teamsLoading } = useQuery({
+    queryKey: ['task-auto', 'teams'],
+    queryFn: getTeams,
+    enabled: isPlainMember,
+  })
+  const { data: myApproval, isLoading: approvalsLoading } = useQuery({
+    queryKey: ['task-auto', 'editor-approvals', 'me'],
+    queryFn: getMyEditorApproval,
+    enabled: isPlainMember,
+  })
+
+  const roleCheckLoading = isPlainMember && (teamsLoading || approvalsLoading)
+  const isEditorUser = !isPlainMember || roleCheckLoading || myApproval?.status === 'APPROVED'
+  const isContentCreatorUser = !isPlainMember || roleCheckLoading
+    || (teamsForRoleCheck?.some(t => t.members?.some(m => m.user_id === user?.id && m.is_content_creator)) ?? false)
+
+  const visibleTabs = (['team', 'editor', 'daily', 'content-creator', 'content-creator-daily'] as KpiTab[])
+    .filter(tab => {
+      if (!isPlainMember) return true
+      if (tab === 'editor' || tab === 'daily') return isEditorUser
+      if (tab === 'content-creator' || tab === 'content-creator-daily') return isContentCreatorUser
+      return true
+    })
+
   const [activeTab, setActiveTab] = useState<KpiTab>('team')
   const [month, setMonth] = useState(currentMonth)
   // Shared team selection between KPI Team and KPI Editor tabs
   const [selectedTeamId, setSelectedTeamId] = useState('')
+
+  useEffect(() => {
+    if (!roleCheckLoading && !visibleTabs.includes(activeTab)) {
+      setActiveTab(visibleTabs[0] ?? 'team')
+    }
+  }, [roleCheckLoading, visibleTabs, activeTab])
 
   return (
     <div className="space-y-8">
@@ -66,7 +102,7 @@ export default function KpiPage() {
       )}
 
       <div className="border-b border-gray-200 flex gap-1 overflow-x-auto scrollbar-none">
-        {(['team', 'editor', 'daily', 'content-creator', 'content-creator-daily'] as KpiTab[]).map(tab => (
+        {visibleTabs.map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             className={cn('flex items-center gap-2 px-6 py-3 text-base font-medium rounded-t-lg transition-colors shrink-0 whitespace-nowrap',
               activeTab === tab ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-slate-500 hover:text-slate-800 hover:bg-gray-100')}>

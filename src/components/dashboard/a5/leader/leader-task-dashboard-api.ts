@@ -30,6 +30,10 @@ export interface LeaderDashboardMember {
   is_content_creator: boolean;
   content_collected_month: number;
   content_original_month: number;
+  /** Số task trong kỳ dùng content được thêm vào kho VÀ gắn vào task cũng trong kỳ này ("content mới"). */
+  content_new: number;
+  /** Số task còn lại trong kỳ, không gắn với content mới ("content cũ"). */
+  content_old: number;
 }
 
 export interface LeaderTaskDashboard {
@@ -47,6 +51,8 @@ export interface LeaderTaskDashboard {
   } | null;
   /** Số video (task đã duyệt) trong tháng của cả team, gộp theo tuyến nội dung A1-A5. */
   video_by_line: { line: string; count: number }[];
+  /** Số video (task đã duyệt) trong tháng của cả team, gộp theo dòng sản phẩm (GMV/Traffic/Profit). */
+  product_by_category: { category: string; count: number }[];
 }
 
 /**

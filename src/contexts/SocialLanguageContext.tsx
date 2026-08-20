@@ -818,6 +818,10 @@ const T = {
       equipmentReturnsDesc: 'Nhận lại từng máy, đối chiếu với lúc giao, kết luận sự cố',
 
       contentReport: 'Báo cáo content',
+      userGuide: 'Hướng dẫn sử dụng',
+      secGuideTopics: 'Chọn mục cần xem',
+      guideTasksDesc: 'Cách tạo, giao và theo dõi nhiệm vụ',
+      guideComingSoon: 'Nội dung đang được cập nhật',
       systemSettings: 'Cài đặt hệ thống',
       characterManagement: 'Quản lý nhân vật',
       settings: 'Cài đặt',
@@ -1644,6 +1648,10 @@ const T = {
       equipmentReturnsDesc: 'Take units back, compare against handover, conclude incidents',
 
       contentReport: 'Content Report',
+      userGuide: 'User Guide',
+      secGuideTopics: 'Choose a topic',
+      guideTasksDesc: 'How to create, assign and track tasks',
+      guideComingSoon: 'Content coming soon',
       systemSettings: 'System Settings',
       characterManagement: 'Manage Characters',
       settings: 'Settings',
