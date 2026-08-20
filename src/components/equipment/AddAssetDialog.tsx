@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { CONDITION_OPTIONS } from '@/lib/equipment/status-label';
 import {
@@ -8,6 +8,7 @@ import {
   EquipmentModel,
   StorageLocation,
   createAsset,
+  createCategory,
   createModel,
   uploadAssetPhoto,
   fetchCategories,
@@ -20,26 +21,43 @@ const inputClass =
 const labelClass = 'text-sm font-semibold text-slate-900 dark:text-white';
 const hintClass = 'mt-0.5 block text-xs text-slate-400';
 
-/** Giá trị đặc biệt của dropdown model, mở khối khai model mới ngay trong form. */
-const NEW_MODEL = '__new__';
+const NEW_CATEGORY = '__new_category__';
+const NEW_MODEL = '__new_model__';
+
+function formatCategoryName(cat: EquipmentCategory) {
+  const map: Record<string, string> = {
+    CAM: 'Máy ảnh (Camera)',
+    LEN: 'Ống kính (Lens)',
+    LIG: 'Đèn Flash & Ánh sáng (Lighting)',
+    AUD: 'Microphone & Âm thanh (Audio)',
+    GIM: 'Gimbal & Chống rung',
+    TRP: 'Chân máy (Tripod)',
+  };
+  return map[cat.code] || `${cat.name} (${cat.code})`;
+}
+
+function suggestCode(name: string) {
+  const clean = name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .toUpperCase();
+  return clean.slice(0, 4) || 'EQP';
+}
 
 interface AddAssetDialogProps {
   onClose: () => void;
   onCreated: () => void;
 }
 
-/**
- * Nhập kho một máy (NV-01).
- *
- * Mã thiết bị KHÔNG có ô nhập: BE tự sinh theo mã danh mục để không ai đặt trùng hay đặt lệch
- * quy ước. Máy mới luôn vào trạng thái Chờ kiểm tra (BR-05), không cho mượn ngay được — form
- * nói rõ điều đó để thủ kho không đợi máy xuất hiện ở danh sách sẵn sàng.
- */
 export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
   const [categories, setCategories] = useState<EquipmentCategory[]>([]);
   const [models, setModels] = useState<EquipmentModel[]>([]);
   const [locations, setLocations] = useState<StorageLocation[]>([]);
 
+  const [selectedCategoryId, setSelectedCategoryId] = useState('');
   const [modelId, setModelId] = useState('');
   const [serialNumber, setSerialNumber] = useState('');
   const [locationId, setLocationId] = useState('');
@@ -48,14 +66,18 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
   const [condition, setCondition] = useState('GOOD');
   const [intakeNote, setIntakeNote] = useState('');
 
-  // Khối khai model mới, chỉ hiện khi chọn "Khai model mới".
-  const [newCategoryId, setNewCategoryId] = useState('');
+  // Tạo danh mục mới
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatCode, setNewCatCode] = useState('');
+  const [newCatBuffer, setNewCatBuffer] = useState('60');
+
+  // Khai model mới
   const [newModelName, setNewModelName] = useState('');
   const [newManufacturer, setNewManufacturer] = useState('');
   const [newPrice, setNewPrice] = useState('');
   const [newAccessories, setNewAccessories] = useState('');
 
-  // Ảnh chọn trước, tải lên sau khi máy đã có mã — endpoint ảnh cần mã máy để gắn vào.
+  // Ảnh tải lên
   const [photos, setPhotos] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -64,24 +86,54 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
   const [stage, setStage] = useState('');
   const [error, setError] = useState('');
 
-  // Ảnh xem trước giữ trong bộ nhớ trình duyệt; không thu hồi thì mỗi lần mở hộp thoại lại rò một ít.
   useEffect(() => () => previews.forEach((u) => URL.revokeObjectURL(u)), [previews]);
 
-  useEffect(() => {
+  const loadData = () => {
     Promise.all([fetchModels(), fetchCategories(), fetchLocations()])
       .then(([m, c, l]) => {
         setModels(m);
         setCategories(c);
         setLocations(l);
+        if (c.length > 0 && !selectedCategoryId) {
+          setSelectedCategoryId(c[0].id);
+        }
       })
       .catch(() => setError('Không đọc được danh mục thiết bị.'));
+  };
+
+  useEffect(() => {
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const creatingModel = modelId === NEW_MODEL;
+  const isCreatingCategory = selectedCategoryId === NEW_CATEGORY;
+
+  // Lọc models theo danh mục đã chọn
+  const filteredModels = useMemo(() => {
+    if (!selectedCategoryId || isCreatingCategory) return [];
+    return models.filter((m) => m.category?.id === selectedCategoryId);
+  }, [models, selectedCategoryId, isCreatingCategory]);
+
+  // Nếu chuyển danh mục mà model không khớp hoặc chưa có model nào thì chuyển sang khai model mới
+  useEffect(() => {
+    if (isCreatingCategory) {
+      setModelId(NEW_MODEL);
+    } else if (filteredModels.length > 0) {
+      if (!filteredModels.some((m) => m.id === modelId) && modelId !== NEW_MODEL) {
+        setModelId(filteredModels[0].id);
+      }
+    } else {
+      setModelId(NEW_MODEL);
+    }
+  }, [selectedCategoryId, filteredModels, isCreatingCategory, modelId]);
+
+  const isCreatingModel = isCreatingCategory || modelId === NEW_MODEL;
+
   const canSubmit =
     serialNumber.trim() !== '' &&
     !saving &&
-    (creatingModel ? newCategoryId !== '' && newModelName.trim() !== '' : modelId !== '');
+    (isCreatingCategory ? newCatName.trim() !== '' : selectedCategoryId !== '') &&
+    (isCreatingModel ? newModelName.trim() !== '' : modelId !== '');
 
   const addPhotos = (files: FileList | null) => {
     if (!files?.length) return;
@@ -101,11 +153,26 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
     setSaving(true);
     setError('');
     try {
+      let targetCategoryId = selectedCategoryId;
+
+      // 1. Tạo danh mục mới nếu được chọn
+      if (isCreatingCategory) {
+        setStage('Đang tạo danh mục mới…');
+        const code = newCatCode.trim() || suggestCode(newCatName);
+        const cat = await createCategory({
+          name: newCatName.trim(),
+          code: code.toUpperCase(),
+          bufferMinutes: Number(newCatBuffer) || 60,
+        });
+        targetCategoryId = cat.id;
+      }
+
+      // 2. Tạo model mới nếu được chọn
       let targetModelId = modelId;
-      if (creatingModel) {
-        setStage('Đang khai model…');
+      if (isCreatingModel) {
+        setStage('Đang tạo model thiết bị…');
         const model = await createModel({
-          categoryId: newCategoryId,
+          categoryId: targetCategoryId,
           name: newModelName.trim(),
           manufacturer: newManufacturer.trim() || undefined,
           referencePrice: newPrice ? Number(newPrice) : undefined,
@@ -117,7 +184,8 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
         targetModelId = model.id;
       }
 
-      setStage('Đang nhập kho…');
+      // 3. Nhập kho thiết bị
+      setStage('Đang nhập kho thiết bị…');
       const asset = await createAsset({
         modelId: targetModelId,
         serialNumber: serialNumber.trim(),
@@ -128,8 +196,7 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
         intakeNote: intakeNote.trim() || undefined,
       });
 
-      // Máy đã vào kho rồi. Ảnh lỗi từ đây trở đi KHÔNG được huỷ máy — báo rõ tấm nào hỏng để
-      // người dùng bổ sung sau ở màn chi tiết, còn hơn bắt họ nhập lại từ đầu.
+      // 4. Tải ảnh thiết bị lên
       const failed: string[] = [];
       for (const [i, file] of photos.entries()) {
         setStage(`Đang tải ảnh ${i + 1}/${photos.length}…`);
@@ -177,7 +244,7 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
               Thêm thiết bị vào kho
             </h2>
             <p className="mt-0.5 text-xs text-slate-400">
-              Mã thiết bị do hệ thống sinh theo danh mục, không nhập tay.
+              Chọn danh mục và model để hệ thống tự động sinh mã thiết bị theo chuẩn.
             </p>
           </div>
           <button
@@ -189,238 +256,319 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
         </div>
 
         <div className="flex flex-col gap-4 p-5">
-          <label className="block">
-            <span className={labelClass}>
-              Model <em className="not-italic text-red-600">*</em>
-            </span>
-            <select
-              className={cn(inputClass, 'mt-2')}
-              value={modelId}
-              onChange={(e) => setModelId(e.target.value)}
-            >
-              <option value="">— Chọn model —</option>
-              {models.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name} · {m.category.name} ({m._count.assets} máy)
-                </option>
-              ))}
-              <option value={NEW_MODEL}>+ Khai model mới…</option>
-            </select>
-          </label>
-
-          {creatingModel && (
-            <div className="flex flex-col gap-4 rounded-lg border border-blue-200 bg-blue-50/50 p-4 dark:border-blue-500/20 dark:bg-blue-500/[0.06]">
-              <label className="block">
-                <span className={labelClass}>
-                  Danh mục <em className="not-italic text-red-600">*</em>
-                </span>
-                <span className={hintClass}>
-                  Quyết định tiền tố mã máy và buffer kiểm tra sau khi trả.
-                </span>
-                <select
-                  className={cn(inputClass, 'mt-2')}
-                  value={newCategoryId}
-                  onChange={(e) => setNewCategoryId(e.target.value)}
-                >
-                  <option value="">— Chọn danh mục —</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.code}) · buffer {c.buffer_minutes} phút
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="block">
-                <span className={labelClass}>
-                  Tên model <em className="not-italic text-red-600">*</em>
-                </span>
-                <input
-                  className={cn(inputClass, 'mt-2')}
-                  value={newModelName}
-                  onChange={(e) => setNewModelName(e.target.value)}
-                  placeholder="Ví dụ: Sony A7 IV"
-                />
-              </label>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="block">
-                  <span className={labelClass}>Hãng</span>
-                  <input
-                    className={cn(inputClass, 'mt-2')}
-                    value={newManufacturer}
-                    onChange={(e) => setNewManufacturer(e.target.value)}
-                    placeholder="Sony"
-                  />
-                </label>
-                <label className="block">
-                  <span className={labelClass}>Giá tham chiếu</span>
-                  <input
-                    type="number"
-                    min={0}
-                    className={cn(inputClass, 'mt-2')}
-                    value={newPrice}
-                    onChange={(e) => setNewPrice(e.target.value)}
-                    placeholder="48000000"
-                  />
-                </label>
-              </div>
-
-              <label className="block">
-                <span className={labelClass}>Phụ kiện đi kèm</span>
-                <span className={hintClass}>
-                  Ngăn cách bằng dấu phẩy. Đây là bảng đối chiếu lúc bàn giao và lúc nhận lại —
-                  bỏ trống thì sau này không ai biết đáng lẽ phải trả về những gì.
-                </span>
-                <input
-                  className={cn(inputClass, 'mt-2')}
-                  value={newAccessories}
-                  onChange={(e) => setNewAccessories(e.target.value)}
-                  placeholder="Pin, Sạc, Dây đeo, Thẻ nhớ"
-                />
-              </label>
-            </div>
-          )}
-
-          <label className="block">
-            <span className={labelClass}>
-              Số serial <em className="not-italic text-red-600">*</em>
-            </span>
-            <span className={hintClass}>Duy nhất toàn hệ thống, không sửa được sau khi tạo.</span>
-            <input
-              className={cn(inputClass, 'mt-2 font-mono')}
-              value={serialNumber}
-              onChange={(e) => setSerialNumber(e.target.value)}
-              placeholder="3821992-F"
-            />
-          </label>
-
-          <label className="block">
-            <span className={labelClass}>Vị trí trong kho</span>
-            <select
-              className={cn(inputClass, 'mt-2')}
-              value={locationId}
-              onChange={(e) => setLocationId(e.target.value)}
-            >
-              <option value="">— Chưa xếp chỗ —</option>
-              {locations.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <div className="grid gap-3 sm:grid-cols-2">
+          {/* BƯỚC 1: CHỌN HOẶC TẠO DANH MỤC */}
+          <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/50 p-4 dark:border-white/[0.08] dark:bg-white/[0.02]">
             <label className="block">
-              <span className={labelClass}>Ngày mua</span>
-              <input
-                type="date"
+              <span className={labelClass}>
+                1. Danh mục thiết bị <em className="not-italic text-red-600">*</em>
+              </span>
+              <span className={hintClass}>
+                Ví dụ: Máy ảnh, Lens, Đèn Flash, Microphone, Gimbal, Phụ kiện...
+              </span>
+              <select
                 className={cn(inputClass, 'mt-2')}
-                value={purchaseDate}
-                onChange={(e) => setPurchaseDate(e.target.value)}
-              />
-            </label>
-            <label className="block">
-              <span className={labelClass}>Nguyên giá</span>
-              <input
-                type="number"
-                min={0}
-                className={cn(inputClass, 'mt-2')}
-                value={purchasePrice}
-                onChange={(e) => setPurchasePrice(e.target.value)}
-                placeholder="48000000"
-              />
-            </label>
-          </div>
-
-          <label className="block">
-            <span className={labelClass}>
-              Tình trạng lúc nhập <em className="not-italic text-red-600">*</em>
-            </span>
-            <span className={hintClass}>
-              Ghi đúng thực tế lúc mở hộp. Hàng đổi trả hay máy mua lại thường đã có vết — khai
-              là Tốt thì mọi lần đối chiếu về sau đều lệch, và người mượn đầu tiên lãnh oan.
-            </span>
-            <select
-              className={cn(inputClass, 'mt-2')}
-              value={condition}
-              onChange={(e) => setCondition(e.target.value)}
-            >
-              {CONDITION_OPTIONS.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block">
-            <span className={labelClass}>Ghi chú lúc nhập</span>
-            <span className={hintClass}>Vào thẳng nhật ký vòng đời của máy, không sửa được sau.</span>
-            <input
-              className={cn(inputClass, 'mt-2')}
-              value={intakeNote}
-              onChange={(e) => setIntakeNote(e.target.value)}
-              placeholder="Ví dụ: hàng đổi trả, xước nhẹ mặt lưng"
-            />
-          </label>
-
-          <div>
-            <span className={labelClass}>Ảnh thiết bị</span>
-            <span className={hintClass}>
-              Chọn được nhiều tấm. Tấm đầu tiên thành ảnh đại diện hiện ở bảng kho, đổi lại được
-              sau ở màn chi tiết.
-            </span>
-            <input
-              ref={photoInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={(e) => addPhotos(e.target.files)}
-            />
-            <button
-              type="button"
-              disabled={saving}
-              onClick={() => photoInputRef.current?.click()}
-              className="mt-2 w-full rounded-lg border border-dashed border-slate-300 p-3 text-xs text-slate-500 hover:border-blue-500 hover:text-blue-600 disabled:opacity-50 dark:border-white/[0.15] dark:text-slate-400"
-            >
-              {photos.length === 0 ? 'Bấm để chọn ảnh' : '+ Chọn thêm ảnh'}
-            </button>
-
-            {photos.length > 0 && (
-              <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-5">
-                {previews.map((src, i) => (
-                  <div
-                    key={src}
-                    className="group relative aspect-square overflow-hidden rounded-md border border-slate-200 dark:border-white/[0.08]"
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={src} alt={photos[i].name} className="h-full w-full object-cover" />
-                    {i === 0 && (
-                      <span className="absolute inset-x-0 bottom-0 bg-blue-600/90 py-0.5 text-center text-[9px] font-bold text-white">
-                        đại diện
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => dropPhoto(i)}
-                      title="Bỏ ảnh này"
-                      className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded bg-white/90 text-xs font-bold text-red-600 opacity-0 transition-opacity group-hover:opacity-100"
-                    >
-                      ×
-                    </button>
-                  </div>
+                value={selectedCategoryId}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedCategoryId(val);
+                  if (val === NEW_CATEGORY) {
+                    setNewCatName('');
+                    setNewCatCode('');
+                  }
+                }}
+              >
+                <option value="">— Chọn danh mục —</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {formatCategoryName(c)}
+                  </option>
                 ))}
+                <option value={NEW_CATEGORY}>+ Tạo danh mục mới…</option>
+              </select>
+            </label>
+
+            {isCreatingCategory && (
+              <div className="flex flex-col gap-3 rounded-lg border border-blue-200 bg-blue-50/60 p-3.5 dark:border-blue-500/30 dark:bg-blue-500/[0.08]">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300">
+                    Khai báo danh mục mới
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCategoryId(categories[0]?.id || '')}
+                    className="text-xs text-blue-600 hover:underline dark:text-blue-400"
+                  >
+                    ← Chọn danh mục có sẵn
+                  </button>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="block sm:col-span-2">
+                    <span className={labelClass}>
+                      Tên danh mục <em className="not-italic text-red-600">*</em>
+                    </span>
+                    <input
+                      className={cn(inputClass, 'mt-1.5')}
+                      value={newCatName}
+                      onChange={(e) => {
+                        setNewCatName(e.target.value);
+                        if (!newCatCode || newCatCode === suggestCode(newCatName)) {
+                          setNewCatCode(suggestCode(e.target.value));
+                        }
+                      }}
+                      placeholder="Ví dụ: Flycam / Drone, Pin & Sạc, Thẻ nhớ..."
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className={labelClass}>
+                      Mã tiền tố (Prefix) <em className="not-italic text-red-600">*</em>
+                    </span>
+                    <span className={hintClass}>Dùng sinh mã: FLY-001, SD-001...</span>
+                    <input
+                      className={cn(inputClass, 'mt-1.5 font-mono uppercase')}
+                      value={newCatCode}
+                      onChange={(e) => setNewCatCode(e.target.value.toUpperCase())}
+                      placeholder="FLY"
+                      maxLength={6}
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className={labelClass}>Thời gian kiểm tra (phút)</span>
+                    <span className={hintClass}>Buffer kiểm tra sau khi trả máy</span>
+                    <input
+                      type="number"
+                      min={0}
+                      className={cn(inputClass, 'mt-1.5')}
+                      value={newCatBuffer}
+                      onChange={(e) => setNewCatBuffer(e.target.value)}
+                      placeholder="60"
+                    />
+                  </label>
+                </div>
               </div>
             )}
           </div>
 
+          {/* BƯỚC 2: CHỌN HOẶC KHAI BÁO MODEL THIẾT BỊ */}
+          <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/50 p-4 dark:border-white/[0.08] dark:bg-white/[0.02]">
+            {!isCreatingCategory && (
+              <label className="block">
+                <span className={labelClass}>
+                  2. Tên Model / Thiết bị <em className="not-italic text-red-600">*</em>
+                </span>
+                <select
+                  className={cn(inputClass, 'mt-2')}
+                  value={modelId}
+                  onChange={(e) => setModelId(e.target.value)}
+                >
+                  {filteredModels.length > 0 && <option value="">— Chọn model có sẵn —</option>}
+                  {filteredModels.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name} {m.manufacturer ? `(${m.manufacturer})` : ''} — {m._count.assets} máy trong kho
+                    </option>
+                  ))}
+                  <option value={NEW_MODEL}>+ Khai báo model thiết bị mới…</option>
+                </select>
+              </label>
+            )}
+
+            {isCreatingModel && (
+              <div className="flex flex-col gap-3 rounded-lg border border-emerald-200 bg-emerald-50/50 p-3.5 dark:border-emerald-500/30 dark:bg-emerald-500/[0.08]">
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                  Thông tin model thiết bị mới
+                </span>
+
+                <label className="block">
+                  <span className={labelClass}>
+                    Tên Model / Thiết bị <em className="not-italic text-red-600">*</em>
+                  </span>
+                  <input
+                    className={cn(inputClass, 'mt-1.5')}
+                    value={newModelName}
+                    onChange={(e) => setNewModelName(e.target.value)}
+                    placeholder="Ví dụ: Sony A7 IV, Canon R6 Mark II, Godox V860III..."
+                  />
+                </label>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="block">
+                    <span className={labelClass}>Hãng sản xuất</span>
+                    <input
+                      className={cn(inputClass, 'mt-1.5')}
+                      value={newManufacturer}
+                      onChange={(e) => setNewManufacturer(e.target.value)}
+                      placeholder="Sony, Canon, DJI, Godox..."
+                    />
+                  </label>
+                  <label className="block">
+                    <span className={labelClass}>Giá tham chiếu (VNĐ)</span>
+                    <input
+                      type="number"
+                      min={0}
+                      className={cn(inputClass, 'mt-1.5')}
+                      value={newPrice}
+                      onChange={(e) => setNewPrice(e.target.value)}
+                      placeholder="48000000"
+                    />
+                  </label>
+                </div>
+
+                <label className="block">
+                  <span className={labelClass}>Phụ kiện đi kèm chuẩn</span>
+                  <span className={hintClass}>
+                    Ngăn cách bằng dấu phẩy. Dùng để đối chiếu lúc bàn giao và nhận lại máy.
+                  </span>
+                  <input
+                    className={cn(inputClass, 'mt-1.5')}
+                    value={newAccessories}
+                    onChange={(e) => setNewAccessories(e.target.value)}
+                    placeholder="Pin, Sạc, Cáp type-C, Túi đựng, Nắp đậy..."
+                  />
+                </label>
+              </div>
+            )}
+          </div>
+
+          {/* BƯỚC 3: THÔNG TIN MÁY VẬT LÝ */}
+          <div className="space-y-4 pt-1">
+            <label className="block">
+              <span className={labelClass}>
+                Số serial máy <em className="not-italic text-red-600">*</em>
+              </span>
+              <span className={hintClass}>Số serial vật lý duy nhất in trên thân máy.</span>
+              <input
+                className={cn(inputClass, 'mt-2 font-mono')}
+                value={serialNumber}
+                onChange={(e) => setSerialNumber(e.target.value)}
+                placeholder="3821992-F"
+              />
+            </label>
+
+            <label className="block">
+              <span className={labelClass}>Vị trí trong kho</span>
+              <select
+                className={cn(inputClass, 'mt-2')}
+                value={locationId}
+                onChange={(e) => setLocationId(e.target.value)}
+              >
+                <option value="">— Chưa xếp chỗ —</option>
+                {locations.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className={labelClass}>Ngày mua</span>
+                <input
+                  type="date"
+                  className={cn(inputClass, 'mt-2')}
+                  value={purchaseDate}
+                  onChange={(e) => setPurchaseDate(e.target.value)}
+                />
+              </label>
+              <label className="block">
+                <span className={labelClass}>Nguyên giá (VNĐ)</span>
+                <input
+                  type="number"
+                  min={0}
+                  className={cn(inputClass, 'mt-2')}
+                  value={purchasePrice}
+                  onChange={(e) => setPurchasePrice(e.target.value)}
+                  placeholder="48000000"
+                />
+              </label>
+            </div>
+
+            <label className="block">
+              <span className={labelClass}>
+                Tình trạng lúc nhập <em className="not-italic text-red-600">*</em>
+              </span>
+              <span className={hintClass}>
+                Ghi đúng thực tế lúc mở hộp để đối chiếu khi bàn giao/nhận lại.
+              </span>
+              <select
+                className={cn(inputClass, 'mt-2')}
+                value={condition}
+                onChange={(e) => setCondition(e.target.value)}
+              >
+                {CONDITION_OPTIONS.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className={labelClass}>Ghi chú lúc nhập</span>
+              <span className={hintClass}>Nhật ký vòng đời thiết bị.</span>
+              <input
+                className={cn(inputClass, 'mt-2')}
+                value={intakeNote}
+                onChange={(e) => setIntakeNote(e.target.value)}
+                placeholder="Ví dụ: máy mới 100%, nguyên seal hộp..."
+              />
+            </label>
+
+            <div>
+              <span className={labelClass}>Ảnh thiết bị</span>
+              <span className={hintClass}>
+                Tấm đầu tiên sẽ là ảnh đại diện hiển thị ở danh sách kho thiết bị.
+              </span>
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => addPhotos(e.target.files)}
+              />
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => photoInputRef.current?.click()}
+                className="mt-2 w-full rounded-lg border border-dashed border-slate-300 p-3 text-xs text-slate-500 hover:border-blue-500 hover:text-blue-600 disabled:opacity-50 dark:border-white/[0.15] dark:text-slate-400"
+              >
+                {photos.length === 0 ? 'Bấm để chọn ảnh từ máy' : '+ Chọn thêm ảnh'}
+              </button>
+
+              {photos.length > 0 && (
+                <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-5">
+                  {previews.map((src, i) => (
+                    <div
+                      key={src}
+                      className="group relative aspect-square overflow-hidden rounded-md border border-slate-200 dark:border-white/[0.08]"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={src} alt={photos[i].name} className="h-full w-full object-cover" />
+                      {i === 0 && (
+                        <span className="absolute inset-x-0 bottom-0 bg-blue-600/90 py-0.5 text-center text-[9px] font-bold text-white">
+                          đại diện
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => dropPhoto(i)}
+                        title="Bỏ ảnh này"
+                        className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded bg-white/90 text-xs font-bold text-red-600 opacity-0 transition-opacity group-hover:opacity-100"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
           <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
-            Máy mới luôn vào trạng thái <b>Chờ kiểm tra</b> dù khai tình trạng nào — trạng thái
-            nói vị trí trong quy trình, tình trạng nói chất lượng máy. Chưa cho mượn được cho tới
-            khi kho kết luận kiểm tra.
+            Máy mới luôn vào trạng thái <b>Chờ kiểm tra</b> để bảo đảm quy trình kiểm kê trước khi sẵn sàng cho mượn.
           </p>
 
           {error && (
