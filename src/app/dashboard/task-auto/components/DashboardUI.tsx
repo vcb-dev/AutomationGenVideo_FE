@@ -82,12 +82,15 @@ interface MetricStatProps {
   sub?: string
   tone?: Tone
   active?: boolean
+  /** Tooltip giải thích chính xác chiều dữ liệu (vd "theo ngày duyệt" vs "theo ngày tạo") —
+   * dùng để tránh hiểu nhầm giữa các số liệu nhìn giống nhau nhưng khác chiều thời gian lọc. */
+  title?: string
 }
 
-export function MetricStat({ icon: Icon, label, value, sub, tone = 'slate', active = true }: MetricStatProps) {
+export function MetricStat({ icon: Icon, label, value, sub, tone = 'slate', active = true, title }: MetricStatProps) {
   const t = TONE_STYLES[active ? tone : 'slate']
   return (
-    <div className="px-4 py-5 text-center">
+    <div className="px-4 py-5 text-center" title={title}>
       <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center mx-auto mb-2', t.bg)}>
         <Icon className={cn('w-4 h-4', t.text)} />
       </div>
@@ -95,5 +98,17 @@ export function MetricStat({ icon: Icon, label, value, sub, tone = 'slate', acti
       <p className={cn('text-2xl font-black tracking-tight', t.text)}>{value}</p>
       {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
     </div>
+  )
+}
+
+// ─── LiveDot ──────────────────────────────────────────────────────────────────
+// Small pulsing indicator marking a metric as "live/now", not scoped to any date filter.
+
+export function LiveDot({ className }: { className?: string }) {
+  return (
+    <span className={cn('relative inline-flex h-2 w-2 shrink-0', className)}>
+      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+      <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+    </span>
   )
 }

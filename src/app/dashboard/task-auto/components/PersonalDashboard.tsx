@@ -325,24 +325,19 @@ function DailyProgress({ userId, dailyKpiTarget = 0 }: { userId: string; dailyKp
   })
   const dateLabel = rawDateLabel.charAt(0).toUpperCase() + rawDateLabel.slice(1)
 
+  // "Tiến độ hôm nay" chỉ tính task THỰC SỰ thuộc về hôm nay: deadline rơi vào hôm nay, hoặc
+  // chưa có deadline nhưng được tạo hôm nay (deadline_date ở BE đã tự áp dụng đúng quy tắc này —
+  // xem tasks.service.ts findAll). Trước đây có gộp thêm MỌI task đang ở trạng thái "Đang làm"
+  // bất kể deadline ngày nào, khiến task đang làm dở từ hôm trước/không liên quan hôm nay vẫn bị
+  // tính vào tiến độ + mục tiêu hôm nay — sai lệch % hoàn thành và số liệu so với dailyKpiTarget.
   const { data: todayData } = useQuery({
     queryKey: ['task-auto', 'tasks-today', userId, today],
     queryFn: () => getTasks({ assignee_id: userId, deadline_date: today, limit: 30 }),
     enabled: !!userId,
     refetchInterval: 60_000,
   })
-  const { data: inProgressData } = useQuery({
-    queryKey: ['task-auto', 'tasks-inprogress', userId],
-    queryFn: () => getTasks({ assignee_id: userId, status: 'IN_PROGRESS', limit: 20 }),
-    enabled: !!userId,
-    refetchInterval: 60_000,
-  })
 
-  const seenIds = new Set<string>()
-  const merged: Task[] = []
-  for (const t of [...(todayData?.data ?? []), ...(inProgressData?.data ?? [])]) {
-    if (!seenIds.has(t.id)) { seenIds.add(t.id); merged.push(t) }
-  }
+  const merged: Task[] = todayData?.data ?? []
 
   const ORDER: Record<TaskStatus, number> = {
     REJECTED: 0, IN_PROGRESS: 1, ASSIGNED: 2, PENDING: 3, SUBMITTED: 4, APPROVED: 5, CANCELLED: 6,

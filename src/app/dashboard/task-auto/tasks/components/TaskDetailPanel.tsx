@@ -377,10 +377,17 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Không thể cập nhật task'),
   })
 
-  const isAssignee       = task?.assignee_id === currentUserId
-  const canApproveReject = userRoles.some(r => ['ADMIN', 'MANAGER', 'LEADER'].includes(r))
-  const canDelete        = isAssignee || userRoles.some(r => ['ADMIN', 'MANAGER', 'LEADER'].includes(r))
-  const canAssign        = userRoles.some(r => ['ADMIN', 'MANAGER', 'LEADER'].includes(r))
+  const isAssignee        = task?.assignee_id === currentUserId
+  const isPrivilegedRole  = userRoles.some(r => ['ADMIN', 'MANAGER', 'LEADER'].includes(r))
+  const canApproveReject  = isPrivilegedRole
+  // Thành viên thường không được tự xoá task do leader giao tay (assigned_by_id khác assignee_id)
+  // hoặc hệ thống tự động chia (run_id != null) — chỉ xoá được task tự mình tạo/tự nhận. BE
+  // (tasks.service.ts remove()) enforce lại, đây chỉ là gate hiển thị nút cho đúng UX.
+  const isLockedForMember =
+    !isPrivilegedRole &&
+    (!!task?.run_id || (!!task?.assigned_by_id && task.assigned_by_id !== task.assignee_id))
+  const canDelete         = (isAssignee && !isLockedForMember) || isPrivilegedRole
+  const canAssign         = isPrivilegedRole
   const canStart         = task?.status === 'ASSIGNED' && isAssignee
 
   const assignEnabled = editMode && canAssign && task?.status === 'PENDING'

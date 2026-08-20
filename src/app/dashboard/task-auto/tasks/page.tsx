@@ -80,6 +80,8 @@ export default function TasksPage() {
   const [approvedTo, setApprovedTo]     = useState('')
   const [taskType, setTaskType]       = useState<'auto' | 'manual' | ''>('')
   const [assigneeId, setAssigneeId]   = useState('')
+  // Bộ lọc "Quá hạn" — chỉ dùng ở layout Danh sách (bảng phẳng); Kanban đã có cột "Quá hạn" riêng.
+  const [overdueOnly, setOverdueOnly] = useState(false)
   const [submittedPage, setSubmittedPage] = useState(1)
   const [approvedPage, setApprovedPage] = useState(1)
   const [contentApprovalPage, setContentApprovalPage] = useState(1)
@@ -189,13 +191,19 @@ export default function TasksPage() {
   // Dữ liệu cho bố cục "List" — chỉ bật khi đang ở tab bảng + layout list, phân trang
   // thường thay vì tự chia theo trạng thái như Kanban.
   const { data: tableData, isLoading: isTableLoading } = useQuery({
-    queryKey: ['task-auto', 'tasks', 'list', { status, effectiveTeamId, search, deadlineFrom, deadlineTo, taskType, viewMode, userId: user?.id, assigneeId, tablePage }],
+    queryKey: ['task-auto', 'tasks', 'list', { status, effectiveTeamId, search, deadlineFrom, deadlineTo, taskType, viewMode, userId: user?.id, assigneeId, tablePage, overdueOnly }],
     queryFn: () => getTasks({
-      status:        status       || undefined,
+      // "Quá hạn" là bộ lọc ảo ở BE (findAll q.overdue): khi bật, status/deadline_from/to bị bỏ qua
+      // hoàn toàn nên không truyền lên để tránh gây hiểu nhầm — xem tasks.service.ts findAll.
+      ...(overdueOnly
+        ? { overdue: true }
+        : {
+            status:        status       || undefined,
+            deadline_from: deadlineFrom || undefined,
+            deadline_to:   deadlineTo   || undefined,
+          }),
       team_id:       effectiveTeamId,
       search:        search       || undefined,
-      deadline_from: deadlineFrom || undefined,
-      deadline_to:   deadlineTo   || undefined,
       task_type:     taskType     || undefined,
       page: tablePage,
       limit: TABLE_LIMIT,
@@ -239,6 +247,7 @@ export default function TasksPage() {
   function handleApprovedToChange(v: string)                         { setApprovedTo(v);   setApprovedPage(1) }
   function handleTaskTypeChange(v: 'auto' | 'manual' | '')           { setTaskType(v);     setTablePage(1) }
   function handleAssigneeChange(v: string)                           { setAssigneeId(v);  setSubmittedPage(1); setApprovedPage(1); setContentApprovalPage(1); setTablePage(1) }
+  function handleOverdueChange(v: boolean)                           { setOverdueOnly(v);  setTablePage(1) }
 
   const pageTitle = isMember || (isLeaderEditor && viewMode === 'mine')
     ? 'Nhiệm vụ của tôi'
@@ -376,6 +385,9 @@ export default function TasksPage() {
           // Trạng thái — Kanban đã tự chia cột, còn tab "Video chờ duyệt"/"Video đã nộp"/"Content chờ duyệt" không hỗ trợ lọc này.
           hideStatusFilter={!(activeTab === 'table' && taskLayout === 'list')}
           hideDateFilter={activeTab === 'content-approval'}
+          // "Quá hạn" chỉ có ý nghĩa ở layout Danh sách (bảng phẳng) — Kanban đã có cột "Quá hạn" riêng.
+          showOverdueFilter={activeTab === 'table' && taskLayout === 'list'}
+          overdueFilter={overdueOnly}
           // Tab "Video đã nộp" lọc theo ngày duyệt (reviewed_at) — khác hạn chót/ngày tạo của các tab
           // còn lại, và không có mặc định "hôm nay" vì đây là tab xem lại lịch sử.
           dateFilterLabel={activeTab === 'approved' ? 'Ngày duyệt' : 'Ngày'}
@@ -390,6 +402,7 @@ export default function TasksPage() {
           onDateToChange={activeTab === 'approved' ? handleApprovedToChange : handleDeadlineToChange}
           onTaskTypeChange={handleTaskTypeChange}
           onAssigneeChange={handleAssigneeChange}
+          onOverdueChange={handleOverdueChange}
           onCreateClick={() => setShowCreate(true)}
         />
         )}

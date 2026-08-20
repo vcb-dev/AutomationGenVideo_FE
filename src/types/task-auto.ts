@@ -201,9 +201,10 @@ export interface EditorKpi {
   content_new: number
   content_collected: number
   content_win_cover: number
-  // ── Product ──
+  // ── Product ── (product_planned = SP GMV, product_win_collect = SP Traffic, product_profit = SP Profit)
   product_planned: number
   product_win_collect: number
+  product_profit: number
   set_by_id: string
   created_at: string
   updated_at: string
@@ -617,6 +618,8 @@ export interface Task {
   team_source_huyk_id:         string | null
   status: TaskStatus
   assignee_id: string | null
+  /** Ai đã set assignee_id (leader/admin/manager giao tay); null nếu assignee tự nhận task hoặc chưa có assignee */
+  assigned_by_id: string | null
   assigned_at: string | null
   deadline: string | null
   /** AUTO = task đẩy SP theo kế hoạch (không cho sửa) · EXTRA = task sáng tạo, gồm cả lane sáng tạo của auto-assign lẫn tạo tay (cho sửa) */
