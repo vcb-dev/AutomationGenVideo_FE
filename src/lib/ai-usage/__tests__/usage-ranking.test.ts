@@ -59,6 +59,15 @@ describe('rankUsage', () => {
         expect(rankUsage([])).toEqual([]);
     });
 
+    it('giữ nguyên thuộc tính team của từng người', () => {
+        const ranked = rankUsage([
+            user({ user_id: 'a', full_name: 'An', characters: 2000, team: 'Team A' }),
+            user({ user_id: 'b', full_name: 'Bình', characters: 1000, team: null }),
+        ]);
+        expect(ranked[0].team).toBe('Team A');
+        expect(ranked[1].team).toBeNull();
+    });
+
     it('không sửa mảng gốc', () => {
         const input = [
             user({ user_id: 'a', full_name: 'An', characters: 1 }),
