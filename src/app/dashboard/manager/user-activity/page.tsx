@@ -476,20 +476,6 @@ const UserActivityPageContent = () => {
                     activeTab !== "daily_checklist" &&
                     activeTab !== "daily_outstanding" && (
                         <div className="relative z-10 transition-all duration-500 space-y-2">
-                            {kpiMeta && kpiMeta.kpiTotalInDb === 0 && (
-                                <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
-                                    <strong>Chưa có dữ liệu bảng larkKPI.</strong> Số liệu thống kê và card nhân viên
-                                    lấy từ bảng này. Vui lòng đồng bộ KPI từ Lark (gọi API sync KPI hoặc dùng menu cấu
-                                    hình backend).
-                                </div>
-                            )}
-                            {kpiMeta?.kpiMonthFallback && (
-                                <div className="rounded-xl bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-800">
-                                    Đang hiển thị toàn bộ KPI trong DB vì không có bản ghi khớp tháng đang chọn. Để lọc
-                                    đúng tháng, hãy đặt cột &quot;Tháng&quot; trong Lark đúng format (VD: T2, 2, Tháng
-                                    2) rồi đồng bộ lại.
-                                </div>
-                            )}
                             {loading && !summary ? (
                                 <KpiCardsSkeleton count={4} />
                             ) : (
