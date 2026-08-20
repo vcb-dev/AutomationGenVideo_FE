@@ -80,7 +80,6 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
     const [uploadingPlatform, setUploadingPlatform] = useState<string | null>(null);
     const [activeTarget, setActiveTarget] = useState<{ platformId: string; entryId: string } | null>(null);
     const [uploadErrors, setUploadErrors] = useState<Record<string, string>>({});
-    const [fetchingPlatform, setFetchingPlatform] = useState<string | null>(null);
     const [socialAccounts, setSocialAccounts] = useState<any[]>([]);
 
     // Tự động tải các kênh kết nối từ Social Accounts
@@ -318,7 +317,7 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
                             const channelId = matchedSocial?.platform_id || matchedSocial?.id || matchedAvailable?.channel_id || entry.channel;
 
                             try {
-                                const res = await fetchWithAuth(`${beBaseUrl}/oauth/traffic-insights?channelId=${encodeURIComponent(channelId)}&date=${dateParam}`);
+                                const res = await fetchWithAuth(`${beBaseUrl}/scraper/traffic-insights?channelId=${encodeURIComponent(channelId)}&date=${dateParam}`);
                                 if (res.ok) {
                                     const data = await res.json();
                                     const views = data.views ?? data.impressions ?? 0;
@@ -360,76 +359,6 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
             toast.error('Không thể kết nối máy chủ lấy số liệu.');
         } finally {
             setFetchingAll(false);
-        }
-    };
-
-    // Tự động kéo traffic từ Meta Graph API / Backend Insights cho từng nền tảng
-    const handleAutoFetchTraffic = async (platformId: string) => {
-        const platformObj = TRAFFIC_PLATFORMS.find(p => p.id === platformId);
-        const list = entries[platformId] || [];
-        const channelsToFetch = list.filter(e => e.channel.trim() !== '');
-
-        if (channelsToFetch.length === 0) {
-            toast.error('Vui lòng chọn hoặc nhập tên kênh trước khi lấy số liệu.');
-            return;
-        }
-
-        setFetchingPlatform(platformId);
-        const beBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
-        const dateParam = selectedDate || new Date().toISOString().slice(0, 10);
-
-        try {
-            let fetchedCount = 0;
-            const updatedList = await Promise.all(
-                list.map(async (entry) => {
-                    if (!entry.channel.trim()) return entry;
-
-                    // Match ID from socialAccounts or availableChannels
-                    const matchedSocial = socialAccounts.find(
-                        sa => sa.name?.toLowerCase() === entry.channel.toLowerCase() ||
-                              sa.platform_id === entry.channel ||
-                              sa.username === entry.channel
-                    );
-                    const matchedAvailable = availableChannels.find(
-                        c => c.name?.toLowerCase() === entry.channel.toLowerCase() ||
-                             c.channel_id === entry.channel
-                    );
-                    const channelId = matchedSocial?.platform_id || matchedSocial?.id || matchedAvailable?.channel_id || entry.channel;
-
-                    try {
-                        const res = await fetchWithAuth(`${beBaseUrl}/oauth/traffic-insights?channelId=${encodeURIComponent(channelId)}&date=${dateParam}`);
-                        if (res.ok) {
-                            const data = await res.json();
-                            const views = data.views ?? data.impressions ?? 0;
-                            if (views > 0) {
-                                fetchedCount++;
-                                return {
-                                    ...entry,
-                                    value: String(views),
-                                    isAutoFetched: true,
-                                };
-                            }
-                        }
-                    } catch {
-                        /* continue */
-                    }
-                    return entry;
-                })
-            );
-
-            const nextEntries = { ...entries, [platformId]: updatedList };
-            setEntries(nextEntries);
-            updateParent(platformId, updatedList, nextEntries);
-
-            if (fetchedCount > 0) {
-                toast.success(`Đã tự động lấy số liệu traffic cho ${fetchedCount} kênh ${platformObj?.label}!`);
-            } else {
-                toast.error(`Chưa tìm thấy số liệu traffic ngày ${dateParam} cho kênh đã chọn.`);
-            }
-        } catch {
-            toast.error('Không thể kết nối máy chủ lấy số liệu.');
-        } finally {
-            setFetchingPlatform(null);
         }
     };
 
@@ -497,18 +426,6 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
                                 </label>
                             </div>
                             <div className="flex items-center gap-2">
-                                {!readOnly && (platform.id === 'fb' || platform.id === 'ig' || platform.id === 'thread' || platform.id === 'yt') && (
-                                    <button
-                                        type="button"
-                                        onClick={() => handleAutoFetchTraffic(platform.id)}
-                                        disabled={fetchingPlatform === platform.id}
-                                        className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-xl text-xs font-black transition-all active:scale-95 flex items-center gap-1.5 disabled:opacity-50"
-                                        title="Tự động lấy số liệu traffic từ API"
-                                    >
-                                        {fetchingPlatform === platform.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-purple-600" />}
-                                        {fetchingPlatform === platform.id ? 'Đang lấy...' : 'Lấy số liệu tự động'}
-                                    </button>
-                                )}
                                 {!readOnly && (
                                     <button
                                         type="button"
