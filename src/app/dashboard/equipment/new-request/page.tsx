@@ -11,7 +11,6 @@ import {
 } from '@/lib/equipment/api';
 import { groupModels } from '@/lib/equipment/group-models';
 import { availabilityLabel } from '@/lib/equipment/availability-label';
-import { DateTimePicker } from '@/components/ui/DateTimePicker';
 
 interface Line {
   modelId: string;
@@ -120,7 +119,7 @@ export default function NewRequestPage() {
     } catch (e: unknown) {
       setError(
         (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-          'Gửi phiếu không thành công.',
+        'Gửi phiếu không thành công.',
       );
     } finally {
       setSubmitting(false);
@@ -169,25 +168,25 @@ export default function NewRequestPage() {
               />
             </label>
 
-            <div className="grid max-w-xl gap-4 sm:grid-cols-2">
-              <div>
-                <DateTimePicker
-                  label="Thời điểm nhận"
-                  required
-                  placeholder="Chọn ngày & giờ nhận…"
+            <div className="grid max-w-lg gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className={labelClass}>Thời điểm nhận</span>
+                <input
+                  type="datetime-local"
+                  className={`${inputClass} mt-2`}
                   value={fromTime}
-                  onChange={(val) => setFromTime(val)}
+                  onChange={(e) => setFromTime(e.target.value)}
                 />
-              </div>
-              <div>
-                <DateTimePicker
-                  label="Thời điểm trả"
-                  required
-                  placeholder="Chọn ngày & giờ trả…"
+              </label>
+              <label className="block">
+                <span className={labelClass}>Thời điểm trả</span>
+                <input
+                  type="datetime-local"
+                  className={`${inputClass} mt-2`}
                   value={toTime}
-                  onChange={(val) => setToTime(val)}
+                  onChange={(e) => setToTime(e.target.value)}
                 />
-              </div>
+              </label>
             </div>
             {fromTime && toTime && !rangeValid && (
               <p className="text-sm font-semibold text-red-600 dark:text-red-400">
