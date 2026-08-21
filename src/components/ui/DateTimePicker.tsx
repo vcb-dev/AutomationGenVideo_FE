@@ -7,14 +7,11 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
-  Check,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { buildMonthGrid } from '@/lib/equipment/month-grid';
 
 const WEEKDAYS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
-
-const QUICK_TIMES = ['08:00', '09:00', '12:00', '14:00', '17:00', '18:00', '20:00'];
 
 interface DateTimePickerProps {
   /** Dạng YYYY-MM-DDTHH:mm hoặc ISO string */
@@ -37,8 +34,6 @@ export function DateTimePicker({
   label,
   required,
   className = '',
-  minDate,
-  maxDate,
 }: DateTimePickerProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -57,16 +52,17 @@ export function DateTimePicker({
     }
     return '';
   });
-  const [hour, setHour] = useState(() => (parsed ? parsed.getHours() : 9));
-  const [minute, setMinute] = useState(() => (parsed ? parsed.getMinutes() : 0));
+
+  const [hourStr, setHourStr] = useState(() => (parsed ? pad2(parsed.getHours()) : '09'));
+  const [minuteStr, setMinuteStr] = useState(() => (parsed ? pad2(parsed.getMinutes()) : '00'));
 
   useEffect(() => {
     if (parsed) {
       setCursorYear(parsed.getFullYear());
       setCursorMonth(parsed.getMonth() + 1);
       setSelectedDayIso(`${parsed.getFullYear()}-${pad2(parsed.getMonth() + 1)}-${pad2(parsed.getDate())}`);
-      setHour(parsed.getHours());
-      setMinute(parsed.getMinutes());
+      setHourStr(pad2(parsed.getHours()));
+      setMinuteStr(pad2(parsed.getMinutes()));
     } else {
       setSelectedDayIso('');
     }
@@ -108,33 +104,64 @@ export function DateTimePicker({
     setCursorMonth(nextMonth);
   };
 
+  const syncDateTime = (isoDay: string, h: number, m: number) => {
+    const validH = Math.min(23, Math.max(0, isNaN(h) ? 0 : h));
+    const validM = Math.min(59, Math.max(0, isNaN(m) ? 0 : m));
+    const baseDay = isoDay || todayIso;
+    const [y, mon, d] = baseDay.split('-').map(Number);
+    const combined = new Date(y, mon - 1, d, validH, validM);
+    const isoString = `${combined.getFullYear()}-${pad2(combined.getMonth() + 1)}-${pad2(combined.getDate())}T${pad2(combined.getHours())}:${pad2(combined.getMinutes())}`;
+    onChange(isoString);
+  };
+
   const handleSelectDay = (iso: string) => {
     setSelectedDayIso(iso);
-    const [y, m, d] = iso.split('-').map(Number);
-    const combined = new Date(y, m - 1, d, hour, minute);
-    const isoString = `${combined.getFullYear()}-${pad2(combined.getMonth() + 1)}-${pad2(combined.getDate())}T${pad2(combined.getHours())}:${pad2(combined.getMinutes())}`;
-    onChange(isoString);
+    syncDateTime(iso, parseInt(hourStr, 10), parseInt(minuteStr, 10));
   };
 
-  const handleTimeChange = (newHour: number, newMinute: number) => {
-    setHour(newHour);
-    setMinute(newMinute);
-    const baseDayIso = selectedDayIso || todayIso;
-    if (!selectedDayIso) setSelectedDayIso(baseDayIso);
-    const [y, m, d] = baseDayIso.split('-').map(Number);
-    const combined = new Date(y, m - 1, d, newHour, newMinute);
-    const isoString = `${combined.getFullYear()}-${pad2(combined.getMonth() + 1)}-${pad2(combined.getDate())}T${pad2(combined.getHours())}:${pad2(combined.getMinutes())}`;
-    onChange(isoString);
+  const handleHourChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value.replace(/\D/g, '').slice(0, 2);
+    setHourStr(val);
+    if (val !== '') {
+      const num = parseInt(val, 10);
+      if (num >= 0 && num <= 23) {
+        syncDateTime(selectedDayIso, num, parseInt(minuteStr, 10) || 0);
+      }
+    }
   };
 
-  const handleApplyQuickTime = (timeStr: string) => {
-    const [h, m] = timeStr.split(':').map(Number);
-    handleTimeChange(h, m);
+  const handleHourBlur = () => {
+    let num = parseInt(hourStr, 10);
+    if (isNaN(num) || num < 0) num = 0;
+    if (num > 23) num = 23;
+    setHourStr(pad2(num));
+    syncDateTime(selectedDayIso, num, parseInt(minuteStr, 10) || 0);
+  };
+
+  const handleMinuteChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value.replace(/\D/g, '').slice(0, 2);
+    setMinuteStr(val);
+    if (val !== '') {
+      const num = parseInt(val, 10);
+      if (num >= 0 && num <= 59) {
+        syncDateTime(selectedDayIso, parseInt(hourStr, 10) || 0, num);
+      }
+    }
+  };
+
+  const handleMinuteBlur = () => {
+    let num = parseInt(minuteStr, 10);
+    if (isNaN(num) || num < 0) num = 0;
+    if (num > 59) num = 59;
+    setMinuteStr(pad2(num));
+    syncDateTime(selectedDayIso, parseInt(hourStr, 10) || 0, num);
   };
 
   const setNow = () => {
     const now = new Date();
     const isoString = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}T${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
+    setHourStr(pad2(now.getHours()));
+    setMinuteStr(pad2(now.getMinutes()));
     onChange(isoString);
     setOpen(false);
   };
@@ -197,15 +224,15 @@ export function DateTimePicker({
         </div>
       </div>
 
-      {/* Popover Calendar & Time Picker */}
+      {/* Popover Calendar & Manual Time Input */}
       {open && (
         <div
           className={cn(
-            'absolute left-0 top-full z-50 mt-1.5 w-[276px] rounded-xl border border-slate-200 bg-white p-3',
+            'absolute left-0 top-full z-50 mt-1.5 w-[265px] rounded-xl border border-slate-200 bg-white p-3',
             'shadow-xl dark:border-white/[0.1] dark:bg-slate-900 animate-in fade-in zoom-in-95 duration-100',
           )}
         >
-          {/* Header */}
+          {/* Header Month / Year */}
           <div className="mb-2 flex items-center justify-between">
             <button
               type="button"
@@ -264,58 +291,35 @@ export function DateTimePicker({
             })}
           </div>
 
-          {/* Time Picker Section */}
-          <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-white/[0.08] space-y-1.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-700 dark:text-slate-300">
-                <Clock size={12} className="text-blue-500" />
-                <span>Giờ:</span>
-              </div>
-
-              <div className="flex items-center gap-1">
-                <select
-                  value={hour}
-                  onChange={(e) => handleTimeChange(Number(e.target.value), minute)}
-                  className="rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 dark:border-white/[0.1] dark:bg-slate-800 dark:text-white"
-                >
-                  {Array.from({ length: 24 }).map((_, h) => (
-                    <option key={h} value={h}>
-                      {pad2(h)}h
-                    </option>
-                  ))}
-                </select>
-                <span className="font-bold text-slate-400 text-xs">:</span>
-                <select
-                  value={minute}
-                  onChange={(e) => handleTimeChange(hour, Number(e.target.value))}
-                  className="rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 dark:border-white/[0.1] dark:bg-slate-800 dark:text-white"
-                >
-                  {Array.from({ length: 60 }).map((_, m) => (
-                    <option key={m} value={m}>
-                      {pad2(m)}p
-                    </option>
-                  ))}
-                </select>
-              </div>
+          {/* Manual Time Input Section */}
+          <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-white/[0.08] flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+              <Clock size={13} className="text-blue-500" />
+              <span>Nhập giờ:</span>
             </div>
 
-            {/* Quick Time Chips */}
-            <div className="flex flex-wrap gap-1">
-              {QUICK_TIMES.map((timeStr) => (
-                <button
-                  key={timeStr}
-                  type="button"
-                  onClick={() => handleApplyQuickTime(timeStr)}
-                  className={cn(
-                    'px-1.5 py-0.5 rounded text-[10px] font-semibold transition-colors',
-                    `${pad2(hour)}:${pad2(minute)}` === timeStr
-                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700',
-                  )}
-                >
-                  {timeStr}
-                </button>
-              ))}
+            <div className="flex items-center gap-1">
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={2}
+                value={hourStr}
+                onChange={handleHourChange}
+                onBlur={handleHourBlur}
+                className="w-9 h-7 rounded-md border border-slate-200 bg-slate-50 text-center text-xs font-bold text-slate-800 outline-none focus:border-blue-500 focus:bg-white dark:border-white/[0.1] dark:bg-slate-800 dark:text-white"
+                placeholder="09"
+              />
+              <span className="font-bold text-slate-400 text-xs">:</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={2}
+                value={minuteStr}
+                onChange={handleMinuteChange}
+                onBlur={handleMinuteBlur}
+                className="w-9 h-7 rounded-md border border-slate-200 bg-slate-50 text-center text-xs font-bold text-slate-800 outline-none focus:border-blue-500 focus:bg-white dark:border-white/[0.1] dark:bg-slate-800 dark:text-white"
+                placeholder="00"
+              />
             </div>
           </div>
 
