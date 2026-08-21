@@ -33,6 +33,7 @@ import {
     PackageCheck,
     Truck,
     Undo2,
+    ImagePlus,
 } from "lucide-react";
 import { useSocialLang } from "@/contexts/SocialLanguageContext";
 import { NavMenu } from "./types";
@@ -516,6 +517,7 @@ export function useNavMenus(
                     "/dashboard/ai/content-transform",
                     "/dashboard/tools/video-downloader",
                     "/dashboard/tools/lucky-spin",
+                    "/dashboard/tien-ich/id-photo",
                 ] as string[],
                 sections: [
                     {
@@ -572,6 +574,25 @@ export function useNavMenus(
                             },
                         ],
                     },
+                    // Chỉ LEADER/ADMIN thấy mục này — khớp @Roles(LEADER, ADMIN) ở
+                    // IdPhotoController bên BE. Ẩn cả section nếu rỗng thay vì hiện tiêu đề
+                    // section trơ trọi không có item nào bên dưới.
+                    ...(isLeader || isAdmin
+                        ? [
+                            {
+                                section: n.secHrTools,
+                                color: "violet" as const,
+                                items: [
+                                    {
+                                        label: n.idPhoto,
+                                        href: "/dashboard/tien-ich/id-photo",
+                                        icon: ImagePlus,
+                                        description: n.idPhotoDesc,
+                                    },
+                                ],
+                            },
+                        ]
+                        : []),
                 ],
             },
             {
