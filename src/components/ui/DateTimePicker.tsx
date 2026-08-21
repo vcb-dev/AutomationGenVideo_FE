@@ -166,33 +166,33 @@ export function DateTimePicker({
       <div
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          'group flex h-10 w-full cursor-pointer items-center justify-between gap-2.5 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-800 transition-all select-none',
+          'group flex h-9 w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white px-3 text-xs sm:text-sm text-slate-800 transition-all select-none',
           'hover:border-slate-400 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20',
           'dark:border-white/[0.12] dark:bg-slate-900 dark:text-slate-100 dark:hover:border-white/20',
           open && 'border-blue-500 ring-2 ring-blue-500/20 dark:border-blue-400',
         )}
       >
-        <div className="flex items-center gap-2.5 min-w-0">
-          <CalendarIcon size={16} className="shrink-0 text-slate-400 dark:text-slate-500 group-hover:text-blue-500 transition-colors" />
-          <span className={cn('truncate font-medium text-xs sm:text-sm', !parsed && 'text-slate-400 dark:text-slate-500')}>
+        <div className="flex items-center gap-2 min-w-0">
+          <CalendarIcon size={14} className="shrink-0 text-slate-400 dark:text-slate-500 group-hover:text-blue-500 transition-colors" />
+          <span className={cn('truncate font-medium', !parsed && 'text-slate-400 dark:text-slate-500')}>
             {displayString || placeholder}
           </span>
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
           {parsed ? (
             <button
               type="button"
-              className="p-1 rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors"
+              className="p-0.5 rounded text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors"
               onClick={(e) => {
                 e.stopPropagation();
                 clear();
               }}
             >
-              <X size={14} />
+              <X size={13} />
             </button>
           ) : (
-            <Clock size={14} className="text-slate-400" />
+            <Clock size={13} className="text-slate-400" />
           )}
         </div>
       </div>
@@ -201,37 +201,37 @@ export function DateTimePicker({
       {open && (
         <div
           className={cn(
-            'absolute left-0 top-full z-50 mt-1.5 w-[310px] sm:w-[330px] rounded-2xl border border-slate-200 bg-white p-4',
-            'shadow-2xl dark:border-white/[0.1] dark:bg-slate-900 animate-in fade-in zoom-in-95 duration-100',
+            'absolute left-0 top-full z-50 mt-1.5 w-[276px] rounded-xl border border-slate-200 bg-white p-3',
+            'shadow-xl dark:border-white/[0.1] dark:bg-slate-900 animate-in fade-in zoom-in-95 duration-100',
           )}
         >
           {/* Header */}
-          <div className="mb-3 flex items-center justify-between">
+          <div className="mb-2 flex items-center justify-between">
             <button
               type="button"
               onClick={() => step(-1)}
-              className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition-colors"
+              className="rounded-md p-1 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition-colors"
             >
-              <ChevronLeft size={16} />
+              <ChevronLeft size={15} />
             </button>
-            <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+            <span className="text-[11px] font-bold text-slate-900 dark:text-white uppercase tracking-wider">
               Tháng {cursorMonth} / {cursorYear}
             </span>
             <button
               type="button"
               onClick={() => step(1)}
-              className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition-colors"
+              className="rounded-md p-1 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition-colors"
             >
-              <ChevronRight size={16} />
+              <ChevronRight size={15} />
             </button>
           </div>
 
           {/* Weekday Row */}
-          <div className="mb-1.5 grid grid-cols-7 gap-1">
+          <div className="mb-1 grid grid-cols-7 gap-0.5">
             {WEEKDAYS.map((w, i) => (
               <div
                 key={w}
-                className={cn('text-center text-[11px] font-bold', i === 6 ? 'text-rose-500' : 'text-slate-400')}
+                className={cn('text-center text-[10px] font-bold', i === 6 ? 'text-rose-500' : 'text-slate-400')}
               >
                 {w}
               </div>
@@ -239,7 +239,7 @@ export function DateTimePicker({
           </div>
 
           {/* Days Grid */}
-          <div className="grid grid-cols-7 gap-1">
+          <div className="grid grid-cols-7 gap-0.5">
             {weeks.flat().map((cell) => {
               const isSelected = cell.iso === selectedDayIso;
               const isToday = cell.iso === todayIso;
@@ -250,12 +250,12 @@ export function DateTimePicker({
                   type="button"
                   onClick={() => handleSelectDay(cell.iso)}
                   className={cn(
-                    'h-8 w-full rounded-xl text-xs font-semibold transition-all flex items-center justify-center',
+                    'h-7 w-full rounded-md text-[11px] font-medium transition-all flex items-center justify-center',
                     cell.inMonth
                       ? 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
                       : 'text-slate-300 opacity-40 dark:text-slate-600',
                     isToday && !isSelected && 'border border-blue-500 text-blue-600 font-bold dark:text-blue-400',
-                    isSelected && 'bg-blue-600 text-white font-bold shadow-md shadow-blue-500/25',
+                    isSelected && 'bg-blue-600 text-white font-bold shadow-sm shadow-blue-500/30',
                   )}
                 >
                   {cell.day}
@@ -265,18 +265,18 @@ export function DateTimePicker({
           </div>
 
           {/* Time Picker Section */}
-          <div className="mt-3.5 pt-3 border-t border-slate-100 dark:border-white/[0.08] space-y-2">
+          <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-white/[0.08] space-y-1.5">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
-                <Clock size={14} className="text-blue-500" />
-                <span>Chọn giờ &amp; phút:</span>
+              <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                <Clock size={12} className="text-blue-500" />
+                <span>Giờ:</span>
               </div>
 
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1">
                 <select
                   value={hour}
                   onChange={(e) => handleTimeChange(Number(e.target.value), minute)}
-                  className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 dark:border-white/[0.1] dark:bg-slate-800 dark:text-white"
+                  className="rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 dark:border-white/[0.1] dark:bg-slate-800 dark:text-white"
                 >
                   {Array.from({ length: 24 }).map((_, h) => (
                     <option key={h} value={h}>
@@ -284,11 +284,11 @@ export function DateTimePicker({
                     </option>
                   ))}
                 </select>
-                <span className="font-bold text-slate-400">:</span>
+                <span className="font-bold text-slate-400 text-xs">:</span>
                 <select
                   value={minute}
                   onChange={(e) => handleTimeChange(hour, Number(e.target.value))}
-                  className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 dark:border-white/[0.1] dark:bg-slate-800 dark:text-white"
+                  className="rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 dark:border-white/[0.1] dark:bg-slate-800 dark:text-white"
                 >
                   {Array.from({ length: 60 }).map((_, m) => (
                     <option key={m} value={m}>
@@ -300,14 +300,14 @@ export function DateTimePicker({
             </div>
 
             {/* Quick Time Chips */}
-            <div className="flex flex-wrap gap-1 pt-1">
+            <div className="flex flex-wrap gap-1">
               {QUICK_TIMES.map((timeStr) => (
                 <button
                   key={timeStr}
                   type="button"
                   onClick={() => handleApplyQuickTime(timeStr)}
                   className={cn(
-                    'px-2 py-0.5 rounded-md text-[11px] font-semibold transition-colors',
+                    'px-1.5 py-0.5 rounded text-[10px] font-semibold transition-colors',
                     `${pad2(hour)}:${pad2(minute)}` === timeStr
                       ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700',
@@ -320,26 +320,26 @@ export function DateTimePicker({
           </div>
 
           {/* Footer Bar */}
-          <div className="mt-3.5 flex items-center justify-between border-t border-slate-100 pt-2.5 dark:border-white/[0.08]">
+          <div className="mt-2.5 flex items-center justify-between border-t border-slate-100 pt-2 dark:border-white/[0.08]">
             <button
               type="button"
               onClick={setNow}
-              className="text-xs font-bold text-blue-600 hover:underline dark:text-blue-400"
+              className="text-[11px] font-bold text-blue-600 hover:underline dark:text-blue-400"
             >
               Hiện tại
             </button>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <button
                 type="button"
                 onClick={clear}
-                className="text-xs font-semibold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                className="text-[11px] font-semibold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
               >
                 Xóa
               </button>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-blue-700 transition-colors"
+                className="rounded-lg bg-blue-600 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm hover:bg-blue-700 transition-colors"
               >
                 Xong
               </button>

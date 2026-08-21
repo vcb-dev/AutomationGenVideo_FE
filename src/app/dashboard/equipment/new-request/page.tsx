@@ -169,7 +169,7 @@ export default function NewRequestPage() {
               />
             </label>
 
-            <div className="grid max-w-xl gap-4 sm:grid-cols-2">
+            <div className="grid max-w-md gap-3 sm:grid-cols-2">
               <div>
                 <DateTimePicker
                   label="Thời điểm nhận"
