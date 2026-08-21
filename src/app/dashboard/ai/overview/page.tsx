@@ -34,6 +34,7 @@ import {
     normalizeRange,
     resolvePreset,
 } from '@/lib/ai-usage/usage-range';
+import { DatePicker } from '@/components/ui/DatePicker';
 import { UsageByUser, rankUsage } from '@/lib/ai-usage/usage-ranking';
 
 const getApiUrl = () => {
@@ -322,20 +323,18 @@ export default function OverviewPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                        <input
-                            type="date"
+                        <DatePicker
                             value={range.from}
-                            max={range.to}
-                            onChange={(e) => setRange((prev) => ({ ...prev, from: e.target.value }))}
-                            className="px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-medium text-slate-700 outline-none focus:border-violet-500 dark:border-white/[0.12] dark:bg-slate-800 dark:text-white"
+                            onChange={(val) => setRange((prev) => ({ ...prev, from: val }))}
+                            placeholder="Từ ngày"
+                            className="w-36"
                         />
                         <span className="text-xs font-bold text-slate-400">➔</span>
-                        <input
-                            type="date"
+                        <DatePicker
                             value={range.to}
-                            min={range.from}
-                            onChange={(e) => setRange((prev) => ({ ...prev, to: e.target.value }))}
-                            className="px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-medium text-slate-700 outline-none focus:border-violet-500 dark:border-white/[0.12] dark:bg-slate-800 dark:text-white"
+                            onChange={(val) => setRange((prev) => ({ ...prev, to: val }))}
+                            placeholder="Đến ngày"
+                            className="w-36"
                         />
                     </div>
                 </div>

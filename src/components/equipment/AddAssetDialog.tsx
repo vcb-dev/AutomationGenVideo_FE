@@ -15,6 +15,7 @@ import {
   fetchLocations,
   fetchModels,
 } from '@/lib/equipment/api';
+import { DatePicker } from '@/components/ui/DatePicker';
 
 const inputClass =
   'w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-white';
@@ -469,12 +470,13 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block">
                 <span className={labelClass}>Ngày mua</span>
-                <input
-                  type="date"
-                  className={cn(inputClass, 'mt-2')}
-                  value={purchaseDate}
-                  onChange={(e) => setPurchaseDate(e.target.value)}
-                />
+                <div className="mt-2">
+                  <DatePicker
+                    value={purchaseDate}
+                    onChange={setPurchaseDate}
+                    placeholder="Chọn ngày mua thiết bị…"
+                  />
+                </div>
               </label>
               <label className="block">
                 <span className={labelClass}>Nguyên giá (VNĐ)</span>
