@@ -13,6 +13,14 @@ import {
     UserCheck,
     CalendarRange,
     Trophy,
+    Sparkles,
+    Zap,
+    TrendingUp,
+    Wand2,
+    DownloadCloud,
+    LayoutDashboard,
+    ArrowUpRight,
+    Users,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
@@ -28,7 +36,6 @@ import {
 } from '@/lib/ai-usage/usage-range';
 import { UsageByUser, rankUsage } from '@/lib/ai-usage/usage-ranking';
 
-// Helper to get API URL
 const getApiUrl = () => {
     return (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
 };
@@ -73,7 +80,6 @@ export default function OverviewPage() {
 
     const applyPreset = (preset: RangePresetId) => setRange(resolvePreset(preset));
 
-    // Fetch voice usage stats (điểm TTS + số clone) theo khoảng ngày đang chọn
     useEffect(() => {
         const { from, to } = normalizeRange(range);
         if (!from || !to) return;
@@ -96,8 +102,6 @@ export default function OverviewPage() {
             }
         };
         fetchUsage();
-        // Đổi khoảng ngày nhanh tay có thể để hai request về không đúng thứ tự gửi đi,
-        // nên bỏ qua kết quả của lần fetch đã bị thay thế.
         return () => {
             cancelled = true;
         };
@@ -107,7 +111,6 @@ export default function OverviewPage() {
     const usageByUserId = new Map(rankedUsage.map(u => [u.user_id, u]));
     const vndPer1kChars = usageStats?.pricing?.vnd_per_1k_chars ?? 0;
 
-    // Fetch real voices count from backend
     useEffect(() => {
         const fetchVoicesCount = async () => {
             try {
@@ -120,13 +123,11 @@ export default function OverviewPage() {
                 }
             } catch (error) {
                 console.error('Lỗi khi tải số lượng voice:', error);
-                toast.error('Không thể tải số lượng giọng nói đã clone');
             }
         };
         fetchVoicesCount();
     }, []);
 
-    // Fetch real teams + members from backend
     useEffect(() => {
         const fetchTeams = async () => {
             try {
@@ -136,7 +137,6 @@ export default function OverviewPage() {
                 setTeams(Array.isArray(data) ? data : []);
             } catch (error) {
                 console.error('Lỗi khi tải danh sách team:', error);
-                toast.error('Không thể tải danh sách team');
             } finally {
                 setTeamsLoaded(true);
             }
@@ -144,31 +144,24 @@ export default function OverviewPage() {
         fetchTeams();
     }, []);
 
-    // Determine primary role for viewing layout
     const isAdmin = user?.roles?.includes(UserRole.ADMIN);
     const isLeader = user?.roles?.includes(UserRole.LEADER) && !isAdmin;
     const isMemberOnly = !isAdmin && !isLeader;
 
-    // Auto select first team for Admin to prevent empty screen
     useEffect(() => {
         if (isAdmin && !selectedTeamId && teams.length > 0) {
             setSelectedTeamId(teams[0].id);
         }
     }, [isAdmin, teams, selectedTeamId]);
 
-    // Leader gets their own team (as leader, or as a member if not set as leader)
     const leaderTeamData =
         teams.find((t) => t.leader_id === user?.id) ||
         teams.find((t) => t.members.some((m) => m.user_id === user?.id)) ||
         null;
 
-    // Selected team for Admin drill down
     const adminSelectedTeam = teams.find((t) => t.id === selectedTeamId) || teams[0] || null;
-
     const totalMembers = teams.reduce((acc, t) => acc + (t._count?.members ?? 0), 0);
 
-    // Admin xem toàn hệ thống, leader chỉ xem người trong team mình. Tỉ trọng vẫn tính
-    // trên tổng đã lọc từ rankUsage nên leader thấy đúng phần của team so với toàn hệ thống.
     const leaderMemberIds = new Set((leaderTeamData?.members ?? []).map((m) => m.user_id));
     const visibleRanking = isLeader
         ? rankedUsage.filter((row) => leaderMemberIds.has(row.user_id) || row.user_id === user?.id)
@@ -183,547 +176,607 @@ export default function OverviewPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 -m-6 pb-12">
-            {/* Header */}
-            <div className="bg-white border-b border-gray-200 px-8 py-6">
-                <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="mx-auto max-w-7xl pb-16 space-y-6">
+            {/* HERO BANNER */}
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-6 sm:p-8 text-white shadow-xl border border-white/10">
+                <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-violet-500/20 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute bottom-0 left-1/3 -mb-8 w-48 h-48 bg-blue-500/20 rounded-full blur-2xl pointer-events-none" />
+
+                <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                     <div>
-                        <div className="flex items-center gap-2">
-                            <span className="px-2.5 py-0.5 rounded-full bg-violet-100 text-violet-700 text-xs font-semibold uppercase tracking-wider">
-                                {isAdmin ? 'ADMIN PANEL' : isLeader ? `LEADER PANEL - ${leaderTeamData?.name ?? user?.team ?? ''}` : 'MEMBER PANEL'}
+                        <div className="flex items-center gap-2 mb-3">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-violet-500/20 border border-violet-400/30 text-violet-300 text-xs font-bold tracking-wide">
+                                <Sparkles className="w-3.5 h-3.5" />
+                                {isAdmin ? 'ADMIN CONTROL CENTER' : isLeader ? `LEADER PANEL • ${leaderTeamData?.name ?? user?.team ?? ''}` : 'MEMBER DASHBOARD'}
+                            </span>
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
+                                <Zap className="w-3 h-3" />
+                                AI Engine Active
                             </span>
                         </div>
-                        <h1 className="text-2xl font-bold text-gray-900 mt-2">Tổng quan Tiện ích AI</h1>
-                        <p className="text-sm text-gray-500 mt-1">
+                        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+                            Tổng quan Tiện ích &amp; Công nghệ AI
+                        </h1>
+                        <p className="mt-2 text-sm text-slate-300 max-w-2xl leading-relaxed">
                             {isAdmin
-                                ? 'Quản lý toàn bộ team và giọng nói clone trong hệ thống.'
+                                ? 'Theo dõi toàn diện lượng tài nguyên AI tiêu thụ, hiệu năng sản xuất giọng đọc MiniMax và quản lý các nhóm sáng tạo.'
                                 : isLeader
-                                ? `Xem danh sách thành viên trong ${leaderTeamData?.name ?? 'team của bạn'}.`
-                                : 'Theo dõi các giọng nói bạn đã clone.'}
+                                ? `Theo dõi mức độ sử dụng AI và năng suất của toàn bộ thành viên trong nhóm ${leaderTeamData?.name ?? 'của bạn'}.`
+                                : 'Thống kê lượng ký tự, giọng clone và chi phí tạo giọng nói cá nhân của bạn.'}
                         </p>
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-2.5">
                         <Link
                             href="/dashboard/ai/clone-voice"
-                            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-xl text-sm font-semibold shadow-md shadow-violet-200 hover:-translate-y-0.5 transition-all duration-200"
+                            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-semibold shadow-lg shadow-violet-600/30 hover:-translate-y-0.5 active:scale-95 transition-all"
                         >
                             <Plus className="w-4 h-4" />
                             Tạo giọng nói mới
+                        </Link>
+                        <Link
+                            href="/dashboard/ai/content-transform"
+                            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs sm:text-sm font-semibold backdrop-blur-md border border-white/10 hover:-translate-y-0.5 active:scale-95 transition-all"
+                        >
+                            <Wand2 className="w-4 h-4 text-violet-300" />
+                            Biến đổi nội dung
+                        </Link>
+                    </div>
+                </div>
+
+                {/* QUICK NAVIGATION STRIP */}
+                <div className="mt-6 pt-6 border-t border-white/10 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <Link
+                        href="/dashboard/ai/clone-voice"
+                        className="group flex items-center justify-between p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all"
+                    >
+                        <div className="flex items-center gap-2.5">
+                            <div className="p-2 rounded-xl bg-violet-500/20 text-violet-300">
+                                <Mic className="w-4 h-4" />
+                            </div>
+                            <div>
+                                <p className="text-xs font-bold text-white group-hover:text-violet-300 transition-colors">Clone Voice</p>
+                                <p className="text-[10px] text-slate-400">Nhân bản giọng đọc</p>
+                            </div>
+                        </div>
+                        <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-white transition-colors" />
+                    </Link>
+
+                    <Link
+                        href="/dashboard/ai/content-transform"
+                        className="group flex items-center justify-between p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all"
+                    >
+                        <div className="flex items-center gap-2.5">
+                            <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-300">
+                                <Wand2 className="w-4 h-4" />
+                            </div>
+                            <div>
+                                <p className="text-xs font-bold text-white group-hover:text-indigo-300 transition-colors">Script AI</p>
+                                <p className="text-[10px] text-slate-400">Viết lại kịch bản</p>
+                            </div>
+                        </div>
+                        <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-white transition-colors" />
+                    </Link>
+
+                    <Link
+                        href="/dashboard/tools/video-downloader"
+                        className="group flex items-center justify-between p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all"
+                    >
+                        <div className="flex items-center gap-2.5">
+                            <div className="p-2 rounded-xl bg-cyan-500/20 text-cyan-300">
+                                <DownloadCloud className="w-4 h-4" />
+                            </div>
+                            <div>
+                                <p className="text-xs font-bold text-white group-hover:text-cyan-300 transition-colors">Downloader</p>
+                                <p className="text-[10px] text-slate-400">Tải video đa nền tảng</p>
+                            </div>
+                        </div>
+                        <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-white transition-colors" />
+                    </Link>
+
+                    <Link
+                        href="/dashboard/tools/lucky-spin"
+                        className="group flex items-center justify-between p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all"
+                    >
+                        <div className="flex items-center gap-2.5">
+                            <div className="p-2 rounded-xl bg-amber-500/20 text-amber-300">
+                                <Sparkles className="w-4 h-4" />
+                            </div>
+                            <div>
+                                <p className="text-xs font-bold text-white group-hover:text-amber-300 transition-colors">Vòng quay</p>
+                                <p className="text-[10px] text-slate-400">Minigame may mắn</p>
+                            </div>
+                        </div>
+                        <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-white transition-colors" />
+                    </Link>
+                </div>
+            </div>
+
+            {/* TIME FILTER & DATE RANGE BAR */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/[0.08] dark:bg-slate-900/60 backdrop-blur-md flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div className="flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-white">
+                    <div className="p-1.5 rounded-lg bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400">
+                        <CalendarRange className="w-4 h-4" />
+                    </div>
+                    <span>Khoảng thời gian thống kê:</span>
+                    <span className="px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold dark:bg-white/[0.06] dark:text-slate-300">
+                        {rangeLabel}
+                    </span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                    <div className="flex items-center gap-1 bg-slate-100 dark:bg-white/[0.05] p-1 rounded-xl border border-slate-200/60 dark:border-white/[0.06]">
+                        {RANGE_PRESETS.map((preset) => (
+                            <button
+                                key={preset.id}
+                                onClick={() => applyPreset(preset.id)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                    activePreset === preset.id
+                                        ? 'bg-violet-600 text-white shadow-sm shadow-violet-500/20'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                }`}
+                            >
+                                {preset.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="date"
+                            value={range.from}
+                            max={range.to}
+                            onChange={(e) => setRange((prev) => ({ ...prev, from: e.target.value }))}
+                            className="px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-medium text-slate-700 outline-none focus:border-violet-500 dark:border-white/[0.12] dark:bg-slate-800 dark:text-white"
+                        />
+                        <span className="text-xs font-bold text-slate-400">➔</span>
+                        <input
+                            type="date"
+                            value={range.to}
+                            min={range.from}
+                            onChange={(e) => setRange((prev) => ({ ...prev, to: e.target.value }))}
+                            className="px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-medium text-slate-700 outline-none focus:border-violet-500 dark:border-white/[0.12] dark:bg-slate-800 dark:text-white"
+                        />
+                    </div>
+                </div>
+            </div>
+
+            {/* 4 STAT KPI CARDS */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Ký tự MiniMax */}
+                <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-all dark:border-white/[0.08] dark:bg-slate-900/60">
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Điểm âm thanh</span>
+                        <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
+                            <DollarSign className="w-5 h-5" />
+                        </div>
+                    </div>
+                    <div className="mt-3">
+                        {!usageLoaded ? (
+                            <div className="h-8 w-24 bg-slate-200 animate-pulse rounded-lg" />
+                        ) : (
+                            <>
+                                <h3 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                                    {(usageStats?.total.characters ?? 0).toLocaleString('vi-VN')}
+                                </h3>
+                                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">Ký tự tính phí</span>
+                                    <span>({rangeLabel})</span>
+                                </p>
+                            </>
+                        )}
+                    </div>
+                </div>
+
+                {/* Tiền đã tiêu */}
+                <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-all dark:border-white/[0.08] dark:bg-slate-900/60">
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Chi phí tiêu thụ</span>
+                        <div className="p-2.5 rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400">
+                            <Coins className="w-5 h-5" />
+                        </div>
+                    </div>
+                    <div className="mt-3">
+                        {!usageLoaded ? (
+                            <div className="h-8 w-24 bg-slate-200 animate-pulse rounded-lg" />
+                        ) : vndPer1kChars > 0 ? (
+                            <>
+                                <h3 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                                    {(usageStats?.total.cost_vnd ?? 0).toLocaleString('vi-VN')}đ
+                                </h3>
+                                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                    Đơn giá: <span className="font-semibold text-amber-600">{vndPer1kChars.toLocaleString('vi-VN')}đ</span> / 1k ký tự
+                                </p>
+                            </>
+                        ) : (
+                            <>
+                                <h3 className="text-lg font-bold text-slate-400">Chưa cấu hình giá</h3>
+                                <p className="mt-1 text-xs text-slate-400">Theo dõi định mức ký tự</p>
+                            </>
+                        )}
+                    </div>
+                </div>
+
+                {/* Lượt TTS & Clone */}
+                <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-all dark:border-white/[0.08] dark:bg-slate-900/60">
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Lượt tạo giọng</span>
+                        <div className="p-2.5 rounded-xl bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-400">
+                            <Volume2 className="w-5 h-5" />
+                        </div>
+                    </div>
+                    <div className="mt-3">
+                        {!usageLoaded ? (
+                            <div className="h-8 w-24 bg-slate-200 animate-pulse rounded-lg" />
+                        ) : (
+                            <>
+                                <h3 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                                    {(usageStats?.total.tts_count ?? 0).toLocaleString('vi-VN')}
+                                </h3>
+                                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                    Lượt TTS • <span className="font-bold text-violet-600">{usageStats?.total.clone_count ?? 0}</span> giọng clone
+                                </p>
+                            </>
+                        )}
+                    </div>
+                </div>
+
+                {/* Thư viện giọng đã clone */}
+                <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-all dark:border-white/[0.08] dark:bg-slate-900/60">
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Thư viện giọng</span>
+                        <div className="p-2.5 rounded-xl bg-cyan-50 text-cyan-600 dark:bg-cyan-950/40 dark:text-cyan-400">
+                            <Mic className="w-5 h-5" />
+                        </div>
+                    </div>
+                    <div className="mt-3">
+                        <h3 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                            {voicesCount}
+                        </h3>
+                        <Link
+                            href="/dashboard/ai/clone-voice"
+                            className="mt-1 text-xs font-semibold text-cyan-600 hover:text-cyan-700 dark:text-cyan-400 flex items-center gap-1"
+                        >
+                            <span>Xem kho giọng MiniMax</span>
+                            <ChevronRight className="w-3 h-3" />
                         </Link>
                     </div>
                 </div>
             </div>
 
-            {/* Main Content */}
-            <div className="max-w-7xl mx-auto px-8 py-8 space-y-6">
-
-                {/* ─────────────────────────── BỘ LỌC KHOẢNG NGÀY ─────────────────────────── */}
-                <div className="bg-white border border-gray-200 rounded-2xl px-6 py-4 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                        <CalendarRange className="w-4 h-4 text-gray-400" />
-                        Doanh thu &amp; tiêu dùng theo ngày
-                        <span className="text-xs font-medium text-gray-400">({rangeLabel})</span>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                        <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-xl p-1">
-                            {RANGE_PRESETS.map((preset) => (
-                                <button
-                                    key={preset.id}
-                                    onClick={() => applyPreset(preset.id)}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors
-                                        ${activePreset === preset.id
-                                            ? 'bg-violet-600 text-white shadow-sm'
-                                            : 'text-gray-600 hover:bg-white hover:text-gray-900'}`}
-                                >
-                                    {preset.label}
-                                </button>
-                            ))}
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                            <input
-                                type="date"
-                                value={range.from}
-                                max={range.to}
-                                onChange={(e) => setRange((prev) => ({ ...prev, from: e.target.value }))}
-                                className="px-3 py-1.5 border border-gray-200 rounded-xl text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-200"
-                            />
-                            <span className="text-xs text-gray-400">đến</span>
-                            <input
-                                type="date"
-                                value={range.to}
-                                min={range.from}
-                                onChange={(e) => setRange((prev) => ({ ...prev, to: e.target.value }))}
-                                className="px-3 py-1.5 border border-gray-200 rounded-xl text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-violet-200"
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* ─────────────────────────── STATS CARDS ─────────────────────────── */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {/* Điểm âm thanh đã tiêu (usage_characters MiniMax tính phí) */}
-                    <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="flex items-center justify-between">
-                            <span className="text-sm font-semibold text-gray-500">Điểm âm thanh đã tiêu</span>
-                            <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center">
-                                <DollarSign className="w-5 h-5 text-green-600" />
-                            </div>
-                        </div>
-                        <div className="mt-4">
-                            {!usageLoaded ? (
-                                <h3 className="text-lg font-semibold text-gray-400 italic">Đang tải...</h3>
-                            ) : (
-                                <>
-                                    <div className="flex items-baseline gap-1">
-                                        <h3 className="text-2xl font-bold text-gray-900">{(usageStats?.total.characters ?? 0).toLocaleString('vi-VN')}</h3>
-                                        <span className="text-xs text-gray-400">điểm ({rangeLabel})</span>
-                                    </div>
-                                    <p className="text-xs text-gray-400 mt-2">= số ký tự MiniMax tính phí khi tạo giọng nói</p>
-                                </>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Tiền đã tiêu (quy đổi từ điểm theo đơn giá gói MiniMax) */}
-                    <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="flex items-center justify-between">
-                            <span className="text-sm font-semibold text-gray-500">Đã tiêu hết</span>
-                            <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
-                                <Coins className="w-5 h-5 text-amber-600" />
-                            </div>
-                        </div>
-                        <div className="mt-4">
-                            {!usageLoaded ? (
-                                <h3 className="text-lg font-semibold text-gray-400 italic">Đang tải...</h3>
-                            ) : vndPer1kChars > 0 ? (
-                                <>
-                                    <div className="flex items-baseline gap-1">
-                                        <h3 className="text-2xl font-bold text-gray-900">{(usageStats?.total.cost_vnd ?? 0).toLocaleString('vi-VN')}đ</h3>
-                                        <span className="text-xs text-gray-400">({rangeLabel})</span>
-                                    </div>
-                                    <p className="text-xs text-gray-400 mt-2">
-                                        Đơn giá {vndPer1kChars.toLocaleString('vi-VN')}đ / 1.000 ký tự
-                                    </p>
-                                </>
-                            ) : (
-                                <>
-                                    <h3 className="text-lg font-semibold text-gray-400">Chưa cấu hình giá</h3>
-                                    <p className="text-xs text-gray-400 mt-2">Set MINIMAX_VND_PER_1K_CHARS ở BE để hiển thị tiền</p>
-                                </>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Lượt sử dụng */}
-                    <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="flex items-center justify-between">
-                            <span className="text-sm font-semibold text-gray-500">Lượt sử dụng</span>
-                            <div className="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center">
-                                <Coins className="w-5 h-5 text-violet-600" />
-                            </div>
-                        </div>
-                        <div className="mt-4">
-                            {!usageLoaded ? (
-                                <h3 className="text-lg font-semibold text-gray-400 italic">Đang tải...</h3>
-                            ) : (
-                                <>
-                                    <div className="flex items-baseline gap-1">
-                                        <h3 className="text-2xl font-bold text-gray-900">{usageStats?.total.tts_count ?? 0}</h3>
-                                        <span className="text-xs text-gray-400">lượt tạo giọng · {usageStats?.total.clone_count ?? 0} giọng clone ({rangeLabel})</span>
-                                    </div>
-                                    <p className="text-xs text-gray-400 mt-2">Thống kê từ khi bật theo dõi tiêu dùng</p>
-                                </>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Voices Card - real data (system-wide, not attributable per team/member yet) */}
-                    <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="flex items-center justify-between">
-                            <span className="text-sm font-semibold text-gray-500">Giọng nói đã clone</span>
-                            <div className="w-10 h-10 rounded-xl bg-cyan-50 flex items-center justify-center">
-                                <Mic className="w-5 h-5 text-cyan-600" />
-                            </div>
-                        </div>
-                        <div className="mt-4">
-                            <div className="flex items-baseline gap-1">
-                                <h3 className="text-2xl font-bold text-gray-900">{voicesCount}</h3>
-                                <span className="text-xs text-gray-400">giọng (toàn hệ thống)</span>
-                            </div>
-                            <div className="flex items-center gap-1.5 mt-3 text-xs text-cyan-600 font-medium">
-                                <span>Thư viện MiniMax Audio</span>
-                                <ChevronRight className="w-3 h-3" />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* ─────────── XẾP HẠNG TIÊU DÙNG: ai dùng nhiều, ai dùng ít ─────────── */}
-                {!isMemberOnly && (
-                    <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-5">
-                            <div>
-                                <h3 className="font-bold text-gray-950 text-base flex items-center gap-2">
-                                    <Trophy className="w-4 h-4 text-amber-500" />
-                                    Xếp hạng tiêu dùng ({rangeLabel})
+            {/* LEADERBOARD SECTION */}
+            {!isMemberOnly && (
+                <div className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/[0.08] dark:bg-slate-900/60 overflow-hidden">
+                    <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-white/[0.06] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <div className="p-1.5 rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400">
+                                    <Trophy className="w-4 h-4" />
+                                </div>
+                                <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                                    Bảng xếp hạng Tiêu dùng AI ({rangeLabel})
                                 </h3>
-                                <p className="text-xs text-gray-500 mt-0.5">
-                                    {isLeader
-                                        ? 'Thành viên trong team bạn, xếp từ dùng nhiều nhất xuống ít nhất'
-                                        : 'Toàn hệ thống, xếp từ dùng nhiều nhất xuống ít nhất'}
+                            </div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                {isLeader
+                                    ? 'Danh sách thành viên trong team của bạn xếp theo mức độ sử dụng tài nguyên AI.'
+                                    : 'Xếp hạng toàn bộ nhân sự sáng tạo theo tổng số ký tự MiniMax phát sinh.'}
+                            </p>
+                        </div>
+                        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-white/[0.05]">
+                            {visibleRanking.length} người dùng có phát sinh
+                        </span>
+                    </div>
+
+                    {!usageLoaded ? (
+                        <div className="p-8 text-center text-sm text-slate-400">Đang tải bảng xếp hạng…</div>
+                    ) : visibleRanking.length === 0 ? (
+                        <div className="p-8 text-center text-sm text-slate-400 italic">
+                            Chưa có dữ liệu tiêu dùng AI trong khoảng thời gian này.
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="border-b border-slate-100 dark:border-white/[0.06] bg-slate-50/70 dark:bg-slate-800/40 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                        <th className="pl-6 py-3.5 w-14">Hạng</th>
+                                        <th className="py-3.5">Người dùng</th>
+                                        <th className="py-3.5">Team</th>
+                                        <th className="py-3.5 text-right">Điểm đã tiêu</th>
+                                        <th className="py-3.5 min-w-[150px]">Tỉ trọng</th>
+                                        <th className="py-3.5 text-right">Lượt TTS</th>
+                                        <th className="py-3.5 text-right">Giọng clone</th>
+                                        {vndPer1kChars > 0 && <th className="py-3.5 text-right">Chi phí</th>}
+                                        <th className="pr-6 py-3.5 text-right">Lần cuối dùng</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-white/[0.06] text-xs">
+                                    {visibleRanking.map((row) => {
+                                        const teamName = getUserTeamName(row);
+                                        const rankBadge =
+                                            row.rank === 1
+                                                ? 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/40 dark:text-amber-300'
+                                                : row.rank === 2
+                                                ? 'bg-slate-200 text-slate-700 border-slate-300 dark:bg-slate-700 dark:text-slate-200'
+                                                : row.rank === 3
+                                                ? 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300'
+                                                : 'bg-slate-100 text-slate-600 dark:bg-white/[0.06] dark:text-slate-400';
+
+                                        return (
+                                            <tr
+                                                key={row.user_id}
+                                                className="hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors"
+                                            >
+                                                <td className="pl-6 py-4">
+                                                    <span
+                                                        className={`inline-flex items-center justify-center w-7 h-7 rounded-xl font-bold text-xs border ${rankBadge}`}
+                                                    >
+                                                        {row.rank === 1 ? '🥇' : row.rank === 2 ? '🥈' : row.rank === 3 ? '🥉' : row.rank}
+                                                    </span>
+                                                </td>
+                                                <td className="py-4">
+                                                    <p className="font-bold text-slate-900 dark:text-white">{row.full_name}</p>
+                                                    <p className="text-[11px] text-slate-400 dark:text-slate-500">{row.email}</p>
+                                                </td>
+                                                <td className="py-4">
+                                                    {teamName ? (
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {teamName.split(',').map((t, idx) => (
+                                                                <span
+                                                                    key={idx}
+                                                                    className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-[11px] font-semibold bg-violet-50 text-violet-700 border border-violet-100 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-900/50"
+                                                                >
+                                                                    {t.trim()}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-slate-400 italic text-[11px]">Chưa phân team</span>
+                                                    )}
+                                                </td>
+                                                <td className="py-4 text-right font-black text-emerald-600 dark:text-emerald-400">
+                                                    {row.characters.toLocaleString('vi-VN')}
+                                                </td>
+                                                <td className="py-4 pr-4">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="flex-1 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                                            <div
+                                                                className="h-full bg-gradient-to-r from-violet-500 to-indigo-600 rounded-full transition-all"
+                                                                style={{ width: `${Math.min(100, Math.max(2, row.share_percent))}%` }}
+                                                            />
+                                                        </div>
+                                                        <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 w-12 text-right">
+                                                            {row.share_percent.toFixed(1)}%
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="py-4 text-right font-bold text-violet-600 dark:text-violet-400">
+                                                    {row.tts_count}
+                                                </td>
+                                                <td className="py-4 text-right font-bold text-cyan-600 dark:text-cyan-400">
+                                                    {row.clone_count}
+                                                </td>
+                                                {vndPer1kChars > 0 && (
+                                                    <td className="py-4 text-right font-bold text-amber-600 dark:text-amber-400">
+                                                        {(row.cost_vnd ?? 0).toLocaleString('vi-VN')}đ
+                                                    </td>
+                                                )}
+                                                <td className="pr-6 py-4 text-right text-slate-500 dark:text-slate-400">
+                                                    {new Date(row.last_used_at).toLocaleDateString('vi-VN')}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* ADMIN TEAM MANAGEMENT & DRILL DOWN */}
+            {isAdmin && (
+                <div className="space-y-6">
+                    <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm dark:border-white/[0.08] dark:bg-slate-900/60">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+                            <div>
+                                <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2">
+                                    <Building2 className="w-4 h-4 text-slate-500" />
+                                    Danh sách Team ({teams.length}) — {totalMembers} Thành viên
+                                </h3>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                    Bấm vào từng nhóm để xem chi tiết danh sách và mức độ tiêu dùng của từng người.
                                 </p>
                             </div>
-                            <span className="text-xs text-gray-400">
-                                {visibleRanking.length} người có phát sinh trong kỳ
-                            </span>
                         </div>
 
-                        {!usageLoaded ? (
-                            <p className="text-sm text-gray-400 py-6 text-center">Đang tải thống kê...</p>
-                        ) : visibleRanking.length === 0 ? (
-                            <p className="text-sm text-gray-400 py-6 text-center">
-                                Không có ai dùng tính năng giọng nói trong khoảng ngày này
-                            </p>
+                        {!teamsLoaded ? (
+                            <div className="p-6 text-center text-sm text-slate-400">Đang tải danh sách nhóm…</div>
+                        ) : teams.length === 0 ? (
+                            <div className="p-6 text-center text-sm text-slate-400">Chưa có team nào trong hệ thống.</div>
                         ) : (
-                            <div className="overflow-x-auto -mx-6">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                                {teams.map((team) => {
+                                    const isSelected = selectedTeamId === team.id;
+                                    return (
+                                        <button
+                                            key={team.id}
+                                            onClick={() => setSelectedTeamId(team.id)}
+                                            className={`p-4 rounded-2xl text-left border transition-all duration-200 flex flex-col justify-between h-32 ${
+                                                isSelected
+                                                    ? 'bg-violet-50/70 border-violet-400 shadow-md shadow-violet-500/10 dark:bg-violet-950/30 dark:border-violet-500'
+                                                    : 'bg-white dark:bg-slate-800/40 border-slate-200 dark:border-white/[0.08] hover:border-slate-300 dark:hover:border-white/[0.15]'
+                                            }`}
+                                        >
+                                            <div>
+                                                <div className="flex items-center justify-between">
+                                                    <h4 className={`text-sm font-bold ${isSelected ? 'text-violet-900 dark:text-violet-300' : 'text-slate-900 dark:text-white'}`}>
+                                                        {team.name}
+                                                    </h4>
+                                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                                                        isSelected ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/60 dark:text-violet-200' : 'bg-slate-100 text-slate-600 dark:bg-white/[0.08] dark:text-slate-300'
+                                                    }`}>
+                                                        {team._count?.members ?? team.members.length} người
+                                                    </span>
+                                                </div>
+                                                <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+                                                    Leader: <span className="font-semibold text-slate-600 dark:text-slate-300">{team.leader?.full_name ?? 'Chưa có'}</span>
+                                                </p>
+                                            </div>
+
+                                            <div className="pt-2.5 border-t border-slate-100 dark:border-white/[0.06] w-full flex items-center justify-between">
+                                                <span className="text-[10px] text-slate-400 uppercase font-semibold">{team.brand_type}</span>
+                                                <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold ${team.is_active ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-400'}`}>
+                                                    {team.is_active ? 'Đang hoạt động' : 'Ngưng hoạt động'}
+                                                </span>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Team Drill-down Table */}
+                    {adminSelectedTeam && (
+                        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/[0.08] dark:bg-slate-900/60 overflow-hidden">
+                            <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-white/[0.06] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                                            Thành viên {adminSelectedTeam.name}
+                                        </h3>
+                                        <span className="text-xs text-slate-400 font-medium">
+                                            (Leader: {adminSelectedTeam.leader?.full_name ?? 'Chưa có'})
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                        Mức độ tiêu dùng và lượt phát sinh của từng nhân sự trong nhóm.
+                                    </p>
+                                </div>
+                                <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-950/40 px-3 py-1.5 rounded-xl border border-violet-200/60 dark:border-violet-800/50">
+                                    <UserCheck className="w-3.5 h-3.5" />
+                                    <span>Đang xem: {adminSelectedTeam.name}</span>
+                                </div>
+                            </div>
+
+                            <div className="overflow-x-auto">
                                 <table className="w-full text-left border-collapse">
                                     <thead>
-                                        <tr className="border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider bg-gray-50/50">
-                                            <th className="pl-6 py-3">#</th>
-                                            <th className="py-3">Người dùng</th>
-                                            <th className="py-3">Team</th>
-                                            <th className="py-3 text-right">Điểm đã tiêu</th>
-                                            <th className="py-3">Tỉ trọng</th>
-                                            <th className="py-3 text-right">Lượt TTS</th>
-                                            <th className="py-3 text-right">Giọng clone</th>
-                                            {vndPer1kChars > 0 && <th className="py-3 text-right">Tiền</th>}
-                                            <th className="pr-6 py-3 text-right">Dùng lần cuối</th>
+                                        <tr className="border-b border-slate-100 dark:border-white/[0.06] bg-slate-50/70 dark:bg-slate-800/40 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                            <th className="pl-6 py-3.5">Tên thành viên</th>
+                                            <th className="py-3.5">Email</th>
+                                            <th className="py-3.5">Vai trò</th>
+                                            <th className="py-3.5 text-right">Điểm đã tiêu</th>
+                                            <th className="py-3.5 text-right">Lượt TTS</th>
+                                            <th className="py-3.5 text-right">Giọng clone</th>
+                                            <th className="pr-6 py-3.5 text-right">Ngày tham gia</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-gray-100">
-                                        {visibleRanking.map((row) => {
-                                            const teamName = getUserTeamName(row);
-                                            return (
-                                                <tr key={row.user_id} className="hover:bg-gray-50/50 transition-colors">
-                                                    <td className="pl-6 py-4">
-                                                        <span className={`inline-flex items-center justify-center w-6 h-6 rounded-lg text-[11px] font-bold
-                                                            ${row.rank === 1
-                                                                ? 'bg-amber-100 text-amber-700'
-                                                                : 'bg-gray-100 text-gray-500'}`}>
-                                                            {row.rank}
-                                                        </span>
-                                                    </td>
-                                                    <td className="py-4">
-                                                        <p className="text-xs font-semibold text-gray-800">{row.full_name}</p>
-                                                        <p className="text-[11px] text-gray-400">{row.email}</p>
-                                                    </td>
-                                                    <td className="py-4">
-                                                        {teamName ? (
+                                    <tbody className="divide-y divide-slate-100 dark:divide-white/[0.06] text-xs">
+                                        {adminSelectedTeam.members.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={7} className="py-8 text-center text-slate-400 italic">Nhóm chưa có thành viên</td>
+                                            </tr>
+                                        ) : (
+                                            adminSelectedTeam.members.map((member) => {
+                                                const usage = usageByUserId.get(member.user_id);
+                                                return (
+                                                    <tr key={member.id} className="hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors">
+                                                        <td className="pl-6 py-4 font-bold text-slate-900 dark:text-white">
+                                                            {member.user.full_name}
+                                                        </td>
+                                                        <td className="py-4 text-slate-500 dark:text-slate-400">
+                                                            {member.user.email}
+                                                        </td>
+                                                        <td className="py-4">
                                                             <div className="flex flex-wrap gap-1">
-                                                                {teamName.split(',').map((t, idx) => (
+                                                                {member.user.roles.map((role) => (
                                                                     <span
-                                                                        key={idx}
-                                                                        className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-violet-50 text-violet-700 border border-violet-100"
+                                                                        key={role}
+                                                                        className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 rounded-md font-bold tracking-wide uppercase"
                                                                     >
-                                                                        {t.trim()}
+                                                                        {role}
                                                                     </span>
                                                                 ))}
                                                             </div>
-                                                        ) : (
-                                                            <span className="text-[11px] text-gray-400 italic">Chưa phân team</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="py-4 text-right text-xs font-bold text-green-700">
-                                                        {row.characters.toLocaleString('vi-VN')}
-                                                    </td>
-                                                    <td className="py-4 pr-4 min-w-[140px]">
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                                                <div
-                                                                    className="h-full bg-violet-500 rounded-full"
-                                                                    style={{ width: `${row.share_percent}%` }}
-                                                                />
-                                                            </div>
-                                                            <span className="text-[11px] text-gray-500 font-medium w-10 text-right">
-                                                                {row.share_percent.toFixed(1)}%
-                                                            </span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="py-4 text-right text-xs font-semibold text-violet-700">{row.tts_count}</td>
-                                                    <td className="py-4 text-right text-xs font-semibold text-cyan-700">{row.clone_count}</td>
-                                                    {vndPer1kChars > 0 && (
-                                                        <td className="py-4 text-right text-xs font-semibold text-amber-700">
-                                                            {(row.cost_vnd ?? 0).toLocaleString('vi-VN')}đ
                                                         </td>
-                                                    )}
-                                                    <td className="pr-6 py-4 text-right text-xs text-gray-500">
-                                                        {new Date(row.last_used_at).toLocaleDateString('vi-VN')}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
+                                                        <td className="py-4 text-right font-black text-emerald-600 dark:text-emerald-400">
+                                                            {(usage?.characters ?? 0).toLocaleString('vi-VN')}
+                                                        </td>
+                                                        <td className="py-4 text-right font-bold text-violet-600 dark:text-violet-400">
+                                                            {usage?.tts_count ?? 0}
+                                                        </td>
+                                                        <td className="py-4 text-right font-bold text-cyan-600 dark:text-cyan-400">
+                                                            {usage?.clone_count ?? 0}
+                                                        </td>
+                                                        <td className="pr-6 py-4 text-right text-slate-500 dark:text-slate-400">
+                                                            {new Date(member.joined_at).toLocaleDateString('vi-VN')}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                        )}
                                     </tbody>
                                 </table>
                             </div>
-                        )}
-                    </div>
-                )}
-
-                {/* ─────────────────────────── INTERACTIVE SECTIONS BY ROLE ─────────────────────────── */}
-
-                {/* 1. ADMIN LAYOUT (Teams & Drill-down members) */}
-                {isAdmin && (
-                    <div className="space-y-6">
-                        {/* Team overview List */}
-                        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="font-bold text-gray-950 text-base flex items-center gap-2">
-                                    <Building2 className="w-4 h-4 text-gray-500" />
-                                    Danh sách Team ({teams.length}) — {totalMembers} thành viên
-                                </h3>
-                                <span className="text-xs text-gray-400">Chọn một team bên dưới để xem chi tiết từng người</span>
-                            </div>
-
-                            {!teamsLoaded ? (
-                                <p className="text-sm text-gray-400 py-6 text-center">Đang tải danh sách team...</p>
-                            ) : teams.length === 0 ? (
-                                <p className="text-sm text-gray-400 py-6 text-center">Chưa có team nào trong hệ thống</p>
-                            ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    {teams.map((team) => {
-                                        const isSelected = selectedTeamId === team.id;
-                                        return (
-                                            <button
-                                                key={team.id}
-                                                onClick={() => setSelectedTeamId(team.id)}
-                                                className={`p-5 rounded-2xl text-left border transition-all duration-200 flex flex-col justify-between h-32
-                                                    ${isSelected
-                                                        ? 'bg-violet-50/50 border-violet-400 shadow-md shadow-violet-50'
-                                                        : 'bg-white border-gray-200 hover:bg-gray-50/50 hover:border-gray-300'}`}
-                                            >
-                                                <div>
-                                                    <div className="flex items-center justify-between">
-                                                        <h4 className={`text-sm font-bold ${isSelected ? 'text-violet-800' : 'text-gray-900'}`}>{team.name}</h4>
-                                                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase
-                                                            ${isSelected ? 'bg-violet-100 text-violet-700' : 'bg-gray-100 text-gray-500'}`}>
-                                                            {team._count?.members ?? team.members.length} người
-                                                        </span>
-                                                    </div>
-                                                    <p className="text-[11px] text-gray-400 mt-1">Leader: {team.leader?.full_name ?? 'Chưa có'}</p>
-                                                </div>
-
-                                                <div className="mt-4 pt-3 border-t border-gray-100 w-full flex items-center justify-between">
-                                                    <span className="text-[10px] text-gray-400 uppercase font-semibold">{team.brand_type}</span>
-                                                    <span className={`text-[10px] px-2 py-0.5 rounded-md font-semibold ${team.is_active ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
-                                                        {team.is_active ? 'Đang hoạt động' : 'Ngưng hoạt động'}
-                                                    </span>
-                                                </div>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            )}
                         </div>
+                    )}
+                </div>
+            )}
 
-                        {/* Team Member Drill-down table */}
-                        {adminSelectedTeam && (
-                            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm transition-all duration-200">
-                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                                    <div>
-                                        <div className="flex items-center gap-2">
-                                            <h3 className="font-bold text-gray-950 text-base">Thành viên {adminSelectedTeam.name}</h3>
-                                            <span className="text-xs text-gray-400 font-medium">({adminSelectedTeam.leader?.full_name ?? 'Chưa có leader'} quản lý)</span>
-                                        </div>
-                                        <p className="text-xs text-gray-500 mt-0.5">Danh sách các cá nhân thuộc nhóm</p>
-                                    </div>
-                                    <div className="flex items-center gap-2 text-xs text-violet-700 bg-violet-50 px-3 py-1.5 rounded-xl border border-violet-100">
-                                        <UserCheck className="w-3.5 h-3.5" />
-                                        <span>Đang lọc theo: {adminSelectedTeam.name}</span>
-                                    </div>
-                                </div>
-
-                                <div className="overflow-x-auto -mx-6">
-                                    <table className="w-full text-left border-collapse">
-                                        <thead>
-                                            <tr className="border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider bg-gray-50/50">
-                                                <th className="pl-6 py-3">Tên thành viên</th>
-                                                <th className="py-3">Email</th>
-                                                <th className="py-3">Vai trò hệ thống</th>
-                                                <th className="py-3 text-right">Điểm đã tiêu</th>
-                                                <th className="py-3 text-right">Lượt TTS</th>
-                                                <th className="py-3 text-right">Giọng clone</th>
-                                                <th className="pr-6 py-3 text-right">Ngày tham gia</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-100">
-                                            {adminSelectedTeam.members.length === 0 ? (
-                                                <tr>
-                                                    <td colSpan={7} className="py-6 text-center text-xs text-gray-400">Team chưa có thành viên</td>
-                                                </tr>
-                                            ) : adminSelectedTeam.members.map((member) => {
-                                                const usage = usageByUserId.get(member.user_id);
-                                                return (
-                                                <tr key={member.id} className="hover:bg-gray-50/50 transition-colors">
-                                                    <td className="pl-6 py-4">
-                                                        <p className="text-xs font-semibold text-gray-800">{member.user.full_name}</p>
-                                                    </td>
-                                                    <td className="py-4 text-xs text-gray-500">
-                                                        {member.user.email}
-                                                    </td>
-                                                    <td className="py-4">
-                                                        <div className="flex flex-wrap gap-1">
-                                                            {member.user.roles.map((role) => (
-                                                                <span key={role} className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-600 rounded-md font-semibold tracking-wider">
-                                                                    {role}
-                                                                </span>
-                                                            ))}
-                                                        </div>
-                                                    </td>
-                                                    <td className="py-4 text-right text-xs font-bold text-green-700">
-                                                        {(usage?.characters ?? 0).toLocaleString('vi-VN')}
-                                                    </td>
-                                                    <td className="py-4 text-right text-xs font-semibold text-violet-700">
-                                                        {usage?.tts_count ?? 0}
-                                                    </td>
-                                                    <td className="py-4 text-right text-xs font-semibold text-cyan-700">
-                                                        {usage?.clone_count ?? 0}
-                                                    </td>
-                                                    <td className="pr-6 py-4 text-right text-xs text-gray-500">
-                                                        {new Date(member.joined_at).toLocaleDateString('vi-VN')}
-                                                    </td>
-                                                </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        )}
+            {/* MEMBER INDIVIDUAL CONSUMPTION CARD */}
+            {isMemberOnly && (
+                <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/[0.08] dark:bg-slate-900/60">
+                    <div className="flex items-center justify-between mb-6">
+                        <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                            Mức tiêu dùng cá nhân của bạn ({rangeLabel})
+                        </h3>
+                        <span className="text-xs text-slate-400">Chỉ tính tác vụ do bạn thực hiện</span>
                     </div>
-                )}
 
-                {/* 2. LEADER LAYOUT (members of leader's team) */}
-                {isLeader && (
-                    <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-                        {!teamsLoaded ? (
-                            <p className="text-sm text-gray-400 py-6 text-center">Đang tải dữ liệu team...</p>
-                        ) : !leaderTeamData ? (
-                            <p className="text-sm text-gray-400 py-6 text-center">Bạn chưa được gán vào team nào</p>
-                        ) : (
-                            <>
-                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                                    <div>
-                                        <h3 className="font-bold text-gray-950 text-base">Thành viên trong {leaderTeamData.name}</h3>
-                                        <p className="text-xs text-gray-500 mt-0.5">Danh sách các thành viên trong nhóm bạn quản lý</p>
-                                    </div>
-                                    <div className="text-xs text-gray-500 border border-gray-200 px-3 py-1.5 rounded-xl bg-gray-50 font-medium">
-                                        Tổng thành viên: {leaderTeamData.members.length} người
-                                    </div>
-                                </div>
-
-                                <div className="overflow-x-auto -mx-6">
-                                    <table className="w-full text-left border-collapse">
-                                        <thead>
-                                            <tr className="border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider bg-gray-50/50">
-                                                <th className="pl-6 py-3">Họ và tên</th>
-                                                <th className="py-3">Email liên hệ</th>
-                                                <th className="py-3">Vai trò hệ thống</th>
-                                                <th className="py-3 text-right">Điểm đã tiêu</th>
-                                                <th className="py-3 text-right">Lượt TTS</th>
-                                                <th className="py-3 text-right">Giọng clone</th>
-                                                <th className="pr-6 py-3 text-right">Ngày tham gia</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-100">
-                                            {leaderTeamData.members.map((member) => {
-                                                const usage = usageByUserId.get(member.user_id);
-                                                return (
-                                                <tr key={member.id} className="hover:bg-gray-50/50 transition-colors">
-                                                    <td className="pl-6 py-4">
-                                                        <p className="text-xs font-semibold text-gray-800">{member.user.full_name}</p>
-                                                    </td>
-                                                    <td className="py-4 text-xs text-gray-500">
-                                                        {member.user.email}
-                                                    </td>
-                                                    <td className="py-4">
-                                                        <div className="flex flex-wrap gap-1">
-                                                            {member.user.roles.map((role) => (
-                                                                <span key={role} className="text-[9px] px-1.5 py-0.5 bg-violet-50 text-violet-600 border border-violet-100 rounded-md font-semibold tracking-wide uppercase">
-                                                                    {role}
-                                                                </span>
-                                                            ))}
-                                                        </div>
-                                                    </td>
-                                                    <td className="py-4 text-right text-xs font-bold text-green-700">
-                                                        {(usage?.characters ?? 0).toLocaleString('vi-VN')}
-                                                    </td>
-                                                    <td className="py-4 text-right text-xs font-semibold text-violet-700">
-                                                        {usage?.tts_count ?? 0}
-                                                    </td>
-                                                    <td className="py-4 text-right text-xs font-semibold text-cyan-700">
-                                                        {usage?.clone_count ?? 0}
-                                                    </td>
-                                                    <td className="pr-6 py-4 text-right text-xs text-gray-500">
-                                                        {new Date(member.joined_at).toLocaleDateString('vi-VN')}
-                                                    </td>
-                                                </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </>
-                        )}
-                    </div>
-                )}
-
-                {/* 3. MEMBER LAYOUT (Tiêu dùng cá nhân trong khoảng ngày đang chọn) */}
-                {isMemberOnly && (
-                    <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-                        <div className="flex items-center justify-between mb-6">
-                            <h3 className="font-bold text-gray-950 text-base">Tiêu dùng của bạn ({rangeLabel})</h3>
-                            <span className="text-xs text-gray-400">Chỉ tính các tác vụ của bạn</span>
-                        </div>
-
-                        {(() => {
-                            const mine = user?.id ? usageByUserId.get(user.id) : undefined;
-                            if (!usageLoaded) {
-                                return <p className="text-sm text-gray-400 py-6 text-center">Đang tải...</p>;
-                            }
-                            if (!mine) {
-                                return (
-                                    <div className="py-10 flex flex-col items-center justify-center text-center">
-                                        <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center mb-3">
-                                            <Volume2 className="w-5 h-5 text-gray-300" />
-                                        </div>
-                                        <p className="text-sm text-gray-400 italic">Bạn chưa dùng tính năng giọng nói trong khoảng ngày này</p>
-                                    </div>
-                                );
-                            }
+                    {(() => {
+                        const mine = user?.id ? usageByUserId.get(user.id) : undefined;
+                        if (!usageLoaded) {
+                            return <div className="p-8 text-center text-sm text-slate-400">Đang tải dữ liệu…</div>;
+                        }
+                        if (!mine) {
                             return (
-                                <div className="grid grid-cols-3 gap-4">
-                                    <div className="p-4 rounded-xl bg-green-50 border border-green-100 text-center">
-                                        <p className="text-xs text-green-700 font-semibold">Điểm đã tiêu</p>
-                                        <p className="text-2xl font-black text-green-700 mt-1">{mine.characters.toLocaleString('vi-VN')}</p>
+                                <div className="py-12 flex flex-col items-center justify-center text-center">
+                                    <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-3 text-slate-400">
+                                        <Volume2 className="w-6 h-6" />
                                     </div>
-                                    <div className="p-4 rounded-xl bg-violet-50 border border-violet-100 text-center">
-                                        <p className="text-xs text-violet-700 font-semibold">Lượt tạo giọng (TTS)</p>
-                                        <p className="text-2xl font-black text-violet-700 mt-1">{mine.tts_count}</p>
-                                    </div>
-                                    <div className="p-4 rounded-xl bg-cyan-50 border border-cyan-100 text-center">
-                                        <p className="text-xs text-cyan-700 font-semibold">Giọng đã clone</p>
-                                        <p className="text-2xl font-black text-cyan-700 mt-1">{mine.clone_count}</p>
-                                    </div>
+                                    <p className="text-sm text-slate-400 italic">
+                                        Bạn chưa phát sinh lượt tạo giọng AI nào trong khoảng thời gian này.
+                                    </p>
                                 </div>
                             );
-                        })()}
-                    </div>
-                )}
-
-            </div>
+                        }
+                        return (
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div className="p-5 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/40 text-center">
+                                    <p className="text-xs text-emerald-700 dark:text-emerald-400 font-bold uppercase tracking-wider">Điểm đã tiêu</p>
+                                    <p className="text-3xl font-black text-emerald-700 dark:text-emerald-300 mt-2">
+                                        {mine.characters.toLocaleString('vi-VN')}
+                                    </p>
+                                </div>
+                                <div className="p-5 rounded-2xl bg-violet-50/70 dark:bg-violet-950/30 border border-violet-100 dark:border-violet-900/40 text-center">
+                                    <p className="text-xs text-violet-700 dark:text-violet-400 font-bold uppercase tracking-wider">Lượt tạo giọng (TTS)</p>
+                                    <p className="text-3xl font-black text-violet-700 dark:text-violet-300 mt-2">
+                                        {mine.tts_count}
+                                    </p>
+                                </div>
+                                <div className="p-5 rounded-2xl bg-cyan-50/70 dark:bg-cyan-950/30 border border-cyan-100 dark:border-cyan-900/40 text-center">
+                                    <p className="text-xs text-cyan-700 dark:text-cyan-400 font-bold uppercase tracking-wider">Giọng đã clone</p>
+                                    <p className="text-3xl font-black text-cyan-700 dark:text-cyan-300 mt-2">
+                                        {mine.clone_count}
+                                    </p>
+                                </div>
+                            </div>
+                        );
+                    })()}
+                </div>
+            )}
         </div>
     );
 }
