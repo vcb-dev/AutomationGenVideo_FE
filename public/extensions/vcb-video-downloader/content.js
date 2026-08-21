@@ -1290,9 +1290,30 @@
 
     function applyCnTranslation() {
         if (!cnChipInput || !cnChipTranslated) return;
-        setInputValue(cnChipInput, cnChipTranslated);
-        cnChipInput.focus();
+        const targetInput = cnChipInput;
+        const translatedText = cnChipTranslated;
+
         hideCnChip();
+
+        // 1. Thoát phiên gõ của bộ gõ (IME tiếng Việt / CJK như Telex macOS, EVKey, Unikey).
+        // Khi đang gõ dở một từ (có gạch chân composition), bộ gõ giữ buffer markedText.
+        // Gọi blur() ép browser/hệ điều hành kết thúc session IME, tránh việc IME tự động
+        // nhét từ tiếng Việt vừa gõ vào sau khi đã thay thế chuỗi tiếng Trung (vd: '玉环ngọc').
+        try {
+            targetInput.blur();
+        } catch {}
+
+        // 2. Gán giá trị tiếng Trung mới cho ô nhập
+        setInputValue(targetInput, translatedText);
+
+        // 3. Focus lại ô nhập và đặt con trỏ ở cuối chuỗi
+        try {
+            targetInput.focus();
+            if (typeof targetInput.setSelectionRange === 'function' && (targetInput.tagName === 'INPUT' || targetInput.tagName === 'TEXTAREA')) {
+                const len = translatedText.length;
+                targetInput.setSelectionRange(len, len);
+            }
+        } catch {}
     }
 
     /** Bám theo ô nhập khi trang cuộn; ô rời khỏi màn hình thì mới bỏ chip. */
@@ -1444,10 +1465,11 @@
         // markup/class của các trang này đổi liên tục, hardcode selector sẽ hỏng.
         document.addEventListener('input', onCnInput, true);
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Tab' && cnChipEl && cnChipTranslated) {
+            if ((e.key === 'Tab' || e.code === 'Tab' || e.keyCode === 9) && cnChipEl && cnChipTranslated) {
                 e.preventDefault();
+                e.stopImmediatePropagation();
                 applyCnTranslation();
-            } else if (e.key === 'Escape') {
+            } else if (e.key === 'Escape' || e.code === 'Escape' || e.keyCode === 27) {
                 hideCnChip();
             }
         }, true);

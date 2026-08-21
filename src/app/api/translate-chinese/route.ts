@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 const AI_SERVICE_URL =
     process.env.AI_SERVICE_URL ||
     process.env.NEXT_PUBLIC_AI_SERVICE_URL ||
-    'http://localhost:8001';
+    'http://localhost:8000';
 
 // Route này CỐ Ý không yêu cầu đăng nhập: extension VCB (chạy trên douyin.com,
 // xiaohongshu.com...) gọi vào đây để dịch từ khoá, mà extension không giữ được JWT.
