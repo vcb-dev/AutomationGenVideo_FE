@@ -228,8 +228,8 @@ export function DateTimePicker({
       {open && (
         <div
           className={cn(
-            'absolute left-0 top-full z-50 mt-1.5 w-[265px] rounded-xl border border-slate-200 bg-white p-3',
-            'shadow-xl dark:border-white/[0.1] dark:bg-slate-900 animate-in fade-in zoom-in-95 duration-100',
+            'absolute left-0 top-full z-[100] mt-1.5 w-[265px] rounded-xl border border-slate-200 bg-white p-3',
+            'shadow-2xl dark:border-slate-700 dark:bg-slate-900 animate-in fade-in zoom-in-95 duration-100',
           )}
         >
           {/* Header Month / Year */}

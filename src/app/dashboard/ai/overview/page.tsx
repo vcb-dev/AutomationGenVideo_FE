@@ -294,7 +294,7 @@ export default function OverviewPage() {
             </div>
 
             {/* TIME FILTER & DATE RANGE BAR */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/[0.08] dark:bg-slate-900/60 backdrop-blur-md flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="relative z-30 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/[0.08] dark:bg-slate-900/60 backdrop-blur-md flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div className="flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-white">
                     <div className="p-1.5 rounded-lg bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400">
                         <CalendarRange className="w-4 h-4" />
@@ -327,14 +327,15 @@ export default function OverviewPage() {
                             value={range.from}
                             onChange={(val) => setRange((prev) => ({ ...prev, from: val }))}
                             placeholder="Từ ngày"
-                            className="w-36"
+                            className="w-[142px]"
                         />
                         <span className="text-xs font-bold text-slate-400">➔</span>
                         <DatePicker
                             value={range.to}
                             onChange={(val) => setRange((prev) => ({ ...prev, to: val }))}
                             placeholder="Đến ngày"
-                            className="w-36"
+                            className="w-[142px]"
+                            align="right"
                         />
                     </div>
                 </div>
