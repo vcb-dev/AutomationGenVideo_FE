@@ -1,19 +1,7 @@
 'use client';
 
-/**
- * Bộ chọn ngày tự vẽ, thay cho `<input type="date">`.
- *
- * Vì sao không dùng input gốc: lịch bung ra là widget của trình duyệt, CSS không với tới được —
- * nó lệch hẳn khỏi phần còn lại của giao diện (bo góc, phông chữ, màu nhấn, tiếng Anh trên máy
- * đặt ngôn ngữ khác). Tự vẽ thì tuần bắt đầu thứ Hai theo lịch Việt Nam, và tông màu ăn khớp
- * với chỗ dùng.
- *
- * Việc dựng lưới ngày nằm ở `lib/equipment/month-grid.ts` — logic thuần, test riêng, vì lệch
- * một cột là người dùng bấm nhầm ngày mà nhìn mắt thường rất khó thấy.
- */
-
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { buildMonthGrid } from '@/lib/equipment/month-grid';
 
@@ -25,6 +13,8 @@ interface DatePickerProps {
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  label?: string;
+  required?: boolean;
 }
 
 const todayIso = () => {
@@ -38,16 +28,31 @@ const displayVi = (isoValue: string) => {
   return `${d}/${m}/${y}`;
 };
 
-export function DatePicker({ value, onChange, placeholder = 'Chọn ngày', className }: DatePickerProps) {
+export function DatePicker({
+  value,
+  onChange,
+  placeholder = 'Chọn ngày…',
+  className,
+  label,
+  required,
+}: DatePickerProps) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
 
-  // Mở lịch ở tháng của ngày đang chọn; chưa chọn thì mở ở tháng hiện tại.
   const initial = value || todayIso();
   const [cursor, setCursor] = useState({
-    year: Number(initial.slice(0, 4)),
-    month: Number(initial.slice(5, 7)),
+    year: Number(initial.slice(0, 4)) || new Date().getFullYear(),
+    month: Number(initial.slice(5, 7)) || (new Date().getMonth() + 1),
   });
+
+  useEffect(() => {
+    if (value && value.length >= 10) {
+      setCursor({
+        year: Number(value.slice(0, 4)),
+        month: Number(value.slice(5, 7)),
+      });
+    }
+  }, [value]);
 
   useEffect(() => {
     if (!open) return;
@@ -76,25 +81,34 @@ export function DatePicker({ value, onChange, placeholder = 'Chọn ngày', clas
   };
 
   return (
-    <div ref={box} className={cn('relative', className)}>
+    <div ref={box} className={cn('relative w-full', className)}>
+      {label && (
+        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1.5">
+          {label} {required && <span className="text-red-500">*</span>}
+        </label>
+      )}
+
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          'flex w-[150px] items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm',
-          'text-slate-800 transition-colors hover:border-slate-300',
-          'dark:border-white/[0.08] dark:bg-[#0f131a] dark:text-slate-100 dark:hover:border-white/20',
-          open && 'border-indigo-400 dark:border-indigo-400',
+          'flex w-full items-center justify-between gap-2.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-800 transition-all outline-none',
+          'hover:border-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20',
+          'dark:border-white/[0.12] dark:bg-[#0f131a] dark:text-slate-100 dark:hover:border-white/20',
+          open && 'border-blue-500 ring-2 ring-blue-500/20 dark:border-blue-400',
         )}
       >
-        <CalendarDays size={15} className="shrink-0 text-slate-400" />
-        <span className={cn('flex-1 text-left', !value && 'text-slate-400')}>
-          {value ? displayVi(value) : placeholder}
-        </span>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <Calendar size={16} className="shrink-0 text-slate-400 dark:text-slate-500" />
+          <span className={cn('truncate font-medium', !value && 'text-slate-400 dark:text-slate-500')}>
+            {value ? displayVi(value) : placeholder}
+          </span>
+        </div>
+
         {value && (
           <X
             size={14}
-            className="shrink-0 text-slate-400 hover:text-slate-600"
+            className="shrink-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
             onClick={(e) => {
               e.stopPropagation();
               onChange('');
@@ -106,40 +120,39 @@ export function DatePicker({ value, onChange, placeholder = 'Chọn ngày', clas
       {open && (
         <div
           className={cn(
-            'absolute left-0 top-full z-50 mt-2 w-[276px] rounded-xl border border-slate-200 bg-white p-3',
-            'shadow-[0_12px_32px_rgba(17,24,39,0.12)]',
-            'dark:border-white/[0.08] dark:bg-[#141821] dark:shadow-[0_12px_32px_rgba(0,0,0,0.5)]',
+            'absolute left-0 top-full z-50 mt-1.5 w-[280px] rounded-2xl border border-slate-200 bg-white p-3.5',
+            'shadow-xl dark:border-white/[0.08] dark:bg-[#141821] dark:shadow-2xl animate-in fade-in zoom-in-95 duration-100',
           )}
         >
-          <div className="mb-2 flex items-center justify-between">
+          <div className="mb-3 flex items-center justify-between">
             <button
               type="button"
               onClick={() => step(-1)}
-              className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-white/[0.06]"
+              className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-white/[0.06]"
             >
               <ChevronLeft size={16} />
             </button>
-            <span className="text-sm font-semibold text-slate-900 dark:text-white">
-              Tháng {cursor.month} · {cursor.year}
+            <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+              Tháng {cursor.month} / {cursor.year}
             </span>
             <button
               type="button"
               onClick={() => step(1)}
-              className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-white/[0.06]"
+              className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-white/[0.06]"
             >
               <ChevronRight size={16} />
             </button>
           </div>
 
-          <div className="mb-1 grid grid-cols-7 gap-0.5">
-            {WEEKDAYS.map((w) => (
-              <div key={w} className="py-1 text-center text-[11px] font-medium text-slate-400">
+          <div className="mb-1.5 grid grid-cols-7 gap-1">
+            {WEEKDAYS.map((w, i) => (
+              <div key={w} className={cn("text-center text-[11px] font-bold", i === 6 ? "text-rose-500" : "text-slate-400")}>
                 {w}
               </div>
             ))}
           </div>
 
-          <div className="grid grid-cols-7 gap-0.5">
+          <div className="grid grid-cols-7 gap-1">
             {weeks.flat().map((cell) => {
               const selected = cell.iso === value;
               const isToday = cell.iso === today;
@@ -152,12 +165,12 @@ export function DatePicker({ value, onChange, placeholder = 'Chọn ngày', clas
                     setOpen(false);
                   }}
                   className={cn(
-                    'h-8 rounded-md text-sm transition-colors',
+                    'h-8 w-full rounded-lg text-xs font-medium transition-all flex items-center justify-center',
                     cell.inMonth
                       ? 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/[0.06]'
-                      : 'text-slate-300 hover:bg-slate-50 dark:text-slate-600 dark:hover:bg-white/[0.03]',
-                    isToday && !selected && 'font-semibold text-indigo-600 dark:text-indigo-400',
-                    selected && 'bg-indigo-600 font-semibold text-white hover:bg-indigo-600',
+                      : 'text-slate-300 opacity-40 dark:text-slate-600',
+                    isToday && !selected && 'border border-blue-500 text-blue-600 font-bold dark:text-blue-400',
+                    selected && 'bg-blue-600 font-bold text-white hover:bg-blue-600 shadow-md shadow-blue-500/20',
                   )}
                 >
                   {cell.day}
@@ -166,14 +179,14 @@ export function DatePicker({ value, onChange, placeholder = 'Chọn ngày', clas
             })}
           </div>
 
-          <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-2 dark:border-white/[0.06]">
+          <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2.5 dark:border-white/[0.06]">
             <button
               type="button"
               onClick={() => {
                 onChange(today);
                 setOpen(false);
               }}
-              className="text-xs font-medium text-indigo-600 hover:underline"
+              className="text-xs font-bold text-blue-600 hover:underline dark:text-blue-400"
             >
               Hôm nay
             </button>
@@ -183,9 +196,9 @@ export function DatePicker({ value, onChange, placeholder = 'Chọn ngày', clas
                 onChange('');
                 setOpen(false);
               }}
-              className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+              className="text-xs font-medium text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
             >
-              Xoá
+              Xóa
             </button>
           </div>
         </div>

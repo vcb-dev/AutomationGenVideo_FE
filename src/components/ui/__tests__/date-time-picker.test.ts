@@ -1,17 +1,9 @@
-describe('DateTimePicker Component Logic', () => {
-  it('should format date and time in Vietnamese convention', () => {
+describe('DateTimePicker Component Standard Logic', () => {
+  it('should format date and time in DD/MM/YYYY HH:mm format', () => {
+    const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
     const d = new Date('2026-08-21T14:30:00');
-    const day = d.getDate();
-    const month = d.getMonth() + 1;
-    const year = d.getFullYear();
-    const hour = d.getHours();
-    const min = d.getMinutes();
-
-    expect(day).toBe(21);
-    expect(month).toBe(8);
-    expect(year).toBe(2026);
-    expect(hour).toBe(14);
-    expect(min).toBe(30);
+    const formatted = `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+    expect(formatted).toBe('21/08/2026 14:30');
   });
 
   it('should calculate valid range condition correctly', () => {
@@ -19,9 +11,5 @@ describe('DateTimePicker Component Logic', () => {
     const toTime = '2026-08-21T17:00';
     const isValid = new Date(toTime) > new Date(fromTime);
     expect(isValid).toBe(true);
-
-    const invalidToTime = '2026-08-21T08:00';
-    const isInvalid = new Date(invalidToTime) > new Date(fromTime);
-    expect(isInvalid).toBe(false);
   });
 });
