@@ -11,6 +11,7 @@ import {
 } from '@/lib/equipment/api';
 import { groupModels } from '@/lib/equipment/group-models';
 import { availabilityLabel } from '@/lib/equipment/availability-label';
+import { DateTimePicker } from '@/components/ui/DateTimePicker';
 
 interface Line {
   modelId: string;
@@ -168,25 +169,25 @@ export default function NewRequestPage() {
               />
             </label>
 
-            <div className="grid max-w-lg gap-3 sm:grid-cols-2">
-              <label className="block">
-                <span className={labelClass}>Thời điểm nhận</span>
-                <input
-                  type="datetime-local"
-                  className={`${inputClass} mt-2`}
+            <div className="grid max-w-xl gap-4 sm:grid-cols-2">
+              <div>
+                <DateTimePicker
+                  label="Thời điểm nhận"
+                  required
+                  placeholder="Chọn ngày & giờ nhận…"
                   value={fromTime}
-                  onChange={(e) => setFromTime(e.target.value)}
+                  onChange={(val) => setFromTime(val)}
                 />
-              </label>
-              <label className="block">
-                <span className={labelClass}>Thời điểm trả</span>
-                <input
-                  type="datetime-local"
-                  className={`${inputClass} mt-2`}
+              </div>
+              <div>
+                <DateTimePicker
+                  label="Thời điểm trả"
+                  required
+                  placeholder="Chọn ngày & giờ trả…"
                   value={toTime}
-                  onChange={(e) => setToTime(e.target.value)}
+                  onChange={(val) => setToTime(val)}
                 />
-              </label>
+              </div>
             </div>
             {fromTime && toTime && !rangeValid && (
               <p className="text-sm font-semibold text-red-600 dark:text-red-400">
