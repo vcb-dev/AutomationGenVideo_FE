@@ -17,8 +17,8 @@ import { platformStyle, PLATFORM_KEYS } from './platform-config';
  */
 
 describe('platformStyle — không bao giờ được trả về undefined', () => {
-    it('có đủ kiểu dáng cho cả 8 nền tảng đang chạy', () => {
-        expect(PLATFORM_KEYS).toHaveLength(8);
+    it('có đủ kiểu dáng cho cả 9 nền tảng đang chạy', () => {
+        expect(PLATFORM_KEYS).toHaveLength(9);
         for (const key of PLATFORM_KEYS) {
             const style = platformStyle(key);
             expect(style.icon).toBeDefined();
@@ -36,9 +36,9 @@ describe('platformStyle — không bao giờ được trả về undefined', () 
     });
 
     it('nền tảng lạ vẫn ra kiểu dáng dùng được thay vì undefined', () => {
-        // Đây mới là điều giữ cho trang không vỡ lần sau: BE thêm nền tảng thứ 9 mà FE chưa
+        // Đây mới là điều giữ cho trang không vỡ lần sau: BE thêm nền tảng mới mà FE chưa
         // biết thì tệ nhất chỉ là hiện biểu tượng chung, không phải màn hình trắng.
-        for (const la of ['threads', 'snapchat', 'nen-tang-chua-ton-tai']) {
+        for (const la of ['snapchat', 'nen-tang-chua-ton-tai']) {
             const style = platformStyle(la);
             expect(style.icon).toBeDefined();
             expect(style.label).toBe('Khác');

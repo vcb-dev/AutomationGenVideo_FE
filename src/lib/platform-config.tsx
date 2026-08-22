@@ -5,29 +5,22 @@ import {
     YoutubeLogo,
     VideoCamera,
 } from '@phosphor-icons/react';
+import { SiThreads } from 'react-icons/si';
 import type { ComponentType } from 'react';
 
 /**
- * Biểu tượng, màu và tên hiển thị của TÁM nền tảng — một bản duy nhất cho cả hệ thống.
- *
- * Trước đây mỗi trang tự khai một bảng riêng và chỉ khai vài nền tảng mình quan tâm. Khi
- * endpoint gộp bắt đầu trả về đủ 8 nền tảng thì trang /externalChannels/all vỡ trắng với
- * `Cannot read properties of undefined (reading 'icon')` — vì bảng của nó chỉ có 3 dòng
- * facebook/tiktok/instagram, gặp video Douyin là tra ra undefined.
- *
- * Phosphor không có biểu tượng riêng cho 4 nền tảng Trung Quốc, nên dùng chung biểu tượng
- * máy quay và phân biệt bằng màu + tên.
+ * Biểu tượng, màu và tên hiển thị của các nền tảng — một bản duy nhất cho cả hệ thống.
  */
 
 export const PLATFORM_KEYS = [
-    'facebook', 'tiktok', 'instagram', 'youtube',
+    'facebook', 'tiktok', 'instagram', 'youtube', 'threads',
     'douyin', 'xiaohongshu', 'kuaishou', 'bilibili',
 ] as const;
 
 export type PlatformKey = (typeof PLATFORM_KEYS)[number];
 
 export interface PlatformStyle {
-    /** Biểu tượng Phosphor. Dùng ComponentType chứ không dùng kiểu `Icon` của thư viện —
+    /** Biểu tượng. Dùng ComponentType chứ không dùng kiểu `Icon` của thư viện —
      *  ở phiên bản 2.x `Icon` là namespace, không dùng làm kiểu được. */
     icon: ComponentType<{ size?: number; className?: string; weight?: any }>;
     color: string;
@@ -39,6 +32,7 @@ const BANG: Record<PlatformKey, PlatformStyle> = {
     facebook:    { icon: FacebookLogo,  color: 'text-blue-600',                  bg: 'bg-blue-50 dark:bg-blue-900/30',       label: 'Facebook' },
     tiktok:      { icon: TiktokLogo,    color: 'text-slate-800 dark:text-white', bg: 'bg-slate-100 dark:bg-slate-800',       label: 'TikTok' },
     instagram:   { icon: InstagramLogo, color: 'text-pink-500',                  bg: 'bg-pink-50 dark:bg-pink-900/30',       label: 'Instagram' },
+    threads:     { icon: (props: any) => <SiThreads {...props} />, color: 'text-slate-900 dark:text-white', bg: 'bg-slate-100 dark:bg-slate-800', label: 'Threads' },
     youtube:     { icon: YoutubeLogo,   color: 'text-red-600',                   bg: 'bg-red-50 dark:bg-red-900/30',         label: 'YouTube' },
     douyin:      { icon: VideoCamera,   color: 'text-slate-800 dark:text-white', bg: 'bg-slate-100 dark:bg-slate-800',       label: 'Douyin' },
     xiaohongshu: { icon: VideoCamera,   color: 'text-rose-600',                  bg: 'bg-rose-50 dark:bg-rose-900/30',       label: 'Xiaohongshu' },

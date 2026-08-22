@@ -479,13 +479,22 @@ export default function ChannelsPage() {
                               <img
                                 src={account.avatar_url}
                                 alt={account.name}
+                                referrerPolicy="no-referrer"
                                 className="w-14 h-14 rounded-2xl object-cover flex-shrink-0 shadow-md border-2 border-white"
-                                onError={(e) => { e.currentTarget.style.display = 'none'; (e.currentTarget.nextSibling as HTMLElement)?.style.removeProperty('display'); }}
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  const sibling = e.currentTarget.nextElementSibling as HTMLElement;
+                                  if (sibling) {
+                                    sibling.classList.remove('hidden');
+                                    sibling.style.display = 'flex';
+                                  }
+                                }}
                               />
                             ) : null}
                             <div className={`w-14 h-14 ${bgColor} rounded-2xl flex items-center justify-center text-white font-bold text-2xl flex-shrink-0 shadow-md ${account.avatar_url ? 'hidden' : ''}`}>
                               {account.name.charAt(0).toUpperCase()}
                             </div>
+
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-bold text-slate-900 truncate leading-snug">{account.name}</p>
                               {account.username && (
@@ -545,21 +554,45 @@ export default function ChannelsPage() {
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-4 md:px-8 py-5">
                         <div className="flex items-center gap-4">
                           <div className="w-14 h-14 rounded-full bg-slate-100 overflow-hidden flex-shrink-0 border-2 border-slate-200">
-                            {account.avatar_url
-                              ? <img src={account.avatar_url} alt={account.name} className="w-full h-full object-cover" />
-                              : <span className="w-full h-full flex items-center justify-center text-slate-400 font-bold text-xl">{account.name.charAt(0)}</span>}
+                            {account.avatar_url ? (
+                              <img
+                                src={account.avatar_url}
+                                alt={account.name}
+                                referrerPolicy="no-referrer"
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  const sibling = e.currentTarget.nextElementSibling as HTMLElement;
+                                  if (sibling) {
+                                    sibling.classList.remove('hidden');
+                                    sibling.style.display = 'flex';
+                                  }
+                                }}
+                              />
+                            ) : null}
+                            <span className={`w-full h-full flex items-center justify-center text-slate-400 font-bold text-xl ${account.avatar_url ? 'hidden' : ''}`}>
+                              {account.name.charAt(0)}
+                            </span>
                           </div>
+
                           <div className="min-w-0">
-                          <p className="font-bold text-slate-900 text-base">{account.name}</p>
-                          <p className="text-sm text-blue-500 mt-0.5">
-                            {extra?.label || 'API Official'}
-                            {account.token_expires_at && (
-                              <span className="ml-3 text-amber-500 font-medium">
-                                {t.expiresOn(new Date(account.token_expires_at).toLocaleDateString(t.dateLocale))}
-                              </span>
-                            )}
-                          </p>
-                        </div>
+                            <p className="font-bold text-slate-900 text-base">{account.name}</p>
+                            <p className="text-sm text-blue-500 mt-0.5">
+                              {extra?.label || 'API Official'}
+                              {account.platform === 'YOUTUBE' ? (
+                                <span className="ml-3 text-emerald-600 font-medium">
+                                  ✓ Tự động gia hạn
+                                </span>
+                              ) : (
+                                account.token_expires_at && (
+                                  <span className="ml-3 text-amber-500 font-medium">
+                                    {t.expiresOn(new Date(account.token_expires_at).toLocaleDateString(t.dateLocale))}
+                                  </span>
+                                )
+                              )}
+                            </p>
+                          </div>
+
                         </div>
                         <div className="flex flex-wrap items-center gap-2 flex-shrink-0 self-start sm:self-auto">
                           {platform === 'FACEBOOK' && hasPages && (
@@ -626,16 +659,28 @@ export default function ChannelsPage() {
                                           <img
                                             src={page.avatar_url}
                                             alt={page.name}
+                                            referrerPolicy="no-referrer"
                                             className="w-14 h-14 rounded-2xl object-cover flex-shrink-0 shadow-md border-2 border-white"
                                             onError={(e) => {
+                                              const cleanId = (page.extra_data as any)?.pageId || (page.platform_id?.startsWith('page_') ? page.platform_id.replace('page_', '') : null);
+                                              if (cleanId && !e.currentTarget.dataset.fallback) {
+                                                e.currentTarget.dataset.fallback = '1';
+                                                e.currentTarget.src = `https://graph.facebook.com/${cleanId}/picture?type=large`;
+                                                return;
+                                              }
                                               e.currentTarget.style.display = 'none';
-                                              (e.currentTarget.nextSibling as HTMLElement)?.style.removeProperty('display');
+                                              const sibling = e.currentTarget.nextElementSibling as HTMLElement;
+                                              if (sibling) {
+                                                sibling.classList.remove('hidden');
+                                                sibling.style.display = 'flex';
+                                              }
                                             }}
                                           />
                                         ) : null}
                                         <div className={`w-14 h-14 ${bgColor} rounded-2xl flex items-center justify-center text-white font-bold text-2xl flex-shrink-0 shadow-md ${page.avatar_url ? 'hidden' : ''}`}>
                                           {page.name.charAt(0).toUpperCase()}
                                         </div>
+
                                         <div className="flex-1 min-w-0">
                                           <p className="text-sm font-bold text-slate-900 truncate leading-snug">{page.name}</p>
                                           <p className="text-xs text-slate-400 mt-1 truncate">ID: {page.username}</p>

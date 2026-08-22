@@ -87,6 +87,15 @@ export async function fetchCategories() {
   return data;
 }
 
+export async function createCategory(payload: {
+  code: string;
+  name: string;
+  bufferMinutes?: number;
+}) {
+  const { data } = await apiClient.post<EquipmentCategory>('/mems/categories', payload);
+  return data;
+}
+
 /**
  * Lấy model từ endpoint riêng chứ không gom từ danh sách máy: model vừa khai mà chưa nhập máy
  * nào sẽ không có trong danh sách máy, mà đó đúng là lúc form nhập kho cần tới nó.

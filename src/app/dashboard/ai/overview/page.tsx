@@ -174,6 +174,14 @@ export default function OverviewPage() {
         ? rankedUsage.filter((row) => leaderMemberIds.has(row.user_id) || row.user_id === user?.id)
         : rankedUsage;
 
+    const getUserTeamName = (row: UsageByUser) => {
+        if (row.team) return row.team;
+        const matchingTeams = teams
+            .filter((t) => t.members.some((m) => m.user_id === row.user_id) || t.leader_id === row.user_id)
+            .map((t) => t.name);
+        return matchingTeams.length > 0 ? matchingTeams.join(', ') : null;
+    };
+
     return (
         <div className="min-h-screen bg-gray-50 -m-6 pb-12">
             {/* Header */}
@@ -386,6 +394,7 @@ export default function OverviewPage() {
                                         <tr className="border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider bg-gray-50/50">
                                             <th className="pl-6 py-3">#</th>
                                             <th className="py-3">Người dùng</th>
+                                            <th className="py-3">Team</th>
                                             <th className="py-3 text-right">Điểm đã tiêu</th>
                                             <th className="py-3">Tỉ trọng</th>
                                             <th className="py-3 text-right">Lượt TTS</th>
@@ -395,48 +404,67 @@ export default function OverviewPage() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-100">
-                                        {visibleRanking.map((row) => (
-                                            <tr key={row.user_id} className="hover:bg-gray-50/50 transition-colors">
-                                                <td className="pl-6 py-4">
-                                                    <span className={`inline-flex items-center justify-center w-6 h-6 rounded-lg text-[11px] font-bold
-                                                        ${row.rank === 1
-                                                            ? 'bg-amber-100 text-amber-700'
-                                                            : 'bg-gray-100 text-gray-500'}`}>
-                                                        {row.rank}
-                                                    </span>
-                                                </td>
-                                                <td className="py-4">
-                                                    <p className="text-xs font-semibold text-gray-800">{row.full_name}</p>
-                                                    <p className="text-[11px] text-gray-400">{row.email}</p>
-                                                </td>
-                                                <td className="py-4 text-right text-xs font-bold text-green-700">
-                                                    {row.characters.toLocaleString('vi-VN')}
-                                                </td>
-                                                <td className="py-4 pr-4 min-w-[140px]">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                                            <div
-                                                                className="h-full bg-violet-500 rounded-full"
-                                                                style={{ width: `${row.share_percent}%` }}
-                                                            />
-                                                        </div>
-                                                        <span className="text-[11px] text-gray-500 font-medium w-10 text-right">
-                                                            {row.share_percent.toFixed(1)}%
+                                        {visibleRanking.map((row) => {
+                                            const teamName = getUserTeamName(row);
+                                            return (
+                                                <tr key={row.user_id} className="hover:bg-gray-50/50 transition-colors">
+                                                    <td className="pl-6 py-4">
+                                                        <span className={`inline-flex items-center justify-center w-6 h-6 rounded-lg text-[11px] font-bold
+                                                            ${row.rank === 1
+                                                                ? 'bg-amber-100 text-amber-700'
+                                                                : 'bg-gray-100 text-gray-500'}`}>
+                                                            {row.rank}
                                                         </span>
-                                                    </div>
-                                                </td>
-                                                <td className="py-4 text-right text-xs font-semibold text-violet-700">{row.tts_count}</td>
-                                                <td className="py-4 text-right text-xs font-semibold text-cyan-700">{row.clone_count}</td>
-                                                {vndPer1kChars > 0 && (
-                                                    <td className="py-4 text-right text-xs font-semibold text-amber-700">
-                                                        {(row.cost_vnd ?? 0).toLocaleString('vi-VN')}đ
                                                     </td>
-                                                )}
-                                                <td className="pr-6 py-4 text-right text-xs text-gray-500">
-                                                    {new Date(row.last_used_at).toLocaleDateString('vi-VN')}
-                                                </td>
-                                            </tr>
-                                        ))}
+                                                    <td className="py-4">
+                                                        <p className="text-xs font-semibold text-gray-800">{row.full_name}</p>
+                                                        <p className="text-[11px] text-gray-400">{row.email}</p>
+                                                    </td>
+                                                    <td className="py-4">
+                                                        {teamName ? (
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {teamName.split(',').map((t, idx) => (
+                                                                    <span
+                                                                        key={idx}
+                                                                        className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-violet-50 text-violet-700 border border-violet-100"
+                                                                    >
+                                                                        {t.trim()}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-[11px] text-gray-400 italic">Chưa phân team</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="py-4 text-right text-xs font-bold text-green-700">
+                                                        {row.characters.toLocaleString('vi-VN')}
+                                                    </td>
+                                                    <td className="py-4 pr-4 min-w-[140px]">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                                                <div
+                                                                    className="h-full bg-violet-500 rounded-full"
+                                                                    style={{ width: `${row.share_percent}%` }}
+                                                                />
+                                                            </div>
+                                                            <span className="text-[11px] text-gray-500 font-medium w-10 text-right">
+                                                                {row.share_percent.toFixed(1)}%
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-4 text-right text-xs font-semibold text-violet-700">{row.tts_count}</td>
+                                                    <td className="py-4 text-right text-xs font-semibold text-cyan-700">{row.clone_count}</td>
+                                                    {vndPer1kChars > 0 && (
+                                                        <td className="py-4 text-right text-xs font-semibold text-amber-700">
+                                                            {(row.cost_vnd ?? 0).toLocaleString('vi-VN')}đ
+                                                        </td>
+                                                    )}
+                                                    <td className="pr-6 py-4 text-right text-xs text-gray-500">
+                                                        {new Date(row.last_used_at).toLocaleDateString('vi-VN')}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>
