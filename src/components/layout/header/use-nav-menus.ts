@@ -574,9 +574,11 @@ export function useNavMenus(
                             },
                         ],
                     },
-                    // Chỉ LEADER/ADMIN thấy mục này — khớp @Roles(LEADER, ADMIN) ở
-                    // IdPhotoController bên BE. Ẩn cả section nếu rỗng thay vì hiện tiêu đề
-                    // section trơ trọi không có item nào bên dưới.
+                    // Khớp @Roles ở IdPhotoController bên BE: LEADER/ADMIN dùng được cả luồng
+                    // tạo ảnh thẻ, còn MANAGER chỉ mở được /id-photo/history/team-summary nên
+                    // chỉ trỏ thẳng vào tab Thống kê (?tab=stats — 3 khu giờ là tab ngang trên
+                    // cùng 1 trang, không còn route riêng, xem page.tsx#activeTab). Ẩn cả section
+                    // nếu rỗng thay vì hiện tiêu đề section trơ trọi không có item nào bên dưới.
                     ...(isLeader || isAdmin
                         ? [
                             {
@@ -592,7 +594,22 @@ export function useNavMenus(
                                 ],
                             },
                         ]
-                        : []),
+                        : isManager
+                            ? [
+                                {
+                                    section: n.secHrTools,
+                                    color: "violet" as const,
+                                    items: [
+                                        {
+                                            label: n.idPhotoStats,
+                                            href: "/dashboard/tien-ich/id-photo?tab=stats",
+                                            icon: BarChart3,
+                                            description: n.idPhotoStatsDesc,
+                                        },
+                                    ],
+                                },
+                            ]
+                            : []),
                 ],
             },
             {
