@@ -798,6 +798,29 @@ export interface TasksQuery {
   exclude_overdue?: boolean
 }
 
+/** Tham số cho getTaskHeaderCounts — gộp đếm header "N task" + 2 badge "Video chờ duyệt"/
+ * "Content chờ duyệt" thành 1 request (xem tasks.controller.ts: GET tasks/header-counts). */
+export interface TaskHeaderCountsQuery {
+  status?: TaskStatus | ''
+  team_id?: string
+  assignee_id?: string
+  search?: string
+  deadline_from?: string
+  deadline_to?: string
+  /** Khoảng ngày riêng cho badge "Video chờ duyệt" — KHÔNG dùng chung deadline_from/to */
+  pending_from?: string
+  pending_to?: string
+  /** BE chỉ nhận diện 'auto'/'extra' (khớp QueryTaskHeaderCountsDto) — 'manual' được giữ trong type
+   * cho khớp TasksQuery.task_type, gửi lên BE sẽ bị bỏ qua giống getTasks() hiện tại. */
+  task_type?: 'auto' | 'extra' | 'manual' | ''
+}
+
+export interface TaskHeaderCounts {
+  total: number
+  submittedTotal: number
+  contentApprovalTotal: number
+}
+
 export type BrandType = 'DO_DA' | 'TRANG_SUC'
 
 export interface ProductsQuery {
@@ -875,6 +898,8 @@ export interface TaskAutoDashboard {
   today_deadline?: number
   overdue?: number
   monthly_completed?: number
+  // Video/sản phẩm theo dòng sản phẩm đã tách sang GET /task-auto/product-video-stats
+  // (xem getProductVideoStats() trong lib/api/task-auto.ts) — không còn nằm trong response này.
   // Team (LEADER)
   team?: { id: string; name: string; member_count: number } | null
   members?: Array<{

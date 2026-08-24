@@ -30,6 +30,8 @@ export interface LeaderDashboardMember {
   is_content_creator: boolean;
   content_collected_month: number;
   content_original_month: number;
+  /** Số content đã được leader/admin/manager duyệt vào kho team trong tháng. */
+  content_approved_month: number;
   /** Số task trong kỳ dùng content được thêm vào kho VÀ gắn vào task cũng trong kỳ này ("content mới"). */
   content_new: number;
   /** Số task còn lại trong kỳ, không gắn với content mới ("content cũ"). */

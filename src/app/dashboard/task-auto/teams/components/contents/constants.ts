@@ -18,3 +18,10 @@ export const MARKET_LABELS: Record<string, string> = {
   JAPAN:     'JP',
   THAILAND:  'TH',
 }
+
+export const MARKET_COLORS: Record<string, string> = {
+  VIETNAM:   'bg-emerald-100 text-emerald-700',
+  INDONESIA: 'bg-amber-100 text-amber-700',
+  JAPAN:     'bg-rose-100 text-rose-700',
+  THAILAND:  'bg-sky-100 text-sky-700',
+}

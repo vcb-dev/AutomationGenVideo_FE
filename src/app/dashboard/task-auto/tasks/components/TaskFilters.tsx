@@ -69,7 +69,7 @@ interface Props {
   hideStatusFilter?: boolean
   hideDateFilter?: boolean
   /** Bộ lọc "Quá hạn" (ảo, không phải 1 status) — chỉ có ý nghĩa ở layout Danh sách (bảng phẳng);
-   * Kanban đã có cột "Quá hạn" riêng nên không cần lặp lại bộ lọc này. */
+   * Kanban hiện task quá hạn ngay trong cột trạng thái kèm badge cảnh báo nên không cần bộ lọc này. */
   showOverdueFilter?: boolean
   overdueFilter?: boolean
   /** Nhãn hiển thị trước dấu ":" của bộ lọc ngày — đổi theo tab vì ý nghĩa cột lọc khác nhau

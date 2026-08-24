@@ -17,7 +17,7 @@ import { ContentApprovalList } from './components/ContentApprovalList'
 import { ContentScoringTab } from './components/ContentScoringTab'
 import { TaskDetailPanel } from './components/TaskDetailPanel'
 import { CreateTaskModal } from './components/TaskModals'
-import { getApprovals, getContentApprovals, getTasks, getTeams } from '@/lib/api/task-auto'
+import { getApprovals, getTaskHeaderCounts, getTasks, getTeams } from '@/lib/api/task-auto'
 import { TaskStatus } from '@/types/task-auto'
 import { UserRole } from '@/types/auth'
 
@@ -78,9 +78,18 @@ export default function TasksPage() {
   // (không giới hạn ngày) vì đây là tab xem lại lịch sử, không như deadlineFrom/To mặc định "hôm nay".
   const [approvedFrom, setApprovedFrom] = useState('')
   const [approvedTo, setApprovedTo]     = useState('')
+  // Bộ lọc ngày riêng cho tab "Video chờ duyệt" (status SUBMITTED) — vẫn lọc theo cùng field
+  // hạn chót/ngày tạo như tab "Danh sách task" (deadlineFrom/To) nhưng KHÔNG dùng chung state:
+  // video chờ duyệt cần xử lý ngay bất kể hạn chót ban đầu là ngày nào, mặc định "hôm nay" của
+  // deadlineFrom/To sẽ che khuất phần lớn video đang chờ (hạn chót không rơi đúng hôm nay).
+  // Mặc định để trống (không giới hạn ngày), giống approvedFrom/To.
+  const [pendingFrom, setPendingFrom] = useState('')
+  const [pendingTo, setPendingTo]     = useState('')
   const [taskType, setTaskType]       = useState<'auto' | 'manual' | ''>('')
   const [assigneeId, setAssigneeId]   = useState('')
-  // Bộ lọc "Quá hạn" — chỉ dùng ở layout Danh sách (bảng phẳng); Kanban đã có cột "Quá hạn" riêng.
+  // Bộ lọc "Quá hạn" — chỉ áp dụng khi ở layout Danh sách (bảng phẳng). Kanban không lọc theo cờ
+  // này (task quá hạn vẫn hiện đủ trong 4 cột trạng thái, chỉ kèm badge cảnh báo); bấm số "Quá hạn"
+  // trên KanbanStatsBar sẽ tự chuyển sang layout Danh sách và bật cờ này (xem onShowOverdueList).
   const [overdueOnly, setOverdueOnly] = useState(false)
   const [submittedPage, setSubmittedPage] = useState(1)
   const [approvedPage, setApprovedPage] = useState(1)
@@ -135,58 +144,29 @@ export default function TasksPage() {
   // assignee_id thực sự dùng cho mọi query bên dưới: ở view "của tôi" khóa cứng về chính user
   const effectiveAssigneeId = isMineView ? (user?.id || undefined) : (assigneeId || undefined)
 
-  // Chỉ dùng để lấy `total` hiện ở header — nội dung task giờ do TasksKanbanBoard tự fetch
-  // theo từng cột trạng thái riêng, nên limit để tối thiểu cho nhẹ.
-  const { data } = useQuery({
-    queryKey: ['task-auto', 'tasks', { status, effectiveTeamId, search, deadlineFrom, deadlineTo, taskType, viewMode, userId: user?.id, assigneeId }],
-    queryFn: () => getTasks({
+  // Đếm cho header ("N task") + 2 badge "Video chờ duyệt"/"Content chờ duyệt" — gộp thành 1 request
+  // (trước đây là 3 request limit:1 riêng, mỗi request lại kéo theo cả findMany lẫn count ở BE dù
+  // FE chỉ cần con số — xem tasks.controller.ts: GET tasks/header-counts). Badge dùng pendingFrom/To
+  // (mặc định trống = mọi ngày) cho "Video chờ duyệt", KHÔNG dùng chung deadlineFrom/To (mặc định
+  // "hôm nay") của header vì cần thấy đủ số lượng thật đang chờ xử lý, không chỉ phần hạn hôm nay.
+  const { data: headerCounts } = useQuery({
+    queryKey: ['task-auto', 'tasks', 'header-counts', { status, effectiveTeamId, search, deadlineFrom, deadlineTo, pendingFrom, pendingTo, taskType, viewMode, userId: user?.id, assigneeId }],
+    queryFn: () => getTaskHeaderCounts({
       status:        status       || undefined,
       team_id:       effectiveTeamId,
       search:        search       || undefined,
       deadline_from: deadlineFrom || undefined,
       deadline_to:   deadlineTo   || undefined,
+      pending_from:  pendingFrom  || undefined,
+      pending_to:    pendingTo    || undefined,
       task_type:     taskType     || undefined,
-      page: 1,
-      limit: 1,
       assignee_id: effectiveAssigneeId,
     }),
     refetchOnWindowFocus: true,
   })
-
-  const total = data?.total || 0
-
-  // Badge đếm trên 2 tab "Video chờ duyệt" / "Content chờ duyệt" — thấy ngay có bao nhiêu việc
-  // chờ xử lý mà không phải bấm vào từng tab. Tham số phải khớp đúng query bên trong
-  // SubmittedVideosGrid / ContentApprovalList để con số không lệch với nội dung khi chuyển tab.
-  const { data: submittedCountData } = useQuery({
-    queryKey: ['task-auto', 'tasks', 'submitted-count', { effectiveTeamId, search, deadlineFrom, deadlineTo, effectiveAssigneeId }],
-    queryFn: () => getTasks({
-      status: 'SUBMITTED',
-      team_id: effectiveTeamId,
-      search: search || undefined,
-      deadline_from: deadlineFrom || undefined,
-      deadline_to: deadlineTo || undefined,
-      assignee_id: effectiveAssigneeId,
-      page: 1,
-      limit: 1,
-    }),
-    refetchOnWindowFocus: true,
-  })
-  const submittedTotal = submittedCountData?.total ?? 0
-
-  const { data: approvalCountData } = useQuery({
-    queryKey: ['task-auto', 'content-approvals', 'pending-count', { effectiveTeamId, search, effectiveAssigneeId }],
-    queryFn: () => getContentApprovals({
-      status: 'PENDING',
-      team_id: effectiveTeamId,
-      search: search || undefined,
-      assignee_id: effectiveAssigneeId,
-      page: 1,
-      limit: 1,
-    }),
-    refetchOnWindowFocus: true,
-  })
-  const contentApprovalTotal = approvalCountData?.total ?? 0
+  const total = headerCounts?.total ?? 0
+  const submittedTotal = headerCounts?.submittedTotal ?? 0
+  const contentApprovalTotal = headerCounts?.contentApprovalTotal ?? 0
 
   // Dữ liệu cho bố cục "List" — chỉ bật khi đang ở tab bảng + layout list, phân trang
   // thường thay vì tự chia theo trạng thái như Kanban.
@@ -241,10 +221,12 @@ export default function TasksPage() {
   function handleStatusChange(v: TaskStatus | '')                    { setStatus(v);       setTablePage(1) }
   function handleTeamChange(v: string)                               { setTeamId(v);       setSubmittedPage(1); setApprovedPage(1); setContentApprovalPage(1); setTablePage(1) }
   function handleSearchChange(v: string)                             { setSearch(v);       setSubmittedPage(1); setApprovedPage(1); setContentApprovalPage(1); setTablePage(1) }
-  function handleDeadlineFromChange(v: string)                       { setDeadlineFrom(v); setSubmittedPage(1); setTablePage(1) }
-  function handleDeadlineToChange(v: string)                         { setDeadlineTo(v);   setSubmittedPage(1); setTablePage(1) }
+  function handleDeadlineFromChange(v: string)                       { setDeadlineFrom(v); setTablePage(1) }
+  function handleDeadlineToChange(v: string)                         { setDeadlineTo(v);   setTablePage(1) }
   function handleApprovedFromChange(v: string)                       { setApprovedFrom(v); setApprovedPage(1) }
   function handleApprovedToChange(v: string)                         { setApprovedTo(v);   setApprovedPage(1) }
+  function handlePendingFromChange(v: string)                        { setPendingFrom(v);  setSubmittedPage(1) }
+  function handlePendingToChange(v: string)                          { setPendingTo(v);    setSubmittedPage(1) }
   function handleTaskTypeChange(v: 'auto' | 'manual' | '')           { setTaskType(v);     setTablePage(1) }
   function handleAssigneeChange(v: string)                           { setAssigneeId(v);  setSubmittedPage(1); setApprovedPage(1); setContentApprovalPage(1); setTablePage(1) }
   function handleOverdueChange(v: boolean)                           { setOverdueOnly(v);  setTablePage(1) }
@@ -370,8 +352,8 @@ export default function TasksPage() {
           statusFilter={status}
           teamFilter={teamId}
           searchFilter={search}
-          dateFromFilter={activeTab === 'approved' ? approvedFrom : deadlineFrom}
-          dateToFilter={activeTab === 'approved' ? approvedTo : deadlineTo}
+          dateFromFilter={activeTab === 'approved' ? approvedFrom : activeTab === 'pending' ? pendingFrom : deadlineFrom}
+          dateToFilter={activeTab === 'approved' ? approvedTo : activeTab === 'pending' ? pendingTo : deadlineTo}
           taskTypeFilter={taskType}
           assigneeFilter={assigneeId}
           assigneeOptions={assigneeOptions}
@@ -385,21 +367,24 @@ export default function TasksPage() {
           // Trạng thái — Kanban đã tự chia cột, còn tab "Video chờ duyệt"/"Video đã nộp"/"Content chờ duyệt" không hỗ trợ lọc này.
           hideStatusFilter={!(activeTab === 'table' && taskLayout === 'list')}
           hideDateFilter={activeTab === 'content-approval'}
-          // "Quá hạn" chỉ có ý nghĩa ở layout Danh sách (bảng phẳng) — Kanban đã có cột "Quá hạn" riêng.
+          // "Quá hạn" chỉ có ý nghĩa ở layout Danh sách (bảng phẳng) — Kanban hiện task quá hạn
+          // ngay trong cột trạng thái kèm cảnh báo trên thẻ, không cần bộ lọc riêng ở đây nữa.
           showOverdueFilter={activeTab === 'table' && taskLayout === 'list'}
           overdueFilter={overdueOnly}
           // Tab "Video đã nộp" lọc theo ngày duyệt (reviewed_at) — khác hạn chót/ngày tạo của các tab
-          // còn lại, và không có mặc định "hôm nay" vì đây là tab xem lại lịch sử.
+          // còn lại. "Video chờ duyệt" vẫn lọc theo hạn chót/ngày tạo như "Danh sách task" nhưng
+          // KHÔNG mặc định "hôm nay" (xem khai báo pendingFrom/To) — cả 2 đều là tab xem việc cần
+          // xử lý ngay nên không nên bị 1 khung ngày mặc định che khuất.
           dateFilterLabel={activeTab === 'approved' ? 'Ngày duyệt' : 'Ngày'}
           dateFilterTooltip={activeTab === 'approved'
             ? 'Lọc theo thời điểm video được duyệt'
             : 'Lọc theo hạn chót của task — task chưa đặt hạn thì tính theo ngày tạo'}
-          dateFilterDefaultPreset={activeTab === 'approved' ? 'all' : 'today'}
+          dateFilterDefaultPreset={activeTab === 'approved' || activeTab === 'pending' ? 'all' : 'today'}
           onStatusChange={handleStatusChange}
           onTeamChange={handleTeamChange}
           onSearchChange={handleSearchChange}
-          onDateFromChange={activeTab === 'approved' ? handleApprovedFromChange : handleDeadlineFromChange}
-          onDateToChange={activeTab === 'approved' ? handleApprovedToChange : handleDeadlineToChange}
+          onDateFromChange={activeTab === 'approved' ? handleApprovedFromChange : activeTab === 'pending' ? handlePendingFromChange : handleDeadlineFromChange}
+          onDateToChange={activeTab === 'approved' ? handleApprovedToChange : activeTab === 'pending' ? handlePendingToChange : handleDeadlineToChange}
           onTaskTypeChange={handleTaskTypeChange}
           onAssigneeChange={handleAssigneeChange}
           onOverdueChange={handleOverdueChange}
@@ -423,6 +408,7 @@ export default function TasksPage() {
             canApproveReject={canApproveReject}
             onViewTask={setSelectedTaskId}
             onClearDateFilter={() => { handleDeadlineFromChange(''); handleDeadlineToChange('') }}
+            onShowOverdueList={() => { setTaskLayout('list'); setOverdueOnly(true); setTablePage(1) }}
           />
         ) : (
           <TasksTable
@@ -440,8 +426,8 @@ export default function TasksPage() {
         <SubmittedVideosGrid
           teamId={effectiveTeamId}
           search={search || undefined}
-          deadlineFrom={deadlineFrom || undefined}
-          deadlineTo={deadlineTo || undefined}
+          deadlineFrom={pendingFrom || undefined}
+          deadlineTo={pendingTo || undefined}
           assigneeId={effectiveAssigneeId}
           page={submittedPage}
           onPageChange={setSubmittedPage}
