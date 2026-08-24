@@ -1,14 +1,11 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useAuthStore } from '@/store/auth-store';
-import { UserRole } from '@/types/auth';
 import {
   Wand2,
   Copy,
   Check,
   History,
-  Users,
   Loader2,
   Eye,
   Calendar,
@@ -33,7 +30,7 @@ import type {
   PaastLayerCriteria,
 } from '@/lib/api/paast-analyzer';
 import { NumberedPagination } from '@/components/ui/NumberedPagination';
-import { MemberDropdown } from '@/components/ui/MemberDropdown';
+import { TeamStatsTab } from './components/TeamStatsTab';
 
 // Giới hạn dung lượng file upload để transcribe — phải khớp đúng limits.fileSize
 // của FileInterceptor ở BE (ai-integration.controller.ts). Lệch nhau sẽ dẫn tới
@@ -91,14 +88,6 @@ interface TransformHistoryItem {
  *  - `failed`  : lần chấm vừa rồi thất bại, hoặc bản ghi dùng hệ điểm cũ đã ngừng dùng.
  */
 type ScoreStatus = 'success' | 'failed' | 'pending' | null;
-
-interface TeamMember {
-  id: string;
-  email: string;
-  full_name: string;
-  roles: UserRole[];
-  team?: string;
-}
 
 // ── Chấm điểm kịch bản theo khung PAAST ──────────────────────────────────────────────────
 // Type + hàm THUẦN sống ở paast-highlight.util.ts (không phải page.tsx): Next.js App Router
@@ -510,7 +499,6 @@ function HistoryScoreCell({
 }
 
 export default function ContentTransformPage() {
-  const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState<'transform' | 'history' | 'team'>('transform');
 
   // Core content transform states
@@ -584,7 +572,6 @@ export default function ContentTransformPage() {
   // Đếm tăng dần để nhận biết response nào là request mới nhất — chặn race condition
   // khi bấm đổi trang nhanh khiến response cũ về sau response mới, ghi đè sai dữ liệu.
   const personalHistoryRequestId = useRef(0);
-  const memberHistoryRequestId = useRef(0);
 
   const [historyPage, setHistoryPage] = useState<number>(1);
   const [historyLimit] = useState<number>(10);
@@ -593,19 +580,6 @@ export default function ContentTransformPage() {
 
   // Detail Modal states
   const [selectedItem, setSelectedItem] = useState<TransformHistoryItem | null>(null);
-
-  // Team History states
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
-  const [selectedMemberId, setSelectedMemberId] = useState<string>('');
-  const [memberHistoryItems, setMemberHistoryItems] = useState<TransformHistoryItem[]>([]);
-  const [memberHistoryTotal, setMemberHistoryTotal] = useState<number>(0);
-  const [memberHistoryPage, setMemberHistoryPage] = useState<number>(1);
-  const [memberHistoryTotalPages, setMemberHistoryTotalPages] = useState<number>(1);
-  const [isMemberHistoryLoading, setIsMemberHistoryLoading] = useState<boolean>(false);
-
-  const isPrivileged = user?.roles?.some(r =>
-    [UserRole.ADMIN, UserRole.MANAGER, UserRole.LEADER].includes(r as any)
-  );
 
   // 1. Fetch active characters
   const fetchCharacters = useCallback(async () => {
@@ -640,58 +614,10 @@ export default function ContentTransformPage() {
     }
   }, [historyLimit]);
 
-  // 3. Fetch team members (for Admin/Manager/Leader)
-  const fetchTeamMembers = useCallback(async () => {
-    console.log('[fetchTeamMembers] called. isPrivileged =', isPrivileged);
-    if (!isPrivileged) return;
-    try {
-      const res = await apiClient.get<TeamMember[]>('/users/team-members');
-      console.log('[fetchTeamMembers] API success response:', res.data);
-      setTeamMembers(res.data || []);
-      if (res.data && res.data.length > 0) {
-        setSelectedMemberId(res.data[0].id);
-      }
-    } catch (err: any) {
-      console.error('[fetchTeamMembers] API error:', err);
-    }
-  }, [isPrivileged]);
-
-  // 4. Fetch selected member's history
-  const fetchMemberHistory = useCallback(async (memberId: string, page: number) => {
-    if (!memberId) return;
-    const requestId = ++memberHistoryRequestId.current;
-    setIsMemberHistoryLoading(true);
-    try {
-      const res = await apiClient.get(`/ai/content-transform/history/member/${memberId}`, {
-        params: { page, limit: historyLimit },
-      });
-      if (requestId !== memberHistoryRequestId.current) return; // request cũ hơn đã bị request sau ghi đè, bỏ qua
-      setMemberHistoryItems(res.data.items || []);
-      setMemberHistoryTotal(res.data.total || 0);
-      setMemberHistoryTotalPages(res.data.totalPages || 1);
-    } catch (err: any) {
-      if (requestId !== memberHistoryRequestId.current) return;
-      toast.error('Không có quyền xem lịch sử của thành viên này');
-      setMemberHistoryItems([]);
-      setMemberHistoryTotal(0);
-      setMemberHistoryTotalPages(1);
-    } finally {
-      if (requestId === memberHistoryRequestId.current) setIsMemberHistoryLoading(false);
-    }
-  }, [historyLimit]);
-
   // Run initial queries
   useEffect(() => {
-    console.log('[ContentTransformPage] mounted/updated. user =', user?.email, 'roles =', user?.roles, 'isPrivileged =', isPrivileged);
     fetchCharacters();
   }, [fetchCharacters]);
-
-  useEffect(() => {
-    console.log('[ContentTransformPage] checking privilege for fetching team members. isPrivileged =', isPrivileged);
-    if (isPrivileged) {
-      fetchTeamMembers();
-    }
-  }, [fetchTeamMembers, isPrivileged]);
 
   // Load personal history on tab change or page changes
   useEffect(() => {
@@ -699,13 +625,6 @@ export default function ContentTransformPage() {
       fetchPersonalHistory(historyPage);
     }
   }, [activeTab, historyPage, fetchPersonalHistory]);
-
-  // Load member history on selection or page changes
-  useEffect(() => {
-    if (activeTab === 'team' && selectedMemberId) {
-      fetchMemberHistory(selectedMemberId, memberHistoryPage);
-    }
-  }, [activeTab, selectedMemberId, memberHistoryPage, fetchMemberHistory]);
 
   // Chuyển tab Văn bản/Video/Giọng nói: luôn xoá sạch ô kịch bản thô + file đã chọn + khoá lại
   // ô nhập (nếu đang mở khoá từ 1 lượt transcribe trước) — tránh nội dung của tab này lẫn
@@ -1010,7 +929,6 @@ export default function ContentTransformPage() {
       if (historyId) {
         setSelectedItem((prev) => (prev && prev.id === targetId ? { ...prev, ...updatedFields } : prev));
         setHistoryItems((prev) => prev.map((it) => (it.id === targetId ? { ...it, ...updatedFields } : it)));
-        setMemberHistoryItems((prev) => prev.map((it) => (it.id === targetId ? { ...it, ...updatedFields } : it)));
       } else {
         setScoreResult(updatedFields.scoreResult);
         setScoreStatus(updatedFields.scoreStatus);
@@ -1088,10 +1006,7 @@ export default function ContentTransformPage() {
                 Lịch sử
               </button>
               <button
-                onClick={() => {
-                  setActiveTab('team');
-                  setMemberHistoryPage(1);
-                }}
+                onClick={() => setActiveTab('team')}
                 className={`py-1.5 2xl:py-2 px-1 text-xs 2xl:text-sm font-semibold transition-all focus:outline-none ${activeTab === 'team'
                   ? 'border-b-2 border-[#4441cc] text-[#4441cc]'
                   : 'text-[#464554] hover:text-[#4441cc]'
@@ -1687,113 +1602,14 @@ export default function ContentTransformPage() {
             </div>
           )}
 
-          {/* Statistics / Team Section (Tab 3) */}
+          {/* Statistics / Team Section (Tab 3) — tổng quan toàn bộ thành viên trong phạm vi
+              quyền + tổng số lượt chuyển đổi, hiện ngay khi mở tab (không phải chọn ai trước).
+              Trình bày dạng KPI + bảng xếp hạng trực quan thay vì danh sách thô — dễ quét mắt
+              để thấy ngay ai đang dẫn đầu / ai chưa hoạt động. */}
           {activeTab === 'team' && (
-            isPrivileged ? (
-              <div className="flex-1 min-h-0 overflow-y-auto bg-white border border-[#c7c4d7] rounded-3xl p-5 shadow-sm space-y-4">
-                <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-4">
-                  <h2 className="text-lg font-bold text-[#1b1b1d] flex items-center gap-2">
-                    <Users className="w-5 h-5 text-[#4441cc]" />
-                    Lịch sử của thành viên đội nhóm
-                  </h2>
-
-                  {/* Member selector */}
-                  <div className="flex flex-col items-end gap-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-[#464554] font-semibold whitespace-nowrap">Chọn thành viên:</span>
-                      <MemberDropdown
-                        members={teamMembers}
-                        value={selectedMemberId}
-                        onChange={(id) => {
-                          setSelectedMemberId(id);
-                          setMemberHistoryPage(1);
-                        }}
-                      />
-                    </div>
-                    {selectedMemberId && (
-                      <span className="text-xs bg-[#5e5ce6]/5 text-[#4441cc] border border-[#5e5ce6]/10 px-3 py-1 rounded-full font-semibold">
-                        Tổng số bản ghi: {memberHistoryTotal}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {isMemberHistoryLoading ? (
-                  <div className="flex flex-col items-center justify-center gap-3 py-16 rounded-2xl border border-dashed border-[#c7c4d7] bg-[#fcf8fb]">
-                    <Loader2 className="w-8 h-8 animate-spin text-[#4441cc]" />
-                    <p className="text-xs text-[#464554] font-medium">Đang tải lịch sử thành viên...</p>
-                  </div>
-                ) : memberHistoryItems.length > 0 ? (
-                  <div className="space-y-3">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse">
-                        <thead>
-                          <tr className="border-b border-[#eae7ea] text-xs font-bold text-[#464554] uppercase tracking-wider">
-                            <th className="py-2.5 px-4">Nhân vật</th>
-                            <th className="py-2.5 px-4">Nội dung thô (Input)</th>
-                            <th className="py-2.5 px-4">Kết quả (Output)</th>
-                            <th className="py-2.5 px-4">Thời gian tạo</th>
-                            <th className="py-2.5 px-4 text-right">Chi tiết</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[#eae7ea]/50 text-sm text-[#464554]">
-                          {memberHistoryItems.map((item) => (
-                            <tr key={item.id} className="hover:bg-[#f6f3f5] transition-colors">
-                              <td className="py-2.5 px-4 font-semibold text-[#1b1b1d]">
-                                <div className="flex items-center gap-2">
-                                  <span className="w-6 h-6 rounded-md bg-[#5e5ce6]/5 text-[#4441cc] border border-[#5e5ce6]/10 text-[10px] font-bold flex items-center justify-center flex-shrink-0">
-                                    {item.character.name[0]}
-                                  </span>
-                                  {item.character.name}
-                                </div>
-                              </td>
-                              <td className="py-2.5 px-4 max-w-xs truncate">{item.input_text}</td>
-                              <td className="py-2.5 px-4 max-w-xs truncate text-[#464554]">
-                                {item.output_text || <span className="text-xs text-red-500 font-bold">Lỗi</span>}
-                              </td>
-                              <td className="py-2.5 px-4 text-xs text-[#464554]/80">
-                                {new Date(item.created_at).toLocaleString('vi-VN')}
-                              </td>
-                              <td className="py-2.5 px-4 text-right">
-                                <button
-                                  onClick={() => setSelectedItem(item)}
-                                  className="p-1.5 rounded-lg hover:bg-[#eae7ea] text-[#4441cc] transition-colors"
-                                >
-                                  <Eye className="w-4 h-4" />
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {/* Pagination */}
-                    {memberHistoryTotalPages > 1 && (
-                      <div className="pt-3 border-t border-[#eae7ea]">
-                        <NumberedPagination page={memberHistoryPage} totalPages={memberHistoryTotalPages} onPageChange={setMemberHistoryPage} />
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center text-center py-16 rounded-2xl border border-dashed border-[#c7c4d7] bg-[#fcf8fb] text-[#464554] space-y-2">
-                    <Users className="w-10 h-10 mx-auto text-[#464554]/50" />
-                    <p className="text-sm font-semibold text-[#1b1b1d]">Thành viên này chưa có lịch sử</p>
-                    <p className="text-xs max-w-xs mx-auto text-[#464554]/75">
-                      Lịch sử chuyển đổi kịch bản của thành viên được chọn sẽ hiển thị ở đây sau khi họ thực hiện thao tác.
-                    </p>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="bg-white border border-[#c7c4d7] rounded-3xl p-12 text-center space-y-4 shadow-sm">
-                <Users className="w-16 h-16 text-[#464554]/50 mx-auto animate-pulse" />
-                <h3 className="text-xl font-bold text-[#1b1b1d]">Thống kê Đội nhóm</h3>
-                <p className="text-[#464554] text-sm max-w-md mx-auto leading-relaxed">
-                  Tính năng Thống kê Đội nhóm đang được phát triển (Sắp ra mắt dành cho Thành viên). Hiện tại chỉ có tài khoản cấp Quản lý (Leader, Manager, Admin) mới có thể truy cập để xem dữ liệu của thành viên khác.
-                </p>
-              </div>
-            )
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <TeamStatsTab />
+            </div>
           )}
         </div>
 
