@@ -797,6 +797,8 @@ const T = {
       secHrTools: 'CÔNG CỤ NHÂN SỰ',
       idPhoto: 'Tạo ảnh thẻ nhân viên',
       idPhotoDesc: 'Ghép trang phục bằng AI và xuất ảnh thẻ theo khung màu cấp bậc — chỉ Leader/Admin',
+      idPhotoStats: 'Thống kê ảnh thẻ nhân viên',
+      idPhotoStatsDesc: 'Số lượt tạo ảnh thẻ của từng nhân sự trong phạm vi quản lý',
 
       // MEMS — quản lý thiết bị Media
       menuEquipment: 'Quản lý thiết bị',
@@ -1635,6 +1637,8 @@ const T = {
       secHrTools: 'HR TOOLS',
       idPhoto: 'Employee ID Photo',
       idPhotoDesc: 'AI outfit swap and ID card export by role color — Leader/Admin only',
+      idPhotoStats: 'Employee ID Photo stats',
+      idPhotoStatsDesc: 'ID photos created per person within your scope',
 
       // MEMS — Media equipment management
       menuEquipment: 'Equipment',
