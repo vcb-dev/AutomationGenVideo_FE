@@ -91,8 +91,8 @@ export function GiftSpinTab({ store }: { store: LuckySpinStore }) {
       [ids[i], ids[j]] = [ids[j], ids[i]];
     }
     setShuffledGiftIds(ids);
-    toast.success('Đã xáo trộn vị trí quà trên vòng quay!');
   };
+
 
   const segments = round ? round.pool : idleSegments;
 

@@ -50,9 +50,9 @@ export function PresentationStage({ open, onClose, poolLabel, poolCount, onShuff
             type="button"
             onClick={onShuffle}
             title="Xáo trộn vị trí các ô"
-            className="flex items-center gap-2 rounded-xl border border-white/15 bg-white/[0.08] px-3.5 py-2.5 text-[14px] font-medium text-white/80 shadow-md backdrop-blur-sm transition-all hover:border-[#F4B63D] hover:bg-[#F4B63D]/15 hover:text-[#F4B63D]"
+            className="flex select-none items-center gap-2 rounded-xl border border-white/15 bg-white/[0.08] px-3.5 py-2.5 text-[14px] font-medium text-white/80 shadow-md backdrop-blur-sm transition-all hover:border-[#F4B63D] hover:bg-[#F4B63D]/15 hover:text-[#F4B63D] active:scale-95"
           >
-            <Shuffle className="h-4 w-4" strokeWidth={2} />
+            <Shuffle className="h-4 w-4 transition-transform active:rotate-180" strokeWidth={2} />
             <span>Xáo trộn</span>
           </button>
         )}
@@ -60,12 +60,13 @@ export function PresentationStage({ open, onClose, poolLabel, poolCount, onShuff
           type="button"
           onClick={onClose}
           title="Thoát trình chiếu (Esc)"
-          className="flex items-center gap-2 rounded-xl border border-white/15 bg-white/[0.08] px-3.5 py-2.5 text-[14px] font-medium text-white/80 shadow-md backdrop-blur-sm transition-all hover:border-white/40 hover:bg-white/15 hover:text-white"
+          className="flex select-none items-center gap-2 rounded-xl border border-white/15 bg-white/[0.08] px-3.5 py-2.5 text-[14px] font-medium text-white/80 shadow-md backdrop-blur-sm transition-all hover:border-white/40 hover:bg-white/15 hover:text-white active:scale-95"
         >
           <Minimize2 className="h-4 w-4" strokeWidth={2} />
           <span>Thoát (Esc)</span>
         </button>
       </div>
+
 
       {children}
     </div>

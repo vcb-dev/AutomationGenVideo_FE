@@ -89,8 +89,8 @@ export function MemberSpinTab({ store }: { store: LuckySpinStore }) {
       [ids[i], ids[j]] = [ids[j], ids[i]];
     }
     setShuffledOrder(ids);
-    toast.success('Đã xáo trộn vị trí các ô trên vòng quay!');
   };
+
 
   const segments = round ? round.pool : idlePool;
   /** Số vòng của lượt đang chạy — bốc 3 người thì quay 3 vòng. */
