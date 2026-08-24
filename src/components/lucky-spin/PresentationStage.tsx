@@ -1,7 +1,5 @@
-'use client';
-
 import { ReactNode, useEffect } from 'react';
-import { Minimize2 } from 'lucide-react';
+import { Minimize2, Shuffle } from 'lucide-react';
 
 interface Props {
   open: boolean;
@@ -9,6 +7,7 @@ interface Props {
   /** Số còn lại trong vòng quay, hiện góc trên để khán giả biết còn bao nhiêu lượt. */
   poolLabel: string;
   poolCount: number;
+  onShuffle?: () => void;
   children: ReactNode;
 }
 
@@ -19,7 +18,7 @@ interface Props {
  * chiếu thì phần lớn diện tích đang phục vụ thứ khán giả không cần thấy, còn bánh xe thì bé.
  * Ở đây bánh xe chiếm gần hết chiều cao màn hình.
  */
-export function PresentationStage({ open, onClose, poolLabel, poolCount, children }: Props) {
+export function PresentationStage({ open, onClose, poolLabel, poolCount, onShuffle, children }: Props) {
   // Esc để thoát: MC đứng xa laptop, bấm phím dễ hơn tìm nút.
   useEffect(() => {
     if (!open) return;
@@ -45,16 +44,29 @@ export function PresentationStage({ open, onClose, poolLabel, poolCount, childre
         <span className="text-[17px] text-white/45">{poolLabel}</span>
       </div>
 
-      <button
-        type="button"
-        onClick={onClose}
-        title="Thoát trình chiếu (Esc)"
-        className="absolute right-8 top-7 flex h-11 w-11 items-center justify-center rounded-xl border border-white/12 text-white/50 transition-colors hover:border-white/30 hover:text-white"
-      >
-        <Minimize2 className="h-5 w-5" strokeWidth={1.8} />
-      </button>
+      <div className="absolute right-8 top-7 flex items-center gap-3">
+        {onShuffle && (
+          <button
+            type="button"
+            onClick={onShuffle}
+            title="Xáo trộn vị trí các ô"
+            className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/12 text-white/50 transition-colors hover:border-[#F4B63D] hover:text-[#F4B63D]"
+          >
+            <Shuffle className="h-5 w-5" strokeWidth={1.8} />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onClose}
+          title="Thoát trình chiếu (Esc)"
+          className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/12 text-white/50 transition-colors hover:border-white/30 hover:text-white"
+        >
+          <Minimize2 className="h-5 w-5" strokeWidth={1.8} />
+        </button>
+      </div>
 
       {children}
     </div>
   );
 }
+

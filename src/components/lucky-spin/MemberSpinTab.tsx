@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Maximize2, Users } from 'lucide-react';
+import { Maximize2, Shuffle, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { LuckySpinStore } from '@/hooks/useLuckySpin';
 import { useRoundPlayback } from '@/hooks/useRoundPlayback';
@@ -36,6 +36,7 @@ export function MemberSpinTab({ store }: { store: LuckySpinStore }) {
   const [drawCount, setDrawCount] = useState('1');
   const [askReset, setAskReset] = useState(false);
   const [presenting, setPresenting] = useState(false);
+  const [shuffledOrder, setShuffledOrder] = useState<string[] | null>(null);
   /** Lượt do chính máy này bốc — có ngay, không phải đợi nhịp poll kế tiếp. */
   const [ownRound, setOwnRound] = useState<SpinRoundView | null>(null);
   const [result, setResult] = useState<SpinRoundView | null>(null);
@@ -47,13 +48,13 @@ export function MemberSpinTab({ store }: { store: LuckySpinStore }) {
   // nên bánh xe trên mọi màn hình có cùng thứ tự ô và dừng cùng một chỗ.
   const round = ownRound ?? (state.activeRound && state.activeRound.kind !== 'gift' ? state.activeRound : null);
 
-  const { rotation, spinning, revealed, transitionMs } = useRoundPlayback(round, (finished) => {
+  const { rotation, spinning, revealed, transitionMs, easing } = useRoundPlayback(round, (finished) => {
     setPollPaused(false);
     if (ownRound?.id === finished.id) setResult(finished);
   });
 
-  /** Danh sách chờ quay khi chưa có lượt nào chạy — để xem trước và đếm số. */
-  const idlePool = useMemo<WheelSegment[]>(() => {
+  /** Danh sách chờ quay gốc khi chưa có lượt nào chạy */
+  const rawIdlePool = useMemo<WheelSegment[]>(() => {
     if (spinMode === 'team') {
       return state.teams.filter((t) => t.status !== 'done').map((t) => ({ id: t.id, name: t.name }));
     }
@@ -61,6 +62,35 @@ export function MemberSpinTab({ store }: { store: LuckySpinStore }) {
       .filter((m) => m.status === 'active' && (activeScope === ALL_SCOPE || m.teamId === activeScope))
       .map((m) => ({ id: m.id, name: m.name, avatarUrl: m.avatarUrl }));
   }, [spinMode, activeScope, state.teams, state.members]);
+
+  /** Danh sách ô hiển thị trên bánh xe (đã áp dụng thứ tự xáo trộn nếu có) */
+  const idlePool = useMemo<WheelSegment[]>(() => {
+    if (!shuffledOrder || shuffledOrder.length === 0) return rawIdlePool;
+    const map = new Map(rawIdlePool.map((item) => [item.id, item]));
+    const ordered: WheelSegment[] = [];
+    for (const id of shuffledOrder) {
+      const item = map.get(id);
+      if (item) {
+        ordered.push(item);
+        map.delete(id);
+      }
+    }
+    for (const item of map.values()) {
+      ordered.push(item);
+    }
+    return ordered;
+  }, [rawIdlePool, shuffledOrder]);
+
+  const handleShuffle = () => {
+    if (spinning || rawIdlePool.length < 2) return;
+    const ids = rawIdlePool.map((m) => m.id);
+    for (let i = ids.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [ids[i], ids[j]] = [ids[j], ids[i]];
+    }
+    setShuffledOrder(ids);
+    toast.success('Đã xáo trộn vị trí các ô trên vòng quay!');
+  };
 
   const segments = round ? round.pool : idlePool;
   /** Số vòng của lượt đang chạy — bốc 3 người thì quay 3 vòng. */
@@ -80,6 +110,7 @@ export function MemberSpinTab({ store }: { store: LuckySpinStore }) {
           kind: spinMode === 'team' ? 'team' : 'member',
           count,
           ...(spinMode === 'members' && activeScope !== ALL_SCOPE ? { scopeTeamId: activeScope } : {}),
+          orderedPoolIds: idlePool.map((s) => s.id),
         }),
       );
     } catch (err) {
@@ -87,6 +118,7 @@ export function MemberSpinTab({ store }: { store: LuckySpinStore }) {
       toast.error(apiErrorMessage(err, 'Không quay được, thử lại.'));
     }
   };
+
 
   const winners = result ? result.winnerIndexes.map((i) => result.pool[i]).filter(Boolean) : [];
 
@@ -229,11 +261,22 @@ export function MemberSpinTab({ store }: { store: LuckySpinStore }) {
         <ActionButton
           variant="secondary"
           className="w-full !text-[14px] !font-medium"
+          onClick={handleShuffle}
+          disabled={spinning || rawIdlePool.length < 2}
+        >
+          <Shuffle className="h-4 w-4" strokeWidth={1.8} />
+          Xáo trộn vị trí ô
+        </ActionButton>
+
+        <ActionButton
+          variant="secondary"
+          className="mt-3 w-full !text-[14px] !font-medium"
           onClick={() => setPresenting(true)}
         >
           <Maximize2 className="h-4 w-4" strokeWidth={1.8} />
           Trình chiếu
         </ActionButton>
+
         <ActionButton
           variant="secondary"
           className="mt-3 w-full !text-[14px] !font-medium"
@@ -249,6 +292,7 @@ export function MemberSpinTab({ store }: { store: LuckySpinStore }) {
           rotation={rotation}
           spinning={spinning}
           transitionMs={transitionMs}
+          easing={easing}
           hubLabel="QUAY"
           onSpin={handleSpin}
           spinDisabled={idlePool.length < 2}
@@ -263,12 +307,14 @@ export function MemberSpinTab({ store }: { store: LuckySpinStore }) {
         onClose={() => setPresenting(false)}
         poolCount={idlePool.length}
         poolLabel={poolLabel}
+        onShuffle={handleShuffle}
       >
         <SpinWheel
           segments={segments}
           rotation={rotation}
           spinning={spinning}
           transitionMs={transitionMs}
+          easing={easing}
           sizeClass="h-[min(74vh,74vw)] w-[min(74vh,74vw)]"
           hubLabel="QUAY"
           onSpin={handleSpin}

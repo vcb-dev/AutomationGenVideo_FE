@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Gift as GiftIcon, Maximize2 } from 'lucide-react';
+import { Gift as GiftIcon, Maximize2, Shuffle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { LuckySpinStore } from '@/hooks/useLuckySpin';
 import { useRoundPlayback } from '@/hooks/useRoundPlayback';
@@ -34,6 +34,7 @@ export function GiftSpinTab({ store }: { store: LuckySpinStore }) {
   const [selection, setSelection] = useState(INITIAL_SELECTION);
   const [askReset, setAskReset] = useState(false);
   const [presenting, setPresenting] = useState(false);
+  const [shuffledGiftIds, setShuffledGiftIds] = useState<string[] | null>(null);
   /** Lượt do chính máy này bốc — có ngay, không phải đợi nhịp poll kế tiếp. */
   const [ownRound, setOwnRound] = useState<SpinRoundView | null>(null);
   const [result, setResult] = useState<SpinRoundView | null>(null);
@@ -54,13 +55,45 @@ export function GiftSpinTab({ store }: { store: LuckySpinStore }) {
 
   // Người điều khiển dùng lượt của mình, người xem dùng lượt server báo về.
   const round = ownRound ?? (state.activeRound && state.activeRound.kind === 'gift' ? state.activeRound : null);
-  const { rotation, spinning, revealed, transitionMs } = useRoundPlayback(round, (finished) => {
+  const { rotation, spinning, revealed, transitionMs, easing } = useRoundPlayback(round, (finished) => {
     setPollPaused(false);
     if (ownRound?.id === finished.id) setResult(finished);
   });
 
   const availableGifts = useMemo(() => state.gifts.filter((g) => g.remaining > 0), [state.gifts]);
-  const idleSegments: WheelSegment[] = availableGifts.map((g) => ({ id: g.id, name: g.name }));
+  const rawSegments: WheelSegment[] = useMemo(
+    () => availableGifts.map((g) => ({ id: g.id, name: g.name })),
+    [availableGifts],
+  );
+
+  const idleSegments: WheelSegment[] = useMemo(() => {
+    if (!shuffledGiftIds || shuffledGiftIds.length === 0) return rawSegments;
+    const map = new Map(rawSegments.map((g) => [g.id, g]));
+    const ordered: WheelSegment[] = [];
+    for (const id of shuffledGiftIds) {
+      const item = map.get(id);
+      if (item) {
+        ordered.push(item);
+        map.delete(id);
+      }
+    }
+    for (const item of map.values()) {
+      ordered.push(item);
+    }
+    return ordered;
+  }, [rawSegments, shuffledGiftIds]);
+
+  const handleShuffle = () => {
+    if (spinning || rawSegments.length < 2) return;
+    const ids = rawSegments.map((g) => g.id);
+    for (let i = ids.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [ids[i], ids[j]] = [ids[j], ids[i]];
+    }
+    setShuffledGiftIds(ids);
+    toast.success('Đã xáo trộn vị trí quà trên vòng quay!');
+  };
+
   const segments = round ? round.pool : idleSegments;
 
   const handleSpin = async () => {
@@ -72,13 +105,19 @@ export function GiftSpinTab({ store }: { store: LuckySpinStore }) {
     try {
       setPollPaused(true);
       setOwnRound(
-        await actions.drawRound({ kind: 'gift', recipientId: activeRecipientId, recipientType: recipientMode }),
+        await actions.drawRound({
+          kind: 'gift',
+          recipientId: activeRecipientId,
+          recipientType: recipientMode,
+          orderedPoolIds: idleSegments.map((s) => s.id),
+        }),
       );
     } catch (err) {
       setPollPaused(false);
       toast.error(apiErrorMessage(err, 'Không quay được, thử lại.'));
     }
   };
+
 
   const wonGift = result ? result.pool[result.winnerIndexes[0] ?? 0] : null;
 
@@ -203,11 +242,22 @@ export function GiftSpinTab({ store }: { store: LuckySpinStore }) {
         <ActionButton
           variant="secondary"
           className="w-full !text-[14px] !font-medium"
+          onClick={handleShuffle}
+          disabled={spinning || rawSegments.length < 2}
+        >
+          <Shuffle className="h-4 w-4" strokeWidth={1.8} />
+          Xáo trộn vị trí quà
+        </ActionButton>
+
+        <ActionButton
+          variant="secondary"
+          className="mt-3 w-full !text-[14px] !font-medium"
           onClick={() => setPresenting(true)}
         >
           <Maximize2 className="h-4 w-4" strokeWidth={1.8} />
           Trình chiếu
         </ActionButton>
+
         <ActionButton
           variant="secondary"
           className="mt-3 w-full !text-[14px] !font-medium"
@@ -223,6 +273,7 @@ export function GiftSpinTab({ store }: { store: LuckySpinStore }) {
         colorOffset={1}
         spinning={spinning}
         transitionMs={transitionMs}
+        easing={easing}
         hubLabel="QUÀ"
         onSpin={handleSpin}
         spinDisabled={availableGifts.length < 1 || !activeRecipientId}
@@ -235,6 +286,7 @@ export function GiftSpinTab({ store }: { store: LuckySpinStore }) {
         onClose={() => setPresenting(false)}
         poolCount={availableGifts.length}
         poolLabel="loại quà còn hàng"
+        onShuffle={handleShuffle}
       >
         <SpinWheel
           segments={segments}
@@ -242,6 +294,7 @@ export function GiftSpinTab({ store }: { store: LuckySpinStore }) {
           colorOffset={1}
           spinning={spinning}
           transitionMs={transitionMs}
+          easing={easing}
           sizeClass="h-[min(70vh,70vw)] w-[min(70vh,70vw)]"
           hubLabel="QUÀ"
           onSpin={handleSpin}
