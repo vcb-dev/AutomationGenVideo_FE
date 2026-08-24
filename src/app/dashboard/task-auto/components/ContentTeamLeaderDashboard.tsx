@@ -42,11 +42,11 @@ export function ContentTeamLeaderDashboard({ teams, from, to, periodLabel }: { t
         title={teams.length === 1 ? `Hiệu suất ${teams[0].name}` : 'Hiệu suất Content Team'}
         right={<PeriodBadge label={periodLabel} />}
       >
-        <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y divide-slate-100 sm:divide-y-0">
-          <MetricStat icon={FileText} label="Content sưu tầm" value={totalContent} tone="emerald" />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-4">
+          <MetricStat icon={FileText} label="Content sưu tầm" value={totalContent} tone="success" />
           <MetricStat icon={Languages} label="Bản dịch" value={totalTranslations} tone="violet" />
-          <MetricStat icon={Video} label="Video được làm" value={totalVideos} tone="indigo" />
-          <MetricStat icon={Users} label="Content creator" value={rows.length} tone="slate" />
+          <MetricStat icon={Video} label="Video được làm" value={totalVideos} tone="brand" />
+          <MetricStat icon={Users} label="Content creator" value={rows.length} tone="neutral" />
         </div>
       </DashboardCard>
 

@@ -2,11 +2,12 @@
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ListTodo, Users, User, Loader2, CalendarDays, Sparkles } from 'lucide-react'
+import { ListTodo, Users, User, Loader2, Sparkles, X, ChevronDown } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
-import { getDashboard, getTeams, isContentTeamMember } from '@/lib/api/task-auto'
+import { getDashboard, getProductVideoStats, getTeams, isContentTeamMember } from '@/lib/api/task-auto'
 import { useAuthStore } from '@/store/auth-store'
+import type { Team, TeamMember } from '@/types/task-auto'
 import { GlobalDashboard, buildGlobal } from './components/GlobalDashboard'
 import { TeamDashboard } from './components/TeamDashboard'
 import { PersonalDashboard } from './components/PersonalDashboard'
@@ -78,28 +79,20 @@ interface DateFilterProps {
 function DateFilter({ preset, customFrom, customTo, onPresetChange, onCustomFromChange, onCustomToChange }: DateFilterProps) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="flex items-center gap-1.5 text-xs text-slate-400">
-        <CalendarDays className="w-3.5 h-3.5" />
-        <span className="font-medium">Lọc theo ngày:</span>
-      </div>
-
-      {/* Preset chips */}
-      <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
-        {PRESETS.map(p => (
-          <button
-            key={p.key}
-            onClick={() => onPresetChange(p.key)}
-            className={cn(
-              'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap',
-              preset === p.key
-                ? 'bg-white text-indigo-700 shadow-sm'
-                : 'text-slate-500 hover:text-slate-800',
-            )}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
+      {PRESETS.map(p => (
+        <button
+          key={p.key}
+          onClick={() => onPresetChange(p.key)}
+          className={cn(
+            'px-4 py-2 rounded-lg text-sm font-semibold border transition-colors whitespace-nowrap',
+            preset === p.key
+              ? 'bg-indigo-600 border-indigo-600 text-white'
+              : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50',
+          )}
+        >
+          {p.label}
+        </button>
+      ))}
 
       {/* Custom date range inputs */}
       {preset === 'custom' && (
@@ -109,17 +102,92 @@ function DateFilter({ preset, customFrom, customTo, onPresetChange, onCustomFrom
             value={customFrom}
             max={customTo || undefined}
             onChange={e => onCustomFromChange(e.target.value)}
-            className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            className="text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
           />
-          <span className="text-xs text-slate-400">→</span>
+          <span className="text-sm text-slate-400">→</span>
           <input
             type="date"
             value={customTo}
             min={customFrom || undefined}
             onChange={e => onCustomToChange(e.target.value)}
-            className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            className="text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
           />
         </div>
+      )}
+    </div>
+  )
+}
+
+// ── Scope filter (team / member) — chỉ hiện cho ADMIN/MANAGER (scope global) ──────────────────
+
+function dedupeMembers(members: TeamMember[]): TeamMember[] {
+  const seen = new Set<string>()
+  const out: TeamMember[] = []
+  for (const m of members) {
+    if (seen.has(m.user_id)) continue
+    seen.add(m.user_id)
+    out.push(m)
+  }
+  return out.sort((a, b) => (a.user?.full_name ?? '').localeCompare(b.user?.full_name ?? ''))
+}
+
+interface ScopeSelectProps {
+  value: string
+  placeholder: string
+  options: { value: string; label: string }[]
+  onChange: (v: string) => void
+}
+
+function ScopeSelect({ value, placeholder, options, onChange }: ScopeSelectProps) {
+  return (
+    <div className="relative">
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="appearance-none text-sm font-semibold border border-slate-200 rounded-lg pl-3.5 pr-8 py-2 text-slate-600 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-300 max-w-[180px] truncate cursor-pointer"
+      >
+        <option value="">{placeholder}</option>
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+      <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+    </div>
+  )
+}
+
+interface ScopeFilterProps {
+  teams: Team[]
+  teamId: string
+  memberId: string
+  onTeamChange: (id: string) => void
+  onMemberChange: (id: string) => void
+}
+
+function ScopeFilter({ teams, teamId, memberId, onTeamChange, onMemberChange }: ScopeFilterProps) {
+  const selectedTeam = teams.find(t => t.id === teamId)
+  const memberOptions = dedupeMembers(selectedTeam ? (selectedTeam.members ?? []) : teams.flatMap(t => t.members ?? []))
+  const hasFilter = !!teamId || !!memberId
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <ScopeSelect
+        value={teamId}
+        placeholder="Tất cả team"
+        options={teams.map(t => ({ value: t.id, label: t.name }))}
+        onChange={onTeamChange}
+      />
+      <ScopeSelect
+        value={memberId}
+        placeholder="Tất cả thành viên"
+        options={memberOptions.map(m => ({ value: m.user_id, label: m.user?.full_name ?? m.user_id }))}
+        onChange={onMemberChange}
+      />
+      {hasFilter && (
+        <button
+          onClick={() => { onTeamChange(''); onMemberChange('') }}
+          className="flex items-center gap-1 text-sm font-semibold text-slate-400 hover:text-slate-600"
+        >
+          <X className="w-3.5 h-3.5" /> Xoá lọc
+        </button>
       )}
     </div>
   )
@@ -135,6 +203,10 @@ export default function TaskAutoDashboard() {
   const [customFrom, setCustomFrom]   = useState(firstOfMonth)
   const [customTo, setCustomTo]       = useState(today)
 
+  // Chỉ có tác dụng ở scope global (ADMIN/MANAGER) — BE bỏ qua 2 tham số này ở nhánh LEADER/MEMBER.
+  const [teamFilter, setTeamFilter]     = useState('')
+  const [memberFilter, setMemberFilter] = useState('')
+
   const { from, to } = preset === 'custom'
     ? { from: customFrom, to: customTo }
     : getPresetRange(preset)
@@ -142,8 +214,17 @@ export default function TaskAutoDashboard() {
   const periodLabel = getPeriodLabel(preset, from, to)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'dashboard', from, to],
-    queryFn:  () => getDashboard({ date_from: from, date_to: to }),
+    queryKey: ['task-auto', 'dashboard', from, to, teamFilter, memberFilter],
+    queryFn:  () => getDashboard({ date_from: from, date_to: to, team_id: teamFilter || undefined, assignee_id: memberFilter || undefined }),
+    refetchInterval: 30_000,
+    enabled: !!(from && to),
+  })
+
+  // Tải riêng khỏi getDashboard() — cùng bộ lọc ngày/team/thành viên, nhưng độc lập với payload
+  // Tổng quan chính (xem lib/api/task-auto.ts: getProductVideoStats).
+  const { data: productStats } = useQuery({
+    queryKey: ['task-auto', 'product-video-stats', from, to, teamFilter, memberFilter],
+    queryFn:  () => getProductVideoStats({ date_from: from, date_to: to, team_id: teamFilter || undefined, assignee_id: memberFilter || undefined }),
     refetchInterval: 30_000,
     enabled: !!(from && to),
   })
@@ -159,9 +240,21 @@ export default function TaskAutoDashboard() {
   const isContentLeader = contentTeamsLed.length > 0
   const isContentMember = !isContentLeader && isContentTeamMember(teams, user?.id)
 
+  // Khi ADMIN/MANAGER khoan sâu bằng ScopeFilter, badge phải phản ánh đúng phạm vi đang xem thay vì
+  // luôn nói "Toàn hệ thống" — dễ gây hiểu lầm số liệu vẫn là toàn hệ thống trong khi đã bị lọc.
+  const filteredMember = memberFilter
+    ? (teamFilter ? teams?.find(t => t.id === teamFilter)?.members : teams?.flatMap(t => t.members ?? []))
+        ?.find(m => m.user_id === memberFilter)
+    : undefined
+  const globalScopeLabel = filteredMember
+    ? `Thành viên: ${filteredMember.user?.full_name ?? filteredMember.user_id}`
+    : teamFilter
+    ? `Team: ${teams?.find(t => t.id === teamFilter)?.name ?? '—'}`
+    : 'Toàn hệ thống'
+
   const scopeLabel = isContentLeader ? (contentTeamsLed.length === 1 ? `Content Team: ${contentTeamsLed[0].name}` : 'Content Team')
     : isContentMember ? 'Content Creator'
-    : data?.scope === 'global' ? 'Toàn hệ thống'
+    : data?.scope === 'global' ? globalScopeLabel
     : data?.scope === 'team' ? (data.team ? `Team: ${data.team.name}` : 'Team của tôi')
     : 'Cá nhân'
 
@@ -171,7 +264,7 @@ export default function TaskAutoDashboard() {
     ? <User className="w-4 h-4" />
     : <Users className="w-4 h-4" />
 
-  const showDateFilter = isContentLeader || isContentMember || data?.scope === 'global' || data?.scope === 'team'
+  const showDateFilter = isContentLeader || isContentMember || data?.scope === 'global' || data?.scope === 'team' || data?.scope === 'personal'
 
   return (
     <div className="space-y-6">
@@ -184,7 +277,7 @@ export default function TaskAutoDashboard() {
         </div>
         <div className="flex items-center gap-3">
           {data && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 rounded-xl text-xs font-semibold text-slate-600">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-xl text-xs font-semibold text-slate-600">
               {scopeIcon}
               {scopeLabel}
             </div>
@@ -199,9 +292,10 @@ export default function TaskAutoDashboard() {
         </div>
       </div>
 
-      {/* Date filter — chỉ hiện cho Global & Team scope */}
+      {/* Bộ lọc — chỉ hiện cho Global & Team scope. Không bọc card riêng, đặt trực tiếp trên nền trang
+          như 1 thanh công cụ — ngày bên trái, team/thành viên (chỉ scope global) bên phải cùng hàng. */}
       {(showDateFilter || isLoading) && (
-        <div className="bg-white border border-gray-100 rounded-xl px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <DateFilter
             preset={preset}
             customFrom={customFrom}
@@ -216,6 +310,16 @@ export default function TaskAutoDashboard() {
             onCustomFromChange={setCustomFrom}
             onCustomToChange={setCustomTo}
           />
+
+          {data?.scope === 'global' && (teams?.length ?? 0) > 0 && (
+            <ScopeFilter
+              teams={teams ?? []}
+              teamId={teamFilter}
+              memberId={memberFilter}
+              onTeamChange={id => { setTeamFilter(id); setMemberFilter('') }}
+              onMemberChange={setMemberFilter}
+            />
+          )}
         </div>
       )}
 
@@ -234,9 +338,9 @@ export default function TaskAutoDashboard() {
           teamName={teams?.find(t => t.team_kind === 'CONTENT' && t.members?.some(m => m.user_id === user.id))?.name}
         />
       ) : !data ? null
-        : data.scope === 'global' ? <GlobalDashboard d={buildGlobal(data)} periodLabel={periodLabel} />
-        : data.scope === 'team'   ? <TeamDashboard d={data} periodLabel={periodLabel} />
-        : <PersonalDashboard d={data} />
+        : data.scope === 'global' ? <GlobalDashboard d={buildGlobal(data)} periodLabel={periodLabel} scopeLabel={globalScopeLabel} productStats={productStats} />
+        : data.scope === 'team'   ? <TeamDashboard d={data} periodLabel={periodLabel} productStats={productStats} />
+        : <PersonalDashboard d={data} periodLabel={periodLabel} productStats={productStats} />
       }
 
     </div>

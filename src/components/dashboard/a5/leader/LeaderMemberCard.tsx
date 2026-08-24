@@ -65,7 +65,7 @@ export function LeaderMemberCard({ entity, index, showDailyKpi }: LeaderMemberCa
         <LeaderGaugeRing pct={videoPct} size={160} current={entity.kpi_completed} target={entity.kpi_target} />
       </div>
 
-      <div className={cn("mt-4 grid gap-3 border-t border-gray-100 pt-4", entity.is_content_creator ? "grid-cols-3" : "grid-cols-2")}>
+      <div className={cn("mt-4 grid gap-3 border-t border-gray-100 pt-4", entity.is_content_creator ? "grid-cols-4" : "grid-cols-2")}>
         <div className="rounded-xl bg-gray-50 px-3 py-2.5 text-center">
           <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">KPI ngày</div>
           {showDailyKpi ? (
@@ -92,6 +92,12 @@ export function LeaderMemberCard({ entity, index, showDailyKpi }: LeaderMemberCa
               <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Tự nghĩ</div>
               <div className="mt-0.5 text-base font-bold text-gray-800">
                 {(entity.content_original_month ?? 0).toLocaleString("vi-VN")}
+              </div>
+            </div>
+            <div className="rounded-xl bg-gray-50 px-3 py-2.5 text-center">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Đã duyệt</div>
+              <div className="mt-0.5 text-base font-bold text-gray-800">
+                {(entity.content_approved_month ?? 0).toLocaleString("vi-VN")}
               </div>
             </div>
           </>

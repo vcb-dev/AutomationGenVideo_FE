@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
@@ -37,6 +37,9 @@ interface Props extends Filters {
   // Cho empty state cột gợi ý bỏ lọc ngày — mặc định trang lọc "Hôm nay" nên cột trống
   // rất hay do bộ lọc ngày che khuất chứ không phải thật sự hết task.
   onClearDateFilter?: () => void
+  // Bấm số "Quá hạn" trên KanbanStatsBar → chuyển sang layout Danh sách (bảng phẳng) đã lọc sẵn
+  // overdue=true, vì Kanban gom theo 4 cột trạng thái nên không có 1 view liệt kê phẳng tại đây.
+  onShowOverdueList?: () => void
 }
 
 // Thao tác nhanh ngay trên thẻ — cùng điều kiện quyền với TaskDetailPanel.tsx (canStart/canApproveReject)
@@ -51,17 +54,16 @@ interface CardActions {
   onReject: (task: Task) => void
 }
 
-// "Quá hạn" không phải 1 giá trị TaskStatus — đây là view riêng gom mọi task đang xử lý
-// (Đã giao/Đang làm/Đã nộp) đã trễ hạn, xem thêm ghi chú ở BE (tasks.service.ts findAll `q.overdue`).
-type ColumnKey = TaskStatus | 'OVERDUE'
-type CardVariant = 'assigned' | 'in_progress' | 'submitted' | 'approved' | 'overdue'
+type ColumnKey = TaskStatus
+type CardVariant = 'assigned' | 'in_progress' | 'submitted' | 'approved'
 
 interface ColumnDef {
   key: ColumnKey
-  // undefined cho cột "Quá hạn" — cột này không lọc theo 1 status cố định (xem `overdue` bên dưới)
-  status?: TaskStatus
-  // true = cột "Quá hạn": query bằng tham số overdue=true thay vì status, bỏ qua lọc khoảng ngày
-  overdue?: boolean
+  status: TaskStatus
+  // Gộp thêm task các status khác vào cùng cột này — BE chỉ lọc được 1 status/lần (xem
+  // fetchCombinedStatusTasks) nên phải query riêng từng status rồi merge ở FE. Hiện chỉ cột
+  // SUBMITTED dùng để gộp REJECTED (task bị từ chối cần nộp lại nên vẫn thuộc vòng "đã nộp").
+  combineStatuses?: TaskStatus[]
   variant: CardVariant
   label: string
   accent: string
@@ -71,20 +73,28 @@ interface ColumnDef {
   icon: LucideIcon
 }
 
-// 5 cột: 4 cột khớp bộ trạng thái đã hiển thị trong dropdown lọc "Trạng thái" trước đây
-// (STATUS_OPTIONS ở TaskFilters.tsx) — PENDING/REJECTED/CANCELLED vốn cũng chưa từng lọc được
-// ở đó nên không có cột riêng, vẫn xem đủ qua "Tất cả trạng thái" nếu quay lại view khác.
-// Cột "Quá hạn" thứ 5 cắt ngang 3 cột đầu: task trễ hạn bị kéo ra khỏi cột trạng thái gốc,
-// CHỈ còn hiện ở đây (xem exclude_overdue truyền cho 3 cột kia trong KanbanColumn bên dưới).
+// 4 cột khớp bộ trạng thái đã hiển thị trong dropdown lọc "Trạng thái" trước đây (STATUS_OPTIONS
+// ở TaskFilters.tsx) — PENDING/CANCELLED vốn cũng chưa từng lọc được ở đó nên không có cột riêng,
+// vẫn xem đủ qua "Tất cả trạng thái" nếu quay lại view khác.
+// Riêng REJECTED được gộp vào cột "Đã nộp" (combineStatuses) thay vì có cột riêng: task bị từ
+// chối cần nộp lại chứ không "chết", tách hẳn ra sẽ dễ bị quên — hiện chung với badge/viền đỏ
+// riêng (xem isRejected trong TaskCard/TaskCardBody) để vẫn phân biệt được với task chờ duyệt.
+// Task trễ hạn KHÔNG có cột riêng: nó vẫn nằm đúng cột trạng thái hiện tại của nó (Kanban phản
+// ánh giai đoạn xử lý, không phải mức độ khẩn cấp), chỉ được đánh dấu bằng badge + viền trái đỏ/
+// cam/vàng ngay trên thẻ (xem isTaskOverdue/overdueBorderClass) và gộp vào ô đếm "Quá hạn" ở
+// KanbanStatsBar — bấm vào đó để xem đầy đủ (chuyển sang layout Danh sách đã lọc overdue=true).
 const COLUMNS: ColumnDef[] = [
   { key: 'ASSIGNED',    status: 'ASSIGNED',    variant: 'assigned',    label: 'Đã giao',  accent: 'border-t-blue-400',    countBadge: 'bg-blue-50 text-blue-700',    iconBg: 'bg-blue-100 text-blue-600',    cardBar: 'border-l-blue-400',    icon: Send },
   { key: 'IN_PROGRESS', status: 'IN_PROGRESS', variant: 'in_progress', label: 'Đang làm', accent: 'border-t-amber-400',   countBadge: 'bg-amber-50 text-amber-700',  iconBg: 'bg-amber-100 text-amber-600',  cardBar: 'border-l-amber-400',   icon: Play },
-  { key: 'SUBMITTED',   status: 'SUBMITTED',   variant: 'submitted',   label: 'Đã nộp',   accent: 'border-t-purple-400',  countBadge: 'bg-purple-50 text-purple-700', iconBg: 'bg-purple-100 text-purple-600', cardBar: 'border-l-purple-400',  icon: Upload },
+  { key: 'SUBMITTED',   status: 'SUBMITTED',   combineStatuses: ['REJECTED'], variant: 'submitted',   label: 'Đã nộp',   accent: 'border-t-purple-400',  countBadge: 'bg-purple-50 text-purple-700', iconBg: 'bg-purple-100 text-purple-600', cardBar: 'border-l-purple-400',  icon: Upload },
   { key: 'APPROVED',    status: 'APPROVED',    variant: 'approved',    label: 'Đã duyệt', accent: 'border-t-emerald-400', countBadge: 'bg-emerald-50 text-emerald-700', iconBg: 'bg-emerald-100 text-emerald-600', cardBar: 'border-l-emerald-400', icon: CheckCircle2 },
-  { key: 'OVERDUE',     overdue: true,          variant: 'overdue',     label: 'Quá hạn',  accent: 'border-t-red-400',     countBadge: 'bg-red-50 text-red-700',      iconBg: 'bg-red-100 text-red-600',      cardBar: 'border-l-red-400',      icon: AlertTriangle },
 ]
 
 const PAGE_SIZE = 12
+// Giới hạn cho danh sách quá hạn dùng để bù vào từng cột khi đang lọc theo ngày (xem
+// TasksKanbanBoard: overdueData) — đủ lớn cho quy mô 1 team nội bộ, không phân trang riêng vì
+// luôn gộp trọn vẹn vào cột tương ứng thay vì tải thêm dần như các task khác.
+const OVERDUE_FETCH_LIMIT = 500
 
 // Kéo-thả chỉ cho phép đúng các dịch chuyển vừa hợp lệ ở BE (xem allowedTransition() trong
 // tasks.service.ts) vừa KHÔNG làm mất dữ liệu bắt buộc đi kèm bước đó:
@@ -97,8 +107,6 @@ const PAGE_SIZE = 12
 //   nên không thêm kéo-thả cho chiều này.
 // Nộp bài (…→ SUBMITTED) cần result_url và từ chối cần lý do nên vẫn bắt buộc qua modal riêng
 // (TaskSubmitModal/RejectModal), không cho kéo-thả 2 trường hợp này.
-// "Quá hạn" không nằm trong map này — không phải trạng thái thật nên không phải đích thả hợp lệ,
-// nhưng task hiện trong cột đó vẫn kéo được bình thường vì logic dựa trên task.status, không phải cột.
 export const DRAG_TRANSITIONS: Partial<Record<TaskStatus, { to: TaskStatus; action: 'move' | 'approve' }>> = {
   ASSIGNED:    { to: 'IN_PROGRESS', action: 'move' },
   IN_PROGRESS: { to: 'ASSIGNED',    action: 'move' },
@@ -114,9 +122,45 @@ function statusToVariant(status: TaskStatus): CardVariant {
   }
 }
 
+// Cùng công thức "trễ hạn" với BE (tasks.service.ts findAll doneStatuses) — task đã duyệt/huỷ
+// không còn tính trễ hạn dù deadline ở quá khứ.
+function isTaskOverdue(task: Task): boolean {
+  if (!task.deadline) return false
+  if (task.status === 'APPROVED' || task.status === 'CANCELLED') return false
+  return new Date(task.deadline).getTime() < Date.now()
+}
+
 function daysOverdue(deadline: string): number {
   const ms = Date.now() - new Date(deadline).getTime()
   return Math.max(1, Math.ceil(ms / 86_400_000))
+}
+
+// Hạn chót rơi đúng ngày hôm nay (theo lịch, không theo mốc 24h) — tách riêng khỏi isTaskOverdue
+// vì 1 task hạn hôm nay lúc 15h vẫn CHƯA quá hạn lúc 10h sáng, nhưng vẫn cần nổi lên ưu tiên nhất
+// (xem taskSortTier).
+function isDueToday(task: Task): boolean {
+  if (!task.deadline) return false
+  const d = new Date(task.deadline)
+  const now = new Date()
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()
+}
+
+// Thứ tự ưu tiên trong cột: hạn hôm nay (0) lên đầu — cần làm ngay trong ngày — rồi tới các task
+// khác (1), quá hạn (2) đẩy xuống cuối vì đã có badge/viền cảnh báo riêng, không cần chiếm vị trí
+// đầu cột nữa. Số nhỏ hơn = ưu tiên cao hơn, dùng trực tiếp làm hiệu số so sánh khi sort.
+function taskSortTier(task: Task): number {
+  if (isTaskOverdue(task)) return 2
+  if (isDueToday(task)) return 0
+  return 1
+}
+
+// Cùng cách tính khoảng ngày với BE (tasks.service.ts findAll: rangeStart/rangeEnd theo giờ VN)
+// — dùng để biết 1 task quá hạn có bị bộ lọc ngày hiện tại của cột loại ra hay không.
+function isWithinDeadlineRange(deadline: string, from?: string, to?: string): boolean {
+  const t = new Date(deadline).getTime()
+  if (from && t < new Date(`${from}T00:00:00+07:00`).getTime()) return false
+  if (to && t > new Date(`${to}T23:59:59.999+07:00`).getTime()) return false
+  return true
 }
 
 // Mức độ trễ càng nặng, màu càng gắt — giúp phân biệt nhanh task cần xử lý gấp nhất trong cột.
@@ -124,6 +168,14 @@ function overdueBadgeClass(days: number): string {
   if (days <= 1) return 'bg-amber-50 text-amber-600'
   if (days === 2) return 'bg-orange-50 text-orange-600'
   return 'bg-red-50 text-red-600'
+}
+
+// Viền trái đổi màu theo mức trễ, đồng bộ ngưỡng với overdueBadgeClass — cho phép nhận ra task
+// quá hạn ngay cả khi lướt nhanh qua board mà không cần đọc chữ trên badge.
+function overdueBorderClass(days: number): string {
+  if (days <= 1) return 'border-l-amber-500'
+  if (days === 2) return 'border-l-orange-500'
+  return 'border-l-red-500'
 }
 
 function CategoryTag({ name }: { name: string }) {
@@ -142,6 +194,11 @@ function TaskCardBody({ task, variant, onOpenPreview }: { task: Task; variant: C
   // Tag phân loại lấy theo tuyến nội dung (content_line) của content gắn trên task.
   const categoryTag = task.content_line?.name ?? null
   const missingLink = task.status === 'APPROVED' && !task.published_links?.length
+  // Task bị từ chối được gộp vào cột "Đã nộp" (xem COLUMNS) — dựa vào task.status thật (không
+  // phải variant của cột) để không lẫn với task đang chờ duyệt bình thường.
+  const isRejected = task.status === 'REJECTED'
+  const overdue = isTaskOverdue(task)
+  const overdueDays = overdue && task.deadline ? daysOverdue(task.deadline) : 0
   // Cùng convention với TaskDetailPanel: link Drive mở preview trong app (popup), link khác mở tab mới
   const isDriveUrl = task.result_url?.includes('drive.google.com')
 
@@ -241,9 +298,9 @@ function TaskCardBody({ task, variant, onOpenPreview }: { task: Task; variant: C
       <div className="mt-3">{assigneeRow}</div>
 
       <div className="flex items-center flex-wrap gap-1.5 mt-2.5">
-        {variant === 'overdue' && task.deadline && (
-          <span className={cn('inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold', overdueBadgeClass(daysOverdue(task.deadline)))}>
-            <AlertTriangle className="w-3 h-3 shrink-0" /> Quá hạn {daysOverdue(task.deadline)} ngày
+        {overdue && task.deadline && (
+          <span className={cn('inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold', overdueBadgeClass(overdueDays))}>
+            <AlertTriangle className="w-3 h-3 shrink-0" /> Quá hạn {overdueDays} ngày
           </span>
         )}
 
@@ -253,7 +310,7 @@ function TaskCardBody({ task, variant, onOpenPreview }: { task: Task; variant: C
           </span>
         )}
 
-        {(variant === 'assigned' || variant === 'in_progress' || variant === 'overdue') && task.deadline && (
+        {(variant === 'assigned' || variant === 'in_progress') && task.deadline && (
           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold bg-gray-50 text-gray-500">
             <Clock className="w-3 h-3 shrink-0" /> Hạn: {formatDate(task.deadline)}
           </span>
@@ -262,13 +319,25 @@ function TaskCardBody({ task, variant, onOpenPreview }: { task: Task; variant: C
         {categoryTag && <CategoryTag name={categoryTag} />}
 
         {variant === 'submitted' && (
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700">
-            Chờ duyệt
-          </span>
+          isRejected ? (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-bold bg-red-100 text-red-700">
+              <XCircle className="w-3 h-3 shrink-0" /> Bị từ chối
+            </span>
+          ) : (
+            <span className="inline-flex items-center px-2 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700">
+              Chờ duyệt
+            </span>
+          )
         )}
 
         {resultLink}
       </div>
+
+      {isRejected && task.reject_reason && (
+        <p className="mt-2 text-[11px] text-red-700 bg-red-50 border border-red-100 rounded-lg px-2 py-1.5 line-clamp-2">
+          <span className="font-semibold">Lý do từ chối: </span>{task.reject_reason}
+        </p>
+      )}
     </>
   )
 }
@@ -291,6 +360,8 @@ function TaskCard({ task, variant, cardBar, actions, onViewTask }: {
   const canReviewTask = task.status === 'SUBMITTED' && !!actions.canApproveReject
   const isStarting    = actions.startingId === task.id
   const isApproving   = actions.approvingId === task.id
+  const isRejected    = task.status === 'REJECTED'
+  const overdue        = isTaskOverdue(task)
 
   const [showPreview, setShowPreview] = useState(false)
 
@@ -306,11 +377,18 @@ function TaskCard({ task, variant, cardBar, actions, onViewTask }: {
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onViewTask(task.id) } }}
       style={transform ? { transform: CSS.Translate.toString(transform), touchAction: 'none' } : undefined}
       className={cn(
-        'relative w-full text-left bg-white border border-gray-200 border-l-4 rounded-xl p-3.5 shadow-sm cursor-pointer',
-        'hover:border-indigo-300 hover:shadow-lg hover:shadow-slate-200/70 hover:-translate-y-0.5 transition-all group',
+        'relative w-full text-left border border-l-4 rounded-xl p-3.5 shadow-sm cursor-pointer transition-all group',
+        'hover:shadow-lg hover:shadow-slate-200/70 hover:-translate-y-0.5',
+        // Ưu tiên hiển thị: bị từ chối > quá hạn > màu cardBar mặc định của cột — không kết hợp
+        // nhiều bộ class border cùng lúc vì các utility Tailwind cùng cấp độ ưu tiên, đứng sau
+        // trong HTML không chắc thắng theo thứ tự CSS sinh ra.
+        isRejected
+          ? 'bg-red-50/70 border-red-300 border-l-red-500 ring-1 ring-red-200 hover:border-red-400'
+          : overdue
+            ? cn('bg-white border-gray-200 hover:border-red-300', overdueBorderClass(daysOverdue(task.deadline!)))
+            : cn('bg-white border-gray-200 hover:border-indigo-300', cardBar),
         draggable && 'cursor-grab active:cursor-grabbing',
         isDragging && 'opacity-30',
-        cardBar,
       )}
     >
       {draggable && (
@@ -375,8 +453,32 @@ function TaskCard({ task, variant, cardBar, actions, onViewTask }: {
   )
 }
 
+// BE chỉ lọc được 1 status/lần (xem tasks.service.ts findAll: `where.status = q.status`) nên cột
+// gộp nhiều status (hiện chỉ "Đã nộp" gộp REJECTED) phải query riêng từng status rồi merge ở FE,
+// sort theo updated_at giống sort mặc định của BE rồi cắt về đúng `limit` như 1 trang bình thường.
+async function fetchCombinedStatusTasks(statuses: TaskStatus[], filters: Filters, limit: number) {
+  const base = {
+    team_id: filters.teamId,
+    search: filters.search,
+    deadline_from: filters.deadlineFrom,
+    deadline_to: filters.deadlineTo,
+    task_type: filters.taskType || undefined,
+    assignee_id: filters.assigneeId,
+    page: 1,
+    limit,
+    sort: 'updated_at' as const,
+  }
+  const results = await Promise.all(statuses.map(status => getTasks({ ...base, status })))
+  const data = results
+    .flatMap(r => r.data)
+    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+    .slice(0, limit)
+  const total = results.reduce((sum, r) => sum + r.total, 0)
+  return { data, total, page: 1, limit, totalPages: Math.max(1, Math.ceil(total / limit)) }
+}
+
 function KanbanColumn({
-  column, filters, isDropDisabled, isValidTarget, actions, hasDateFilter, onClearDateFilter, onViewTask, onTotalChange,
+  column, filters, isDropDisabled, isValidTarget, actions, hasDateFilter, overdueTasks, onClearDateFilter, onViewTask, onTotalChange,
 }: {
   column: ColumnDef
   filters: Filters
@@ -384,6 +486,9 @@ function KanbanColumn({
   isValidTarget: boolean
   actions: CardActions
   hasDateFilter: boolean
+  // Toàn bộ task quá hạn khớp team/search/loại/người làm hiện tại (KHÔNG lọc theo ngày/status) —
+  // dùng để bù những task quá hạn bị bộ lọc ngày của cột loại ra, xem `missingOverdue` bên dưới.
+  overdueTasks: Task[]
   onClearDateFilter?: () => void
   onViewTask: (id: string) => void
   onTotalChange: (key: ColumnKey, total: number) => void
@@ -393,20 +498,9 @@ function KanbanColumn({
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ['task-auto', 'tasks', 'kanban', column.key, filters, limit],
-    queryFn: () => getTasks(column.overdue
-      ? {
-        // Cột "Quá hạn": bỏ qua deadline_from/to — khái niệm trễ hạn tự nó đã là mốc so với hiện tại,
-        // áp thêm khoảng ngày mặc định "hôm nay" của trang sẽ luôn cho kết quả rỗng.
-        overdue: true,
-        team_id: filters.teamId,
-        search: filters.search,
-        task_type: filters.taskType || undefined,
-        assignee_id: filters.assigneeId,
-        page: 1,
-        limit,
-        sort: 'updated_at',
-      }
-      : {
+    queryFn: () => column.combineStatuses?.length
+      ? fetchCombinedStatusTasks([column.status, ...column.combineStatuses], filters, limit)
+      : getTasks({
         status: column.status,
         team_id: filters.teamId,
         search: filters.search,
@@ -414,9 +508,6 @@ function KanbanColumn({
         deadline_to: filters.deadlineTo,
         task_type: filters.taskType || undefined,
         assignee_id: filters.assigneeId,
-        // Task trễ hạn giờ chỉ hiện ở cột "Quá hạn" riêng — trừ cột Đã duyệt: task đã duyệt
-        // không còn được tính "trễ hạn" nữa (isOverdue loại APPROVED) dù deadline có ở quá khứ.
-        exclude_overdue: column.status !== 'APPROVED' ? true : undefined,
         page: 1,
         limit,
         sort: 'updated_at',
@@ -424,17 +515,36 @@ function KanbanColumn({
     refetchOnWindowFocus: true,
   })
 
-  const tasks = data?.data ?? []
-  const total = data?.total ?? 0
+  const rawTasks = data?.data ?? []
+
+  // Bộ lọc ngày (mặc định "Hôm nay") lọc theo deadline nên tự loại luôn các task quá hạn từ
+  // trước đó — quá hạn là tín hiệu cần xử lý NGAY nên không nên bị 1 khung ngày che khuất. Bù
+  // lại đúng phần bị thiếu (deadline nằm ngoài khoảng đang lọc) từ overdueTasks (không lọc ngày).
+  const missingOverdue = useMemo(() => {
+    if (!hasDateFilter) return []
+    const statuses = new Set<TaskStatus>([column.status, ...(column.combineStatuses ?? [])])
+    return overdueTasks.filter(t =>
+      statuses.has(t.status) && !isWithinDeadlineRange(t.deadline!, filters.deadlineFrom, filters.deadlineTo),
+    )
+  }, [overdueTasks, hasDateFilter, column.status, column.combineStatuses, filters.deadlineFrom, filters.deadlineTo])
+
+  // Ưu tiên hạn hôm nay lên đầu (việc cần làm trong ngày), quá hạn đẩy xuống cuối (đã có badge/
+  // viền cảnh báo riêng nên không cần chiếm chỗ đầu cột nữa) — xem taskSortTier.
+  const tasks = useMemo(() => {
+    const map = new Map<string, Task>()
+    for (const t of rawTasks) map.set(t.id, t)
+    for (const t of missingOverdue) map.set(t.id, t)
+    return Array.from(map.values()).sort((a, b) => taskSortTier(a) - taskSortTier(b))
+  }, [rawTasks, missingOverdue])
+  // missingOverdue luôn được gộp trọn vẹn (không phân trang) nên cộng thẳng vào total — phép tính
+  // "Xem thêm" bên dưới vẫn đúng vì cả tasks.length lẫn total đều cộng thêm đúng 1 lượng như nhau.
+  const total = (data?.total ?? 0) + missingOverdue.length
   const hasMore = tasks.length < total
   const Icon = column.icon
 
   useEffect(() => {
     if (!isLoading) onTotalChange(column.key, total)
   }, [column.key, total, isLoading, onTotalChange])
-
-  // Cột "Quá hạn" tự bỏ qua bộ lọc ngày nên gợi ý "bỏ lọc ngày" ở empty state không áp dụng ở đây.
-  const showDateFilterHint = hasDateFilter && !column.overdue
 
   return (
     <div
@@ -477,9 +587,9 @@ function KanbanColumn({
           <div className="flex flex-col items-center justify-center gap-1.5 py-10 px-3 text-center border border-dashed border-gray-200 rounded-xl bg-white/40">
             <Inbox className="w-6 h-6 text-gray-300" />
             <p className="text-xs text-gray-400">
-              {showDateFilterHint ? 'Không có task trong khoảng ngày đang lọc' : 'Không có task'}
+              {hasDateFilter ? 'Không có task trong khoảng ngày đang lọc' : 'Không có task'}
             </p>
-            {showDateFilterHint && onClearDateFilter && (
+            {hasDateFilter && onClearDateFilter && (
               <button
                 type="button"
                 onClick={onClearDateFilter}
@@ -521,7 +631,34 @@ function StatItem({ label, value, valueClass }: { label: string; value: number; 
   )
 }
 
-function KanbanStatsBar({ totals }: { totals: Partial<Record<ColumnKey, number>> }) {
+// Ô "Quá hạn" là nút bấm (không phải StatItem tĩnh): số liệu này gộp task quá hạn từ CẢ 4 cột
+// trạng thái (không có cột riêng nữa), nên cần lối đi nhanh để xem đầy đủ danh sách đó — chuyển
+// sang layout Danh sách đã lọc sẵn overdue=true (xem onShowOverdueList ở TasksKanbanBoard).
+function OverdueStatButton({ value, onClick }: { value: number; onClick?: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!onClick}
+      title={onClick ? 'Xem danh sách đầy đủ task quá hạn' : undefined}
+      className={cn(
+        'flex flex-col gap-1 text-left rounded-lg -mx-1.5 -my-1 px-1.5 py-1 transition-colors',
+        onClick && 'hover:bg-red-50 cursor-pointer',
+      )}
+    >
+      <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-400">
+        <AlertTriangle className="w-3 h-3 text-red-500 shrink-0" /> Quá hạn
+      </span>
+      <span className="text-2xl font-black text-red-600">{value}</span>
+    </button>
+  )
+}
+
+function KanbanStatsBar({ totals, overdueTotal, onShowOverdueList }: {
+  totals: Partial<Record<ColumnKey, number>>
+  overdueTotal: number
+  onShowOverdueList?: () => void
+}) {
   const grandTotal = COLUMNS.reduce((sum, c) => sum + (totals[c.key] ?? 0), 0)
   const approvedTotal = totals.APPROVED ?? 0
   const progressPct = grandTotal > 0 ? Math.round((approvedTotal / grandTotal) * 100) : 0
@@ -533,7 +670,7 @@ function KanbanStatsBar({ totals }: { totals: Partial<Record<ColumnKey, number>>
       <StatItem label="Đang làm" value={totals.IN_PROGRESS ?? 0} valueClass="text-amber-600" />
       <StatItem label="Đã nộp" value={totals.SUBMITTED ?? 0} valueClass="text-purple-600" />
       <StatItem label="Đã duyệt" value={totals.APPROVED ?? 0} valueClass="text-emerald-600" />
-      <StatItem label="Quá hạn" value={totals.OVERDUE ?? 0} valueClass="text-red-600" />
+      <OverdueStatButton value={overdueTotal} onClick={onShowOverdueList} />
       <div className="col-span-2 sm:col-span-4 lg:col-span-1 flex flex-col gap-1 lg:border-l lg:border-gray-100 lg:pl-5">
         <span className="text-xs font-medium text-slate-400">Tiến độ chung</span>
         <div className="flex items-center gap-2.5">
@@ -549,7 +686,7 @@ function KanbanStatsBar({ totals }: { totals: Partial<Record<ColumnKey, number>>
 
 export function TasksKanbanBoard({
   teamId, search, deadlineFrom, deadlineTo, taskType, assigneeId,
-  currentUserId, canApproveReject, onViewTask, onClearDateFilter,
+  currentUserId, canApproveReject, onViewTask, onClearDateFilter, onShowOverdueList,
 }: Props) {
   const filters: Filters = { teamId, search, deadlineFrom, deadlineTo, taskType, assigneeId }
   const queryClient = useQueryClient()
@@ -558,6 +695,27 @@ export function TasksKanbanBoard({
   const [columnTotals, setColumnTotals] = useState<Partial<Record<ColumnKey, number>>>({})
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
+
+  // Toàn bộ task quá hạn khớp team/search/loại/người làm hiện tại — dùng cho cả tổng số ở
+  // KanbanStatsBar lẫn bù vào từng cột khi bộ lọc ngày (vd mặc định "Hôm nay") đang loại chúng ra
+  // (xem missingOverdue trong KanbanColumn). BE bỏ qua status/deadline_from/to khi overdue=true
+  // (tasks.service.ts findAll q.overdue) nên 1 query duy nhất là đủ cho mọi cột.
+  const { data: overdueData } = useQuery({
+    queryKey: ['task-auto', 'tasks', 'kanban-overdue', filters],
+    queryFn: () => getTasks({
+      overdue: true,
+      team_id: filters.teamId,
+      search: filters.search,
+      task_type: filters.taskType || undefined,
+      assignee_id: filters.assigneeId,
+      page: 1,
+      limit: OVERDUE_FETCH_LIMIT,
+      sort: 'updated_at',
+    }),
+    refetchOnWindowFocus: true,
+  })
+  const overdueTotal = overdueData?.total ?? 0
+  const overdueTasks = overdueData?.data ?? []
 
   function invalidateTasks() {
     queryClient.invalidateQueries({ queryKey: ['task-auto', 'tasks'] })
@@ -623,15 +781,15 @@ export function TasksKanbanBoard({
       onDragCancel={() => setDraggingTask(null)}
     >
       <div className="space-y-3">
-        <KanbanStatsBar totals={columnTotals} />
+        <KanbanStatsBar totals={columnTotals} overdueTotal={overdueTotal} onShowOverdueList={onShowOverdueList} />
 
         <div className="space-y-2">
           {/* Gợi ý thao tác — kéo-thả vốn khó tự phát hiện nếu không nói ra */}
           <p className="flex items-center gap-1.5 text-xs text-slate-400">
             <GripVertical className="w-3.5 h-3.5 shrink-0" />
             Bấm thẻ để xem chi tiết · kéo thẻ sang cột bên để chuyển nhanh trạng thái
-            (Đã giao ⇄ Đang làm{canApproveReject ? ', Đã nộp → Đã duyệt' : ''}) · cột Quá hạn gom mọi task
-            đang xử lý đã trễ hạn
+            (Đã giao ⇄ Đang làm{canApproveReject ? ', Đã nộp → Đã duyệt' : ''}) · task quá hạn có
+            viền đỏ/cam/vàng kèm nhãn cảnh báo ngay trên thẻ
           </p>
 
           <div className="flex gap-4 overflow-x-auto custom-scrollbar pb-2 items-start">
@@ -646,6 +804,7 @@ export function TasksKanbanBoard({
                   isDropDisabled={!!draggingStatus && !isValidTarget}
                   actions={cardActions}
                   hasDateFilter={hasDateFilter}
+                  overdueTasks={overdueTasks}
                   onClearDateFilter={onClearDateFilter}
                   onViewTask={onViewTask}
                   onTotalChange={handleTotalChange}
@@ -660,7 +819,9 @@ export function TasksKanbanBoard({
         {draggingTask && (
           <div className={cn(
             'w-[260px] bg-white border border-indigo-300 border-l-4 rounded-xl p-3.5 shadow-2xl rotate-2 cursor-grabbing',
-            COLUMNS.find(c => c.status === draggingTask.status)?.cardBar,
+            isTaskOverdue(draggingTask)
+              ? overdueBorderClass(daysOverdue(draggingTask.deadline!))
+              : COLUMNS.find(c => c.status === draggingTask.status)?.cardBar,
           )}>
             <TaskCardBody task={draggingTask} variant={statusToVariant(draggingTask.status)} />
           </div>

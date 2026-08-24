@@ -1,6 +1,6 @@
 'use client'
 
-import { Eye, Zap } from 'lucide-react'
+import { AlertTriangle, Eye, Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { TaskStatusBadge } from '@/components/task-auto/StatusBadge'
 import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
@@ -117,6 +117,7 @@ export function TasksTable({
               tasks.map((task, idx) => {
                 const contentTitle = resolveContentTitle(task)
                 const productName = resolveProductName(task)
+                const overdue = !!task.deadline && isOverdue(task.deadline) && !['APPROVED', 'CANCELLED'].includes(task.status)
                 return (
                   <tr
                     key={task.id}
@@ -157,10 +158,10 @@ export function TasksTable({
                     <td className="px-5 py-4 whitespace-nowrap">
                       {task.deadline ? (
                         <span className={cn(
-                          'text-sm font-medium',
-                          isOverdue(task.deadline) && !['APPROVED', 'CANCELLED'].includes(task.status)
-                            ? 'text-red-600 font-semibold' : 'text-slate-600'
+                          'inline-flex items-center gap-1 text-sm font-medium',
+                          overdue ? 'text-red-600 font-semibold' : 'text-slate-600'
                         )}>
+                          {overdue && <AlertTriangle className="w-3.5 h-3.5 shrink-0" />}
                           {formatDateTime(task.deadline)}
                         </span>
                       ) : <span className="text-slate-300 text-sm">—</span>}
