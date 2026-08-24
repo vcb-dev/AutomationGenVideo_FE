@@ -38,30 +38,32 @@ export function PresentationStage({ open, onClose, poolLabel, poolCount, onShuff
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[80] flex flex-col items-center justify-center gap-6 bg-[#0B0E14] px-6 py-8">
-      <div className="absolute left-8 top-7 flex items-baseline gap-3">
+    <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center gap-6 bg-[#0B0E14] px-6 py-8">
+      <div className="absolute left-8 top-6 flex items-baseline gap-3">
         <span className="text-[44px] font-bold leading-none tracking-[-0.02em] text-[#F4B63D]">{poolCount}</span>
         <span className="text-[17px] text-white/45">{poolLabel}</span>
       </div>
 
-      <div className="absolute right-8 top-7 flex items-center gap-3">
+      <div className="absolute right-8 top-6 flex items-center gap-3">
         {onShuffle && (
           <button
             type="button"
             onClick={onShuffle}
             title="Xáo trộn vị trí các ô"
-            className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/12 text-white/50 transition-colors hover:border-[#F4B63D] hover:text-[#F4B63D]"
+            className="flex items-center gap-2 rounded-xl border border-white/15 bg-white/[0.08] px-3.5 py-2.5 text-[14px] font-medium text-white/80 shadow-md backdrop-blur-sm transition-all hover:border-[#F4B63D] hover:bg-[#F4B63D]/15 hover:text-[#F4B63D]"
           >
-            <Shuffle className="h-5 w-5" strokeWidth={1.8} />
+            <Shuffle className="h-4 w-4" strokeWidth={2} />
+            <span>Xáo trộn</span>
           </button>
         )}
         <button
           type="button"
           onClick={onClose}
           title="Thoát trình chiếu (Esc)"
-          className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/12 text-white/50 transition-colors hover:border-white/30 hover:text-white"
+          className="flex items-center gap-2 rounded-xl border border-white/15 bg-white/[0.08] px-3.5 py-2.5 text-[14px] font-medium text-white/80 shadow-md backdrop-blur-sm transition-all hover:border-white/40 hover:bg-white/15 hover:text-white"
         >
-          <Minimize2 className="h-5 w-5" strokeWidth={1.8} />
+          <Minimize2 className="h-4 w-4" strokeWidth={2} />
+          <span>Thoát (Esc)</span>
         </button>
       </div>
 
@@ -69,4 +71,5 @@ export function PresentationStage({ open, onClose, poolLabel, poolCount, onShuff
     </div>
   );
 }
+
 
