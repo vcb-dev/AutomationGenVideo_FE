@@ -17,6 +17,14 @@ export interface AdminTeamReportRow {
   content_new: number;
   /** Số task còn lại trong kỳ, không gắn với content mới ("content cũ"). */
   content_old: number;
+  /** true = row này là content creator — chỉ có ở scope "single_team" (rows theo từng người); scope
+   * "all_teams" (rows theo từng team) không set field này vì 1 team có thể gồm cả editor lẫn content
+   * creator, không quy về đúng 1 loại. */
+  is_content_creator?: boolean;
+  content_collected_month?: number;
+  content_original_month?: number;
+  /** Chỉ có ở scope "single_team", cùng điều kiện với content_collected_month/content_original_month. */
+  content_approved_month?: number;
 }
 
 export interface AdminTeamReport {

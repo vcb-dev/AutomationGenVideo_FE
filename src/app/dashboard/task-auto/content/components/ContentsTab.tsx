@@ -3,64 +3,21 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Plus, Edit2, Trash2, Loader2, FileText, ChevronLeft, ChevronRight, Search } from 'lucide-react'
+import { Plus, Trash2, Loader2, Search, Tags, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CustomSelect } from '@/components/task-auto/DarkInput'
-import { ContentStatusBadge } from '@/components/task-auto/StatusBadge'
-import { EmptyState } from '@/components/task-auto/EmptyState'
-import { HeaderFilterDropdown } from '@/components/task-auto/HeaderFilterDropdown'
-import { ContentFormModal, parseMarkets } from '@/components/task-auto/ContentFormModal'
+import { ContentFormModal } from '@/components/task-auto/ContentFormModal'
 import {
-  getContents, getContent, deleteContent,
+  getContent, deleteContent,
   getContentLines, createContentLine, deleteContentLine,
   getContentClassifications, createContentClassification, deleteContentClassification,
   getTeams, isContentTeamMember,
 } from '@/lib/api/task-auto'
 import { useAuthStore } from '@/store/auth-store'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
-import { Content, ContentUsageStatus } from '@/types/task-auto'
+import { Content } from '@/types/task-auto'
 import { ContentViewModal } from '@/components/task-auto/ContentViewModal'
-
-// ── Helpers ──────────────────────────────────────────
-
-const MARKET_COLOR: Record<string, string> = {
-  VIETNAM:   'bg-emerald-100 text-emerald-700',
-  INDONESIA: 'bg-amber-100 text-amber-700',
-  JAPAN:     'bg-rose-100 text-rose-700',
-  THAILAND:  'bg-sky-100 text-sky-700',
-}
-const MARKET_SHORT: Record<string, string> = { VIETNAM: 'VN', INDONESIA: 'ID', JAPAN: 'JP', THAILAND: 'TH' }
-const MarketBadge = ({ market }: { market: string }) =>
-  <span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-sm font-semibold', MARKET_COLOR[market] ?? 'bg-gray-100 text-gray-600')}>
-    {MARKET_SHORT[market] ?? market}
-  </span>
-
-// ── Pagination ────────────────────────────────────────
-
-function Pagination({ page, totalPages, onChange }: { page: number; totalPages: number; onChange: (p: number) => void }) {
-  if (totalPages <= 1) return null
-  return (
-    <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100">
-      <button onClick={() => onChange(page - 1)} disabled={page <= 1} className="p-2 rounded-xl hover:bg-gray-100 text-slate-500 disabled:opacity-40 transition-colors">
-        <ChevronLeft className="w-5 h-5" />
-      </button>
-      <span className="text-base text-slate-600 font-medium">Trang {page} / {totalPages}</span>
-      <button onClick={() => onChange(page + 1)} disabled={page >= totalPages} className="p-2 rounded-xl hover:bg-gray-100 text-slate-500 disabled:opacity-40 transition-colors">
-        <ChevronRight className="w-5 h-5" />
-      </button>
-    </div>
-  )
-}
-
-function LoadingRows({ cols }: { cols: number }) {
-  return <>
-    {Array.from({ length: 5 }).map((_, i) => (
-      <tr key={i}>{Array.from({ length: cols }).map((_, j) => (
-        <td key={j} className="px-5 py-4"><div className="h-4 bg-gray-100 rounded animate-pulse" /></td>
-      ))}</tr>
-    ))}
-  </>
-}
+import { ContentsBoard } from './ContentsBoard'
 
 // ── MiniList sidebar ──────────────────────────────────
 
@@ -136,11 +93,10 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
   // chỉ FE tự giới hạn qua canDelete trước đây (nhầm dùng chung với quyền Xóa, vốn chặt hơn ở BE).
   const canCreateOrEdit = canDelete || isContentTeamMember(teams, user?.id)
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<ContentUsageStatus | ''>('')
-  const [contentLineFilter, setContentLineFilter] = useState('')
   const [classificationFilter, setClassificationFilter] = useState('')
   const [marketFilter, setMarketFilter] = useState('')
-  const [page, setPage] = useState(1)
+  const [showCatalogPanel, setShowCatalogPanel] = useState(false)
+  const [presetLineId, setPresetLineId] = useState<string | undefined>(undefined)
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Content | null>(null)
   const [detailItem, setDetailItem] = useState<Content | null>(null)
@@ -148,19 +104,7 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
 
   const { data: contentLines } = useQuery({ queryKey: ['task-auto', 'content-lines'], queryFn: getContentLines })
   const { data: contentClassifications } = useQuery({ queryKey: ['task-auto', 'content-classifications'], queryFn: getContentClassifications })
-  const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'contents', brandType, search, statusFilter, contentLineFilter, classificationFilter, marketFilter, month, page],
-    queryFn: () => getContents({
-      brand_type: brandType,
-      search: search || undefined,
-      status: statusFilter || undefined,
-      content_line_id: contentLineFilter || undefined,
-      classification_id: classificationFilter || undefined,
-      market: marketFilter || undefined,
-      month: month || undefined,
-      page, limit: 10,
-    }),
-  })
+  const classificationOptions = (contentClassifications ?? []).map(c => ({ value: c.id, label: c.name })).sort((a, b) => a.label.localeCompare(b.label, 'vi'))
 
   const createLineMut = useMutation({
     mutationFn: createContentLine,
@@ -189,7 +133,7 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
     onError: () => { toast.error('Không thể xóa content'); setDeletingId(null) },
   })
 
-  const openCreate = () => { setEditing(null); setShowModal(true) }
+  const openCreate = () => { setEditing(null); setPresetLineId(undefined); setShowModal(true) }
   // Danh sách chỉ trả về field rút gọn (không có body/script) để nhẹ payload — mở sửa phải lấy
   // lại bản đầy đủ, không thì form hiện trống dù content đã có nội dung.
   const openEdit = (c: Content) => {
@@ -204,32 +148,31 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
 
   return (
     <div className="flex flex-col lg:flex-row gap-5">
-      {/* Main table */}
+      {/* Main board */}
       <div className="flex-1 min-w-0 space-y-4">
-        {/* Filters */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
-          <div className="flex flex-wrap gap-3 items-center">
-            <div className="relative flex-1 min-w-[240px]">
+        {/* Toolbar */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
               <input
                 value={search}
-                onChange={e => { setSearch(e.target.value); setPage(1) }}
+                onChange={e => setSearch(e.target.value)}
                 placeholder="Tìm kiếm mã, tiêu đề content..."
                 className="w-full pl-12 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-base text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
               />
             </div>
-            {/* <CustomSelect
-              value={statusFilter}
-              onChange={v => { setStatusFilter(v as ContentUsageStatus | ''); setPage(1) }}
-              options={[
-                { value: '', label: 'Tất cả trạng thái' },
-                ...(Object.keys(CONTENT_STATUS_LABELS) as ContentUsageStatus[]).map(k => ({ value: k, label: CONTENT_STATUS_LABELS[k] })),
-              ]}
-              className="min-w-[175px]"
-            /> */}
+
+            <input
+              type="month"
+              value={month}
+              onChange={e => onMonthChange(e.target.value)}
+              className="px-3 py-3.5 border border-gray-200 rounded-xl text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            />
+
             <CustomSelect
               value={marketFilter}
-              onChange={v => { setMarketFilter(v); setPage(1) }}
+              onChange={setMarketFilter}
               options={[
                 { value: '', label: 'Tất cả thị trường' },
                 { value: 'VIETNAM',   label: 'Việt Nam' },
@@ -239,16 +182,32 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
               ]}
               className="min-w-[160px]"
             />
-            <input
-              type="month"
-              value={month}
-              onChange={e => { onMonthChange(e.target.value); setPage(1) }}
-              className="px-3 py-3.5 border border-gray-200 rounded-xl text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+
+            <CustomSelect
+              value={classificationFilter}
+              onChange={setClassificationFilter}
+              options={[{ value: '', label: 'Tất cả phân loại' }, ...classificationOptions]}
+              className="min-w-[170px]"
+              compact
             />
+
+            <button
+              onClick={() => setShowCatalogPanel(v => !v)}
+              className={cn(
+                'rounded-xl px-4 py-3.5 text-base font-semibold flex items-center gap-2 transition-colors shrink-0 border',
+                canCreateOrEdit ? 'ml-0' : 'ml-auto',
+                showCatalogPanel
+                  ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
+                  : 'bg-white border-gray-200 text-slate-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600',
+              )}
+            >
+              <Tags className="w-4 h-4" /> Tuyến & phân loại
+            </button>
+
             {canCreateOrEdit && (
               <button
                 onClick={openCreate}
-                className="ml-auto bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-3.5 text-base font-semibold flex items-center gap-2 transition-colors shrink-0"
+                className="ml-auto bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-5 py-3.5 text-base font-semibold flex items-center gap-2 transition-colors shrink-0"
               >
                 <Plus className="w-5 h-5" /> Thêm content
               </button>
@@ -256,187 +215,51 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
           </div>
         </div>
 
-        {data && data.total > 0 && (
-          <p className="text-sm text-slate-500 px-1">
-            Tổng <span className="font-bold text-slate-700">{data.total}</span> content
-            {search && <span> · kết quả cho "<span className="font-semibold text-indigo-600">{search}</span>"</span>}
-          </p>
-        )}
+        {/* Board theo tuyến */}
+        <ContentsBoard
+          brandType={brandType}
+          month={month}
+          search={search}
+          classificationId={classificationFilter}
+          market={marketFilter}
+          canEdit={canCreateOrEdit}
+          canDelete={canDelete}
+          onSelect={openDetail}
+          onEdit={openEdit}
+          onDelete={c => setDeletingId(c.id)}
+          onAdd={contentLineId => { setPresetLineId(contentLineId); setEditing(null); setShowModal(true) }}
+        />
+      </div>
 
-        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-slate-50 border-b-2 border-gray-200">
-                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[10%]">Mã</th>
-                  <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide w-[28%]">Tiêu đề</th>
-                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[15%]">
-                    <HeaderFilterDropdown
-                      label="Tuyến ND"
-                      value={contentLineFilter}
-                      onChange={v => { setContentLineFilter(v); setPage(1) }}
-                      options={(contentLines ?? []).map(l => ({ value: l.id, label: l.name }))}
-                    />
-                  </th>
-                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[12%]">
-                    <HeaderFilterDropdown
-                      label="Phân loại"
-                      value={classificationFilter}
-                      onChange={v => { setClassificationFilter(v); setPage(1) }}
-                      options={(contentClassifications ?? []).map(c => ({ value: c.id, label: c.name }))}
-                    />
-                  </th>
-                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[9%]">Thị trường</th>
-                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[13%]">Trạng thái</th>
-                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[7%]">Lượt xem</th>
-                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[11%]">Người thêm</th>
-                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Ngày thêm</th>
-                  <th className="w-16" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {isLoading && <LoadingRows cols={10} />}
-
-                {!isLoading && (!data?.data || data.data.length === 0) && (
-                  <tr>
-                    <td colSpan={10}>
-                      <EmptyState icon={FileText} title="Không có content nào" />
-                    </td>
-                  </tr>
-                )}
-
-                {data?.data.map(c => {
-                  const tc = c.source_team_content
-                  const tc_ec = tc?.source_editor_content
-                  const rCode = c.code || tc?.code || tc_ec?.code || ''
-                  const rTitle = c.title || tc?.title || tc_ec?.title || null
-                  const rContentLine = c.content_line ?? tc?.content_line ?? tc_ec?.content_line ?? null
-                  const rClassification = c.classification ?? tc?.classification ?? tc_ec?.classification ?? null
-                  const rMarket = c.market || tc?.market || tc_ec?.market || null
-                  return (<tr key={c.id} className="hover:bg-indigo-50/20 transition-colors group cursor-pointer" onClick={() => openDetail(c)}>
-
-                    {/* Mã content */}
-                    <td className="px-4 py-4 whitespace-nowrap">
-                      <span className="inline-block bg-slate-100 text-slate-600 font-mono text-xs font-semibold px-2.5 py-1 rounded-lg">
-                        {rCode || <span className="text-slate-300">—</span>}
-                      </span>
-                    </td>
-
-                    {/* Tiêu đề */}
-                    <td className="px-5 py-4 max-w-0">
-                      <span className="text-base font-semibold text-slate-800 truncate block hover:text-indigo-600 transition-colors" title={rTitle ?? ''}>
-                        {rTitle || <span className="text-slate-400 italic font-normal text-sm">Chưa đặt tên</span>}
-                      </span>
-                    </td>
-
-                    {/* Tuyến ND */}
-                    <td className="px-4 py-4 whitespace-nowrap">
-                      {rContentLine?.name
-                        ? <span className="text-sm font-medium text-slate-700">{rContentLine.name}</span>
-                        : <span className="text-slate-300 text-sm">—</span>
-                      }
-                    </td>
-
-                    {/* Phân loại */}
-                    <td className="px-4 py-4 whitespace-nowrap">
-                      {rClassification?.name
-                        ? <span className="text-sm font-medium text-slate-700">{rClassification.name}</span>
-                        : <span className="text-slate-300 text-sm">—</span>
-                      }
-                    </td>
-
-                    {/* Thị trường */}
-                    <td className="px-4 py-4 whitespace-nowrap">
-                      <div className="flex flex-wrap gap-1.5">
-                        {parseMarkets(rMarket).map(m => <MarketBadge key={m} market={m} />)}
-                        {!rMarket && <span className="text-slate-300 text-sm">—</span>}
-                      </div>
-                    </td>
-
-                    {/* Trạng thái */}
-                    <td className="px-4 py-4 whitespace-nowrap">
-                      <ContentStatusBadge status={c.status} />
-                    </td>
-
-                    {/* Lượt xem */}
-                    <td className="px-4 py-4 whitespace-nowrap">
-                      <span className="text-sm text-slate-500">{c.view_count ?? '0'}</span>
-                    </td>
-
-                    {/* Người thêm */}
-                    <td className="px-4 py-4 whitespace-nowrap">
-                      <span className="text-sm text-slate-500">
-                        {c.added_by?.full_name ?? <span className="text-slate-300">—</span>}
-                      </span>
-                    </td>
-
-                    {/* Ngày thêm */}
-                    <td className="px-4 py-4 whitespace-nowrap">
-                      <span className="text-sm text-slate-500">
-                        {c.created_at ? new Date(c.created_at).toLocaleDateString('vi-VN') : <span className="text-slate-300">—</span>}
-                      </span>
-                    </td>
-
-                    {/* Hành động */}
-                    <td className="px-4 py-4 text-right" onClick={e => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1">
-                        {canCreateOrEdit && (
-                          <button
-                            onClick={() => openEdit(c)}
-                            className="p-2.5 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors"
-                            title="Chỉnh sửa"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                        )}
-                        {canDelete && (
-                          c.status === 'IN_TASK' ? (
-                            <button
-                              disabled
-                              title="Content đang được dùng trong task chưa duyệt"
-                              className="p-2.5 rounded-xl text-slate-200 cursor-not-allowed"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => setDeletingId(c.id)}
-                              className="p-2.5 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
-                              title="Xóa"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )
-                        )}
-                      </div>
-                    </td>
-                  </tr>)
-                })}
-              </tbody>
-            </table>
+      {/* Panel quản lý danh mục — thu gọn mặc định để nhường chỗ cho board, chỉ mở khi cần sửa Tuyến/Phân loại */}
+      {showCatalogPanel && (
+        <div className="lg:w-64 lg:shrink-0 space-y-4">
+          <div className="flex items-center justify-between px-1">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">Danh mục nội dung</p>
+            <button
+              onClick={() => setShowCatalogPanel(false)}
+              className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-gray-100 transition-colors"
+              title="Thu gọn"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
-
-          {data && <Pagination page={page} totalPages={data.totalPages} onChange={setPage} />}
+          <MiniList
+            title="Tuyến nội dung"
+            items={contentLines ?? []}
+            addLabel="Tên tuyến nội dung..."
+            onAdd={name => createLineMut.mutateAsync(name)}
+            onDelete={id => deleteLineMut.mutate(id)}
+          />
+          <MiniList
+            title="Phân loại nội dung"
+            items={contentClassifications ?? []}
+            addLabel="Tên phân loại nội dung..."
+            onAdd={name => createClassificationMut.mutateAsync(name)}
+            onDelete={id => deleteClassificationMut.mutate(id)}
+          />
         </div>
-      </div>
-
-      {/* Sidebar */}
-      <div className="lg:w-64 lg:shrink-0 space-y-4">
-        <MiniList
-          title="Tuyến nội dung"
-          items={contentLines ?? []}
-          addLabel="Tên tuyến nội dung..."
-          onAdd={name => createLineMut.mutateAsync(name)}
-          onDelete={id => deleteLineMut.mutate(id)}
-        />
-        <MiniList
-          title="Phân loại nội dung"
-          items={contentClassifications ?? []}
-          addLabel="Tên phân loại nội dung..."
-          onAdd={name => createClassificationMut.mutateAsync(name)}
-          onDelete={id => deleteClassificationMut.mutate(id)}
-        />
-      </div>
+      )}
 
       {detailItem && (
         <ContentViewModal
@@ -455,8 +278,9 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
         open={showModal}
         editing={editing}
         brandType={brandType}
-        onClose={() => setShowModal(false)}
-        onSuccess={() => setShowModal(false)}
+        initialContentLineId={presetLineId}
+        onClose={() => { setShowModal(false); setPresetLineId(undefined) }}
+        onSuccess={() => { setShowModal(false); setPresetLineId(undefined) }}
       />
 
       <ConfirmDialog

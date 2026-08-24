@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { CalendarDays, Plus, Search, RotateCcw, ChevronDown } from 'lucide-react'
+import { CalendarDays, Plus, Search, RotateCcw, ChevronDown, AlertTriangle } from 'lucide-react'
 import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { cn } from '@/lib/utils'
 import { TaskStatus, Team } from '@/types/task-auto'
@@ -68,6 +68,10 @@ interface Props {
   hideTeamFilter?: boolean
   hideStatusFilter?: boolean
   hideDateFilter?: boolean
+  /** Bộ lọc "Quá hạn" (ảo, không phải 1 status) — chỉ có ý nghĩa ở layout Danh sách (bảng phẳng);
+   * Kanban hiện task quá hạn ngay trong cột trạng thái kèm badge cảnh báo nên không cần bộ lọc này. */
+  showOverdueFilter?: boolean
+  overdueFilter?: boolean
   /** Nhãn hiển thị trước dấu ":" của bộ lọc ngày — đổi theo tab vì ý nghĩa cột lọc khác nhau
    * (vd "Ngày" = hạn chót/ngày tạo, "Ngày duyệt" = reviewed_at ở tab "Video đã nộp"). */
   dateFilterLabel?: string
@@ -84,6 +88,7 @@ interface Props {
   onDateToChange: (v: string) => void
   onTaskTypeChange: (v: TaskTypeFilter) => void
   onAssigneeChange: (v: string) => void
+  onOverdueChange?: (v: boolean) => void
   onCreateClick: () => void
 }
 
@@ -102,6 +107,8 @@ export function TaskFilters({
   hideTeamFilter = false,
   hideStatusFilter = false,
   hideDateFilter = false,
+  showOverdueFilter = false,
+  overdueFilter = false,
   dateFilterLabel = 'Ngày',
   dateFilterTooltip = 'Lọc theo hạn chót của task — task chưa đặt hạn thì tính theo ngày tạo',
   dateFilterDefaultPreset = 'today',
@@ -112,6 +119,7 @@ export function TaskFilters({
   onDateToChange,
   onTaskTypeChange,
   onAssigneeChange,
+  onOverdueChange,
   onCreateClick,
 }: Props) {
   const isToday = dateFromFilter === todayString() && dateToFilter === todayString()
@@ -174,14 +182,18 @@ export function TaskFilters({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [localSearch])
 
-  const hasStatus   = !hideStatusFilter && !!statusFilter
+  // Bật "Quá hạn" thì BE bỏ qua status/deadline_from/to hoàn toàn (xem tasks.service.ts findAll
+  // q.overdue) — 2 bộ lọc đó coi như không áp dụng, disable trên UI để khỏi gây hiểu nhầm.
+  const hasOverdue  = showOverdueFilter && overdueFilter
+  const hasStatus   = !hideStatusFilter && !hasOverdue && !!statusFilter
   const hasTeam      = !isMember && !hideTeamFilter && !!teamFilter
   const hasAssignee  = !isMember && assigneeOptions.length > 0 && !!assigneeFilter
   const hasSearch    = !!searchFilter
-  const hasCustomDate = !hideDateFilter && !isAtDefault
-  const activeFilterCount = [hasStatus, hasTeam, hasAssignee, hasSearch, hasCustomDate].filter(Boolean).length
+  const hasCustomDate = !hideDateFilter && !hasOverdue && !isAtDefault
+  const activeFilterCount = [hasStatus, hasTeam, hasAssignee, hasSearch, hasCustomDate, hasOverdue].filter(Boolean).length
 
   function resetAllFilters() {
+    if (hasOverdue) onOverdueChange?.(false)
     if (hasStatus) onStatusChange('')
     if (hasTeam) onTeamChange('')
     if (hasAssignee) onAssigneeChange('')
@@ -203,15 +215,36 @@ export function TaskFilters({
         />
       </div>
 
-      {/* Status */}
+      {/* Status — disable khi đang lọc "Quá hạn" vì BE bỏ qua status trong trường hợp đó */}
       {!hideStatusFilter && (
-        <CustomSelect
-          value={statusFilter}
-          onChange={v => onStatusChange(v as TaskStatus | '')}
-          options={STATUS_OPTIONS}
-          className="min-w-[165px]"
-          compact
-        />
+        <div className={cn(hasOverdue && 'opacity-40 pointer-events-none')} title={hasOverdue ? 'Không áp dụng khi đang lọc Quá hạn' : undefined}>
+          <CustomSelect
+            value={statusFilter}
+            onChange={v => onStatusChange(v as TaskStatus | '')}
+            options={STATUS_OPTIONS}
+            className="min-w-[165px]"
+            compact
+          />
+        </div>
+      )}
+
+      {/* Quá hạn — bộ lọc ảo (không phải 1 status thật): task đang xử lý (chưa duyệt/huỷ) có
+          deadline đã qua thời điểm hiện tại. Bật lên thì bỏ qua Status + bộ lọc ngày bên dưới. */}
+      {showOverdueFilter && (
+        <button
+          type="button"
+          onClick={() => onOverdueChange?.(!overdueFilter)}
+          title="Chỉ hiện task đang xử lý đã quá hạn — bỏ qua Trạng thái và bộ lọc ngày"
+          className={cn(
+            'flex items-center gap-1.5 px-3.5 py-3 rounded-xl text-sm font-semibold transition-colors border whitespace-nowrap',
+            overdueFilter
+              ? 'bg-red-500 border-red-500 text-white shadow-sm'
+              : 'bg-gray-50 border-gray-200 text-slate-500 hover:text-red-600 hover:border-red-200 hover:bg-red-50/60',
+          )}
+        >
+          <AlertTriangle className="w-4 h-4" />
+          Quá hạn
+        </button>
       )}
 
       {/* Task type */}
@@ -253,9 +286,14 @@ export function TaskFilters({
         />
       )}
 
-      {/* Date range picker — bộ lọc ngày dùng chung, ý nghĩa cột đổi theo tab (xem dateFilterLabel/dateFilterTooltip) */}
+      {/* Date range picker — bộ lọc ngày dùng chung, ý nghĩa cột đổi theo tab (xem dateFilterLabel/dateFilterTooltip)
+          — disable khi đang lọc "Quá hạn" vì BE bỏ qua deadline_from/to trong trường hợp đó */}
       {!hideDateFilter && (
-      <div className="relative" ref={datePickerRef}>
+      <div
+        className={cn('relative', hasOverdue && 'opacity-40 pointer-events-none')}
+        ref={datePickerRef}
+        title={hasOverdue ? 'Không áp dụng khi đang lọc Quá hạn' : undefined}
+      >
         <button
           type="button"
           onClick={() => setDatePickerOpen(o => !o)}

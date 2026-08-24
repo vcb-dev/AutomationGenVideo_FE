@@ -122,6 +122,7 @@ export function LeaderDashboard() {
                     is_content_creator: m.is_content_creator,
                     content_collected_month: m.content_collected_month,
                     content_original_month: m.content_original_month,
+                    content_approved_month: m.content_approved_month,
                   }}
                 />
               ))}

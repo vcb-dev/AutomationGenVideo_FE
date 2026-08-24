@@ -3,20 +3,19 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { FileText, Plus, Search, X, BookOpen, Mic, Globe, Trash2, Edit2, Loader2, Sparkles } from 'lucide-react'
+import { FileText, Plus, Search, X, BookOpen, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
-import { Pagination, PAGE_SIZE } from '@/components/task-auto/Pagination'
-import { HeaderFilterDropdown } from '@/components/task-auto/HeaderFilterDropdown'
-import { ContentFormModal, parseMarkets } from '@/components/task-auto/ContentFormModal'
+import { ContentFormModal } from '@/components/task-auto/ContentFormModal'
 import {
-  getTeams, getTeamContents, addTeamContent, removeTeamContent,
-  pushTeamContentToGlobal, getContentLines, getContentClassifications,
+  getTeams, getTeamContents, getTeamContent, addTeamContent, removeTeamContent,
+  pushTeamContentToGlobal, getContentClassifications,
 } from '@/lib/api/task-auto'
 import type { Content, TeamContent, ContentOrigin } from '@/types/task-auto'
 import { AddContentModal } from './contents/AddContentModal'
+import { TeamContentsBoard } from './contents/TeamContentsBoard'
 import { ContentViewModal } from '@/components/task-auto/ContentViewModal'
 
 interface TeamContentsTabProps {
@@ -34,11 +33,10 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
   const qc = useQueryClient()
   const [showAdd, setShowAdd] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
+  const [presetLineId, setPresetLineId] = useState<string | undefined>(undefined)
   const [editingContent, setEditingContent] = useState<TeamContent | null>(null)
   const [search, setSearch] = useState('')
-  const [contentLineFilter, setContentLineFilter] = useState('')
   const [classificationFilter, setClassificationFilter] = useState('')
-  const [page, setPage] = useState(1)
   const [pendingOrigin, setPendingOrigin] = useState<ContentOrigin | null>(null)
 
   const { data: teams } = useQuery({
@@ -62,38 +60,24 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
     ? [{ value: '', label: 'Tất cả đội nhóm' }, ...(teams ?? []).map(t => ({ value: t.id, label: t.name }))]
     : myTeams.map(t => ({ value: t.id, label: t.name }))
 
-  const { data: page1Data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'team-contents', selectedTeamId, brandType, month, search, contentLineFilter, classificationFilter, teamMarket, page],
-    queryFn: () => getTeamContents(selectedTeamId, brandType, month, {
-      page, limit: PAGE_SIZE, search: search || undefined,
-      content_line_id: contentLineFilter || undefined, classification_id: classificationFilter || undefined,
-      market: teamMarket,
-    }),
-    enabled: !!selectedTeamId,
-  })
-  const teamContents = page1Data?.data ?? []
-  const total = page1Data?.total ?? 0
-
   // Danh sách đầy đủ (không phân trang) — chỉ dùng để loại content đã có ra khỏi danh sách
-  // "chọn từ kho tổng" trong AddContentModal, không dùng để hiển thị bảng.
+  // "chọn từ kho tổng" trong AddContentModal, không dùng để hiển thị board.
   const { data: allTeamContents } = useQuery({
     queryKey: ['task-auto', 'team-contents-all-ids', selectedTeamId, brandType],
     queryFn: () => getTeamContents(selectedTeamId, brandType),
     enabled: !!selectedTeamId && showAdd,
   })
 
-  // Danh sách dòng content/phân loại toàn hệ thống — dùng làm option cho dropdown lọc (không
-  // kèm số đếm theo kho team nữa vì bảng chính giờ đã phân trang server).
-  const { data: allContentLines } = useQuery({ queryKey: ['task-auto', 'content-lines'], queryFn: getContentLines })
+  // Danh sách phân loại toàn hệ thống — dùng làm option cho dropdown lọc trong toolbar. Tuyến ND
+  // không cần dropdown lọc riêng nữa vì board đã tự nhóm cột theo tuyến.
   const { data: allClassifications } = useQuery({ queryKey: ['task-auto', 'content-classifications'], queryFn: getContentClassifications })
-  const contentLineOptions = (allContentLines ?? []).map(l => ({ value: l.id, label: l.name })).sort((a, b) => a.label.localeCompare(b.label, 'vi'))
   const classificationOptions = (allClassifications ?? []).map(c => ({ value: c.id, label: c.name })).sort((a, b) => a.label.localeCompare(b.label, 'vi'))
 
   const removeMut = useMutation({
     mutationFn: (contentId: string) => removeTeamContent(selectedTeamId, contentId),
     onSuccess: () => {
       toast.success('Đã xóa content khỏi kho team')
-      qc.invalidateQueries({ queryKey: ['task-auto', 'team-contents', selectedTeamId, brandType] })
+      qc.invalidateQueries({ queryKey: ['task-auto', 'team-contents'] })
       setRemovingContent(null)
     },
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Xóa thất bại'),
@@ -103,7 +87,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
     mutationFn: (contentId: string) => pushTeamContentToGlobal(selectedTeamId, contentId),
     onSuccess: () => {
       toast.success('Đã đẩy content ra kho tổng')
-      qc.invalidateQueries({ queryKey: ['task-auto', 'team-contents', selectedTeamId, brandType] })
+      qc.invalidateQueries({ queryKey: ['task-auto', 'team-contents'] })
       qc.invalidateQueries({ queryKey: ['task-auto', 'contents'] })
       setPushingContent(null)
     },
@@ -115,8 +99,18 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
   const [removingContent, setRemovingContent] = useState<TeamContent | null>(null)
   const [pushingContent, setPushingContent] = useState<TeamContent | null>(null)
 
-  useEffect(() => { setPage(1) }, [selectedTeamId, brandType, month, search, contentLineFilter, classificationFilter])
   useEffect(() => { setPendingOrigin(null) }, [selectedTeamId])
+
+  // Board chỉ trả field rút gọn (không có body/script) để nhẹ payload — mở xem chi tiết/sửa phải
+  // lấy lại bản đầy đủ, không thì modal/form hiện trống dù content đã có nội dung.
+  const openDetail = (tc: TeamContent) => {
+    setSelectedContent(tc)
+    getTeamContent(selectedTeamId, tc.id).then(setSelectedContent).catch(() => toast.error('Không thể tải nội dung content'))
+  }
+  const openEdit = (tc: TeamContent) => {
+    setEditingContent(tc)
+    getTeamContent(selectedTeamId, tc.id).then(setEditingContent).catch(() => toast.error('Không thể tải nội dung content'))
+  }
 
   return (
     <div className="space-y-5">
@@ -162,10 +156,14 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
             className="px-3 py-3.5 border border-gray-200 rounded-xl text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
           />
 
-          {selectedTeamId && page1Data && (
-            <span className="text-sm text-slate-400 font-medium whitespace-nowrap">
-              {total} content
-            </span>
+          {selectedTeamId && (
+            <CustomSelect
+              value={classificationFilter}
+              onChange={setClassificationFilter}
+              options={[{ value: '', label: 'Tất cả phân loại' }, ...classificationOptions]}
+              className="min-w-[170px]"
+              compact
+            />
           )}
 
           {selectedTeamId && isContentCreatorOfSelected && (
@@ -205,219 +203,25 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
         </div>
       </div>
 
-      {/* Table */}
+      {/* Board theo tuyến */}
       {!selectedTeamId ? (
         <EmptyState icon={BookOpen} title="Chọn đội nhóm để xem kho content" />
       ) : (
-        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-slate-50 border-b-2 border-gray-200">
-                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[10%]">Mã</th>
-                  <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide w-[25%]">Tiêu đề</th>
-                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[15%]">
-                    <HeaderFilterDropdown
-                      label="Tuyến ND"
-                      value={contentLineFilter}
-                      onChange={setContentLineFilter}
-                      options={contentLineOptions}
-                    />
-                  </th>
-                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[12%]">
-                    <HeaderFilterDropdown
-                      label="Phân loại"
-                      value={classificationFilter}
-                      onChange={setClassificationFilter}
-                      options={classificationOptions}
-                    />
-                  </th>
-                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[10%]">Thị trường</th>
-                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[9%]">File</th>
-                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap w-[13%]">Người thêm</th>
-                  <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Ngày thêm</th>
-                  <th className="w-28" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {isLoading && Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i}>
-                    {Array.from({ length: 9 }).map((_, j) => (
-                      <td key={j} className="px-5 py-4">
-                        <div className="h-4 bg-gray-100 rounded animate-pulse" />
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-
-                {!isLoading && teamContents.length === 0 && (
-                  <tr>
-                    <td colSpan={9}>
-                      {total === 0 && !search && !contentLineFilter && !classificationFilter ? (
-                        <div className="flex flex-col items-center justify-center py-14 gap-3">
-                          <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center">
-                            <FileText className="w-7 h-7 text-indigo-300" />
-                          </div>
-                          <p className="font-semibold text-slate-600">Kho team chưa có content</p>
-                          <p className="text-sm text-slate-400">
-                            {canManageSelected ? 'Tạo content mới hoặc thêm từ kho tổng' : 'Leader chưa thêm content nào'}
-                          </p>
-                          {canManageSelected && (
-                            <div className="flex gap-2 mt-1">
-                              <button onClick={() => setShowCreate(true)}
-                                className="border border-indigo-500 text-indigo-600 hover:bg-indigo-50 rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors">
-                                <Plus className="w-4 h-4" /> Tạo mới
-                              </button>
-                              <button onClick={() => setShowAdd(true)}
-                                className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors">
-                                <FileText className="w-4 h-4" /> Từ kho tổng
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="py-10 text-center">
-                          <p className="text-slate-400 text-sm italic">Không tìm thấy content "{search}"</p>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                )}
-
-                {!isLoading && teamContents.map((tc: TeamContent) => {
-                  const ec = tc.source_editor_content
-                  const code = tc.code ?? ec?.code ?? null
-                  const title = tc.title ?? ec?.title ?? null
-                  const market = tc.market ?? ec?.market ?? null
-                  const voiceUrl = tc.voice_url ?? ec?.voice_url ?? null
-                  const fileContentUrl = tc.file_content_url ?? ec?.file_content_url ?? null
-                  const markets = parseMarkets(market)
-                  return (
-                    <tr
-                      key={tc.id}
-                      onClick={() => setSelectedContent(tc)}
-                      className="hover:bg-indigo-50/20 transition-colors group cursor-pointer"
-                    >
-                      {/* Mã content */}
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        <span className="inline-block bg-slate-100 text-slate-600 font-mono text-xs font-semibold px-2.5 py-1 rounded-lg">
-                          {code || <span className="text-slate-300">—</span>}
-                        </span>
-                      </td>
-
-                      {/* Tiêu đề */}
-                      <td className="px-5 py-4 max-w-0">
-                        <span className="text-base font-semibold text-slate-800 truncate block" title={title ?? ''}>
-                          {title || <span className="text-slate-400 italic font-normal text-sm">Chưa đặt tên</span>}
-                        </span>
-                        {tc.source_editor_content_id && (
-                          <span className="text-[10px] text-violet-400 mt-0.5 block">· từ kho cá nhân</span>
-                        )}
-                      </td>
-
-                      {/* Tuyến ND */}
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        {(tc?.content_line?.name ?? ec?.content_line?.name)
-                          ? <span className="text-sm font-medium text-slate-700">{tc.content_line?.name ?? ec?.content_line?.name}</span>
-                          : <span className="text-slate-300 text-sm">—</span>
-                        }
-                      </td>
-
-                      {/* Phân loại */}
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        {(tc.classification?.name ?? ec?.classification?.name)
-                          ? <span className="text-sm font-medium text-slate-700">{tc.classification?.name ?? ec?.classification?.name}</span>
-                          : <span className="text-slate-300 text-sm">—</span>
-                        }
-                      </td>
-
-                      {/* Thị trường */}
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        <div className="flex flex-wrap gap-1">
-                          {markets.length > 0
-                            ? markets.map(m => (
-                              <span key={m} className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${{ VIETNAM: 'bg-emerald-100 text-emerald-700', INDONESIA: 'bg-amber-100 text-amber-700', JAPAN: 'bg-rose-100 text-rose-700', THAILAND: 'bg-sky-100 text-sky-700' }[m] ?? 'bg-gray-100 text-gray-600'}`}>
-                                {{ VIETNAM: 'VN', INDONESIA: 'ID', JAPAN: 'JP', THAILAND: 'TH' }[m] ?? m}
-                              </span>
-                            ))
-                            : <span className="text-slate-300 text-sm">—</span>
-                          }
-                        </div>
-                      </td>
-
-                      {/* Voice / File */}
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          {voiceUrl && (
-                            <span className="inline-flex items-center gap-1 text-xs text-purple-500 font-medium">
-                              <Mic className="w-3.5 h-3.5" /> Voice
-                            </span>
-                          )}
-                          {fileContentUrl && (
-                            <span className="inline-flex items-center gap-1 text-xs text-blue-500 font-medium">
-                              <FileText className="w-3.5 h-3.5" /> File
-                            </span>
-                          )}
-                          {!voiceUrl && !fileContentUrl && (
-                            <span className="text-slate-300 text-sm">—</span>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Người thêm */}
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        <span className="text-sm text-slate-500">
-                          {tc.added_by?.full_name ?? <span className="text-slate-300">—</span>}
-                        </span>
-                      </td>
-
-                      {/* Ngày thêm */}
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        <span className="text-sm text-slate-500">
-                          {(tc as any).added_at ? new Date((tc as any).added_at).toLocaleDateString('vi-VN') : <span className="text-slate-300">—</span>}
-                        </span>
-                      </td>
-
-                      {/* Hành động */}
-                      <td className="px-4 py-4 text-right" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-end gap-1">
-                          {canManageSelected && tc && (
-                            <button
-                              onClick={() => setEditingContent(tc as TeamContent)}
-                              title="Chỉnh sửa"
-                              className="p-2.5 rounded-xl hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 transition-colors"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                          )}
-                          {canPushToGlobal && (
-                            <button
-                              onClick={() => setPushingContent(tc)}
-                              title="Đẩy ra kho tổng"
-                              className="p-2.5 rounded-xl hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition-colors"
-                            >
-                              <Globe className="w-4 h-4" />
-                            </button>
-                          )}
-                          {canManageSelected && (
-                            <button
-                              onClick={() => setRemovingContent(tc)}
-                              title="Xóa khỏi kho team"
-                              className="p-2.5 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-          <Pagination page={page} pageSize={PAGE_SIZE} totalItems={total} onPageChange={setPage} />
-        </div>
+        <TeamContentsBoard
+          teamId={selectedTeamId}
+          brandType={brandType}
+          month={month}
+          search={search}
+          classificationId={classificationFilter}
+          market={teamMarket}
+          canManage={canManageSelected}
+          canPush={canPushToGlobal}
+          onSelect={openDetail}
+          onEdit={openEdit}
+          onRemove={setRemovingContent}
+          onPush={setPushingContent}
+          onAdd={contentLineId => { setPresetLineId(contentLineId); setShowCreate(true) }}
+        />
       )}
 
       {selectedContent && (
@@ -429,7 +233,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
           canDelete={canManageSelected}
           canPushToGlobal={canPushToGlobal}
           onClose={() => setSelectedContent(null)}
-          onEdit={() => { setEditingContent(selectedContent); setSelectedContent(null) }}
+          onEdit={() => { openEdit(selectedContent); setSelectedContent(null) }}
           onDelete={() => { removeMut.mutate(selectedContent.id); setSelectedContent(null) }}
           onPushToGlobal={() => { pushMut.mutate(selectedContent.id); setSelectedContent(null) }}
         />
@@ -463,13 +267,15 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
         teamId={selectedTeamId}
         brandType={brandType}
         initialMarket={teamMarket}
-        onClose={() => { setShowCreate(false); setEditingContent(null) }}
+        initialContentLineId={presetLineId}
+        onClose={() => { setShowCreate(false); setEditingContent(null); setPresetLineId(undefined) }}
         onSuccess={async (content: Content) => {
           if (editingContent) {
             setEditingContent(null)
-            qc.invalidateQueries({ queryKey: ['task-auto', 'team-contents', selectedTeamId, brandType] })
+            qc.invalidateQueries({ queryKey: ['task-auto', 'team-contents'] })
           } else {
             setShowCreate(false)
+            setPresetLineId(undefined)
             try {
               await addTeamContent(selectedTeamId, {
                 brand_type: content.brand_type,
@@ -484,7 +290,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
                 classification_id: content.classification_id,
                 origin: isContentCreatorOfSelected ? (pendingOrigin ?? undefined) : undefined,
               })
-              qc.invalidateQueries({ queryKey: ['task-auto', 'team-contents', selectedTeamId, brandType] })
+              qc.invalidateQueries({ queryKey: ['task-auto', 'team-contents'] })
             } catch (e: any) {
               toast.error(e?.response?.data?.message || 'Content đã tạo nhưng không thể thêm vào kho team. Thử thêm từ "Từ kho tổng".')
             }
