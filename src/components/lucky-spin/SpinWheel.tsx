@@ -8,9 +8,9 @@ import { WheelSegment } from '@/types/lucky-spin';
 import { useSpinReadOnly } from '@/components/lucky-spin/ReadOnlyContext';
 import { useWheelNames } from '@/components/lucky-spin/WheelNamesContext';
 
-const R = 177;
-const CX = 197;
-const CY = 197;
+const R = 196;
+const CX = 196;
+const CY = 196;
 const SIZE = CX * 2;
 /**
  * Cỡ hiển thị, không phải cỡ vẽ.
@@ -29,6 +29,8 @@ interface Props {
   spinning?: boolean;
   /** Thời lượng chuyển động; đặt 0 để nhảy thẳng tới kết quả không animation. */
   transitionMs?: number;
+  /** Đường cong chuyển động easing */
+  easing?: string;
   /** Ghi đè cỡ hiển thị — chế độ trình chiếu dùng gần hết chiều cao màn hình. */
   sizeClass?: string;
   /** Chữ trên nút giữa bánh xe — cũng chính là nút bấm quay. */
@@ -40,11 +42,11 @@ interface Props {
 }
 
 function labelFontSize(count: number): number {
-  if (count > 50) return 7;
-  if (count > 30) return 8.5;
-  if (count > 20) return 9.5;
-  if (count > 10) return 11;
-  return 13;
+  if (count > 50) return 7.5;
+  if (count > 30) return 9;
+  if (count > 20) return 10.5;
+  if (count > 10) return 12;
+  return 14;
 }
 
 function labelMaxChars(count: number): number {
@@ -62,6 +64,7 @@ export function SpinWheel({
   colorOffset = 0,
   spinning = false,
   transitionMs = SPIN_DURATION_MS,
+  easing = SPIN_EASING,
   sizeClass,
   hubLabel,
   onSpin,
@@ -73,10 +76,18 @@ export function SpinWheel({
   const showNames = useWheelNames();
   const readOnly = useSpinReadOnly();
   const interactive = !!onSpin && !readOnly && !spinDisabled && !spinning;
-  const motion = { transitionDuration: `${transitionMs}ms`, transitionTimingFunction: SPIN_EASING };
+  const motion = { transitionDuration: `${transitionMs}ms`, transitionTimingFunction: easing ?? SPIN_EASING };
 
   const pointer = (
-    <div className="relative z-10 -mb-1.5 h-0 w-0 border-l-[16px] border-r-[16px] border-t-[26px] border-l-transparent border-r-transparent border-t-[#F4B63D] drop-shadow-[0_3px_5px_rgba(244,182,61,0.35)]" />
+    <div className="relative z-20 -mb-2.5 flex flex-col items-center">
+      <div
+        className={cn(
+          'h-0 w-0 border-l-[16px] border-r-[16px] border-t-[28px] border-l-transparent border-r-transparent border-t-[#F4B63D] transition-transform duration-200 ease-out drop-shadow-[0_4px_6px_rgba(0,0,0,0.3)]',
+          spinning && 'scale-[1.04]',
+        )}
+      />
+      <div className="absolute -top-1 h-3 w-3 rounded-full bg-white shadow-sm ring-1 ring-[#F4B63D]/40" />
+    </div>
   );
 
   if (segments.length === 0) {
@@ -110,10 +121,10 @@ export function SpinWheel({
       <div
         className={cn(
           box,
-          'relative rounded-full transition-shadow duration-500 ease-out',
+          'relative overflow-hidden rounded-full transition-shadow duration-500 ease-out',
           spinning
-            ? 'shadow-[0_0_0_1px_rgba(244,182,61,0.25),0_0_44px_rgba(244,182,61,0.28)]'
-            : 'shadow-[0_8px_28px_rgba(17,24,39,0.08)]',
+            ? 'shadow-[0_0_0_2px_rgba(244,182,61,0.45),0_0_48px_rgba(244,182,61,0.32)]'
+            : 'shadow-[0_8px_30px_rgba(17,24,39,0.12)]',
         )}
       >
         <svg
@@ -121,6 +132,7 @@ export function SpinWheel({
           className={cn('block h-full w-full', SPIN_TRANSITION)}
           style={{ transform: `rotate(${rotation}deg)`, ...motion }}
         >
+
           {n === 1 ? (
             <g>
               <circle cx={CX} cy={CY} r={R} fill={singleFill.css} stroke="#FFFFFF" strokeWidth={2} />

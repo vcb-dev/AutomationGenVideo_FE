@@ -16,7 +16,6 @@ import { GiftsTab } from '@/components/lucky-spin/GiftsTab';
 import { HistoryTab } from '@/components/lucky-spin/HistoryTab';
 import { MemberSpinTab } from '@/components/lucky-spin/MemberSpinTab';
 import { MembersTab } from '@/components/lucky-spin/MembersTab';
-import { ControlBanner } from '@/components/lucky-spin/ControlBanner';
 import { SpinReadOnlyProvider } from '@/components/lucky-spin/ReadOnlyContext';
 import { mutedClass, pageTitleClass, selectClass } from '@/components/lucky-spin/styles';
 
@@ -131,9 +130,6 @@ export default function LuckySpinPage() {
           // đưa bánh xe về 0. Nếu không, bấm "Xác nhận" sau khi đổi sẽ ghi người trúng của vòng
           // quay cũ vào lịch sử vòng quay mới.
           <WheelNamesProvider showNames={showNames}>
-            {/* Banner nằm NGOÀI provider: nút "Tiếp quản" không được tự khóa theo chế độ chỉ xem,
-                vì đó chính là nút để thoát khỏi chế độ đó. */}
-            <ControlBanner store={store} />
             <SpinReadOnlyProvider readOnly={!store.canControl}>
               <div key={store.workspaceId}>
                 {tab === 'spin' && <MemberSpinTab store={store} />}
