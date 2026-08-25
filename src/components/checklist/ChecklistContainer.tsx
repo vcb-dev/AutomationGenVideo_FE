@@ -1115,6 +1115,7 @@ const ChecklistContainer = ({
                                 values={revenue}
                                 channels={revenueChannels}
                                 availableChannels={availableChannels}
+                                selectedDate={reportDate}
                                 onChange={handleRevenueChange}
                                 onChannelChange={handleRevenueChannelChange}
                                 onEntriesChange={setRevenueEntryDetails}

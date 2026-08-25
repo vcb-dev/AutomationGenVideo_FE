@@ -53,7 +53,7 @@ interface TeamApi {
 }
 
 interface UsageStats {
-    pricing?: { vnd_per_1k_chars: number };
+    pricing?: { vnd_per_1k_chars: number; vnd_per_clone?: number };
     total: { characters: number; tts_count: number; clone_count: number; cost_vnd?: number };
     by_user: UsageByUser[];
 }
@@ -106,6 +106,7 @@ export default function OverviewPage() {
     const rankedUsage = rankUsage(usageStats?.by_user ?? []);
     const usageByUserId = new Map(rankedUsage.map(u => [u.user_id, u]));
     const vndPer1kChars = usageStats?.pricing?.vnd_per_1k_chars ?? 0;
+    const vndPerClone = usageStats?.pricing?.vnd_per_clone ?? 0;
 
     // Fetch real voices count from backend
     useEffect(() => {
@@ -305,7 +306,7 @@ export default function OverviewPage() {
                                         <span className="text-xs text-gray-400">({rangeLabel})</span>
                                     </div>
                                     <p className="text-xs text-gray-400 mt-2">
-                                        Đơn giá {vndPer1kChars.toLocaleString('vi-VN')}đ / 1.000 ký tự
+                                        TTS: {vndPer1kChars.toLocaleString('vi-VN')}đ / 1k ký tự{vndPerClone > 0 ? ` · Clone: ${vndPerClone.toLocaleString('vi-VN')}đ / giọng` : ''}
                                     </p>
                                 </>
                             ) : (

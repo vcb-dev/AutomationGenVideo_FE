@@ -254,7 +254,9 @@ function SidebarContent({
             section: 'KHO THIẾT BỊ',
             items: [
               { label: 'Kho thiết bị', href: '/dashboard/equipment', icon: LayoutGrid },
+              { label: 'Phiếu của tôi', href: '/dashboard/equipment/my-requests', icon: ClipboardList },
               { label: 'Tạo phiếu mượn', href: '/dashboard/equipment/new-request', icon: FileText },
+              { label: 'Quản lý sự cố', href: '/dashboard/equipment/incidents', icon: CheckSquare },
             ]
           }
         ]

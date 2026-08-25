@@ -1,4 +1,4 @@
-import { digitsOnly, sumEntryValues } from './report-total';
+import { digitsOnly, formatNumberWithDots, sumEntryValues } from './report-total';
 
 /**
  * Lỗi thật ngoài production: người dùng nhập 0 vào ô Doanh thu FB/IG/TikTok rồi bấm
@@ -57,5 +57,22 @@ describe('digitsOnly', () => {
         expect(digitsOnly('0')).toBe('0');
         expect(digitsOnly('')).toBe('');
         expect(digitsOnly(undefined as unknown as string)).toBe('');
+    });
+});
+
+describe('formatNumberWithDots', () => {
+    it('định dạng số có dấu chấm phân cách hàng nghìn', () => {
+        expect(formatNumberWithDots('1000000')).toBe('1.000.000');
+        expect(formatNumberWithDots('50000')).toBe('50.000');
+        expect(formatNumberWithDots('123')).toBe('123');
+        expect(formatNumberWithDots('0')).toBe('0');
+        expect(formatNumberWithDots('')).toBe('');
+        expect(formatNumberWithDots(null)).toBe('');
+        expect(formatNumberWithDots(undefined)).toBe('');
+    });
+
+    it('loại bỏ ký tự lạ trước khi format', () => {
+        expect(formatNumberWithDots('1.000.000 views')).toBe('1.000.000');
+        expect(formatNumberWithDots('100,000')).toBe('100.000');
     });
 });

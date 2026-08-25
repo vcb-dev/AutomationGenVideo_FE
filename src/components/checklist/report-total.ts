@@ -15,6 +15,17 @@ export function digitsOnly(text: string): string {
     return (text || '').replace(/\D/g, '');
 }
 
+/**
+ * Format chuỗi số nguyên sang định dạng có dấu chấm phân cách hàng nghìn (VD: "1000000" -> "1.000.000")
+ * Dùng cho ô nhập và hiển thị số liệu Traffic và Doanh thu để người dùng dễ đọc.
+ */
+export function formatNumberWithDots(val: string | number | undefined | null): string {
+    if (val === undefined || val === null || val === '') return '';
+    const digits = String(val).replace(/\D/g, '');
+    if (!digits) return '';
+    return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
 export function sumEntryValues(values: Array<string | undefined | null>): string {
     let hasAnyValue = false;
     let total = BigInt(0);

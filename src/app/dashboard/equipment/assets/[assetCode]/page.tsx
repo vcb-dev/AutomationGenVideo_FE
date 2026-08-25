@@ -36,6 +36,7 @@ export default function AssetDetailPage({ params }: { params: { assetCode: strin
   const code = decodeURIComponent(params.assetCode).toUpperCase();
   const [data, setData] = useState<AssetDetail | null>(null);
   const [photos, setPhotos] = useState<AssetPhoto[]>([]);
+  const [showQrModal, setShowQrModal] = useState(false);
   const roles = useAuthStore((s) => s.user?.roles ?? []);
   // Chỉ người của kho mới sửa được ảnh; member xem thôi.
   const canEdit = roles.some((r) => ['LEADER', 'MANAGER', 'ADMIN'].includes(r));
@@ -75,22 +76,32 @@ export default function AssetDetailPage({ params }: { params: { assetCode: strin
   }
 
   const { asset, events, next_reservation: next, siblings_available: siblings } = data;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=MEMS:${encodeURIComponent(asset.asset_code)}`;
 
   return (
     <div className="mx-auto max-w-6xl">
-      <header className="mb-5">
-        <Link
-          href="/dashboard/equipment"
-          className="text-xs font-semibold text-slate-400 hover:text-slate-600"
+      <header className="mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <Link
+            href="/dashboard/equipment"
+            className="text-xs font-semibold text-slate-400 hover:text-slate-600"
+          >
+            ← Danh sách kho
+          </Link>
+          <h1 className="mt-1 text-xl font-semibold text-slate-900 dark:text-white">
+            {asset.asset_code} — {asset.model.name}
+          </h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Toàn bộ thông tin và lịch sử của một máy cụ thể.
+          </p>
+        </div>
+
+        <button
+          onClick={() => setShowQrModal(true)}
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08] shadow-sm transition-all"
         >
-          ← Danh sách kho
-        </Link>
-        <h1 className="mt-1 text-xl font-semibold text-slate-900 dark:text-white">
-          {asset.asset_code} — {asset.model.name}
-        </h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Toàn bộ thông tin và lịch sử của một máy cụ thể. Mọi thứ trên màn này là chỉ đọc.
-        </p>
+          <span>🏷️</span> In tem mã QR
+        </button>
       </header>
 
       <section className={cardClass}>
@@ -248,6 +259,72 @@ export default function AssetDetailPage({ params }: { params: { assetCode: strin
       <section className={cn(cardClass, 'mt-4')}>
         <AssetBorrowHistory assetId={asset.id} />
       </section>
+
+      {/* MODAL IN TEM MÃ QR CODE */}
+      {showQrModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in"
+          onClick={() => setShowQrModal(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-white/[0.1] dark:bg-slate-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                Tem mã QR Thiết bị
+              </h3>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                In tem dán lên thân thiết bị để quét mã khi giao/nhận kho.
+              </p>
+            </div>
+
+            {/* KHỐI TEM IN CHUẨN */}
+            <div
+              id="printable-label"
+              className="mt-5 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-4 text-center dark:border-white/[0.15] dark:bg-white/[0.02]"
+            >
+              <span className="block text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                VCBI MEDIA EQUIPMENT
+              </span>
+              <div className="my-3 flex justify-center">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={qrUrl}
+                  alt={`QR ${asset.asset_code}`}
+                  className="h-36 w-36 rounded-lg border border-slate-200 bg-white p-1 shadow-sm dark:border-white/[0.1]"
+                />
+              </div>
+              <span className="block font-mono text-lg font-black tracking-wider text-slate-900 dark:text-white">
+                {asset.asset_code}
+              </span>
+              <span className="mt-0.5 block text-xs font-semibold text-slate-700 dark:text-slate-300 truncate">
+                {asset.model.name}
+              </span>
+              <span className="mt-0.5 block font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                SN: {asset.serial_number}
+              </span>
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setShowQrModal(false)}
+                className="flex-1 rounded-xl border border-slate-200 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-white/[0.08] dark:text-slate-300"
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="flex-1 rounded-xl bg-blue-600 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-blue-700 active:scale-95 transition-all"
+              >
+                🖨️ In tem (Print)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

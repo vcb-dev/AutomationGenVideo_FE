@@ -35,8 +35,9 @@ import { fetchWithAuth } from '@/lib/api-client';
 const MINIMAX_RECHARGE_URL = 'https://www.minimax.io/platform/user-center/payment/recharge';
 
 // Đơn giá mặc định khi BE chưa cấu hình env MINIMAX_VND_PER_1K_CHARS:
-// gói 250.000đ / 500.000 ký tự → 500đ mỗi 1.000 ký tự. BE trả giá khác 0 thì dùng giá BE.
-const DEFAULT_VND_PER_1K_CHARS = 500;
+// speech-2.8-hd: $100/1M ký tự → 2.600đ mỗi 1.000 ký tự. BE trả giá khác 0 thì dùng giá BE.
+const DEFAULT_VND_PER_1K_CHARS = 2600;
+const DEFAULT_VND_PER_CLONE = 38000;
 
 // Giới hạn file mẫu để clone. Khớp cả ba tầng: FileInterceptor của BE
 // (ai-integration.controller.ts) và upload_audio của MiniMax đều chặn ở 20MB —
@@ -468,6 +469,7 @@ export default function CloneVoicePage() {
     const [downloadName, setDownloadName] = useState<string | null>(null);
     // Đơn giá VND / 1000 ký tự (BE trả kèm trong /ai/voice/list; 0 = chưa cấu hình → ẩn phần tiền)
     const [vndPer1kChars, setVndPer1kChars] = useState(0);
+    const [vndPerClone, setVndPerClone] = useState(0);
 
     const [isTranslating, setIsTranslating] = useState(false);
 
@@ -498,6 +500,7 @@ export default function CloneVoicePage() {
             if (data.success && data.voices) {
                 setVoices(data.voices);
                 setVndPer1kChars(Number(data.pricing?.vnd_per_1k_chars) || 0);
+                setVndPerClone(Number(data.pricing?.vnd_per_clone) || 0);
                 // Cùng luật với thư mục bên phải và với nút Tạo giọng nói — xem
                 // pickDefaultVoice. Tự chọn một giọng KHÔNG hiện trong thư mục là
                 // cách cũ để người dùng đọc bằng giọng họ không hề thấy mình chọn.
@@ -834,10 +837,10 @@ export default function CloneVoicePage() {
                                 />
                                 <div className="absolute bottom-3 right-3 flex items-center gap-2 text-xs">
                                     <span
-                                        className="px-2 py-0.5 rounded-md bg-green-50 border border-green-200 text-green-700 font-semibold cursor-help"
-                                        title={`Đơn giá ${effectiveVndPer1k.toLocaleString('vi-VN')}đ / 1.000 ký tự${vndPer1kChars > 0 ? '' : ' (giá mặc định gói 250.000đ/500.000 ký tự — chỉnh qua env MINIMAX_VND_PER_1K_CHARS của BE)'}`}
+                                        className="px-2.5 py-1 rounded-md bg-green-50 border border-green-200 text-green-700 font-semibold cursor-help"
+                                        title={`Đơn giá TTS: ${effectiveVndPer1k.toLocaleString('vi-VN')}đ / 1.000 ký tự (Model HD speech-2.8-hd)${vndPer1kChars > 0 ? '' : ' (mặc định — chỉnh qua env MINIMAX_VND_PER_1K_CHARS của BE)'}`}
                                     >
-                                        💰 ≈ {estimatedCostVnd.toLocaleString('vi-VN')}đ
+                                        💰 ≈ {estimatedCostVnd.toLocaleString('vi-VN')}đ <span className="font-normal text-green-600">({effectiveVndPer1k.toLocaleString('vi-VN')}đ/1k ký tự)</span>
                                     </span>
                                     <span className="text-gray-400">{charCount} / {maxChars} ký tự</span>
                                 </div>

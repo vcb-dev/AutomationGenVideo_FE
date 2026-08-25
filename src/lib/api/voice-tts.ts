@@ -4,7 +4,7 @@ import type { Voice } from '@/lib/voice/voice-selection'
 export interface VoiceListResponse {
   success: boolean
   voices: Voice[]
-  pricing?: { vnd_per_1k_chars: number }
+  pricing?: { vnd_per_1k_chars: number; vnd_per_clone?: number }
 }
 
 export interface TtsPayload {
@@ -14,6 +14,7 @@ export interface TtsPayload {
   pitch?: number
   volume?: number
   language?: string
+  model?: string
 }
 
 export interface TtsResult {
@@ -23,6 +24,7 @@ export interface TtsResult {
   audio_file_name?: string | null
   usage_characters?: number
   duration?: number
+  model?: string
   error?: string
 }
 

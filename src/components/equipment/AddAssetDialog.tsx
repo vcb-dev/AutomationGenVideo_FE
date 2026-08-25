@@ -9,6 +9,7 @@ import {
   StorageLocation,
   createAsset,
   createCategory,
+  createLocation,
   createModel,
   uploadAssetPhoto,
   fetchCategories,
@@ -23,6 +24,7 @@ const hintClass = 'mt-0.5 block text-xs text-slate-500 dark:text-slate-400';
 
 const NEW_CATEGORY = '__new_category__';
 const NEW_MODEL = '__new_model__';
+const NEW_LOCATION = '__new_location__';
 
 export function formatCategoryName(cat: EquipmentCategory) {
   const map: Record<string, string> = {
@@ -77,6 +79,9 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
   const [newPrice, setNewPrice] = useState('');
   const [newAccessories, setNewAccessories] = useState('');
 
+  // Tạo vị trí kho mới
+  const [newLocationName, setNewLocationName] = useState('');
+
   // Ảnh tải lên
   const [photos, setPhotos] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
@@ -130,11 +135,14 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
 
   const isCreatingModel = isCreatingCategory || modelId === NEW_MODEL;
 
+  const isCreatingLocation = locationId === NEW_LOCATION;
+
   const canSubmit =
     serialNumber.trim() !== '' &&
     !saving &&
     (isCreatingCategory ? newCatName.trim() !== '' : selectedCategoryId !== '') &&
-    (isCreatingModel ? newModelName.trim() !== '' : modelId !== '');
+    (isCreatingModel ? newModelName.trim() !== '' : modelId !== '') &&
+    (!isCreatingLocation || newLocationName.trim() !== '');
 
   const addPhotos = (files: FileList | null) => {
     if (!files?.length) return;
@@ -186,12 +194,22 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
         targetModelId = model.id;
       }
 
-      // 3. Nhập kho thiết bị
+      // 3. Tạo vị trí kho mới nếu được chọn
+      let targetLocationId = locationId;
+      if (isCreatingLocation) {
+        setStage('Đang tạo vị trí kho mới…');
+        const loc = await createLocation({
+          name: newLocationName.trim(),
+        });
+        targetLocationId = loc.id;
+      }
+
+      // 4. Nhập kho thiết bị
       setStage('Đang nhập kho thiết bị…');
       const asset = await createAsset({
         modelId: targetModelId,
         serialNumber: serialNumber.trim(),
-        locationId: locationId || undefined,
+        locationId: targetLocationId && targetLocationId !== NEW_LOCATION ? targetLocationId : undefined,
         purchaseDate: purchaseDate || undefined,
         purchasePrice: purchasePrice ? Number(purchasePrice) : undefined,
         condition,
@@ -450,21 +468,40 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
               />
             </label>
 
-            <label className="block">
-              <span className={labelClass}>Vị trí trong kho</span>
-              <select
-                className={cn(inputClass, 'mt-2')}
-                value={locationId}
-                onChange={(e) => setLocationId(e.target.value)}
-              >
-                <option value="">— Chưa xếp chỗ —</option>
-                {locations.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="space-y-2">
+              <label className="block">
+                <span className={labelClass}>Vị trí trong kho</span>
+                <select
+                  className={cn(inputClass, 'mt-2')}
+                  value={locationId}
+                  onChange={(e) => setLocationId(e.target.value)}
+                >
+                  <option value="">— Chưa xếp chỗ —</option>
+                  {locations.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name}
+                    </option>
+                  ))}
+                  <option value={NEW_LOCATION}>+ Thêm vị trí kho mới…</option>
+                </select>
+              </label>
+
+              {isCreatingLocation && (
+                <div className="rounded-xl border border-purple-200 bg-purple-50/80 p-3 dark:border-purple-500/30 dark:bg-purple-500/[0.08]">
+                  <label className="block">
+                    <span className="text-xs font-bold uppercase tracking-wider text-purple-700 dark:text-purple-300">
+                      Tên vị trí kho mới <em className="not-italic text-red-600">*</em>
+                    </span>
+                    <input
+                      className={cn(inputClass, 'mt-1.5')}
+                      value={newLocationName}
+                      onChange={(e) => setNewLocationName(e.target.value)}
+                      placeholder="Ví dụ: Tủ chống ẩm Tầng 2, Kệ A1, Studio 3..."
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block">

@@ -46,6 +46,7 @@ export default function TopContent({ video }: { video: VideoNoiBat[] }) {
                     <img
                       src={v.thumbnail}
                       alt=""
+                      referrerPolicy="no-referrer"
                       loading="lazy"
                       className="absolute inset-0 w-full h-full object-cover"
                       onError={(e) => {

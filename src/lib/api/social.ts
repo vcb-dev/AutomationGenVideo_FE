@@ -223,6 +223,8 @@ export const socialApi = {
     disconnect: (id: string) => apiClient.delete(`/social/accounts/${id}`).then((r) => r.data),
     expiring: (): Promise<Array<SocialAccount & { days_until_expiry: number }>> =>
       apiClient.get('/social/accounts/expiring').then((r) => r.data),
+    refreshToken: (id: string) => apiClient.post<{ success: boolean; message: string; tokenExpiresAt?: string }>(`/social/accounts/${id}/refresh-token`).then((r) => r.data),
+    refreshAll: () => apiClient.post<{ success: boolean; message: string }>('/social/accounts/refresh-all').then((r) => r.data),
   },
 
   oauth: {

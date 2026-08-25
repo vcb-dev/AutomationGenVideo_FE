@@ -112,6 +112,11 @@ export async function fetchLocations() {
   return data;
 }
 
+export async function createLocation(payload: { name: string; parentId?: string }) {
+  const { data } = await apiClient.post<StorageLocation>('/mems/locations', payload);
+  return data;
+}
+
 export async function createModel(payload: {
   categoryId: string;
   name: string;

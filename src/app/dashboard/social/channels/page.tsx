@@ -62,6 +62,38 @@ export default function ChannelsPage() {
   const [connecting, setConnecting] = useState<SocialPlatform | null>(null);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [refreshingToken, setRefreshingToken] = useState<string | null>(null);
+  const [refreshingAll, setRefreshingAll] = useState(false);
+
+  const handleRefreshToken = async (accountId: string) => {
+    setRefreshingToken(accountId);
+    try {
+      const res = await socialApi.accounts.refreshToken(accountId);
+      toast.success(res.message || 'Đã làm mới token thành công');
+      await invalidateAccounts();
+      socialApi.accounts.expiring().then(setExpiringAccounts).catch(() => {});
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Lỗi khi làm mới token';
+      toast.error(`Làm mới token thất bại: ${msg}`);
+    } finally {
+      setRefreshingToken(null);
+    }
+  };
+
+  const handleRefreshAll = async () => {
+    setRefreshingAll(true);
+    try {
+      const res = await socialApi.accounts.refreshAll();
+      toast.success(res.message || 'Đã kích hoạt tự động gia hạn token');
+      await invalidateAccounts();
+      socialApi.accounts.expiring().then(setExpiringAccounts).catch(() => {});
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Lỗi khi làm mới token';
+      toast.error(`Lỗi: ${msg}`);
+    } finally {
+      setRefreshingAll(false);
+    }
+  };
 
   // Keep a ref to t so closures in effects/intervals always get the latest translations
   const tRef = useRef(t);
@@ -274,23 +306,33 @@ export default function ChannelsPage() {
 
       {/* Token expiry warning banner */}
       {expiringAccounts.length > 0 && (
-        <div className="mx-8 mt-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-amber-800 mb-1">
-              {t.expiringBanner(expiringAccounts.length)}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {expiringAccounts.map((acc: any) => (
-                <span key={acc.id} className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 bg-amber-100 px-2.5 py-1 rounded-full border border-amber-200">
-                  <Clock className="w-3 h-3" />
-                  {acc.name}
-                  <span className="text-amber-500">· {acc.days_until_expiry <= 0 ? t.expired : t.daysLeft(acc.days_until_expiry)}</span>
-                </span>
-              ))}
+        <div className="mx-8 mt-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3 min-w-0">
+            <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-amber-800 mb-1">
+                {t.expiringBanner(expiringAccounts.length)}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {expiringAccounts.map((acc: any) => (
+                  <span key={acc.id} className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 bg-amber-100 px-2.5 py-1 rounded-full border border-amber-200">
+                    <Clock className="w-3 h-3" />
+                    {acc.name}
+                    <span className="text-amber-500">· {acc.days_until_expiry <= 0 ? t.expired : t.daysLeft(acc.days_until_expiry)}</span>
+                  </span>
+                ))}
+              </div>
+              <p className="text-xs text-amber-600 mt-1.5">{t.renewHint}</p>
             </div>
-            <p className="text-xs text-amber-600 mt-1.5">{t.renewHint}</p>
           </div>
+          <button
+            onClick={handleRefreshAll}
+            disabled={refreshingAll}
+            className="px-4 py-2.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 active:scale-95 rounded-xl shadow-sm transition-all flex items-center gap-1.5 flex-shrink-0 disabled:opacity-60"
+          >
+            {refreshingAll ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+            Tự động gia hạn (+60 ngày)
+          </button>
         </div>
       )}
 
@@ -595,6 +637,17 @@ export default function ChannelsPage() {
 
                         </div>
                         <div className="flex flex-wrap items-center gap-2 flex-shrink-0 self-start sm:self-auto">
+                          {(platform === 'FACEBOOK' || platform === 'YOUTUBE') && (
+                            <button
+                              onClick={() => handleRefreshToken(account.id)}
+                              disabled={refreshingToken === account.id}
+                              title="Gia hạn thêm 60 ngày hoặc làm mới Token tự động"
+                              className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors disabled:opacity-60"
+                            >
+                              <RefreshCw className={`w-3.5 h-3.5 ${refreshingToken === account.id ? 'animate-spin' : ''}`} />
+                              Làm mới Token
+                            </button>
+                          )}
                           {platform === 'FACEBOOK' && hasPages && (
                             <button
                               onClick={() => toggleCollapse(account.id)}

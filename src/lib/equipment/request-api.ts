@@ -52,6 +52,16 @@ export async function fetchRequests(status?: string) {
   return data;
 }
 
+export async function fetchMyRequests() {
+  const { data } = await apiClient.get<BorrowRequest[]>('/mems/my-requests');
+  return data;
+}
+
+export async function cancelRequest(id: string, reason?: string) {
+  const { data } = await apiClient.post<BorrowRequest>(`/mems/requests/${id}/cancel`, { reason });
+  return data;
+}
+
 export async function fetchRequest(id: string) {
   const { data } = await apiClient.get<BorrowRequest>(`/mems/requests/${id}`);
   return data;
@@ -223,8 +233,58 @@ export interface BorrowLogResponse {
   pageSize: number;
 }
 
-/** Nhật ký toàn bộ lượt mượn của kho. BE chặn bằng @Roles — chỉ ADMIN/quản lý kho gọi được. */
-export async function fetchBorrowHistoryLog(query: Record<string, string | number>) {
-  const { data } = await apiClient.get<BorrowLogResponse>('/mems/borrow-history', { params: query });
+export async function fetchBorrowHistoryLog(params?: Record<string, any>) {
+  const { data } = await apiClient.get<BorrowLogResponse>('/mems/borrow-history', { params });
+  return data;
+}
+
+export interface IncidentItem {
+  id: string;
+  asset_id: string;
+  request_id: string | null;
+  return_line_id: string | null;
+  responsible_id: string | null;
+  kind: 'CONDITION_WORSENED' | 'MISSING_ACCESSORY' | 'OVERDUE';
+  description: string;
+  status: 'OPEN' | 'UNDER_REVIEW' | 'RESOLVED' | 'WRITTEN_OFF';
+  created_at: string;
+  asset: Asset;
+}
+
+export async function fetchIncidents(status?: string) {
+  const { data } = await apiClient.get<IncidentItem[]>('/mems/incidents', {
+    params: status ? { status } : undefined,
+  });
+  return data;
+}
+
+export async function resolveIncident(id: string, note?: string) {
+  const { data } = await apiClient.post(`/mems/incidents/${id}/resolve`, { note });
+  return data;
+}
+
+export interface MaintenanceItem {
+  id: string;
+  asset_id: string;
+  reason: string;
+  from_time: string;
+  to_time: string | null;
+  cost: number | string | null;
+  created_at: string;
+  asset: Asset;
+}
+
+export async function fetchMaintenances(openOnly = false) {
+  const { data } = await apiClient.get<MaintenanceItem[]>('/mems/maintenances', {
+    params: openOnly ? { openOnly: 'true' } : undefined,
+  });
+  return data;
+}
+
+export async function finishMaintenance(
+  id: string,
+  payload: { cost?: number; condition?: string; note?: string },
+) {
+  const { data } = await apiClient.post(`/mems/maintenances/${id}/finish`, payload);
   return data;
 }
