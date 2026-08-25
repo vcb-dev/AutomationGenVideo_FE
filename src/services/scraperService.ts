@@ -1921,4 +1921,16 @@ export const scraperService = {
     if (!res.ok) throw new Error('Cập nhật trạng thái thất bại');
     return res.json();
   },
+
+  deleteScrapedVideo: async (token: string, platform: string, videoId: string): Promise<{ success: boolean; message: string }> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/stream/${encodeURIComponent(platform)}/${encodeURIComponent(videoId)}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Xoá video thất bại');
+    }
+    return res.json();
+  },
 };
