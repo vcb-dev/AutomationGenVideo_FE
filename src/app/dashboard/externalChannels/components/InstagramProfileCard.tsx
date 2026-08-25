@@ -1,6 +1,6 @@
 'use client';
 
-import { Users, Heart, VideoCamera, ArrowsClockwise, BookmarkSimple, Timer, CircleNotch, SealCheck, Buildings, UserCircle } from '@phosphor-icons/react';
+import { Users, Heart, VideoCamera, ArrowsClockwise, BookmarkSimple, Timer, CircleNotch, SealCheck, Buildings, UserCircle, House } from '@phosphor-icons/react';
 import { InstagramProfile } from '@/services/scraperService';
 import { ChannelInfo } from '@/services/channelsService';
 
@@ -24,10 +24,15 @@ interface Props {
   onScrape?: () => void;
   onToggleBookmark: () => void;
   onToggleTracked?: () => void;
+  /**
+   * Đánh dấu đây là kênh của công ty. Chỉ leader/admin nên truyền vào — cờ này quyết định
+   * profile có được tính vào trang Tổng quan kênh nội bộ hay không.
+   */
+  onToggleOwned?: () => void;
   onViewDetail: () => void;
 }
 
-export default function InstagramProfileCard({ profile: p, channelInfo, onScrape, onToggleBookmark, onToggleTracked, onViewDetail }: Props) {
+export default function InstagramProfileCard({ profile: p, channelInfo, onScrape, onToggleBookmark, onToggleTracked, onToggleOwned, onViewDetail }: Props) {
   const isProcessing = p.scraping_status === 'processing';
 
   return (
@@ -40,8 +45,13 @@ export default function InstagramProfileCard({ profile: p, channelInfo, onScrape
       }`}
     >
       {/* Badges */}
-      {(p.is_tracked || isProcessing) && (
+      {(p.is_owned || p.is_tracked || isProcessing) && (
         <div className="flex items-center gap-1.5 px-3.5 pt-2.5 pb-0">
+          {p.is_owned && (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded text-xs font-medium">
+              <House size={10} weight="fill" /> Kênh nội bộ
+            </span>
+          )}
           {p.is_tracked && (
             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded text-xs font-medium">
               <Timer size={10} weight="fill" /> Kênh chú ý
@@ -162,6 +172,23 @@ export default function InstagramProfileCard({ profile: p, channelInfo, onScrape
             title={p.is_tracked ? 'Bỏ kênh chú ý' : 'Đánh dấu kênh chú ý'}
           >
             <Timer size={14} weight={p.is_tracked ? 'fill' : 'regular'} />
+          </button>
+        )}
+        {onToggleOwned && (
+          <button
+            onClick={onToggleOwned}
+            className={`flex items-center justify-center gap-1 py-2.5 text-xs transition-colors border-l border-border ${onScrape ? 'px-3' : 'flex-1'} ${
+              p.is_owned
+                ? 'text-blue-500 bg-blue-50/50 dark:bg-blue-900/10'
+                : 'text-slate-400 hover:text-blue-500 hover:bg-blue-50/50'
+            }`}
+            title={
+              p.is_owned
+                ? 'Bỏ đánh dấu kênh nội bộ — kênh sẽ biến khỏi trang Tổng quan kênh nội bộ'
+                : 'Đánh dấu là kênh của công ty — số liệu sẽ được tính vào trang Tổng quan kênh nội bộ'
+            }
+          >
+            <House size={14} weight={p.is_owned ? 'fill' : 'regular'} />
           </button>
         )}
       </div>

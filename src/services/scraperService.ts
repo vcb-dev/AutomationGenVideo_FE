@@ -298,6 +298,9 @@ export interface PaginatedTikTokProfileVideos {
   videos: TikTokProfileVideo[];
 }
 
+/** Khớp với TOGGLE_FIELDS bên BE (instagram-scraper.service.ts). */
+export type InstagramToggleField = 'is_bookmarked' | 'is_tracked' | 'is_owned';
+
 export interface InstagramProfile {
   id: number;
   username: string;
@@ -728,6 +731,12 @@ export interface DailyStats extends PeriodStats {
 
 export interface PlatformStats extends PeriodStats {
   platform: string;
+  /**
+   * false = nền tảng có bài trong kỳ nhưng KHÔNG lấy được lượt xem (ví dụ Instagram khi token
+   * thiếu quyền insight). Khác hẳn với "có lấy được và bằng 0". BE cũ không trả cờ này nên
+   * mặc định coi là true.
+   */
+  viewsAvailable?: boolean;
   previous?: PeriodStats;
   followers: number;
   /** Active channels with posts in period. */
@@ -849,6 +858,8 @@ export interface InternalStats {
   contentLines?: ContentLineStats[];
   hashtags?: HashtagStats[];
   alerts?: ChannelAlert[];
+  /** Tổng số cảnh báo trước khi cắt bớt cho vừa màn hình — `alerts` có thể ngắn hơn. */
+  alertTotal?: number;
   totalChannels?: number;
 
   // Backward compatibility:
@@ -860,6 +871,7 @@ export interface InternalStats {
   tuyen_noi_dung?: ContentLineStats[];
   hashtag?: HashtagStats[];
   canh_bao?: ChannelAlert[];
+  tong_canh_bao?: number;
   tong_kenh?: number;
 }
 
@@ -1364,7 +1376,11 @@ export const scraperService = {
     return res.json();
   },
 
-  toggleInstagramProfile: async (token: string, id: number, field: 'is_bookmarked' | 'is_tracked'): Promise<any> => {
+  /**
+   * `is_owned` = kênh của công ty (BE chỉ cho leader/admin đổi). Đây là tiêu chí duy nhất để
+   * trang Tổng quan kênh nội bộ tính profile này vào số liệu.
+   */
+  toggleInstagramProfile: async (token: string, id: number, field: InstagramToggleField): Promise<any> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/instagram/profiles/${id}/toggle/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -1860,6 +1876,22 @@ export const scraperService = {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return { lookalikes: [] };
+    return res.json();
+  },
+
+  /**
+   * Đồng bộ kênh Instagram nội bộ từ các tài khoản đã kết nối ở trang đăng bài MXH.
+   * Đây là đường duy nhất bật `is_owned` hàng loạt — cron chạy 07:15 mỗi sáng, nút bấm này
+   * để chạy ngay khi vừa kết nối thêm tài khoản.
+   */
+  syncOwnedInstagram: async (
+    token: string,
+  ): Promise<{ accounts: number; createdProfiles: number; updatedProfiles: number; syncedMedia: number; failed: number }> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/instagram/owned/sync`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Đồng bộ kênh Instagram thất bại');
     return res.json();
   },
 

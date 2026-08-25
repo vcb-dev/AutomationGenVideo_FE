@@ -9,7 +9,14 @@ import { ChannelAvatar, Subtitle, Card, PlatformCard, CardTitle, EmptyState } fr
  * 2. View drops
  * 3. Inactive/silent channels
  */
-export default function AlertBlock({ alerts }: { alerts: ChannelAlert[] }) {
+export default function AlertBlock({
+  alerts,
+  hiddenCount = 0,
+}: {
+  alerts: ChannelAlert[];
+  /** Số cảnh báo BE đã cắt đi cho vừa màn hình. Không nói ra thì 12 dòng đọc như là tất cả. */
+  hiddenCount?: number;
+}) {
   return (
     <Card chim className="!mb-0">
       <CardTitle hint="Kênh đồng bộ lỗi, tụt hiệu quả hoặc đã lâu không đăng bài">
@@ -55,6 +62,12 @@ export default function AlertBlock({ alerts }: { alerts: ChannelAlert[] }) {
               </div>
             );
           })}
+
+          {hiddenCount > 0 && (
+            <p className="text-[12.5px] text-slate-400 dark:text-slate-500 pt-3">
+              Còn {hiddenCount} cảnh báo nữa không hiện ở đây — mở mục Kênh nội bộ để xem đầy đủ.
+            </p>
+          )}
         </div>
       )}
     </Card>

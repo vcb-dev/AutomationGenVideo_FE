@@ -2,14 +2,15 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CircleNotch, MagnifyingGlassPlus, UserCircle, FilmReel, Warning, Eye, Heart, ChatCircle } from '@phosphor-icons/react';
+import { CircleNotch, MagnifyingGlassPlus, UserCircle, FilmReel, Warning, Eye, Heart, ChatCircle, ArrowsClockwise } from '@phosphor-icons/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 
 import InstagramProfileCard from '../../externalChannels/components/InstagramProfileCard';
 import { useAuthStore } from '@/store/auth-store';
-import { scraperService, ExternalVideo } from '@/services/scraperService';
+import { UserRole } from '@/types/auth';
+import { scraperService, ExternalVideo, InstagramToggleField } from '@/services/scraperService';
 import ContentFilters from '../components/ContentFilters';
 import { FilterDateRange, FilterNumber, FilterReset, FilterSearch, FilterSelect } from '../components/FilterFields';
 import { channelsService, ChannelInfo } from '@/services/channelsService';
@@ -91,7 +92,9 @@ function VideoCard({ video: v }: { video: ExternalVideo }) {
 }
 
 export default function InstagramChannelsPage() {
-  const { token } = useAuthStore();
+  const { token, user } = useAuthStore();
+  // Bỏ đánh dấu kênh nội bộ làm số liệu công ty đổi theo — cùng mức quyền với bên Khám phá kênh.
+  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
   const queryClient = useQueryClient();
   const router = useRouter();
   const { start: startProfileScrapeNotif } = useProfileScrapeNotification('instagram');
@@ -186,11 +189,36 @@ export default function InstagramChannelsPage() {
   });
 
   const toggleMutation = useMutation({
-    mutationFn: ({ id, field }: { id: number; field: 'is_bookmarked' | 'is_tracked' }) => {
+    mutationFn: ({ id, field }: { id: number; field: InstagramToggleField }) => {
       if (!token) throw new Error('No token');
       return scraperService.toggleInstagramProfile(token, id, field);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['owned-instagram-profiles'] }),
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['owned-instagram-profiles'] });
+      if (vars.field === 'is_owned') {
+        // Bỏ đánh dấu là kênh rời khỏi chính danh sách này, và rời khỏi số liệu tổng quan.
+        queryClient.invalidateQueries({ queryKey: ['owned-stats'] });
+        queryClient.invalidateQueries({ queryKey: ['owned-dup'] });
+        toast.success('Đã bỏ đánh dấu kênh nội bộ');
+      }
+    },
+  });
+
+  const syncOwnedMutation = useMutation({
+    mutationFn: () => {
+      if (!token) throw new Error('No token');
+      return scraperService.syncOwnedInstagram(token);
+    },
+    onSuccess: (r) => {
+      toast.success(
+        `Đồng bộ xong ${r.accounts} kênh (+${r.createdProfiles} mới), ${r.syncedMedia} bài` +
+          (r.failed ? ` — ${r.failed} kênh lỗi` : ''),
+      );
+      queryClient.invalidateQueries({ queryKey: ['owned-instagram-profiles'] });
+      queryClient.invalidateQueries({ queryKey: ['owned-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['owned-dup'] });
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   // ── Videos ───────────────────────────────────────────
@@ -272,6 +300,19 @@ export default function InstagramChannelsPage() {
             {scrapeMutation.isPending ? <CircleNotch size={16} weight="bold" className="animate-spin" /> : <MagnifyingGlassPlus size={16} weight="bold" />}
             {scrapeMutation.isPending ? 'Đang gửi...' : 'Thêm kênh'}
           </button>
+          {canManageChannels && (
+            <button
+              onClick={() => syncOwnedMutation.mutate()}
+              disabled={syncOwnedMutation.isPending}
+              title="Lấy toàn bộ tài khoản Instagram đã kết nối ở trang đăng bài MXH và đánh dấu là kênh nội bộ"
+              className="flex items-center gap-2 px-4 py-2.5 border border-border text-sm font-semibold rounded-md hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 whitespace-nowrap transition-colors"
+            >
+              {syncOwnedMutation.isPending
+                ? <CircleNotch size={16} weight="bold" className="animate-spin" />
+                : <ArrowsClockwise size={16} weight="bold" />}
+              {syncOwnedMutation.isPending ? 'Đang đồng bộ...' : 'Đồng bộ từ tài khoản đã kết nối'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -328,6 +369,7 @@ export default function InstagramChannelsPage() {
               onScrape={() => rescrape.mutate({ id: p.id, username: p.username })}
               onToggleBookmark={() => toggleMutation.mutate({ id: p.id, field: 'is_bookmarked' })}
               onToggleTracked={() => toggleMutation.mutate({ id: p.id, field: 'is_tracked' })}
+              onToggleOwned={canManageChannels ? () => toggleMutation.mutate({ id: p.id, field: 'is_owned' }) : undefined}
               onViewDetail={() => router.push(`/dashboard/internalChannels/instagram/${p.id}`)}
             />
           ))}
