@@ -16,6 +16,7 @@ import { useSubmitVideoToLibrary } from '@/hooks/useProposeVideo';
 import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
 import { UserRole } from '@/types/auth';
 import { dedupeById } from '@/lib/dedupe-pages';
+import { buildDeleteChannelConfirm } from '@/lib/scrape/delete-channel';
 import WatchFeedButton from '../components/WatchFeedButton';
 
 const PAGE_SIZE_PROFILES = 12;
@@ -112,6 +113,29 @@ export default function YoutubeExternalPage() {
   const { token, user } = useAuthStore();
   const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
   const queryClient = useQueryClient();
+
+  // Xoá cứng kênh: BE xoá kèm toàn bộ video/lịch sử, không hoàn tác được. Hộp xác nhận
+  // phải nói số video sắp mất — trên thẻ thì kênh 300 video trông y hệt kênh rỗng.
+  const deleteChannelMutation = useMutation({
+    mutationFn: (id: number) => {
+      if (!token) throw new Error('No token');
+      return scraperService.deleteExternalChannel(token, 'youtube', id);
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['youtube-profiles'] });
+      toast.success(
+        data.videos_deleted > 0
+          ? `Đã xoá ${data.name} và ${data.videos_deleted.toLocaleString('vi-VN')} video`
+          : `Đã xoá ${data.name}`,
+      );
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const handleDeleteChannel = (id: number, name: string, videoCount: number) => {
+    if (!window.confirm(buildDeleteChannelConfirm({ name, videoCount }))) return;
+    deleteChannelMutation.mutate(id);
+  };
   const router = useRouter();
   const { start: startProfileScrapeNotif } = useProfileScrapeNotification('youtube');
 
@@ -135,7 +159,7 @@ export default function YoutubeExternalPage() {
   const profilesQuery = useQuery({
     queryKey: ['youtube-profiles', page, debouncedSearch, sortBy],
     queryFn: () => token ? scraperService.getYoutubeProfiles(token, {
-      page, page_size: PAGE_SIZE_PROFILES, search: debouncedSearch || undefined, sort_by: sortBy,
+      page, page_size: PAGE_SIZE_PROFILES, search: debouncedSearch || undefined, sort_by: sortBy, is_owned: false,
     }) : Promise.reject('No token'),
     enabled: !!token,
     refetchInterval: 15000,
@@ -331,6 +355,7 @@ export default function YoutubeExternalPage() {
                     onToggleBookmark={() => toggleMutation.mutate({ id: p.id, field: 'is_bookmarked' })}
                     onToggleTracked={canManageChannels ? () => toggleMutation.mutate({ id: p.id, field: 'is_tracked' }) : undefined}
                     onViewDetail={() => router.push(`/dashboard/externalChannels/youtube/${p.id}`)}
+                  onDelete={canManageChannels ? () => handleDeleteChannel(p.id, p.title, p.video_count ?? 0) : undefined}
                   />
                 ))}
               </div>

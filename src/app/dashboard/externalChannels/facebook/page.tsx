@@ -16,6 +16,7 @@ import { scraperService, ScrapedFanpage } from '@/services/scraperService';
 import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
 import { UserRole } from '@/types/auth';
 import { dedupeById } from '@/lib/dedupe-pages';
+import { buildDeleteChannelConfirm } from '@/lib/scrape/delete-channel';
 import WatchFeedButton from '../components/WatchFeedButton';
 
 const PAGE_SIZE_FANPAGES = 12;
@@ -27,6 +28,30 @@ export default function FacebookExternalPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const { start: startProfileScrapeNotif } = useProfileScrapeNotification('facebook');
+
+  // Xoá cứng fanpage: BE xoá kèm toàn bộ reels/lịch sử chỉ số, không hoàn tác được.
+  // Hộp xác nhận phải nói số reels sắp mất — trên thẻ thì fanpage đã cào 300 reels trông
+  // y hệt một page rác chưa cào gì.
+  const deleteChannelMutation = useMutation({
+    mutationFn: (id: number) => {
+      if (!token) throw new Error('No token');
+      return scraperService.deleteExternalChannel(token, 'facebook', id);
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['scraper-fanpages'] });
+      toast.success(
+        data.videos_deleted > 0
+          ? `Đã xoá ${data.name} và ${data.videos_deleted.toLocaleString('vi-VN')} reels`
+          : `Đã xoá ${data.name}`,
+      );
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const handleDeleteChannel = (id: number, name: string, videoCount: number) => {
+    if (!window.confirm(buildDeleteChannelConfirm({ name, videoCount }))) return;
+    deleteChannelMutation.mutate(id);
+  };
 
   // Fanpage pagination + search
   const [fpPage, setFpPage] = useState(1);
@@ -264,6 +289,7 @@ export default function FacebookExternalPage() {
                     onToggleBookmark={() => toggleMutation.mutate({ id: fp.id, field: 'is_bookmarked' })}
                     onTogglePeriodic={canManageChannels ? () => toggleMutation.mutate({ id: fp.id, field: 'is_periodic_crawl' }) : undefined}
                     onViewDetail={() => router.push(`/dashboard/externalChannels/facebook/${fp.id}`)}
+                    onDelete={canManageChannels ? (f) => handleDeleteChannel(f.id, f.name, f.reels_count ?? 0) : undefined}
                   />
                 ))}
               </div>
