@@ -1664,7 +1664,7 @@ export const scraperService = {
 
   // Trigger scrape reels (auto 300/10)
   triggerScrapeReels: async (token: string, fanpageId: number): Promise<{ message: string; is_scraping?: boolean }> => {
-    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/scrape-reels/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/scrape-reels`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ fanpage_id: fanpageId }),
@@ -1677,7 +1677,7 @@ export const scraperService = {
   },
 
   fanpageScrapeByUrl: async (token: string, url: string): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; fanpage_id: number }> => {
-    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/scrape-by-url/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/scrape-by-url`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ url }),
