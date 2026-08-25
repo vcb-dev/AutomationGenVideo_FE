@@ -3,6 +3,7 @@
 import { Users, Heart, VideoCamera, ArrowsClockwise, BookmarkSimple, Timer, CircleNotch, SealCheck, Buildings, UserCircle, House } from '@phosphor-icons/react';
 import { InstagramProfile } from '@/services/scraperService';
 import { ChannelInfo } from '@/services/channelsService';
+import DeleteChannelButton from './DeleteChannelButton';
 
 function proxyImg(url: string): string {
   if (!url) return '';
@@ -30,9 +31,10 @@ interface Props {
    */
   onToggleOwned?: () => void;
   onViewDetail: () => void;
+  onDelete?: () => void;
 }
 
-export default function InstagramProfileCard({ profile: p, channelInfo, onScrape, onToggleBookmark, onToggleTracked, onToggleOwned, onViewDetail }: Props) {
+export default function InstagramProfileCard({ profile: p, channelInfo, onScrape, onToggleBookmark, onToggleTracked, onToggleOwned, onViewDetail, onDelete }: Props) {
   const isProcessing = p.scraping_status === 'processing';
 
   return (
@@ -191,6 +193,7 @@ export default function InstagramProfileCard({ profile: p, channelInfo, onScrape
             <House size={14} weight={p.is_owned ? 'fill' : 'regular'} />
           </button>
         )}
+        {onDelete && <DeleteChannelButton onDelete={onDelete} />}
       </div>
     </div>
   );

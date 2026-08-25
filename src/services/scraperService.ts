@@ -1,6 +1,15 @@
 import { fetchWithAuth } from '@/lib/api-client';
 // Đi qua BE (proxy sang AI ở src/modules/scraper-proxy), không gọi thẳng AI nữa.
 import type { PlatformKey } from '@/lib/platform-config';
+import { buildDeleteChannelPath, type DeletableChannelPlatform } from '@/lib/scrape/delete-channel';
+
+/** BE trả về cả tên kênh lẫn số video đã xoá để FE báo lại mà không phải gọi thêm API. */
+export interface DeleteChannelResponse {
+  deleted: true;
+  id: number;
+  name: string;
+  videos_deleted: number;
+}
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
 
@@ -1919,6 +1928,27 @@ export const scraperService = {
       body: JSON.stringify({ username, is_owned }),
     });
     if (!res.ok) throw new Error('Cập nhật trạng thái thất bại');
+    return res.json();
+  },
+
+  /**
+   * Xoá cứng một kênh khám phá bên ngoài. BE xoá kèm toàn bộ video/lịch sử chỉ số của
+   * kênh, không hoàn tác được — luôn gọi qua hộp xác nhận (buildDeleteChannelConfirm).
+   * Chỉ ADMIN/LEADER được phép, vai trò khác sẽ nhận 403.
+   */
+  deleteExternalChannel: async (
+    token: string,
+    platform: DeletableChannelPlatform,
+    id: number,
+  ): Promise<DeleteChannelResponse> => {
+    const res = await fetchWithAuth(`${API_URL}${buildDeleteChannelPath(platform, id)}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || 'Xoá kênh thất bại');
+    }
     return res.json();
   },
 
