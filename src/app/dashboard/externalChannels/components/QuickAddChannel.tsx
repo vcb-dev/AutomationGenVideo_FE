@@ -37,7 +37,7 @@ const PLATFORM_LABEL: Record<string, string> = {
   facebook: 'Facebook',
 };
 
-const DEFAULT_COUNT = 300;
+const DEFAULT_COUNT = 50;
 const MAX_COUNT = 1000;
 
 export default function QuickAddChannel() {
