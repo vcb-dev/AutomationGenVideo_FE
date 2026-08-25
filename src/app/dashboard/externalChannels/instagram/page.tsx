@@ -138,7 +138,7 @@ export default function InstagramExternalPage() {
   const profilesQuery = useQuery({
     queryKey: ['instagram-profiles', page, debouncedSearch, sortBy],
     queryFn: () => token ? scraperService.getInstagramProfiles(token, {
-      page, page_size: PAGE_SIZE_PROFILES, search: debouncedSearch || undefined,
+      page, page_size: PAGE_SIZE_PROFILES, search: debouncedSearch || undefined, is_owned: false,
     }) : Promise.reject('No token'),
     enabled: !!token,
     refetchInterval: 15000,

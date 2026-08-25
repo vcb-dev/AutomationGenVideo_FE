@@ -206,7 +206,7 @@ export default function TiktokExternalPage() {
     queryKey: ['tiktok-profiles', profilePage, debouncedProfileSearch, profileSortBy],
     queryFn: () => token ? scraperService.getTiktokProfiles(token, {
       page: profilePage, page_size: PAGE_SIZE_PROFILES, search: debouncedProfileSearch || undefined,
-      sort_by: profileSortBy,
+      sort_by: profileSortBy, is_owned: false,
     }) : Promise.reject('No token'),
     enabled: !!token && activeTab === 'profiles',
     refetchInterval: 15000,

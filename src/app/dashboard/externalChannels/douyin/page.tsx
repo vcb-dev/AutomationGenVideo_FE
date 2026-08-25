@@ -195,7 +195,7 @@ export default function DouyinExternalPage() {
     queryKey: ['douyin-profiles', profilePage, debouncedProfileSearch, profileSortBy],
     queryFn: () => scraperService.getDouyinProfiles(token!, {
       page: profilePage, page_size: 12, search: debouncedProfileSearch || undefined,
-      sort_by: profileSortBy,
+      sort_by: profileSortBy, is_owned: false,
     }),
     enabled: !!token && activeTab === 'profiles',
   });

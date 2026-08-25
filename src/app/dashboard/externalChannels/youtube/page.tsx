@@ -135,7 +135,7 @@ export default function YoutubeExternalPage() {
   const profilesQuery = useQuery({
     queryKey: ['youtube-profiles', page, debouncedSearch, sortBy],
     queryFn: () => token ? scraperService.getYoutubeProfiles(token, {
-      page, page_size: PAGE_SIZE_PROFILES, search: debouncedSearch || undefined, sort_by: sortBy,
+      page, page_size: PAGE_SIZE_PROFILES, search: debouncedSearch || undefined, sort_by: sortBy, is_owned: false,
     }) : Promise.reject('No token'),
     enabled: !!token,
     refetchInterval: 15000,
