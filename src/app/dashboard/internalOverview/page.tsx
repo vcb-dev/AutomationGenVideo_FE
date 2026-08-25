@@ -16,7 +16,7 @@ import DuplicateBlock from './components/DuplicateBlock';
 import TopContent from './components/TopContent';
 import MetricCards from './components/MetricCards';
 import { MarketBlock, EngagementBlock, ContentLineBlock } from './components/BreakdownBlocks';
-import { MetricCode, mergePlatforms } from './components/calculations';
+import { MetricCode, mergePlatforms, platformsWithoutViews } from './components/calculations';
 import {
   Dot,
   Legend,
@@ -45,6 +45,9 @@ function defaultRange(): { tu: string; den: string } {
 export default function InternalOverviewPage() {
   const { token } = useAuthStore();
 
+  // DateRangeFilter bắn onChange(tu, '') ngay khi người dùng mới chọn đầu ngày. `appliedRange`
+  // giữ khoảng ngày hợp lệ gần nhất để không gọi API với `den` rỗng giữa chừng — đừng gộp
+  // hai state này lại.
   const [range, setRange] = useState(defaultRange);
   const [appliedRange, setAppliedRange] = useState(range);
   useEffect(() => {
@@ -89,10 +92,14 @@ export default function InternalOverviewPage() {
   const contentLines = data?.contentLines || data?.tuyen_noi_dung || [];
   const hashtags = data?.hashtags || data?.hashtag || [];
   const alerts = data?.alerts || data?.canh_bao || [];
+  const alertTotal = data?.alertTotal ?? data?.tong_canh_bao ?? alerts.length;
   const period = data?.period || data?.ky;
   const dayCount = (period as any)?.dayCount ?? (period as any)?.so_ngay ?? 28;
 
   const total = useMemo(() => mergePlatforms(platforms), [platforms]);
+  // Nền tảng có bài mà không có lượt xem — xem lacksViewData(). Truyền xuống để bảng xếp hạng
+  // hiện gạch ngang thay vì số 0.
+  const thieuLuotXem = useMemo(() => platformsWithoutViews(platforms), [platforms]);
 
   const [availablePlatforms, setAvailablePlatforms] = useState<string[]>([]);
   useEffect(() => {
@@ -174,14 +181,17 @@ export default function InternalOverviewPage() {
       </div>
 
       <HashtagBlock hashtag={hashtags} />
-      <ChannelRanking kenh={channels} />
+      <ChannelRanking kenh={channels} thieuLuotXem={thieuLuotXem} />
       <DuplicateBlock
         data={duplicateQuery.data}
         isLoading={duplicateQuery.isLoading}
         error={duplicateQuery.isError}
       />
       <TopContent video={topVideos} />
-      <AlertBlock alerts={[...alerts, ...(duplicateQuery.data?.alerts || duplicateQuery.data?.canh_bao || [])]} />
+      <AlertBlock
+        alerts={[...alerts, ...(duplicateQuery.data?.alerts || duplicateQuery.data?.canh_bao || [])]}
+        hiddenCount={Math.max(0, alertTotal - alerts.length)}
+      />
     </PageContainer>
   );
 }
