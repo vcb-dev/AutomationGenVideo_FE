@@ -1,6 +1,15 @@
 import { fetchWithAuth } from '@/lib/api-client';
 // Đi qua BE (proxy sang AI ở src/modules/scraper-proxy), không gọi thẳng AI nữa.
 import type { PlatformKey } from '@/lib/platform-config';
+import { buildDeleteChannelPath, type DeletableChannelPlatform } from '@/lib/scrape/delete-channel';
+
+/** BE trả về cả tên kênh lẫn số video đã xoá để FE báo lại mà không phải gọi thêm API. */
+export interface DeleteChannelResponse {
+  deleted: true;
+  id: number;
+  name: string;
+  videos_deleted: number;
+}
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
 
@@ -1664,7 +1673,7 @@ export const scraperService = {
 
   // Trigger scrape reels (auto 300/10)
   triggerScrapeReels: async (token: string, fanpageId: number): Promise<{ message: string; is_scraping?: boolean }> => {
-    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/scrape-reels/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/scrape-reels`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ fanpage_id: fanpageId }),
@@ -1677,7 +1686,7 @@ export const scraperService = {
   },
 
   fanpageScrapeByUrl: async (token: string, url: string): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; fanpage_id: number }> => {
-    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/scrape-by-url/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/scrape-by-url`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ url }),
@@ -1919,6 +1928,39 @@ export const scraperService = {
       body: JSON.stringify({ username, is_owned }),
     });
     if (!res.ok) throw new Error('Cập nhật trạng thái thất bại');
+    return res.json();
+  },
+
+  /**
+   * Xoá cứng một kênh khám phá bên ngoài. BE xoá kèm toàn bộ video/lịch sử chỉ số của
+   * kênh, không hoàn tác được — luôn gọi qua hộp xác nhận (buildDeleteChannelConfirm).
+   * Chỉ ADMIN/LEADER được phép, vai trò khác sẽ nhận 403.
+   */
+  deleteExternalChannel: async (
+    token: string,
+    platform: DeletableChannelPlatform,
+    id: number,
+  ): Promise<DeleteChannelResponse> => {
+    const res = await fetchWithAuth(`${API_URL}${buildDeleteChannelPath(platform, id)}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || 'Xoá kênh thất bại');
+    }
+    return res.json();
+  },
+
+  deleteScrapedVideo: async (token: string, platform: string, videoId: string): Promise<{ success: boolean; message: string }> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/stream/${encodeURIComponent(platform)}/${encodeURIComponent(videoId)}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Xoá video thất bại');
+    }
     return res.json();
   },
 };
