@@ -10,7 +10,7 @@ import toast from 'react-hot-toast';
 
 import InstagramProfileCard from '../components/InstagramProfileCard';
 import { useAuthStore } from '@/store/auth-store';
-import { scraperService, InstagramReel } from '@/services/scraperService';
+import { scraperService, InstagramReel, InstagramToggleField } from '@/services/scraperService';
 import { videoLibraryService } from '@/services/videoLibraryService';
 import { useSubmitVideoToLibrary } from '@/hooks/useProposeVideo';
 import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
@@ -232,11 +232,20 @@ export default function InstagramExternalPage() {
   });
 
   const toggleMutation = useMutation({
-    mutationFn: ({ id, field }: { id: number; field: 'is_bookmarked' | 'is_tracked' }) => {
+    mutationFn: ({ id, field }: { id: number; field: InstagramToggleField }) => {
       if (!token) throw new Error('No token');
       return scraperService.toggleInstagramProfile(token, id, field);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['instagram-profiles'] }),
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['instagram-profiles'] });
+      if (vars.field === 'is_owned') {
+        // Trang Tổng quan kênh nội bộ đọc theo đúng cờ này; không dọn cache thì người dùng
+        // bật xong quay sang vẫn thấy trang cũ và tưởng là không ăn.
+        queryClient.invalidateQueries({ queryKey: ['owned-stats'] });
+        queryClient.invalidateQueries({ queryKey: ['owned-dup'] });
+        toast.success('Đã cập nhật kênh nội bộ — số liệu sẽ hiện ở trang Tổng quan kênh nội bộ');
+      }
+    },
   });
 
   const rescrapeMutation = useMutation({
@@ -338,6 +347,7 @@ export default function InstagramExternalPage() {
                     onScrape={canManageChannels ? () => rescrapeMutation.mutate({ id: p.id, username: p.username }) : undefined}
                     onToggleBookmark={() => toggleMutation.mutate({ id: p.id, field: 'is_bookmarked' })}
                     onToggleTracked={canManageChannels ? () => toggleMutation.mutate({ id: p.id, field: 'is_tracked' }) : undefined}
+                    onToggleOwned={canManageChannels ? () => toggleMutation.mutate({ id: p.id, field: 'is_owned' }) : undefined}
                     onViewDetail={() => router.push(`/dashboard/externalChannels/instagram/${p.id}`)}
                   />
                 ))}
