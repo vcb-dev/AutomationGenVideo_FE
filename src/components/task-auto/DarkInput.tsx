@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronDown, Search, X, Plus, Loader2, Check } from 'lucide-react'
+import { ChevronDown, Search, X, Plus, Loader2, Check, ImageIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -202,7 +202,26 @@ export function CustomSelect({ label, value, onChange, options, searchable, comp
 // ── ServerSearchSelect ────────────────────────────
 // Dùng khi danh sách lấy từ server theo keyword tìm kiếm
 
-export interface SearchItem { value: string; label: string; sublabel?: string }
+export interface SearchItem { value: string; label: string; sublabel?: string; image?: string | null }
+
+// Thumbnail dùng chung cho trigger + list item — tự fallback về icon placeholder nếu ảnh lỗi
+// (link hết hạn, hotlink-protection...) thay vì hiện icon ảnh vỡ của trình duyệt.
+function SearchItemThumb({ src, size }: { src: string | null | undefined; size: 'sm' | 'md' }) {
+  const [error, setError] = useState(false)
+  const show = !!src && !error
+  return (
+    <span className={cn(
+      'shrink-0 rounded-md overflow-hidden bg-gray-100 flex items-center justify-center',
+      size === 'sm' ? 'w-6 h-6' : 'w-9 h-9'
+    )}>
+      {show ? (
+        <img src={src as string} alt="" className="w-full h-full object-cover" onError={() => setError(true)} />
+      ) : (
+        <ImageIcon className={size === 'sm' ? 'w-3.5 h-3.5 text-slate-300' : 'w-4 h-4 text-slate-300'} />
+      )}
+    </span>
+  )
+}
 
 interface ServerSearchSelectProps {
   label?: string
@@ -287,8 +306,11 @@ export function ServerSearchSelect({
           open && 'ring-2 ring-indigo-500 border-indigo-500'
         )}
       >
-        <span className={selected ? 'text-slate-800' : 'text-slate-400'}>
-          {selected ? selected.label : placeholder}
+        <span className="flex-1 flex items-center gap-2 min-w-0">
+          {selected?.image !== undefined && <SearchItemThumb src={selected.image} size="sm" />}
+          <span className={cn('truncate', selected ? 'text-slate-800' : 'text-slate-400')}>
+            {selected ? selected.label : placeholder}
+          </span>
         </span>
         <div className="flex items-center gap-1 shrink-0">
           {value && (
@@ -350,12 +372,15 @@ export function ServerSearchSelect({
               items.map(item => (
                 <li key={item.value}>
                   <button type="button" onClick={() => select(item.value)}
-                    className={cn('w-full text-left px-4 py-2.5 text-sm transition-colors',
+                    className={cn('w-full flex items-center gap-2.5 text-left px-4 py-2.5 text-sm transition-colors',
                       value === item.value
                         ? 'bg-indigo-50 text-indigo-700 font-semibold'
                         : 'text-slate-700 hover:bg-gray-50')}>
-                    <span className="block leading-tight">{item.label}</span>
-                    {item.sublabel && <span className="block text-xs text-slate-400 mt-0.5">{item.sublabel}</span>}
+                    {item.image !== undefined && <SearchItemThumb src={item.image} size="md" />}
+                    <span className="min-w-0">
+                      <span className="block leading-tight truncate">{item.label}</span>
+                      {item.sublabel && <span className="block text-xs text-slate-400 mt-0.5 truncate">{item.sublabel}</span>}
+                    </span>
                   </button>
                 </li>
               ))

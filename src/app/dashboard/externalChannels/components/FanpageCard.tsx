@@ -2,6 +2,7 @@
 
 import { Users, Heart, VideoCamera, ArrowsClockwise, BookmarkSimple, Timer, ArrowSquareOut, CircleNotch } from '@phosphor-icons/react';
 import { ScrapedFanpage } from '@/services/scraperService';
+import DeleteChannelButton from './DeleteChannelButton';
 
 interface FanpageCardProps {
   fanpage: ScrapedFanpage;
@@ -9,6 +10,7 @@ interface FanpageCardProps {
   onToggleBookmark: (fp: ScrapedFanpage) => void;
   onTogglePeriodic?: (fp: ScrapedFanpage) => void;
   onViewDetail: (fp: ScrapedFanpage) => void;
+  onDelete?: (fp: ScrapedFanpage) => void;
 }
 
 function formatNum(n: number): string {
@@ -18,7 +20,7 @@ function formatNum(n: number): string {
 }
 
 export default function FanpageCard({
-  fanpage: fp, onScrapeReels, onToggleBookmark, onTogglePeriodic, onViewDetail,
+  fanpage: fp, onScrapeReels, onToggleBookmark, onTogglePeriodic, onViewDetail, onDelete,
 }: FanpageCardProps) {
   const isProcessing = fp.scraping_status === 'processing';
 
@@ -151,6 +153,7 @@ export default function FanpageCard({
         >
           <ArrowSquareOut size={14} />
         </button>
+        {onDelete && <DeleteChannelButton onDelete={() => onDelete(fp)} />}
       </div>
     </div>
   );

@@ -1,20 +1,21 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { ChevronDown } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, driveImageUrl } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { DarkInput, CustomSelect, ServerSearchSelect } from '@/components/task-auto/DarkInput'
 import { ContentFormModal } from '@/components/task-auto/ContentFormModal'
 import { ProductFormModal } from '@/components/task-auto/ProductFormModal'
 import {
-  createTask, getContents, getProducts, getSources,
+  createTask, getContents, getSources,
   getEditorContents, getEditorProducts, getEditorSources,
   getTeamContents, getTeamProducts, getTeamSources,
+  searchOmsProducts, getOmsProductDetail,
 } from '@/lib/api/task-auto'
-import type { BrandType, Content, Product, Source, Task, Team, TeamSource } from '@/types/task-auto'
+import type { BrandType, Content, Product, Source, Task, Team, TeamSource, OmsProductSummary } from '@/types/task-auto'
 
 type Scope = 'personal' | 'global' | 'team'
 
@@ -98,6 +99,23 @@ function getProductSku(p: any): string | undefined {
     || undefined
 }
 
+// Ưu tiên image_urls[0] (mảng, giống ProductCard) trước image_url đơn ở từng tầng FK, rồi mới
+// rơi xuống tầng kế — vì sản phẩm thêm thủ công thường chỉ set image_urls, image_url có thể rỗng.
+// Ảnh trong hệ thống này phần lớn là link Google Drive share (không nhúng <img> trực tiếp được)
+// nên phải convert qua driveImageUrl() thành dạng thumbnail mới hiển thị được.
+function getProductImage(p: any): string | null {
+  const raw = p.image_urls?.[0]
+    || p.source_editor_product?.image_urls?.[0]
+    || p.source_team_product?.image_urls?.[0]
+    || p.source_team_product?.source_editor_product?.image_urls?.[0]
+    || p.image_url
+    || p.source_editor_product?.image_url
+    || p.source_team_product?.image_url
+    || p.source_team_product?.source_editor_product?.image_url
+    || null
+  return driveImageUrl(raw)
+}
+
 function getContentTitle(c: any): string {
   return c.title
     || c.source_editor_content?.title     // TeamContent FK → EditorContent
@@ -157,13 +175,20 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
   const activeTeamForWarehouse = selectedTeam ?? lockedTeam
 
   const [contentScope, setContentScope] = useState<Scope>('personal')
-  const [productScope, setProductScope] = useState<Scope>('global')
+  // Mặc định "Kho team" — nhưng nếu chưa xác định được team nào (ví dụ Admin/Manager chưa chọn
+  // team) thì fallback về "Kho tổng" để không mặc định vào 1 scope đang bị khoá (xem ScopeSwitch).
+  const [productScope, setProductScope] = useState<Scope>(activeTeamForWarehouse ? 'team' : 'global')
   const [contentSearch, setContentSearch] = useState('')
   const [productSearch, setProductSearch] = useState('')
   const [showContentModal, setShowContentModal] = useState(false)
   const [showProductModal, setShowProductModal] = useState(false)
   const [contentActualId, setContentActualId] = useState('')
   const [productActualId, setProductActualId] = useState('')
+  // Sản phẩm chọn "Kho tổng" giờ đọc trực tiếp từ OMS (không còn Product local) — cần thêm
+  // oms_product_id/oms_variant_id (resolve lúc chọn, xem onOmsProductSelect) để gửi kèm khi tạo
+  // task; hệ thống tự materialize vào kho cá nhân của editor được giao (xem TasksService).
+  const [omsSelection, setOmsSelection] = useState<{ oms_product_id: string; oms_variant_id: string } | null>(null)
+  const [resolvingOmsVariant, setResolvingOmsVariant] = useState(false)
   const [sourceScope, setSourceScope] = useState<'personal' | 'team' | 'global' | 'all'>('all')
   // Khối "Nguồn source" gồm 4 field tuỳ chọn, ít khi dùng hết — đóng mặc định để giảm
   // chiều cao/scroll cho luồng phổ biến (chỉ chọn content + sản phẩm + phân công).
@@ -188,7 +213,20 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
   }, [brandType])
 
   useEffect(() => { setForm(f => ({ ...f, content_id: '' })); setContentActualId('') }, [contentScope])
-  useEffect(() => { setForm(f => ({ ...f, product_id: '' })); setProductActualId('') }, [productScope])
+  useEffect(() => { setForm(f => ({ ...f, product_id: '' })); setProductActualId(''); setOmsSelection(null) }, [productScope])
+
+  // useState initializer ở trên chỉ đúng cho Member/Leader (đã có team ngay lúc mount). Admin/
+  // Manager thì team_id rỗng lúc mở modal nên productScope khởi tạo về 'global' — effect này bù
+  // lại: ngay khi họ vừa chọn xong team đầu tiên ở "Đội nhóm", tự chuyển sang "Kho team". Chỉ áp
+  // dụng 1 LẦN (ref) — đổi sang team khác sau đó không ép quay lại 'team' nếu người dùng đã chủ
+  // động bấm sang tab khác.
+  const autoTeamScopeApplied = useRef(false)
+  useEffect(() => {
+    if (activeTeamForWarehouse && !autoTeamScopeApplied.current) {
+      autoTeamScopeApplied.current = true
+      setProductScope('team')
+    }
+  }, [activeTeamForWarehouse])
 
   const { data: personalContentsData, isLoading: loadingPersonalContents } = useQuery({
     queryKey: ['task-auto', 'create-contents-personal', brandType, contentSearch, userId],
@@ -211,9 +249,10 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
     queryFn: () => getEditorProducts(userId!, { brand_type: brandType, search: productSearch || undefined, limit: 50 }),
     enabled: !!userId && productScope === 'personal',
   })
-  const { data: globalProductsData, isLoading: loadingGlobalProducts } = useQuery({
-    queryKey: ['task-auto', 'create-products-global', brandType, productSearch],
-    queryFn: () => getProducts({ brand_type: brandType, search: productSearch || undefined, limit: 50 }),
+  // Kho tổng giờ là proxy trực tiếp OMS (không lọc theo brandType — OMS là 1 danh mục chung).
+  const { data: omsProductsData, isLoading: loadingOmsProducts } = useQuery({
+    queryKey: ['task-auto', 'create-products-oms', productSearch],
+    queryFn: () => searchOmsProducts({ q: productSearch || undefined, page: 1, page_size: 50 }),
     enabled: productScope === 'global',
   })
   const { data: teamProductsRaw, isLoading: loadingTeamProducts } = useQuery({
@@ -271,14 +310,17 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
     .filter(p => !productSearch ||
       getProductName(p).toLowerCase().includes(productSearch.toLowerCase()) ||  // ✅
       getProductSku(p)?.toLowerCase().includes(productSearch.toLowerCase())) 
+  // 'global' (kho tổng/OMS) không dùng mảng Product[] này — xem omsProducts bên dưới, render
+  // riêng vì cấu trúc dữ liệu OMS khác hẳn (product có nhiều variant, không phải 1 sku/record).
   const products: Product[] =
     productScope === 'personal' ? (personalProductsData?.data ?? []) :
-    productScope === 'global'   ? (globalProductsData?.data ?? []) :
-    teamProducts
+    productScope === 'team'     ? teamProducts : []
+
+  const omsProducts: OmsProductSummary[] = omsProductsData?.data ?? []
 
   const loadingProducts =
     productScope === 'personal' ? loadingPersonalProducts :
-    productScope === 'global'   ? loadingGlobalProducts :
+    productScope === 'global'   ? loadingOmsProducts :
     loadingTeamProducts
 
   // Mỗi source được tag với prefix để phân biệt kho khi submit
@@ -351,8 +393,11 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
           payload.editor_product_id = productActualId || form.product_id
         } else if (productScope === 'team') {
           payload.team_product_id = productActualId || form.product_id
-        } else {
-          payload.product_id = form.product_id
+        } else if (omsSelection) {
+          // Kho tổng (OMS) — không có Product local để trỏ vào; BE tự materialize vào kho cá
+          // nhân của editor được giao (ngay lúc tạo nếu đã biết assignee, hoặc lúc gán sau).
+          payload.oms_product_id = omsSelection.oms_product_id
+          payload.oms_variant_id = omsSelection.oms_variant_id
         }
       }
       return createTask(payload)
@@ -380,7 +425,7 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
       open
       onClose={onClose}
       title="Tạo task thủ công"
-      size="lg"
+      size="2xl"
       footer={
         <>
           <button onClick={onClose}
@@ -455,19 +500,51 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
           <ServerSearchSelect
             label="Sản phẩm"
             value={form.product_id}
-            onChange={v => {
+            onChange={async v => {
+                if (!v) {
+                  setOmsSelection(null)
+                  setForm(f => ({ ...f, product_id: '', source_collected_id: '', source_workshop_id: '', source_huyk_id: '' }))
+                  return
+                }
+                if (productScope === 'global') {
+                  // Kho tổng (OMS): 1 "product" có thể có nhiều SKU/variant — dùng luôn variant
+                  // trùng default_sku (SKU đại diện) để giữ luồng tạo task 1 bước; muốn chọn 1
+                  // variant khác thì kéo sản phẩm đó về kho team trước (có bước chọn variant riêng).
+                  const summary = omsProducts.find(p => p.id === v)
+                  setResolvingOmsVariant(true)
+                  try {
+                    const detail = await getOmsProductDetail(v)
+                    const variant = detail.variants.find(vr => vr.sku === summary?.default_sku) ?? detail.variants[0]
+                    if (!variant) { toast.error('Sản phẩm OMS này không có biến thể nào'); return }
+                    setOmsSelection({ oms_product_id: detail.id, oms_variant_id: variant.id })
+                    setForm(f => ({ ...f, product_id: v, source_collected_id: '', source_workshop_id: '', source_huyk_id: '' }))
+                  } catch {
+                    toast.error('Không thể lấy chi tiết sản phẩm từ OMS')
+                  } finally {
+                    setResolvingOmsVariant(false)
+                  }
+                  return
+                }
                 const scopedProduct = products.find(p => (p.source_product_id ?? p.id) === v)
                 setProductActualId(scopedProduct?.id ?? v)
                 setForm(f => ({ ...f, product_id: v, source_collected_id: '', source_workshop_id: '', source_huyk_id: '' }))
               }}
-              items={products.map(p => ({
-                value: p.source_product_id ?? p.id,
-                label: getProductName(p),  // ✅ Dùng helper
-                sublabel: getProductSku(p),  // ✅ Cũng fix SKU
-              }))}
+              items={productScope === 'global'
+                ? omsProducts.map(p => ({
+                    value: p.id,
+                    label: p.name,
+                    sublabel: p.default_sku + (p.variant_count > 1 ? ` (+${p.variant_count - 1} biến thể khác)` : ''),
+                    image: driveImageUrl(p.image_url),
+                  }))
+                : products.map(p => ({
+                    value: p.source_product_id ?? p.id,
+                    label: getProductName(p),  // ✅ Dùng helper
+                    sublabel: getProductSku(p),  // ✅ Cũng fix SKU
+                    image: getProductImage(p),
+                  }))}
             searchValue={productSearch}
             onSearchChange={setProductSearch}
-            loading={loadingProducts}
+            loading={loadingProducts || resolvingOmsVariant}
             placeholder={`Tìm trong ${scopeLabel[productScope]}...`}
             clearLabel="-- Không chọn --"
             searchPlaceholder="Tìm theo tên hoặc SKU..."
@@ -586,7 +663,7 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
             </button>
           </SectionHeader>
           {sourcesOpen && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-slate-700">
                   Outro

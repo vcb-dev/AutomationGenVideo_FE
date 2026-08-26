@@ -16,6 +16,8 @@ import { useSubmitVideoToLibrary } from '@/hooks/useProposeVideo';
 import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
 import { UserRole } from '@/types/auth';
 import { dedupeById } from '@/lib/dedupe-pages';
+import SyncAllChannelsButton from '../components/SyncAllChannelsButton';
+import { buildDeleteChannelConfirm } from '@/lib/scrape/delete-channel';
 import WatchFeedButton from '../components/WatchFeedButton';
 
 const PAGE_SIZE_PROFILES = 12;
@@ -118,6 +120,29 @@ export default function InstagramExternalPage() {
   const router = useRouter();
   const { start: startProfileScrapeNotif } = useProfileScrapeNotification('instagram');
 
+  // Xoá cứng kênh: BE xoá kèm toàn bộ reels/lịch sử, không hoàn tác được. Hộp xác nhận
+  // phải nói số video sắp mất — trên thẻ thì kênh 300 reels trông y hệt kênh rỗng.
+  const deleteChannelMutation = useMutation({
+    mutationFn: (id: number) => {
+      if (!token) throw new Error('No token');
+      return scraperService.deleteExternalChannel(token, 'instagram', id);
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['instagram-profiles'] });
+      toast.success(
+        data.videos_deleted > 0
+          ? `Đã xoá ${data.name} và ${data.videos_deleted.toLocaleString('vi-VN')} video`
+          : `Đã xoá ${data.name}`,
+      );
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const handleDeleteChannel = (id: number, name: string, videoCount: number) => {
+    if (!window.confirm(buildDeleteChannelConfirm({ name, videoCount }))) return;
+    deleteChannelMutation.mutate(id);
+  };
+
   // ─── Profiles section ─────────────────────────────────
   const [profilesCollapsed, setProfilesCollapsed] = useState(false);
   const [profileUsername, setProfileUsername] = useState('');
@@ -138,7 +163,7 @@ export default function InstagramExternalPage() {
   const profilesQuery = useQuery({
     queryKey: ['instagram-profiles', page, debouncedSearch, sortBy],
     queryFn: () => token ? scraperService.getInstagramProfiles(token, {
-      page, page_size: PAGE_SIZE_PROFILES, search: debouncedSearch || undefined,
+      page, page_size: PAGE_SIZE_PROFILES, search: debouncedSearch || undefined, is_owned: false,
     }) : Promise.reject('No token'),
     enabled: !!token,
     refetchInterval: 15000,
@@ -331,6 +356,12 @@ export default function InstagramExternalPage() {
               )}
             </div>
 
+            {profiles.length > 0 && (
+              <div className="flex justify-end">
+                <SyncAllChannelsButton platform="instagram" channelCount={profiles.length} />
+              </div>
+            )}
+
             {profilesQuery.isLoading ? (
               <div className="flex justify-center py-8"><CircleNotch size={24} className="animate-spin text-primary" /></div>
             ) : profiles.length === 0 ? (
@@ -349,6 +380,7 @@ export default function InstagramExternalPage() {
                     onToggleTracked={canManageChannels ? () => toggleMutation.mutate({ id: p.id, field: 'is_tracked' }) : undefined}
                     onToggleOwned={canManageChannels ? () => toggleMutation.mutate({ id: p.id, field: 'is_owned' }) : undefined}
                     onViewDetail={() => router.push(`/dashboard/externalChannels/instagram/${p.id}`)}
+                    onDelete={canManageChannels ? () => handleDeleteChannel(p.id, p.username, p.reels_in_db ?? 0) : undefined}
                   />
                 ))}
               </div>

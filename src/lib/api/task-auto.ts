@@ -22,6 +22,9 @@ import type {
   ContentClassification,
   Product,
   ProductsQuery,
+  OmsProductListResponse,
+  OmsProductDetail,
+  OmsProductQuery,
   Content,
   ContentsQuery,
   Source,
@@ -552,6 +555,17 @@ export const updateProduct = (id: string, body: Partial<Product>) =>
 
 export const deleteProduct = (id: string) =>
   apiClient.delete(`/task-auto/products/${id}`).then(r => r.data)
+
+// ── OMS Integration (kho tổng — proxy trực tiếp từ OMS) ─────────────────────────
+
+export const searchOmsProducts = (q: OmsProductQuery = {}) =>
+  apiClient.get<OmsProductListResponse>(`/task-auto/oms/products${qs(q as any)}`).then(r => r.data)
+
+export const getOmsProductDetail = (omsProductId: string) =>
+  apiClient.get<OmsProductDetail>(`/task-auto/oms/products/${omsProductId}`).then(r => r.data)
+
+export const refreshTeamProductFromOms = (teamId: string, teamProductId: string) =>
+  apiClient.patch<TeamProduct>(`/task-auto/teams/${teamId}/products/${teamProductId}/refresh-from-oms`).then(r => r.data)
 
 export const uploadProductImage = (file: File): Promise<{ url: string }> => {
   const fd = new FormData()

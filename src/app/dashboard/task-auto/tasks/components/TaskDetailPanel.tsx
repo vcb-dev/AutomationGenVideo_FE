@@ -10,9 +10,10 @@ import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
 import {
   getTask, approveTask, deleteTask, getSources, getTeamSources,
   getProduct, getContent, startTask,
-  updateTask, getProducts, getContents, getTeam, getApprovals,
+  updateTask, getContents, getTeam, getApprovals,
   getEditorProducts, getEditorContents, getTeamProducts, getTeamContents,
   getEditorSources,
+  searchOmsProducts, getOmsProductDetail,
 } from '@/lib/api/task-auto'
 import { SubmitModal, RejectModal } from './TaskModals'
 import { StatusTimeline } from './detail/StatusTimeline'
@@ -26,7 +27,7 @@ import { ProductSection } from './detail/ProductSection'
 import { VideoPreviewOverlay } from './detail/VideoPreviewOverlay'
 import { TaskSchedulePostModal } from './detail/TaskSchedulePostModal'
 import { PublishedLinksSection } from './detail/PublishedLinksSection'
-import type { Source, TeamSource } from '@/types/task-auto'
+import type { Source, TeamSource, OmsProductSummary } from '@/types/task-auto'
 
 type CatalogScope = 'personal' | 'global' | 'team'
 type SourceScope = CatalogScope | 'all'
@@ -101,6 +102,11 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
   const [productScope, setProductScope] = useState<'personal' | 'global' | 'team'>('global')
   const [contentScope, setContentScope] = useState<'personal' | 'global' | 'team'>('global')
   const [sourceScope, setSourceScope] = useState<SourceScope>('all')
+  // Sản phẩm chọn "Kho tổng" giờ đọc trực tiếp từ OMS — cần resolve oms_product_id/oms_variant_id
+  // lúc chọn (xem allProductItems + onChange của ProductSection ở dưới), BE tự materialize vào
+  // kho cá nhân editor được giao khi lưu.
+  const [omsSelection, setOmsSelection] = useState<{ oms_product_id: string; oms_variant_id: string } | null>(null)
+  const [resolvingOmsVariant, setResolvingOmsVariant] = useState(false)
 
   // Esc đóng panel — nhưng nếu đang có modal con (nộp/từ chối/preview/lên lịch/xác nhận xoá)
   // hoặc đang sửa, chỉ đóng lớp đó trước (giống hành vi đã có ở VideoPreviewOverlay).
@@ -180,13 +186,14 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
         assignee_id:         task.assignee_id         ?? '',
         deadline:            toVNDatetimeLocalInput(task.deadline),
       })
+      setOmsSelection(null)
     }
   }, [task?.id, editMode])
 
-  const { data: editProductsData, isLoading: loadingEditProducts } = useQuery({
-    queryKey: ['task-auto', 'detail-products', productSearch],
-    queryFn: () => getProducts({ search: productSearch || undefined, limit: 50 }),
-    enabled: editMode,
+  const { data: editOmsProductsData, isLoading: loadingEditOmsProducts } = useQuery({
+    queryKey: ['task-auto', 'detail-products-oms', productSearch],
+    queryFn: () => searchOmsProducts({ q: productSearch || undefined, page: 1, page_size: 50 }),
+    enabled: editMode && productScope === 'global',
   })
 
   const { data: editEditorProductsData, isLoading: loadingEditEditorProducts } = useQuery({
@@ -263,8 +270,12 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
 
   const allProductItems = useMemo(() => {
     if (productScope === 'global') {
-      return (editProductsData?.data ?? []).map(p => ({
-        value: `global:${p.id}`, label: p.name, sublabel: p.sku ?? undefined,
+      // Kho tổng giờ là OMS — value dùng prefix "oms:" riêng để onChange biết cần resolve
+      // variant (getOmsProductDetail) trước khi cho phép lưu, xem onChange bên dưới.
+      return (editOmsProductsData?.data ?? []).map((p: OmsProductSummary) => ({
+        value: `oms:${p.id}`,
+        label: p.name,
+        sublabel: p.default_sku + (p.variant_count > 1 ? ` (+${p.variant_count - 1} biến thể khác)` : ''),
       }))
     }
     if (productScope === 'personal') {
@@ -285,7 +296,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
         label: p.name ?? p.source_editor_product?.name ?? '—',
         sublabel: (p.sku ?? p.source_editor_product?.sku) ?? undefined,
       }))
-  }, [editProductsData, editEditorProductsData, editTeamProductsData, productSearch, productScope])
+  }, [editOmsProductsData, editEditorProductsData, editTeamProductsData, productSearch, productScope])
 
   const allContentItems = useMemo(() => {
     if (contentScope === 'global') {
@@ -314,7 +325,9 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
   }, [editContentsData, editEditorContentsData, editTeamContentsData, contentSearch, contentScope])
 
   const loadingAllProducts =
-    productScope === 'personal' ? loadingEditEditorProducts : loadingEditProducts
+    productScope === 'personal' ? loadingEditEditorProducts
+    : productScope === 'global' ? (loadingEditOmsProducts || resolvingOmsVariant)
+    : false
   const loadingAllContents =
     contentScope === 'personal' ? loadingEditEditorContents : loadingEditContents
 
@@ -352,9 +365,16 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
         ? editForm.content_id.split(':', 2)
         : ['', editForm.content_id]
       return updateTask(taskId, {
+        // "oms" (kho tổng/OMS): không có Product local — gửi oms_product_id/oms_variant_id,
+        // BE tự materialize vào kho cá nhân editor được giao (đã resolve lúc chọn, xem onChange
+        // của ProductSection bên dưới). product_id/editor_product_id/team_product_id để null.
         product_id:        productSource === 'global' ? rawProductId || null : null,
         editor_product_id: productSource === 'editor' ? rawProductId || null : null,
         team_product_id:   productSource === 'team'   ? rawProductId || null : null,
+        ...(productSource === 'oms' && omsSelection ? {
+          oms_product_id: omsSelection.oms_product_id,
+          oms_variant_id: omsSelection.oms_variant_id,
+        } : {}),
         content_id:        contentSource === 'global' ? rawContentId || null : null,
         editor_content_id: contentSource === 'editor' ? rawContentId || null : null,
         team_content_id:   contentSource === 'team'   ? rawContentId || null : null,
@@ -376,6 +396,30 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
     },
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Không thể cập nhật task'),
   })
+
+  // Chọn sản phẩm "Kho tổng" (OMS): value là 'oms:<omsProductId>' — cần gọi chi tiết OMS để lấy
+  // đúng biến thể (dùng variant khớp default_sku) trước khi cho phép lưu (xem updateMut ở trên).
+  async function handleProductChange(v: string) {
+    if (!v.startsWith('oms:')) {
+      setOmsSelection(null)
+      setEditForm(f => ({ ...f, product_id: v }))
+      return
+    }
+    const omsProductId = v.slice('oms:'.length)
+    const summary = (editOmsProductsData?.data ?? []).find(p => p.id === omsProductId)
+    setResolvingOmsVariant(true)
+    try {
+      const detail = await getOmsProductDetail(omsProductId)
+      const variant = detail.variants.find(vr => vr.sku === summary?.default_sku) ?? detail.variants[0]
+      if (!variant) { toast.error('Sản phẩm OMS này không có biến thể nào'); return }
+      setOmsSelection({ oms_product_id: detail.id, oms_variant_id: variant.id })
+      setEditForm(f => ({ ...f, product_id: v }))
+    } catch {
+      toast.error('Không thể lấy chi tiết sản phẩm từ OMS')
+    } finally {
+      setResolvingOmsVariant(false)
+    }
+  }
 
   const isAssignee        = task?.assignee_id === currentUserId
   const isPrivilegedRole  = userRoles.some(r => ['ADMIN', 'MANAGER', 'LEADER'].includes(r))
@@ -726,7 +770,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                       editMode={editMode}
                       edit={{
                         productId: editForm.product_id,
-                        onChange: v => setEditForm(f => ({ ...f, product_id: v })),
+                        onChange: handleProductChange,
                         items: allProductItems,
                         searchValue: productSearch,
                         onSearchChange: setProductSearch,
@@ -736,7 +780,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                         filterSlot: (
                           <ScopeSwitch
                             value={productScope}
-                            onChange={s => { setProductScope(s); setEditForm(f => ({ ...f, product_id: '' })) }}
+                            onChange={s => { setProductScope(s); setEditForm(f => ({ ...f, product_id: '' })); setOmsSelection(null) }}
                             hasTeam={!!task?.team_id}
                           />
                         ),
