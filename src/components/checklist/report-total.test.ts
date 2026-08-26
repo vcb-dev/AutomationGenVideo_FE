@@ -1,4 +1,4 @@
-import { digitsOnly, sumEntryValues } from './report-total';
+import { digitsOnly, sumEntryValues, formatThousands } from './report-total';
 
 /**
  * Lỗi thật ngoài production: người dùng nhập 0 vào ô Doanh thu FB/IG/TikTok rồi bấm
@@ -57,5 +57,36 @@ describe('digitsOnly', () => {
         expect(digitsOnly('0')).toBe('0');
         expect(digitsOnly('')).toBe('');
         expect(digitsOnly(undefined as unknown as string)).toBe('');
+    });
+});
+
+describe('formatThousands', () => {
+    it('chèn dấu chấm mỗi 3 chữ số theo cách viết số của tiếng Việt', () => {
+        expect(formatThousands('5821696')).toBe('5.821.696');
+    });
+
+    it('số ngắn hơn 4 chữ số thì giữ nguyên', () => {
+        expect(formatThousands('0')).toBe('0');
+        expect(formatThousands('999')).toBe('999');
+    });
+
+    it('đúng ở mốc 4 chữ số', () => {
+        expect(formatThousands('1000')).toBe('1.000');
+    });
+
+    it('chuỗi rỗng trả rỗng — ô nhập chưa gõ gì không được hiện "0"', () => {
+        // Phân biệt "chưa gõ" với "gõ số 0" là ràng buộc sẵn có của sumEntryValues:
+        // hiện '0' ở ô trống sẽ khiến bước kiểm tra trước khi nộp hiểu nhầm là đã có dữ liệu.
+        expect(formatThousands('')).toBe('');
+    });
+
+    it('bỏ ký tự không phải số trước khi chèn dấu — chịu được giá trị dán vào', () => {
+        expect(formatThousands('1.234.567 VNĐ')).toBe('1.234.567');
+    });
+
+    it('đi cùng digitsOnly thành vòng khép kín: hiển thị có dấu, lưu vẫn là số thuần', () => {
+        // Ô nhập hiện formatThousands(...) còn onChange chạy digitsOnly(...), nên người dùng
+        // gõ hay dán đều quay về đúng chuỗi số ban đầu.
+        expect(digitsOnly(formatThousands('5821696'))).toBe('5821696');
     });
 });

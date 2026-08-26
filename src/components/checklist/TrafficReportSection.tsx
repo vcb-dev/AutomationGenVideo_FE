@@ -1,7 +1,7 @@
 import Image from "next/image";
 import React, { useEffect, useRef, useState } from 'react';
 import { Activity, ImagePlus, X, Loader2, Sparkles } from 'lucide-react';
-import { digitsOnly, sumEntryValues } from './report-total';
+import { digitsOnly, sumEntryValues, formatThousands } from './report-total';
 import { fetchWithAuth } from '@/lib/api-client';
 import toast from 'react-hot-toast';
 
@@ -454,7 +454,7 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
                                                     autoComplete="off"
                                                     placeholder="Số lượt..."
                                                     readOnly={readOnly}
-                                                    value={digitsOnly(entry.value)}
+                                                    value={formatThousands(entry.value)}
                                                     onChange={(e) => {
                                                         const rawValue = digitsOnly(e.target.value);
                                                         updateRow(platform.id, entry.id, { value: rawValue, isAutoFetched: false });
