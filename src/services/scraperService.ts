@@ -1,7 +1,7 @@
 import { fetchWithAuth } from '@/lib/api-client';
 // Đi qua BE (proxy sang AI ở src/modules/scraper-proxy), không gọi thẳng AI nữa.
 import type { PlatformKey } from '@/lib/platform-config';
-import { buildDeleteChannelPath, type DeletableChannelPlatform } from '@/lib/scrape/delete-channel';
+import { buildDeleteChannelPath, buildSyncAllChannelsPath, type DeletableChannelPlatform } from '@/lib/scrape/delete-channel';
 
 /** BE trả về cả tên kênh lẫn số video đã xoá để FE báo lại mà không phải gọi thêm API. */
 export interface DeleteChannelResponse {
@@ -1936,6 +1936,25 @@ export const scraperService = {
    * kênh, không hoàn tác được — luôn gọi qua hộp xác nhận (buildDeleteChannelConfirm).
    * Chỉ ADMIN/LEADER được phép, vai trò khác sẽ nhận 403.
    */
+  /**
+   * Đồng bộ lại toàn bộ kênh của một nền tảng. BE chạy nền và trả về ngay — theo dõi tiến
+   * độ qua scraping_status của từng kênh. Chỉ ADMIN/LEADER, vai trò khác nhận 403.
+   */
+  syncAllExternalChannels: async (
+    token: string,
+    platform: DeletableChannelPlatform,
+  ): Promise<{ status: string; message: string; already_running?: boolean }> => {
+    const res = await fetchWithAuth(`${API_URL}${buildSyncAllChannelsPath(platform)}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || 'Không gửi được yêu cầu đồng bộ');
+    }
+    return res.json();
+  },
+
   deleteExternalChannel: async (
     token: string,
     platform: DeletableChannelPlatform,

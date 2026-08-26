@@ -20,11 +20,23 @@ import {
 } from '@/lib/api/task-auto'
 import type { TeamProduct, BrandType } from '@/types/task-auto'
 
+/** Dữ liệu prefill khi tạo TeamProduct từ 1 biến thể (SKU) chọn ở kho tổng (OMS) — sku luôn lấy
+ *  đúng theo OMS thật (BE bỏ qua dto.sku ở nhánh này), name/price/ảnh cho leader sửa lại được. */
+export interface OmsPrefill {
+  oms_product_id: string
+  oms_variant_id: string
+  sku: string
+  name: string
+  price: string
+  image_urls: string[]
+}
+
 interface Props {
   open: boolean
   teamId: string
   teamProduct?: TeamProduct | null
   defaultBrandType?: BrandType
+  omsPrefill?: OmsPrefill | null
   onClose: () => void
   onSuccess: (product?: TeamProduct) => void
 }
@@ -48,7 +60,7 @@ const defaultForm: FormState = {
   price_segment: '', priority_score: 0, cooldown_days: null, material_id: '', product_line_id: '', classification_id: '', is_active: true,
 }
 
-export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandType = 'DO_DA', onClose, onSuccess }: Props) {
+export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandType = 'DO_DA', omsPrefill, onClose, onSuccess }: Props) {
   const qc = useQueryClient()
   const isEdit = !!teamProduct
 
@@ -57,6 +69,9 @@ export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandTy
   const [markets, setMarkets] = useState<string[]>(['VIETNAM'])
   const [sourceDraft, setSourceDraft] = useState<SourceDraft>(defaultSource)
   const imagePickerRef = useRef<MultiImagePickerHandle>(null)
+  // Đã set mặc định "Dòng sản phẩm" = GMV cho lượt mở form này chưa (chỉ set 1 lần lúc mở, không
+  // ép lại nếu leader tự đổi/xoá sau đó) — xem effect dùng productLines bên dưới.
+  const omsDefaultLineAppliedRef = useRef(false)
 
   const { data: autoAssignSettings } = useQuery({
     queryKey: ['task-auto', 'auto-assign-settings'],
@@ -105,6 +120,18 @@ export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandTy
         })
         setMarkets(teamProduct.market ? teamProduct.market.split(',').map(m => m.trim()) : ['VIETNAM'])
         setSourceDraft(defaultSource)
+      } else if (omsPrefill) {
+        setBrandType(defaultBrandType)
+        setForm({
+          ...defaultForm,
+          sku: omsPrefill.sku,
+          name: omsPrefill.name,
+          price: omsPrefill.price,
+          image_urls: omsPrefill.image_urls,
+        })
+        setMarkets(['VIETNAM'])
+        setSourceDraft(defaultSource)
+        omsDefaultLineAppliedRef.current = false
       } else {
         setBrandType(defaultBrandType)
         setForm(defaultForm)
@@ -112,7 +139,17 @@ export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandTy
         setSourceDraft(defaultSource)
       }
     }
-  }, [open, teamProduct, defaultBrandType])
+  }, [open, teamProduct, defaultBrandType, omsPrefill])
+
+  // Thêm sản phẩm từ kho tổng (OMS) → mặc định "Dòng sản phẩm" = GMV (leader vẫn chọn lại được
+  // trong dropdown như bình thường). Chỉ set 1 lần lúc mở form, chờ productLines tải xong.
+  useEffect(() => {
+    if (open && omsPrefill && !isEdit && !omsDefaultLineAppliedRef.current && productLines) {
+      const gmv = productLines.find(l => l.name === 'GMV')
+      if (gmv) setForm(f => ({ ...f, product_line_id: gmv.id }))
+      omsDefaultLineAppliedRef.current = true
+    }
+  }, [open, omsPrefill, isEdit, productLines])
 
   const removeSrcMut = useMutation({
     mutationFn: (sourceId: string) => removeTeamSource(teamId, sourceId),
@@ -158,7 +195,11 @@ export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandTy
         await addSourceIfNeeded(teamProduct!.id)
         return undefined
       } else {
-        const newProduct = await addTeamProduct(teamId, { sku: form.sku, ...payload })
+        const newProduct = await addTeamProduct(teamId, {
+          sku: form.sku,
+          ...payload,
+          ...(omsPrefill ? { oms_product_id: omsPrefill.oms_product_id, oms_variant_id: omsPrefill.oms_variant_id } : {}),
+        })
         await addSourceIfNeeded(newProduct.id)
         return newProduct
       }
@@ -187,7 +228,7 @@ export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandTy
     <DarkModal
       open={open}
       onClose={onClose}
-      title={isEdit ? 'Chỉnh sửa sản phẩm team' : 'Tạo sản phẩm mới cho kho team'}
+      title={isEdit ? 'Chỉnh sửa sản phẩm team' : omsPrefill ? 'Thêm sản phẩm từ OMS vào kho team' : 'Tạo sản phẩm mới cho kho team'}
       size="xl"
       footer={
         <>
@@ -206,6 +247,13 @@ export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandTy
       }
     >
       <div className="space-y-6">
+        {omsPrefill && (
+          <div className="flex items-start gap-2.5 bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3">
+            <p className="text-sm text-indigo-700">
+              Đã lấy sẵn SKU/tên/giá/ảnh từ OMS. Điền nốt nhóm/dòng sản phẩm/chất liệu/phân loại bên dưới trước khi lưu.
+            </p>
+          </div>
+        )}
         <div className="space-y-4">
           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
             Thông tin cơ bản
@@ -213,9 +261,10 @@ export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandTy
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {!isEdit && (
               <DarkInput
-                label="SKU *"
+                label={omsPrefill ? 'SKU (theo OMS)' : 'SKU *'}
                 placeholder="VD: NM101"
                 value={form.sku}
+                disabled={!!omsPrefill}
                 onChange={e => setForm(f => ({ ...f, sku: e.target.value }))}
               />
             )}

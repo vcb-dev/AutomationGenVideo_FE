@@ -19,6 +19,9 @@ import { useSubmitVideoToLibrary } from '@/hooks/useProposeVideo';
 import { dedupeById } from '@/lib/dedupe-pages';
 import WatchFeedButton from '../components/WatchFeedButton';
 import KeywordTranslateHint from '../components/KeywordTranslateHint';
+import DeleteChannelButton from '../components/DeleteChannelButton';
+import SyncAllChannelsButton from '../components/SyncAllChannelsButton';
+import { buildDeleteChannelConfirm } from '@/lib/scrape/delete-channel';
 
 function formatNum(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -134,12 +137,14 @@ function XhsProfileCard({
   onToggleBookmark,
   onToggleTracked,
   onViewDetail,
+  onDelete,
 }: {
   profile: XiaohongshuProfile;
   onScrape?: () => void;
   onToggleBookmark: () => void;
   onToggleTracked?: () => void;
   onViewDetail: () => void;
+  onDelete?: () => void;
 }) {
   const isProcessing = p.scraping_status === 'processing';
 
@@ -255,6 +260,7 @@ function XhsProfileCard({
             <Timer size={14} weight={p.is_tracked ? 'fill' : 'regular'} />
           </button>
         )}
+        {onDelete && <DeleteChannelButton onDelete={onDelete} />}
       </div>
     </div>
   );
@@ -550,6 +556,30 @@ function ProfilesTab() {
   const [userId, setUserId] = useState('');
   const [q, setQ] = useState('');
 
+  // Xoá cứng kênh: BE xoá kèm toàn bộ video/lịch sử, không hoàn tác được. XiaoHongShu
+  // dùng khoá ngoại SetNull nên BE phải tự xoá video — không có cascade đỡ hộ như 6 nền
+  // tảng kia. Hộp xác nhận phải nói số video sắp mất.
+  const deleteChannelMutation = useMutation({
+    mutationFn: (id: number) => {
+      if (!token) throw new Error('No token');
+      return scraperService.deleteExternalChannel(token, 'xiaohongshu', id);
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['xhs-profiles'] });
+      toast.success(
+        data.videos_deleted > 0
+          ? `Đã xoá ${data.name} và ${data.videos_deleted.toLocaleString('vi-VN')} video`
+          : `Đã xoá ${data.name}`,
+      );
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const handleDeleteChannel = (id: number, name: string, videoCount: number) => {
+    if (!window.confirm(buildDeleteChannelConfirm({ name, videoCount }))) return;
+    deleteChannelMutation.mutate(id);
+  };
+
   // Track notification IDs per user_id so we can update them when scraping finishes
   const scrapeNotifIds = useRef<Map<string, string>>(new Map());
   // Số video đã có trước khi bắt đầu cào (để tính số video mới khi xong)
@@ -558,8 +588,8 @@ function ProfilesTab() {
   const prevStatusMap = useRef<Record<number, string>>({});
 
   const profilesQuery = useQuery({
-    queryKey: ['xhs-profiles', q],
-    queryFn: () => scraperService.getXhsProfiles(token!, { q: q || undefined }),
+    queryKey: ['xhs-profiles', q, 'external-only'],
+    queryFn: () => scraperService.getXhsProfiles(token!, { q: q || undefined, is_owned: false }),
     enabled: !!token,
     // Poll every 3s while any profile is processing
     refetchInterval: (query) => {
@@ -674,6 +704,12 @@ function ProfilesTab() {
       )}
 
       {profiles.length > 0 && (
+        <div className="flex justify-end pb-2">
+          <SyncAllChannelsButton platform="xiaohongshu" channelCount={profiles.length} />
+        </div>
+      )}
+
+      {profiles.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {profiles.map(p => (
             <XhsProfileCard
@@ -683,6 +719,7 @@ function ProfilesTab() {
               onToggleBookmark={() => toggleMutation.mutate({ id: p.id, field: 'is_bookmarked', currentValue: p.is_bookmarked })}
               onToggleTracked={canManageChannels ? () => toggleMutation.mutate({ id: p.id, field: 'is_tracked', currentValue: p.is_tracked }) : undefined}
               onViewDetail={() => router.push(`/dashboard/externalChannels/xiaohongshu/${p.id}`)}
+              onDelete={canManageChannels ? () => handleDeleteChannel(p.id, p.nickname || p.user_id, p.videos_count ?? 0) : undefined}
             />
           ))}
         </div>

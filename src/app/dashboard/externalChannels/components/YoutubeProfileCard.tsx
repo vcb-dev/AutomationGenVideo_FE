@@ -3,6 +3,7 @@
 import { Users, VideoCamera, ArrowsClockwise, BookmarkSimple, Timer, CircleNotch, SealCheck, Buildings, UserCircle } from '@phosphor-icons/react';
 import { YoutubeProfile } from '@/services/scraperService';
 import { ChannelInfo } from '@/services/channelsService';
+import DeleteChannelButton from './DeleteChannelButton';
 
 function formatNum(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -17,9 +18,10 @@ interface Props {
   onToggleBookmark: () => void;
   onToggleTracked?: () => void;
   onViewDetail: () => void;
+  onDelete?: () => void;
 }
 
-export default function YoutubeProfileCard({ profile: p, channelInfo, onScrape, onToggleBookmark, onToggleTracked, onViewDetail }: Props) {
+export default function YoutubeProfileCard({ profile: p, channelInfo, onScrape, onToggleBookmark, onToggleTracked, onViewDetail, onDelete }: Props) {
   const isProcessing = p.scraping_status === 'processing';
 
   return (
@@ -156,6 +158,7 @@ export default function YoutubeProfileCard({ profile: p, channelInfo, onScrape, 
             <Timer size={14} weight={p.is_tracked ? 'fill' : 'regular'} />
           </button>
         )}
+        {onDelete && <DeleteChannelButton onDelete={onDelete} />}
       </div>
     </div>
   );
