@@ -141,6 +141,7 @@ export async function drawRound(
     scopeTeamId?: string;
     recipientId?: string;
     recipientType?: 'member' | 'team';
+    orderedPoolIds?: string[];
   },
 ): Promise<SpinRoundView> {
   const { data } = await apiClient.post<SpinRoundView>(`${BASE}/${workspace}/rounds/draw`, body);

@@ -3,6 +3,8 @@ import type {
   BrandType,
   Task,
   TasksQuery,
+  TaskHeaderCountsQuery,
+  TaskHeaderCounts,
   Team,
   TeamKind,
   EditorApproval,
@@ -20,6 +22,9 @@ import type {
   ContentClassification,
   Product,
   ProductsQuery,
+  OmsProductListResponse,
+  OmsProductDetail,
+  OmsProductQuery,
   Content,
   ContentsQuery,
   Source,
@@ -52,6 +57,11 @@ function qs(params: Record<string, string | number | boolean | undefined | null>
 
 export const getTasks = (q: TasksQuery = {}) =>
   apiClient.get<PaginatedResult<Task>>(`/task-auto/tasks${qs(q as any)}`).then(r => r.data)
+
+// Gộp 3 lượt đếm limit:1 (header "N task" + badge "Video chờ duyệt"/"Content chờ duyệt") thành
+// 1 request count()-thuần ở BE — xem tasks/page.tsx (headerCounts) và tasks.controller.ts.
+export const getTaskHeaderCounts = (q: TaskHeaderCountsQuery = {}) =>
+  apiClient.get<TaskHeaderCounts>(`/task-auto/tasks/header-counts${qs(q as any)}`).then(r => r.data)
 
 export const getTask = (id: string) =>
   apiClient.get<Task>(`/task-auto/tasks/${id}`).then(r => r.data)
@@ -247,6 +257,9 @@ export function getTeamContents(teamId: string, brandType?: string, month?: stri
   return apiClient.get<any>(`/task-auto/teams/${teamId}/contents${query}`).then(r => r.data)
 }
 
+export const getTeamContent = (teamId: string, teamContentId: string) =>
+  apiClient.get<TeamContent>(`/task-auto/teams/${teamId}/contents/${teamContentId}`).then(r => r.data)
+
 /** Copy từ kho tổng: truyền { source_content_id }. Tạo mới: truyền full content data */
 export const addTeamContent = (teamId: string, data: { source_content_id?: string; brand_type?: string; [key: string]: any }) =>
   apiClient.post<TeamContent>(`/task-auto/teams/${teamId}/contents`, data).then(r => r.data)
@@ -326,8 +339,35 @@ export type TaskAutoDashboard = {
   } | null
 }
 
-export const getDashboard = (params?: { date_from?: string; date_to?: string }) =>
+export const getDashboard = (params?: {
+  date_from?: string; date_to?: string
+  /** Chỉ có tác dụng khi user là ADMIN/MANAGER (scope global) — khoan sâu về 1 team/1 thành viên. */
+  team_id?: string; assignee_id?: string
+}) =>
   apiClient.get<TaskAutoDashboard>(`/task-auto/dashboard${qs(params ?? {})}`).then(r => r.data)
+
+export interface ProductVideoItem {
+  id: string
+  name: string
+  sku: string | null
+  category: string | null
+  video_count: number
+}
+
+export interface ProductVideoStats {
+  video_by_product_line: { category: string; count: number }[]
+  products_with_video: number
+  products_with_video_by_line: { category: string; count: number }[]
+  products_with_video_list: ProductVideoItem[]
+}
+
+/** Tách riêng khỏi getDashboard() — tự khoanh phạm vi theo role, giống hệt getDashboard()
+ * (ADMIN/MANAGER: toàn hệ thống + team_id/assignee_id; LEADER: team đang lead; MEMBER: chính mình). */
+export const getProductVideoStats = (params?: {
+  date_from?: string; date_to?: string
+  team_id?: string; assignee_id?: string
+}) =>
+  apiClient.get<ProductVideoStats>(`/task-auto/product-video-stats${qs(params ?? {})}`).then(r => r.data)
 
 // ── Editor Approvals ──────────────────────────────────────────────────────────
 
@@ -516,6 +556,17 @@ export const updateProduct = (id: string, body: Partial<Product>) =>
 export const deleteProduct = (id: string) =>
   apiClient.delete(`/task-auto/products/${id}`).then(r => r.data)
 
+// ── OMS Integration (kho tổng — proxy trực tiếp từ OMS) ─────────────────────────
+
+export const searchOmsProducts = (q: OmsProductQuery = {}) =>
+  apiClient.get<OmsProductListResponse>(`/task-auto/oms/products${qs(q as any)}`).then(r => r.data)
+
+export const getOmsProductDetail = (omsProductId: string) =>
+  apiClient.get<OmsProductDetail>(`/task-auto/oms/products/${omsProductId}`).then(r => r.data)
+
+export const refreshTeamProductFromOms = (teamId: string, teamProductId: string) =>
+  apiClient.patch<TeamProduct>(`/task-auto/teams/${teamId}/products/${teamProductId}/refresh-from-oms`).then(r => r.data)
+
 export const uploadProductImage = (file: File): Promise<{ url: string }> => {
   const fd = new FormData()
   fd.append('image', file)
@@ -615,6 +666,9 @@ export const pushEditorProductToGlobal = (userId: string, id: string) =>
 
 export const getEditorContents = (userId: string, q: Record<string, any> = {}) =>
   apiClient.get<PaginatedResult<Content>>(`/task-auto/editors/${userId}/contents${qs(q as any)}`).then(r => r.data)
+
+export const getEditorContent = (userId: string, id: string) =>
+  apiClient.get<Content>(`/task-auto/editors/${userId}/contents/${id}`).then(r => r.data)
 
 export const createEditorContent = (userId: string, body: Partial<Content>) =>
   apiClient.post<Content>(`/task-auto/editors/${userId}/contents`, body).then(r => r.data)
@@ -779,22 +833,6 @@ export interface MemberSourceStat {
 
 export const getTeamMemberSourceStats = (teamId: string, month?: string) =>
   apiClient.get<MemberSourceStat[]>(`/task-auto/teams/${teamId}/member-source-stats${qs({ month })}`).then(r => r.data)
-
-export interface MemberPushStat {
-  user_id:                 string
-  full_name:               string
-  email:                   string
-  approved_content_pushes: number
-}
-
-export interface TeamMonthlyPushStats {
-  team_id: string
-  month:   string
-  members: MemberPushStat[]
-}
-
-export const getTeamMonthlyPushStats = (teamId: string, month?: string) =>
-  apiClient.get<TeamMonthlyPushStats>(`/task-auto/teams/${teamId}/push-stats${qs({ month })}`).then(r => r.data)
 
 // ── Notifications ────────────────────────────────────────────────────────────
 

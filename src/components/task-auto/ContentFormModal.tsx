@@ -341,9 +341,11 @@ interface ContentFormModalProps {
   teamId?: string
   brandType?: BrandType
   initialMarket?: string
+  /** Preset tuyến khi mở form tạo mới từ 1 cột cụ thể của board — bỏ qua khi đang sửa content có sẵn */
+  initialContentLineId?: string
 }
 
-export function ContentFormModal({ open, editing, onClose, onSuccess, userId, teamId, brandType, initialMarket }: ContentFormModalProps) {
+export function ContentFormModal({ open, editing, onClose, onSuccess, userId, teamId, brandType, initialMarket, initialContentLineId }: ContentFormModalProps) {
   const qc = useQueryClient()
   const isEdit = !!editing
 
@@ -366,12 +368,12 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
         setForm({ ...editing })
         setMarket(editing.market ?? initialMarket ?? 'VIETNAM')
       } else {
-        setForm({ code: '', title: '', body: '', script: '', file_content_url: '', voice_url: '', content_line_id: '', classification_id: '' })
+        setForm({ code: '', title: '', body: '', script: '', file_content_url: '', voice_url: '', content_line_id: initialContentLineId ?? '', classification_id: '' })
         setMarket(initialMarket ?? 'VIETNAM')
       }
       setScoreCache(null)
     }
-  }, [open, editing, initialMarket])
+  }, [open, editing, initialMarket, initialContentLineId])
 
   const { data: contentLines, isLoading: loadingContentLines } = useQuery({
     queryKey: ['task-auto', 'content-lines'],

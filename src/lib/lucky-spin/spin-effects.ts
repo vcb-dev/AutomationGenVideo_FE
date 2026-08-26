@@ -55,6 +55,19 @@ function blip(at: number, freq: number, duration: number, gain: number, type: Os
   osc.stop(at + duration);
 }
 
+/** Tiếng gảy kim / tạch nhẹ khi bánh xe lướt qua vạch ranh giới */
+export function playTickSound() {
+  if (isMuted()) return;
+  try {
+    const ac = ctx();
+    if (!ac) return;
+    blip(ac.currentTime, 520, 0.05, 0.18, 'sine');
+  } catch {
+    /* bỏ qua */
+  }
+}
+
+
 const SPIN_MUSIC_URL = '/vendor/lucky-spin/spin-music.mp3';
 const APPLAUSE_URL = '/vendor/lucky-spin/applause.mp3';
 /** Vuốt nhỏ tiếng thay vì cắt phựt khi bánh xe dừng. */

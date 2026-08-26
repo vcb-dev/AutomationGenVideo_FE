@@ -794,6 +794,9 @@ const T = {
       contentTransformDesc: 'Rewrite kịch bản thô theo phong cách các nhân vật',
       luckySpin: 'Vòng quay may mắn',
       luckySpinDesc: 'Quay chọn thành viên, team & quà tặng, nhập danh sách từ file Excel',
+      secHrTools: 'CÔNG CỤ NHÂN SỰ',
+      idPhoto: 'Tạo ảnh thẻ nhân viên',
+      idPhotoDesc: 'Ghép trang phục bằng AI và xuất ảnh thẻ theo khung màu cấp bậc — chỉ Leader/Admin',
 
       // MEMS — quản lý thiết bị Media
       menuEquipment: 'Quản lý thiết bị',
@@ -1629,6 +1632,9 @@ const T = {
       contentTransformDesc: 'Rewrite raw scripts in different character styles',
       luckySpin: 'Lucky spin',
       luckySpinDesc: 'Spin to pick members, teams and prizes; import lists from Excel',
+      secHrTools: 'HR TOOLS',
+      idPhoto: 'Employee ID Photo',
+      idPhotoDesc: 'AI outfit swap and ID card export by role color — Leader/Admin only',
 
       // MEMS — Media equipment management
       menuEquipment: 'Equipment',

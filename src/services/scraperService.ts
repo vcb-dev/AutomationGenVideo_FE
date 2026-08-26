@@ -1,6 +1,15 @@
 import { fetchWithAuth } from '@/lib/api-client';
 // Đi qua BE (proxy sang AI ở src/modules/scraper-proxy), không gọi thẳng AI nữa.
 import type { PlatformKey } from '@/lib/platform-config';
+import { buildDeleteChannelPath, buildSyncAllChannelsPath, type DeletableChannelPlatform } from '@/lib/scrape/delete-channel';
+
+/** BE trả về cả tên kênh lẫn số video đã xoá để FE báo lại mà không phải gọi thêm API. */
+export interface DeleteChannelResponse {
+  deleted: true;
+  id: number;
+  name: string;
+  videos_deleted: number;
+}
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
 
@@ -297,6 +306,9 @@ export interface PaginatedTikTokProfileVideos {
   total_pages: number;
   videos: TikTokProfileVideo[];
 }
+
+/** Khớp với TOGGLE_FIELDS bên BE (instagram-scraper.service.ts). */
+export type InstagramToggleField = 'is_bookmarked' | 'is_tracked' | 'is_owned';
 
 export interface InstagramProfile {
   id: number;
@@ -728,6 +740,12 @@ export interface DailyStats extends PeriodStats {
 
 export interface PlatformStats extends PeriodStats {
   platform: string;
+  /**
+   * false = nền tảng có bài trong kỳ nhưng KHÔNG lấy được lượt xem (ví dụ Instagram khi token
+   * thiếu quyền insight). Khác hẳn với "có lấy được và bằng 0". BE cũ không trả cờ này nên
+   * mặc định coi là true.
+   */
+  viewsAvailable?: boolean;
   previous?: PeriodStats;
   followers: number;
   /** Active channels with posts in period. */
@@ -849,6 +867,8 @@ export interface InternalStats {
   contentLines?: ContentLineStats[];
   hashtags?: HashtagStats[];
   alerts?: ChannelAlert[];
+  /** Tổng số cảnh báo trước khi cắt bớt cho vừa màn hình — `alerts` có thể ngắn hơn. */
+  alertTotal?: number;
   totalChannels?: number;
 
   // Backward compatibility:
@@ -860,6 +880,7 @@ export interface InternalStats {
   tuyen_noi_dung?: ContentLineStats[];
   hashtag?: HashtagStats[];
   canh_bao?: ChannelAlert[];
+  tong_canh_bao?: number;
   tong_kenh?: number;
 }
 
@@ -1364,7 +1385,11 @@ export const scraperService = {
     return res.json();
   },
 
-  toggleInstagramProfile: async (token: string, id: number, field: 'is_bookmarked' | 'is_tracked'): Promise<any> => {
+  /**
+   * `is_owned` = kênh của công ty (BE chỉ cho leader/admin đổi). Đây là tiêu chí duy nhất để
+   * trang Tổng quan kênh nội bộ tính profile này vào số liệu.
+   */
+  toggleInstagramProfile: async (token: string, id: number, field: InstagramToggleField): Promise<any> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/instagram/profiles/${id}/toggle/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -1648,7 +1673,7 @@ export const scraperService = {
 
   // Trigger scrape reels (auto 300/10)
   triggerScrapeReels: async (token: string, fanpageId: number): Promise<{ message: string; is_scraping?: boolean }> => {
-    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/scrape-reels/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/scrape-reels`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ fanpage_id: fanpageId }),
@@ -1661,7 +1686,7 @@ export const scraperService = {
   },
 
   fanpageScrapeByUrl: async (token: string, url: string): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; fanpage_id: number }> => {
-    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/scrape-by-url/`, {
+    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/scrape-by-url`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ url }),
@@ -1863,6 +1888,22 @@ export const scraperService = {
     return res.json();
   },
 
+  /**
+   * Đồng bộ kênh Instagram nội bộ từ các tài khoản đã kết nối ở trang đăng bài MXH.
+   * Đây là đường duy nhất bật `is_owned` hàng loạt — cron chạy 07:15 mỗi sáng, nút bấm này
+   * để chạy ngay khi vừa kết nối thêm tài khoản.
+   */
+  syncOwnedInstagram: async (
+    token: string,
+  ): Promise<{ accounts: number; createdProfiles: number; updatedProfiles: number; syncedMedia: number; failed: number }> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/instagram/owned/sync`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Đồng bộ kênh Instagram thất bại');
+    return res.json();
+  },
+
   getOwnedThreadsProfiles: async (token: string): Promise<any[]> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/threads/owned/profiles`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -1887,6 +1928,58 @@ export const scraperService = {
       body: JSON.stringify({ username, is_owned }),
     });
     if (!res.ok) throw new Error('Cập nhật trạng thái thất bại');
+    return res.json();
+  },
+
+  /**
+   * Xoá cứng một kênh khám phá bên ngoài. BE xoá kèm toàn bộ video/lịch sử chỉ số của
+   * kênh, không hoàn tác được — luôn gọi qua hộp xác nhận (buildDeleteChannelConfirm).
+   * Chỉ ADMIN/LEADER được phép, vai trò khác sẽ nhận 403.
+   */
+  /**
+   * Đồng bộ lại toàn bộ kênh của một nền tảng. BE chạy nền và trả về ngay — theo dõi tiến
+   * độ qua scraping_status của từng kênh. Chỉ ADMIN/LEADER, vai trò khác nhận 403.
+   */
+  syncAllExternalChannels: async (
+    token: string,
+    platform: DeletableChannelPlatform,
+  ): Promise<{ status: string; message: string; already_running?: boolean }> => {
+    const res = await fetchWithAuth(`${API_URL}${buildSyncAllChannelsPath(platform)}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || 'Không gửi được yêu cầu đồng bộ');
+    }
+    return res.json();
+  },
+
+  deleteExternalChannel: async (
+    token: string,
+    platform: DeletableChannelPlatform,
+    id: number,
+  ): Promise<DeleteChannelResponse> => {
+    const res = await fetchWithAuth(`${API_URL}${buildDeleteChannelPath(platform, id)}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || 'Xoá kênh thất bại');
+    }
+    return res.json();
+  },
+
+  deleteScrapedVideo: async (token: string, platform: string, videoId: string): Promise<{ success: boolean; message: string }> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/stream/${encodeURIComponent(platform)}/${encodeURIComponent(videoId)}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Xoá video thất bại');
+    }
     return res.json();
   },
 };

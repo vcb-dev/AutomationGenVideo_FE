@@ -30,10 +30,12 @@ export function AdminOverviewTab() {
   const today = todayStr();
   const showDailyKpi = f.dateFrom <= today && today <= f.dateTo;
 
+  // KPI video/target chỉ tổng hợp editor — content creator dùng kpi_completed/kpi_target cho SỐ
+  // CONTENT (không phải video), gộp chung vào đây sẽ làm sai lệch tổng (khớp cách LeaderDashboard xử lý).
   const totals = rows.reduce(
     (acc, r) => ({
-      current: acc.current + r.kpi_completed,
-      target: acc.target + r.kpi_target,
+      current: acc.current + (r.is_content_creator ? 0 : r.kpi_completed),
+      target: acc.target + (r.is_content_creator ? 0 : r.kpi_target),
       traffic: acc.traffic + r.traffic_month,
       revenue: acc.revenue + r.revenue_month,
       contentNew: acc.contentNew + r.content_new,
@@ -86,6 +88,10 @@ export function AdminOverviewTab() {
                   kpi_day_completed: r.kpi_day_completed,
                   kpi_day_target: r.kpi_day_target,
                   traffic_month: r.traffic_month,
+                  is_content_creator: r.is_content_creator,
+                  content_collected_month: r.content_collected_month,
+                  content_original_month: r.content_original_month,
+                  content_approved_month: r.content_approved_month,
                 }}
               />
             ))}

@@ -1,7 +1,7 @@
 'use client';
 
 import type { PlatformStats } from '@/services/scraperService';
-import { METRICS, MetricCode, Summary } from './calculations';
+import { METRICS, MetricCode, Summary, lacksViewData } from './calculations';
 import {
   Dot,
   PercentDelta,
@@ -86,21 +86,36 @@ export default function MetricCards({
                     ))}
                 </div>
                 <div className="mt-3 grid gap-2">
-                  {platform.map((nt) => (
-                    <div
-                      key={nt.platform}
-                      className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap"
-                    >
-                      <Dot mau={platformColor(nt.platform)} />
-                      {platformName(nt.platform)}
-                      <b className="ml-auto text-foreground font-semibold tabular-nums" title={fullNumber(nt[cs.ma])}>
-                        {compactNumber(nt[cs.ma])}
-                      </b>
-                      <em className="not-italic w-11 text-right text-slate-400 dark:text-slate-500 tabular-nums">
-                        {percent(ratio(nt[cs.ma], value))}
-                      </em>
-                    </div>
-                  ))}
+                  {platform.map((nt) => {
+                    // Nền tảng chưa lấy được lượt xem thì hiện gạch ngang, không hiện "0".
+                    const thieuSo = cs.ma === 'views' && lacksViewData(nt);
+                    return (
+                      <div
+                        key={nt.platform}
+                        className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap"
+                      >
+                        <Dot mau={platformColor(nt.platform)} />
+                        {platformName(nt.platform)}
+                        {thieuSo ? (
+                          <em
+                            className="not-italic ml-auto text-slate-400 dark:text-slate-500"
+                            title="Chưa lấy được lượt xem của nền tảng này — không phải bằng 0"
+                          >
+                            chưa có số
+                          </em>
+                        ) : (
+                          <>
+                            <b className="ml-auto text-foreground font-semibold tabular-nums" title={fullNumber(nt[cs.ma])}>
+                              {compactNumber(nt[cs.ma])}
+                            </b>
+                            <em className="not-italic w-11 text-right text-slate-400 dark:text-slate-500 tabular-nums">
+                              {percent(ratio(nt[cs.ma], value))}
+                            </em>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </>
             ) : (

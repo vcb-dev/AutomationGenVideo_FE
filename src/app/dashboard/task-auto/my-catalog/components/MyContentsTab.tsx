@@ -4,16 +4,12 @@ import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {
-  Plus, Edit2, Trash2, Loader2, FileText, Search, Download,
-  ChevronLeft, ChevronRight, SendHorizontal, Check, X,
+  Plus, Loader2, FileText, Search, Download, Check, X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { CustomSelect, CreatableSelect } from '@/components/task-auto/DarkInput'
-import { ContentStatusBadge } from '@/components/task-auto/StatusBadge'
-import { EmptyState } from '@/components/task-auto/EmptyState'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
-import { HeaderFilterDropdown } from '@/components/task-auto/HeaderFilterDropdown'
 import {
   parseMarkets, MarketPicker, VoicePicker, ContentFilePicker,
 } from '@/components/task-auto/ContentFormModal'
@@ -21,11 +17,12 @@ import type { VoicePickerHandle } from '@/components/task-auto/ContentFormModal'
 import { DarkInput, DarkTextarea } from '@/components/task-auto/DarkInput'
 import {
   getContents, getTeamContents,
-  getEditorContents, createEditorContent, updateEditorContent, deleteEditorContent, pushEditorContentToTeam,
+  getEditorContents, getEditorContent, createEditorContent, updateEditorContent, deleteEditorContent, pushEditorContentToTeam,
   getContentLines, getContentClassifications, createContentClassification, getTeams, getMyPushRequests,
 } from '@/lib/api/task-auto'
 import { Content, TeamContent, ContentUsageStatus } from '@/types/task-auto'
 import { ContentViewModal } from '@/components/task-auto/ContentViewModal'
+import { MyContentsBoard } from './MyContentsBoard'
 
 const MARKET_COLOR: Record<string, string> = {
   VIETNAM: 'bg-emerald-100 text-emerald-700',
@@ -39,18 +36,6 @@ const MarketBadge = ({ market }: { market: string }) => (
     {MARKET_SHORT[market] ?? market}
   </span>
 )
-
-function LoadingRows({ cols }: { cols: number }) {
-  return (
-    <>
-      {Array.from({ length: 5 }).map((_, i) => (
-        <tr key={i}>{Array.from({ length: cols }).map((_, j) => (
-          <td key={j} className="px-5 py-4"><div className="h-4 bg-gray-100 rounded animate-pulse" /></td>
-        ))}</tr>
-      ))}
-    </>
-  )
-}
 
 // ── Push to team modal ────────────────────────────────────────────────────────
 
@@ -369,6 +354,7 @@ function PersonalContentModal({
   userId,
   defaultBrandType = 'DO_DA',
   defaultMarket = 'VIETNAM',
+  presetContentLineId,
   onClose,
   onSuccess,
 }: {
@@ -376,6 +362,7 @@ function PersonalContentModal({
   userId: string
   defaultBrandType?: 'DO_DA' | 'TRANG_SUC'
   defaultMarket?: string
+  presetContentLineId?: string
   onClose: () => void
   onSuccess: () => void
 }) {
@@ -389,7 +376,7 @@ function PersonalContentModal({
     script: editing?.script ?? '',
     file_content_url: editing?.file_content_url ?? '',
     voice_url: editing?.voice_url ?? '',
-    content_line_id: editing?.content_line_id ?? '',
+    content_line_id: editing?.content_line_id ?? presetContentLineId ?? '',
     classification_id: editing?.classification_id ?? '',
   })
   const [market, setMarket] = useState<string>(editing?.market ?? defaultMarket)
@@ -539,39 +526,24 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM', readO
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<ContentUsageStatus | ''>('')
-  const [contentLineFilter, setContentLineFilter] = useState('')
   const [classificationFilter, setClassificationFilter] = useState('')
   const [month, setMonth] = useState('')
-  const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
   const [showImport, setShowImport] = useState(false)
+  const [presetLineId, setPresetLineId] = useState<string | undefined>(undefined)
   const [editing, setEditing] = useState<Content | null>(null)
   const [detailItem, setDetailItem] = useState<Content | null>(null)
   const [pushItem, setPushItem] = useState<Content | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  const { data: contentLines } = useQuery({ queryKey: ['task-auto', 'content-lines'], queryFn: getContentLines })
   const { data: contentClassifications } = useQuery({ queryKey: ['task-auto', 'content-classifications'], queryFn: getContentClassifications })
-
-  const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'my-contents', userId, brandType, teamMarket, search, statusFilter, contentLineFilter, classificationFilter, month, page],
-    queryFn: () => getEditorContents(userId, {
-      brand_type: brandType,
-      market: teamMarket,
-      search: search || undefined,
-      status: statusFilter || undefined,
-      content_line_id: contentLineFilter || undefined,
-      classification_id: classificationFilter || undefined,
-      month: month || undefined,
-      page, limit: 20,
-    }),
-  })
+  const classificationOptions = (contentClassifications ?? []).map(c => ({ value: c.id, label: c.name })).sort((a, b) => a.label.localeCompare(b.label, 'vi'))
 
   const { data: myPushRequests } = useQuery({
     queryKey: ['task-auto', 'my-push-requests', userId],
     queryFn: () => getMyPushRequests(userId, 'PENDING'),
   })
-  const pendingContentIds = new Set((myPushRequests ?? []).map(r => r.editor_content_id).filter(Boolean))
+  const pendingContentIds = new Set((myPushRequests ?? []).map(r => r.editor_content_id).filter((id): id is string => !!id))
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => deleteEditorContent(userId, id),
@@ -579,26 +551,36 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM', readO
     onError: () => { toast.error('Không thể xóa content'); setDeletingId(null) },
   })
 
-  const openCreate = () => { setEditing(null); setShowModal(true) }
-  const openEdit = (c: Content) => { setEditing(c); setShowModal(true) }
+  const openCreate = () => { setEditing(null); setPresetLineId(undefined); setShowModal(true) }
+  // Danh sách chỉ trả về field rút gọn (không có body/script) để nhẹ payload — mở sửa/xem chi
+  // tiết phải lấy lại bản đầy đủ, không thì form/modal hiện trống dù content đã có nội dung.
+  const openEdit = (c: Content) => {
+    setEditing(c)
+    setShowModal(true)
+    getEditorContent(userId, c.id).then(setEditing).catch(() => toast.error('Không thể tải nội dung content'))
+  }
+  const openDetail = (c: Content) => {
+    setDetailItem(c)
+    getEditorContent(userId, c.id).then(setDetailItem).catch(() => toast.error('Không thể tải nội dung content'))
+  }
 
   return (
     <div className="space-y-5">
-      {/* Filter bar */}
+      {/* Toolbar */}
       <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
         <div className="flex flex-wrap gap-3 items-center">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
             <input
               value={search}
-              onChange={e => { setSearch(e.target.value); setPage(1) }}
+              onChange={e => setSearch(e.target.value)}
               placeholder="Tìm mã, tiêu đề content..."
               className="w-full pl-12 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-base text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
             />
           </div>
           <CustomSelect
             value={statusFilter}
-            onChange={v => { setStatusFilter(v as ContentUsageStatus | ''); setPage(1) }}
+            onChange={v => setStatusFilter(v as ContentUsageStatus | '')}
             options={[
               { value: '', label: 'Tất cả trạng thái' },
               { value: 'AVAILABLE', label: 'Sẵn sàng' },
@@ -611,8 +593,15 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM', readO
           <input
             type="month"
             value={month}
-            onChange={e => { setMonth(e.target.value); setPage(1) }}
+            onChange={e => setMonth(e.target.value)}
             className="px-3 py-3.5 border border-gray-200 rounded-xl text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          />
+          <CustomSelect
+            value={classificationFilter}
+            onChange={setClassificationFilter}
+            options={[{ value: '', label: 'Tất cả phân loại' }, ...classificationOptions]}
+            className="min-w-[170px]"
+            compact
           />
           {!readOnly && (
             <>
@@ -633,146 +622,23 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM', readO
         </div>
       </div>
 
-      {data && data.total > 0 && (
-        <p className="text-sm text-slate-500 px-1">
-          <span className="font-bold text-slate-700">{data.total}</span> content cá nhân
-        </p>
-      )}
-
-      {/* Table */}
-      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-slate-50 border-b-2 border-gray-200">
-                <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Mã</th>
-                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide w-[35%]">Tiêu đề</th>
-                <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">
-                  <HeaderFilterDropdown
-                    label="Tuyến ND"
-                    value={contentLineFilter}
-                    onChange={v => { setContentLineFilter(v); setPage(1) }}
-                    options={(contentLines ?? []).map(l => ({ value: l.id, label: l.name }))}
-                  />
-                </th>
-                <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">
-                  <HeaderFilterDropdown
-                    label="Phân loại"
-                    value={classificationFilter}
-                    onChange={v => { setClassificationFilter(v); setPage(1) }}
-                    options={(contentClassifications ?? []).map(c => ({ value: c.id, label: c.name }))}
-                  />
-                </th>
-                <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Thị trường</th>
-                <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Trạng thái</th>
-                {/* <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Người thêm</th> */}
-                <th className="text-left px-4 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Ngày thêm</th>
-                <th className="w-28" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {isLoading && <LoadingRows cols={9} />}
-              {!isLoading && !data?.data?.length && (
-                <tr><td colSpan={9}><EmptyState icon={FileText} title="Chưa có content cá nhân nào" /></td></tr>
-              )}
-              {data?.data.map(c => (
-                <tr key={c.id} className="hover:bg-indigo-50/20 transition-colors group cursor-pointer" onClick={() => setDetailItem(c)}>
-                  <td className="px-4 py-4 whitespace-nowrap">
-                    <span className="inline-block bg-slate-100 text-slate-600 font-mono text-xs font-semibold px-2.5 py-1 rounded-lg">
-                      {c.code || <span className="text-slate-300">—</span>}
-                    </span>
-                  </td>
-                  <td className="px-5 py-4 max-w-0">
-                    <span className="text-base font-semibold text-slate-800 truncate block hover:text-indigo-600 transition-colors" title={c.title ?? ''}>
-                      {c.title || <span className="text-slate-400 italic font-normal text-sm">Chưa đặt tên</span>}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap">
-                    {c.content_line?.name
-                      ? <span className="text-sm font-medium text-slate-700">{c.content_line.name}</span>
-                      : <span className="text-slate-300 text-sm">—</span>}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap">
-                    {c.classification?.name
-                      ? <span className="text-sm font-medium text-slate-700">{c.classification.name}</span>
-                      : <span className="text-slate-300 text-sm">—</span>}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap">
-                    <div className="flex gap-1.5">
-                      {parseMarkets(c.market).map(m => <MarketBadge key={m} market={m} />)}
-                    </div>
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap">
-                    <ContentStatusBadge status={c.status} />
-                  </td>
-                  {/* <td className="px-4 py-4 whitespace-nowrap">
-                    <span className="text-sm text-slate-500">
-                      {c.added_by?.full_name ?? <span className="text-slate-300">—</span>}
-                    </span>
-                  </td> */}
-                  <td className="px-4 py-4 whitespace-nowrap">
-                    <span className="text-sm text-slate-500">
-                      {(c as any).added_at ? new Date((c as any).added_at).toLocaleDateString('vi-VN') : <span className="text-slate-300">—</span>}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 text-right" onClick={e => e.stopPropagation()}>
-                    <div className="flex items-center justify-end gap-1">
-                      {readOnly ? (
-                        <span className="text-slate-300 text-xs">—</span>
-                      ) : (
-                        <>
-                          {pendingContentIds.has(c.id) ? (
-                            <span className="text-[10px] font-bold uppercase px-2 py-1 rounded-full bg-amber-100 text-amber-700 whitespace-nowrap" title="Đang chờ leader duyệt vào kho team">
-                              Chờ duyệt
-                            </span>
-                          ) : (
-                            <button
-                              onClick={() => setPushItem(c)}
-                              title="Đẩy sang kho team"
-                              className="p-2.5 rounded-xl text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
-                            >
-                              <SendHorizontal className="w-4 h-4" />
-                            </button>
-                          )}
-                          <button
-                            onClick={() => openEdit(c)}
-                            className="p-2.5 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-100 transition-colors"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          {c.status !== 'IN_TASK' ? (
-                            <button
-                              onClick={() => setDeletingId(c.id)}
-                              className="p-2.5 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          ) : (
-                            <button disabled title="Đang dùng trong task" className="p-2.5 rounded-xl text-slate-200 cursor-not-allowed">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {data && data.totalPages > 1 && (
-          <div className="flex items-center justify-between px-5 py-4 border-t border-gray-100 bg-gray-50/50">
-            <span className="text-sm text-slate-500">Trang <span className="font-semibold">{page}</span> / {data.totalPages}</span>
-            <div className="flex gap-1">
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
-                className="p-2 rounded-lg hover:bg-gray-200 text-slate-500 disabled:opacity-30"><ChevronLeft className="w-4 h-4" /></button>
-              <button onClick={() => setPage(p => Math.min(data.totalPages, p + 1))} disabled={page >= data.totalPages}
-                className="p-2 rounded-lg hover:bg-gray-200 text-slate-500 disabled:opacity-30"><ChevronRight className="w-4 h-4" /></button>
-            </div>
-          </div>
-        )}
-      </div>
+      {/* Board theo tuyến */}
+      <MyContentsBoard
+        userId={userId}
+        brandType={brandType}
+        market={teamMarket}
+        month={month}
+        search={search}
+        status={statusFilter}
+        classificationId={classificationFilter}
+        readOnly={readOnly}
+        pendingContentIds={pendingContentIds}
+        onSelect={openDetail}
+        onEdit={openEdit}
+        onPush={setPushItem}
+        onDelete={c => setDeletingId(c.id)}
+        onAdd={contentLineId => { setPresetLineId(contentLineId); setEditing(null); setShowModal(true) }}
+      />
 
       {showModal && (
         <PersonalContentModal
@@ -780,8 +646,9 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM', readO
           userId={userId}
           defaultBrandType={brandType}
           defaultMarket={teamMarket}
-          onClose={() => setShowModal(false)}
-          onSuccess={() => setShowModal(false)}
+          presetContentLineId={presetLineId}
+          onClose={() => { setShowModal(false); setPresetLineId(undefined) }}
+          onSuccess={() => { setShowModal(false); setPresetLineId(undefined) }}
         />
       )}
 

@@ -87,6 +87,9 @@ export interface TeamProduct {
   source_product_id: string | null
   /** có giá trị = đẩy từ kho cá nhân (FK reference) */
   source_editor_product_id: string | null
+  /** có giá trị = được leader kéo về từ kho tổng (OMS) — dùng để "Làm mới từ OMS" */
+  oms_product_id: string | null
+  oms_variant_id: string | null
   added_by_id: string
   added_at: string
   updated_at: string
@@ -442,6 +445,75 @@ export interface Product {
   } | null
 }
 
+// ── OMS Integration (kho tổng — proxy trực tiếp từ hệ thống OMS ngoài) ──────────
+
+export interface OmsProductSummary {
+  id: string
+  alias: string
+  name: string
+  image_url: string | null
+  default_sku: string
+  skus: string[]
+  variant_count: number
+  matched_sku: string | null
+  vendor: string | null
+  product_type: string | null
+  unit: string | null
+  tags: string[]
+  price_from: number
+  is_published: boolean
+}
+
+export interface OmsProductListResponse {
+  data: OmsProductSummary[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface OmsProductVariant {
+  id: string
+  sku: string
+  barcode: string | null
+  price: number
+  compare_at_price: number | null
+  cost: number | null
+  image_url: string | null
+  enabled: boolean
+  option_values: string[]
+}
+
+export interface OmsProductImage {
+  id: string
+  url: string
+  position: number
+  is_primary: boolean
+}
+
+export interface OmsProductDetail {
+  id: string
+  alias: string
+  name: string
+  vendor: string | null
+  product_type: string | null
+  tags: string[]
+  is_published: boolean
+  image_url: string | null
+  images: OmsProductImage[]
+  variants: OmsProductVariant[]
+  category_ids: string[]
+  created_at: string
+  updated_at: string
+}
+
+export interface OmsProductQuery {
+  q?: string
+  page?: number
+  page_size?: number
+  is_published?: boolean
+  category_id?: string
+}
+
 export interface Content {
   id: string
   brand_type: BrandType
@@ -599,6 +671,10 @@ export interface Task {
   product_id: string | null
   editor_product_id: string | null
   team_product_id: string | null
+  /** Chọn trực tiếp từ kho tổng (OMS) nhưng task đang PENDING (chưa có assignee) — tạm giữ,
+   *  materialize thành editor_product_id lúc gán assignee. Null sau khi đã materialize. */
+  oms_product_id?: string | null
+  oms_variant_id?: string | null
   content_line_id: string | null
   product_line_id?: string | null
   /** true = task đẩy SP theo kế hoạch (SP kho team) — luôn đi kèm task_type AUTO */
@@ -795,6 +871,29 @@ export interface TasksQuery {
   exclude_overdue?: boolean
 }
 
+/** Tham số cho getTaskHeaderCounts — gộp đếm header "N task" + 2 badge "Video chờ duyệt"/
+ * "Content chờ duyệt" thành 1 request (xem tasks.controller.ts: GET tasks/header-counts). */
+export interface TaskHeaderCountsQuery {
+  status?: TaskStatus | ''
+  team_id?: string
+  assignee_id?: string
+  search?: string
+  deadline_from?: string
+  deadline_to?: string
+  /** Khoảng ngày riêng cho badge "Video chờ duyệt" — KHÔNG dùng chung deadline_from/to */
+  pending_from?: string
+  pending_to?: string
+  /** BE chỉ nhận diện 'auto'/'extra' (khớp QueryTaskHeaderCountsDto) — 'manual' được giữ trong type
+   * cho khớp TasksQuery.task_type, gửi lên BE sẽ bị bỏ qua giống getTasks() hiện tại. */
+  task_type?: 'auto' | 'extra' | 'manual' | ''
+}
+
+export interface TaskHeaderCounts {
+  total: number
+  submittedTotal: number
+  contentApprovalTotal: number
+}
+
 export type BrandType = 'DO_DA' | 'TRANG_SUC'
 
 export interface ProductsQuery {
@@ -872,6 +971,8 @@ export interface TaskAutoDashboard {
   today_deadline?: number
   overdue?: number
   monthly_completed?: number
+  // Video/sản phẩm theo dòng sản phẩm đã tách sang GET /task-auto/product-video-stats
+  // (xem getProductVideoStats() trong lib/api/task-auto.ts) — không còn nằm trong response này.
   // Team (LEADER)
   team?: { id: string; name: string; member_count: number } | null
   members?: Array<{

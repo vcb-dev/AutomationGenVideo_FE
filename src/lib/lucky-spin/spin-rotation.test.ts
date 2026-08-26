@@ -1,11 +1,22 @@
-import { nextRotation, REVEAL_DELAY_MS, SPIN_DURATION_MS } from './spin-rotation';
+import {
+  nextRotation,
+  nextSpinTarget,
+  REVEAL_DELAY_MS,
+  SPIN_DURATION_MS,
+  SPIN_EASING,
+  SPIN_EASING_BOUNCE,
+  SPIN_EASING_CRUISE,
+  SPIN_EASING_FALSE_STOP,
+  SPIN_EASING_RAZOR,
+  SPIN_EASING_SLAM,
+} from './spin-rotation';
 
 /**
  * Người trúng được bốc TRƯỚC, góc xoay tính ngược lại. Nếu công thức sai thì mũi tên dừng ở ô
  * này nhưng hộp kết quả hiện tên ở ô khác — trước cả hội trường.
  *
  * SpinWheel vẽ ô thứ i từ góc (i*segAngle - 90) độ, tức ô 0 bắt đầu ngay tại mũi tên ở 12 giờ.
- * Sau khi xoay, tâm ô trúng phải nằm đúng vị trí mũi tên.
+ * Sau khi xoay, ô trúng phải nằm đúng vị trí mũi tên.
  */
 
 /** Ô nào đang nằm dưới mũi tên sau khi xoay `rotation` độ. */
@@ -21,13 +32,24 @@ function segmentUnderPointer(rotation: number, count: number): number {
   return -1;
 }
 
-describe('nextRotation — ô trúng phải dừng đúng dưới mũi tên', () => {
+describe('nextSpinTarget & nextRotation — diễn hoạt 30s siêu kịch tính', () => {
   it.each([2, 3, 5, 8, 12, 24, 37, 100])('đúng với mọi ô khi vòng quay có %i ô', (count) => {
     for (let winner = 0; winner < count; winner++) {
-      const rotation = nextRotation(0, winner, count);
-      expect(segmentUnderPointer(rotation, count)).toBe(winner);
+      for (let sc = 0; sc < 5; sc++) {
+        const target = nextSpinTarget(0, winner, count, sc);
+        // Kết quả cuối cùng phải nằm đúng dưới mũi tên
+        expect(segmentUnderPointer(target.rotation, count)).toBe(winner);
+        expect([
+          SPIN_EASING_BOUNCE,
+          SPIN_EASING_FALSE_STOP,
+          SPIN_EASING_RAZOR,
+          SPIN_EASING_CRUISE,
+          SPIN_EASING_SLAM,
+        ]).toContain(target.easing);
+      }
     }
   });
+
 
   it('vẫn đúng khi quay tiếp từ góc lẻ của lượt trước', () => {
     const count = 7;
@@ -47,25 +69,37 @@ describe('nextRotation — ô trúng phải dừng đúng dưới mũi tên', ()
     }
   });
 
-  it('quay ít nhất 9 vòng để chuyển động nhìn ra là đang quay', () => {
+  it('quay ít nhất 7 vòng để chuyển động nhìn ra là đang quay', () => {
     for (let i = 0; i < 100; i++) {
       const rotation = nextRotation(0, 2, 10);
-      expect(rotation).toBeGreaterThanOrEqual(9 * 360);
-      expect(rotation).toBeLessThan(14 * 360);
+      expect(rotation).toBeGreaterThanOrEqual(7 * 360);
+      expect(rotation).toBeLessThan(12 * 360);
     }
   });
 
   it('trúng lại chính ô đang dừng thì vẫn quay trọn vòng chứ không đứng im', () => {
     const dung = nextRotation(0, 4, 10);
-    expect(nextRotation(dung, 4, 10) - dung).toBeGreaterThanOrEqual(9 * 360);
+    expect(nextRotation(dung, 4, 10) - dung).toBeGreaterThanOrEqual(7 * 360);
   });
 
   it('vòng quay một ô luôn trả về ô đó', () => {
-    expect(segmentUnderPointer(nextRotation(0, 0, 1), 1)).toBe(0);
+    const rotation = nextRotation(0, 0, 1);
+    expect(segmentUnderPointer(rotation, 1)).toBe(0);
   });
 
-  it('quay đúng 10 giây, và còn một nhịp lặng trước khi công bố', () => {
-    expect(SPIN_DURATION_MS).toBe(10000);
+  it('thời gian quay 30 giây và có đầy đủ đường cong easing', () => {
+    expect(SPIN_DURATION_MS).toBe(30000);
+    expect(SPIN_EASING).toBe(SPIN_EASING_RAZOR);
     expect(REVEAL_DELAY_MS).toBeGreaterThan(0);
   });
 });
+
+
+
+
+
+
+
+
+
+

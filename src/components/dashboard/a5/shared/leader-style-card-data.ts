@@ -15,4 +15,6 @@ export interface LeaderStyleCardData {
   is_content_creator?: boolean;
   content_collected_month?: number;
   content_original_month?: number;
+  /** Số content đã được leader/admin/manager duyệt vào kho team trong kỳ. */
+  content_approved_month?: number;
 }

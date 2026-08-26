@@ -2,53 +2,20 @@
 
 import {
   Users, Target, Video, FileText, Package,
-  BarChart3, Award, XCircle, CheckCircle2, Send, Activity,
+  BarChart3, XCircle, CheckCircle2, Send, Activity,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import type { ProductVideoStats } from '@/lib/api/task-auto'
 import { StatusBar } from './StatusBar'
 import { KpiProgress } from './KpiProgress'
-import { DashboardCard, MetricStat, PeriodBadge } from './DashboardUI'
+import { DashboardCard, MetricStat, PeriodBadge, MonthPacingHint } from './DashboardUI'
 import { VideoByLineCard } from './VideoByLineCard'
+import { ProductVideoBreakdownCard } from './ProductVideoBreakdownCard'
+import { TONE, CATEGORY, rateTone } from './tokens'
 
 function formatMonth(yyyymm: string) {
   const [y, m] = yyyymm.split('-')
   return `Tháng ${m}/${y}`
-}
-
-// ─── Month Pacing Hint ───────────────────────────────────────────────────────
-
-function MonthPacingHint({ completed, target }: { completed: number; target: number }) {
-  if (!target) return null
-  const now = new Date()
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
-  const daysLeft    = daysInMonth - now.getDate() + 1
-  const remaining   = Math.max(0, target - completed)
-
-  if (remaining === 0) return (
-    <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 bg-emerald-50 px-3 py-2 rounded-lg">
-      <Award className="w-3.5 h-3.5" /> Team đã đạt KPI tháng này!
-    </div>
-  )
-
-  const rateNeeded = daysLeft > 0 ? remaining / daysLeft : 0
-  const urgent = rateNeeded > 3
-
-  return (
-    <div className={cn(
-      'flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg',
-      urgent ? 'bg-amber-50 text-amber-700' : 'bg-slate-50 text-slate-500',
-    )}>
-      <BarChart3 className="w-3.5 h-3.5 shrink-0" />
-      <span>
-        Còn <span className="font-bold">{remaining}</span> task,{' '}
-        cần{' '}
-        <span className={cn('font-bold', urgent ? 'text-amber-600' : 'text-indigo-600')}>
-          {rateNeeded.toFixed(1)}/ngày
-        </span>{' '}
-        trong {daysLeft} ngày tới
-      </span>
-    </div>
-  )
 }
 
 // ─── Team Performance Summary ────────────────────────────────────────────────
@@ -67,11 +34,11 @@ function TeamPerformanceSummary({ tasks, members, periodLabel }: { tasks: any; m
       title="Hiệu suất Team"
       right={<PeriodBadge label={periodLabel} />}
     >
-      <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y divide-slate-100 sm:divide-y-0">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-4">
         <MetricStat
           icon={CheckCircle2} label="Tỷ lệ hoàn thành" value={`${completionRate}%`}
           sub={`${approved}/${total} task`}
-          tone={completionRate >= 70 ? 'emerald' : completionRate >= 40 ? 'amber' : 'red'}
+          tone={rateTone(completionRate)}
         />
         <MetricStat
           icon={Send} label="Chờ duyệt" value={submitted} sub="task đã nộp"
@@ -79,20 +46,18 @@ function TeamPerformanceSummary({ tasks, members, periodLabel }: { tasks: any; m
         />
         <MetricStat
           icon={XCircle} label="Bị từ chối" value={rejected} sub="cần xử lý lại"
-          tone="red" active={rejected > 0}
+          tone="danger" active={rejected > 0}
         />
         <MetricStat
           icon={Activity} label="Đang hoạt động" value={activeMembers} sub={`/ ${members.length} thành viên`}
-          tone="indigo"
+          tone="brand"
         />
       </div>
 
       <div className="px-5 pb-4 pt-1">
         <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
           <div
-            className={cn('h-full rounded-full transition-all duration-700',
-              completionRate >= 70 ? 'bg-emerald-500' : completionRate >= 40 ? 'bg-amber-400' : 'bg-red-400',
-            )}
+            className={cn('h-full rounded-full transition-all duration-700', TONE[rateTone(completionRate)].bar)}
             style={{ width: `${completionRate}%` }}
           />
         </div>
@@ -105,16 +70,15 @@ function TeamPerformanceSummary({ tasks, members, periodLabel }: { tasks: any; m
 
 function MemberKpiCell({ approved, kpiTarget }: { approved: number; kpiTarget: number }) {
   if (!kpiTarget) return <span className="text-xs text-slate-300 pr-2">Chưa có KPI</span>
-  const pct     = Math.min(100, Math.round((approved / kpiTarget) * 100))
-  const barCls  = pct >= 70 ? 'bg-emerald-500' : pct >= 40 ? 'bg-amber-400' : 'bg-red-400'
-  const textCls = pct >= 70 ? 'text-emerald-600' : pct >= 40 ? 'text-amber-600' : 'text-red-500'
+  const pct = Math.min(100, Math.round((approved / kpiTarget) * 100))
+  const t   = TONE[rateTone(pct)]
 
   return (
     <div className="flex items-center gap-2 pr-2 min-w-[100px]">
       <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-        <div className={cn('h-full rounded-full transition-all duration-500', barCls)} style={{ width: `${pct}%` }} />
+        <div className={cn('h-full rounded-full transition-all duration-500', t.bar)} style={{ width: `${pct}%` }} />
       </div>
-      <span className={cn('text-xs font-bold tabular-nums whitespace-nowrap', textCls)}>
+      <span className={cn('text-xs font-bold tabular-nums whitespace-nowrap', t.text)}>
         {approved}/{kpiTarget}
       </span>
     </div>
@@ -132,9 +96,31 @@ function CountBadge({ value, color, bg }: { value: number; color: string; bg: st
   )
 }
 
+// ─── KPI target tile ─────────────────────────────────────────────────────────
+
+function KpiTargetTile({ icon: Icon, label, value, category }: {
+  icon: any; label: string; value: number; category: keyof typeof CATEGORY
+}) {
+  const c = CATEGORY[category]
+  return (
+    <div className={cn('rounded-xl border px-3 py-3.5 text-center', c.bg, c.border)}>
+      <div className={cn('flex items-center justify-center gap-1 mb-2', c.text)}>
+        <Icon className="w-3.5 h-3.5" />
+        <p className="text-[10px] font-bold uppercase tracking-wide">{label}</p>
+      </div>
+      <p className={cn('text-2xl font-extrabold', c.text)}>{value ?? 0}</p>
+      <p className="text-[10px] text-slate-400 mt-1">mục tiêu tháng</p>
+    </div>
+  )
+}
+
 // ─── TeamDashboard ────────────────────────────────────────────────────────────
 
-export function TeamDashboard({ d, periodLabel }: { d: any; periodLabel: string }) {
+export function TeamDashboard({ d, periodLabel, productStats }: {
+  d: any; periodLabel: string
+  /** Tải riêng qua GET /task-auto/product-video-stats (xem page.tsx) — undefined khi đang tải lần đầu. */
+  productStats?: ProductVideoStats
+}) {
   const tasks: any    = d.tasks ?? { total: 0 }
   const members: any[] = d.members ?? []
   const kpi = d.kpi
@@ -145,8 +131,8 @@ export function TeamDashboard({ d, periodLabel }: { d: any; periodLabel: string 
       {/* ── Team Performance ── */}
       <TeamPerformanceSummary tasks={tasks} members={members} periodLabel={periodLabel} />
 
-      {/* ── Status distribution + KPI ── */}
-      <div className={cn('grid grid-cols-1 gap-4', kpi ? 'lg:grid-cols-2' : '')}>
+      {/* ── Phân bố trạng thái | Video theo tuyến nội dung ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
         {/* Donut chart phân bố */}
         <DashboardCard
@@ -169,58 +155,61 @@ export function TeamDashboard({ d, periodLabel }: { d: any; periodLabel: string 
           )}
         </DashboardCard>
 
-        {/* KPI Card */}
-        {kpi && (
-          <DashboardCard
-            icon={Target} iconColor="text-indigo-600" iconBg="bg-indigo-50"
-            title={`KPI Team — ${formatMonth(kpi.month)}`}
-            action={{ href: '/dashboard/task-auto/kpi', label: 'Xem KPI' }}
-          >
-            <div className="px-5 py-4 space-y-4">
-              {/* Progress circle */}
-              <div className="p-4 bg-gradient-to-br from-indigo-50 to-slate-50 rounded-xl border border-indigo-100/60 space-y-3">
-                <KpiProgress completed={kpi.completed} total_target={kpi.total_target} />
-                <MonthPacingHint completed={kpi.completed} target={kpi.total_target} />
-              </div>
+        {/* Video theo tuyến nội dung — theo đúng bộ lọc ngày ở trên, không khoá cứng theo tháng KPI */}
+        <VideoByLineCard
+          data={d.video_by_line}
+          periodLabel={periodLabel}
+          subtitle={d.team?.name}
+        />
 
-              {/* KPI targets breakdown */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="rounded-xl bg-orange-50 border border-orange-100/80 px-3 py-3.5 text-center">
-                  <div className="flex items-center justify-center gap-1 mb-2">
-                    <Video className="w-3.5 h-3.5 text-orange-500" />
-                    <p className="text-[10px] font-bold text-orange-600 uppercase tracking-wide">Video win</p>
-                  </div>
-                  <p className="text-2xl font-extrabold text-orange-700">{kpi.video_win ?? 0}</p>
-                  <p className="text-[10px] text-orange-400 mt-1">mục tiêu tháng</p>
-                </div>
-                <div className="rounded-xl bg-emerald-50 border border-emerald-100/80 px-3 py-3.5 text-center">
-                  <div className="flex items-center justify-center gap-1 mb-2">
-                    <FileText className="w-3.5 h-3.5 text-emerald-600" />
-                    <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-wide">Content</p>
-                  </div>
-                  <p className="text-2xl font-extrabold text-emerald-700">{kpi.content_new ?? 0}</p>
-                  <p className="text-[10px] text-emerald-400 mt-1">mục tiêu tháng</p>
-                </div>
-                <div className="rounded-xl bg-violet-50 border border-violet-100/80 px-3 py-3.5 text-center">
-                  <div className="flex items-center justify-center gap-1 mb-2">
-                    <Package className="w-3.5 h-3.5 text-violet-600" />
-                    <p className="text-[10px] font-bold text-violet-700 uppercase tracking-wide">Sản phẩm</p>
-                  </div>
-                  <p className="text-2xl font-extrabold text-violet-700">{kpi.product_planned ?? 0}</p>
-                  <p className="text-[10px] text-violet-400 mt-1">mục tiêu tháng</p>
-                </div>
-              </div>
-            </div>
-          </DashboardCard>
-        )}
       </div>
 
-      {/* ── Video theo tuyến nội dung — theo đúng bộ lọc ngày ở trên, không khoá cứng theo tháng KPI ── */}
-      <VideoByLineCard
-        data={d.video_by_line}
-        periodLabel={periodLabel}
-        subtitle={d.team?.name}
-      />
+      {/* ── Video theo dòng sản phẩm | Sản phẩm được làm video — như màn Admin, thu hẹp về đúng team này ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+        <VideoByLineCard
+          data={(productStats?.video_by_product_line ?? []).map(p => ({ line: p.category, count: p.count }))}
+          periodLabel={periodLabel}
+          title="Video theo dòng sản phẩm"
+          subtitle={d.team?.name}
+          icon={Video} iconColor={CATEGORY.video.text} iconBg={CATEGORY.video.bg}
+          itemLabel="Dòng" unitLabel="video đã duyệt"
+          emptyLabel="Chưa có video nào được duyệt theo dòng sản phẩm"
+        />
+
+        <ProductVideoBreakdownCard
+          byProduct={productStats?.products_with_video_list ?? []}
+          byLine={productStats?.products_with_video_by_line ?? []}
+          total={productStats?.products_with_video ?? 0}
+          periodLabel={periodLabel}
+          scopeLabel={d.team?.name ?? 'Team'}
+        />
+
+      </div>
+
+      {/* ── KPI Team ── */}
+      {kpi && (
+        <DashboardCard
+          icon={Target} iconColor="text-indigo-600" iconBg="bg-indigo-50"
+          title={`KPI Team — ${formatMonth(kpi.month)}`}
+          action={{ href: '/dashboard/task-auto/kpi', label: 'Xem KPI' }}
+        >
+          <div className="px-5 py-4 space-y-4">
+            {/* Progress circle */}
+            <div className="p-4 bg-gradient-to-br from-indigo-50 to-slate-50 rounded-xl border border-indigo-100/60 space-y-3">
+              <KpiProgress completed={kpi.completed} total_target={kpi.total_target} />
+              <MonthPacingHint completed={kpi.completed} target={kpi.total_target} achievedLabel="Team đã đạt KPI tháng này!" />
+            </div>
+
+            {/* KPI targets breakdown */}
+            <div className="grid grid-cols-3 gap-3">
+              <KpiTargetTile icon={Video} label="Video win" value={kpi.video_win ?? 0} category="video" />
+              <KpiTargetTile icon={FileText} label="Content" value={kpi.content_new ?? 0} category="content" />
+              <KpiTargetTile icon={Package} label="Sản phẩm" value={kpi.product_planned ?? 0} category="product" />
+            </div>
+          </div>
+        </DashboardCard>
+      )}
 
       {/* ── Member table ── */}
       <DashboardCard

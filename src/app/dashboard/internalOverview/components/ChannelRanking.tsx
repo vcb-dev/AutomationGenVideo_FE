@@ -35,6 +35,8 @@ const COT: { ma: Cot; nhan: string }[] = [
 interface ChannelRow extends ChannelStats {
   tb: number;
   er: number;
+  /** Nền tảng chưa lấy được lượt xem — xem prop thieuLuotXem. */
+  thieuSo: boolean;
 }
 
 /**
@@ -44,7 +46,14 @@ interface ChannelRow extends ChannelStats {
  * Bấm một dòng thì mở thẳng danh sách video của kênh đó ở trang Kênh nội bộ — cùng bộ lọc
  * `channel` mà trang ấy đang dùng, nên không cần thêm gì ở phía kia.
  */
-export default function ChannelRanking({ kenh }: { kenh: ChannelStats[] }) {
+export default function ChannelRanking({
+  kenh,
+  thieuLuotXem = [],
+}: {
+  kenh: ChannelStats[];
+  /** Nền tảng chưa lấy được lượt xem — cột lượt xem của kênh thuộc nhóm này hiện gạch ngang. */
+  thieuLuotXem?: string[];
+}) {
   const router = useRouter();
   const [cot, setCot] = useState<Cot>('views');
   const [giam, setGiam] = useState(true);
@@ -58,8 +67,9 @@ export default function ChannelRanking({ kenh }: { kenh: ChannelStats[] }) {
         ...k,
         tb: k.posts > 0 ? Math.round(k.views / k.posts) : 0,
         er: ratio(k.likes + k.comments + k.shares, k.views),
+        thieuSo: thieuLuotXem.includes(k.platform),
       })),
-    [kenh],
+    [kenh, thieuLuotXem],
   );
 
   const sorted = useMemo(
@@ -67,7 +77,7 @@ export default function ChannelRanking({ kenh }: { kenh: ChannelStats[] }) {
     [dong, cot, giam],
   );
 
-  const maxValue = Math.max(...dong.map((d) => d.views), 1);
+  const maxValue = Math.max(...dong.filter((d) => !d.thieuSo).map((d) => d.views), 1);
 
   const doiCot = (ma: Cot) => {
     if (ma === cot) setGiam((v) => !v);
@@ -148,7 +158,9 @@ export default function ChannelRanking({ kenh }: { kenh: ChannelStats[] }) {
                             <PlatformCard platform={p} />
                             <span className="ml-2">
                               {cua.length} kênh · {fullNumber(cua.reduce((s, k) => s + k.posts, 0))} bài ·{' '}
-                              {compactNumber(cua.reduce((s, k) => s + k.views, 0))} lượt xem
+                              {thieuLuotXem.includes(p)
+                                ? 'chưa có số lượt xem'
+                                : `${compactNumber(cua.reduce((s, k) => s + k.views, 0))} lượt xem`}
                             </span>
                           </td>
                         </tr>
@@ -178,6 +190,18 @@ export default function ChannelRanking({ kenh }: { kenh: ChannelStats[] }) {
         </div>
       )}
     </Card>
+  );
+}
+
+/** Gạch ngang thay cho số 0 — nói rõ là chưa lấy được, không phải bằng không. */
+function ChuaCoSo() {
+  return (
+    <span
+      className="text-slate-400 dark:text-slate-500"
+      title="Chưa lấy được lượt xem của nền tảng này — không phải bằng 0"
+    >
+      —
+    </span>
   );
 }
 
@@ -213,13 +237,19 @@ function Row({
       )}
       <td className={o}>{fullNumber(k.posts)}</td>
       <td className={`${o} relative min-w-[130px]`}>
-        <span
-          className="absolute right-3 top-1/2 -translate-y-1/2 h-6 rounded-md opacity-[0.13]"
-          style={{ width: `${ratio(k.views, maxValue)}%`, background: platformColor(k.platform) }}
-        />
-        <span className="relative z-10 font-medium" title={fullNumber(k.views)}>
-          {compactNumber(k.views)}
-        </span>
+        {k.thieuSo ? (
+          <ChuaCoSo />
+        ) : (
+          <>
+            <span
+              className="absolute right-3 top-1/2 -translate-y-1/2 h-6 rounded-md opacity-[0.13]"
+              style={{ width: `${ratio(k.views, maxValue)}%`, background: platformColor(k.platform) }}
+            />
+            <span className="relative z-10 font-medium" title={fullNumber(k.views)}>
+              {compactNumber(k.views)}
+            </span>
+          </>
+        )}
       </td>
       <td className={o} title={fullNumber(k.likes)}>
         {compactNumber(k.likes)}
@@ -227,10 +257,10 @@ function Row({
       <td className={o} title={fullNumber(k.comments)}>
         {compactNumber(k.comments)}
       </td>
-      <td className={o} title={fullNumber(k.tb)}>
-        {compactNumber(k.tb)}
+      <td className={o} title={k.thieuSo ? undefined : fullNumber(k.tb)}>
+        {k.thieuSo ? <ChuaCoSo /> : compactNumber(k.tb)}
       </td>
-      <td className={o}>{percent(k.er)}</td>
+      <td className={o}>{k.thieuSo ? <ChuaCoSo /> : percent(k.er)}</td>
       <td className={o} title={fullNumber(k.followers)}>
         {compactNumber(k.followers)}
       </td>

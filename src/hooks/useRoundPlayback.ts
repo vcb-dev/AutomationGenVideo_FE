@@ -1,24 +1,37 @@
-'use client';
-
 import { useEffect, useRef, useState } from 'react';
-import { nextRotation, REVEAL_DELAY_MS, SPIN_DURATION_MS } from '@/lib/lucky-spin/spin-rotation';
-import { fireConfetti, playApplause, playSpinMusic, stopApplause, stopSpinMusic } from '@/lib/lucky-spin/spin-effects';
+import {
+  nextSpinTarget,
+  REVEAL_DELAY_MS,
+  SPIN_DURATION_MS,
+  SPIN_EASING,
+} from '@/lib/lucky-spin/spin-rotation';
+import {
+  fireConfetti,
+  playApplause,
+  playSpinMusic,
+  playTickSound,
+  stopApplause,
+  stopSpinMusic,
+} from '@/lib/lucky-spin/spin-effects';
 import { SpinRoundView } from '@/types/lucky-spin';
 
 /** Khoảng dừng giữa hai vòng để khán giả kịp nhìn xem mũi tên chỉ vào ai. */
-const REVEAL_GAP_MS = 1100;
+const REVEAL_GAP_MS = 1200;
 
 /**
  * Quay bánh xe theo một lượt do server bốc.
  *
- * Bốc mấy người thì quay bấy nhiêu vòng, mỗi vòng dừng ở một người. Gộp lại thành một vòng rồi
- * đọc danh sách thì khán giả không thấy được từng người trúng.
+ * Diễn hoạt 30s liền mạch không khựng ngắt nhịp:
+ * - 30% tỉ lệ: Bật ngược (vọt sang đầu ô ông B rồi quán tính hồi nhẹ lại dính ô ông A).
+ * - 35% tỉ lệ: Bò chậm 12+ giây qua ô ông A rồi nhích qua vạch vào sát đầu ô ông B.
+ * - 35% tỉ lệ: Bò chậm trong ô ông A và dừng ngay sát vạch cuối ô ông A.
  *
  * Dùng chung cho người điều khiển và người xem nên bánh xe mọi màn hình dừng ở cùng những ô đó.
  */
 export function useRoundPlayback(round: SpinRoundView | null, onSettled?: (round: SpinRoundView) => void) {
   const [rotation, setRotation] = useState(0);
   const [spinning, setSpinning] = useState(false);
+  const [easing, setEasing] = useState<string>(SPIN_EASING);
   /** Đã quay xong mấy người — để hiện "đang quay người 2/3". */
   const [revealed, setRevealed] = useState(0);
   /** Bỏ animation khi cần nhảy thẳng tới kết quả (màn hình vào quá muộn). */
@@ -49,7 +62,9 @@ export function useRoundPlayback(round: SpinRoundView | null, onSettled?: (round
     // Màn hình vào quá muộn: chốt luôn ở người cuối, không diễn lại từ đầu.
     if (elapsed >= totalMs) {
       setInstant(true);
-      setRotation((prev) => nextRotation(prev, indexes[indexes.length - 1], poolLen));
+      const target = nextSpinTarget(rotationRef.current, indexes[indexes.length - 1], poolLen);
+      setRotation(target.rotation);
+      rotationRef.current = target.rotation;
       setRevealed(indexes.length);
       settledRef.current?.(round);
       return;
@@ -63,16 +78,54 @@ export function useRoundPlayback(round: SpinRoundView | null, onSettled?: (round
     let delay = 0;
     for (let i = 0; i < indexes.length; i++) {
       const isLast = i === indexes.length - 1;
+      const target = nextSpinTarget(rotationRef.current, indexes[i], poolLen);
+      rotationRef.current = target.rotation;
 
+      // Kích hoạt cú quay với đường cong tương ứng
       timers.push(
         setTimeout(() => {
+          setInstant(false);
           setSpinning(true);
-          setRotation((prev) => nextRotation(prev, indexes[i], poolLen));
+          setEasing(target.easing);
+          setRotation(target.rotation);
         }, delay),
       );
+
+      // Âm thanh gảy kim khi lướt qua các vạch ở giai đoạn giảm tốc sâu và nhích chậm
+      timers.push(
+        setTimeout(() => {
+          playTickSound();
+        }, delay + Math.floor(SPIN_DURATION_MS * 0.40)),
+      );
+      timers.push(
+        setTimeout(() => {
+          playTickSound();
+        }, delay + Math.floor(SPIN_DURATION_MS * 0.55)),
+      );
+      timers.push(
+        setTimeout(() => {
+          playTickSound();
+        }, delay + Math.floor(SPIN_DURATION_MS * 0.70)),
+      );
+      timers.push(
+        setTimeout(() => {
+          playTickSound();
+        }, delay + Math.floor(SPIN_DURATION_MS * 0.82)),
+      );
+      timers.push(
+        setTimeout(() => {
+          playTickSound();
+        }, delay + Math.floor(SPIN_DURATION_MS * 0.90)),
+      );
+      timers.push(
+        setTimeout(() => {
+          playTickSound();
+        }, delay + Math.floor(SPIN_DURATION_MS * 0.96)),
+      );
+
       delay += SPIN_DURATION_MS;
 
-      // Bánh xe dừng hẳn — để lặng một nhịp rồi mới công bố, đừng nổ hết cùng lúc.
+      // Bánh xe dừng hẳn — để lặng một nhịp rồi mới công bố
       timers.push(
         setTimeout(() => {
           setRevealed(i + 1);
@@ -110,5 +163,14 @@ export function useRoundPlayback(round: SpinRoundView | null, onSettled?: (round
     [],
   );
 
-  return { rotation, spinning, revealed, transitionMs: instant ? 0 : SPIN_DURATION_MS };
+  return {
+    rotation,
+    spinning,
+    revealed,
+    transitionMs: instant ? 0 : SPIN_DURATION_MS,
+    easing: instant ? 'linear' : easing,
+  };
 }
+
+
+
