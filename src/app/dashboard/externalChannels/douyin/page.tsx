@@ -19,6 +19,7 @@ import { useScrapingStore } from '@/store/scraping-store';
 import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
 import { UserRole } from '@/types/auth';
 import { dedupeById } from '@/lib/dedupe-pages';
+import SyncAllChannelsButton from '../components/SyncAllChannelsButton';
 import { buildDeleteChannelConfirm } from '@/lib/scrape/delete-channel';
 import WatchFeedButton from '../components/WatchFeedButton';
 
@@ -590,6 +591,12 @@ export default function DouyinExternalPage() {
           )}
 
           {/* Grid */}
+          {profiles.length > 0 && (
+            <div className="flex justify-end pb-2">
+              <SyncAllChannelsButton platform="douyin" channelCount={profiles.length} />
+            </div>
+          )}
+
           {profiles.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {profiles.map(p => (

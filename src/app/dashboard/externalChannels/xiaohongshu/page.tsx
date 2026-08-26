@@ -20,6 +20,7 @@ import { dedupeById } from '@/lib/dedupe-pages';
 import WatchFeedButton from '../components/WatchFeedButton';
 import KeywordTranslateHint from '../components/KeywordTranslateHint';
 import DeleteChannelButton from '../components/DeleteChannelButton';
+import SyncAllChannelsButton from '../components/SyncAllChannelsButton';
 import { buildDeleteChannelConfirm } from '@/lib/scrape/delete-channel';
 
 function formatNum(n: number): string {
@@ -699,6 +700,12 @@ function ProfilesTab() {
           <span className="text-5xl">📕</span>
           <p className="text-sm text-foreground font-medium">Chưa có profile nào</p>
           <p className="text-xs text-slate-400">Nhập User ID ở trên để thêm và bắt đầu theo dõi.</p>
+        </div>
+      )}
+
+      {profiles.length > 0 && (
+        <div className="flex justify-end pb-2">
+          <SyncAllChannelsButton platform="xiaohongshu" channelCount={profiles.length} />
         </div>
       )}
 

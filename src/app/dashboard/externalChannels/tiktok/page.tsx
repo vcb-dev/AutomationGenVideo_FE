@@ -15,6 +15,7 @@ import { useScrapingStore } from '@/store/scraping-store';
 import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
 import { UserRole } from '@/types/auth';
 import { dedupeById } from '@/lib/dedupe-pages';
+import SyncAllChannelsButton from '../components/SyncAllChannelsButton';
 import { buildDeleteChannelConfirm } from '@/lib/scrape/delete-channel';
 import WatchFeedButton from '../components/WatchFeedButton';
 
@@ -556,6 +557,12 @@ export default function TiktokExternalPage() {
               <UserCircle size={40} className="text-slate-300" />
               <p className="text-sm text-foreground font-medium">Chưa có profile nào</p>
               <p className="text-xs text-slate-400 text-center max-w-sm">Nhập TikTok username ở trên để bắt đầu cào.</p>
+            </div>
+          )}
+
+          {profiles.length > 0 && (
+            <div className="flex justify-end pb-2">
+              <SyncAllChannelsButton platform="tiktok" channelCount={profiles.length} />
             </div>
           )}
 
