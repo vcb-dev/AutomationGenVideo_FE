@@ -16,6 +16,7 @@ import { useSubmitVideoToLibrary } from '@/hooks/useProposeVideo';
 import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
 import { UserRole } from '@/types/auth';
 import { dedupeById } from '@/lib/dedupe-pages';
+import SyncAllChannelsButton from '../components/SyncAllChannelsButton';
 import { buildDeleteChannelConfirm } from '@/lib/scrape/delete-channel';
 import WatchFeedButton from '../components/WatchFeedButton';
 
@@ -354,6 +355,12 @@ export default function InstagramExternalPage() {
                 </button>
               )}
             </div>
+
+            {profiles.length > 0 && (
+              <div className="flex justify-end">
+                <SyncAllChannelsButton platform="instagram" channelCount={profiles.length} />
+              </div>
+            )}
 
             {profilesQuery.isLoading ? (
               <div className="flex justify-center py-8"><CircleNotch size={24} className="animate-spin text-primary" /></div>
