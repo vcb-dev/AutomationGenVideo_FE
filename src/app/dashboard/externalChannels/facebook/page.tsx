@@ -16,6 +16,7 @@ import { scraperService, ScrapedFanpage } from '@/services/scraperService';
 import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
 import { UserRole } from '@/types/auth';
 import { dedupeById } from '@/lib/dedupe-pages';
+import SyncAllChannelsButton from '../components/SyncAllChannelsButton';
 import { buildDeleteChannelConfirm } from '@/lib/scrape/delete-channel';
 import WatchFeedButton from '../components/WatchFeedButton';
 
@@ -272,6 +273,12 @@ export default function FacebookExternalPage() {
               placeholder="Tìm fanpage theo tên..."
               className="w-full max-w-sm px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
             />
+
+            {fanpages.length > 0 && (
+              <div className="flex justify-end">
+                <SyncAllChannelsButton platform="facebook" channelCount={fanpages.length} />
+              </div>
+            )}
 
             {fanpagesQuery.isLoading ? (
               <div className="flex justify-center py-8">
