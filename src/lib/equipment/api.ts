@@ -41,9 +41,12 @@ export interface BorrowLine {
   note?: string;
 }
 
+export type BorrowPurpose = 'WORK' | 'PERSONAL';
+
 export interface CreateBorrowRequestPayload {
   project: string;
   place: string;
+  purpose?: BorrowPurpose;
   fromTime: string;
   toTime: string;
   lines: BorrowLine[];
