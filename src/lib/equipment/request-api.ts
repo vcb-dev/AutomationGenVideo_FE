@@ -36,6 +36,8 @@ export interface BorrowRequest {
   owner_email?: string | null;
   project: string;
   place: string;
+  /** Phiếu tạo trước khi có luật hai cấp không có trường này. */
+  purpose?: 'WORK' | 'PERSONAL';
   from_time: string;
   to_time: string;
   status: string;
@@ -47,6 +49,8 @@ export interface BorrowRequest {
   required_levels: 1 | 2;
   approval_reasons: string[];
   approved_levels: number;
+  /** Cấp đang tới lượt đợi ai ký. null nghĩa là đã đủ chữ ký. */
+  next_approver_role?: 'LEADER' | 'ADMIN' | null;
 }
 
 export async function fetchRequests(status?: string) {

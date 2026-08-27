@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import {
   BorrowRequest,
@@ -9,6 +10,9 @@ import {
   fetchRequests,
   rejectRequest,
 } from '@/lib/equipment/request-api';
+import { needsTwoApprovals } from '@/lib/equipment/borrow-scope';
+import { EquipmentWorkflowNav } from '@/components/equipment/EquipmentWorkflowNav';
+import { ArrowRight, User } from 'lucide-react';
 
 const cardClass =
   'rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/[0.08] dark:bg-white/[0.03]';
@@ -88,12 +92,15 @@ export default function ApprovalsPage() {
 
   return (
     <div className="mx-auto max-w-6xl">
-      <header className="mb-5">
-        <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Duyệt phiếu mượn</h1>
-        <p className="mt-1 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
-          Chọn một phiếu ở danh sách bên trái để xem chi tiết và ra quyết định. Từ chối bắt buộc
-          nhập lý do và nhả giữ chỗ ngay.
-        </p>
+      <EquipmentWorkflowNav />
+
+      <header className="mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Duyệt phiếu mượn</h1>
+          <p className="mt-1 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
+            Chọn một phiếu ở danh sách bên trái để xem chi tiết và phê duyệt nhanh. Sau khi duyệt có thể chuyển ngay sang chuẩn bị máy.
+          </p>
+        </div>
       </header>
 
       {loading ? (
@@ -109,13 +116,13 @@ export default function ApprovalsPage() {
                 {pendingCount} chờ duyệt
               </span>
             </div>
-            <ul>
+            <ul className="max-h-[70vh] overflow-y-auto divide-y divide-slate-100 dark:divide-white/[0.05]">
               {requests.map((r) => (
                 <li key={r.id}>
                   <button
                     onClick={() => select(r.id)}
                     className={cn(
-                      'flex w-full items-start gap-3 border-b border-slate-100 p-4 text-left last:border-0 dark:border-white/[0.05]',
+                      'flex w-full items-start gap-3 p-4 text-left transition-colors',
                       r.id === current?.id
                         ? 'bg-blue-50/70 shadow-[inset_3px_0_0_theme(colors.blue.600)] dark:bg-blue-500/10'
                         : 'hover:bg-slate-50 dark:hover:bg-white/[0.03]',
@@ -125,28 +132,33 @@ export default function ApprovalsPage() {
                       <span className="block text-sm font-semibold text-slate-900 dark:text-white">
                         {r.request_code}
                       </span>
-                      <span className="block text-xs text-slate-500 dark:text-slate-400">
+                      <span className="flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 mt-0.5 truncate">
+                        <User className="w-3 h-3 shrink-0" />
+                        <span>{r.owner_name || 'Người mượn'}</span>
+                      </span>
+                      <span className="block text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
                         {r.project}
                       </span>
-                      <span className="mt-1 block text-xs text-slate-400">
+                      {needsTwoApprovals(r.purpose) && (
+                        <span className="mt-1 inline-block rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-semibold text-purple-700 dark:bg-purple-500/10 dark:text-purple-300">
+                          🏠 Cá nhân · cần 2 chữ ký
+                        </span>
+                      )}
+                      <span className="mt-1 block text-[11px] text-slate-400">
                         {fmt(r.from_time)} → {fmt(r.to_time)}
                       </span>
                     </span>
                     <span
                       className={cn(
-                        'rounded-full px-2.5 py-1 text-xs font-semibold',
+                        'rounded-full px-2.5 py-1 text-xs font-semibold shrink-0',
                         r.status === 'REJECTED'
                           ? 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-300'
                           : r.status === 'PENDING_APPROVAL'
-                            ? r.required_levels === 2
-                              ? 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'
-                              : 'bg-slate-100 text-slate-600 dark:bg-white/[0.06] dark:text-slate-300'
+                            ? 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'
                             : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300',
                       )}
                     >
-                      {r.status === 'PENDING_APPROVAL'
-                        ? `${r.approved_levels}/${r.required_levels} cấp`
-                        : STATUS_LABEL[r.status] ?? r.status}
+                      {STATUS_LABEL[r.status] ?? r.status}
                     </span>
                   </button>
                 </li>
@@ -156,22 +168,53 @@ export default function ApprovalsPage() {
 
           {current && (
             <section className={cardClass}>
-              <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 p-5 dark:border-white/[0.06]">
-                <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
-                  {current.request_code}
-                </h2>
-                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-white/[0.06] dark:text-slate-300">
-                  {STATUS_LABEL[current.status] ?? current.status}
-                </span>
-                <span className="flex-1" />
-                <span className="text-xs text-slate-400">
-                  đã ký {current.approved_levels}/{current.required_levels} cấp
-                </span>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-5 dark:border-white/[0.06]">
+                <div className="flex items-center gap-2.5">
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+                    {current.request_code}
+                  </h2>
+                  <span
+                    className={cn(
+                      'rounded-full px-2.5 py-1 text-xs font-semibold',
+                      current.status === 'REJECTED'
+                        ? 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-300'
+                        : current.status === 'PENDING_APPROVAL'
+                          ? 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'
+                          : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300',
+                    )}
+                  >
+                    {STATUS_LABEL[current.status] ?? current.status}
+                  </span>
+                  {needsTwoApprovals(current.purpose) && (
+                    <span className="rounded-full bg-purple-50 px-2.5 py-1 text-xs font-semibold text-purple-700 dark:bg-purple-500/10 dark:text-purple-300">
+                      🏠 Mượn cá nhân
+                    </span>
+                  )}
+                </div>
+
+                {(current.status === 'APPROVED' || current.status === 'PREPARING') && (
+                  <Link
+                    href={`/dashboard/equipment/prepare?id=${current.id}`}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 active:scale-95 transition-all"
+                  >
+                    <span>Chuẩn bị máy & gán Serial</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                )}
               </div>
 
               <div className="p-5">
                 <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-5 dark:border-white/[0.06] dark:bg-white/[0.02]">
                   <dl className="grid grid-cols-[repeat(auto-fit,minmax(10rem,1fr))] gap-5">
+                    <div>
+                      <dt className={keyClass}>Người mượn</dt>
+                      <dd className={cn(valueClass, 'font-semibold text-blue-600 dark:text-blue-400')}>
+                        {current.owner_name ?? '—'}
+                        {current.owner_email && (
+                          <span className="block text-xs font-normal text-slate-400">{current.owner_email}</span>
+                        )}
+                      </dd>
+                    </div>
                     <div>
                       <dt className={keyClass}>Bộ phận</dt>
                       <dd className={valueClass}>{current.department?.name ?? '—'}</dd>
@@ -241,10 +284,18 @@ export default function ApprovalsPage() {
               </div>
 
               <div className="p-5">
-                {current.required_levels === 2 && (
-                  <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
-                    Phiếu cần <b>2 cấp duyệt</b>: {current.approval_reasons.join(', ')}.
-                  </p>
+                {current.required_levels > 1 && (
+                  <div className="mb-4 rounded-lg border border-purple-200 bg-purple-50/70 p-3.5 text-xs text-purple-900 dark:border-purple-500/25 dark:bg-purple-500/10 dark:text-purple-200">
+                    <b>Phiếu này cần 2 chữ ký: Leader → Admin.</b>{' '}
+                    Đã ký {current.approved_levels}/{current.required_levels}.
+                    {current.next_approver_role && (
+                      <> Đang chờ <b>{current.next_approver_role}</b> ký.</>
+                    )}
+                    <div className="mt-1 text-purple-700/80 dark:text-purple-300/80">
+                      Thiết bị mượn cho việc cá nhân — admin phải ký sau leader, và một người
+                      không ký thay cả hai cấp được.
+                    </div>
+                  </div>
                 )}
 
                 {current.approvals.length > 0 && (
@@ -259,12 +310,9 @@ export default function ApprovalsPage() {
                             : 'border-red-200 bg-red-50 text-red-900 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200',
                         )}
                       >
-                        <b>
-                          Cấp {a.level} · {a.decision === 'APPROVED' ? 'Đã duyệt' : 'Đã từ chối'}
-                        </b>{' '}
-                        · {fmt(a.decided_at)}
+                        <b>{a.decision === 'APPROVED' ? '✅ Đã duyệt' : '❌ Đã từ chối'}</b> · {fmt(a.decided_at)}
                         {a.reason && <> · lý do: {a.reason}</>}
-                        <div className="mt-1">Bản ghi này không sửa và không xoá được.</div>
+                        <div className="mt-1 text-slate-500">Bản ghi này không sửa và không xoá được.</div>
                       </li>
                     ))}
                   </ul>

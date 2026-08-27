@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { cn } from '@/lib/utils';
 import {
   Asset,
   AvailabilityResponse,
@@ -9,6 +10,7 @@ import {
   createBorrowRequest,
   fetchAssets,
 } from '@/lib/equipment/api';
+import { BorrowScope, scopeToPurpose } from '@/lib/equipment/borrow-scope';
 import { groupModels } from '@/lib/equipment/group-models';
 import { availabilityLabel } from '@/lib/equipment/availability-label';
 import { DateTimePicker } from '@/components/ui/DateTimePicker';
@@ -37,7 +39,13 @@ export default function NewRequestPage() {
   const router = useRouter();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [project, setProject] = useState('');
-  const [place, setPlace] = useState('');
+  /**
+   * Phạm vi mượn. `PERSONAL` là việc riêng — BE bắt phiếu qua hai cấp duyệt, khác hẳn hai lựa
+   * chọn kia nên tách riêng thành một ô chứ không nhét vào ghi chú địa điểm.
+   */
+  const [scope, setScope] = useState<BorrowScope>('INTERNAL');
+  const [outsidePlace, setOutsidePlace] = useState('');
+  const [place, setPlace] = useState('Tại công ty (Studio / Văn phòng)');
   const [fromTime, setFromTime] = useState('');
   const [toTime, setToTime] = useState('');
   const [lines, setLines] = useState<Line[]>([
@@ -112,6 +120,7 @@ export default function NewRequestPage() {
       const created = await createBorrowRequest({
         project: project.trim(),
         place: place.trim(),
+        purpose: scopeToPurpose(scope),
         fromTime: new Date(fromTime).toISOString(),
         toTime: new Date(toTime).toISOString(),
         lines: filledLines.map((l) => ({ modelId: l.modelId, quantity: l.quantity })),
@@ -156,18 +165,107 @@ export default function NewRequestPage() {
               />
             </label>
 
-            <label className="block">
-              <span className={labelClass}>
-                Địa điểm sử dụng <em className="not-italic text-red-600">*</em>
-              </span>
-              <span className={hintClass}>Ngoài công ty sẽ cần thêm một cấp duyệt.</span>
-              <input
-                className={`${inputClass} mt-2 max-w-sm`}
-                value={place}
-                onChange={(e) => setPlace(e.target.value)}
-                placeholder="Ví dụ: Studio, Đà Nẵng…"
-              />
-            </label>
+            {/* ĐỊA ĐIỂM SỬ DỤNG: TẠI CÔNG TY VS MANG RA NGOÀI */}
+            <div className="space-y-2">
+              <label className={labelClass}>
+                Phạm vi & Địa điểm sử dụng <em className="not-italic text-red-600">*</em>
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-3xl">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setScope('INTERNAL');
+                    setPlace('Tại công ty (Studio / Văn phòng)');
+                  }}
+                  className={cn(
+                    'flex flex-col items-start p-3.5 rounded-xl border text-left transition-all',
+                    scope === 'INTERNAL'
+                      ? 'border-blue-600 bg-blue-50/70 dark:bg-blue-900/20 text-blue-900 dark:text-blue-200 ring-2 ring-blue-500/20'
+                      : 'border-slate-200 hover:border-slate-300 dark:border-white/[0.08] text-slate-700 dark:text-slate-300',
+                  )}
+                >
+                  <div className="flex items-center gap-2 font-semibold text-sm">
+                    <span>🏢 Dùng tại công ty</span>
+                  </div>
+                  <span className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Studio, văn phòng nội bộ
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setScope('OUTSIDE');
+                    setPlace(outsidePlace || '');
+                  }}
+                  className={cn(
+                    'flex flex-col items-start p-3.5 rounded-xl border text-left transition-all',
+                    scope === 'OUTSIDE'
+                      ? 'border-amber-600 bg-amber-50/70 dark:bg-amber-900/20 text-amber-900 dark:text-amber-200 ring-2 ring-amber-500/20'
+                      : 'border-slate-200 hover:border-slate-300 dark:border-white/[0.08] text-slate-700 dark:text-slate-300',
+                  )}
+                >
+                  <div className="flex items-center gap-2 font-semibold text-sm">
+                    <span>🚗 Mang ra ngoài công ty</span>
+                  </div>
+                  <span className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Quay ngoại cảnh, sự kiện, đi tỉnh
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setScope('PERSONAL');
+                    setPlace(outsidePlace || '');
+                  }}
+                  className={cn(
+                    'flex flex-col items-start p-3.5 rounded-xl border text-left transition-all',
+                    scope === 'PERSONAL'
+                      ? 'border-purple-600 bg-purple-50/70 dark:bg-purple-900/20 text-purple-900 dark:text-purple-200 ring-2 ring-purple-500/20'
+                      : 'border-slate-200 hover:border-slate-300 dark:border-white/[0.08] text-slate-700 dark:text-slate-300',
+                  )}
+                >
+                  <div className="flex items-center gap-2 font-semibold text-sm">
+                    <span>🏠 Mượn cá nhân</span>
+                  </div>
+                  <span className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Việc riêng, không phải việc công ty
+                  </span>
+                </button>
+              </div>
+
+              {scope === 'PERSONAL' && (
+                <p className="max-w-3xl rounded-xl border border-purple-200 bg-purple-50/70 px-3.5 py-2.5 text-xs font-medium text-purple-800 dark:border-purple-500/25 dark:bg-purple-500/10 dark:text-purple-200">
+                  Phiếu mượn cá nhân cần <b>hai chữ ký</b>: leader duyệt trước, sau đó admin
+                  duyệt. Phiếu sẽ chưa được nhận máy cho tới khi đủ cả hai.
+                </p>
+              )}
+
+              {scope !== 'INTERNAL' && (
+                <div className="mt-2.5 max-w-lg space-y-1 animate-in fade-in duration-200">
+                  <span className={hintClass}>
+                    {scope === 'PERSONAL'
+                      ? 'Nhập nơi sẽ mang máy tới:'
+                      : 'Nhập địa điểm hoặc dự án quay bên ngoài:'}
+                  </span>
+                  <input
+                    className={`${inputClass}`}
+                    value={outsidePlace}
+                    onChange={(e) => {
+                      setOutsidePlace(e.target.value);
+                      setPlace(e.target.value);
+                    }}
+                    placeholder={
+                      scope === 'PERSONAL'
+                        ? 'Ví dụ: Nhà riêng, quê Nam Định, đám cưới người nhà...'
+                        : 'Ví dụ: Phim trường Củ Chi, Đà Nẵng, Khách sạn Rex...'
+                    }
+                    autoFocus
+                  />
+                </div>
+              )}
+            </div>
 
             <div className="grid max-w-md gap-3 sm:grid-cols-2">
               <div>
