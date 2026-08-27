@@ -31,6 +31,13 @@ import type {
 } from '@/lib/api/paast-analyzer';
 import { NumberedPagination } from '@/components/ui/NumberedPagination';
 import { TeamStatsTab } from './components/TeamStatsTab';
+import {
+  pollTransformJob,
+  TransformJobAbort,
+  saveActiveJob,
+  clearActiveJob,
+  loadActiveJob,
+} from './transform-job';
 
 // Giới hạn dung lượng file upload để transcribe — phải khớp đúng limits.fileSize
 // của FileInterceptor ở BE (ai-integration.controller.ts). Lệch nhau sẽ dẫn tới
@@ -601,6 +608,10 @@ export default function ContentTransformPage() {
   // catch/finally của 1 lượt transcribe tự nhận ra mình đã lỗi thời (bị huỷ bởi lượt sau) và bỏ
   // qua, không ghi đè state (isTranscribing, toast lỗi...) của lượt hiện tại.
   const transcribeRequestId = useRef(0);
+  // job_id của lượt transcribe nền đang chạy — để bấm "Huỷ" gọi được /jobs/:id/cancel và để
+  // resume poll sau khi F5. null = không có lượt nền nào.
+  const transcribeJobIdRef = useRef<string | null>(null);
+  const upgradeJobIdRef = useRef<string | null>(null);
   // Huỷ request /upgrade đang chạy — ref RIÊNG, không dùng chung với transcribeAbortControllerRef
   // vì 2 lượt hoàn toàn độc lập (có thể đang transcribe file mới trong lúc vẫn chờ nâng cấp bản cũ).
   const upgradeAbortControllerRef = useRef<AbortController | null>(null);
@@ -666,6 +677,93 @@ export default function ContentTransformPage() {
   useEffect(() => {
     fetchCharacters();
   }, [fetchCharacters]);
+
+  // F5 / đóng-mở lại tab trong lúc transcribe/upgrade nền còn chạy: nối lại poll thay vì bỏ
+  // trắng lượt xử lý (job vẫn sống trên AI tới 4h). Chỉ chạy 1 lần lúc mount.
+  useEffect(() => {
+    const active = loadActiveJob();
+    if (!active) return;
+
+    const getStatus = (id: string) =>
+      apiClient.get(`/ai/content-transform/jobs/${id}`).then((r) => r.data);
+
+    if (active.kind === 'transcribe') {
+      const requestId = transcribeRequestId.current;
+      transcribeJobIdRef.current = active.jobId;
+      setIsTranscribing(true);
+      setUploadPhase('processing');
+      const t = toast.loading('Đang tiếp tục lượt chuyển đổi trước đó...');
+      pollTransformJob(getStatus, active.jobId, {
+        isStale: () => requestId !== transcribeRequestId.current,
+        onProgress: (m) => toast.loading(m, { id: t }),
+      })
+        .then((poll) => {
+          if (requestId !== transcribeRequestId.current) return;
+          const transcript: string | undefined = poll.result?.transcript;
+          if (transcript) {
+            setInputText(transcript);
+            originalTranscriptRef.current = transcript;
+            setIsTranscriptEditable(true);
+            toast.success('Đã có kết quả chuyển đổi từ lượt trước!', { id: t });
+          } else {
+            toast.error('Lượt chuyển đổi trước không có kết quả.', { id: t });
+          }
+        })
+        .catch((err) => {
+          if (err instanceof TransformJobAbort) { toast.dismiss(t); return; }
+          if (requestId === transcribeRequestId.current) {
+            toast.error(err?.message || 'Lượt chuyển đổi trước đã lỗi.', { id: t });
+          }
+        })
+        .finally(() => {
+          if (requestId === transcribeRequestId.current) {
+            setIsTranscribing(false);
+            setUploadPhase('idle');
+            transcribeJobIdRef.current = null;
+            clearActiveJob();
+          }
+        });
+    } else if (active.kind === 'upgrade') {
+      const requestId = upgradeRequestId.current;
+      upgradeJobIdRef.current = active.jobId;
+      if (active.historyId) setCurrentHistoryId(active.historyId);
+      setIsUpgrading(true);
+      isUpgradingRef.current = true;
+      const t = toast.loading('Đang tiếp tục lượt nâng cấp trước đó...');
+      pollTransformJob(getStatus, active.jobId, {
+        isStale: () => requestId !== upgradeRequestId.current,
+        onProgress: (m) => toast.loading(m, { id: t }),
+      })
+        .then((res: any) => {
+          if (requestId !== upgradeRequestId.current) return;
+          const upgraded = res.upgraded;
+          if (!upgraded) { toast.error('Lượt nâng cấp trước không có kết quả.', { id: t }); return; }
+          setPreviousOverallScore(res.previous?.scoreResult?.total_score ?? null);
+          setOutputText(upgraded.output_text || '');
+          setScoreResult(upgraded.scoreResult || null);
+          setScoreStatus(upgraded.scoreStatus || null);
+          setScoreErrorMsg(upgraded.scoreError || null);
+          setScoreFromCache(upgraded.fromCache === true);
+          setCurrentHistoryId(upgraded.id || null);
+          toast.success('Đã có kết quả nâng cấp từ lượt trước!', { id: t });
+        })
+        .catch((err) => {
+          if (err instanceof TransformJobAbort) { toast.dismiss(t); return; }
+          if (requestId === upgradeRequestId.current) {
+            toast.error(err?.message || 'Lượt nâng cấp trước đã lỗi.', { id: t });
+          }
+        })
+        .finally(() => {
+          if (requestId === upgradeRequestId.current) {
+            setIsUpgrading(false);
+            isUpgradingRef.current = false;
+            upgradeJobIdRef.current = null;
+            clearActiveJob();
+          }
+        });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Load personal history on tab change or page changes
   useEffect(() => {
@@ -765,6 +863,13 @@ export default function ContentTransformPage() {
   const cancelActiveTranscribe = () => {
     transcribeAbortControllerRef.current?.abort();
     transcribeAbortControllerRef.current = null;
+    // Job nền đang chạy trên AI — báo huỷ (best-effort, không chờ). Lượt Gemini đang chạy dở
+    // vẫn chạy nốt rồi kết quả bị bỏ; điều quan trọng là FE thôi poll và người dùng thấy dừng.
+    if (transcribeJobIdRef.current) {
+      apiClient.post(`/ai/content-transform/jobs/${transcribeJobIdRef.current}/cancel`).catch(() => {});
+      transcribeJobIdRef.current = null;
+    }
+    clearActiveJob();
     transcribeRequestId.current += 1;
     // Mọi lượt gọi hàm này (đổi tab, chọn file khác, bấm "Huỷ", hoặc bắt đầu lượt transcribe
     // mới) đều coi như lượt upload trước đó không còn hiệu lực — đưa thanh tiến trình về trạng
@@ -807,23 +912,13 @@ export default function ContentTransformPage() {
       const formData = new FormData();
       formData.append('file', selectedFile);
 
-      const res = await apiClient.post('/ai/content-transform/transcribe', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-        // BE chờ AI service tối đa 420s (CONTENT_TRANSFORM_TRANSCRIBE_TIMEOUT_MS). Timeout của
-        // axios trên trình duyệt là ĐỒNG HỒ TREO TƯỜNG phủ CẢ thời gian đẩy file lên BE, nên
-        // phải cộng thêm phần upload: file được phép tới 200MB, đường lên 20Mbps đã mất ~80s
-        // chỉ để đẩy xong. 510s = 420s của BE + 90s biên upload.
-        //
-        // Mốc 70s cũ nhỏ hơn cả thời gian Gemini thực sự cần (đo thật: 110-240s cho video
-        // 5-9 phút), nên video dài không có cách nào chạy xong trong đó.
-        timeout: 510000,
+      // Bước 1 — đẩy file + TẠO job nền. Request này ngắn (chỉ upload + spawn thread bên AI),
+      // KHÔNG giữ kết nối suốt lúc Gemini xử lý. onUploadProgress vẫn có % thật của giai đoạn
+      // đẩy file. 180s dư cho file 200MB đường lên chậm.
+      const startRes = await apiClient.post('/ai/content-transform/transcribe/start', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 180000,
         signal: controller.signal,
-        // % thật của giai đoạn ĐẨY FILE (loaded/total byte qua dây) — không phải % của cả quá
-        // trình transcribe. Khi đã đẩy xong (100%) mà response vẫn chưa về, chuyển sang
-        // 'processing' để đổi UI sang thanh chạy indeterminate thay vì đứng yên ở 100% trông
-        // như bị treo.
         onUploadProgress: (progressEvent) => {
           if (requestId !== transcribeRequestId.current) return;
           const total = progressEvent.total ?? selectedFile.size;
@@ -837,42 +932,57 @@ export default function ContentTransformPage() {
         },
       });
 
-      // Lượt này đã bị huỷ/thay bằng lượt mới hơn (đổi file / bấm Huỷ) trong lúc chờ response
-      // — bỏ qua, không ghi đè transcript của lượt hiện tại đang hiển thị trên UI.
       if (requestId !== transcribeRequestId.current) return;
+      const jobId: string | undefined = startRes.data?.job_id;
+      if (!jobId) {
+        throw new Error(startRes.data?.error_message || 'Không tạo được lượt xử lý. Vui lòng thử lại.');
+      }
+      transcribeJobIdRef.current = jobId;
+      // Lưu để F5 / đóng-mở lại tab vẫn nối lại được lượt đang chạy trên AI.
+      saveActiveJob({ jobId, kind: 'transcribe', startedAt: Date.now() });
 
-      if (res.data && res.data.transcript) {
-        setInputText(res.data.transcript);
-        // Lưu lại bản gốc AI vừa trả về — làm mốc so sánh cho lượt "Chuyển lại" sau này, phát
-        // hiện người dùng đã sửa tay hay chưa trước khi cho ghi đè.
-        originalTranscriptRef.current = res.data.transcript;
-        // Có transcript thật từ AI rồi mới mở khoá cho gõ tay — trước đó ô luôn readOnly.
+      // Bước 2 — poll BE mỗi ~3s cho tới khi có transcript. Mỗi lần poll là 1 request ngắn.
+      const poll = await pollTransformJob(
+        (id) => apiClient.get(`/ai/content-transform/jobs/${id}`).then((r) => r.data),
+        jobId,
+        {
+          isStale: () => requestId !== transcribeRequestId.current,
+          onProgress: (m) => toast.loading(m, { id: loadingToast }),
+        },
+      );
+
+      if (requestId !== transcribeRequestId.current) return;
+      const transcript: string | undefined = poll.result?.transcript;
+      if (transcript) {
+        setInputText(transcript);
+        // Lưu lại bản gốc AI vừa trả về — làm mốc so sánh cho lượt "Chuyển lại" sau này.
+        originalTranscriptRef.current = transcript;
         setIsTranscriptEditable(true);
         toast.success('Chuyển đổi âm thanh thành văn bản thành công!', { id: loadingToast });
       } else {
-        throw new Error(res.data?.message || 'Không thể transcribe file. Vui lòng kiểm tra lại.');
+        throw new Error('AI không trả về nội dung. Vui lòng thử lại.');
       }
     } catch (err: any) {
-      const isCanceled = err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError';
+      const isCanceled =
+        err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError' || err instanceof TransformJobAbort;
       if (isCanceled) {
-        // Người dùng chủ động huỷ (nút "Huỷ" hoặc chọn file khác) — không phải lỗi, chỉ tắt
-        // toast loading, không hiện thông báo lỗi.
+        // Người dùng chủ động huỷ / đổi tab / chọn file khác — không phải lỗi.
         toast.dismiss(loadingToast);
       } else if (requestId === transcribeRequestId.current) {
-        // Chỉ hiện lỗi nếu đây vẫn là lượt đang được theo dõi trên UI — kể cả khi timeout 70s
-        // thật sự xảy ra (err.code 'ECONNABORTED'), rơi vào đúng nhánh này nên vẫn báo lỗi rõ
-        // ràng và không để nút biến mất im lặng.
-        const errMsg = err.response?.data?.message || err.message || 'Lỗi khi transcribe file. Hãy đảm bảo file dưới 10 phút và thử lại.';
+        const errMsg =
+          err?.response?.data?.message ||
+          err?.message ||
+          'Lỗi khi transcribe file. Hãy đảm bảo file dưới 10 phút và thử lại.';
         toast.error(errMsg, { id: loadingToast });
       }
     } finally {
-      // Lượt đã bị lượt sau ghi đè thì không đụng vào isTranscribing/abort controller nữa —
-      // chúng đã được lượt sau (hoặc nút "Huỷ") tự quản lý.
       if (requestId === transcribeRequestId.current) {
         setIsTranscribing(false);
         setUploadProgress(0);
         setUploadPhase('idle');
         transcribeAbortControllerRef.current = null;
+        transcribeJobIdRef.current = null;
+        clearActiveJob();
       }
     }
   };
@@ -1007,6 +1117,11 @@ export default function ContentTransformPage() {
   const cancelActiveUpgrade = () => {
     upgradeAbortControllerRef.current?.abort();
     upgradeAbortControllerRef.current = null;
+    if (upgradeJobIdRef.current) {
+      apiClient.post(`/ai/content-transform/jobs/${upgradeJobIdRef.current}/cancel`).catch(() => {});
+      upgradeJobIdRef.current = null;
+    }
+    clearActiveJob();
     upgradeRequestId.current += 1;
   };
 
@@ -1024,27 +1139,45 @@ export default function ContentTransformPage() {
     const loadingToast = toast.loading('Đang nâng cấp nội dung theo gợi ý...');
 
     try {
-      // Từ khi gộp viết lại + chấm điểm bản mới thành 1 request HTTP duy nhất tới AI service
-      // (Django tự chia ngân sách thời gian nội bộ 40% viết / 60% chấm — trước đây đây là 2
-      // request BE tự gọi tuần tự, mỗi request lại tự retry riêng, tối đa 6 round-trip), BE chỉ
-      // còn chờ tối đa CONTENT_TRANSFORM_UPGRADE_TIMEOUT_MS = 420s (7 phút) cho request gộp đó.
-      // Đặt dư lên 480s (8 phút) để không bị client huỷ ngang khi BE vẫn xử lý bình thường.
-      const res = await apiClient.post(
-        '/ai/content-transform/upgrade',
+      // Bước 1 — TẠO job nền. BE làm các bước đồng bộ nhanh (resolve history, dựng prompt, tạo
+      // bản ghi placeholder) rồi trả { history_id, job_id } ngay, đẩy 2 lượt LLM sang thread nền
+      // của AI. Không còn giữ 1 request 420-480s dễ bị Django cắt ở 504.
+      const startRes = await apiClient.post(
+        '/ai/content-transform/upgrade/start',
         { history_id: currentHistoryId },
-        { timeout: 480000, signal: controller.signal },
+        { timeout: 60000, signal: controller.signal },
+      );
+      if (requestId !== upgradeRequestId.current) return;
+      const jobId: string | undefined = startRes.data?.job_id;
+      if (!jobId) {
+        throw new Error(startRes.data?.message || 'Không tạo được lượt nâng cấp. Vui lòng thử lại.');
+      }
+      upgradeJobIdRef.current = jobId;
+      saveActiveJob({
+        jobId,
+        kind: 'upgrade',
+        historyId: startRes.data?.history_id ?? null,
+        startedAt: Date.now(),
+      });
+
+      // Bước 2 — poll cho tới khi có kết quả nâng cấp + điểm mới.
+      const res = await pollTransformJob(
+        (id) => apiClient.get(`/ai/content-transform/jobs/${id}`).then((r) => r.data),
+        jobId,
+        {
+          isStale: () => requestId !== upgradeRequestId.current,
+          onProgress: (m) => toast.loading(m, { id: loadingToast }),
+        },
       );
 
-      // Lượt này đã bị huỷ/thay bằng lượt mới hơn trong lúc chờ response — bỏ qua, không ghi đè
-      // kết quả của lượt hiện tại đang hiển thị trên UI.
       if (requestId !== upgradeRequestId.current) return;
 
-      const upgraded = res.data?.upgraded;
+      const upgraded = (res as any).upgraded;
       if (!upgraded) {
         throw new Error('Phản hồi không hợp lệ từ máy chủ');
       }
 
-      const prevScore = res.data?.previous?.scoreResult?.total_score ?? scoreResult?.total_score ?? null;
+      const prevScore = (res as any).previous?.scoreResult?.total_score ?? scoreResult?.total_score ?? null;
       setPreviousOverallScore(prevScore);
       setOutputText(upgraded.output_text || '');
       setScoreResult(upgraded.scoreResult || null);
@@ -1056,9 +1189,10 @@ export default function ContentTransformPage() {
       setCurrentHistoryId(upgraded.id || null);
       toast.success('Đã nâng cấp nội dung thành công!', { id: loadingToast });
     } catch (err: any) {
-      const isCanceled = err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError';
+      const isCanceled =
+        err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError' || err instanceof TransformJobAbort;
       if (isCanceled) {
-        // Người dùng chủ động bấm "Huỷ" — không phải lỗi, chỉ tắt toast loading.
+        // Người dùng chủ động bấm "Huỷ" / đổi tab — không phải lỗi, chỉ tắt toast loading.
         toast.dismiss(loadingToast);
       } else if (requestId === upgradeRequestId.current) {
         const errMsg = err.response?.data?.message || err.message || 'Lỗi khi nâng cấp nội dung';
@@ -1070,6 +1204,8 @@ export default function ContentTransformPage() {
         setIsUpgrading(false);
         isUpgradingRef.current = false;
         upgradeAbortControllerRef.current = null;
+        upgradeJobIdRef.current = null;
+        clearActiveJob();
       }
     }
   };
