@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Asset } from '@/lib/equipment/api';
 import {
@@ -13,6 +14,7 @@ import {
 } from '@/lib/equipment/request-api';
 import { ConditionDot } from '@/components/equipment/ConditionDot';
 import { StepBar } from '@/components/equipment/StepBar';
+import { WorkflowSuccessModal } from '@/components/equipment/WorkflowSuccessModal';
 
 const cardClass =
   'rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/[0.08] dark:bg-white/[0.03]';
@@ -23,7 +25,8 @@ const inputClass =
 
 const fmt = (iso: string) => new Date(iso).toLocaleString('vi-VN');
 
-export default function PreparePage() {
+function PrepareInner() {
+  const searchParams = useSearchParams();
   const [candidates, setCandidates] = useState<BorrowRequest[]>([]);
   const [request, setRequest] = useState<BorrowRequest | null>(null);
   /** lineId → danh sách máy hợp lệ; BE lọc sẵn theo khoảng của phiếu và tình trạng máy. */
@@ -56,14 +59,23 @@ export default function PreparePage() {
   }, []);
 
   useEffect(() => {
+    // `?request=` do màn Duyệt gắn vào khi dẫn người ký sang đây. Không có nó thì lấy phiếu
+    // đầu danh sách như trước — nhưng khi có thì phải trúng đúng phiếu vừa ký, chứ mở ra thấy
+    // một phiếu khác thì người dùng gán máy nhầm phiếu mà không hề biết.
+    const wanted = searchParams?.get('request');
     fetchRequests('APPROVED')
       .then(async (list) => {
         setCandidates(list);
-        if (list[0]) await loadRequest(list[0].id);
+        const target = (wanted && list.find((r) => r.id === wanted)) || list[0];
+        if (target) await loadRequest(target.id);
+        else if (wanted) {
+          // Phiếu được dẫn tới nhưng không nằm trong danh sách chờ gán: ai đó đã gán xong rồi.
+          setError('Phiếu này không còn ở bước gán máy — có thể người khác đã chuẩn bị xong.');
+        }
       })
       .catch(() => setError('Không đọc được danh sách phiếu đã duyệt.'))
       .finally(() => setLoading(false));
-  }, [loadRequest]);
+  }, [loadRequest, searchParams]);
 
   const setPick = (lineId: string, index: number, assetId: string) =>
     setPicked((prev) => ({
@@ -111,14 +123,7 @@ export default function PreparePage() {
         </p>
       </header>
 
-      <StepBar
-        steps={[
-          { label: 'Đã duyệt', state: 'done' },
-          { label: 'Gán serial', state: 'current' },
-          { label: 'Kiểm tra khi giao', state: 'todo' },
-          { label: 'Bàn giao', state: 'todo' },
-        ]}
-      />
+      <StepBar current="prepare" />
 
       {loading ? (
         <p className="text-slate-500">Đang tải…</p>
@@ -274,18 +279,39 @@ export default function PreparePage() {
                   {error}
                 </p>
               )}
-              {done && (
-                <p className="border-t border-slate-100 p-5 text-sm text-emerald-700 dark:border-white/[0.06] dark:text-emerald-300">
-                  Đã gán serial, phiếu chuyển sang Đang chuẩn bị.{' '}
-                  <Link href="/dashboard/equipment/handover" className="font-semibold underline">
-                    Sang màn Bàn giao →
-                  </Link>
-                </p>
-              )}
             </section>
           )}
+
+          <WorkflowSuccessModal
+            open={done}
+            onClose={() => {
+              setDone(false);
+              fetchRequests('APPROVED').then((list) => {
+                setCandidates(list);
+                if (list[0]) loadRequest(list[0].id);
+                else setRequest(null);
+              });
+            }}
+            title="Chuẩn bị & Gán serial thành công!"
+            message="Phiếu mượn đã được gán máy cụ thể và chuyển sang trạng thái Đang chuẩn bị."
+            nextHref={`/dashboard/equipment/handover${request ? `?request=${request.id}` : ''}`}
+            nextLabel="Sang bước Bàn giao ngay →"
+            stayLabel="Tiếp tục gán phiếu khác"
+          />
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * `useSearchParams` bắt buộc nằm trong ranh giới Suspense — Next 14 không dựng tĩnh được trang
+ * nếu thiếu, và lỗi chỉ lộ ra lúc `next build` chứ dev server vẫn chạy ngon.
+ */
+export default function PreparePage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-sm text-slate-500">Đang tải…</div>}>
+      <PrepareInner />
+    </Suspense>
   );
 }

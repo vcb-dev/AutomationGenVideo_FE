@@ -14,6 +14,7 @@ import {
 import { handoverReadiness } from '@/lib/equipment/handover-readiness';
 import { ConditionDot } from '@/components/equipment/ConditionDot';
 import { StepBar } from '@/components/equipment/StepBar';
+import { WorkflowSuccessModal } from '@/components/equipment/WorkflowSuccessModal';
 
 const cardClass =
   'rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/[0.08] dark:bg-white/[0.03]';
@@ -137,14 +138,7 @@ export default function HandoverPage() {
         </p>
       </header>
 
-      <StepBar
-        steps={[
-          { label: 'Đã duyệt', state: 'done' },
-          { label: 'Gán serial', state: 'done' },
-          { label: 'Kiểm tra khi giao', state: 'current' },
-          { label: 'Bàn giao', state: 'todo' },
-        ]}
-      />
+      <StepBar current="handover" />
 
       {loading ? (
         <p className="text-slate-500">Đang tải…</p>
@@ -388,20 +382,26 @@ export default function HandoverPage() {
                     {error}
                   </p>
                 )}
-                {done && (
-                  <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-200">
-                    {done}
-                    <Link
-                      href="/dashboard/equipment/returns"
-                      className="mt-2 block font-semibold underline"
-                    >
-                      Sang màn Trả và kiểm tra →
-                    </Link>
-                  </div>
-                )}
               </div>
             </aside>
           </div>
+
+          <WorkflowSuccessModal
+            open={Boolean(done)}
+            onClose={() => {
+              setDone('');
+              fetchRequests('PREPARING').then((list) => {
+                setCandidates(list);
+                if (list[0]) loadSheet(list[0].id);
+                else setRequest(null);
+              });
+            }}
+            title="Bàn giao thiết bị thành công!"
+            message={done || 'Biên bản bàn giao đã được lưu và thiết bị đã chuyển sang trạng thái Đang mượn.'}
+            nextHref="/dashboard/equipment/returns"
+            nextLabel="Sang bước Nhận trả →"
+            stayLabel="Tiếp tục bàn giao phiếu khác"
+          />
         </>
       )}
     </div>
