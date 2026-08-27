@@ -9,6 +9,7 @@ import {
   StorageLocation,
   createAsset,
   createCategory,
+  createLocation,
   createModel,
   uploadAssetPhoto,
   fetchCategories,
@@ -23,6 +24,7 @@ const hintClass = 'mt-0.5 block text-xs text-slate-500 dark:text-slate-400';
 
 const NEW_CATEGORY = '__new_category__';
 const NEW_MODEL = '__new_model__';
+const NEW_LOCATION = '__new_location__';
 
 export function formatCategoryName(cat: EquipmentCategory) {
   const map: Record<string, string> = {
@@ -61,6 +63,7 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
   const [modelId, setModelId] = useState('');
   const [serialNumber, setSerialNumber] = useState('');
   const [locationId, setLocationId] = useState('');
+  const [newLocationName, setNewLocationName] = useState('');
   const [purchaseDate, setPurchaseDate] = useState('');
   const [purchasePrice, setPurchasePrice] = useState('');
   const [condition, setCondition] = useState('GOOD');
@@ -129,12 +132,15 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
   }, [selectedCategoryId, filteredModels, isCreatingCategory, modelId]);
 
   const isCreatingModel = isCreatingCategory || modelId === NEW_MODEL;
+  const isCreatingLocation = locationId === NEW_LOCATION;
 
   const canSubmit =
     serialNumber.trim() !== '' &&
     !saving &&
     (isCreatingCategory ? newCatName.trim() !== '' : selectedCategoryId !== '') &&
-    (isCreatingModel ? newModelName.trim() !== '' : modelId !== '');
+    (isCreatingModel ? newModelName.trim() !== '' : modelId !== '') &&
+    // Chọn "thêm vị trí mới" mà bỏ trống tên thì `NEW_LOCATION` sẽ bị gửi lên như một uuid.
+    (!isCreatingLocation || newLocationName.trim() !== '');
 
   const addPhotos = (files: FileList | null) => {
     if (!files?.length) return;
@@ -186,12 +192,20 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
         targetModelId = model.id;
       }
 
-      // 3. Nhập kho thiết bị
+      // 3. Tạo vị trí kho mới nếu được chọn
+      let targetLocationId = locationId;
+      if (isCreatingLocation) {
+        setStage('Đang tạo vị trí kho mới…');
+        const loc = await createLocation({ name: newLocationName.trim() });
+        targetLocationId = loc.id;
+      }
+
+      // 4. Nhập kho thiết bị
       setStage('Đang nhập kho thiết bị…');
       const asset = await createAsset({
         modelId: targetModelId,
         serialNumber: serialNumber.trim(),
-        locationId: locationId || undefined,
+        locationId: targetLocationId || undefined,
         purchaseDate: purchaseDate || undefined,
         purchasePrice: purchasePrice ? Number(purchasePrice) : undefined,
         condition,
@@ -463,7 +477,16 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
                     {l.name}
                   </option>
                 ))}
+                <option value={NEW_LOCATION}>+ Thêm vị trí kho mới…</option>
               </select>
+              {isCreatingLocation && (
+                <input
+                  className={cn(inputClass, 'mt-2')}
+                  placeholder="Tên vị trí: Kệ A-05, Tủ D-02, Xưởng sửa…"
+                  value={newLocationName}
+                  onChange={(e) => setNewLocationName(e.target.value)}
+                />
+              )}
             </label>
 
             <div className="grid gap-3 sm:grid-cols-2">
