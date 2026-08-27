@@ -41,9 +41,13 @@ export interface BorrowLine {
   note?: string;
 }
 
+/** PERSONAL là mượn cho việc riêng — BE sẽ bắt phiếu qua hai cấp: leader rồi admin. */
+export type BorrowPurpose = 'WORK' | 'PERSONAL';
+
 export interface CreateBorrowRequestPayload {
   project: string;
   place: string;
+  purpose?: BorrowPurpose;
   fromTime: string;
   toTime: string;
   lines: BorrowLine[];
@@ -112,6 +116,24 @@ export async function fetchLocations() {
   return data;
 }
 
+export async function createLocation(payload: { name: string; parentId?: string }) {
+  const { data } = await apiClient.post<StorageLocation>('/mems/locations', payload);
+  return data;
+}
+
+export async function updateLocation(id: string, payload: { name: string; parentId?: string }) {
+  const { data } = await apiClient.patch<StorageLocation>(
+    `/mems/locations/${encodeURIComponent(id)}`,
+    payload,
+  );
+  return data;
+}
+
+export async function deleteLocation(id: string) {
+  const { data } = await apiClient.delete(`/mems/locations/${encodeURIComponent(id)}`);
+  return data;
+}
+
 export async function createModel(payload: {
   categoryId: string;
   name: string;
@@ -134,6 +156,33 @@ export async function createAsset(payload: {
   intakeNote?: string;
 }) {
   const { data } = await apiClient.post<Asset>('/mems/assets', payload);
+  return data;
+}
+
+export async function updateAsset(
+  assetCode: string,
+  payload: {
+    modelId?: string;
+    serialNumber?: string;
+    locationId?: string;
+    purchaseDate?: string;
+    purchasePrice?: number;
+    condition?: string;
+    status?: string;
+    note?: string;
+  },
+) {
+  const { data } = await apiClient.patch<Asset>(
+    `/mems/assets/${encodeURIComponent(assetCode)}`,
+    payload,
+  );
+  return data;
+}
+
+export async function deleteAsset(assetCode: string) {
+  const { data } = await apiClient.delete<{ success: boolean; message: string }>(
+    `/mems/assets/${encodeURIComponent(assetCode)}`,
+  );
   return data;
 }
 

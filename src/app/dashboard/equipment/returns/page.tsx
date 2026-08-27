@@ -1,6 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, Suspense, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Accessory } from '@/lib/equipment/api';
 import {
@@ -12,6 +14,7 @@ import {
 import { returnOutcome } from '@/lib/equipment/return-outcome';
 import { StatusPill } from '@/components/equipment/StatusPill';
 import { ConditionDot } from '@/components/equipment/ConditionDot';
+import { EquipmentWorkflowNav } from '@/components/equipment/EquipmentWorkflowNav';
 
 const cardClass =
   'rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/[0.08] dark:bg-white/[0.03]';
@@ -39,7 +42,10 @@ interface ReturnForm {
   handoverPhotoCount: number;
 }
 
-export default function ReturnsPage() {
+function ReturnsContent() {
+  const searchParams = useSearchParams();
+  const paramId = searchParams?.get('id');
+
   const [candidates, setCandidates] = useState<BorrowRequest[]>([]);
   const [request, setRequest] = useState<BorrowRequest | null>(null);
   const [rows, setRows] = useState<ReturnForm[]>([]);
@@ -47,6 +53,7 @@ export default function ReturnsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState('');
+  const initRef = useRef(false);
 
   const loadUnits = useCallback(async (id: string) => {
     const data = await fetchPendingReturns(id);
@@ -69,15 +76,19 @@ export default function ReturnsPage() {
   }, []);
 
   useEffect(() => {
+    if (initRef.current) return;
+    initRef.current = true;
+    
     Promise.all([fetchRequests('ON_LOAN'), fetchRequests('PARTIALLY_RETURNED')])
       .then(async ([onLoan, partial]) => {
         const list = [...onLoan, ...partial];
         setCandidates(list);
-        if (list[0]) await loadUnits(list[0].id);
+        const target = (paramId && list.find((r) => r.id === paramId)) || list[0];
+        if (target) await loadUnits(target.id);
       })
       .catch(() => setError('Không đọc được phiếu đang mượn.'))
       .finally(() => setLoading(false));
-  }, [loadUnits]);
+  }, [loadUnits, paramId]);
 
   const patch = (index: number, next: Partial<ReturnForm>) =>
     setRows((prev) => prev.map((r, i) => (i === index ? { ...r, ...next } : r)));
@@ -153,12 +164,16 @@ export default function ReturnsPage() {
 
   return (
     <div className="mx-auto max-w-5xl">
-      <header className="mb-5">
-        <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Trả và kiểm tra</h1>
-        <p className="mt-1 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
-          Chỉ tick những máy người mượn mang tới hôm nay. Cột trái là tình trạng lúc giao để đối
-          chiếu, cột phải là những gì bạn ghi nhận lúc nhận lại.
-        </p>
+      <EquipmentWorkflowNav />
+
+      <header className="mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Trả và kiểm tra</h1>
+          <p className="mt-1 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
+            Chỉ tick những máy người mượn mang tới hôm nay. Cột trái là tình trạng lúc giao để đối
+            chiếu, cột phải là những gì bạn ghi nhận lúc nhận lại.
+          </p>
+        </div>
       </header>
 
       {loading ? (
@@ -190,9 +205,20 @@ export default function ReturnsPage() {
 
           <section className={cardClass}>
             <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 p-5 dark:border-white/[0.06]">
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
-                {request?.request_code} · {request?.project}
-              </h2>
+              <div className="flex items-center gap-2.5">
+                <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+                  {request?.request_code}
+                </h2>
+                {request?.owner_name && (
+                  <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                    Người mượn: {request.owner_name}
+                  </span>
+                )}
+                <span className="text-xs text-slate-400">
+                  {request?.project}
+                </span>
+              </div>
+              
               <span className="flex-1" />
               {request && new Date(request.to_time) < new Date() && (
                 <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 dark:bg-red-500/10 dark:text-red-300">
@@ -409,13 +435,37 @@ export default function ReturnsPage() {
               </p>
             )}
             {done && (
-              <p className="border-t border-slate-100 p-5 text-sm text-emerald-700 dark:border-white/[0.06] dark:text-emerald-300">
-                {done}
-              </p>
+              <div className="border-t border-slate-100 p-5 dark:border-white/[0.06] bg-emerald-50/50 dark:bg-emerald-950/10">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="font-semibold text-emerald-800 dark:text-emerald-300">
+                      ✅ {done}
+                    </div>
+                    <div className="text-sm text-emerald-700 dark:text-emerald-400 mt-1">
+                      Các thiết bị đã trả được cập nhật về Kho. Các phụ kiện hoặc tình trạng bất thường đã được lưu lại để xử lý.
+                    </div>
+                  </div>
+                  <Link
+                    href="/dashboard/equipment"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 text-sm font-semibold text-white hover:bg-emerald-700 active:scale-95 transition-all shrink-0"
+                  >
+                    <span>Về Kho thiết bị</span>
+                    <span>➔</span>
+                  </Link>
+                </div>
+              </div>
             )}
           </section>
         </>
       )}
     </div>
+  );
+}
+
+export default function ReturnsPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-slate-500">Đang tải...</div>}>
+      <ReturnsContent />
+    </Suspense>
   );
 }

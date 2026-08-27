@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, Suspense, useRef } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Asset } from '@/lib/equipment/api';
 import {
@@ -13,6 +14,7 @@ import {
 } from '@/lib/equipment/request-api';
 import { ConditionDot } from '@/components/equipment/ConditionDot';
 import { StepBar } from '@/components/equipment/StepBar';
+import { EquipmentWorkflowNav } from '@/components/equipment/EquipmentWorkflowNav';
 
 const cardClass =
   'rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/[0.08] dark:bg-white/[0.03]';
@@ -23,7 +25,10 @@ const inputClass =
 
 const fmt = (iso: string) => new Date(iso).toLocaleString('vi-VN');
 
-export default function PreparePage() {
+function PrepareContent() {
+  const searchParams = useSearchParams();
+  const paramId = searchParams?.get('id');
+  
   const [candidates, setCandidates] = useState<BorrowRequest[]>([]);
   const [request, setRequest] = useState<BorrowRequest | null>(null);
   /** lineId → danh sách máy hợp lệ; BE lọc sẵn theo khoảng của phiếu và tình trạng máy. */
@@ -33,6 +38,7 @@ export default function PreparePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
+  const initRef = useRef(false);
 
   const loadRequest = useCallback(async (id: string) => {
     const detail = await fetchRequest(id);
@@ -56,14 +62,18 @@ export default function PreparePage() {
   }, []);
 
   useEffect(() => {
-    fetchRequests('APPROVED')
+    if (initRef.current) return;
+    initRef.current = true;
+    
+    fetchRequests('APPROVED,PREPARING')
       .then(async (list) => {
         setCandidates(list);
-        if (list[0]) await loadRequest(list[0].id);
+        const target = (paramId && list.find((r) => r.id === paramId)) || list[0];
+        if (target) await loadRequest(target.id);
       })
       .catch(() => setError('Không đọc được danh sách phiếu đã duyệt.'))
       .finally(() => setLoading(false));
-  }, [loadRequest]);
+  }, [loadRequest, paramId]);
 
   const setPick = (lineId: string, index: number, assetId: string) =>
     setPicked((prev) => ({
@@ -101,14 +111,18 @@ export default function PreparePage() {
 
   return (
     <div className="mx-auto max-w-6xl">
-      <header className="mb-5">
-        <h1 className="text-xl font-semibold text-slate-900 dark:text-white">
-          Chuẩn bị và gán serial
-        </h1>
-        <p className="mt-1 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
-          Phiếu ghi model, đến bước này kho mới chọn máy cụ thể. Danh sách chọn đã lọc bỏ máy đang
-          bận trong khoảng của phiếu và máy có tình trạng không đạt.
-        </p>
+      <EquipmentWorkflowNav />
+
+      <header className="mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-slate-900 dark:text-white">
+            Chuẩn bị và gán serial
+          </h1>
+          <p className="mt-1 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
+            Phiếu ghi model, đến bước này kho mới chọn máy cụ thể. Danh sách chọn đã lọc bỏ máy đang
+            bận trong khoảng của phiếu và máy có tình trạng không đạt.
+          </p>
+        </div>
       </header>
 
       <StepBar
@@ -161,6 +175,15 @@ export default function PreparePage() {
               <div className="p-5">
                 <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-5 dark:border-white/[0.06] dark:bg-white/[0.02]">
                   <dl className="grid grid-cols-[repeat(auto-fit,minmax(10rem,1fr))] gap-5">
+                    <div>
+                      <dt className={keyClass}>Người mượn</dt>
+                      <dd className={cn(valueClass, 'font-semibold text-blue-600 dark:text-blue-400')}>
+                        {request.owner_name ?? '—'}
+                        {request.owner_email && (
+                          <span className="block text-xs font-normal text-slate-400">{request.owner_email}</span>
+                        )}
+                      </dd>
+                    </div>
                     <div>
                       <dt className={keyClass}>Bộ phận</dt>
                       <dd className={valueClass}>{request.department?.name ?? '—'}</dd>
@@ -275,17 +298,38 @@ export default function PreparePage() {
                 </p>
               )}
               {done && (
-                <p className="border-t border-slate-100 p-5 text-sm text-emerald-700 dark:border-white/[0.06] dark:text-emerald-300">
-                  Đã gán serial, phiếu chuyển sang Đang chuẩn bị.{' '}
-                  <Link href="/dashboard/equipment/handover" className="font-semibold underline">
-                    Sang màn Bàn giao →
-                  </Link>
-                </p>
+                <div className="border-t border-slate-100 p-5 dark:border-white/[0.06] bg-emerald-50/50 dark:bg-emerald-950/10">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <div className="font-semibold text-emerald-800 dark:text-emerald-300">
+                        ✅ Đã gán serial thành công!
+                      </div>
+                      <div className="text-sm text-emerald-700 dark:text-emerald-400 mt-1">
+                        Phiếu chuyển sang trạng thái <b>Đang chuẩn bị</b>. Bạn có thể sang bước tiếp theo để kiểm tra và bàn giao thiết bị.
+                      </div>
+                    </div>
+                    <Link
+                      href={`/dashboard/equipment/handover?id=${request.id}`}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 text-sm font-semibold text-white hover:bg-emerald-700 active:scale-95 transition-all shrink-0"
+                    >
+                      <span>Sang màn Bàn giao</span>
+                      <span>➔</span>
+                    </Link>
+                  </div>
+                </div>
               )}
             </section>
           )}
         </>
       )}
     </div>
+  );
+}
+
+export default function PreparePage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-slate-500">Đang tải...</div>}>
+      <PrepareContent />
+    </Suspense>
   );
 }

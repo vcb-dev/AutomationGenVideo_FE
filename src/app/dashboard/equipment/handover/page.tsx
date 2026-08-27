@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, Suspense, useRef } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Accessory } from '@/lib/equipment/api';
 import {
@@ -14,6 +15,7 @@ import {
 import { handoverReadiness } from '@/lib/equipment/handover-readiness';
 import { ConditionDot } from '@/components/equipment/ConditionDot';
 import { StepBar } from '@/components/equipment/StepBar';
+import { EquipmentWorkflowNav } from '@/components/equipment/EquipmentWorkflowNav';
 
 const cardClass =
   'rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/[0.08] dark:bg-white/[0.03]';
@@ -33,7 +35,10 @@ interface UnitForm {
   note: string;
 }
 
-export default function HandoverPage() {
+function HandoverContent() {
+  const searchParams = useSearchParams();
+  const paramId = searchParams?.get('id');
+
   const [candidates, setCandidates] = useState<BorrowRequest[]>([]);
   const [request, setRequest] = useState<BorrowRequest | null>(null);
   const [units, setUnits] = useState<UnitForm[]>([]);
@@ -43,10 +48,12 @@ export default function HandoverPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState('');
+  const initRef = useRef(false);
 
   const loadSheet = useCallback(async (id: string) => {
     const sheet = await fetchHandoverSheet(id);
     setRequest(sheet.request);
+    setReceivedBy(sheet.request.owner_name || '');
     setDone('');
     setConfirmed(false);
     setUnits(
@@ -64,14 +71,18 @@ export default function HandoverPage() {
   }, []);
 
   useEffect(() => {
+    if (initRef.current) return;
+    initRef.current = true;
+    
     fetchRequests('PREPARING')
       .then(async (list) => {
         setCandidates(list);
-        if (list[0]) await loadSheet(list[0].id);
+        const target = (paramId && list.find((r) => r.id === paramId)) || list[0];
+        if (target) await loadSheet(target.id);
       })
       .catch(() => setError('Không đọc được phiếu đang chuẩn bị.'))
       .finally(() => setLoading(false));
-  }, [loadSheet]);
+  }, [loadSheet, paramId]);
 
   const patch = (index: number, next: Partial<UnitForm>) =>
     setUnits((prev) => prev.map((u, i) => (i === index ? { ...u, ...next } : u)));
@@ -129,12 +140,16 @@ export default function HandoverPage() {
 
   return (
     <div className="mx-auto max-w-6xl">
-      <header className="mb-5">
-        <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Bàn giao thiết bị</h1>
-        <p className="mt-1 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
-          Với mỗi máy, ghi nhận tình trạng lúc giao, đối chiếu phụ kiện và chụp ảnh. Đây là căn cứ
-          để quy trách nhiệm khi nhận lại.
-        </p>
+      <EquipmentWorkflowNav />
+
+      <header className="mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Bàn giao thiết bị</h1>
+          <p className="mt-1 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
+            Với mỗi máy, ghi nhận tình trạng lúc giao, đối chiếu phụ kiện và chụp ảnh. Đây là căn cứ
+            để quy trách nhiệm khi nhận lại.
+          </p>
+        </div>
       </header>
 
       <StepBar
@@ -389,13 +404,21 @@ export default function HandoverPage() {
                   </p>
                 )}
                 {done && (
-                  <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-200">
-                    {done}
+                  <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20 flex flex-col items-center text-center gap-3">
+                    <div>
+                      <div className="font-semibold text-sm text-emerald-800 dark:text-emerald-300">
+                        ✅ {done}
+                      </div>
+                      <div className="text-xs text-emerald-700 dark:text-emerald-400 mt-1">
+                        Thiết bị hiện đã chuyển sang trạng thái <b>Đang mượn</b>.
+                      </div>
+                    </div>
                     <Link
-                      href="/dashboard/equipment/returns"
-                      className="mt-2 block font-semibold underline"
+                      href={`/dashboard/equipment/returns?id=${request?.id}`}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 text-sm font-semibold text-white hover:bg-emerald-700 shadow-sm active:scale-95 transition-all"
                     >
-                      Sang màn Trả và kiểm tra →
+                      <span>Sang màn Trả máy & Đóng phiếu</span>
+                      <span>➔</span>
                     </Link>
                   </div>
                 )}
@@ -405,5 +428,13 @@ export default function HandoverPage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function HandoverPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-slate-500">Đang tải...</div>}>
+      <HandoverContent />
+    </Suspense>
   );
 }

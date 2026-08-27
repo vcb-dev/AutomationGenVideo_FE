@@ -22,6 +22,8 @@ export interface ApprovalRecord {
   level: number;
   decision: 'APPROVED' | 'REJECTED';
   decided_by: string;
+  decided_by_name?: string | null;
+  decided_by_email?: string | null;
   reason: string | null;
   decided_at: string;
 }
@@ -30,6 +32,8 @@ export interface BorrowRequest {
   id: string;
   request_code: string;
   owner_id: string;
+  owner_name?: string;
+  owner_email?: string | null;
   project: string;
   place: string;
   from_time: string;

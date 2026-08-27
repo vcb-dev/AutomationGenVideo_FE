@@ -16,6 +16,8 @@ import {
   fetchModels,
 } from '@/lib/equipment/api';
 import { DatePicker } from '@/components/ui/DatePicker';
+import { ManageLocationsDialog } from '@/components/equipment/ManageLocationsDialog';
+import { MapPin, UploadCloud } from 'lucide-react';
 
 const inputClass =
   'w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-white';
@@ -62,6 +64,7 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
   const [modelId, setModelId] = useState('');
   const [serialNumber, setSerialNumber] = useState('');
   const [locationId, setLocationId] = useState('');
+  const [showLocationManager, setShowLocationManager] = useState(false);
   const [purchaseDate, setPurchaseDate] = useState('');
   const [purchasePrice, setPurchasePrice] = useState('');
   const [condition, setCondition] = useState('GOOD');
@@ -81,6 +84,7 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
   // Ảnh tải lên
   const [photos, setPhotos] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
   const photoLibraryInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
@@ -451,10 +455,20 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
               />
             </label>
 
-            <label className="block">
-              <span className={labelClass}>Vị trí trong kho</span>
+            <div>
+              <div className="flex items-center justify-between">
+                <span className={labelClass}>Vị trí trong kho</span>
+                <button
+                  type="button"
+                  onClick={() => setShowLocationManager(true)}
+                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-semibold flex items-center gap-1"
+                >
+                  <MapPin className="w-3 h-3" />
+                  <span>+ Quản lý vị trí</span>
+                </button>
+              </div>
               <select
-                className={cn(inputClass, 'mt-2')}
+                className={cn(inputClass, 'mt-1.5')}
                 value={locationId}
                 onChange={(e) => setLocationId(e.target.value)}
               >
@@ -465,7 +479,7 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
                   </option>
                 ))}
               </select>
-            </label>
+            </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block">
@@ -522,15 +536,14 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
               />
             </label>
 
-            {/* KHỐI ẢNH THIẾT BỊ (HỖ TRỢ CAMERA & THƯ VIỆN ẢNH ĐIỆN THOẠI) */}
-            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 sm:p-4 dark:border-white/[0.08] dark:bg-white/[0.02]">
-              <span className={labelClass}>Ảnh chụp thiết bị</span>
+            {/* KHỐI ẢNH THIẾT BỊ (HỖ TRỢ DRAG & DROP, CAMERA & THƯ VIỆN) */}
+            <div className="space-y-2">
+              <label className={labelClass}>Ảnh chụp thiết bị</label>
               <span className={hintClass}>
                 Chụp trực tiếp bằng camera điện thoại hoặc tải ảnh từ thư viện. Tấm đầu tiên là ảnh đại diện.
               </span>
 
               {/* ẨN CÁC INPUT FILE NATIVE */}
-              {/* 1. Mở thẳng Camera sau trên điện thoại */}
               <input
                 ref={cameraInputRef}
                 type="file"
@@ -539,7 +552,6 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
                 className="hidden"
                 onChange={(e) => addPhotos(e.target.files)}
               />
-              {/* 2. Mở Thư viện / Album ảnh */}
               <input
                 ref={photoLibraryInputRef}
                 type="file"
@@ -549,28 +561,39 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
                 onChange={(e) => addPhotos(e.target.files)}
               />
 
-              {/* 2 NÚT THAO TÁC RÕ RÀNG TRÊN ĐIỆN THOẠI & MÁY TÍNH */}
-              <div className="mt-3 grid grid-cols-2 gap-2.5">
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() => cameraInputRef.current?.click()}
-                  className="flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs font-semibold text-blue-700 shadow-sm hover:bg-blue-100 active:scale-95 transition-all dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300"
-                >
-                  <span className="text-base">📸</span> Chụp ảnh ngay
-                </button>
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() => photoLibraryInputRef.current?.click()}
-                  className="flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 active:scale-95 transition-all dark:border-white/[0.12] dark:bg-white/[0.06] dark:text-slate-200"
-                >
-                  <span className="text-base">🖼️</span> Chọn từ thư viện
-                </button>
+              {/* VÙNG DROPZONE CLICK & KÉO THẢ */}
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDragging(true);
+                }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDragging(false);
+                  addPhotos(e.dataTransfer.files);
+                }}
+                onClick={() => photoLibraryInputRef.current?.click()}
+                className={cn(
+                  'group relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 text-center cursor-pointer transition-all duration-200',
+                  isDragging
+                    ? 'border-blue-500 bg-blue-50/80 dark:bg-blue-500/10 scale-[0.99]'
+                    : 'border-slate-300 bg-slate-50/60 hover:border-blue-400 hover:bg-blue-50/30 dark:border-white/[0.12] dark:bg-white/[0.02] dark:hover:border-blue-400/60',
+                )}
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-sm border border-slate-200 text-blue-600 group-hover:scale-110 group-hover:bg-blue-50 transition-all dark:bg-slate-800 dark:border-white/[0.08] dark:text-blue-400">
+                  <UploadCloud className="h-6 w-6" />
+                </div>
+                <div className="mt-3 text-sm font-semibold text-slate-800 dark:text-white">
+                  Kéo thả ảnh vào đây hoặc <span className="text-blue-600 dark:text-blue-400 underline underline-offset-2">nhấn để tải lên</span>
+                </div>
+                <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                  Hỗ trợ định dạng JPG, PNG, WEBP (Tối đa 10 ảnh)
+                </p>
               </div>
 
               {photos.length > 0 && (
-                <div className="mt-3.5 grid grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-5">
+                <div className="mt-3 grid grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-5">
                   {previews.map((src, i) => (
                     <div
                       key={src}
@@ -626,6 +649,13 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
           </button>
         </div>
       </div>
+
+      {showLocationManager && (
+        <ManageLocationsDialog
+          onClose={() => setShowLocationManager(false)}
+          onChanged={() => fetchLocations().then(setLocations)}
+        />
+      )}
     </div>
   );
 }
