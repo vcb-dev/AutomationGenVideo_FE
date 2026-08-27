@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { DollarSign, Plus, X } from 'lucide-react';
-import { digitsOnly, sumEntryValues } from './report-total';
+import { digitsOnly, sumEntryValues, formatThousands } from './report-total';
 
 export const REVENUE_PLATFORMS = [
     { id: 'fb', label: 'Doanh thu FB' },
@@ -208,7 +208,7 @@ const RevenueReportSection: React.FC<RevenueReportSectionProps> = ({
                                                 autoComplete="off"
                                                 placeholder="Số tiền..."
                                                 readOnly={readOnly}
-                                                value={digitsOnly(entry.value)}
+                                                value={formatThousands(entry.value)}
                                                 onChange={(e) => {
                                                     const rawValue = digitsOnly(e.target.value);
                                                     updateRow(platform.id, entry.id, { value: rawValue });
