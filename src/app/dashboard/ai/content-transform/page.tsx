@@ -1,14 +1,11 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useAuthStore } from '@/store/auth-store';
-import { UserRole } from '@/types/auth';
 import {
   Wand2,
   Copy,
   Check,
   History,
-  Users,
   Loader2,
   Eye,
   Calendar,
@@ -33,7 +30,7 @@ import type {
   PaastLayerCriteria,
 } from '@/lib/api/paast-analyzer';
 import { NumberedPagination } from '@/components/ui/NumberedPagination';
-import { MemberDropdown } from '@/components/ui/MemberDropdown';
+import { TeamStatsTab } from './components/TeamStatsTab';
 
 // Giới hạn dung lượng file upload để transcribe — phải khớp đúng limits.fileSize
 // của FileInterceptor ở BE (ai-integration.controller.ts). Lệch nhau sẽ dẫn tới
@@ -91,14 +88,6 @@ interface TransformHistoryItem {
  *  - `failed`  : lần chấm vừa rồi thất bại, hoặc bản ghi dùng hệ điểm cũ đã ngừng dùng.
  */
 type ScoreStatus = 'success' | 'failed' | 'pending' | null;
-
-interface TeamMember {
-  id: string;
-  email: string;
-  full_name: string;
-  roles: UserRole[];
-  team?: string;
-}
 
 // ── Chấm điểm kịch bản theo khung PAAST ──────────────────────────────────────────────────
 // Type + hàm THUẦN sống ở paast-highlight.util.ts (không phải page.tsx): Next.js App Router
@@ -509,8 +498,8 @@ function HistoryScoreCell({
   );
 }
 
+
 export default function ContentTransformPage() {
-  const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState<'transform' | 'history' | 'team'>('transform');
 
   // Core content transform states
@@ -522,7 +511,41 @@ export default function ContentTransformPage() {
   const [copied, setCopied] = useState<boolean>(false);
   const [inputMode, setInputMode] = useState<'text' | 'video' | 'audio'>('text');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  // Trạng thái xác thực file NGAY sau khi chọn (trước cả lúc bấm "Chuyển thành văn bản"):
+  //  - 'idle'    : chưa chọn file nào.
+  //  - 'loading' : vừa chọn xong, đang đọc metadata để xác nhận file thật sự là media hợp lệ
+  //                (không hỏng, decode được) — set NGAY LẬP TỨC, đồng bộ trong onChange, để
+  //                người dùng biết thao tác chọn file đã được ghi nhận trước khi có bất kỳ xử
+  //                lý bất đồng bộ nào chạy (đặc biệt quan trọng với file tới 200MB).
+  //  - 'success' : đã đọc metadata thành công → hiện badge "Đã chọn file thành công" như cũ.
+  //  - 'error'   : file không decode được (hỏng/sai định dạng dù đúng đuôi mở rộng) → báo lỗi
+  //                ngay tại khung upload, KHÔNG chuyển sang trạng thái thành công, cho chọn lại.
+  const [fileProcessingStatus, setFileProcessingStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [fileProcessingError, setFileProcessingError] = useState<string | null>(null);
+  // File quay từ điện thoại thường lưu moov atom (bảng metadata) ở CUỐI file thay vì đầu — để
+  // đọc được duration/track info, trình duyệt phải quét gần hết file thay vì chỉ vài KB đầu,
+  // nên với file lớn (hàng trăm MB) bước validate có thể mất vài giây THẬT SỰ, không phải giả
+  // lập. Sau một ngưỡng chờ mà vẫn chưa xong, hiện thêm dòng trấn an này để người dùng không
+  // tưởng bị treo.
+  const [isSlowFileHint, setIsSlowFileHint] = useState<boolean>(false);
+  // Đếm tăng dần theo mỗi lượt chọn file (cùng cơ chế requestId với transcribe/transform) — cho
+  // phép lượt validate của file TRƯỚC tự nhận ra mình đã lỗi thời khi người dùng chọn file MỚI
+  // trong lúc lượt cũ còn đang đọc metadata dở, tránh nó ghi đè trạng thái của file mới.
+  const fileProcessingRequestId = useRef(0);
+  // setTimeout hẹn giờ bật isSlowFileHint — lưu lại để huỷ được khi lượt validate xong sớm hơn
+  // ngưỡng, hoặc khi người dùng đổi file/đổi tab giữa chừng (tránh nó bắn muộn, bật nhầm hint
+  // cho file/tab đã không còn hiển thị).
+  const slowFileHintTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isTranscribing, setIsTranscribing] = useState<boolean>(false);
+  // Tiến trình upload file lên BE (0-100), đo bằng số byte thực tế đã gửi đi qua
+  // axios onUploadProgress — chỉ phản ánh đúng giai đoạn ĐẨY FILE, không phải toàn bộ thời gian
+  // chờ AI nghe/transcribe (giai đoạn đó không có số % thật, xem uploadPhase bên dưới).
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  // 'uploading'  : đang đẩy file lên, uploadProgress phản ánh đúng % thật.
+  // 'processing' : đã đẩy xong 100%, đang chờ AI service xử lý (transcribe) — không có % thật
+  //                nên hiển thị thanh chạy indeterminate thay vì đứng yên ở 100% gây hiểu nhầm
+  //                là bị treo.
+  const [uploadPhase, setUploadPhase] = useState<'idle' | 'uploading' | 'processing'>('idle');
   // Chỉ có ý nghĩa ở tab Video/Giọng nói: ô "Nhập kịch bản thô" khoá (readOnly) cho tới khi
   // handleTranscribe() trả transcript thành công, tránh người dùng gõ tay đè lên trước khi
   // có bản nhận diện thật. Tab Văn bản không đọc state này — luôn gõ tay tự do.
@@ -555,6 +578,13 @@ export default function ContentTransformPage() {
   // ở tab Lịch sử chỉ nút của ĐÚNG dòng đang chấm bị khoá, các dòng khác vẫn bấm được.
   const [scoringId, setScoringId] = useState<string | null>(null);
   const [currentHistoryId, setCurrentHistoryId] = useState<string | null>(null);
+  // Bản sao ref của currentHistoryId, luôn phản ánh giá trị MỚI NHẤT (state trong closure của
+  // một handler async là giá trị đông cứng tại lúc bấm nút). handleScore dùng nó để biết bản ghi
+  // đang hiển thị có còn là bản ghi mình vừa chấm hay không — xem lý do tại đó.
+  const currentHistoryIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    currentHistoryIdRef.current = currentHistoryId;
+  }, [currentHistoryId]);
   const [isUpgrading, setIsUpgrading] = useState<boolean>(false);
   const [previousOverallScore, setPreviousOverallScore] = useState<number | null>(null);
   // Chống bấm trùng — khoá đồng bộ (không phụ thuộc chu kỳ render của React như state),
@@ -577,6 +607,12 @@ export default function ContentTransformPage() {
   // Cùng cơ chế "requestId" với transcribeRequestId — cho catch/finally của 1 lượt upgrade tự
   // nhận ra mình đã lỗi thời khi bị huỷ.
   const upgradeRequestId = useRef(0);
+  // Huỷ lượt /transform đang chạy — ref RIÊNG như 2 lượt trên. Lượt viết kịch bản chờ tới 420s,
+  // thừa thời gian để người dùng đổi tab Video/Giọng nói/Văn bản hoặc chọn file khác giữa chừng;
+  // thiếu 2 ref này thì response cũ vẫn âm thầm ghi đè outputText/currentHistoryId của màn hình
+  // đã đổi sang nội dung khác.
+  const transformAbortControllerRef = useRef<AbortController | null>(null);
+  const transformRequestId = useRef(0);
 
   // History states
   const [historyItems, setHistoryItems] = useState<TransformHistoryItem[]>([]);
@@ -584,7 +620,6 @@ export default function ContentTransformPage() {
   // Đếm tăng dần để nhận biết response nào là request mới nhất — chặn race condition
   // khi bấm đổi trang nhanh khiến response cũ về sau response mới, ghi đè sai dữ liệu.
   const personalHistoryRequestId = useRef(0);
-  const memberHistoryRequestId = useRef(0);
 
   const [historyPage, setHistoryPage] = useState<number>(1);
   const [historyLimit] = useState<number>(10);
@@ -593,19 +628,6 @@ export default function ContentTransformPage() {
 
   // Detail Modal states
   const [selectedItem, setSelectedItem] = useState<TransformHistoryItem | null>(null);
-
-  // Team History states
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
-  const [selectedMemberId, setSelectedMemberId] = useState<string>('');
-  const [memberHistoryItems, setMemberHistoryItems] = useState<TransformHistoryItem[]>([]);
-  const [memberHistoryTotal, setMemberHistoryTotal] = useState<number>(0);
-  const [memberHistoryPage, setMemberHistoryPage] = useState<number>(1);
-  const [memberHistoryTotalPages, setMemberHistoryTotalPages] = useState<number>(1);
-  const [isMemberHistoryLoading, setIsMemberHistoryLoading] = useState<boolean>(false);
-
-  const isPrivileged = user?.roles?.some(r =>
-    [UserRole.ADMIN, UserRole.MANAGER, UserRole.LEADER].includes(r as any)
-  );
 
   // 1. Fetch active characters
   const fetchCharacters = useCallback(async () => {
@@ -640,58 +662,10 @@ export default function ContentTransformPage() {
     }
   }, [historyLimit]);
 
-  // 3. Fetch team members (for Admin/Manager/Leader)
-  const fetchTeamMembers = useCallback(async () => {
-    console.log('[fetchTeamMembers] called. isPrivileged =', isPrivileged);
-    if (!isPrivileged) return;
-    try {
-      const res = await apiClient.get<TeamMember[]>('/users/team-members');
-      console.log('[fetchTeamMembers] API success response:', res.data);
-      setTeamMembers(res.data || []);
-      if (res.data && res.data.length > 0) {
-        setSelectedMemberId(res.data[0].id);
-      }
-    } catch (err: any) {
-      console.error('[fetchTeamMembers] API error:', err);
-    }
-  }, [isPrivileged]);
-
-  // 4. Fetch selected member's history
-  const fetchMemberHistory = useCallback(async (memberId: string, page: number) => {
-    if (!memberId) return;
-    const requestId = ++memberHistoryRequestId.current;
-    setIsMemberHistoryLoading(true);
-    try {
-      const res = await apiClient.get(`/ai/content-transform/history/member/${memberId}`, {
-        params: { page, limit: historyLimit },
-      });
-      if (requestId !== memberHistoryRequestId.current) return; // request cũ hơn đã bị request sau ghi đè, bỏ qua
-      setMemberHistoryItems(res.data.items || []);
-      setMemberHistoryTotal(res.data.total || 0);
-      setMemberHistoryTotalPages(res.data.totalPages || 1);
-    } catch (err: any) {
-      if (requestId !== memberHistoryRequestId.current) return;
-      toast.error('Không có quyền xem lịch sử của thành viên này');
-      setMemberHistoryItems([]);
-      setMemberHistoryTotal(0);
-      setMemberHistoryTotalPages(1);
-    } finally {
-      if (requestId === memberHistoryRequestId.current) setIsMemberHistoryLoading(false);
-    }
-  }, [historyLimit]);
-
   // Run initial queries
   useEffect(() => {
-    console.log('[ContentTransformPage] mounted/updated. user =', user?.email, 'roles =', user?.roles, 'isPrivileged =', isPrivileged);
     fetchCharacters();
   }, [fetchCharacters]);
-
-  useEffect(() => {
-    console.log('[ContentTransformPage] checking privilege for fetching team members. isPrivileged =', isPrivileged);
-    if (isPrivileged) {
-      fetchTeamMembers();
-    }
-  }, [fetchTeamMembers, isPrivileged]);
 
   // Load personal history on tab change or page changes
   useEffect(() => {
@@ -699,13 +673,6 @@ export default function ContentTransformPage() {
       fetchPersonalHistory(historyPage);
     }
   }, [activeTab, historyPage, fetchPersonalHistory]);
-
-  // Load member history on selection or page changes
-  useEffect(() => {
-    if (activeTab === 'team' && selectedMemberId) {
-      fetchMemberHistory(selectedMemberId, memberHistoryPage);
-    }
-  }, [activeTab, selectedMemberId, memberHistoryPage, fetchMemberHistory]);
 
   // Chuyển tab Văn bản/Video/Giọng nói: luôn xoá sạch ô kịch bản thô + file đã chọn + khoá lại
   // ô nhập (nếu đang mở khoá từ 1 lượt transcribe trước) — tránh nội dung của tab này lẫn
@@ -715,6 +682,12 @@ export default function ContentTransformPage() {
     // âm thầm trả về sau và ghi đè state của tab vừa mở.
     cancelActiveTranscribe();
     setIsTranscribing(false);
+    // Lượt /transform cũng vậy, và còn dễ xảy ra hơn nhiều vì nó chờ tới 420s: kịch bản thô
+    // của tab cũ đã bị xoá ngay bên dưới, nên kết quả viết dựa trên nó không còn nghĩa gì —
+    // để nó trả về sẽ hiện một kịch bản không khớp với ô nhập đang trống trước mặt người dùng.
+    cancelActiveTransform();
+    setIsGenerating(false);
+    isTransformingRef.current = false;
     setInputMode(mode);
     setSelectedFile(null);
     setInputText('');
@@ -722,6 +695,66 @@ export default function ContentTransformPage() {
     originalTranscriptRef.current = '';
     // Kịch bản thô của tab vừa rời khỏi không còn ý nghĩa để so sánh cho tab mới.
     lastTransformedInputRef.current = '';
+    // File (nếu có) của tab vừa rời khỏi cũng không còn ý nghĩa để hiện trạng thái — về idle,
+    // và lượt validate metadata đang đọc dở (nếu có) tự biết mình lỗi thời qua requestId.
+    fileProcessingRequestId.current += 1;
+    setFileProcessingStatus('idle');
+    setFileProcessingError(null);
+    if (slowFileHintTimeoutRef.current) {
+      clearTimeout(slowFileHintTimeoutRef.current);
+      slowFileHintTimeoutRef.current = null;
+    }
+    setIsSlowFileHint(false);
+  };
+
+  /**
+   * Đọc metadata của file media qua thẻ <video>/<audio> ẩn để xác nhận file thật sự decode
+   * được — bắt được các trường hợp file hỏng hoặc gắn sai đuôi mở rộng (mime type khớp
+   * `video/*`/`audio/*` nhưng nội dung không phải media hợp lệ) mà việc chỉ kiểm tra kích
+   * thước/tên file không phát hiện ra. Đây là bước xử lý BẤT ĐỒNG BỘ thật sự đứng sau trạng
+   * thái loading hiện ngay khi chọn file — khác với `MAX_UPLOAD_SIZE_BYTES` (đồng bộ, chạy
+   * trước khi vào hàm này).
+   *
+   * Trả về `{ ok: true }` khi đọc metadata thành công, hoặc `{ ok: false, message }` khi lỗi.
+   * Luôn dọn object URL tạm sau khi xong, không rò rỉ bộ nhớ dù thành công hay lỗi.
+   */
+  const validateMediaFile = (file: File, kind: 'video' | 'audio'): Promise<{ ok: true } | { ok: false; message: string }> => {
+    return new Promise((resolve) => {
+      const el = document.createElement(kind === 'video' ? 'video' : 'audio');
+      const objectUrl = URL.createObjectURL(file);
+      let settled = false;
+
+      const cleanup = () => {
+        el.removeAttribute('src');
+        el.load();
+        URL.revokeObjectURL(objectUrl);
+      };
+      const finish = (result: { ok: true } | { ok: false; message: string }) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(result);
+      };
+
+      el.preload = 'metadata';
+      // Phòng hờ trình duyệt không bắn cả 2 sự kiện loadedmetadata/error (hiếm) — không để
+      // người dùng kẹt ở trạng thái loading vĩnh viễn.
+      const timeoutId = setTimeout(() => {
+        finish({ ok: false, message: `Không thể đọc file "${file.name}". Vui lòng thử chọn lại.` });
+      }, 15000);
+      el.onloadedmetadata = () => {
+        clearTimeout(timeoutId);
+        finish({ ok: true });
+      };
+      el.onerror = () => {
+        clearTimeout(timeoutId);
+        finish({
+          ok: false,
+          message: `File "${file.name}" bị hỏng hoặc không đúng định dạng ${kind === 'video' ? 'video' : 'âm thanh'} được hỗ trợ. Vui lòng chọn file khác.`,
+        });
+      };
+      el.src = objectUrl;
+    });
   };
 
   /**
@@ -733,6 +766,21 @@ export default function ContentTransformPage() {
     transcribeAbortControllerRef.current?.abort();
     transcribeAbortControllerRef.current = null;
     transcribeRequestId.current += 1;
+    // Mọi lượt gọi hàm này (đổi tab, chọn file khác, bấm "Huỷ", hoặc bắt đầu lượt transcribe
+    // mới) đều coi như lượt upload trước đó không còn hiệu lực — đưa thanh tiến trình về trạng
+    // thái ban đầu, tránh giữ % của lượt cũ đứng sai chỗ khi lượt mới bắt đầu.
+    setUploadProgress(0);
+    setUploadPhase('idle');
+  };
+
+  /**
+   * Huỷ lượt /transform đang chạy (nếu có) — cùng cơ chế với cancelActiveTranscribe/
+   * cancelActiveUpgrade. Gọi được nhiều lần an toàn (không có gì để huỷ thì no-op).
+   */
+  const cancelActiveTransform = () => {
+    transformAbortControllerRef.current?.abort();
+    transformAbortControllerRef.current = null;
+    transformRequestId.current += 1;
   };
 
   const handleTranscribe = async () => {
@@ -745,7 +793,16 @@ export default function ContentTransformPage() {
     const requestId = transcribeRequestId.current;
 
     setIsTranscribing(true);
-    const loadingToast = toast.loading('Đang nghe và chuyển đổi nội dung...');
+    setUploadProgress(0);
+    setUploadPhase('uploading');
+    // Kết quả chuyển đổi (phần 3) đang hiển thị — nếu có — được viết từ kịch bản thô của lượt
+    // trước, không còn khớp với transcript sắp được nghe lại từ file hiện tại. Xoá luôn ở đây
+    // (không đợi tới khi transcribe xong) để không có lúc nào người dùng thấy kết quả cũ đứng
+    // cạnh input đang được thay mới, hiểu nhầm là kết quả đã cập nhật theo nội dung mới.
+    setOutputText('');
+    setScoreResult(null);
+    setCurrentHistoryId(null);
+    const loadingToast = toast.loading('Đang tải file lên...');
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
@@ -754,8 +811,30 @@ export default function ContentTransformPage() {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
-        timeout: 70000, // 70s timeout
+        // BE chờ AI service tối đa 420s (CONTENT_TRANSFORM_TRANSCRIBE_TIMEOUT_MS). Timeout của
+        // axios trên trình duyệt là ĐỒNG HỒ TREO TƯỜNG phủ CẢ thời gian đẩy file lên BE, nên
+        // phải cộng thêm phần upload: file được phép tới 200MB, đường lên 20Mbps đã mất ~80s
+        // chỉ để đẩy xong. 510s = 420s của BE + 90s biên upload.
+        //
+        // Mốc 70s cũ nhỏ hơn cả thời gian Gemini thực sự cần (đo thật: 110-240s cho video
+        // 5-9 phút), nên video dài không có cách nào chạy xong trong đó.
+        timeout: 510000,
         signal: controller.signal,
+        // % thật của giai đoạn ĐẨY FILE (loaded/total byte qua dây) — không phải % của cả quá
+        // trình transcribe. Khi đã đẩy xong (100%) mà response vẫn chưa về, chuyển sang
+        // 'processing' để đổi UI sang thanh chạy indeterminate thay vì đứng yên ở 100% trông
+        // như bị treo.
+        onUploadProgress: (progressEvent) => {
+          if (requestId !== transcribeRequestId.current) return;
+          const total = progressEvent.total ?? selectedFile.size;
+          if (!total) return;
+          const percent = Math.min(100, Math.round((progressEvent.loaded * 100) / total));
+          setUploadProgress(percent);
+          if (percent >= 100) {
+            setUploadPhase('processing');
+            toast.loading('Đang nghe và chuyển đổi nội dung...', { id: loadingToast });
+          }
+        },
       });
 
       // Lượt này đã bị huỷ/thay bằng lượt mới hơn (đổi file / bấm Huỷ) trong lúc chờ response
@@ -791,6 +870,8 @@ export default function ContentTransformPage() {
       // chúng đã được lượt sau (hoặc nút "Huỷ") tự quản lý.
       if (requestId === transcribeRequestId.current) {
         setIsTranscribing(false);
+        setUploadProgress(0);
+        setUploadPhase('idle');
         transcribeAbortControllerRef.current = null;
       }
     }
@@ -846,6 +927,12 @@ export default function ContentTransformPage() {
       return;
     }
 
+    // Cô lập lượt này: mọi lần ghi state ở dưới đều phải kiểm requestId trước, để một lượt đã
+    // bị huỷ (đổi tab nhập / chọn file khác) không ghi đè màn hình hiện tại khi nó trả về muộn.
+    const controller = new AbortController();
+    transformAbortControllerRef.current = controller;
+    const requestId = transformRequestId.current;
+
     isTransformingRef.current = true;
     setIsGenerating(true);
     setOutputText('');
@@ -868,8 +955,12 @@ export default function ContentTransformPage() {
           input_text: inputText,
           input_type: inputMode === 'video' ? 'VIDEO' : inputMode === 'audio' ? 'AUDIO' : 'TEXT',
         },
-        { timeout: 420000 },
+        { timeout: 420000, signal: controller.signal },
       );
+
+      // Lượt này đã bị huỷ/thay bằng lượt mới hơn trong lúc chờ response — bỏ qua, không ghi
+      // đè kịch bản đang hiển thị (cùng cơ chế với handleTranscribe/handleUpgrade).
+      if (requestId !== transformRequestId.current) return;
 
       if (res.data && res.data.status === 'SUCCESS') {
         setOutputText(res.data.output_text);
@@ -890,11 +981,21 @@ export default function ContentTransformPage() {
         throw new Error(res.data?.error_message || 'Lỗi xử lý kịch bản');
       }
     } catch (err: any) {
-      const errMsg = err.response?.data?.message || err.message || 'Lỗi khi gọi AI';
-      toast.error(errMsg, { id: loadingToast });
+      const isCanceled = err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError';
+      if (isCanceled) {
+        // Người dùng chủ động đổi tab nhập giữa chừng — không phải lỗi, chỉ tắt toast loading.
+        toast.dismiss(loadingToast);
+      } else if (requestId === transformRequestId.current) {
+        const errMsg = err.response?.data?.message || err.message || 'Lỗi khi gọi AI';
+        toast.error(errMsg, { id: loadingToast });
+      }
     } finally {
-      setIsGenerating(false);
-      isTransformingRef.current = false;
+      // Lượt đã bị lượt sau ghi đè thì không đụng vào state nữa — lượt sau tự quản lý.
+      if (requestId === transformRequestId.current) {
+        setIsGenerating(false);
+        isTransformingRef.current = false;
+        transformAbortControllerRef.current = null;
+      }
     }
   };
 
@@ -1010,8 +1111,11 @@ export default function ContentTransformPage() {
       if (historyId) {
         setSelectedItem((prev) => (prev && prev.id === targetId ? { ...prev, ...updatedFields } : prev));
         setHistoryItems((prev) => prev.map((it) => (it.id === targetId ? { ...it, ...updatedFields } : it)));
-        setMemberHistoryItems((prev) => prev.map((it) => (it.id === targetId ? { ...it, ...updatedFields } : it)));
-      } else {
+      } else if (currentHistoryIdRef.current === targetId) {
+        // Chỉ ghi khi màn hình "Chuyển đổi" VẪN đang hiển thị đúng bản ghi vừa chấm. Lượt chấm
+        // chờ tới 480s, thừa thời gian để người dùng bấm "Chuyển đổi nội dung" tạo bản ghi mới
+        // trong lúc chờ (nút đó không bị khoá bởi scoringId); thiếu phép kiểm này thì điểm của
+        // bản ghi CŨ sẽ hiện lên như thể là điểm của kịch bản MỚI đang trước mặt.
         setScoreResult(updatedFields.scoreResult);
         setScoreStatus(updatedFields.scoreStatus);
         setScoreErrorMsg(updatedFields.scoreError);
@@ -1088,10 +1192,7 @@ export default function ContentTransformPage() {
                 Lịch sử
               </button>
               <button
-                onClick={() => {
-                  setActiveTab('team');
-                  setMemberHistoryPage(1);
-                }}
+                onClick={() => setActiveTab('team')}
                 className={`py-1.5 2xl:py-2 px-1 text-xs 2xl:text-sm font-semibold transition-all focus:outline-none ${activeTab === 'team'
                   ? 'border-b-2 border-[#4441cc] text-[#4441cc]'
                   : 'text-[#464554] hover:text-[#4441cc]'
@@ -1162,6 +1263,14 @@ export default function ContentTransformPage() {
                           type="file"
                           id="file-upload"
                           accept={inputMode === 'video' ? 'video/*' : 'audio/*'}
+                          // Khoá input trong lúc đang validate — vô hiệu hoá luôn label bọc
+                          // ngoài (click vào label của input đã disabled sẽ không mở lại hộp
+                          // thoại chọn file), tránh người dùng bấm chọn file khác giữa chừng
+                          // trong lúc file hiện tại còn đang được đọc metadata HOẶC đang được
+                          // transcribe thật ở BE/AI service (isTranscribing có thể kéo dài tới
+                          // hàng phút — nếu không khoá, người dùng chọn file khác giữa chừng sẽ
+                          // huỷ ngang lượt transcribe đang chạy dở mà không được cảnh báo rõ).
+                          disabled={fileProcessingStatus === 'loading' || isTranscribing}
                           onChange={(e) => {
                             const file = e.target.files?.[0];
                             // Bấm Cancel trên hộp thoại chọn file (không chọn gì) — onChange có
@@ -1181,7 +1290,23 @@ export default function ContentTransformPage() {
                             // Đang có request transcribe của file cũ chạy dở — huỷ trước khi nhận
                             // file mới, tránh 2 request chạy song song ghi đè kết quả lên nhau.
                             cancelActiveTranscribe();
+
+                            // ── ĐỒNG BỘ, chạy TRƯỚC bất kỳ await nào ─────────────────────────
+                            // set loading NGAY LẬP TỨC trong cùng tick với sự kiện onChange, để
+                            // React có state mới trước khi validateMediaFile() (bất đồng bộ) bắt
+                            // đầu chạy ở dưới — tránh bị React 18 tự động batch chung với state
+                            // 'success/error' set sau đó (nếu 2 lần setState xảy ra cùng 1 tick
+                            // đồng bộ, trình duyệt chỉ vẽ ra bản cuối, người dùng sẽ KHÔNG BAO
+                            // GIỜ thấy được trạng thái loading dù code "đúng thứ tự").
                             setSelectedFile(file);
+                            setFileProcessingStatus('loading');
+                            setFileProcessingError(null);
+                            setIsSlowFileHint(false);
+                            // Mốc thời gian bắt đầu loading — dùng để đảm bảo trạng thái loading
+                            // hiển thị TỐI THIỂU 500ms bên dưới, tránh nháy quá nhanh (validate
+                            // thực tế đo được chỉ ~10ms với file nhỏ, không kịp cho mắt người
+                            // nhận ra), và để tính "đã chờ bao lâu" cho hint file lớn bên dưới.
+                            const loadingStartedAt = performance.now();
                             // Transcript cũ (nếu có) không còn khớp với file vừa chọn lại — xoá
                             // và khoá ô nhập cho tới khi bấm "Chuyển thành văn bản" lần nữa.
                             setInputText('');
@@ -1195,24 +1320,140 @@ export default function ContentTransformPage() {
                             // Cô lập trạng thái loading theo đúng lần chọn file này — không để
                             // dính trạng thái "đang nghe" còn sót lại từ lượt transcribe trước.
                             setIsTranscribing(false);
+                            // Kết quả chuyển đổi cũ ở phần 3 (nếu có) được viết từ kịch bản thô
+                            // của file trước đó — không còn khớp với file vừa chọn, xoá luôn để
+                            // tránh hiện lơ lửng một kết quả không thuộc về nội dung đang có mặt.
+                            setOutputText('');
+                            setScoreResult(null);
+                            setCurrentHistoryId(null);
+
+                            const processingId = ++fileProcessingRequestId.current;
+
+                            // File quay từ điện thoại thường lưu moov atom ở CUỐI file — đọc
+                            // metadata có thể mất vài giây thật sự. Sau 2.5s vẫn chưa validate
+                            // xong thì bật thêm dòng trấn an "File lớn, vui lòng đợi trong giây
+                            // lát..." cạnh spinner, để người dùng không tưởng bị treo.
+                            if (slowFileHintTimeoutRef.current) clearTimeout(slowFileHintTimeoutRef.current);
+                            slowFileHintTimeoutRef.current = setTimeout(() => {
+                              if (processingId !== fileProcessingRequestId.current) return;
+                              setIsSlowFileHint(true);
+                            }, 2500);
+
+                            // ── Bất đồng bộ, chạy SAU khi loading đã lên màn hình ────────────
+                            // Cố ý dùng requestAnimationFrame LỒNG NHAU (2 lớp) thay vì gọi
+                            // validateMediaFile() ngay: rAF thứ nhất chỉ đảm bảo được gọi TRƯỚC
+                            // lần vẽ tiếp theo (chưa chắc SAU khi đã vẽ xong), rAF thứ hai (lồng
+                            // bên trong) mới đảm bảo trình duyệt đã thực sự sơn (paint) xong
+                            // frame chứa spinner + tên file lên màn hình. Nhờ vậy, dù bước gán
+                            // `el.src = objectUrl` bên trong validateMediaFile() có khiến luồng
+                            // chính bị bận (đọc file lớn, đặc biệt file quay điện thoại có moov
+                            // atom ở cuối) thì người dùng vẫn ĐÃ THẤY trạng thái loading trước
+                            // khi việc đó bắt đầu — không còn khoảng trống trắng như trước.
+                            requestAnimationFrame(() => {
+                              requestAnimationFrame(() => {
+                                if (processingId !== fileProcessingRequestId.current) return;
+
+                                validateMediaFile(file, inputMode === 'audio' ? 'audio' : 'video').then(async (result) => {
+                                  // Người dùng đã chọn file khác (hoặc đổi tab) trong lúc lượt
+                                  // này còn đang đọc metadata — bỏ qua, không ghi đè trạng thái
+                                  // hiện tại.
+                                  if (processingId !== fileProcessingRequestId.current) return;
+
+                                  if (slowFileHintTimeoutRef.current) {
+                                    clearTimeout(slowFileHintTimeoutRef.current);
+                                    slowFileHintTimeoutRef.current = null;
+                                  }
+
+                                  // Validate với file nhỏ có thể xong trong ~10ms — quá nhanh để
+                                  // mắt người kịp nhận ra trạng thái loading vừa xuất hiện. Giữ
+                                  // loading hiển thị tối thiểu 500ms bằng cách chờ thêm phần thời
+                                  // gian còn thiếu trước khi chuyển sang success/error. Với file
+                                  // lớn (đã mất sẵn vài giây để đọc metadata) elapsed thường đã
+                                  // vượt mốc này, nên chỉ có tác dụng ở file nhỏ.
+                                  const elapsed = performance.now() - loadingStartedAt;
+                                  const MIN_LOADING_DISPLAY_MS = 500;
+                                  if (elapsed < MIN_LOADING_DISPLAY_MS) {
+                                    await new Promise((r) => setTimeout(r, MIN_LOADING_DISPLAY_MS - elapsed));
+                                  }
+                                  // Chờ thêm ở trên là một khoảng bất đồng bộ khác — lượt này có
+                                  // thể đã lỗi thời ngay trong lúc chờ (người dùng chọn file
+                                  // khác), kiểm tra lại processingId lần nữa trước khi ghi state.
+                                  if (processingId !== fileProcessingRequestId.current) return;
+
+                                  setIsSlowFileHint(false);
+                                  if (result.ok) {
+                                    setFileProcessingStatus('success');
+                                  } else {
+                                    setFileProcessingStatus('error');
+                                    setFileProcessingError(result.message);
+                                    toast.error(result.message);
+                                  }
+                                });
+                              });
+                            });
                           }}
                           className="hidden"
                         />
                         <label
                           htmlFor="file-upload"
-                          className="cursor-pointer flex flex-col items-center text-[#464554] w-full text-center"
+                          className={`flex flex-col items-center text-[#464554] w-full text-center ${
+                            fileProcessingStatus === 'loading' || isTranscribing ? 'cursor-not-allowed' : 'cursor-pointer'
+                          }`}
                         >
-                          <Upload className="w-5 h-5 text-[#4441cc] mb-0.5 animate-bounce" style={{ animationDuration: '3s' }} />
+                          {fileProcessingStatus === 'loading' ? (
+                            <Loader2 className="w-5 h-5 text-[#4441cc] mb-0.5 animate-spin" />
+                          ) : (
+                            <Upload className="w-5 h-5 text-[#4441cc] mb-0.5 animate-bounce" style={{ animationDuration: '3s' }} />
+                          )}
                           <span className="font-semibold text-[11px]">
                             {selectedFile ? selectedFile.name : `Nhấp để chọn file ${inputMode === 'video' ? 'video' : 'âm thanh'}`}
                           </span>
-                          <span className="text-[9px] text-[#464554]/60 mt-0.5">
-                            {inputMode === 'video'
-                              ? 'Hỗ trợ MP4, MOV, AVI, MKV, WEBM (Tối đa 200MB)'
-                              : 'Hỗ trợ MP3, WAV, M4A, AAC, OGG, FLAC (Tối đa 200MB)'}
-                          </span>
+                          {/* Trạng thái loading THAY THẾ dòng mô tả định dạng mặc định — hiện
+                              NGAY khi fileProcessingStatus chuyển 'loading' (set đồng bộ trong
+                              onChange, xem comment ở đó), trước khi validateMediaFile() (đọc
+                              metadata, bất đồng bộ) chạy xong. */}
+                          {fileProcessingStatus === 'loading' ? (
+                            <span className="text-[9px] text-[#4441cc] mt-0.5 font-medium">Đang xử lý file...</span>
+                          ) : (
+                            <span className="text-[9px] text-[#464554]/60 mt-0.5">
+                              {inputMode === 'video'
+                                ? 'Hỗ trợ MP4, MOV, AVI, MKV, WEBM (Tối đa 200MB)'
+                                : 'Hỗ trợ MP3, WAV, M4A, AAC, OGG, FLAC (Tối đa 200MB)'}
+                            </span>
+                          )}
+                          {/* File quay điện thoại thường lưu metadata ở cuối file — validate có
+                              thể mất vài giây thật với file lớn. Chỉ bật sau ngưỡng 2.5s (xem
+                              slowFileHintTimeoutRef) để không hiện thừa với file nhỏ đọc xong
+                              gần như ngay lập tức. */}
+                          {fileProcessingStatus === 'loading' && isSlowFileHint && (
+                            <span className="text-[9px] text-[#4441cc]/80 mt-0.5 italic">
+                              File lớn, vui lòng đợi trong giây lát...
+                            </span>
+                          )}
+                          {/* Xác nhận đã đọc file thành công — chỉ hiện sau khi validateMediaFile()
+                              xác nhận file decode được (trạng thái 'success'). Key đổi theo file →
+                              mỗi lần chọn file mới, animation "nảy vào" chạy lại từ đầu thay vì
+                              đứng yên (badge cũ vẫn còn đó từ file trước). */}
+                          {selectedFile && fileProcessingStatus === 'success' && (
+                            <span
+                              key={`${selectedFile.name}-${selectedFile.size}-${selectedFile.lastModified}`}
+                              className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[9.5px] font-semibold animate-pop-in"
+                            >
+                              <CheckCircle2 className="w-3 h-3 flex-shrink-0" />
+                              Đã chọn file thành công
+                            </span>
+                          )}
+                          {/* Lỗi khi đọc metadata (file hỏng/sai định dạng dù đúng đuôi mở rộng)
+                              — báo rõ ngay tại đây, KHÔNG chuyển sang trạng thái thành công. Nhấp
+                              vào khung vẫn mở lại hộp thoại chọn file (label bọc input bên ngoài). */}
+                          {fileProcessingStatus === 'error' && (
+                            <span className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 border border-red-200 text-red-700 text-[9.5px] font-semibold animate-pop-in">
+                              <XCircle className="w-3 h-3 flex-shrink-0" />
+                              {fileProcessingError || 'File không hợp lệ. Vui lòng chọn file khác.'}
+                            </span>
+                          )}
                         </label>
-                        {selectedFile && (
+                        {selectedFile && fileProcessingStatus === 'success' && (
                           <div className="mt-1.5 flex items-center gap-1.5">
                             <button
                               onClick={handleTranscribeClick}
@@ -1222,7 +1463,12 @@ export default function ContentTransformPage() {
                               {isTranscribing ? (
                                 <>
                                   <Loader2 className="w-3 h-3 animate-spin" />
-                                  <span>Đang nghe...</span>
+                                  {/* Text trên nút là nơi DUY NHẤT báo trạng thái bằng chữ — thanh
+                                      progress bên dưới chỉ còn phần bar trực quan, tránh lặp lại
+                                      cùng một thông tin ở 2 chỗ. */}
+                                  <span>
+                                    {uploadPhase === 'uploading' ? `Đang tải lên... ${uploadProgress}%` : 'Đang xử lý AI...'}
+                                  </span>
                                 </>
                               ) : (
                                 <>
@@ -1248,6 +1494,25 @@ export default function ContentTransformPage() {
                                 Huỷ
                               </button>
                             )}
+                          </div>
+                        )}
+                        {/* Thanh tiến trình upload — chỉ còn phần bar trực quan, KHÔNG kèm chữ
+                            (chữ trạng thái đã nằm trên nút phía trên, tránh lặp thông tin 2 chỗ).
+                            'uploading' chạy đúng % thật (đo qua axios onUploadProgress); qua
+                            'processing' (đã đẩy xong file, đang chờ AI nghe) không còn % thật nên
+                            chuyển sang thanh chạy indeterminate thay vì đứng yên ở 100%. */}
+                        {isTranscribing && (
+                          <div className="mt-2 w-full max-w-xs">
+                            <div className="h-1.5 w-full rounded-full bg-[#eae7ea] overflow-hidden">
+                              {uploadPhase === 'uploading' ? (
+                                <div
+                                  className="h-full rounded-full bg-[#4441cc] transition-[width] duration-200 ease-out"
+                                  style={{ width: `${uploadProgress}%` }}
+                                />
+                              ) : (
+                                <div className="h-full w-1/3 rounded-full bg-[#4441cc] animate-upload-indeterminate" />
+                              )}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -1284,11 +1549,22 @@ export default function ContentTransformPage() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 2xl:gap-3.5">
                       {characters.map((char) => {
                         const isSelected = selectedCharacterId === char.id;
+                        // Khoá đổi nhân vật trong lúc đang có 1 lượt xử lý AI chạy (transcribe
+                        // hoặc transform) — tránh người dùng đổi nhân vật giữa chừng rồi tưởng
+                        // kết quả đang chạy sẽ theo nhân vật mới (thực ra request đã gửi đi với
+                        // character_id cũ, không đổi theo, chỉ gây hiểu nhầm).
+                        const isLocked = isTranscribing || isGenerating;
                         return (
                           <div
                             key={char.id}
-                            onClick={() => setSelectedCharacterId(char.id)}
-                            className={`group relative p-2.5 2xl:p-3.5 border-2 rounded-xl cursor-pointer transition-all ${isSelected
+                            onClick={() => {
+                              if (isLocked) return;
+                              setSelectedCharacterId(char.id);
+                            }}
+                            aria-disabled={isLocked}
+                            className={`group relative p-2.5 2xl:p-3.5 border-2 rounded-xl transition-all ${
+                              isLocked ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                            } ${isSelected
                               ? 'border-[#4441cc] bg-[#5e5ce6]/5'
                               : 'border-[#c7c4d7] bg-white hover:border-[#4441cc]'
                               }`}
@@ -1577,7 +1853,15 @@ export default function ContentTransformPage() {
               <div className="flex-none pt-1.5 2xl:pt-2 pb-0.5 flex justify-center">
                 <button
                   onClick={handleTransformClick}
-                  disabled={isGenerating || !inputText.trim() || !selectedCharacterId}
+                  // fileProcessingStatus === 'loading': file vừa chọn đang được đọc metadata,
+                  // chưa xác nhận hợp lệ — chặn bấm "Chuyển đổi nội dung" trong lúc đó (xem
+                  // luồng loading ở khung upload phía trên).
+                  // isTranscribing: đang có 1 lượt transcribe chạy dở — QUAN TRỌNG ở trường hợp
+                  // "Chuyển lại" (re-transcribe): handleTranscribe() KHÔNG xoá inputText khi bắt
+                  // đầu (chỉ ghi đè khi có transcript mới), nên nếu không chặn ở đây, người dùng
+                  // vẫn bấm được "Chuyển đổi nội dung" và submit đúng bản kịch bản CŨ ngay lúc nó
+                  // sắp bị transcript mới ghi đè — chồng chéo 2 thao tác trên cùng 1 nội dung.
+                  disabled={isGenerating || !inputText.trim() || !selectedCharacterId || fileProcessingStatus === 'loading' || isTranscribing}
                   className="max-w-7xl w-full bg-[#4441cc] text-white py-2.5 2xl:py-3.5 px-6 2xl:px-8 rounded-xl font-bold text-xs 2xl:text-sm flex items-center justify-center space-x-2 shadow-md shadow-[#4441cc]/20 hover:bg-[#4441cc]/95 active:scale-[0.99] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isGenerating ? (
@@ -1687,113 +1971,14 @@ export default function ContentTransformPage() {
             </div>
           )}
 
-          {/* Statistics / Team Section (Tab 3) */}
+          {/* Statistics / Team Section (Tab 3) — tổng quan toàn bộ thành viên trong phạm vi
+              quyền + tổng số lượt chuyển đổi, hiện ngay khi mở tab (không phải chọn ai trước).
+              Trình bày dạng KPI + bảng xếp hạng trực quan thay vì danh sách thô — dễ quét mắt
+              để thấy ngay ai đang dẫn đầu / ai chưa hoạt động. */}
           {activeTab === 'team' && (
-            isPrivileged ? (
-              <div className="flex-1 min-h-0 overflow-y-auto bg-white border border-[#c7c4d7] rounded-3xl p-5 shadow-sm space-y-4">
-                <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-4">
-                  <h2 className="text-lg font-bold text-[#1b1b1d] flex items-center gap-2">
-                    <Users className="w-5 h-5 text-[#4441cc]" />
-                    Lịch sử của thành viên đội nhóm
-                  </h2>
-
-                  {/* Member selector */}
-                  <div className="flex flex-col items-end gap-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-[#464554] font-semibold whitespace-nowrap">Chọn thành viên:</span>
-                      <MemberDropdown
-                        members={teamMembers}
-                        value={selectedMemberId}
-                        onChange={(id) => {
-                          setSelectedMemberId(id);
-                          setMemberHistoryPage(1);
-                        }}
-                      />
-                    </div>
-                    {selectedMemberId && (
-                      <span className="text-xs bg-[#5e5ce6]/5 text-[#4441cc] border border-[#5e5ce6]/10 px-3 py-1 rounded-full font-semibold">
-                        Tổng số bản ghi: {memberHistoryTotal}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {isMemberHistoryLoading ? (
-                  <div className="flex flex-col items-center justify-center gap-3 py-16 rounded-2xl border border-dashed border-[#c7c4d7] bg-[#fcf8fb]">
-                    <Loader2 className="w-8 h-8 animate-spin text-[#4441cc]" />
-                    <p className="text-xs text-[#464554] font-medium">Đang tải lịch sử thành viên...</p>
-                  </div>
-                ) : memberHistoryItems.length > 0 ? (
-                  <div className="space-y-3">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse">
-                        <thead>
-                          <tr className="border-b border-[#eae7ea] text-xs font-bold text-[#464554] uppercase tracking-wider">
-                            <th className="py-2.5 px-4">Nhân vật</th>
-                            <th className="py-2.5 px-4">Nội dung thô (Input)</th>
-                            <th className="py-2.5 px-4">Kết quả (Output)</th>
-                            <th className="py-2.5 px-4">Thời gian tạo</th>
-                            <th className="py-2.5 px-4 text-right">Chi tiết</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[#eae7ea]/50 text-sm text-[#464554]">
-                          {memberHistoryItems.map((item) => (
-                            <tr key={item.id} className="hover:bg-[#f6f3f5] transition-colors">
-                              <td className="py-2.5 px-4 font-semibold text-[#1b1b1d]">
-                                <div className="flex items-center gap-2">
-                                  <span className="w-6 h-6 rounded-md bg-[#5e5ce6]/5 text-[#4441cc] border border-[#5e5ce6]/10 text-[10px] font-bold flex items-center justify-center flex-shrink-0">
-                                    {item.character.name[0]}
-                                  </span>
-                                  {item.character.name}
-                                </div>
-                              </td>
-                              <td className="py-2.5 px-4 max-w-xs truncate">{item.input_text}</td>
-                              <td className="py-2.5 px-4 max-w-xs truncate text-[#464554]">
-                                {item.output_text || <span className="text-xs text-red-500 font-bold">Lỗi</span>}
-                              </td>
-                              <td className="py-2.5 px-4 text-xs text-[#464554]/80">
-                                {new Date(item.created_at).toLocaleString('vi-VN')}
-                              </td>
-                              <td className="py-2.5 px-4 text-right">
-                                <button
-                                  onClick={() => setSelectedItem(item)}
-                                  className="p-1.5 rounded-lg hover:bg-[#eae7ea] text-[#4441cc] transition-colors"
-                                >
-                                  <Eye className="w-4 h-4" />
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {/* Pagination */}
-                    {memberHistoryTotalPages > 1 && (
-                      <div className="pt-3 border-t border-[#eae7ea]">
-                        <NumberedPagination page={memberHistoryPage} totalPages={memberHistoryTotalPages} onPageChange={setMemberHistoryPage} />
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center text-center py-16 rounded-2xl border border-dashed border-[#c7c4d7] bg-[#fcf8fb] text-[#464554] space-y-2">
-                    <Users className="w-10 h-10 mx-auto text-[#464554]/50" />
-                    <p className="text-sm font-semibold text-[#1b1b1d]">Thành viên này chưa có lịch sử</p>
-                    <p className="text-xs max-w-xs mx-auto text-[#464554]/75">
-                      Lịch sử chuyển đổi kịch bản của thành viên được chọn sẽ hiển thị ở đây sau khi họ thực hiện thao tác.
-                    </p>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="bg-white border border-[#c7c4d7] rounded-3xl p-12 text-center space-y-4 shadow-sm">
-                <Users className="w-16 h-16 text-[#464554]/50 mx-auto animate-pulse" />
-                <h3 className="text-xl font-bold text-[#1b1b1d]">Thống kê Đội nhóm</h3>
-                <p className="text-[#464554] text-sm max-w-md mx-auto leading-relaxed">
-                  Tính năng Thống kê Đội nhóm đang được phát triển (Sắp ra mắt dành cho Thành viên). Hiện tại chỉ có tài khoản cấp Quản lý (Leader, Manager, Admin) mới có thể truy cập để xem dữ liệu của thành viên khác.
-                </p>
-              </div>
-            )
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <TeamStatsTab />
+            </div>
           )}
         </div>
 

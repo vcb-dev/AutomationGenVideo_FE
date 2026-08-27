@@ -25,6 +25,13 @@ interface DatePickerProps {
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  /** Tự bung lịch ngay khi component vừa mount — dùng để hướng dẫn thao tác (vd. vừa chuyển sang
+   *  tab lọc theo khoảng ngày tùy chọn). Chỉ đọc lúc khởi tạo state, không theo dõi thay đổi sau đó
+   *  — nếu cần mở lại, hãy unmount/remount (key khác) component thay vì đổi prop này. */
+  autoOpen?: boolean;
+  /** Override style nút trigger — dùng khi cần đồng bộ với nhóm control cạnh bên (vd segmented
+   *  control 7/30/90 ngày). Merge qua tailwind-merge nên chỉ cần khai lớp cần đổi. */
+  buttonClassName?: string;
 }
 
 const todayIso = () => {
@@ -38,8 +45,17 @@ const displayVi = (isoValue: string) => {
   return `${d}/${m}/${y}`;
 };
 
-export function DatePicker({ value, onChange, placeholder = 'Chọn ngày', className }: DatePickerProps) {
-  const [open, setOpen] = useState(false);
+export function DatePicker({
+  value,
+  onChange,
+  placeholder = 'Chọn ngày',
+  className,
+  autoOpen = false,
+  buttonClassName,
+}: DatePickerProps) {
+  // Đọc autoOpen làm initial state (không phải effect) — component này chỉ mount lại khi cha
+  // conditional-render nó (vd đổi tab), nên "mount = đúng lúc cần mở lịch".
+  const [open, setOpen] = useState(autoOpen);
   const box = useRef<HTMLDivElement>(null);
 
   // Mở lịch ở tháng của ngày đang chọn; chưa chọn thì mở ở tháng hiện tại.
@@ -85,6 +101,7 @@ export function DatePicker({ value, onChange, placeholder = 'Chọn ngày', clas
           'text-slate-800 transition-colors hover:border-slate-300',
           'dark:border-white/[0.08] dark:bg-[#0f131a] dark:text-slate-100 dark:hover:border-white/20',
           open && 'border-indigo-400 dark:border-indigo-400',
+          buttonClassName,
         )}
       >
         <CalendarDays size={15} className="shrink-0 text-slate-400" />
