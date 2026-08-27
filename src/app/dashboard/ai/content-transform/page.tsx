@@ -555,6 +555,13 @@ export default function ContentTransformPage() {
   // ở tab Lịch sử chỉ nút của ĐÚNG dòng đang chấm bị khoá, các dòng khác vẫn bấm được.
   const [scoringId, setScoringId] = useState<string | null>(null);
   const [currentHistoryId, setCurrentHistoryId] = useState<string | null>(null);
+  // Bản sao ref của currentHistoryId, luôn phản ánh giá trị MỚI NHẤT (state trong closure của
+  // một handler async là giá trị đông cứng tại lúc bấm nút). handleScore dùng nó để biết bản ghi
+  // đang hiển thị có còn là bản ghi mình vừa chấm hay không — xem lý do tại đó.
+  const currentHistoryIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    currentHistoryIdRef.current = currentHistoryId;
+  }, [currentHistoryId]);
   const [isUpgrading, setIsUpgrading] = useState<boolean>(false);
   const [previousOverallScore, setPreviousOverallScore] = useState<number | null>(null);
   // Chống bấm trùng — khoá đồng bộ (không phụ thuộc chu kỳ render của React như state),
@@ -577,6 +584,12 @@ export default function ContentTransformPage() {
   // Cùng cơ chế "requestId" với transcribeRequestId — cho catch/finally của 1 lượt upgrade tự
   // nhận ra mình đã lỗi thời khi bị huỷ.
   const upgradeRequestId = useRef(0);
+  // Huỷ lượt /transform đang chạy — ref RIÊNG như 2 lượt trên. Lượt viết kịch bản chờ tới 420s,
+  // thừa thời gian để người dùng đổi tab Video/Giọng nói/Văn bản hoặc chọn file khác giữa chừng;
+  // thiếu 2 ref này thì response cũ vẫn âm thầm ghi đè outputText/currentHistoryId của màn hình
+  // đã đổi sang nội dung khác.
+  const transformAbortControllerRef = useRef<AbortController | null>(null);
+  const transformRequestId = useRef(0);
 
   // History states
   const [historyItems, setHistoryItems] = useState<TransformHistoryItem[]>([]);
@@ -715,6 +728,12 @@ export default function ContentTransformPage() {
     // âm thầm trả về sau và ghi đè state của tab vừa mở.
     cancelActiveTranscribe();
     setIsTranscribing(false);
+    // Lượt /transform cũng vậy, và còn dễ xảy ra hơn nhiều vì nó chờ tới 420s: kịch bản thô
+    // của tab cũ đã bị xoá ngay bên dưới, nên kết quả viết dựa trên nó không còn nghĩa gì —
+    // để nó trả về sẽ hiện một kịch bản không khớp với ô nhập đang trống trước mặt người dùng.
+    cancelActiveTransform();
+    setIsGenerating(false);
+    isTransformingRef.current = false;
     setInputMode(mode);
     setSelectedFile(null);
     setInputText('');
@@ -733,6 +752,16 @@ export default function ContentTransformPage() {
     transcribeAbortControllerRef.current?.abort();
     transcribeAbortControllerRef.current = null;
     transcribeRequestId.current += 1;
+  };
+
+  /**
+   * Huỷ lượt /transform đang chạy (nếu có) — cùng cơ chế với cancelActiveTranscribe/
+   * cancelActiveUpgrade. Gọi được nhiều lần an toàn (không có gì để huỷ thì no-op).
+   */
+  const cancelActiveTransform = () => {
+    transformAbortControllerRef.current?.abort();
+    transformAbortControllerRef.current = null;
+    transformRequestId.current += 1;
   };
 
   const handleTranscribe = async () => {
@@ -754,7 +783,14 @@ export default function ContentTransformPage() {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
-        timeout: 70000, // 70s timeout
+        // BE chờ AI service tối đa 420s (CONTENT_TRANSFORM_TRANSCRIBE_TIMEOUT_MS). Timeout của
+        // axios trên trình duyệt là ĐỒNG HỒ TREO TƯỜNG phủ CẢ thời gian đẩy file lên BE, nên
+        // phải cộng thêm phần upload: file được phép tới 200MB, đường lên 20Mbps đã mất ~80s
+        // chỉ để đẩy xong. 510s = 420s của BE + 90s biên upload.
+        //
+        // Mốc 70s cũ nhỏ hơn cả thời gian Gemini thực sự cần (đo thật: 110-240s cho video
+        // 5-9 phút), nên video dài không có cách nào chạy xong trong đó.
+        timeout: 510000,
         signal: controller.signal,
       });
 
@@ -846,6 +882,12 @@ export default function ContentTransformPage() {
       return;
     }
 
+    // Cô lập lượt này: mọi lần ghi state ở dưới đều phải kiểm requestId trước, để một lượt đã
+    // bị huỷ (đổi tab nhập / chọn file khác) không ghi đè màn hình hiện tại khi nó trả về muộn.
+    const controller = new AbortController();
+    transformAbortControllerRef.current = controller;
+    const requestId = transformRequestId.current;
+
     isTransformingRef.current = true;
     setIsGenerating(true);
     setOutputText('');
@@ -868,8 +910,12 @@ export default function ContentTransformPage() {
           input_text: inputText,
           input_type: inputMode === 'video' ? 'VIDEO' : inputMode === 'audio' ? 'AUDIO' : 'TEXT',
         },
-        { timeout: 420000 },
+        { timeout: 420000, signal: controller.signal },
       );
+
+      // Lượt này đã bị huỷ/thay bằng lượt mới hơn trong lúc chờ response — bỏ qua, không ghi
+      // đè kịch bản đang hiển thị (cùng cơ chế với handleTranscribe/handleUpgrade).
+      if (requestId !== transformRequestId.current) return;
 
       if (res.data && res.data.status === 'SUCCESS') {
         setOutputText(res.data.output_text);
@@ -890,11 +936,21 @@ export default function ContentTransformPage() {
         throw new Error(res.data?.error_message || 'Lỗi xử lý kịch bản');
       }
     } catch (err: any) {
-      const errMsg = err.response?.data?.message || err.message || 'Lỗi khi gọi AI';
-      toast.error(errMsg, { id: loadingToast });
+      const isCanceled = err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError';
+      if (isCanceled) {
+        // Người dùng chủ động đổi tab nhập giữa chừng — không phải lỗi, chỉ tắt toast loading.
+        toast.dismiss(loadingToast);
+      } else if (requestId === transformRequestId.current) {
+        const errMsg = err.response?.data?.message || err.message || 'Lỗi khi gọi AI';
+        toast.error(errMsg, { id: loadingToast });
+      }
     } finally {
-      setIsGenerating(false);
-      isTransformingRef.current = false;
+      // Lượt đã bị lượt sau ghi đè thì không đụng vào state nữa — lượt sau tự quản lý.
+      if (requestId === transformRequestId.current) {
+        setIsGenerating(false);
+        isTransformingRef.current = false;
+        transformAbortControllerRef.current = null;
+      }
     }
   };
 
@@ -1011,7 +1067,11 @@ export default function ContentTransformPage() {
         setSelectedItem((prev) => (prev && prev.id === targetId ? { ...prev, ...updatedFields } : prev));
         setHistoryItems((prev) => prev.map((it) => (it.id === targetId ? { ...it, ...updatedFields } : it)));
         setMemberHistoryItems((prev) => prev.map((it) => (it.id === targetId ? { ...it, ...updatedFields } : it)));
-      } else {
+      } else if (currentHistoryIdRef.current === targetId) {
+        // Chỉ ghi khi màn hình "Chuyển đổi" VẪN đang hiển thị đúng bản ghi vừa chấm. Lượt chấm
+        // chờ tới 480s, thừa thời gian để người dùng bấm "Chuyển đổi nội dung" tạo bản ghi mới
+        // trong lúc chờ (nút đó không bị khoá bởi scoringId); thiếu phép kiểm này thì điểm của
+        // bản ghi CŨ sẽ hiện lên như thể là điểm của kịch bản MỚI đang trước mặt.
         setScoreResult(updatedFields.scoreResult);
         setScoreStatus(updatedFields.scoreStatus);
         setScoreErrorMsg(updatedFields.scoreError);
