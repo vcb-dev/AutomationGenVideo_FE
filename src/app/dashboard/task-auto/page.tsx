@@ -16,10 +16,11 @@ import { ContentTeamLeaderDashboard } from './components/ContentTeamLeaderDashbo
 
 // ── Date filter ───────────────────────────────────────────────────────────────
 
-type DatePreset = 'today' | '7days' | 'month' | 'last_month' | 'custom'
+type DatePreset = 'today' | 'yesterday' | '7days' | 'month' | 'last_month' | 'custom'
 
 const PRESETS: { key: DatePreset; label: string }[] = [
   { key: 'today',      label: 'Hôm nay' },
+  { key: 'yesterday',  label: 'Hôm qua' },
   { key: '7days',      label: '7 ngày qua' },
   { key: 'month',      label: 'Tháng này' },
   { key: 'last_month', label: 'Tháng trước' },
@@ -45,6 +46,12 @@ function getPresetRange(preset: DatePreset): { from: string; to: string } {
   switch (preset) {
     case 'today': {
       const s = fmt(today)
+      return { from: s, to: s }
+    }
+    case 'yesterday': {
+      const y = new Date(today)
+      y.setDate(y.getDate() - 1)
+      const s = fmt(y)
       return { from: s, to: s }
     }
     case '7days': {
