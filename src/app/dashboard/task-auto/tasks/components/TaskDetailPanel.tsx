@@ -32,8 +32,7 @@ import type { Source, TeamSource, OmsProductSummary } from '@/types/task-auto'
 type CatalogScope = 'personal' | 'global' | 'team'
 type SourceScope = CatalogScope | 'all'
 
-// "Số lần được làm" = số task đã tạo trực tiếp từ content này (đếm sống, BE trả qua _count.tasks).
-// Hiện căn phải mỗi dòng dropdown để biết content nào chưa từng được dùng khi đổi content của task.
+// "Số lần được làm" (BE trả qua _count.tasks) — hiện căn phải mỗi dòng dropdown chọn content.
 function contentTaskMeta(c: any): ReactNode {
   const n = c?._count?.tasks
   if (typeof n !== 'number') return undefined
@@ -606,9 +605,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
 
   const isDriveUrl   = task?.result_url?.includes('drive.google.com')
   const isLegacyPath = task?.result_url?.startsWith('/task-auto/tasks/')
-  // Cho phép lên lịch từ khi task vừa nộp (SUBMITTED) chứ không cần chờ duyệt — chỉ cần video
-  // đã thực sự đẩy lên Drive (isDriveUrl). REJECTED bị loại vì video gốc đã bị xoá khỏi Drive
-  // lúc từ chối (xem TasksService.review) nên result_url lúc đó không còn trỏ tới file thật.
+  // Lên lịch được từ khi SUBMITTED (chỉ cần video đã lên Drive); REJECTED bị loại vì video đã bị xoá.
   const canSchedulePost = (task?.status === 'SUBMITTED' || task?.status === 'APPROVED') && !!isDriveUrl && (isAssignee || canApproveReject)
 
   return (

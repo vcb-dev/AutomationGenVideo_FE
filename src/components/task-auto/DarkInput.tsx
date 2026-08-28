@@ -207,7 +207,7 @@ export interface SearchItem {
   label: string
   sublabel?: string
   image?: string | null
-  /** Nội dung phụ căn phải mỗi dòng (vd. "Đã làm 3 lần" / "Chưa làm") — builder tự quyết màu sắc */
+  /** Nội dung phụ căn phải mỗi dòng (vd. "Đã làm 3 lần"). */
   meta?: React.ReactNode
 }
 

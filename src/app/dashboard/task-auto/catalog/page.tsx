@@ -19,8 +19,7 @@ const BRANDS: { key: BrandType; label: string; color: string }[] = [
   { key: 'TRANG_SUC', label: 'Trang sức', color: 'violet' },
 ]
 
-// Tab "Kho tháng" đang ẩn tạm theo yêu cầu — component/route xử lý vẫn còn nguyên bên dưới,
-// chỉ cần thêm lại entry này vào TABS để khôi phục.
+// Tab "Kho tháng" ẩn tạm theo yêu cầu — thêm lại entry vào TABS để khôi phục.
 const TABS: { key: CatalogTab; label: string; icon: React.ElementType }[] = [
   { key: 'products',  label: 'Sản phẩm', icon: Package },
   { key: 'sources',   label: 'Sources',  icon: Radio },

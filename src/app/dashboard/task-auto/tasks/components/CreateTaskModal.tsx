@@ -150,8 +150,7 @@ function getContentLine(c: any): string | undefined {
     || undefined
 }
 
-// "Số lần được làm" = số task đã tạo trực tiếp từ content này (đếm sống, BE trả qua _count.tasks).
-// Hiện căn phải mỗi dòng dropdown để người tạo task biết content nào chưa từng được dùng.
+// "Số lần được làm" (BE trả qua _count.tasks) — hiện căn phải mỗi dòng dropdown chọn content.
 function contentTaskMeta(c: any): React.ReactNode {
   const n = c?._count?.tasks
   if (typeof n !== 'number') return undefined

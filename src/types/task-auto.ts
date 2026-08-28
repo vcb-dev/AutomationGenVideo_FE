@@ -148,7 +148,7 @@ export interface TeamContent {
     content_line?: { id: string; name: string } | null
     classification?: { id: string; name: string } | null
   } | null
-  /** tasks = "số lần được làm" (số task đã tạo trực tiếp từ team content này, đếm sống) */
+  /** tasks = "số lần được làm". */
   _count?: { tasks?: number }
 }
 
@@ -559,7 +559,7 @@ export interface Content {
     } | null
   } | null
   translations?: ContentTranslation[]
-  /** tasks = "số lần được làm" (số task đã tạo trực tiếp từ content này, đếm sống) */
+  /** tasks = "số lần được làm". */
   _count?: { translations?: number; tasks?: number }
 }
 

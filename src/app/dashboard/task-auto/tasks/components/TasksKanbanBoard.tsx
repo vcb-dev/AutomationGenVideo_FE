@@ -246,9 +246,7 @@ function TaskCardBody({ task, variant, onOpenPreview }: { task: Task; variant: C
     </div>
   )
 
-  // Card cột "Đã duyệt" vẫn giữ tiêu đề content + tuyến nội dung như các cột khác để nhận ra
-  // nhanh từng task; chỉ lược ảnh/tên sản phẩm và badge hạn/nộp cho nhẹ vì đây thường là cột
-  // đông nhất board — bổ sung mốc duyệt và link xem lại kết quả.
+  // Card cột "Đã duyệt": giữ tiêu đề + tuyến nội dung, lược ảnh/tên SP + badge hạn/nộp cho nhẹ.
   if (variant === 'approved') {
     return (
       <>
