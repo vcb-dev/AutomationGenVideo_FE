@@ -9,6 +9,35 @@ import { CONDITION_OPTIONS, STATUS_OPTIONS } from '@/lib/equipment/status-label'
 import { StatusPill } from '@/components/equipment/StatusPill';
 import { ConditionDot } from '@/components/equipment/ConditionDot';
 import { AddAssetDialog } from '@/components/equipment/AddAssetDialog';
+import { EditAssetDialog } from '@/components/equipment/EditAssetDialog';
+import { DeleteAssetDialog } from '@/components/equipment/DeleteAssetDialog';
+import { ManageLocationsDialog } from '@/components/equipment/ManageLocationsDialog';
+import { canManageCatalog } from '@/lib/equipment/catalog-permissions';
+import { useAuthStore } from '@/store/auth-store';
+
+/* Ba icon của cột Thao tác. Vẽ tay bằng SVG để không kéo thêm thư viện icon cho ba hình. */
+const EyeIcon = () => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
+
+const PencilIcon = () => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M12 20h9" />
+    <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+  </svg>
+);
+
+const TrashIcon = () => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M3 6h18" />
+    <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
+    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+    <path d="M10 11v6M14 11v6" />
+  </svg>
+);
 
 const inputClass =
   'rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-500 dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-white';
@@ -19,6 +48,12 @@ function EquipmentTable() {
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<Asset | null>(null);
+  const [deleting, setDeleting] = useState<Asset | null>(null);
+  const [managingLocations, setManagingLocations] = useState(false);
+  // Thêm, sửa, xoá chỉ hiện cho leader và admin — BE trả 403 cho những vai trò còn lại.
+  // Nút Xem thì ai cũng thấy: đọc kho không cần quyền gì.
+  const canAddAsset = canManageCatalog(useAuthStore((s) => s.user?.roles));
 
   const [query, setQuery] = useState('');
   const [categoryId, setCategoryId] = useState('');
@@ -66,12 +101,23 @@ function EquipmentTable() {
           </p>
         </div>
         <div className="flex items-center gap-2.5">
-          <button
-            onClick={() => setAdding(true)}
-            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 active:scale-95 transition-all"
-          >
-            <span>+</span> Thêm thiết bị
-          </button>
+          {canAddAsset && (
+            <>
+              <button
+                onClick={() => setAdding(true)}
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 active:scale-95 transition-all"
+              >
+                <span>+</span> Thêm thiết bị
+              </button>
+              <button
+                onClick={() => setManagingLocations(true)}
+                title="Thêm, đổi tên, xoá tủ/kệ/ngăn trong kho"
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 transition-all dark:border-white/[0.12] dark:text-slate-200 dark:hover:bg-white/[0.05]"
+              >
+                <span>+</span> Thêm vị trí kho
+              </button>
+            </>
+          )}
           <Link
             href="/dashboard/equipment/new-request"
             className="flex-1 sm:flex-initial flex items-center justify-center rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 transition-all dark:border-white/[0.12] dark:text-slate-200 dark:hover:bg-white/[0.05]"
@@ -142,11 +188,7 @@ function EquipmentTable() {
             {/* GIAO DIỆN MOBILE: DẠNG THẺ (CARD VIEW) */}
             <div className="divide-y divide-slate-100 sm:hidden dark:divide-white/[0.06]">
               {rows.map((a) => (
-                <Link
-                  key={a.id}
-                  href={`/dashboard/equipment/assets/${encodeURIComponent(a.asset_code)}`}
-                  className="flex items-start gap-3.5 p-4 hover:bg-slate-50 active:bg-slate-100 dark:hover:bg-white/[0.02] dark:active:bg-white/[0.04] transition-colors"
-                >
+                <div key={a.id} className="flex items-start gap-3.5 p-4">
                   {a.photos?.[0] ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -179,8 +221,36 @@ function EquipmentTable() {
                       <ConditionDot condition={a.condition} />
                       <span>{a.location?.name ?? 'Chưa xếp chỗ'}</span>
                     </div>
+                    {/* Thao tác thành nút riêng, không bấm cả thẻ nữa — cùng một luật với bảng. */}
+                    <div className="flex items-center gap-1 pt-1.5">
+                      <Link
+                        href={`/dashboard/equipment/assets/${encodeURIComponent(a.asset_code)}`}
+                        aria-label={`Xem chi tiết ${a.asset_code}`}
+                        className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-500 active:bg-blue-50 active:text-blue-600 dark:border-white/[0.1] dark:text-slate-400"
+                      >
+                        <EyeIcon />
+                      </Link>
+                      {canAddAsset && (
+                        <>
+                          <button
+                            onClick={() => setEditing(a)}
+                            aria-label={`Sửa ${a.asset_code}`}
+                            className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-500 active:bg-amber-50 active:text-amber-600 dark:border-white/[0.1] dark:text-slate-400"
+                          >
+                            <PencilIcon />
+                          </button>
+                          <button
+                            onClick={() => setDeleting(a)}
+                            aria-label={`Xoá ${a.asset_code}`}
+                            className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-500 active:bg-red-50 active:text-red-600 dark:border-white/[0.1] dark:text-slate-400"
+                          >
+                            <TrashIcon />
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </Link>
+                </div>
               ))}
 
               {rows.length === 0 && (
@@ -196,11 +266,13 @@ function EquipmentTable() {
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] uppercase tracking-wide text-slate-500 dark:border-white/[0.08] dark:bg-white/[0.03]">
                     <th className="px-4 py-3 font-semibold">Mã</th>
-                    <th className="px-4 py-3 font-semibold">Thiết bị</th>
+                    <th className="px-4 py-3 font-semibold">Ảnh</th>
+                    <th className="px-4 py-3 font-semibold">Tên thiết bị</th>
                     <th className="px-4 py-3 font-semibold">Danh mục</th>
                     <th className="px-4 py-3 font-semibold">Tình trạng</th>
                     <th className="px-4 py-3 font-semibold">Trạng thái</th>
                     <th className="px-4 py-3 font-semibold">Vị trí</th>
+                    <th className="px-4 py-3 font-semibold text-right">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -209,37 +281,31 @@ function EquipmentTable() {
                       key={a.id}
                       className="border-b border-slate-100 last:border-0 hover:bg-slate-50/70 dark:border-white/[0.05] dark:hover:bg-white/[0.02] transition-colors"
                     >
-                      <td className="px-4 py-3">
-                        <Link
-                          href={`/dashboard/equipment/assets/${encodeURIComponent(a.asset_code)}`}
-                          className="font-mono font-bold text-blue-600 hover:underline dark:text-blue-400"
-                        >
-                          {a.asset_code}
-                        </Link>
+                      {/* Mã là chữ thường, không bấm được: xem đã có nút riêng ở cột Thao tác. */}
+                      <td className="px-4 py-3 font-mono font-bold text-slate-900 dark:text-white">
+                        {a.asset_code}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          {a.photos?.[0] ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={photoSrc(a.photos[0].url)}
-                              alt={a.model.name}
-                              className="h-10 w-10 shrink-0 rounded-lg border border-slate-200 object-cover shadow-sm dark:border-white/[0.08]"
-                            />
-                          ) : (
-                            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-dashed border-slate-300 text-[10px] text-slate-400 dark:border-white/[0.12]">
-                              —
-                            </span>
-                          )}
-                          <span className="min-w-0">
-                            <span className="block truncate font-semibold text-slate-900 dark:text-white">
-                              {a.model.name}
-                            </span>
-                            <span className="mt-0.5 block font-mono text-xs text-slate-400">
-                              {a.serial_number}
-                            </span>
+                        {a.photos?.[0] ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={photoSrc(a.photos[0].url)}
+                            alt={a.model.name}
+                            className="h-10 w-10 rounded-lg border border-slate-200 object-cover shadow-sm dark:border-white/[0.08]"
+                          />
+                        ) : (
+                          <span className="grid h-10 w-10 place-items-center rounded-lg border border-dashed border-slate-300 text-[10px] text-slate-400 dark:border-white/[0.12]">
+                            —
                           </span>
-                        </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="block truncate font-semibold text-slate-900 dark:text-white">
+                          {a.model.name}
+                        </span>
+                        <span className="mt-0.5 block font-mono text-xs text-slate-400">
+                          {a.serial_number}
+                        </span>
                       </td>
                       <td className="px-4 py-3 text-slate-600 dark:text-slate-300 font-medium">
                         {a.model.category.name}
@@ -253,11 +319,43 @@ function EquipmentTable() {
                       <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
                         {a.location?.name ?? '—'}
                       </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-1">
+                          <Link
+                            href={`/dashboard/equipment/assets/${encodeURIComponent(a.asset_code)}`}
+                            title={`Xem chi tiết ${a.asset_code}`}
+                            aria-label={`Xem chi tiết ${a.asset_code}`}
+                            className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 hover:bg-blue-50 hover:text-blue-600 dark:text-slate-400 dark:hover:bg-blue-500/10 dark:hover:text-blue-400 transition-colors"
+                          >
+                            <EyeIcon />
+                          </Link>
+                          {canAddAsset && (
+                            <>
+                              <button
+                                onClick={() => setEditing(a)}
+                                title={`Sửa ${a.asset_code}`}
+                                aria-label={`Sửa ${a.asset_code}`}
+                                className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 hover:bg-amber-50 hover:text-amber-600 dark:text-slate-400 dark:hover:bg-amber-500/10 dark:hover:text-amber-400 transition-colors"
+                              >
+                                <PencilIcon />
+                              </button>
+                              <button
+                                onClick={() => setDeleting(a)}
+                                title={`Xoá ${a.asset_code}`}
+                                aria-label={`Xoá ${a.asset_code}`}
+                                className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-500/10 dark:hover:text-red-400 transition-colors"
+                              >
+                                <TrashIcon />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                   {rows.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-4 py-12 text-center text-slate-500">
+                      <td colSpan={8} className="px-4 py-12 text-center text-slate-500">
                         {assets.length === 0
                           ? 'Kho chưa có thiết bị nào.'
                           : 'Không có thiết bị nào khớp bộ lọc.'}
@@ -272,6 +370,30 @@ function EquipmentTable() {
       </div>
 
       {adding && <AddAssetDialog onClose={() => setAdding(false)} onCreated={load} />}
+      {editing && (
+        <EditAssetDialog
+          asset={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            load();
+          }}
+        />
+      )}
+      {managingLocations && (
+        // Đổi tên hay xoá vị trí làm cột Vị trí của bảng lệch ngay, nên nạp lại kho khi đóng.
+        <ManageLocationsDialog onClose={() => setManagingLocations(false)} onChanged={load} />
+      )}
+      {deleting && (
+        <DeleteAssetDialog
+          asset={deleting}
+          onClose={() => setDeleting(null)}
+          onDeleted={() => {
+            setDeleting(null);
+            load();
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -75,7 +75,7 @@ function isVNMarket(market?: string | null): boolean {
 interface EditContentProps {
   contentId: string
   onChange: (id: string) => void
-  items: { value: string; label: string; sublabel?: string }[]
+  items: { value: string; label: string; sublabel?: string; meta?: React.ReactNode }[]
   searchValue: string
   onSearchChange: (v: string) => void
   loading: boolean

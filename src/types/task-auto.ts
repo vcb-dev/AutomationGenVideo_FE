@@ -148,6 +148,8 @@ export interface TeamContent {
     content_line?: { id: string; name: string } | null
     classification?: { id: string; name: string } | null
   } | null
+  /** tasks = "số lần được làm". */
+  _count?: { tasks?: number }
 }
 
 // ── Editor Approvals ────────────────────────────
@@ -557,7 +559,8 @@ export interface Content {
     } | null
   } | null
   translations?: ContentTranslation[]
-  _count?: { translations: number }
+  /** tasks = "số lần được làm". */
+  _count?: { translations?: number; tasks?: number }
 }
 
 // ── Content Translations (bản dịch content theo thị trường) ────────────

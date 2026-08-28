@@ -16,7 +16,7 @@ import { AddProductModal } from './products/AddProductModal'
 import { ProductCard } from './products/ProductCard'
 import { TeamProductFormModal } from './products/TeamProductFormModal'
 
-const PAGE_SIZE = 12
+const PAGE_SIZE = 24
 
 interface TeamProductsTabProps {
   isAdminOrManager: boolean
@@ -189,14 +189,14 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
       ) : (
         <>
           {isLoading && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+              {Array.from({ length: 12 }).map((_, i) => (
+                <div key={i} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                   <div className="aspect-square bg-gray-100 animate-pulse" />
-                  <div className="p-4 space-y-2.5">
-                    <div className="h-4 bg-gray-100 rounded animate-pulse w-4/5" />
-                    <div className="h-3 bg-gray-100 rounded animate-pulse w-2/3" />
-                    <div className="h-3 bg-gray-100 rounded animate-pulse w-1/3" />
+                  <div className="p-2.5 space-y-1.5">
+                    <div className="h-3.5 bg-gray-100 rounded animate-pulse w-4/5" />
+                    <div className="h-2.5 bg-gray-100 rounded animate-pulse w-2/3" />
+                    <div className="h-2.5 bg-gray-100 rounded animate-pulse w-1/3" />
                   </div>
                 </div>
               ))}
@@ -232,7 +232,7 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
           )}
 
           {!isLoading && teamProducts.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
               {teamProducts.map((tp: TeamProduct) => {
                 const isTeamCreated = tp.source_product_id === null
                 return (

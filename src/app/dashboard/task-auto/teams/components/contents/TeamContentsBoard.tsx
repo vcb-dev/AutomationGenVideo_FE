@@ -9,7 +9,7 @@ import {
   type DragStartEvent, type DragEndEvent,
 } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { FileText, Mic, Loader2, ChevronDown, Plus, Edit2, Globe, Trash2, Minus, GripVertical } from 'lucide-react'
+import { FileText, Mic, Loader2, ChevronDown, Plus, Edit2, Globe, Trash2, Minus, GripVertical, ClipboardList } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
 import { formatDate } from '@/components/task-auto/helpers'
@@ -106,6 +106,14 @@ function ContentCardBody({ tc }: { tc: TeamContent }) {
           ))}
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {typeof tc._count?.tasks === 'number' && (
+            <span
+              className="inline-flex items-center gap-1 text-[11px] text-slate-400 font-semibold"
+              title="Số task đã tạo trực tiếp từ content này"
+            >
+              <ClipboardList className="w-3 h-3" aria-hidden="true" /> {tc._count.tasks}
+            </span>
+          )}
           {voiceUrl && (
             <span className="inline-flex items-center gap-1 text-[11px] text-purple-500 font-semibold">
               <Mic className="w-3 h-3" /> Voice
