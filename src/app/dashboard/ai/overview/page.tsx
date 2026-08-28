@@ -159,13 +159,13 @@ export default function OverviewPage() {
     // Leader gets their own team (as leader, or as a member if not set as leader)
     const leaderTeamData =
         teams.find((t) => t.leader_id === user?.id) ||
-        teams.find((t) => t.members.some((m) => m.user_id === user?.id)) ||
+        teams.find((t) => t.members?.some((m) => m.user_id === user?.id)) ||
         null;
 
     // Selected team for Admin drill down
     const adminSelectedTeam = teams.find((t) => t.id === selectedTeamId) || teams[0] || null;
 
-    const totalMembers = teams.reduce((acc, t) => acc + (t._count?.members ?? 0), 0);
+    const totalMembers = teams.reduce((acc, t) => acc + (t._count?.members ?? t.members?.length ?? 0), 0);
 
     // Admin xem toàn hệ thống, leader chỉ xem người trong team mình. Tỉ trọng vẫn tính
     // trên tổng đã lọc từ rankUsage nên leader thấy đúng phần của team so với toàn hệ thống.
@@ -177,7 +177,7 @@ export default function OverviewPage() {
     const getUserTeamName = (row: UsageByUser) => {
         if (row.team) return row.team;
         const matchingTeams = teams
-            .filter((t) => t.members.some((m) => m.user_id === row.user_id) || t.leader_id === row.user_id)
+            .filter((t) => t.members?.some((m) => m.user_id === row.user_id) || t.leader_id === row.user_id)
             .map((t) => t.name);
         return matchingTeams.length > 0 ? matchingTeams.join(', ') : null;
     };
