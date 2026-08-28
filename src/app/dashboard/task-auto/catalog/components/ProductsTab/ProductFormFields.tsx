@@ -346,7 +346,7 @@ export const MultiImagePicker = forwardRef<MultiImagePickerHandle, { values: str
         <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFile} />
 
         <label className="block text-base font-semibold text-slate-700">
-          Ảnh sản phẩm
+          Ảnh sản phẩm *
           {values.length > 0 && (
             <span className="ml-1.5 text-sm font-normal text-slate-400">({values.length} ảnh)</span>
           )}
