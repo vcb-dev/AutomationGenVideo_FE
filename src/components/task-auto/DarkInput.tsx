@@ -202,7 +202,14 @@ export function CustomSelect({ label, value, onChange, options, searchable, comp
 // ── ServerSearchSelect ────────────────────────────
 // Dùng khi danh sách lấy từ server theo keyword tìm kiếm
 
-export interface SearchItem { value: string; label: string; sublabel?: string; image?: string | null }
+export interface SearchItem {
+  value: string
+  label: string
+  sublabel?: string
+  image?: string | null
+  /** Nội dung phụ căn phải mỗi dòng (vd. "Đã làm 3 lần" / "Chưa làm") — builder tự quyết màu sắc */
+  meta?: React.ReactNode
+}
 
 // Thumbnail dùng chung cho trigger + list item — tự fallback về icon placeholder nếu ảnh lỗi
 // (link hết hạn, hotlink-protection...) thay vì hiện icon ảnh vỡ của trình duyệt.
@@ -377,10 +384,15 @@ export function ServerSearchSelect({
                         ? 'bg-indigo-50 text-indigo-700 font-semibold'
                         : 'text-slate-700 hover:bg-gray-50')}>
                     {item.image !== undefined && <SearchItemThumb src={item.image} size="md" />}
-                    <span className="min-w-0">
+                    <span className="flex-1 min-w-0">
                       <span className="block leading-tight truncate">{item.label}</span>
                       {item.sublabel && <span className="block text-xs text-slate-400 mt-0.5 truncate">{item.sublabel}</span>}
                     </span>
+                    {item.meta != null && (
+                      <span className="shrink-0 text-[11px] font-semibold whitespace-nowrap text-slate-400">
+                        {item.meta}
+                      </span>
+                    )}
                   </button>
                 </li>
               ))

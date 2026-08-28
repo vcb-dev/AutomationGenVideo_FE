@@ -7,7 +7,7 @@ import { useScrollLock } from '@/hooks/useScrollLock'
 import {
   FileText, X, Trash2, Mic, AlignLeft, Clapperboard,
   ExternalLink, Edit2, SendHorizontal, Globe,
-  User, Calendar, Tag, Languages, Loader2, Check, Plus, Gauge, Sparkles,
+  User, Calendar, Tag, Languages, Loader2, Check, Plus, Gauge, Sparkles, ClipboardList,
 } from 'lucide-react'
 import { cn, drivePreviewUrl } from '@/lib/utils'
 import { CustomSelect } from './DarkInput'
@@ -229,6 +229,8 @@ export interface ContentViewItem {
   added_by?: { full_name: string } | null
   added_at?: string
   created_at?: string
+  /** tasks = "số lần được làm" (số task đã tạo trực tiếp từ content này, đếm sống) */
+  _count?: { tasks?: number } | null
   source_editor_content_id?: string | null
   source_editor_content?: {
     code?: string | null; title?: string | null; body?: string | null; script?: string | null
@@ -387,6 +389,15 @@ export function ContentViewModal({
                   <span className={cn('px-2 py-0.5 rounded-md text-xs font-semibold', CATALOG_COLORS[catalogType])}>
                     {CATALOG_LABELS[catalogType]}
                   </span>
+                  {typeof item._count?.tasks === 'number' && (
+                    <span
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-600 whitespace-nowrap"
+                      title="Số task đã tạo trực tiếp từ content này"
+                    >
+                      <ClipboardList className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                      Đã làm {item._count.tasks} lần
+                    </span>
+                  )}
                 </div>
               </div>
 
