@@ -1022,6 +1022,10 @@ export default function ContentTransformPage() {
           err?.message ||
           'Lỗi khi transcribe file. Hãy đảm bảo file dưới 10 phút và thử lại.';
         toast.error(errMsg, { id: loadingToast });
+        // FE bỏ cuộc (quá giờ / lỗi) → báo AI dừng job để khỏi tốn thêm 1 lượt Gemini.
+        if (transcribeJobIdRef.current) {
+          apiClient.post(`/ai/content-transform/jobs/${transcribeJobIdRef.current}/cancel`).catch(() => {});
+        }
       }
     } finally {
       if (requestId === transcribeRequestId.current) {
@@ -1245,6 +1249,9 @@ export default function ContentTransformPage() {
       } else if (requestId === upgradeRequestId.current) {
         const errMsg = err.response?.data?.message || err.message || 'Lỗi khi nâng cấp nội dung';
         toast.error(errMsg, { id: loadingToast });
+        if (upgradeJobIdRef.current) {
+          apiClient.post(`/ai/content-transform/jobs/${upgradeJobIdRef.current}/cancel`).catch(() => {});
+        }
       }
     } finally {
       // Lượt đã bị lượt sau (hoặc nút "Huỷ") ghi đè thì không đụng state nữa — đã được tự quản lý.
