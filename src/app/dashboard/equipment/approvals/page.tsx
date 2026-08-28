@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import {
   BorrowRequest,
@@ -9,6 +10,9 @@ import {
   fetchRequests,
   rejectRequest,
 } from '@/lib/equipment/request-api';
+import { ApprovalOutcome, approvalOutcome } from '@/lib/equipment/approval-outcome';
+import { StepBar } from '@/components/equipment/StepBar';
+import { WorkflowSuccessModal } from '@/components/equipment/WorkflowSuccessModal';
 
 const cardClass =
   'rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/[0.08] dark:bg-white/[0.03]';
@@ -38,6 +42,7 @@ export default function ApprovalsPage() {
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [outcome, setOutcome] = useState<ApprovalOutcome | null>(null);
 
   const load = useCallback(async (keepId?: string) => {
     const list = await fetchRequests();
@@ -55,6 +60,8 @@ export default function ApprovalsPage() {
   const select = async (id: string) => {
     setReason('');
     setError('');
+    // Kết quả của phiếu trước không được dính sang phiếu sau.
+    setOutcome(null);
     // Gọi chi tiết riêng vì danh sách không kèm máy đã ghim ở từng dòng.
     setCurrent(await fetchRequest(id));
   };
@@ -72,7 +79,11 @@ export default function ApprovalsPage() {
       else await rejectRequest(current.id, reason.trim());
       setReason('');
       await load(current.id);
-      setCurrent(await fetchRequest(current.id));
+      const refreshed = await fetchRequest(current.id);
+      setCurrent(refreshed);
+      // Nói rõ vừa xảy ra chuyện gì và còn phải làm gì. Trước đây màn hình gần như không đổi
+      // sau khi ký, nên người ký tưởng nút hỏng và bấm lại — lần hai ăn lỗi "đã ký rồi".
+      setOutcome(approvalOutcome(refreshed));
     } catch (e: unknown) {
       setError(
         (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
@@ -95,6 +106,8 @@ export default function ApprovalsPage() {
           nhập lý do và nhả giữ chỗ ngay.
         </p>
       </header>
+
+      <StepBar current="approvals" />
 
       {loading ? (
         <p className="text-slate-500">Đang tải…</p>
@@ -181,6 +194,20 @@ export default function ApprovalsPage() {
                       <dd className={valueClass}>{current.project}</dd>
                     </div>
                     <div>
+                      {/* Mục đích là thứ quyết định số cấp duyệt — người ký phải thấy nó ngay,
+                          không phải suy ngược từ con số "2 cấp". */}
+                      <dt className={keyClass}>Mục đích</dt>
+                      <dd className={valueClass}>
+                        {current.purpose === 'PERSONAL' ? (
+                          <span className="rounded-md bg-amber-50 px-2 py-0.5 font-semibold text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                            Việc riêng của người mượn
+                          </span>
+                        ) : (
+                          'Việc của công ty'
+                        )}
+                      </dd>
+                    </div>
+                    <div>
                       <dt className={keyClass}>Địa điểm</dt>
                       <dd className={valueClass}>{current.place}</dd>
                     </div>
@@ -241,6 +268,22 @@ export default function ApprovalsPage() {
               </div>
 
               <div className="p-5">
+                {/* Kết quả vừa ký. Đứng trên mọi thứ khác vì đó là thứ người dùng đang chờ thấy. */}
+                {outcome && (
+                  <div
+                    className={cn(
+                      'mb-4 rounded-lg border p-3 text-sm',
+                      outcome.kind === 'ready-to-prepare'
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-200'
+                        : outcome.kind === 'rejected'
+                          ? 'border-red-200 bg-red-50 text-red-900 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200'
+                          : 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200',
+                    )}
+                  >
+                    <p className="leading-relaxed">{outcome.message}</p>
+                  </div>
+                )}
+
                 {current.required_levels === 2 && (
                   <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
                     Phiếu cần <b>2 cấp duyệt</b>: {current.approval_reasons.join(', ')}.
@@ -317,6 +360,16 @@ export default function ApprovalsPage() {
           )}
         </div>
       )}
+
+      <WorkflowSuccessModal
+        open={outcome?.kind === 'ready-to-prepare'}
+        onClose={() => setOutcome(null)}
+        title="Duyệt phiếu thành công!"
+        message={outcome?.message || 'Phiếu mượn đã đủ chữ ký và sẵn sàng cho bước gán thiết bị.'}
+        nextHref={outcome?.kind === 'ready-to-prepare' ? outcome.nextHref : '/dashboard/equipment/prepare'}
+        nextLabel="Sang bước Gán máy ngay →"
+        stayLabel="Ở lại duyệt tiếp"
+      />
     </div>
   );
 }
