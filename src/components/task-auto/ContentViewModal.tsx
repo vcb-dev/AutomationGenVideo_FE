@@ -229,7 +229,7 @@ export interface ContentViewItem {
   added_by?: { full_name: string } | null
   added_at?: string
   created_at?: string
-  /** tasks = "số lần được làm" (số task đã tạo trực tiếp từ content này, đếm sống) */
+  /** tasks = "số lần được làm". */
   _count?: { tasks?: number } | null
   source_editor_content_id?: string | null
   source_editor_content?: {
