@@ -159,7 +159,6 @@ function PaastLayerAccordionItem({
 }: {
   layerKey: PaastLayerKey;
   score: number;
-  /** Điểm tối đa của lớp này (25/20/15 tuỳ lớp kể từ patch v2.1) — luôn truyền từ `layer.max`. */
   max: number;
   /** Dòng tóm tắt ngắn hiển thị ngay trên header (vd "4/6 tiêu chí đạt"). */
   summary: string;
@@ -233,11 +232,7 @@ function PaastLayerAccordionItem({
  * không gắn nhãn "Gợi ý" — vì đây không phải lỗi của người viết mà là phần chỉ đánh giá được
  * khi có khâu sản xuất (hình hiệu, đạo cụ, nhạc, nghi thức quay), không sửa bằng chữ được.
  */
-/**
- * Chỉ báo mức độ triển khai 1 tiêu chí, thang 0-5 (patch v4) — 5 chấm tô đậm theo `level`, LUÔN
- * kèm `label` dạng CHỮ ngay cạnh (không chỉ dựa vào màu/số chấm — nguyên tắc "đừng truyền tải
- * thông tin chỉ bằng màu"). Chấm chỉ mang tính trang trí nên `aria-hidden`.
- */
+/** Mức độ triển khai 1 tiêu chí 0-5: 5 chấm (aria-hidden) + nhãn chữ (không chỉ dựa vào màu). */
 function PaastLevelMeter({ level, label }: { level: number; label?: string | null }) {
   const dotColor =
     level >= 4 ? 'bg-emerald-500' : level === 3 ? 'bg-blue-500' : level >= 1 ? 'bg-orange-400' : 'bg-[#eae7ea]';
@@ -433,11 +428,7 @@ const FEASIBILITY_STYLES: Record<
   'high-risk': { Icon: XCircle, className: 'text-red-700 bg-red-50 border-red-300', label: 'Rủi ro cao', panelClassName: 'bg-red-50/60 border-red-200' },
 };
 
-/**
- * Video Realism Check (MỚI, patch v2.1 §4) — mô phỏng xem như video thật, độc lập với 5 lớp
- * PAAST, luôn hiển thị kể cả khi điểm cao: 1 kịch bản có thể đủ 5 lớp về nội dung nhưng vẫn
- * "chết" khi quay thành video thật.
- */
+/** Mô phỏng "xem như video thật" — độc lập với 5 lớp PAAST, luôn hiển thị kể cả khi điểm cao. */
 function VideoRealismCard({ videoRealism }: { videoRealism: NonNullable<ScoreResult['video_realism']> }) {
   const style = FEASIBILITY_STYLES[videoRealism.overall_feasibility];
   const rows: Array<[string, string]> = [
@@ -490,8 +481,7 @@ function ScoreOverallCard({ scoreResult, fromCache = false }: { scoreResult: Sco
             </p>
           )}
         </div>
-        {/* Trọng số 5 lớp không còn đều nhau (patch v2.1: 25/25/20/15/15) — hiển thị đúng con số
-            từng lớp, không quy đổi/làm tròn thêm */}
+        {/* Trọng số 5 lớp không đều (25/25/20/15/15) — hiển thị đúng con số từng lớp. */}
         <div className="flex gap-1.5">
           {PAAST_LAYER_KEYS.map((key) => {
             const max = scoreResult.layers?.[key]?.max ?? DEFAULT_LAYER_MAX[key];
@@ -1593,7 +1583,6 @@ export default function ContentTransformPage() {
 
                         {/* Khối cuộn riêng: accordion 5 lớp PAAST + nội dung highlight + nút chấm điểm/nâng cấp */}
                         <div ref={resultScrollRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-0.5 space-y-2">
-                          {/* Video Realism Check (MỚI, patch v2.1) — luôn hiện, độc lập verdict 5 lớp */}
                           {scoreResult?.video_realism && <VideoRealismCard videoRealism={scoreResult.video_realism} />}
 
                           {/* 3-4. Accordion 5 lớp PAAST — mặc định mở lớp yếu nhất */}

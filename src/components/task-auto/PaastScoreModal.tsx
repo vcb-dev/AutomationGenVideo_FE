@@ -221,7 +221,6 @@ export function PaastScoreModal({ open, content, onClose, cachedResult, onAnalyz
                 </div>
               </div>
 
-              {/* Video Realism Check — luôn hiện, độc lập với verdict 5 lớp (patch v2.1 §4) */}
               {analysis.video_realism && <VideoRealismPanel videoRealism={analysis.video_realism} />}
 
               {/* CTA warning */}

@@ -13,11 +13,7 @@ export type ScoreResult = PaastAnalysisResult & { total_score: number };
 export const PAAST_LAYER_KEYS = ['prefer', 'action', 'acknowledge', 'stick', 'trust'] as const;
 export type PaastLayerKey = (typeof PAAST_LAYER_KEYS)[number];
 
-/**
- * Điểm tối đa của MỖI lớp PAAST — patch v2.1: Prefer/Action 25, Acknowledge 20, Stick/Trust 15
- * (trước đó cả 5 lớp đều 20). KHÔNG còn là 1 hằng số chung — dùng làm fallback khi bản ghi cũ
- * (trước patch v2.1) không có `layers[key].max`, ưu tiên đọc `max` thật từ chính response.
- */
+/** Điểm tối đa mỗi lớp — fallback khi bản ghi cũ không có `layers[key].max` (ưu tiên `max` từ response). */
 export const DEFAULT_LAYER_MAX: Record<PaastLayerKey, number> = {
   prefer: 25, action: 25, acknowledge: 20, stick: 15, trust: 15,
 };
@@ -83,12 +79,8 @@ export function buildHighlightSegments(text: string, scoreResult: ScoreResult): 
 }
 
 /**
- * Lớp mặc định mở khi vừa nhận scoreResult: lớp có TỶ LỆ điểm thấp nhất trong số các lớp chưa
- * đạt mức 'good'. Mọi lớp đều 'good' thì không mở lớp nào (không có gì cần chú ý ngay).
- *
- * So theo TỶ LỆ (score/max), không phải điểm thô — kể từ patch v2.1 các lớp không còn cùng
- * max (25/25/20/15/15), so điểm thô sẽ luôn thiên vị lớp có max nhỏ hơn (Stick/Trust 15đ) trông
- * "yếu" hơn dù tỷ lệ hoàn thành thực ra ngang nhau.
+ * Lớp mặc định mở: lớp có TỶ LỆ (score/max) thấp nhất trong các lớp chưa 'good'. Tất cả 'good' →
+ * không mở lớp nào. So theo tỷ lệ vì các lớp không cùng max (25/25/20/15/15).
  */
 export function computeDefaultOpenLayers(scoreResult: ScoreResult): Set<PaastLayerKey> {
   const weak = PAAST_LAYER_KEYS

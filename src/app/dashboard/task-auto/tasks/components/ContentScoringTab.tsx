@@ -37,8 +37,7 @@ export function ContentScoringTab() {
   // tạo để nghe/tải tại chỗ, không lưu lại.
   const [showVoiceModal, setShowVoiceModal] = useState(false)
 
-  // Ô nhập tự co giãn theo độ dài content thay vì fix cứng rows — reset về 'auto' trước khi đo
-  // lại scrollHeight để chiều cao co lại đúng khi người dùng xoá bớt nội dung.
+  // Textarea tự co giãn: reset height 'auto' trước khi đo scrollHeight để co lại đúng khi xoá bớt.
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   useEffect(() => {
     const el = textareaRef.current
@@ -278,7 +277,6 @@ export function ContentScoringTab() {
             </div>
           </div>
 
-          {/* Video Realism Check — luôn hiện, độc lập với verdict 5 lớp (patch v2.1 §4) */}
           {analysis.video_realism && <VideoRealismPanel videoRealism={analysis.video_realism} />}
 
           {analysis.cta_warning?.detected && (

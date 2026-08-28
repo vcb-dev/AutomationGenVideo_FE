@@ -8,10 +8,7 @@ import type {
 /** Ký tự tối thiểu để chấm điểm PAAST — khớp ngưỡng phía AI service. */
 export const PAAST_MIN_LENGTH = 100
 
-/**
- * `max`: điểm tối đa mỗi lớp kể từ patch v2.1 (Prefer/Action 25, Acknowledge 20, Stick/Trust 15
- * — trước đó 20 đều nhau). Dùng làm fallback khi bản ghi cũ không có `layers[key].max`.
- */
+/** `max`: điểm tối đa mỗi lớp (25/25/20/15/15) — fallback khi bản ghi cũ không có `layers[key].max`. */
 export const LAYER_META = {
   prefer: { label: 'Prefer (Thích)', sub: 'CRAVES', color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200', max: 25 },
   action: { label: 'Action (Hành động)', sub: 'S-FACES', color: 'text-lime-700', bg: 'bg-lime-50', border: 'border-lime-200', max: 25 },
@@ -78,7 +75,6 @@ export function LayerBlock({
   title: string
   sub: string
   score: number
-  /** Điểm tối đa của lớp này (25/20/15 tuỳ lớp kể từ patch v2.1) — luôn truyền từ `layers[key].max`. */
   max: number
   color: string
   bg: string
@@ -98,12 +94,7 @@ export function LayerBlock({
   )
 }
 
-/**
- * Chỉ báo mức độ triển khai 1 tiêu chí, thang 0-5 (patch v4) — 5 chấm tô đậm theo `level`, LUÔN
- * kèm `label` dạng CHỮ ngay cạnh (không chỉ dựa vào màu/số chấm tô — nguyên tắc "đừng truyền tải
- * thông tin chỉ bằng màu" khi audit qua ui-ux-pro-max). Chấm trang trí nên `aria-hidden`; `title`
- * cho hover, chữ hiển thị đã đủ cho screen reader đọc tự nhiên theo dòng.
- */
+/** Mức độ triển khai 1 tiêu chí 0-5: 5 chấm (aria-hidden) + nhãn chữ (không chỉ dựa vào màu). */
 export function LevelMeter({ level, label, className = '' }: { level: number; label?: string | null; className?: string }) {
   const dotColor = level >= 4 ? 'bg-emerald-500' : level === 3 ? 'bg-blue-500' : level >= 1 ? 'bg-orange-400' : 'bg-gray-200'
   return (
@@ -137,7 +128,6 @@ export function CriterionCard({ criterion }: { criterion: PaastCriterion }) {
         {criterion.status === 'na' && <span className="font-semibold text-gray-500">Cần production — </span>}
         {criterion.evidence}
       </p>
-      {/* reasoning (patch v2.1) — lý giải dựa trên đọc hiểu toàn bài, tách biệt khỏi evidence quote. */}
       {criterion.reasoning && (
         <p className="text-[11px] text-gray-400 mt-1 leading-relaxed pl-5 italic">{criterion.reasoning}</p>
       )}
@@ -145,7 +135,6 @@ export function CriterionCard({ criterion }: { criterion: PaastCriterion }) {
   )
 }
 
-/** Nhãn + icon cho band tổng điểm (patch v2.1 §10.4) — luôn icon + chữ, không chỉ dựa vào màu. */
 const SCORE_BAND_META: Record<PaastScoreBand, { label: string; icon: typeof CheckCircle2; className: string }> = {
   ready: { label: 'Sẵn sàng publish', icon: CheckCircle2, className: 'bg-emerald-50 border-emerald-300 text-emerald-700' },
   close: { label: 'Gần đạt — còn vài điểm cần bổ sung', icon: Info, className: 'bg-blue-50 border-blue-300 text-blue-700' },
@@ -178,11 +167,7 @@ export function WowStrengthBadge({ strength, className = '' }: { strength: Paast
   )
 }
 
-/**
- * Nội dung của LayerBlock Prefer — tách riêng khỏi PaastScoreModal/ContentScoringTab (2 nơi
- * dùng chung UI này bị trùng lặp trước patch v2.1) vì giờ có thêm: coherence warning banner,
- * takeaway statement + wow badge — không chỉ còn là danh sách chip insight.
- */
+/** Nội dung LayerBlock Prefer (dùng chung 2 nơi): coherence banner + takeaway + wow badge + chip insight. */
 export function PreferInsightsBlock({ prefer }: { prefer: PaastLayerInsights }) {
   const isCoherent = prefer.coherence?.is_coherent !== false
   return (
@@ -263,12 +248,7 @@ const FEASIBILITY_META: Record<
   },
 }
 
-/**
- * Panel "Kiểm tra thực tế video" (MỚI, patch v2.1 §4) — mô phỏng xem như video thật, độc lập với
- * 5 lớp PAAST. Luôn hiển thị, kể cả khi verdict = "Đạt chuẩn": 1 content có thể đủ 5 lớp về nội
- * dung nhưng vẫn "chết" khi quay thành video thật. Nền chuyển cam/đỏ nhạt khi có rủi ro (§4:
- * "chuyển --orange-soft nếu overallFeasibility !== realistic") — không chỉ dựa vào màu badge.
- */
+/** Panel "Kiểm tra thực tế video" — mô phỏng xem như video thật, độc lập verdict 5 lớp. */
 export function VideoRealismPanel({ videoRealism }: { videoRealism: PaastVideoRealism }) {
   const meta = FEASIBILITY_META[videoRealism.overall_feasibility]
   const Icon = meta.icon

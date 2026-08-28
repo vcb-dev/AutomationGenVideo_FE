@@ -7,8 +7,6 @@
 import { getLayerStatus, buildHighlightSegments, computeDefaultOpenLayers } from './paast-highlight.util';
 
 describe('getLayerStatus', () => {
-  // Patch v2.1: max không còn cố định 20 cho mọi lớp (Prefer/Action 25, Acknowledge 20,
-  // Stick/Trust 15) — getLayerStatus nhận `max` tường minh thay vì hằng số chung.
   it('>= 80% điểm tối đa là "good", bất kể max là bao nhiêu', () => {
     expect(getLayerStatus(20, 20)).toBe('good');
     expect(getLayerStatus(16, 20)).toBe('good');
@@ -35,8 +33,7 @@ describe('getLayerStatus', () => {
 });
 
 describe('computeDefaultOpenLayers', () => {
-  // max=20 tường minh cho mọi lớp trong các fixture dưới đây — giữ đúng ý định gốc của test
-  // (so sánh tỷ lệ ngang nhau giữa các lớp), tách biệt khỏi giá trị DEFAULT_LAYER_MAX thật.
+  // max=20 đều nhau cho fixture để so tỷ lệ ngang, tách khỏi DEFAULT_LAYER_MAX thật.
   const layer = (score: number, max = 20) => ({ score, max, insights: [], criteria: [] } as any);
 
   it('mọi lớp đều "good" thì không mở lớp nào', () => {

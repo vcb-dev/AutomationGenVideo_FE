@@ -31,9 +31,8 @@ interface TieuChi {
   evidence?: string;
   description?: string;
   evidenceSentences?: string[];
-  /** 1-2 câu TẠI SAO — dựa trên đọc hiểu toàn bài (patch v2.1). Bản ghi cũ có thể chưa có. */
   reasoning?: string;
-  /** Mức độ triển khai 0-5 (patch v4) — thay pass/miss/primary/secondary/off nhị phân thuần tuý. */
+  /** Mức độ triển khai 0-5 — thay pass/miss/primary/secondary/off nhị phân. */
   level?: number;
   levelLabel?: string;
 }
@@ -254,11 +253,7 @@ function KhoiLop({ khoa, soLuong, children }: { khoa: string; soLuong: string; c
   );
 }
 
-/**
- * Chỉ báo mức độ triển khai 1 tiêu chí, thang 0-5 (patch v4) — 5 chấm tô đậm theo `level`, LUÔN
- * kèm nhãn CHỮ ngay cạnh (không chỉ dựa vào màu/số chấm). Chấm chỉ mang tính trang trí nên
- * `aria-hidden`. Ẩn hẳn nếu không có `level` (bản ghi cũ trước patch v4).
- */
+/** Mức độ triển khai 1 tiêu chí 0-5: 5 chấm (aria-hidden) + nhãn chữ. Ẩn nếu không có `level`. */
 function MucDoBadge({ level, label }: { level: number; label?: string }) {
   const mauCham = level >= 4 ? 'bg-emerald-500' : level === 3 ? 'bg-blue-500' : level >= 1 ? 'bg-amber-400' : 'bg-slate-200 dark:bg-slate-700';
   return (
