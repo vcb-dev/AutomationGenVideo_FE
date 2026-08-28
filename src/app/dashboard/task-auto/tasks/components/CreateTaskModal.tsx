@@ -149,6 +149,15 @@ function getContentLine(c: any): string | undefined {
     || c.source_team_content?.source_editor_content?.content_line?.name
     || undefined
 }
+
+// "Số lần được làm" (BE trả qua _count.tasks) — hiện căn phải mỗi dòng dropdown chọn content.
+function contentTaskMeta(c: any): React.ReactNode {
+  const n = c?._count?.tasks
+  if (typeof n !== 'number') return undefined
+  return n === 0
+    ? <span className="text-emerald-600">Chưa làm</span>
+    : <>Đã làm {n} lần</>
+}
 export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isMember, onClose, onSuccess }: Props) {
   const qc = useQueryClient()
 
@@ -473,6 +482,7 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
               value: c.id,
               label: getContentTitle(c),
               sublabel: getContentCode(c),
+              meta: contentTaskMeta(c),
             }))}
             searchValue={contentSearch}
             onSearchChange={setContentSearch}

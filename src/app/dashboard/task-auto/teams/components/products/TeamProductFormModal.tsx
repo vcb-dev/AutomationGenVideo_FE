@@ -220,6 +220,7 @@ export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandTy
   const handleSubmit = () => {
     if (!isEdit && !form.sku.trim()) return toast.error('SKU là bắt buộc')
     if (!form.name.trim()) return toast.error('Tên sản phẩm là bắt buộc')
+    if (form.image_urls.length === 0) return toast.error('Ảnh sản phẩm là bắt buộc')
     if (markets.length === 0) return toast.error('Chọn ít nhất một thị trường')
     mut.mutate()
   }

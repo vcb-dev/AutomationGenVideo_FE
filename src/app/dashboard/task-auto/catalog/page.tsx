@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Package, Radio, Archive } from 'lucide-react'
+import { Package, Radio } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth-store'
@@ -19,10 +19,10 @@ const BRANDS: { key: BrandType; label: string; color: string }[] = [
   { key: 'TRANG_SUC', label: 'Trang sức', color: 'violet' },
 ]
 
+// Tab "Kho tháng" ẩn tạm theo yêu cầu — thêm lại entry vào TABS để khôi phục.
 const TABS: { key: CatalogTab; label: string; icon: React.ElementType }[] = [
   { key: 'products',  label: 'Sản phẩm', icon: Package },
   { key: 'sources',   label: 'Sources',  icon: Radio },
-  { key: 'warehouse', label: 'Kho tháng', icon: Archive },
 ]
 
 export default function CatalogPage() {
