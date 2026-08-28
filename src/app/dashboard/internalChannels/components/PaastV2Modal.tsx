@@ -31,6 +31,11 @@ interface TieuChi {
   evidence?: string;
   description?: string;
   evidenceSentences?: string[];
+  /** 1-2 câu TẠI SAO — dựa trên đọc hiểu toàn bài (patch v2.1). Bản ghi cũ có thể chưa có. */
+  reasoning?: string;
+  /** Mức độ triển khai 0-5 (patch v4) — thay pass/miss/primary/secondary/off nhị phân thuần tuý. */
+  level?: number;
+  levelLabel?: string;
 }
 
 export interface KetQuaV2 {
@@ -249,6 +254,28 @@ function KhoiLop({ khoa, soLuong, children }: { khoa: string; soLuong: string; c
   );
 }
 
+/**
+ * Chỉ báo mức độ triển khai 1 tiêu chí, thang 0-5 (patch v4) — 5 chấm tô đậm theo `level`, LUÔN
+ * kèm nhãn CHỮ ngay cạnh (không chỉ dựa vào màu/số chấm). Chấm chỉ mang tính trang trí nên
+ * `aria-hidden`. Ẩn hẳn nếu không có `level` (bản ghi cũ trước patch v4).
+ */
+function MucDoBadge({ level, label }: { level: number; label?: string }) {
+  const mauCham = level >= 4 ? 'bg-emerald-500' : level === 3 ? 'bg-blue-500' : level >= 1 ? 'bg-amber-400' : 'bg-slate-200 dark:bg-slate-700';
+  return (
+    <span className="inline-flex items-center gap-1 shrink-0" title={`Mức độ: ${label ?? level}/5`}>
+      <span className="flex items-center gap-0.5" aria-hidden="true">
+        {[1, 2, 3, 4, 5].map((cham) => (
+          <span
+            key={cham}
+            className={`w-1.5 h-1.5 rounded-full ${cham <= level ? mauCham : 'bg-slate-200 dark:bg-slate-700'}`}
+          />
+        ))}
+      </span>
+      {label && <span className="text-[10px] font-semibold text-slate-500 whitespace-nowrap">{label}</span>}
+    </span>
+  );
+}
+
 function TheTieuChi({ tc }: { tc: TieuChi }) {
   const dat = tc.status === 'pass' || tc.status === 'primary' || tc.status === 'secondary';
   // Spec §4.2: Prefer liệt kê TẤT CẢ câu chứng minh, không chỉ câu đầu.
@@ -262,8 +289,11 @@ function TheTieuChi({ tc }: { tc: TieuChi }) {
           <WarningCircle size={15} weight="fill" className="text-amber-500 mt-0.5 shrink-0" />
         )}
         <div className="flex-1 min-w-0">
-          <div className="text-[12.5px] font-semibold text-foreground">
-            {tc.nameVi} <span className="font-normal text-slate-400">({tc.nameEn})</span>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="text-[12.5px] font-semibold text-foreground">
+              {tc.nameVi} <span className="font-normal text-slate-400">({tc.nameEn})</span>
+            </div>
+            {tc.level != null && <MucDoBadge level={tc.level} label={tc.levelLabel} />}
           </div>
           {(tc.comment || tc.description) && (
             <p className="text-[12px] text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
@@ -272,6 +302,9 @@ function TheTieuChi({ tc }: { tc: TieuChi }) {
               </span>
               {tc.comment || tc.description}
             </p>
+          )}
+          {tc.reasoning && (
+            <p className="text-[11px] text-slate-400 italic mt-1 leading-relaxed">{tc.reasoning}</p>
           )}
           {cacCau.length > 0 && (
             <>

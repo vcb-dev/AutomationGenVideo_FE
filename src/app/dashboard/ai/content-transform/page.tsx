@@ -109,7 +109,7 @@ import {
   buildHighlightSegments,
   computeDefaultOpenLayers,
   PAAST_LAYER_KEYS,
-  LAYER_MAX_SCORE,
+  DEFAULT_LAYER_MAX,
   type ScoreResult,
   type PaastLayerKey,
   type LayerStatus,
@@ -151,6 +151,7 @@ const LAYER_STATUS_STYLES: Record<
 function PaastLayerAccordionItem({
   layerKey,
   score,
+  max,
   summary,
   isOpen,
   onToggle,
@@ -158,6 +159,8 @@ function PaastLayerAccordionItem({
 }: {
   layerKey: PaastLayerKey;
   score: number;
+  /** Điểm tối đa của lớp này (25/20/15 tuỳ lớp kể từ patch v2.1) — luôn truyền từ `layer.max`. */
+  max: number;
   /** Dòng tóm tắt ngắn hiển thị ngay trên header (vd "4/6 tiêu chí đạt"). */
   summary: string;
   isOpen: boolean;
@@ -165,9 +168,9 @@ function PaastLayerAccordionItem({
   children: React.ReactNode;
 }) {
   const meta = LAYER_META[layerKey];
-  const status = getLayerStatus(score);
+  const status = getLayerStatus(score, max);
   const style = LAYER_STATUS_STYLES[status];
-  const ratioPct = Math.min(100, Math.round((score / LAYER_MAX_SCORE) * 100));
+  const ratioPct = Math.min(100, Math.round((score / max) * 100));
   const headerId = `paast-layer-header-${layerKey}`;
   const panelId = `paast-layer-panel-${layerKey}`;
 
@@ -178,7 +181,7 @@ function PaastLayerAccordionItem({
         id={headerId}
         aria-expanded={isOpen}
         aria-controls={panelId}
-        aria-label={`Lớp ${meta.label} ${meta.sub}, ${score} trên ${LAYER_MAX_SCORE} điểm, ${style.label}. ${summary}`}
+        aria-label={`Lớp ${meta.label} ${meta.sub}, ${score} trên ${max} điểm, ${style.label}. ${summary}`}
         onClick={onToggle}
         className="w-full flex items-center gap-2 px-2.5 py-2 bg-white hover:bg-[#f6f3f5] transition-colors text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4441cc] focus-visible:ring-offset-1"
       >
@@ -189,7 +192,7 @@ function PaastLayerAccordionItem({
               {meta.label} <span className="font-medium text-[#464554]">· {meta.sub}</span>
             </span>
             <span className="text-[10.5px] font-semibold text-[#464554] flex-shrink-0">
-              {score}/{LAYER_MAX_SCORE}
+              {score}/{max}
             </span>
           </div>
           <div className="mt-1 h-1.5 rounded-full bg-[#eae7ea] overflow-hidden">
@@ -230,6 +233,26 @@ function PaastLayerAccordionItem({
  * không gắn nhãn "Gợi ý" — vì đây không phải lỗi của người viết mà là phần chỉ đánh giá được
  * khi có khâu sản xuất (hình hiệu, đạo cụ, nhạc, nghi thức quay), không sửa bằng chữ được.
  */
+/**
+ * Chỉ báo mức độ triển khai 1 tiêu chí, thang 0-5 (patch v4) — 5 chấm tô đậm theo `level`, LUÔN
+ * kèm `label` dạng CHỮ ngay cạnh (không chỉ dựa vào màu/số chấm — nguyên tắc "đừng truyền tải
+ * thông tin chỉ bằng màu"). Chấm chỉ mang tính trang trí nên `aria-hidden`.
+ */
+function PaastLevelMeter({ level, label }: { level: number; label?: string | null }) {
+  const dotColor =
+    level >= 4 ? 'bg-emerald-500' : level === 3 ? 'bg-blue-500' : level >= 1 ? 'bg-orange-400' : 'bg-[#eae7ea]';
+  return (
+    <span className="inline-flex items-center gap-1 flex-shrink-0" title={`Mức độ: ${label ?? level}/5`}>
+      <span className="flex items-center gap-0.5" aria-hidden="true">
+        {[1, 2, 3, 4, 5].map((dot) => (
+          <span key={dot} className={`w-1.5 h-1.5 rounded-full ${dot <= level ? dotColor : 'bg-[#eae7ea]'}`} />
+        ))}
+      </span>
+      {label && <span className="text-[9px] font-semibold text-[#464554] whitespace-nowrap">{label}</span>}
+    </span>
+  );
+}
+
 function PaastCriterionRow({ criterion }: { criterion: PaastCriterion }) {
   const Icon = criterion.status === 'pass' ? CheckCircle2 : criterion.status === 'na' ? MinusCircle : Circle;
   const iconClass =
@@ -246,15 +269,21 @@ function PaastCriterionRow({ criterion }: { criterion: PaastCriterion }) {
       <div className="flex items-start gap-2">
         <Icon className={`w-3.5 h-3.5 flex-shrink-0 mt-0.5 ${iconClass}`} aria-hidden="true" />
         <div className="flex-1 min-w-0">
-          <p className={`text-[11px] font-semibold ${criterion.status === 'na' ? 'text-[#464554]' : 'text-[#1b1b1d]'}`}>
-            {criterion.name_en} <span className="font-normal text-[#464554]">· {criterion.name_vi}</span>
-          </p>
+          <div className="flex items-center justify-between gap-2">
+            <p className={`text-[11px] font-semibold ${criterion.status === 'na' ? 'text-[#464554]' : 'text-[#1b1b1d]'}`}>
+              {criterion.name_en} <span className="font-normal text-[#464554]">· {criterion.name_vi}</span>
+            </p>
+            {criterion.level != null && <PaastLevelMeter level={criterion.level} label={criterion.level_label} />}
+          </div>
           {criterion.evidence && (
             <p className="mt-1 text-[10.5px] leading-relaxed text-[#464554]">
               {criterion.status === 'miss' && <span className="font-semibold text-orange-600">Gợi ý — </span>}
               {criterion.status === 'na' && <span className="font-semibold text-[#6b6979]">Cần production — </span>}
               {criterion.evidence}
             </p>
+          )}
+          {criterion.reasoning && (
+            <p className="mt-1 text-[9.5px] text-[#9c9aa8] italic leading-relaxed">{criterion.reasoning}</p>
           )}
         </div>
       </div>
@@ -299,15 +328,35 @@ function PaastLayersAccordion({ scoreResult }: { scoreResult: ScoreResult }) {
       <PaastLayerAccordionItem
         layerKey="prefer"
         score={prefer?.score ?? 0}
+        max={prefer?.max ?? DEFAULT_LAYER_MAX.prefer}
         summary={`${prefer?.primary_count ?? 0} insight chính · ${prefer?.secondary_count ?? 0} insight phụ`}
         isOpen={openLayers.has('prefer')}
         onToggle={() => toggle('prefer')}
       >
+        {prefer?.takeaway_statement && (
+          <p className="text-[10.5px] font-bold text-[#1b1b1d] leading-relaxed mb-1">
+            &ldquo;{prefer.takeaway_statement}&rdquo;
+            {prefer.wow_strength && (
+              <span className="ml-1.5 text-[9px] font-semibold uppercase text-[#464554]">
+                · wow {prefer.wow_strength === 'strong' ? 'mạnh' : prefer.wow_strength === 'moderate' ? 'vừa' : 'yếu'}
+              </span>
+            )}
+          </p>
+        )}
+        {prefer?.coherence?.is_coherent === false && (
+          <div className="flex items-start gap-1.5 bg-orange-50 border border-orange-200 rounded-lg px-2 py-1.5 mb-1.5">
+            <AlertTriangle className="w-3 h-3 text-orange-500 mt-0.5 flex-shrink-0" aria-hidden="true" />
+            <p className="text-[9.5px] text-orange-700 leading-relaxed">
+              <span className="font-bold">Đổi trọng tâm giữa chừng — </span>
+              {prefer.coherence.warning || 'chưa hội tụ về 1 insight chủ đạo xuyên suốt.'}
+            </p>
+          </div>
+        )}
         <div className="flex flex-wrap gap-1">
           {preferInsights.map((insight) => (
             <span
               key={insight.code}
-              title={insight.description || undefined}
+              title={[insight.description, insight.level != null ? `${insight.level_label ?? ''} (${insight.level}/5)` : ''].filter(Boolean).join(' — ') || undefined}
               className={`text-[9.5px] font-semibold px-2 py-0.5 rounded-full border ${
                 insight.status === 'primary'
                   ? 'bg-amber-500 border-amber-500 text-white'
@@ -317,6 +366,7 @@ function PaastLayersAccordion({ scoreResult }: { scoreResult: ScoreResult }) {
               }`}
             >
               {insight.name_en} · {insight.name_vi}
+              {insight.level != null && <span className="opacity-70"> ({insight.level}/5)</span>}
             </span>
           ))}
         </div>
@@ -324,12 +374,15 @@ function PaastLayersAccordion({ scoreResult }: { scoreResult: ScoreResult }) {
           .filter((i) => i.status !== 'off')
           .map((insight) => (
             <div key={insight.code} className="mt-1.5 p-2 rounded-lg border border-[#eae7ea] bg-white">
-              <p className="text-[11px] font-semibold text-[#1b1b1d]">
-                {insight.name_en} <span className="font-normal text-[#464554]">· {insight.name_vi}</span>
-                <span className="ml-1.5 text-[9.5px] font-bold uppercase text-amber-600">
-                  {insight.status === 'primary' ? 'Chính' : 'Phụ'}
-                </span>
-              </p>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <p className="text-[11px] font-semibold text-[#1b1b1d]">
+                  {insight.name_en} <span className="font-normal text-[#464554]">· {insight.name_vi}</span>
+                  <span className="ml-1.5 text-[9.5px] font-bold uppercase text-amber-600">
+                    {insight.status === 'primary' ? 'Chính' : 'Phụ'}
+                  </span>
+                </p>
+                {insight.level != null && <PaastLevelMeter level={insight.level} label={insight.level_label} />}
+              </div>
               {insight.description && (
                 <p className="mt-0.5 text-[10.5px] text-[#464554] leading-relaxed">{insight.description}</p>
               )}
@@ -341,6 +394,9 @@ function PaastLayersAccordion({ scoreResult }: { scoreResult: ScoreResult }) {
                   &ldquo;{s}&rdquo;
                 </div>
               ))}
+              {insight.reasoning && (
+                <p className="mt-1 text-[9.5px] text-[#9c9aa8] italic leading-relaxed">{insight.reasoning}</p>
+              )}
             </div>
           ))}
       </PaastLayerAccordionItem>
@@ -353,6 +409,7 @@ function PaastLayersAccordion({ scoreResult }: { scoreResult: ScoreResult }) {
             key={key}
             layerKey={key}
             score={layer?.score ?? 0}
+            max={layer?.max ?? DEFAULT_LAYER_MAX[key]}
             summary={summarizeCriteriaLayer(layer)}
             isOpen={openLayers.has(key)}
             onToggle={() => toggle(key)}
@@ -363,6 +420,50 @@ function PaastLayersAccordion({ scoreResult }: { scoreResult: ScoreResult }) {
           </PaastLayerAccordionItem>
         );
       })}
+    </div>
+  );
+}
+
+const FEASIBILITY_STYLES: Record<
+  NonNullable<ScoreResult['video_realism']>['overall_feasibility'],
+  { Icon: typeof CheckCircle2; className: string; label: string; panelClassName: string }
+> = {
+  realistic: { Icon: CheckCircle2, className: 'text-emerald-700 bg-emerald-50 border-emerald-300', label: 'Khả thi', panelClassName: 'bg-[#fcfbfd] border-[#eae7ea]' },
+  'needs-adjustment': { Icon: AlertTriangle, className: 'text-orange-700 bg-orange-50 border-orange-300', label: 'Cần điều chỉnh', panelClassName: 'bg-orange-50/60 border-orange-200' },
+  'high-risk': { Icon: XCircle, className: 'text-red-700 bg-red-50 border-red-300', label: 'Rủi ro cao', panelClassName: 'bg-red-50/60 border-red-200' },
+};
+
+/**
+ * Video Realism Check (MỚI, patch v2.1 §4) — mô phỏng xem như video thật, độc lập với 5 lớp
+ * PAAST, luôn hiển thị kể cả khi điểm cao: 1 kịch bản có thể đủ 5 lớp về nội dung nhưng vẫn
+ * "chết" khi quay thành video thật.
+ */
+function VideoRealismCard({ videoRealism }: { videoRealism: NonNullable<ScoreResult['video_realism']> }) {
+  const style = FEASIBILITY_STYLES[videoRealism.overall_feasibility];
+  const rows: Array<[string, string]> = [
+    ['Mở đầu (1-3s)', videoRealism.opening_beat],
+    ['Nhịp độ', videoRealism.pacing_note],
+    ['Kể vs. Cho xem', videoRealism.show_vs_tell],
+    ['Payoff/kết', videoRealism.payoff_note],
+  ];
+  return (
+    <div className={`p-2.5 rounded-xl border ${style.panelClassName}`}>
+      <div className="flex items-center justify-between gap-2 flex-wrap mb-1.5">
+        <p className="text-[10px] font-bold text-[#1b1b1d] uppercase tracking-wide flex items-center gap-1">
+          <Video className="w-3.5 h-3.5 text-[#9c9aa8]" aria-hidden="true" /> Kiểm tra thực tế video
+        </p>
+        <span className={`inline-flex items-center gap-1 text-[9.5px] font-bold px-2 py-0.5 rounded-full border ${style.className}`}>
+          <style.Icon className="w-3 h-3" aria-hidden="true" /> {style.label}
+        </span>
+      </div>
+      <dl className="space-y-1">
+        {rows.map(([label, text]) => text && (
+          <div key={label} className="text-[10px] leading-relaxed">
+            <dt className="font-semibold text-[#464554] inline">{label}: </dt>
+            <dd className="text-[#464554] inline">{text}</dd>
+          </div>
+        ))}
+      </dl>
     </div>
   );
 }
@@ -389,19 +490,23 @@ function ScoreOverallCard({ scoreResult, fromCache = false }: { scoreResult: Sco
             </p>
           )}
         </div>
-        {/* 5 lớp x 20 điểm — hiển thị đúng con số từng lớp, không quy đổi/làm tròn thêm */}
+        {/* Trọng số 5 lớp không còn đều nhau (patch v2.1: 25/25/20/15/15) — hiển thị đúng con số
+            từng lớp, không quy đổi/làm tròn thêm */}
         <div className="flex gap-1.5">
-          {PAAST_LAYER_KEYS.map((key) => (
-            <div key={key} className="text-center">
-              <div
-                className="w-8 h-8 rounded-lg bg-white/80 border border-[#c7c4d7] flex items-center justify-center text-[11px] font-bold text-[#1b1b1d]"
-                title={`${LAYER_META[key].label} · ${LAYER_META[key].sub}: ${scoreResult.layers?.[key]?.score ?? 0}/${LAYER_MAX_SCORE}`}
-              >
-                {scoreResult.layers?.[key]?.score ?? 0}
+          {PAAST_LAYER_KEYS.map((key) => {
+            const max = scoreResult.layers?.[key]?.max ?? DEFAULT_LAYER_MAX[key];
+            return (
+              <div key={key} className="text-center">
+                <div
+                  className="w-8 h-8 rounded-lg bg-white/80 border border-[#c7c4d7] flex items-center justify-center text-[11px] font-bold text-[#1b1b1d]"
+                  title={`${LAYER_META[key].label} · ${LAYER_META[key].sub}: ${scoreResult.layers?.[key]?.score ?? 0}/${max}`}
+                >
+                  {scoreResult.layers?.[key]?.score ?? 0}
+                </div>
+                <p className="text-[9px] text-[#464554] mt-0.5 font-bold">{LAYER_META[key].initial}</p>
               </div>
-              <p className="text-[9px] text-[#464554] mt-0.5 font-bold">{LAYER_META[key].initial}</p>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
@@ -1488,6 +1593,9 @@ export default function ContentTransformPage() {
 
                         {/* Khối cuộn riêng: accordion 5 lớp PAAST + nội dung highlight + nút chấm điểm/nâng cấp */}
                         <div ref={resultScrollRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-0.5 space-y-2">
+                          {/* Video Realism Check (MỚI, patch v2.1) — luôn hiện, độc lập verdict 5 lớp */}
+                          {scoreResult?.video_realism && <VideoRealismCard videoRealism={scoreResult.video_realism} />}
+
                           {/* 3-4. Accordion 5 lớp PAAST — mặc định mở lớp yếu nhất */}
                           {scoreResult && <PaastLayersAccordion scoreResult={scoreResult} />}
 
@@ -2076,6 +2184,9 @@ export default function ContentTransformPage() {
                     <>
                       <CtaComplianceBlock ctaWarning={selectedItem.scoreResult.cta_warning} />
                       <ScoreOverallCard scoreResult={selectedItem.scoreResult} fromCache={selectedItem.fromCache} />
+                      {selectedItem.scoreResult.video_realism && (
+                        <VideoRealismCard videoRealism={selectedItem.scoreResult.video_realism} />
+                      )}
                       <PaastLayersAccordion scoreResult={selectedItem.scoreResult} />
                     </>
                   )}
