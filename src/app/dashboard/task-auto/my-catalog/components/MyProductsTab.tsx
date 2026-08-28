@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {
   Plus, Edit2, Trash2, Loader2, Package, Search, Download,
-  ChevronLeft, ChevronRight, ImageIcon, SendHorizontal, Check, X,
+  ImageIcon, SendHorizontal, Check, X,
 } from 'lucide-react'
 import { cn, driveImageUrl } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
@@ -13,6 +13,7 @@ import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
 import { HeaderFilterDropdown } from '@/components/task-auto/HeaderFilterDropdown'
+import { Pagination } from '@/components/task-auto/Pagination'
 import {
   getProducts, getTeamProducts, getSources, getTeamSources,
   getEditorProducts, createEditorProduct, createEditorSource, deleteEditorProduct, pushEditorProductToTeam,
@@ -21,12 +22,95 @@ import {
   getTeams, getMyPushRequests,
 } from '@/lib/api/task-auto'
 import {
-  MarketBadge, LoadingRows,
+  MarketBadge,
 } from '../../catalog/components/ProductsTab/ProductFormFields'
 import { parseMarkets, formatPrice } from '../../catalog/components/ProductsTab/product-utils'
 import { Product, TeamProduct } from '@/types/task-auto'
 import { ProductFormModal } from '@/components/task-auto/ProductFormModal'
 import { ProductViewModal } from '@/components/task-auto/ProductViewModal'
+
+const PAGE_SIZE = 24
+
+// ── Product grid card ─────────────────────────────────────────────────────────
+
+function MyProductCard({
+  product, readOnly, isPending, onView, onEdit, onDelete, onPush,
+}: {
+  product: Product
+  readOnly: boolean
+  isPending: boolean
+  onView: () => void
+  onEdit: () => void
+  onDelete: () => void
+  onPush: () => void
+}) {
+  const thumb = product.image_urls?.[0] ?? product.image_url
+  const markets = parseMarkets(product.market)
+
+  return (
+    <div
+      onClick={onView}
+      className="group bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md hover:border-indigo-200 transition-all cursor-pointer"
+    >
+      <div className="relative aspect-square bg-gray-100">
+        {thumb ? (
+          <img src={driveImageUrl(thumb) ?? thumb} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <ImageIcon className="w-6 h-6 text-slate-300" />
+          </div>
+        )}
+
+        {!readOnly && (
+          <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-all" onClick={e => e.stopPropagation()}>
+            {isPending ? (
+              <span
+                className="text-[10px] font-bold uppercase px-2 py-1 rounded-full bg-amber-100 text-amber-700 whitespace-nowrap shadow-sm self-center"
+                title="Đang chờ leader duyệt vào kho team"
+              >
+                Chờ duyệt
+              </span>
+            ) : (
+              <button onClick={onPush} className="p-1.5 rounded-lg bg-white/90 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 shadow-sm transition-colors" title="Đẩy sang kho team">
+                <SendHorizontal className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <button onClick={onEdit} className="p-1.5 rounded-lg bg-white/90 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 shadow-sm transition-colors" title="Chỉnh sửa">
+              <Edit2 className="w-3.5 h-3.5" />
+            </button>
+            <button onClick={onDelete} className="p-1.5 rounded-lg bg-white/90 text-slate-400 hover:text-red-600 hover:bg-red-50 shadow-sm transition-colors" title="Xóa">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="p-2.5">
+        <p className="text-sm font-semibold text-slate-800 line-clamp-2 min-h-[2.25rem]" title={product.name}>
+          {product.name || <span className="text-slate-300 italic font-normal text-sm">Chưa đặt tên</span>}
+        </p>
+        <p className="text-[11px] text-slate-400 mt-0.5 truncate min-h-[0.9rem]">{product.price_segment || ' '}</p>
+
+        <div className="flex items-center gap-1.5 mt-1.5">
+          <span className="inline-block bg-slate-100 text-slate-600 font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded-md shrink-0">
+            {product.sku || <span className="text-slate-300">—</span>}
+          </span>
+          <span className="text-[11px] text-slate-400 truncate">{product.product_line?.name || '—'}</span>
+        </div>
+
+        <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
+          {formatPrice(product.price)
+            ? <span className="text-sm font-bold text-slate-800">{formatPrice(product.price)}</span>
+            : <span className="text-slate-300 text-xs">—</span>
+          }
+          <div className="flex gap-1">
+            {markets.map(m => <MarketBadge key={m} market={m} />)}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 // ── Push to team modal ────────────────────────────────────────────────────────
 
@@ -393,7 +477,7 @@ export function MyProductsTab({ userId, brandType, readOnly = false }: Props) {
       product_line_id: productLineFilter || undefined,
       classification_id: classificationFilter || undefined,
       month: month || undefined,
-      page, limit: 20,
+      page, limit: PAGE_SIZE,
     }),
   })
 
@@ -441,6 +525,24 @@ export function MyProductsTab({ userId, brandType, readOnly = false }: Props) {
             onChange={e => { setMonth(e.target.value); setPage(1) }}
             className="px-3 py-3.5 border border-gray-200 rounded-xl text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
           />
+
+          <div className="flex items-center gap-2 px-4 py-3.5 rounded-xl border border-gray-200 hover:border-gray-300 transition-colors">
+            <HeaderFilterDropdown
+              label="Dòng SP"
+              value={productLineFilter}
+              onChange={v => { setProductLineFilter(v); setPage(1) }}
+              options={(productLines ?? []).map(l => ({ value: l.id, label: l.name }))}
+            />
+          </div>
+          <div className="flex items-center gap-2 px-4 py-3.5 rounded-xl border border-gray-200 hover:border-gray-300 transition-colors">
+            <HeaderFilterDropdown
+              label="Phân loại"
+              value={classificationFilter}
+              onChange={v => { setClassificationFilter(v); setPage(1) }}
+              options={(productClassifications ?? []).map(c => ({ value: c.id, label: c.name }))}
+            />
+          </div>
+
           {!readOnly && (
             <>
               <button
@@ -466,145 +568,50 @@ export function MyProductsTab({ userId, brandType, readOnly = false }: Props) {
         </p>
       )}
 
-      {/* Table */}
-      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-slate-50 border-b-2 border-gray-200">
-                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">SKU</th>
-                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide">Sản phẩm</th>
-                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">
-                  <HeaderFilterDropdown
-                    label="Dòng SP"
-                    value={productLineFilter}
-                    onChange={v => { setProductLineFilter(v); setPage(1) }}
-                    options={(productLines ?? []).map(l => ({ value: l.id, label: l.name }))}
-                  />
-                </th>
-                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">
-                  <HeaderFilterDropdown
-                    label="Phân loại"
-                    value={classificationFilter}
-                    onChange={v => { setClassificationFilter(v); setPage(1) }}
-                    options={(productClassifications ?? []).map(c => ({ value: c.id, label: c.name }))}
-                  />
-                </th>
-                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Thị trường</th>
-                <th className="text-right px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Giá bán</th>
-                {/* <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Người thêm</th> */}
-                <th className="text-left px-5 py-4 text-sm font-bold text-slate-600 tracking-wide whitespace-nowrap">Ngày thêm</th>
-                <th className="w-28" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {isLoading && <LoadingRows cols={9} />}
-              {!isLoading && !data?.data?.length && (
-                <tr><td colSpan={9}><EmptyState icon={Package} title="Chưa có sản phẩm cá nhân nào" /></td></tr>
-              )}
-              {data?.data.map(p => {
-                const thumb = p.image_urls?.[0] ?? p.image_url
-                return (
-                  <tr key={p.id} onClick={() => setViewProduct(p)} className="hover:bg-indigo-50/20 transition-colors group cursor-pointer">
-                    <td className="px-5 py-4 whitespace-nowrap">
-                      <span className="inline-block bg-slate-100 text-slate-600 font-mono text-xs font-semibold px-2.5 py-1 rounded-lg">{p.sku}</span>
-                    </td>
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        {thumb
-                          ? <img src={driveImageUrl(thumb) ?? thumb} alt="" className="w-10 h-10 rounded-xl object-cover border border-gray-200 shrink-0" />
-                          : <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center shrink-0"><ImageIcon className="w-4 h-4 text-slate-300" /></div>
-                        }
-                        <div className="min-w-0">
-                          <p className="text-base font-semibold text-slate-800 truncate max-w-[220px]">{p.name}</p>
-                          {p.price_segment && <p className="text-xs text-slate-400">{p.price_segment}</p>}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 whitespace-nowrap">
-                      {p.product_line?.name
-                        ? <span className="text-sm font-medium text-slate-700">{p.product_line.name}</span>
-                        : <span className="text-slate-300 text-sm">—</span>}
-                    </td>
-                    <td className="px-5 py-4 whitespace-nowrap">
-                      {p.classification?.name
-                        ? <span className="text-sm font-medium text-slate-700">{p.classification.name}</span>
-                        : <span className="text-slate-300 text-sm">—</span>}
-                    </td>
-                    <td className="px-5 py-4 whitespace-nowrap">
-                      <div className="flex gap-1.5">
-                        {parseMarkets(p.market).map(m => <MarketBadge key={m} market={m} />)}
-                        {!p.market && <span className="text-slate-300 text-sm">—</span>}
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 whitespace-nowrap text-right">
-                      {formatPrice(p.price)
-                        ? <span className="text-base font-bold text-slate-800">{formatPrice(p.price)}</span>
-                        : <span className="text-slate-300 text-sm">—</span>}
-                    </td>
-                    {/* <td className="px-5 py-4 whitespace-nowrap">
-                      <span className="text-sm text-slate-500">
-                        {p.added_by?.full_name ?? <span className="text-slate-300">—</span>}
-                      </span>
-                    </td> */}
-                    <td className="px-5 py-4 whitespace-nowrap">
-                      <span className="text-sm text-slate-500">
-                        {(p as any).added_at ? new Date((p as any).added_at).toLocaleDateString('vi-VN') : <span className="text-slate-300">—</span>}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 text-right" onClick={e => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1">
-                        {readOnly ? (
-                          <span className="text-slate-300 text-xs">—</span>
-                        ) : (
-                          <>
-                            {pendingProductIds.has(p.id) ? (
-                              <span className="text-[10px] font-bold uppercase px-2 py-1 rounded-full bg-amber-100 text-amber-700 whitespace-nowrap" title="Đang chờ leader duyệt vào kho team">
-                                Chờ duyệt
-                              </span>
-                            ) : (
-                              <button
-                                onClick={() => setPushItem(p)}
-                                title="Đẩy sang kho team"
-                                className="p-2.5 rounded-xl text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
-                              >
-                                <SendHorizontal className="w-4 h-4" />
-                              </button>
-                            )}
-                            <button
-                              onClick={() => openEdit(p)}
-                              className="p-2.5 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-100 transition-colors"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => setDeletingId(p.id)}
-                              className="p-2.5 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-        {data && data.totalPages > 1 && (
-          <div className="flex items-center justify-between px-5 py-4 border-t border-gray-100 bg-gray-50/50">
-            <span className="text-sm text-slate-500">Trang <span className="font-semibold">{page}</span> / {data.totalPages}</span>
-            <div className="flex gap-1">
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
-                className="p-2 rounded-lg hover:bg-gray-200 text-slate-500 disabled:opacity-30"><ChevronLeft className="w-4 h-4" /></button>
-              <button onClick={() => setPage(p => Math.min(data.totalPages, p + 1))} disabled={page >= data.totalPages}
-                className="p-2 rounded-lg hover:bg-gray-200 text-slate-500 disabled:opacity-30"><ChevronRight className="w-4 h-4" /></button>
+      {/* Grid */}
+      {isLoading && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+          {Array.from({ length: 12 }).map((_, i) => (
+            <div key={i} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+              <div className="aspect-square bg-gray-100 animate-pulse" />
+              <div className="p-2.5 space-y-1.5">
+                <div className="h-3.5 bg-gray-100 rounded animate-pulse w-4/5" />
+                <div className="h-2.5 bg-gray-100 rounded animate-pulse w-2/3" />
+                <div className="h-2.5 bg-gray-100 rounded animate-pulse w-1/3" />
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          ))}
+        </div>
+      )}
+
+      {!isLoading && !data?.data?.length && (
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm">
+          <EmptyState icon={Package} title="Chưa có sản phẩm cá nhân nào" />
+        </div>
+      )}
+
+      {!isLoading && !!data?.data?.length && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+          {data.data.map(p => (
+            <MyProductCard
+              key={p.id}
+              product={p}
+              readOnly={readOnly}
+              isPending={pendingProductIds.has(p.id)}
+              onView={() => setViewProduct(p)}
+              onEdit={() => openEdit(p)}
+              onDelete={() => setDeletingId(p.id)}
+              onPush={() => setPushItem(p)}
+            />
+          ))}
+        </div>
+      )}
+
+      {data && data.totalPages > 1 && (
+        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+          <Pagination page={page} pageSize={PAGE_SIZE} totalItems={data.total} onPageChange={setPage} />
+        </div>
+      )}
 
       {/* Create / Edit modal */}
       {modal && (

@@ -55,7 +55,7 @@ export function ProductCard({ teamProduct, canRemove, onRemove, onEdit }: Props)
     <>
       <div
         onClick={() => setShowDetail(true)}
-        className="group bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:border-indigo-200 transition-all cursor-pointer"
+        className="group bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md hover:border-indigo-200 transition-all cursor-pointer"
       >
         {/* Image */}
         <div className="relative aspect-square bg-gray-100">
@@ -68,13 +68,13 @@ export function ProductCard({ teamProduct, canRemove, onRemove, onEdit }: Props)
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
-              <Package className="w-8 h-8 text-slate-300" />
+              <Package className="w-6 h-6 text-slate-300" />
             </div>
           )}
 
           {/* Actions */}
           {(canRemove || onEdit) && (
-            <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+            <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
               {p.oms_variant_id && (
                 <button
                   onClick={e => { e.stopPropagation(); refreshMut.mutate() }}
@@ -108,23 +108,23 @@ export function ProductCard({ teamProduct, canRemove, onRemove, onEdit }: Props)
         </div>
 
         {/* Info */}
-        <div className="p-4">
-          <p className="text-base font-semibold text-slate-800 line-clamp-2 min-h-[2.75rem]" title={name ?? undefined}>
+        <div className="p-2.5">
+          <p className="text-sm font-semibold text-slate-800 line-clamp-2 min-h-[2.25rem]" title={name ?? undefined}>
             {name || <span className="text-slate-300 italic font-normal text-sm">Chưa đặt tên</span>}
           </p>
-          <p className="text-xs text-slate-400 mt-1 truncate min-h-[1rem]">{priceSegment || ' '}</p>
+          <p className="text-[11px] text-slate-400 mt-0.5 truncate min-h-[0.9rem]">{priceSegment || ' '}</p>
 
-          <div className="flex items-center gap-2 mt-2.5">
-            <span className="inline-block bg-slate-100 text-slate-600 font-mono text-xs font-semibold px-2.5 py-1 rounded-lg shrink-0">
+          <div className="flex items-center gap-1.5 mt-1.5">
+            <span className="inline-block bg-slate-100 text-slate-600 font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded-md shrink-0">
               {sku || <span className="text-slate-300">—</span>}
             </span>
-            <span className="text-xs text-slate-400 truncate">{productLineName || '—'}</span>
+            <span className="text-[11px] text-slate-400 truncate">{productLineName || '—'}</span>
           </div>
 
-          <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+          <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
             {formatPrice(price)
-              ? <span className="text-base font-bold text-slate-800">{formatPrice(price)}</span>
-              : <span className="text-slate-300 text-sm">—</span>
+              ? <span className="text-sm font-bold text-slate-800">{formatPrice(price)}</span>
+              : <span className="text-slate-300 text-xs">—</span>
             }
             <div className="flex gap-1">
               {markets.map(m => <MarketBadge key={m} market={m} />)}
