@@ -18,6 +18,7 @@ import {
     ExternalLink,
     AlertTriangle,
     X,
+    Zap,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -482,12 +483,43 @@ export default function CloneVoicePage() {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
-    const charCount = text.length;
+    const [charCount, setCharCount] = useState(0);
+    // Hạn mức tạo voice theo ngày (mặc định 8 lượt/ngày, Admin cấp thêm)
+    const [quota, setQuota] = useState<{
+        date: string;
+        default_limit: number;
+        used_count: number;
+        granted_extra: number;
+        total_allowed: number;
+        remaining: number;
+    }>({
+        date: '',
+        default_limit: 8,
+        used_count: 0,
+        granted_extra: 0,
+        total_allowed: 8,
+        remaining: 8,
+    });
+
     const maxChars = 5000;
     // MiniMax tính phí theo ký tự ("điểm âm thanh") — ước tính tiền cho đoạn text hiện tại.
     // BE chưa cấu hình giá thì dùng giá mặc định để ô tiền luôn hiển thị.
     const effectiveVndPer1k = vndPer1kChars > 0 ? vndPer1kChars : DEFAULT_VND_PER_1K_CHARS;
-    const estimatedCostVnd = Math.round((charCount / 1000) * effectiveVndPer1k);
+    const estimatedCostVnd = Math.round((text.length / 1000) * effectiveVndPer1k);
+
+    // Fetch daily quota
+    const fetchQuota = async () => {
+        try {
+            const res = await fetchWithAuth(`${getApiUrl()}/ai/voice/quota`);
+            if (!res.ok) return;
+            const data = await res.json();
+            if (data && typeof data === 'object') {
+                setQuota(data);
+            }
+        } catch (error) {
+            console.error('Fetch quota error:', error);
+        }
+    };
 
     // Fetch voices on mount
     const fetchVoices = async () => {
@@ -498,6 +530,9 @@ export default function CloneVoicePage() {
             if (data.success && data.voices) {
                 setVoices(data.voices);
                 setVndPer1kChars(Number(data.pricing?.vnd_per_1k_chars) || 0);
+                if (data.quota) {
+                    setQuota(data.quota);
+                }
                 // Cùng luật với thư mục bên phải và với nút Tạo giọng nói — xem
                 // pickDefaultVoice. Tự chọn một giọng KHÔNG hiện trong thư mục là
                 // cách cũ để người dùng đọc bằng giọng họ không hề thấy mình chọn.
@@ -511,6 +546,7 @@ export default function CloneVoicePage() {
 
     useEffect(() => {
         fetchVoices();
+        fetchQuota();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -540,6 +576,11 @@ export default function CloneVoicePage() {
     // Bước 1 của clone: kiểm tra đầu vào rồi MỞ HỘP XÁC NHẬN. Clone bị MiniMax tính
     // phí ngay từ lần bấm đầu tiên nên không cho bấm nhầm là chạy luôn.
     const requestClone = () => {
+        if (quota && quota.remaining <= 0) {
+            toast.error('Bạn đã sử dụng hết hạn mức tạo voice hôm nay (8 lượt). Vui lòng liên hệ Admin để được cấp thêm lượt.');
+            return;
+        }
+
         if (!cloneFile || !cloneVoiceName.trim()) {
             toast.error('Vui lòng điền tên giọng và chọn file audio mẫu');
             return;
@@ -653,6 +694,7 @@ export default function CloneVoicePage() {
                     setCloneVoiceName('');
                     if (statusData.voice?.voice_id) setSelectedVoiceId(statusData.voice.voice_id);
                     await fetchVoices();
+                    await fetchQuota();
                     break;
                 }
                 if (statusData.status === 'error') {
@@ -717,6 +759,11 @@ export default function CloneVoicePage() {
             return;
         }
 
+        if (quota && quota.remaining <= 0) {
+            toast.error('Bạn đã sử dụng hết hạn mức tạo voice hôm nay (8 lượt). Vui lòng liên hệ Admin để được cấp thêm lượt.');
+            return;
+        }
+
         const usable = isUsableVoice(voices.find((v) => v.voice_id === selectedVoiceId));
         if (!usable) {
             toast.error('Vui lòng chọn một giọng đã clone (Minimax) trong danh sách, hoặc clone giọng mới trước.');
@@ -777,6 +824,7 @@ export default function CloneVoicePage() {
                 );
                 setDownloadName(fileName);
                 toast.success('Đã tạo giọng nói thành công!', { id: generatingToast });
+                await fetchQuota();
             } else {
                 throw new Error(data.error || 'Tạo giọng nói thất bại');
             }
@@ -792,6 +840,64 @@ export default function CloneVoicePage() {
         <div className="min-h-screen bg-gray-50 -m-6">
             {/* Main content */}
             <div className="max-w-7xl mx-auto px-6 py-8">
+
+                {/* ── Top Quota Tracker Banner ── */}
+                <div className="mb-6 p-5 rounded-2xl bg-white border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3.5">
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm ${
+                            quota.remaining > 0
+                                ? 'bg-gradient-to-br from-violet-500 to-indigo-600 text-white shadow-violet-200'
+                                : 'bg-gradient-to-br from-amber-500 to-red-500 text-white shadow-amber-200'
+                        }`}>
+                            <Zap className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2.5">
+                                <h3 className="text-base font-bold text-gray-900">
+                                    Hạn mức tạo Voice hôm nay
+                                </h3>
+                                <span className={`px-3 py-0.5 rounded-full text-xs font-bold ${
+                                    quota.remaining > 0
+                                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                        : 'bg-red-100 text-red-800 border border-red-200'
+                                }`}>
+                                    {quota.remaining > 0 ? `Còn ${quota.remaining} lượt` : 'Hết lượt hôm nay'}
+                                </span>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">
+                                Mỗi ngày được cấp mặc định <strong>{quota.default_limit} lượt tạo voice</strong>.
+                                {quota.granted_extra > 0 && (
+                                    <span className="text-violet-700 font-semibold ml-1">
+                                        (Admin đã cấp thêm +{quota.granted_extra} lượt)
+                                    </span>
+                                )}
+                                {quota.remaining <= 0 && ' Khi dùng hết 8 lượt, cần Admin cấp thêm để tạo tiếp.'}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-4 min-w-[260px]">
+                        <div className="flex-1 bg-gray-50 p-3 rounded-xl border border-gray-100">
+                            <div className="flex justify-between text-xs font-medium mb-1.5 text-gray-600">
+                                <span>Đã dùng: <strong className="text-gray-900">{quota.used_count} / {quota.total_allowed} lượt</strong></span>
+                                <span className="font-bold text-violet-700">
+                                    {Math.round((quota.used_count / Math.max(1, quota.total_allowed)) * 100)}%
+                                </span>
+                            </div>
+                            <div className="w-full h-2.5 bg-gray-200 rounded-full overflow-hidden">
+                                <div
+                                    className={`h-full rounded-full transition-all duration-300 ${
+                                        quota.remaining > 0 ? 'bg-gradient-to-r from-violet-500 to-indigo-600' : 'bg-red-500'
+                                    }`}
+                                    style={{
+                                        width: `${Math.min(100, (quota.used_count / Math.max(1, quota.total_allowed)) * 100)}%`,
+                                    }}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6">
 
                     {/* ── Left panel ── */}
@@ -819,6 +925,50 @@ export default function CloneVoicePage() {
                                     <ExternalLink className="w-3 h-3 opacity-60" />
                                 </a>
                             </div>
+
+                            {/* ── Daily Voice Quota Banner ── */}
+                            {quota && (
+                                <div className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs mb-4 ${
+                                    quota.remaining > 0
+                                        ? 'bg-violet-50/80 border-violet-200 text-violet-900'
+                                        : 'bg-amber-50 border-amber-300 text-amber-900'
+                                }`}>
+                                    <div className="flex items-center gap-2.5">
+                                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                                            quota.remaining > 0 ? 'bg-violet-100 text-violet-700' : 'bg-amber-200 text-amber-800'
+                                        }`}>
+                                            <Zap className="w-4 h-4" />
+                                        </div>
+                                        <div>
+                                            <p className="font-semibold">
+                                                Lượt tạo voice hôm nay: {' '}
+                                                <span className={quota.remaining > 0 ? 'text-violet-700 font-bold' : 'text-red-600 font-bold'}>
+                                                    {quota.used_count} / {quota.total_allowed} lượt
+                                                </span>
+                                                {quota.granted_extra > 0 && (
+                                                    <span className="ml-1 text-[11px] text-emerald-600 font-medium">
+                                                        (Admin đã cấp +{quota.granted_extra})
+                                                    </span>
+                                                )}
+                                            </p>
+                                            <p className="text-[11px] text-gray-500 mt-0.5">
+                                                {quota.remaining > 0
+                                                    ? `Bạn còn ${quota.remaining} lượt tạo voice trong ngày.`
+                                                    : 'Đã hết 8 lượt mặc định trong ngày. Vui lòng liên hệ Admin để được cấp thêm.'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 self-end sm:self-auto">
+                                        <span className={`px-2.5 py-1 rounded-full font-semibold text-[11px] ${
+                                            quota.remaining > 0
+                                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                                : 'bg-red-100 text-red-800 border border-red-200'
+                                        }`}>
+                                            {quota.remaining > 0 ? `Còn ${quota.remaining} lượt` : 'Hết lượt'}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Textarea */}
                             <p className="text-xs text-gray-500 mb-2 font-medium">Kịch bản / Văn bản</p>
@@ -887,9 +1037,9 @@ export default function CloneVoicePage() {
                             <button
                                 id="generate-voice-btn"
                                 onClick={handleGenerate}
-                                disabled={!text.trim() || isGenerating}
+                                disabled={!text.trim() || isGenerating || (quota !== null && quota.remaining <= 0)}
                                 className={`mt-5 w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl font-semibold text-sm transition-all duration-200
-                                    ${text.trim() && !isGenerating
+                                    ${text.trim() && !isGenerating && (quota === null || quota.remaining > 0)
                                         ? 'bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-lg shadow-violet-200 hover:-translate-y-0.5'
                                         : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
                             >
@@ -900,6 +1050,11 @@ export default function CloneVoicePage() {
                                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                                         </svg>
                                         Đang tạo giọng nói...
+                                    </>
+                                ) : quota !== null && quota.remaining <= 0 ? (
+                                    <>
+                                        <AlertTriangle className="w-4 h-4 text-amber-500" />
+                                        Hết lượt tạo voice hôm nay (Cần Admin cấp thêm)
                                     </>
                                 ) : (
                                     <>

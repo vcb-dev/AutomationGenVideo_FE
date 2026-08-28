@@ -13,6 +13,9 @@ import {
     UserCheck,
     CalendarRange,
     Trophy,
+    Zap,
+    X,
+    Sparkles,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
@@ -159,13 +162,13 @@ export default function OverviewPage() {
     // Leader gets their own team (as leader, or as a member if not set as leader)
     const leaderTeamData =
         teams.find((t) => t.leader_id === user?.id) ||
-        teams.find((t) => t.members.some((m) => m.user_id === user?.id)) ||
+        teams.find((t) => t.members?.some((m) => m.user_id === user?.id)) ||
         null;
 
     // Selected team for Admin drill down
     const adminSelectedTeam = teams.find((t) => t.id === selectedTeamId) || teams[0] || null;
 
-    const totalMembers = teams.reduce((acc, t) => acc + (t._count?.members ?? 0), 0);
+    const totalMembers = teams.reduce((acc, t) => acc + (t._count?.members ?? t.members?.length ?? 0), 0);
 
     // Admin xem toàn hệ thống, leader chỉ xem người trong team mình. Tỉ trọng vẫn tính
     // trên tổng đã lọc từ rankUsage nên leader thấy đúng phần của team so với toàn hệ thống.
@@ -177,9 +180,45 @@ export default function OverviewPage() {
     const getUserTeamName = (row: UsageByUser) => {
         if (row.team) return row.team;
         const matchingTeams = teams
-            .filter((t) => t.members.some((m) => m.user_id === row.user_id) || t.leader_id === row.user_id)
+            .filter((t) => t.members?.some((m) => m.user_id === row.user_id) || t.leader_id === row.user_id)
             .map((t) => t.name);
         return matchingTeams.length > 0 ? matchingTeams.join(', ') : null;
+    };
+    const [grantTargetUser, setGrantTargetUser] = useState<{ id: string; name: string; email: string } | null>(null);
+    const [grantCount, setGrantCount] = useState<number>(8);
+    const [isGranting, setIsGranting] = useState(false);
+
+    const handleGrantQuota = async () => {
+        if (!grantTargetUser) return;
+        setIsGranting(true);
+        const grantingToast = toast.loading(`Đang cấp thêm ${grantCount} lượt tạo voice cho ${grantTargetUser.name}...`);
+        try {
+            const res = await fetchWithAuth(`${getApiUrl()}/ai/voice/quota/grant`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: grantTargetUser.id,
+                    extra_count: grantCount,
+                }),
+            });
+
+            if (!res.ok) {
+                const err = await res.json().then((d) => d.message || d.error).catch(() => null);
+                throw new Error(err || 'Không thể cấp thêm lượt');
+            }
+
+            const data = await res.json();
+            toast.success(
+                `Đã cấp thêm ${grantCount} lượt tạo voice cho ${grantTargetUser.name} (Tổng được phép hôm nay: ${data.total_allowed} lượt, còn lại: ${data.remaining} lượt)!`,
+                { id: grantingToast, duration: 4000 },
+            );
+            setGrantTargetUser(null);
+        } catch (error: any) {
+            console.error('Grant quota error:', error);
+            toast.error(error.message || 'Lỗi khi cấp thêm lượt tạo voice', { id: grantingToast });
+        } finally {
+            setIsGranting(false);
+        }
     };
 
     return (
@@ -400,7 +439,8 @@ export default function OverviewPage() {
                                             <th className="py-3 text-right">Lượt TTS</th>
                                             <th className="py-3 text-right">Giọng clone</th>
                                             {vndPer1kChars > 0 && <th className="py-3 text-right">Tiền</th>}
-                                            <th className="pr-6 py-3 text-right">Dùng lần cuối</th>
+                                            <th className="py-3 text-right">Dùng lần cuối</th>
+                                            {isAdmin && <th className="pr-6 py-3 text-right">Thao tác</th>}
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-100">
@@ -459,9 +499,29 @@ export default function OverviewPage() {
                                                             {(row.cost_vnd ?? 0).toLocaleString('vi-VN')}đ
                                                         </td>
                                                     )}
-                                                    <td className="pr-6 py-4 text-right text-xs text-gray-500">
+                                                    <td className={`py-4 text-right text-xs text-gray-500 ${!isAdmin ? 'pr-6' : ''}`}>
                                                         {new Date(row.last_used_at).toLocaleDateString('vi-VN')}
                                                     </td>
+                                                    {isAdmin && (
+                                                        <td className="pr-6 py-4 text-right">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setGrantTargetUser({
+                                                                        id: row.user_id,
+                                                                        name: row.full_name,
+                                                                        email: row.email,
+                                                                    });
+                                                                    setGrantCount(8);
+                                                                }}
+                                                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 transition-colors shadow-sm"
+                                                                title="Cấp thêm lượt tạo voice trong ngày cho người này"
+                                                            >
+                                                                <Zap className="w-3.5 h-3.5 text-violet-600" />
+                                                                Cấp lượt
+                                                            </button>
+                                                        </td>
+                                                    )}
                                                 </tr>
                                             );
                                         })}
@@ -555,13 +615,14 @@ export default function OverviewPage() {
                                                 <th className="py-3 text-right">Điểm đã tiêu</th>
                                                 <th className="py-3 text-right">Lượt TTS</th>
                                                 <th className="py-3 text-right">Giọng clone</th>
-                                                <th className="pr-6 py-3 text-right">Ngày tham gia</th>
+                                                <th className="py-3 text-right">Ngày tham gia</th>
+                                                <th className="pr-6 py-3 text-right">Thao tác</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-100">
                                             {adminSelectedTeam.members.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan={7} className="py-6 text-center text-xs text-gray-400">Team chưa có thành viên</td>
+                                                    <td colSpan={8} className="py-6 text-center text-xs text-gray-400">Team chưa có thành viên</td>
                                                 </tr>
                                             ) : adminSelectedTeam.members.map((member) => {
                                                 const usage = usageByUserId.get(member.user_id);
@@ -591,8 +652,26 @@ export default function OverviewPage() {
                                                     <td className="py-4 text-right text-xs font-semibold text-cyan-700">
                                                         {usage?.clone_count ?? 0}
                                                     </td>
-                                                    <td className="pr-6 py-4 text-right text-xs text-gray-500">
+                                                    <td className="py-4 text-right text-xs text-gray-500">
                                                         {new Date(member.joined_at).toLocaleDateString('vi-VN')}
+                                                    </td>
+                                                    <td className="pr-6 py-4 text-right">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setGrantTargetUser({
+                                                                    id: member.user_id,
+                                                                    name: member.user.full_name,
+                                                                    email: member.user.email,
+                                                                });
+                                                                setGrantCount(8);
+                                                            }}
+                                                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 transition-colors shadow-sm"
+                                                            title="Cấp thêm lượt tạo voice trong ngày cho người này"
+                                                        >
+                                                            <Zap className="w-3.5 h-3.5 text-violet-600" />
+                                                            Cấp lượt
+                                                        </button>
                                                     </td>
                                                 </tr>
                                                 );
@@ -720,6 +799,109 @@ export default function OverviewPage() {
                                 </div>
                             );
                         })()}
+                    </div>
+                )}
+
+                {/* ── Modal Cấp thêm lượt tạo voice (chỉ dành cho Admin) ── */}
+                {grantTargetUser && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+                        <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-100 relative animate-in fade-in zoom-in-95 duration-150">
+                            <button
+                                onClick={() => setGrantTargetUser(null)}
+                                disabled={isGranting}
+                                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center flex-shrink-0 text-violet-600">
+                                    <Zap className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-gray-900 text-base">Cấp thêm lượt tạo voice</h3>
+                                    <p className="text-xs text-gray-500">Hạn mức áp dụng cho ngày hôm nay</p>
+                                </div>
+                            </div>
+
+                            <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200/80 mb-5 text-xs space-y-1.5">
+                                <div className="flex justify-between">
+                                    <span className="text-gray-500">Thành viên:</span>
+                                    <span className="font-semibold text-gray-800">{grantTargetUser.name}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-gray-500">Email:</span>
+                                    <span className="text-gray-600">{grantTargetUser.email}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-gray-500">Giới hạn cấp:</span>
+                                    <span className="text-violet-700 font-semibold">Tối đa không quá 8 lượt/lần</span>
+                                </div>
+                            </div>
+
+                            <div className="mb-6">
+                                <label className="block text-xs font-semibold text-gray-700 mb-2">
+                                    Chọn số lượt muốn cấp thêm:
+                                </label>
+                                <div className="grid grid-cols-4 gap-2 mb-3">
+                                    {[1, 2, 4, 8].map((num) => (
+                                        <button
+                                            key={num}
+                                            type="button"
+                                            onClick={() => setGrantCount(num)}
+                                            className={`py-2 px-3 rounded-xl text-xs font-bold transition-all border ${
+                                                grantCount === num
+                                                    ? 'bg-violet-600 text-white border-violet-600 shadow-md shadow-violet-200'
+                                                    : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:border-gray-300'
+                                            }`}
+                                        >
+                                            +{num} lượt
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs text-gray-500">Hoặc tự nhập:</span>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        max={8}
+                                        value={grantCount}
+                                        onChange={(e) => {
+                                            const v = parseInt(e.target.value, 10);
+                                            if (!isNaN(v)) setGrantCount(Math.min(8, Math.max(1, v)));
+                                        }}
+                                        className="w-20 px-2.5 py-1 text-xs border border-gray-200 rounded-lg text-center font-bold focus:outline-none focus:border-violet-500"
+                                    />
+                                    <span className="text-xs text-gray-500">lượt (1 - 8)</span>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-2.5">
+                                <button
+                                    type="button"
+                                    onClick={() => setGrantTargetUser(null)}
+                                    disabled={isGranting}
+                                    className="flex-1 py-2.5 px-4 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                                >
+                                    Hủy
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleGrantQuota}
+                                    disabled={isGranting}
+                                    className="flex-1 py-2.5 px-4 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold shadow-md shadow-violet-200 flex items-center justify-center gap-1.5 transition-all"
+                                >
+                                    {isGranting ? (
+                                        <span>Đang cấp...</span>
+                                    ) : (
+                                        <>
+                                            <Sparkles className="w-3.5 h-3.5" />
+                                            <span>Xác nhận cấp +{grantCount} lượt</span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 )}
 
