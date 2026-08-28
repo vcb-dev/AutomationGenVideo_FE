@@ -680,88 +680,136 @@ export default function ContentTransformPage() {
 
   // F5 / đóng-mở lại tab trong lúc transcribe/upgrade nền còn chạy: nối lại poll thay vì bỏ
   // trắng lượt xử lý (job vẫn sống trên AI tới 4h). Chỉ chạy 1 lần lúc mount.
+  //
+  // QUAN TRỌNG: KIỂM TRA trạng thái NGAY (1 request, không sleep) TRƯỚC khi động vào bất kỳ
+  // state nào của khung upload. Nếu không, mọi entry localStorage còn sót (job đã xong/đã lỗi
+  // từ lần trước) sẽ khoá ô chọn file + hiện "đang xử lý" suốt ~3s chờ nhịp poll đầu tiên —
+  // đúng loại "khựng khi vừa mở trang" cần tránh. Chỉ khi job THỰC SỰ còn chạy mới hiện UI
+  // "đang tiếp tục" và bắt đầu poll.
   useEffect(() => {
     const active = loadActiveJob();
     if (!active) return;
 
+    let disposed = false;
     const getStatus = (id: string) =>
       apiClient.get(`/ai/content-transform/jobs/${id}`).then((r) => r.data);
 
-    if (active.kind === 'transcribe') {
-      const requestId = transcribeRequestId.current;
-      transcribeJobIdRef.current = active.jobId;
-      setIsTranscribing(true);
-      setUploadPhase('processing');
-      const t = toast.loading('Đang tiếp tục lượt chuyển đổi trước đó...');
-      pollTransformJob(getStatus, active.jobId, {
-        isStale: () => requestId !== transcribeRequestId.current,
-        onProgress: (m) => toast.loading(m, { id: t }),
-      })
-        .then((poll) => {
-          if (requestId !== transcribeRequestId.current) return;
-          const transcript: string | undefined = poll.result?.transcript;
-          if (transcript) {
-            setInputText(transcript);
-            originalTranscriptRef.current = transcript;
-            setIsTranscriptEditable(true);
-            toast.success('Đã có kết quả chuyển đổi từ lượt trước!', { id: t });
-          } else {
-            toast.error('Lượt chuyển đổi trước không có kết quả.', { id: t });
-          }
-        })
-        .catch((err) => {
-          if (err instanceof TransformJobAbort) { toast.dismiss(t); return; }
-          if (requestId === transcribeRequestId.current) {
+    const applyTranscript = (poll: any, toastId: string) => {
+      const transcript: string | undefined = poll?.result?.transcript;
+      if (transcript) {
+        if (active.inputMode === 'video' || active.inputMode === 'audio') setInputMode(active.inputMode);
+        setInputText(transcript);
+        originalTranscriptRef.current = transcript;
+        setIsTranscriptEditable(true);
+        toast.success('Đã có kết quả chuyển đổi từ lượt trước!', { id: toastId });
+      } else {
+        toast.error('Lượt chuyển đổi trước không có kết quả.', { id: toastId });
+      }
+    };
+
+    const applyUpgrade = (res: any, toastId: string) => {
+      const upgraded = res?.upgraded;
+      if (!upgraded) { toast.error('Lượt nâng cấp trước không có kết quả.', { id: toastId }); return; }
+      setPreviousOverallScore(res.previous?.scoreResult?.total_score ?? null);
+      setOutputText(upgraded.output_text || '');
+      setScoreResult(upgraded.scoreResult || null);
+      setScoreStatus(upgraded.scoreStatus || null);
+      setScoreErrorMsg(upgraded.scoreError || null);
+      setScoreFromCache(upgraded.fromCache === true);
+      setCurrentHistoryId(upgraded.id || null);
+      toast.success('Đã có kết quả nâng cấp từ lượt trước!', { id: toastId });
+    };
+
+    (async () => {
+      let first: any;
+      try {
+        first = await getStatus(active.jobId);
+      } catch {
+        clearActiveJob();
+        return; // không réo lỗi lúc vừa mở trang cho 1 lượt người dùng đã rời
+      }
+      if (disposed) return;
+
+      // Job đã kết thúc từ trước — xử lý gọn, KHÔNG khoá khung upload, KHÔNG hiện "đang tiếp tục".
+      if (first?.status === 'not_found' || first?.status === 'cancelled' || first?.status === 'error') {
+        clearActiveJob();
+        return;
+      }
+
+      if (active.kind === 'transcribe') {
+        const requestId = transcribeRequestId.current;
+        transcribeJobIdRef.current = active.jobId;
+
+        if (first?.status === 'completed') {
+          const t = toast.loading('Đang lấy kết quả lượt chuyển đổi trước...');
+          applyTranscript(first, t);
+          transcribeJobIdRef.current = null;
+          clearActiveJob();
+          return;
+        }
+
+        // queued / running — job thực sự còn chạy: giờ mới hiện UI "đang tiếp tục" + poll.
+        setIsTranscribing(true);
+        setUploadPhase('processing');
+        const t = toast.loading('Đang tiếp tục lượt chuyển đổi trước đó...');
+        try {
+          const poll = await pollTransformJob(getStatus, active.jobId, {
+            isStale: () => requestId !== transcribeRequestId.current,
+            onProgress: (m) => toast.loading(m, { id: t }),
+          });
+          if (requestId === transcribeRequestId.current) applyTranscript(poll, t);
+        } catch (err: any) {
+          if (err instanceof TransformJobAbort) toast.dismiss(t);
+          else if (requestId === transcribeRequestId.current) {
             toast.error(err?.message || 'Lượt chuyển đổi trước đã lỗi.', { id: t });
           }
-        })
-        .finally(() => {
+        } finally {
           if (requestId === transcribeRequestId.current) {
             setIsTranscribing(false);
             setUploadPhase('idle');
             transcribeJobIdRef.current = null;
             clearActiveJob();
           }
-        });
-    } else if (active.kind === 'upgrade') {
-      const requestId = upgradeRequestId.current;
-      upgradeJobIdRef.current = active.jobId;
-      if (active.historyId) setCurrentHistoryId(active.historyId);
-      setIsUpgrading(true);
-      isUpgradingRef.current = true;
-      const t = toast.loading('Đang tiếp tục lượt nâng cấp trước đó...');
-      pollTransformJob(getStatus, active.jobId, {
-        isStale: () => requestId !== upgradeRequestId.current,
-        onProgress: (m) => toast.loading(m, { id: t }),
-      })
-        .then((res: any) => {
-          if (requestId !== upgradeRequestId.current) return;
-          const upgraded = res.upgraded;
-          if (!upgraded) { toast.error('Lượt nâng cấp trước không có kết quả.', { id: t }); return; }
-          setPreviousOverallScore(res.previous?.scoreResult?.total_score ?? null);
-          setOutputText(upgraded.output_text || '');
-          setScoreResult(upgraded.scoreResult || null);
-          setScoreStatus(upgraded.scoreStatus || null);
-          setScoreErrorMsg(upgraded.scoreError || null);
-          setScoreFromCache(upgraded.fromCache === true);
-          setCurrentHistoryId(upgraded.id || null);
-          toast.success('Đã có kết quả nâng cấp từ lượt trước!', { id: t });
-        })
-        .catch((err) => {
-          if (err instanceof TransformJobAbort) { toast.dismiss(t); return; }
-          if (requestId === upgradeRequestId.current) {
+        }
+      } else if (active.kind === 'upgrade') {
+        const requestId = upgradeRequestId.current;
+        upgradeJobIdRef.current = active.jobId;
+        if (active.historyId) setCurrentHistoryId(active.historyId);
+
+        if (first?.status === 'completed') {
+          const t = toast.loading('Đang lấy kết quả lượt nâng cấp trước...');
+          applyUpgrade(first, t);
+          upgradeJobIdRef.current = null;
+          clearActiveJob();
+          return;
+        }
+
+        setIsUpgrading(true);
+        isUpgradingRef.current = true;
+        const t = toast.loading('Đang tiếp tục lượt nâng cấp trước đó...');
+        try {
+          const res = await pollTransformJob(getStatus, active.jobId, {
+            isStale: () => requestId !== upgradeRequestId.current,
+            onProgress: (m) => toast.loading(m, { id: t }),
+          });
+          if (requestId === upgradeRequestId.current) applyUpgrade(res, t);
+        } catch (err: any) {
+          if (err instanceof TransformJobAbort) toast.dismiss(t);
+          else if (requestId === upgradeRequestId.current) {
             toast.error(err?.message || 'Lượt nâng cấp trước đã lỗi.', { id: t });
           }
-        })
-        .finally(() => {
+        } finally {
           if (requestId === upgradeRequestId.current) {
             setIsUpgrading(false);
             isUpgradingRef.current = false;
             upgradeJobIdRef.current = null;
             clearActiveJob();
           }
-        });
-    }
+        }
+      }
+    })();
+
+    return () => { disposed = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -939,7 +987,7 @@ export default function ContentTransformPage() {
       }
       transcribeJobIdRef.current = jobId;
       // Lưu để F5 / đóng-mở lại tab vẫn nối lại được lượt đang chạy trên AI.
-      saveActiveJob({ jobId, kind: 'transcribe', startedAt: Date.now() });
+      saveActiveJob({ jobId, kind: 'transcribe', inputMode, startedAt: Date.now() });
 
       // Bước 2 — poll BE mỗi ~3s cho tới khi có transcript. Mỗi lần poll là 1 request ngắn.
       const poll = await pollTransformJob(

@@ -101,6 +101,8 @@ export interface ActiveJob {
   kind: 'transcribe' | 'upgrade';
   /** Với upgrade: history_id của bản ghi placeholder. */
   historyId?: string | null;
+  /** Với transcribe: tab đang chọn ('video' | 'audio') — để resume mở lại đúng tab. */
+  inputMode?: 'text' | 'video' | 'audio';
   startedAt: number;
 }
 
