@@ -41,9 +41,13 @@ export interface BorrowLine {
   note?: string;
 }
 
+/** PERSONAL cần hai chữ ký: leader rồi admin. Bỏ trống thì BE hiểu là WORK. */
+export type BorrowPurpose = 'WORK' | 'PERSONAL';
+
 export interface CreateBorrowRequestPayload {
   project: string;
   place: string;
+  purpose?: BorrowPurpose;
   fromTime: string;
   toTime: string;
   lines: BorrowLine[];
@@ -80,6 +84,8 @@ export interface EquipmentModel {
 export interface StorageLocation {
   id: string;
   name: string;
+  /** Số máy đang nằm ở đây — vị trí còn máy thì BE chặn xoá. Vắng mặt ở vài endpoint cũ. */
+  _count?: { assets: number };
 }
 
 export async function fetchCategories() {
@@ -134,6 +140,50 @@ export async function createAsset(payload: {
   intakeNote?: string;
 }) {
   const { data } = await apiClient.post<Asset>('/mems/assets', payload);
+  return data;
+}
+
+export async function createLocation(payload: { name: string; parentId?: string }) {
+  const { data } = await apiClient.post<StorageLocation>('/mems/locations', payload);
+  return data;
+}
+
+export async function updateLocation(id: string, payload: { name: string; parentId?: string }) {
+  const { data } = await apiClient.patch<StorageLocation>(`/mems/locations/${id}`, payload);
+  return data;
+}
+
+/** Xoá mềm — BE giữ bản ghi, chỉ đánh dấu ngừng dùng. Chặn nếu vị trí còn chứa máy. */
+export async function deleteLocation(id: string) {
+  const { data } = await apiClient.delete<StorageLocation>(`/mems/locations/${id}`);
+  return data;
+}
+
+export interface UpdateAssetPayload {
+  modelId?: string;
+  serialNumber?: string;
+  /** Chuỗi rỗng = gỡ máy khỏi vị trí. Bỏ trống hẳn = giữ nguyên chỗ cũ. */
+  locationId?: string;
+  purchaseDate?: string;
+  purchasePrice?: number;
+  condition?: string;
+  status?: string;
+  note?: string;
+}
+
+export async function updateAsset(assetCode: string, payload: UpdateAssetPayload) {
+  const { data } = await apiClient.patch<Asset>(
+    `/mems/assets/${encodeURIComponent(assetCode)}`,
+    payload,
+  );
+  return data;
+}
+
+/** Xoá mềm — BE giữ lại hồ sơ máy, chỉ chuyển sang ngừng dùng. */
+export async function deleteAsset(assetCode: string) {
+  const { data } = await apiClient.delete<{ success: boolean; message: string }>(
+    `/mems/assets/${encodeURIComponent(assetCode)}`,
+  );
   return data;
 }
 
