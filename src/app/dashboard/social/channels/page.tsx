@@ -476,7 +476,7 @@ export default function ChannelsPage() {
                             className="flex items-center gap-4 px-5 py-5 rounded-2xl border border-slate-200 bg-white hover:shadow-sm transition-all w-full"
                           >
                             {account.avatar_url ? (
-                              <img
+                              <img loading="lazy"
                                 src={account.avatar_url}
                                 alt={account.name}
                                 referrerPolicy="no-referrer"
@@ -555,7 +555,7 @@ export default function ChannelsPage() {
                         <div className="flex items-center gap-4">
                           <div className="w-14 h-14 rounded-full bg-slate-100 overflow-hidden flex-shrink-0 border-2 border-slate-200">
                             {account.avatar_url ? (
-                              <img
+                              <img loading="lazy"
                                 src={account.avatar_url}
                                 alt={account.name}
                                 referrerPolicy="no-referrer"
@@ -656,7 +656,7 @@ export default function ChannelsPage() {
                                         className="flex items-center gap-4 px-5 py-5 rounded-2xl border border-slate-200 bg-white hover:shadow-sm transition-all w-full"
                                       >
                                         {page.avatar_url ? (
-                                          <img
+                                          <img loading="lazy"
                                             src={page.avatar_url}
                                             alt={page.name}
                                             referrerPolicy="no-referrer"
