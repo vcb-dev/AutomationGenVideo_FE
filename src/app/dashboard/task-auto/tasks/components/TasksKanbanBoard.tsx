@@ -246,17 +246,22 @@ function TaskCardBody({ task, variant, onOpenPreview }: { task: Task; variant: C
     </div>
   )
 
-  // Card gọn cho cột "Đã duyệt": khối lượng thường lớn nhất trong board nên bỏ tiêu đề/tag,
-  // chỉ giữ ai làm, duyệt lúc nào, xem lại kết quả ở đâu để lướt nhanh qua nhiều task.
+  // Card cột "Đã duyệt": giữ tiêu đề + tuyến nội dung, lược ảnh/tên SP + badge hạn/nộp cho nhẹ.
   if (variant === 'approved') {
     return (
       <>
-        {assigneeRow}
+        <p className="text-sm font-semibold text-gray-800 group-hover:text-indigo-700 line-clamp-2 leading-snug transition-colors">
+          {title ?? <span className="text-gray-400 italic font-normal">Không có tiêu đề</span>}
+        </p>
+
+        <div className="mt-3">{assigneeRow}</div>
+
         <div className="flex items-center flex-wrap gap-2 mt-2.5">
           <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-400 shrink-0">
             <Clock className="w-3 h-3 shrink-0" />
             {formatDateTime(task.reviewed_at ?? task.updated_at)}
           </span>
+          {categoryTag && <CategoryTag name={categoryTag} />}
           {missingLink && (
             <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold bg-red-50 text-red-600">
               <AlertTriangle className="w-3 h-3 shrink-0" /> Thiếu link

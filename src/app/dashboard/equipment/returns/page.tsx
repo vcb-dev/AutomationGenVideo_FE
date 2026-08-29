@@ -12,6 +12,7 @@ import {
 import { returnOutcome } from '@/lib/equipment/return-outcome';
 import { StatusPill } from '@/components/equipment/StatusPill';
 import { ConditionDot } from '@/components/equipment/ConditionDot';
+import { StepBar } from '@/components/equipment/StepBar';
 
 const cardClass =
   'rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/[0.08] dark:bg-white/[0.03]';
@@ -160,6 +161,8 @@ export default function ReturnsPage() {
           chiếu, cột phải là những gì bạn ghi nhận lúc nhận lại.
         </p>
       </header>
+
+      <StepBar current="returns" />
 
       {loading ? (
         <p className="text-slate-500">Đang tải…</p>

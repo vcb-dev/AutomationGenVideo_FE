@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, type ReactNode } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import toast from 'react-hot-toast'
@@ -31,6 +31,15 @@ import type { Source, TeamSource, OmsProductSummary } from '@/types/task-auto'
 
 type CatalogScope = 'personal' | 'global' | 'team'
 type SourceScope = CatalogScope | 'all'
+
+// "Số lần được làm" (BE trả qua _count.tasks) — hiện căn phải mỗi dòng dropdown chọn content.
+function contentTaskMeta(c: any): ReactNode {
+  const n = c?._count?.tasks
+  if (typeof n !== 'number') return undefined
+  return n === 0
+    ? <span className="text-emerald-600">Chưa làm</span>
+    : <>Đã làm {n} lần</>
+}
 
 function ScopeSwitch({ value, onChange, hasTeam, includeAll = false }: {
   value: CatalogScope | SourceScope
@@ -302,11 +311,13 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
     if (contentScope === 'global') {
       return (editContentsData?.data ?? []).map(c => ({
         value: `global:${c.id}`, label: c.title || c.id, sublabel: c.code ?? undefined,
+        meta: contentTaskMeta(c),
       }))
     }
     if (contentScope === 'personal') {
       return (editEditorContentsData?.data ?? []).map(c => ({
         value: `editor:${c.id}`, label: c.title || c.id, sublabel: c.code ?? undefined,
+        meta: contentTaskMeta(c),
       }))
     }
     // team
@@ -321,6 +332,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
         value: `team:${c.id}`,
         label: c.title ?? c.source_editor_content?.title ?? c.id,
         sublabel: c.code ?? c.source_editor_content?.code ?? undefined,
+        meta: contentTaskMeta(c),
       }))
   }, [editContentsData, editEditorContentsData, editTeamContentsData, contentSearch, contentScope])
 
@@ -600,7 +612,8 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
 
   const isDriveUrl   = task?.result_url?.includes('drive.google.com')
   const isLegacyPath = task?.result_url?.startsWith('/task-auto/tasks/')
-  const canSchedulePost = task?.status === 'APPROVED' && !!isDriveUrl && (isAssignee || canApproveReject)
+  // Lên lịch được từ khi SUBMITTED (chỉ cần video đã lên Drive); REJECTED bị loại vì video đã bị xoá.
+  const canSchedulePost = (task?.status === 'SUBMITTED' || task?.status === 'APPROVED') && !!isDriveUrl && (isAssignee || canApproveReject)
 
   return (
     <>

@@ -12,7 +12,7 @@ import { formatPrice } from './product-utils'
 
 type BrandType = 'DO_DA' | 'TRANG_SUC'
 
-const PAGE_SIZE = 20
+const PAGE_SIZE = 24
 
 // Kho tổng đọc trực tiếp (proxy) từ OMS — không còn tạo/sửa/xoá sản phẩm thủ công ở đây, và
 // không có khái niệm dòng sản phẩm/chất liệu/phân loại/brand/tháng như trước (OMS là 1 danh mục
@@ -62,14 +62,14 @@ export function ProductsTab({ brandType: _brandType, month: _month, onMonthChang
 
       {/* Grid */}
       {isLoading && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+          {Array.from({ length: 12 }).map((_, i) => (
+            <div key={i} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
               <div className="aspect-square bg-gray-100 animate-pulse" />
-              <div className="p-4 space-y-2.5">
-                <div className="h-4 bg-gray-100 rounded animate-pulse w-4/5" />
-                <div className="h-3 bg-gray-100 rounded animate-pulse w-2/3" />
-                <div className="h-3 bg-gray-100 rounded animate-pulse w-1/3" />
+              <div className="p-2.5 space-y-1.5">
+                <div className="h-3.5 bg-gray-100 rounded animate-pulse w-4/5" />
+                <div className="h-2.5 bg-gray-100 rounded animate-pulse w-2/3" />
+                <div className="h-2.5 bg-gray-100 rounded animate-pulse w-1/3" />
               </div>
             </div>
           ))}
@@ -83,12 +83,12 @@ export function ProductsTab({ brandType: _brandType, month: _month, onMonthChang
       )}
 
       {!isLoading && items.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
           {items.map(p => (
             <div
               key={p.id}
               onClick={() => setViewProductId(p.id)}
-              className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:border-indigo-200 transition-all cursor-pointer group"
+              className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md hover:border-indigo-200 transition-all cursor-pointer group"
             >
               {/* Image */}
               <div className="relative aspect-square bg-gray-100">
@@ -96,33 +96,33 @@ export function ProductsTab({ brandType: _brandType, month: _month, onMonthChang
                   <img src={p.image_url} alt="" className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
-                    <ImageIcon className="w-8 h-8 text-slate-300" />
+                    <ImageIcon className="w-6 h-6 text-slate-300" />
                   </div>
                 )}
               </div>
 
               {/* Info */}
-              <div className="p-4">
-                <p className="text-base font-semibold text-slate-800 line-clamp-2 min-h-[2.75rem]" title={p.name}>
-                  {p.name || <span className="text-slate-300 italic font-normal text-sm">Chưa đặt tên</span>}
+              <div className="p-2.5">
+                <p className="text-sm font-semibold text-slate-800 line-clamp-2 min-h-[2.25rem]" title={p.name}>
+                  {p.name || <span className="text-slate-300 italic font-normal text-xs">Chưa đặt tên</span>}
                 </p>
-                <p className="text-xs text-slate-400 mt-1 truncate min-h-[1rem]">
+                <p className="text-[11px] text-slate-400 mt-0.5 truncate min-h-[0.9rem]">
                   {p.tags.length > 0 ? p.tags.join(', ') : ' '}
                 </p>
 
-                <div className="flex items-center gap-2 mt-2.5">
-                  <span className="inline-block bg-slate-100 text-slate-600 font-mono text-xs font-semibold px-2.5 py-1 rounded-lg shrink-0">
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  <span className="inline-block bg-slate-100 text-slate-600 font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded-md shrink-0">
                     {p.default_sku || <span className="text-slate-300">—</span>}
                   </span>
-                  <span className="text-xs text-slate-400 truncate">{p.vendor || '—'}</span>
+                  <span className="text-[11px] text-slate-400 truncate">{p.vendor || '—'}</span>
                 </div>
 
-                <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
                   {formatPrice(String(p.price_from))
-                    ? <span className="text-base font-bold text-slate-800">{formatPrice(String(p.price_from))}</span>
-                    : <span className="text-slate-300 text-sm">—</span>
+                    ? <span className="text-sm font-bold text-slate-800">{formatPrice(String(p.price_from))}</span>
+                    : <span className="text-slate-300 text-xs">—</span>
                   }
-                  <span className="text-xs text-slate-400 whitespace-nowrap">{p.variant_count} biến thể</span>
+                  <span className="text-[10px] text-slate-400 whitespace-nowrap">{p.variant_count} biến thể</span>
                 </div>
               </div>
             </div>

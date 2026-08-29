@@ -120,7 +120,8 @@ export function SubmitModal({ task, isResubmit = false, onClose, onSuccess }: Pr
     onError: () => toast.error('Nộp task thất bại'),
   })
 
-  const canSubmit = !uploading && !submitMut.isPending
+  const hasVideo = !!uploadedVideo || !!manualUrl.trim()
+  const canSubmit = !uploading && !submitMut.isPending && hasVideo
 
   const handleRemoveVideo = () => {
     setFile(null)

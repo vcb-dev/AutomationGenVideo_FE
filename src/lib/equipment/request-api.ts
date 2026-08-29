@@ -32,6 +32,8 @@ export interface BorrowRequest {
   owner_id: string;
   project: string;
   place: string;
+  /** Phiếu cũ tạo trước khi có cột này đọc ra null — BE hiểu là WORK. */
+  purpose?: 'WORK' | 'PERSONAL' | null;
   from_time: string;
   to_time: string;
   status: string;
@@ -43,6 +45,8 @@ export interface BorrowRequest {
   required_levels: 1 | 2;
   approval_reasons: string[];
   approved_levels: number;
+  /** Cấp kế tiếp chờ ai ký; null nghĩa là đã đủ chữ ký. BE tính trong `decorate()`. */
+  next_approver_role: string | null;
 }
 
 export async function fetchRequests(status?: string) {
