@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  Search, RefreshCw, Type, Image as ImageIcon, Smartphone, Monitor,
+  Search, RefreshCw, Image as ImageIcon, Smartphone,
   MapPin, Globe, Smile, MessageCircle, Share2,
   MoreHorizontal, ChevronDown, Save, Send, Clock, List, AlertCircle, ThumbsUp, X, Calendar as CalendarIcon,
   Loader2, Sparkles, Layers, Hash, Film, Check,
@@ -19,7 +19,7 @@ import VideoFramePicker from './VideoFramePicker';
 import { useTaskStore } from '@/store/taskStore';
 import toast from 'react-hot-toast';
 import { useSocialLang } from '@/contexts/SocialLanguageContext';
-import { isPlatformModeSupported } from '@/lib/social/platform-support';
+import { isPlatformModeSupported, PostMode } from '@/lib/social/platform-support';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -126,7 +126,7 @@ export default function ComposePage() {
   const [drafts, setDrafts] = useState<any[]>([]);
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [postMode, setPostMode] = useState<'text' | 'image' | 'video_vertical' | 'video_horizontal'>('text');
+  const [postMode, setPostMode] = useState<PostMode>('image');
   const [activeTab, setActiveTab] = useState<'publish' | 'schedule' | 'queue' | 'draft'>('publish');
   const [scheduleMode, setScheduleMode] = useState<'now' | 'schedule' | 'queue'>('now');
   const [scheduledAt, setScheduledAt] = useState('');
@@ -797,10 +797,8 @@ export default function ComposePage() {
               </div>
               <div className="grid grid-cols-2 gap-2.5">
                 {[
-                  { id: 'text', icon: Type, label: t.compose.modeText },
                   { id: 'image', icon: ImageIcon, label: t.compose.modeImage },
-                  { id: 'video_vertical', icon: Smartphone, label: t.compose.modeVideoVertical },
-                  { id: 'video_horizontal', icon: Monitor, label: t.compose.modeVideoHorizontal }
+                  { id: 'video_vertical', icon: Smartphone, label: t.compose.modeReels }
                 ].map(mode => (
                   <motion.button 
                     key={mode.id}
@@ -1546,7 +1544,6 @@ export default function ComposePage() {
                   toast.success(t.compose.thumbnailAutoSet);
                 }
               }
-              if (postMode === 'text') setPostMode('image');
               if (!thumbMap || !urls.some(u => u.includes('drive.google.com') && thumbMap?.[u])) {
                 toast.success(t.compose.filesAddedFromLibrary(urls.length));
               }
