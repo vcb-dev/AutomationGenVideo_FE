@@ -212,7 +212,11 @@ export default function PublishProgressModal({ publishProgress, postingPcts, ela
                                   : t.publishProgress.queuePositionOnly(ch.queuePosition)
                                 : t.publishProgress.waitingLabel}
                           </p>
-                          {ch.error && <p className="text-[9px] text-red-400 mt-0.5 italic">{ch.error}</p>}
+                          {ch.error && (
+                            <p className="text-[10px] text-red-500 mt-1 font-medium leading-relaxed" title={ch.error}>
+                              {ch.error.split(/\s*\|\s*stack:|\s*stack:/i)[0]}
+                            </p>
+                          )}
                         </div>
                         <div className="flex-shrink-0">
                           {ch.status === 'posting' && <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />}

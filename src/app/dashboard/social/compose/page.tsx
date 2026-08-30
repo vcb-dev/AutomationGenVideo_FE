@@ -18,6 +18,7 @@ import TemplateManager from './TemplateManager';
 import VideoFramePicker from './VideoFramePicker';
 import { useTaskStore } from '@/store/taskStore';
 import toast from 'react-hot-toast';
+import { accountAvatarUrl } from '@/lib/social/account-avatar';
 import { useSocialLang } from '@/contexts/SocialLanguageContext';
 import { isPlatformModeSupported, PostMode } from '@/lib/social/platform-support';
 
@@ -934,7 +935,7 @@ export default function ComposePage() {
                               <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white ${meta.color} shadow-sm text-sm relative overflow-hidden flex-shrink-0`}>
                                 {account.avatar_url ? (
                                   <img loading="lazy"
-                                    src={account.avatar_url}
+                                    src={accountAvatarUrl(account.id)}
                                     alt=""
                                     referrerPolicy="no-referrer"
                                     className="w-full h-full rounded-full object-cover"
