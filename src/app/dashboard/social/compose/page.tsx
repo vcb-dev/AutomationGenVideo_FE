@@ -701,7 +701,7 @@ export default function ComposePage() {
       return <video src={url} className={className} muted {...videoProps} />;
     }
     const src = driveId ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w400` : url;
-    return <img src={src} alt="" className={className} onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }} />;
+    return <img loading="lazy" src={src} alt="" className={className} onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }} />;
   };
 
   return (
@@ -933,7 +933,7 @@ export default function ComposePage() {
 
                               <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white ${meta.color} shadow-sm text-sm relative overflow-hidden flex-shrink-0`}>
                                 {account.avatar_url ? (
-                                  <img
+                                  <img loading="lazy"
                                     src={account.avatar_url}
                                     alt=""
                                     referrerPolicy="no-referrer"
@@ -1062,7 +1062,7 @@ export default function ComposePage() {
                         <div className="relative flex-shrink-0">
                           {thumbUrl ? (
                             <div className="relative group">
-                              <img
+                              <img loading="lazy"
                                 src={thumbUrl}
                                 alt={t.compose.thumbnailAlt}
                                 className="w-40 h-24 object-cover rounded-xl border-2 border-blue-400 shadow-md"
@@ -1306,7 +1306,7 @@ export default function ComposePage() {
                             <div className="absolute inset-0 flex items-center justify-center text-slate-500">
                               <Film className="w-8 h-8" />
                             </div>
-                            <img
+                            <img loading="lazy"
                               src={previewSrc}
                               alt=""
                               className="absolute inset-0 w-full h-full object-cover"
@@ -1314,7 +1314,7 @@ export default function ComposePage() {
                             />
                           </div>
                         ) : (
-                          <img
+                          <img loading="lazy"
                             src={previewSrc}
                             alt=""
                             className="w-full h-full object-cover"
@@ -1585,14 +1585,14 @@ export default function ComposePage() {
                         {(d.thumb_url || d.media_urls?.[0]) && (
                           <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 border border-slate-100">
                             {d.thumb_url ? (
-                              <img src={d.thumb_url} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }} />
+                              <img loading="lazy" src={d.thumb_url} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }} />
                             ) : /\.(mp4|mov|avi|mkv|webm)$/i.test(d.media_urls[0]) ? (
                               <div className="w-full h-full bg-slate-900 flex items-center justify-center"><Smartphone className="w-6 h-6 text-white/50" /></div>
                             ) : (() => {
                               const driveId = d.media_urls[0].includes('drive.google.com')
                                 ? (d.media_urls[0].match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || d.media_urls[0].match(/[?&]id=([a-zA-Z0-9_-]+)/))?.[1]
                                 : null;
-                              return <img src={driveId ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w200` : d.media_urls[0]} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }} />;
+                              return <img loading="lazy" src={driveId ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w200` : d.media_urls[0]} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }} />;
                             })()}
                           </div>
                         )}
