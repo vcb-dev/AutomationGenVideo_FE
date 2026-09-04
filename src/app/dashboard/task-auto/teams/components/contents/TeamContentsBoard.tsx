@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {
   DndContext, DragOverlay, useDraggable, useDroppable,
@@ -15,6 +15,7 @@ import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
 import { formatDate } from '@/components/task-auto/helpers'
 import { parseMarkets } from '@/components/task-auto/ContentFormModal'
 import { getContentLines, getTeamContents, updateTeamContent } from '@/lib/api/task-auto'
+import { useLoadMoreScroll } from '@/hooks/useLoadMoreScroll'
 import type { ContentLine, TeamContent } from '@/types/task-auto'
 import { MARKET_LABELS, MARKET_COLORS } from './constants'
 
@@ -241,11 +242,18 @@ function ContentColumn({
       content_line_id: column.key,
     }),
     enabled: !!filters.teamId,
+    // Bấm "Xem thêm" chỉ tăng `limit` → queryKey đổi. Không giữ data cũ thì useQuery trả về
+    // isLoading=true, cả cột bị thay bằng skeleton, chiều cao co lại và scroll của cột nhảy về
+    // đầu. keepPreviousData giữ nguyên các thẻ đang hiển thị (key theo id), chỉ nối thêm thẻ mới
+    // xuống dưới nên vị trí cuộn không đổi.
+    placeholderData: keepPreviousData,
   })
 
   const contents = data?.data ?? []
   const total = data?.total ?? 0
   const hasMore = contents.length < total
+
+  const { listRef, markLoadMore } = useLoadMoreScroll(contents.map(c => c.id), isFetching)
 
   useEffect(() => {
     if (!isLoading) onTotalChange(column.key, total)
@@ -275,7 +283,7 @@ function ContentColumn({
         </span>
       </div>
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar px-3 pb-2 space-y-2.5 max-h-[calc(100vh-290px)] min-h-[140px]">
+      <div ref={listRef} className="flex-1 overflow-y-auto custom-scrollbar px-3 pb-2 space-y-2.5 max-h-[calc(100vh-290px)] min-h-[140px]">
         {isLoading ? (
           Array.from({ length: 2 }).map((_, i) => (
             <div key={i} className="bg-white rounded-xl border border-gray-100 p-3.5 space-y-2 animate-pulse">
@@ -296,7 +304,7 @@ function ContentColumn({
             {hasMore && (
               <button
                 type="button"
-                onClick={() => setLimit(l => l + PAGE_SIZE)}
+                onClick={() => { markLoadMore(); setLimit(l => l + PAGE_SIZE) }}
                 disabled={isFetching}
                 className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-semibold text-gray-500 hover:text-indigo-600 hover:bg-white rounded-lg transition-colors disabled:opacity-50"
               >

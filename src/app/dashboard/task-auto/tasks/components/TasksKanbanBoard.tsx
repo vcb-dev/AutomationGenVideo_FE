@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {
   DndContext, DragOverlay, useDraggable, useDroppable,
@@ -16,6 +16,7 @@ import { cn, driveImageUrl } from '@/lib/utils'
 import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
 import { formatDate, formatDateTime } from '@/components/task-auto/helpers'
 import { getTasks, updateTask, approveTask } from '@/lib/api/task-auto'
+import { useLoadMoreScroll } from '@/hooks/useLoadMoreScroll'
 import { RejectModal } from './RejectModal'
 import { VideoPreviewOverlay } from './detail/VideoPreviewOverlay'
 import { resolveContentTitle, resolveProductName, resolveProductImage } from './TasksTable'
@@ -515,9 +516,16 @@ function KanbanColumn({
         assignee_id: filters.assigneeId,
         page: 1,
         limit,
-        sort: 'updated_at',
+        // Cột "Đã duyệt" sắp theo ngày TẠO task (mới nhất lên đầu) theo yêu cầu; 3 cột còn lại
+        // vẫn theo updated_at để việc vừa động tới nổi lên trên.
+        sort: column.status === 'APPROVED' ? 'created_at' : 'updated_at',
       }),
     refetchOnWindowFocus: true,
+    // Bấm "Xem thêm" chỉ tăng `limit` → queryKey đổi. Không giữ data cũ thì useQuery trả về
+    // isLoading=true, cả cột bị thay bằng skeleton, chiều cao co lại và scroll của cột nhảy về
+    // đầu. keepPreviousData giữ nguyên các thẻ đang hiển thị (key theo task.id), chỉ nối thêm
+    // thẻ mới xuống dưới nên vị trí cuộn không đổi.
+    placeholderData: keepPreviousData,
   })
 
   const rawTasks = data?.data ?? []
@@ -539,13 +547,19 @@ function KanbanColumn({
     const map = new Map<string, Task>()
     for (const t of rawTasks) map.set(t.id, t)
     for (const t of missingOverdue) map.set(t.id, t)
-    return Array.from(map.values()).sort((a, b) => taskSortTier(a) - taskSortTier(b))
-  }, [rawTasks, missingOverdue])
+    const merged = Array.from(map.values())
+    // Cột "Đã duyệt": giữ nguyên thứ tự BE trả về (created_at giảm dần — task tạo mới nhất lên
+    // đầu) theo yêu cầu, không áp mức khẩn taskSortTier như các cột khác.
+    if (column.status === 'APPROVED') return merged
+    return merged.sort((a, b) => taskSortTier(a) - taskSortTier(b))
+  }, [rawTasks, missingOverdue, column.status])
   // missingOverdue luôn được gộp trọn vẹn (không phân trang) nên cộng thẳng vào total — phép tính
   // "Xem thêm" bên dưới vẫn đúng vì cả tasks.length lẫn total đều cộng thêm đúng 1 lượng như nhau.
   const total = (data?.total ?? 0) + missingOverdue.length
   const hasMore = tasks.length < total
   const Icon = column.icon
+
+  const { listRef, markLoadMore } = useLoadMoreScroll(tasks.map(t => t.id), isFetching)
 
   useEffect(() => {
     if (!isLoading) onTotalChange(column.key, total)
@@ -579,7 +593,7 @@ function KanbanColumn({
         </span>
       </div>
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar px-3 pb-3 space-y-2.5 max-h-[calc(100vh-290px)] min-h-[140px]">
+      <div ref={listRef} className="flex-1 overflow-y-auto custom-scrollbar px-3 pb-3 space-y-2.5 max-h-[calc(100vh-290px)] min-h-[140px]">
         {isLoading ? (
           Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="bg-white rounded-xl border border-gray-100 p-3.5 space-y-2 animate-pulse">
@@ -612,7 +626,7 @@ function KanbanColumn({
             {hasMore && (
               <button
                 type="button"
-                onClick={() => setLimit(l => l + PAGE_SIZE)}
+                onClick={() => { markLoadMore(); setLimit(l => l + PAGE_SIZE) }}
                 disabled={isFetching}
                 className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-semibold text-gray-500 hover:text-indigo-600 hover:bg-white rounded-lg transition-colors disabled:opacity-50"
               >
