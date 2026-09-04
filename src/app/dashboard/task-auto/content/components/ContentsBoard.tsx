@@ -257,10 +257,7 @@ function ContentColumn({
       month: filters.month || undefined,
       content_line_id: column.key,
     }),
-    // Bấm "Xem thêm" chỉ tăng `limit` → queryKey đổi. Không giữ data cũ thì useQuery trả về
-    // isLoading=true, cả cột bị thay bằng skeleton, chiều cao co lại và scroll của cột nhảy về
-    // đầu. keepPreviousData giữ nguyên các thẻ đang hiển thị (key theo id), chỉ nối thêm thẻ mới
-    // xuống dưới nên vị trí cuộn không đổi.
+    // Giữ thẻ cũ khi "Xem thêm" đổi queryKey — nếu không, cột chớp skeleton và scroll nhảy về đầu.
     placeholderData: keepPreviousData,
   })
 

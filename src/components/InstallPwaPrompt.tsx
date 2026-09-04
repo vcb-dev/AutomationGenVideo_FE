@@ -8,9 +8,8 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
-// sessionStorage-backed flag: survives tab switches, in-app navigation, and
-// the page/tab being discarded + reloaded by the browser (unlike a
-// module-scoped variable). Cleared on login/logout so it resets per session.
+// sessionStorage flag: sống qua reload/discard tab (khác biến module-scoped).
+// auth-store xoá key này khi login/logout để reset theo phiên.
 export const PWA_INSTALL_DISMISSED_KEY = 'pwa_install_dismissed';
 
 function isDismissed(): boolean {

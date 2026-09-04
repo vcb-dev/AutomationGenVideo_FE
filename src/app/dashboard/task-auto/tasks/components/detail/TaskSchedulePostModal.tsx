@@ -12,8 +12,7 @@ import { DarkModal } from '@/components/task-auto/DarkModal'
 import { socialApi, SocialPlatform, SocialPost, SocialAccount, getPostUrl } from '@/lib/api/social'
 import { useSocialAccounts } from '@/hooks/useSocialAccounts'
 
-// ─── Nền tảng: icon thương hiệu thật + màu, để mỗi nơi phân biệt được ngay ────────
-// SVG path đồng bộ với PublishedLinksSection / social/channels (P_STATIC).
+// Nền tảng: icon + màu thương hiệu (SVG path đồng bộ P_STATIC ở social/channels).
 const PLATFORM_UI: Record<SocialPlatform, { label: string; color: string; svg?: string }> = {
   FACEBOOK: {
     label: 'Facebook', color: '#1877F2',
@@ -53,7 +52,7 @@ const STATUS_CONFIG: Record<string, { label: string; text: string; bg: string; b
   CANCELLED: { label: 'Đã huỷ',    text: 'text-slate-500',   bg: 'bg-slate-50',   border: 'border-slate-200',  icon: AlertCircle },
 }
 
-// ─── Helpers thời gian (giờ máy = giờ VN với mọi người dùng nội bộ) ───────────────
+// Helpers thời gian (giờ máy = giờ VN).
 function toLocalInput(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
@@ -82,7 +81,7 @@ function formatDateTime(dt?: string | null): string {
   }).format(new Date(dt))
 }
 
-// ─── Đọc lỗi Meta cho ra tiếng người, bỏ phần " | stack: ..." ────────────────────
+// Đọc lỗi Meta cho ra tiếng người, bỏ phần " | stack: ...".
 function cleanErrorMsg(raw?: string | null): string {
   if (!raw) return 'Không rõ nguyên nhân (chưa có thông tin lỗi từ nền tảng).'
   let s = String(raw).split(' | stack:')[0].trim()
@@ -102,7 +101,7 @@ function cleanErrorMsg(raw?: string | null): string {
   return s.length > 320 ? `${s.slice(0, 320)}…` : s
 }
 
-// ─── Phân loại tài khoản ─────────────────────────────────────────────────────────
+// Phân loại tài khoản.
 function accountSubLabel(a: SocialAccount): string {
   const type = String(a.extra_data?.type ?? '')
   switch (a.platform) {
@@ -185,7 +184,7 @@ export function TaskSchedulePostModal({ taskId, resultUrl, defaultMessage, curre
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Thử lại thất bại'),
   })
 
-  // ─── Tài khoản đủ điều kiện chọn ───────────────────────────────────────────────
+  // Tài khoản đủ điều kiện chọn.
   const eligibleAccounts = useMemo(() => {
     const list = accountList ?? []
     return list.filter(account => {

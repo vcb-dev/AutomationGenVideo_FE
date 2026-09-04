@@ -516,15 +516,11 @@ function KanbanColumn({
         assignee_id: filters.assigneeId,
         page: 1,
         limit,
-        // Cột "Đã duyệt" sắp theo ngày TẠO task (mới nhất lên đầu) theo yêu cầu; 3 cột còn lại
-        // vẫn theo updated_at để việc vừa động tới nổi lên trên.
+        // Cột "Đã duyệt" sắp theo ngày tạo; các cột khác theo updated_at.
         sort: column.status === 'APPROVED' ? 'created_at' : 'updated_at',
       }),
     refetchOnWindowFocus: true,
-    // Bấm "Xem thêm" chỉ tăng `limit` → queryKey đổi. Không giữ data cũ thì useQuery trả về
-    // isLoading=true, cả cột bị thay bằng skeleton, chiều cao co lại và scroll của cột nhảy về
-    // đầu. keepPreviousData giữ nguyên các thẻ đang hiển thị (key theo task.id), chỉ nối thêm
-    // thẻ mới xuống dưới nên vị trí cuộn không đổi.
+    // Giữ thẻ cũ khi "Xem thêm" đổi queryKey — nếu không, cột chớp skeleton và scroll nhảy về đầu.
     placeholderData: keepPreviousData,
   })
 
@@ -548,8 +544,7 @@ function KanbanColumn({
     for (const t of rawTasks) map.set(t.id, t)
     for (const t of missingOverdue) map.set(t.id, t)
     const merged = Array.from(map.values())
-    // Cột "Đã duyệt": giữ nguyên thứ tự BE trả về (created_at giảm dần — task tạo mới nhất lên
-    // đầu) theo yêu cầu, không áp mức khẩn taskSortTier như các cột khác.
+    // Cột "Đã duyệt" giữ thứ tự BE (created_at giảm dần), không áp taskSortTier.
     if (column.status === 'APPROVED') return merged
     return merged.sort((a, b) => taskSortTier(a) - taskSortTier(b))
   }, [rawTasks, missingOverdue, column.status])
