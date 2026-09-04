@@ -8,9 +8,26 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
-// Module-scoped flag: survives tab switches / in-app navigation (same JS
-// execution), but resets automatically on a real page reload.
-let dismissedThisLoad = false;
+// sessionStorage-backed flag: survives tab switches, in-app navigation, and
+// the page/tab being discarded + reloaded by the browser (unlike a
+// module-scoped variable). Cleared on login/logout so it resets per session.
+export const PWA_INSTALL_DISMISSED_KEY = 'pwa_install_dismissed';
+
+function isDismissed(): boolean {
+  try {
+    return sessionStorage.getItem(PWA_INSTALL_DISMISSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function markDismissed() {
+  try {
+    sessionStorage.setItem(PWA_INSTALL_DISMISSED_KEY, '1');
+  } catch {
+    // Ignore storage access errors (e.g. private mode)
+  }
+}
 
 export default function InstallPwaPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -18,9 +35,10 @@ export default function InstallPwaPrompt() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (dismissedThisLoad) return;
+    if (isDismissed()) return;
 
     const onBeforeInstall = (e: Event) => {
+      if (isDismissed()) return;
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
       setVisible(true);
@@ -40,7 +58,7 @@ export default function InstallPwaPrompt() {
 
   const dismiss = () => {
     setVisible(false);
-    dismissedThisLoad = true;
+    markDismissed();
   };
 
   const install = async () => {
