@@ -12,6 +12,7 @@ import {
 } from '@/lib/equipment/api';
 import { groupModels } from '@/lib/equipment/group-models';
 import { availabilityLabel } from '@/lib/equipment/availability-label';
+import { DateTimePicker } from '@/components/ui/DateTimePicker';
 
 /**
  * Mục đích mượn — thứ quyết định phiếu cần một hay hai chữ ký.
@@ -233,25 +234,18 @@ export default function NewRequestPage() {
               />
             </label>
 
-            <div className="grid max-w-lg gap-3 sm:grid-cols-2">
-              <label className="block">
+            {/* Bộ chọn tự vẽ thay cho `datetime-local`: lịch của trình duyệt chỉ có ngày, không
+                có đồng hồ, nên người dùng tưởng màn hình không cho chọn giờ và để nguyên 00:00 —
+                trong khi giờ nhận/trả quyết định cả phép tính khả dụng lẫn hạn trả của phiếu. */}
+            <div className="grid max-w-2xl gap-3 sm:grid-cols-2">
+              <div className="block">
                 <span className={labelClass}>Thời điểm nhận</span>
-                <input
-                  type="datetime-local"
-                  className={`${inputClass} mt-2`}
-                  value={fromTime}
-                  onChange={(e) => setFromTime(e.target.value)}
-                />
-              </label>
-              <label className="block">
+                <DateTimePicker className="mt-2" value={fromTime} onChange={setFromTime} />
+              </div>
+              <div className="block">
                 <span className={labelClass}>Thời điểm trả</span>
-                <input
-                  type="datetime-local"
-                  className={`${inputClass} mt-2`}
-                  value={toTime}
-                  onChange={(e) => setToTime(e.target.value)}
-                />
-              </label>
+                <DateTimePicker className="mt-2" value={toTime} onChange={setToTime} />
+              </div>
             </div>
             {fromTime && toTime && !rangeValid && (
               <p className="text-sm font-semibold text-red-600 dark:text-red-400">
