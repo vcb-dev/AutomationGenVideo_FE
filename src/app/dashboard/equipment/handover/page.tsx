@@ -15,6 +15,7 @@ import { handoverReadiness } from '@/lib/equipment/handover-readiness';
 import { ConditionDot } from '@/components/equipment/ConditionDot';
 import { StepBar } from '@/components/equipment/StepBar';
 import { WorkflowSuccessModal } from '@/components/equipment/WorkflowSuccessModal';
+import { apiErrorMessage } from '@/lib/equipment/api-error';
 
 const cardClass =
   'rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/[0.08] dark:bg-white/[0.03]';
@@ -70,7 +71,7 @@ export default function HandoverPage() {
         setCandidates(list);
         if (list[0]) await loadSheet(list[0].id);
       })
-      .catch(() => setError('Không đọc được phiếu đang chuẩn bị.'))
+      .catch((e: unknown) => setError(apiErrorMessage(e, 'Không đọc được phiếu đang chuẩn bị.')))
       .finally(() => setLoading(false));
   }, [loadSheet]);
 
@@ -120,8 +121,7 @@ export default function HandoverPage() {
       setDone(`Đã bàn giao ${units.length} máy, biên bản đã lưu. Các máy chuyển sang Đang mượn.`);
     } catch (e: unknown) {
       setError(
-        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-          'Không lập được biên bản bàn giao.',
+        apiErrorMessage(e, 'Không lập được biên bản bàn giao.'),
       );
     } finally {
       setSaving(false);
