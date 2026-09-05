@@ -187,6 +187,40 @@ export async function deleteAsset(assetCode: string) {
   return data;
 }
 
+export interface PendingInspectionAsset extends Asset {
+  location: { id: string; name: string } | null;
+  returnLines?: {
+    condition_before: string;
+    condition_after: string;
+    note: string | null;
+    returnRecord: { returned_at: string } | null;
+    incidents: { kind: string; description: string }[];
+  }[];
+}
+
+/** NV-14: máy đang chờ kết luận kiểm tra. Chỉ quản lý kho gọi được (BE chặn bằng guard). */
+export async function fetchPendingInspection() {
+  const { data } = await apiClient.get<PendingInspectionAsset[]>('/mems/pending-inspection');
+  return data;
+}
+
+/**
+ * Kết luận kiểm tra, đưa máy ra khỏi bàn nhận.
+ *
+ * Kết luận `UNDER_MAINTENANCE` sinh thêm một lệnh bảo trì bỏ ngỏ điểm kết thúc — máy bận cho tới
+ * khi có người đóng lệnh, không phải chỉ đổi cột trạng thái.
+ */
+export async function inspectAsset(
+  assetCode: string,
+  payload: { result: string; condition?: string; note?: string },
+) {
+  const { data } = await apiClient.post<Asset>(
+    `/mems/assets/${encodeURIComponent(assetCode)}/inspect`,
+    payload,
+  );
+  return data;
+}
+
 export interface AssetPhoto {
   id: string;
   url: string;
