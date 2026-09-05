@@ -41,9 +41,9 @@ import { NavMenu } from "./types";
 export function useNavMenus(
     isManagerOrAdmin: boolean,
     isManagement: boolean,
-    options?: { isAdmin?: boolean; isLeader?: boolean; isManager?: boolean },
+    options?: { isAdmin?: boolean; isLeader?: boolean; isManager?: boolean; isMediaLeaderOrAdmin?: boolean },
 ): NavMenu[] {
-    const { isAdmin, isLeader, isManager } = options ?? {};
+    const { isAdmin, isLeader, isManager, isMediaLeaderOrAdmin } = options ?? {};
     const { t } = useSocialLang();
     const n = t.nav;
     return useMemo<NavMenu[]>(

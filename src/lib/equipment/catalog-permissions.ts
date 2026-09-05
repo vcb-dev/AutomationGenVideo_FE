@@ -1,17 +1,38 @@
 /**
- * Ai được KHAI BÁO kho: thêm thiết bị, thêm danh mục, thêm model, thêm vị trí lưu kho.
+ * Ai được KHAI BÁO & QUẢN LÝ kho thiết bị: thêm thiết bị, sửa, xóa, duyệt phiếu, bàn giao, nhận trả...
  *
- * Đây là bản sao của `CATALOG_WRITE_ROLES` bên BE (`mems-catalog.controller.ts`). Cửa canh thật
- * nằm ở `@Roles` phía BE; hàm này chỉ để KHÔNG hiện nút. Bấm vào rồi ăn 403 thì người dùng
- * tưởng hệ thống hỏng chứ không hiểu là mình không có quyền.
- *
- * Manager cố ý nằm ngoài: manager điều phối công việc hằng ngày — duyệt phiếu, kiểm tra máy trả
- * về — nhưng nhập một chiếc máy vào kho là chuyện tài sản, sai ở đây thì mọi phép đếm khả dụng
- * về sau lệch theo.
+ * Quy định: Chỉ dành cho:
+ * 1. ADMIN (toàn quyền hệ thống).
+ * 2. LEADER hoặc MANAGER thuộc Team MEDIA (user.team có chứa 'MEDIA').
  */
-const CATALOG_WRITE_ROLES = ['LEADER', 'ADMIN'];
 
-export function canManageCatalog(roles: string[] | undefined | null): boolean {
+/**
+ * Phải KHỚP TỪNG PHẦN TỬ với `MEDIA_TEAM_NAMES` trong `src/common/mems/media-team.ts` bên BE.
+ * Lệch nhau thì hoặc hiện nút rồi bấm vào ăn 403, hoặc ẩn nút của người thật sự có quyền.
+ */
+const MEDIA_TEAM_NAMES = ['media'];
+
+/**
+ * So khớp CHÍNH XÁC tên team, không dùng "có chứa": tên team do người dùng đặt được, nên đặt là
+ * "Social Media" hay "Multimedia" là leo thẳng lên quyền quản lý kho.
+ */
+export function isMediaTeam(team?: string | null): boolean {
+  if (!team) return false;
+  return team.split(',').some((t) => MEDIA_TEAM_NAMES.includes(t.trim().toLowerCase()));
+}
+
+export function canManageCatalog(
+  roles: string[] | undefined | null,
+  team?: string | null,
+): boolean {
   if (!roles?.length) return false;
-  return roles.some((role) => CATALOG_WRITE_ROLES.includes(role.toUpperCase()));
+  const upperRoles = roles.map((r) => r.toUpperCase());
+  if (upperRoles.includes('ADMIN')) return true;
+
+  const isLeaderOrManager = upperRoles.includes('LEADER') || upperRoles.includes('MANAGER');
+  if (isLeaderOrManager && isMediaTeam(team)) {
+    return true;
+  }
+
+  return false;
 }

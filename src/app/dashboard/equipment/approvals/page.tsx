@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { RequireCatalogManager } from '@/components/equipment/RequireCatalogManager';
 import {
   BorrowRequest,
   approveRequest,
@@ -35,7 +36,7 @@ const STATUS_LABEL: Record<string, string> = {
   DRAFT: 'nháp',
 };
 
-export default function ApprovalsPage() {
+function ApprovalsPageInner() {
   const [requests, setRequests] = useState<BorrowRequest[]>([]);
   const [current, setCurrent] = useState<BorrowRequest | null>(null);
   const [loading, setLoading] = useState(true);
@@ -371,5 +372,18 @@ export default function ApprovalsPage() {
         stayLabel="Ở lại duyệt tiếp"
       />
     </div>
+  );
+}
+
+/**
+ * Ẩn đầu mục trên thanh điều hướng là chưa đủ — gõ thẳng địa chỉ vẫn vào được trang.
+ * Cửa canh thật nằm ở `MemsMediaLeaderGuard` phía BE; chỗ này để người không có quyền đọc được
+ * một câu giải thích thay vì một màn hình trống kèm vài thông báo lỗi đỏ.
+ */
+export default function ApprovalsPage() {
+  return (
+    <RequireCatalogManager>
+      <ApprovalsPageInner />
+    </RequireCatalogManager>
   );
 }
