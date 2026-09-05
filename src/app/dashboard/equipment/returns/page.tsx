@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
+import { RequireCatalogManager } from '@/components/equipment/RequireCatalogManager';
 import { Accessory } from '@/lib/equipment/api';
 import {
   BorrowRequest,
@@ -40,7 +41,7 @@ interface ReturnForm {
   handoverPhotoCount: number;
 }
 
-export default function ReturnsPage() {
+function ReturnsPageInner() {
   const [candidates, setCandidates] = useState<BorrowRequest[]>([]);
   const [request, setRequest] = useState<BorrowRequest | null>(null);
   const [rows, setRows] = useState<ReturnForm[]>([]);
@@ -420,5 +421,18 @@ export default function ReturnsPage() {
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * Ẩn đầu mục trên thanh điều hướng là chưa đủ — gõ thẳng địa chỉ vẫn vào được trang.
+ * Cửa canh thật nằm ở `MemsMediaLeaderGuard` phía BE; chỗ này để người không có quyền đọc được
+ * một câu giải thích thay vì một màn hình trống kèm vài thông báo lỗi đỏ.
+ */
+export default function ReturnsPage() {
+  return (
+    <RequireCatalogManager>
+      <ReturnsPageInner />
+    </RequireCatalogManager>
   );
 }
