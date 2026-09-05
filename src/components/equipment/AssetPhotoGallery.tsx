@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
+import { apiErrorMessage } from '@/lib/equipment/api-error';
 import {
   AssetPhoto,
   deleteAssetPhoto,
@@ -42,8 +43,7 @@ export function AssetPhotoGallery({
       onChanged(await task());
     } catch (e: unknown) {
       setError(
-        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-          'Không thao tác được với ảnh.',
+        apiErrorMessage(e, 'Không thao tác được với ảnh.'),
       );
     } finally {
       setBusy(false);
