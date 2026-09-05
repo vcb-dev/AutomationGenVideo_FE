@@ -53,7 +53,10 @@ function EquipmentTable() {
   const [managingLocations, setManagingLocations] = useState(false);
   // Thêm, sửa, xoá chỉ hiện cho leader và admin — BE trả 403 cho những vai trò còn lại.
   // Nút Xem thì ai cũng thấy: đọc kho không cần quyền gì.
-  const canAddAsset = canManageCatalog(useAuthStore((s) => s.user?.roles));
+  // Phải truyền cả `team`: quyền quản lý kho giờ gắn với Team Media, thiếu tham số này thì
+  // `isMediaTeam(undefined)` trả false và nút biến mất với chính leader hợp lệ.
+  const user = useAuthStore((s) => s.user);
+  const canAddAsset = canManageCatalog(user?.roles, user?.team);
 
   const [query, setQuery] = useState('');
   const [categoryId, setCategoryId] = useState('');
