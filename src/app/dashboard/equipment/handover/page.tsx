@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { RequireCatalogManager } from '@/components/equipment/RequireCatalogManager';
 import { Accessory } from '@/lib/equipment/api';
 import {
   BorrowRequest,
@@ -34,7 +35,7 @@ interface UnitForm {
   note: string;
 }
 
-export default function HandoverPage() {
+function HandoverPageInner() {
   const [candidates, setCandidates] = useState<BorrowRequest[]>([]);
   const [request, setRequest] = useState<BorrowRequest | null>(null);
   const [units, setUnits] = useState<UnitForm[]>([]);
@@ -405,5 +406,18 @@ export default function HandoverPage() {
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * Ẩn đầu mục trên thanh điều hướng là chưa đủ — gõ thẳng địa chỉ vẫn vào được trang.
+ * Cửa canh thật nằm ở `MemsMediaLeaderGuard` phía BE; chỗ này để người không có quyền đọc được
+ * một câu giải thích thay vì một màn hình trống kèm vài thông báo lỗi đỏ.
+ */
+export default function HandoverPage() {
+  return (
+    <RequireCatalogManager>
+      <HandoverPageInner />
+    </RequireCatalogManager>
   );
 }
