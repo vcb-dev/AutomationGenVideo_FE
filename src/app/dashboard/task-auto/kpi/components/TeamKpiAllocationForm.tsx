@@ -125,11 +125,13 @@ interface Props {
   contentTarget?: number
   /** Tổng số SP đẩy video theo kế hoạch — mục tiêu cho dòng sản phẩm khi mode='count' */
   productTarget?: number
+  /** Hiện cột phân bổ theo dòng sản phẩm — mặc định có (TeamKpi); EditorKpi tắt vì đã có số SP GMV/Traffic/Profit riêng trong card Product */
+  showProductLine?: boolean
 }
 
-export function TeamKpiAllocationForm({ allocations, onChange, mode = 'percent', contentTarget = 0, productTarget = 0 }: Props) {
+export function TeamKpiAllocationForm({ allocations, onChange, mode = 'percent', contentTarget = 0, productTarget = 0, showProductLine = true }: Props) {
   const { data: contentLines = [] } = useQuery({ queryKey: ['task-auto', 'content-lines'], queryFn: getContentLines })
-  const { data: productLines = [] } = useQuery({ queryKey: ['task-auto', 'product-lines'], queryFn: () => getProductLines() })
+  const { data: productLines = [] } = useQuery({ queryKey: ['task-auto', 'product-lines'], queryFn: () => getProductLines(), enabled: showProductLine })
 
   const contentMap: Record<string, number> = {}
   allocations.filter(a => a.type === 'CONTENT_LINE' && a.content_line_id).forEach(a => { contentMap[a.content_line_id] = a.value })
@@ -152,7 +154,7 @@ export function TeamKpiAllocationForm({ allocations, onChange, mode = 'percent',
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div className={cn('grid grid-cols-1 gap-4', showProductLine && 'lg:grid-cols-2')}>
       <AllocationSection
         title="Tuyến nội dung"
         icon={<FileText className="w-4 h-4" />}
@@ -164,17 +166,19 @@ export function TeamKpiAllocationForm({ allocations, onChange, mode = 'percent',
         draftsByLineId={contentMap}
         onUpdate={updateContent}
       />
-      <AllocationSection
-        title="Dòng sản phẩm"
-        icon={<Package className="w-4 h-4" />}
-        accentColor="text-teal-500"
-        progressColor="bg-teal-500"
-        unit={mode === 'percent' ? 'percent' : 'count'}
-        target={productTarget}
-        lines={productLines}
-        draftsByLineId={productMap}
-        onUpdate={updateProduct}
-      />
+      {showProductLine && (
+        <AllocationSection
+          title="Dòng sản phẩm"
+          icon={<Package className="w-4 h-4" />}
+          accentColor="text-teal-500"
+          progressColor="bg-teal-500"
+          unit={mode === 'percent' ? 'percent' : 'count'}
+          target={productTarget}
+          lines={productLines}
+          draftsByLineId={productMap}
+          onUpdate={updateProduct}
+        />
+      )}
     </div>
   )
 }
