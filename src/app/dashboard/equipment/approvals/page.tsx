@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { RequireCatalogManager } from '@/components/equipment/RequireCatalogManager';
 import {
   BorrowRequest,
   approveRequest,
@@ -13,6 +14,7 @@ import {
 import { ApprovalOutcome, approvalOutcome } from '@/lib/equipment/approval-outcome';
 import { StepBar } from '@/components/equipment/StepBar';
 import { WorkflowSuccessModal } from '@/components/equipment/WorkflowSuccessModal';
+import { apiErrorMessage } from '@/lib/equipment/api-error';
 
 const cardClass =
   'rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/[0.08] dark:bg-white/[0.03]';
@@ -35,7 +37,7 @@ const STATUS_LABEL: Record<string, string> = {
   DRAFT: 'nháp',
 };
 
-export default function ApprovalsPage() {
+function ApprovalsPageInner() {
   const [requests, setRequests] = useState<BorrowRequest[]>([]);
   const [current, setCurrent] = useState<BorrowRequest | null>(null);
   const [loading, setLoading] = useState(true);
@@ -53,7 +55,7 @@ export default function ApprovalsPage() {
 
   useEffect(() => {
     load()
-      .catch(() => setError('Không đọc được danh sách phiếu.'))
+      .catch((e: unknown) => setError(apiErrorMessage(e, 'Không đọc được danh sách phiếu.')))
       .finally(() => setLoading(false));
   }, [load]);
 
@@ -86,8 +88,7 @@ export default function ApprovalsPage() {
       setOutcome(approvalOutcome(refreshed));
     } catch (e: unknown) {
       setError(
-        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-          'Không ghi được quyết định.',
+        apiErrorMessage(e, 'Không ghi được quyết định.'),
       );
     } finally {
       setSaving(false);
@@ -371,5 +372,18 @@ export default function ApprovalsPage() {
         stayLabel="Ở lại duyệt tiếp"
       />
     </div>
+  );
+}
+
+/**
+ * Ẩn đầu mục trên thanh điều hướng là chưa đủ — gõ thẳng địa chỉ vẫn vào được trang.
+ * Cửa canh thật nằm ở `MemsMediaLeaderGuard` phía BE; chỗ này để người không có quyền đọc được
+ * một câu giải thích thay vì một màn hình trống kèm vài thông báo lỗi đỏ.
+ */
+export default function ApprovalsPage() {
+  return (
+    <RequireCatalogManager>
+      <ApprovalsPageInner />
+    </RequireCatalogManager>
   );
 }

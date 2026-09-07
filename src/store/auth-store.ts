@@ -2,6 +2,15 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import apiClient from '../lib/api-client';
 import type { User, LoginRequest, AuthResponse } from '../types/auth';
+import { PWA_INSTALL_DISMISSED_KEY } from '../components/InstallPwaPrompt';
+
+function clearPwaInstallDismissed() {
+  try {
+    sessionStorage.removeItem(PWA_INSTALL_DISMISSED_KEY);
+  } catch {
+    // Ignore storage access errors
+  }
+}
 
 let _loadUserPromise: Promise<void> | null = null;
 
@@ -48,6 +57,7 @@ export const useAuthStore = create<AuthState>()(
             const response = await apiClient.post<AuthResponse>('/auth/login', credentials);
             const { user } = response.data;
 
+            clearPwaInstallDismissed();
             set({
               user,
               token: 'valid',
@@ -83,6 +93,7 @@ export const useAuthStore = create<AuthState>()(
         } catch {
           // 403 CSRF / mạng: vẫn xóa state local; cookie chỉ mất khi BE trả 200 + Set-Cookie xoá
         }
+        clearPwaInstallDismissed();
         set({
           user: null,
           token: null,

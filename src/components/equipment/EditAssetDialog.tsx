@@ -16,6 +16,7 @@ const NEW_LOCATION = '__new_location__';
 import { AssetEditForm, buildUpdatePayload } from '@/lib/equipment/asset-edit';
 import { manualStatusOptionsFor, statusDoorHints } from '@/lib/equipment/manual-status';
 import { CONDITION_OPTIONS } from '@/lib/equipment/status-label';
+import { apiErrorMessage } from '@/lib/equipment/api-error';
 
 const inputClass =
   'w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-white';
@@ -77,8 +78,7 @@ export function EditAssetDialog({ asset, onClose, onSaved }: EditAssetDialogProp
         setNewLocationName('');
       } catch (e) {
         setError(
-          (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-            'Không tạo được vị trí kho.',
+          apiErrorMessage(e, 'Không tạo được vị trí kho.'),
         );
         setSaving(false);
         return;
