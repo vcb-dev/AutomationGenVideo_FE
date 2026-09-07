@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { RefreshCw, CheckCircle, ChevronDown, ChevronUp, AlertTriangle, Clock } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import toast from 'react-hot-toast';
+import { accountAvatarUrl } from '@/lib/social/account-avatar';
 import { useQueryClient } from '@tanstack/react-query';
 import { socialApi, SocialAccount, SocialPlatform } from '@/lib/api/social';
 import { useSocialAccounts, useInvalidateAccounts, SOCIAL_ACCOUNTS_KEY } from '@/hooks/useSocialAccounts';
@@ -477,7 +478,7 @@ export default function ChannelsPage() {
                           >
                             {account.avatar_url ? (
                               <img loading="lazy"
-                                src={account.avatar_url}
+                                src={accountAvatarUrl(account.id)}
                                 alt={account.name}
                                 referrerPolicy="no-referrer"
                                 className="w-14 h-14 rounded-2xl object-cover flex-shrink-0 shadow-md border-2 border-white"
@@ -556,7 +557,7 @@ export default function ChannelsPage() {
                           <div className="w-14 h-14 rounded-full bg-slate-100 overflow-hidden flex-shrink-0 border-2 border-slate-200">
                             {account.avatar_url ? (
                               <img loading="lazy"
-                                src={account.avatar_url}
+                                src={accountAvatarUrl(account.id)}
                                 alt={account.name}
                                 referrerPolicy="no-referrer"
                                 className="w-full h-full object-cover"
@@ -657,7 +658,7 @@ export default function ChannelsPage() {
                                       >
                                         {page.avatar_url ? (
                                           <img loading="lazy"
-                                            src={page.avatar_url}
+                                            src={accountAvatarUrl(page.id)}
                                             alt={page.name}
                                             referrerPolicy="no-referrer"
                                             className="w-14 h-14 rounded-2xl object-cover flex-shrink-0 shadow-md border-2 border-white"
