@@ -13,7 +13,16 @@ export interface RequestLine {
   model_id: string;
   quantity: number;
   status: string;
-  model: { id: string; name: string; category: { id: string; name: string } };
+  model: {
+    id: string;
+    name: string;
+    category: { id: string; name: string };
+    /**
+     * Optional vì chỉ endpoint chi tiết phiếu mới trả kèm. Màn Duyệt cần nó để người ký biết
+     * phải soạn thêm những gì ngoài thân máy — thiếu một cái sạc là buổi quay hỏng.
+     */
+    accessories?: Accessory[];
+  };
   reservations?: { id: string; asset_id: string | null; asset: Asset | null }[];
 }
 
@@ -30,6 +39,9 @@ export interface BorrowRequest {
   id: string;
   request_code: string;
   owner_id: string;
+  /** Optional: chỉ endpoint danh sách và chi tiết phiếu mới trả kèm tên người mượn. */
+  owner_name?: string;
+  owner_email?: string | null;
   project: string;
   place: string;
   /** Phiếu cũ tạo trước khi có cột này đọc ra null — BE hiểu là WORK. */
