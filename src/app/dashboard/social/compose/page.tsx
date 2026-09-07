@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  Search, RefreshCw, Type, Image as ImageIcon, Smartphone, Monitor,
+  Search, RefreshCw, Image as ImageIcon, Smartphone,
   MapPin, Globe, Smile, MessageCircle, Share2,
   MoreHorizontal, ChevronDown, Save, Send, Clock, List, AlertCircle, ThumbsUp, X, Calendar as CalendarIcon,
   Loader2, Sparkles, Layers, Hash, Film, Check,
@@ -18,8 +18,9 @@ import TemplateManager from './TemplateManager';
 import VideoFramePicker from './VideoFramePicker';
 import { useTaskStore } from '@/store/taskStore';
 import toast from 'react-hot-toast';
+import { accountAvatarUrl } from '@/lib/social/account-avatar';
 import { useSocialLang } from '@/contexts/SocialLanguageContext';
-import { isPlatformModeSupported } from '@/lib/social/platform-support';
+import { isPlatformModeSupported, PostMode } from '@/lib/social/platform-support';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -126,7 +127,7 @@ export default function ComposePage() {
   const [drafts, setDrafts] = useState<any[]>([]);
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [postMode, setPostMode] = useState<'text' | 'image' | 'video_vertical' | 'video_horizontal'>('text');
+  const [postMode, setPostMode] = useState<PostMode>('image');
   const [activeTab, setActiveTab] = useState<'publish' | 'schedule' | 'queue' | 'draft'>('publish');
   const [scheduleMode, setScheduleMode] = useState<'now' | 'schedule' | 'queue'>('now');
   const [scheduledAt, setScheduledAt] = useState('');
@@ -701,7 +702,7 @@ export default function ComposePage() {
       return <video src={url} className={className} muted {...videoProps} />;
     }
     const src = driveId ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w400` : url;
-    return <img src={src} alt="" className={className} onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }} />;
+    return <img loading="lazy" src={src} alt="" className={className} onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }} />;
   };
 
   return (
@@ -797,10 +798,8 @@ export default function ComposePage() {
               </div>
               <div className="grid grid-cols-2 gap-2.5">
                 {[
-                  { id: 'text', icon: Type, label: t.compose.modeText },
                   { id: 'image', icon: ImageIcon, label: t.compose.modeImage },
-                  { id: 'video_vertical', icon: Smartphone, label: t.compose.modeVideoVertical },
-                  { id: 'video_horizontal', icon: Monitor, label: t.compose.modeVideoHorizontal }
+                  { id: 'video_vertical', icon: Smartphone, label: t.compose.modeReels }
                 ].map(mode => (
                   <motion.button 
                     key={mode.id}
@@ -935,8 +934,8 @@ export default function ComposePage() {
 
                               <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white ${meta.color} shadow-sm text-sm relative overflow-hidden flex-shrink-0`}>
                                 {account.avatar_url ? (
-                                  <img
-                                    src={account.avatar_url}
+                                  <img loading="lazy"
+                                    src={accountAvatarUrl(account.id)}
                                     alt=""
                                     referrerPolicy="no-referrer"
                                     className="w-full h-full rounded-full object-cover"
@@ -1064,7 +1063,7 @@ export default function ComposePage() {
                         <div className="relative flex-shrink-0">
                           {thumbUrl ? (
                             <div className="relative group">
-                              <img
+                              <img loading="lazy"
                                 src={thumbUrl}
                                 alt={t.compose.thumbnailAlt}
                                 className="w-40 h-24 object-cover rounded-xl border-2 border-blue-400 shadow-md"
@@ -1308,7 +1307,7 @@ export default function ComposePage() {
                             <div className="absolute inset-0 flex items-center justify-center text-slate-500">
                               <Film className="w-8 h-8" />
                             </div>
-                            <img
+                            <img loading="lazy"
                               src={previewSrc}
                               alt=""
                               className="absolute inset-0 w-full h-full object-cover"
@@ -1316,7 +1315,7 @@ export default function ComposePage() {
                             />
                           </div>
                         ) : (
-                          <img
+                          <img loading="lazy"
                             src={previewSrc}
                             alt=""
                             className="w-full h-full object-cover"
@@ -1546,7 +1545,6 @@ export default function ComposePage() {
                   toast.success(t.compose.thumbnailAutoSet);
                 }
               }
-              if (postMode === 'text') setPostMode('image');
               if (!thumbMap || !urls.some(u => u.includes('drive.google.com') && thumbMap?.[u])) {
                 toast.success(t.compose.filesAddedFromLibrary(urls.length));
               }
@@ -1588,14 +1586,14 @@ export default function ComposePage() {
                         {(d.thumb_url || d.media_urls?.[0]) && (
                           <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 border border-slate-100">
                             {d.thumb_url ? (
-                              <img src={d.thumb_url} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }} />
+                              <img loading="lazy" src={d.thumb_url} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }} />
                             ) : /\.(mp4|mov|avi|mkv|webm)$/i.test(d.media_urls[0]) ? (
                               <div className="w-full h-full bg-slate-900 flex items-center justify-center"><Smartphone className="w-6 h-6 text-white/50" /></div>
                             ) : (() => {
                               const driveId = d.media_urls[0].includes('drive.google.com')
                                 ? (d.media_urls[0].match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || d.media_urls[0].match(/[?&]id=([a-zA-Z0-9_-]+)/))?.[1]
                                 : null;
-                              return <img src={driveId ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w200` : d.media_urls[0]} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }} />;
+                              return <img loading="lazy" src={driveId ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w200` : d.media_urls[0]} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }} />;
                             })()}
                           </div>
                         )}

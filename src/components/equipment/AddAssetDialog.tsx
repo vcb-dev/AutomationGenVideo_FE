@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { CONDITION_OPTIONS } from '@/lib/equipment/status-label';
+import { apiErrorMessage } from '@/lib/equipment/api-error';
 import {
   EquipmentCategory,
   EquipmentModel,
@@ -90,7 +91,18 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
   const [stage, setStage] = useState('');
   const [error, setError] = useState('');
 
-  useEffect(() => () => previews.forEach((u) => URL.revokeObjectURL(u)), [previews]);
+  /**
+   * Thu hồi các blob URL khi ĐÓNG dialog, không phải mỗi lần danh sách ảnh đổi.
+   *
+   * Bản trước để `[previews]` làm phụ thuộc: mỗi lần chọn thêm ảnh, React chạy hàm dọn của lượt
+   * trước và thu hồi TOÀN BỘ url của lượt đó — mà những url ấy vẫn đang nằm trong danh sách mới
+   * và đang hiển thị. Hậu quả nhìn thấy được: chọn ảnh thứ hai là ảnh thứ nhất thành ô vỡ.
+   *
+   * Giữ danh sách mới nhất trong ref để hàm dọn (chạy một lần lúc gỡ) vẫn thấy đủ.
+   */
+  const previewsRef = useRef<string[]>([]);
+  previewsRef.current = previews;
+  useEffect(() => () => previewsRef.current.forEach((u) => URL.revokeObjectURL(u)), []);
 
   const loadData = () => {
     Promise.all([fetchModels(), fetchCategories(), fetchLocations()])
@@ -102,7 +114,7 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
           setSelectedCategoryId(c[0].id);
         }
       })
-      .catch(() => setError('Không đọc được danh mục thiết bị.'));
+      .catch((e: unknown) => setError(apiErrorMessage(e, 'Không đọc được danh mục thiết bị.')));
   };
 
   useEffect(() => {
@@ -236,8 +248,7 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
       onClose();
     } catch (e: unknown) {
       setError(
-        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-          'Không nhập kho được thiết bị.',
+        apiErrorMessage(e, 'Không nhập kho được thiết bị.'),
       );
     } finally {
       setSaving(false);

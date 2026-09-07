@@ -11,6 +11,7 @@
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { borrowHistoryLabel } from '@/lib/equipment/borrow-history-label';
+import { apiErrorMessage } from '@/lib/equipment/api-error';
 import {
   fetchAssetBorrowHistory,
   type AssetBorrowHistoryRow,
@@ -35,7 +36,7 @@ export function AssetBorrowHistory({ assetId }: { assetId: string }) {
   useEffect(() => {
     fetchAssetBorrowHistory(assetId)
       .then(setRows)
-      .catch(() => setError('Không đọc được lịch sử mượn của máy này.'))
+      .catch((e: unknown) => setError(apiErrorMessage(e, 'Không đọc được lịch sử mượn của máy này.')))
       .finally(() => setLoading(false));
   }, [assetId]);
 
