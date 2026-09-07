@@ -12,6 +12,7 @@ import {
 } from '@/lib/equipment/api';
 import { groupModels } from '@/lib/equipment/group-models';
 import { availabilityLabel } from '@/lib/equipment/availability-label';
+import { apiErrorMessage } from '@/lib/equipment/api-error';
 
 /**
  * Mục đích mượn — thứ quyết định phiếu cần một hay hai chữ ký.
@@ -69,7 +70,7 @@ export default function NewRequestPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    fetchAssets().then(setAssets).catch(() => setError('Không đọc được danh sách thiết bị.'));
+    fetchAssets().then(setAssets).catch((e: unknown) => setError(apiErrorMessage(e, 'Không đọc được danh sách thiết bị.')));
   }, []);
 
   const models = useMemo(() => groupModels(assets), [assets]);
@@ -142,8 +143,7 @@ export default function NewRequestPage() {
       router.push(`/dashboard/equipment?created=${created.request_code}`);
     } catch (e: unknown) {
       setError(
-        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-          'Gửi phiếu không thành công.',
+        apiErrorMessage(e, 'Gửi phiếu không thành công.'),
       );
     } finally {
       setSubmitting(false);
