@@ -504,6 +504,14 @@ export function useNavMenus(
                                 icon: Undo2,
                                 description: n.equipmentReturnsDesc,
                             },
+                            {
+                                // Mắt xích duy nhất đưa máy trở lại Sẵn sàng. Thiếu đầu mục này thì
+                                // máy trả về có vấn đề nằm lại bàn kiểm tra vĩnh viễn.
+                                label: "Kiểm tra thiết bị",
+                                href: "/dashboard/equipment/inspection",
+                                icon: ClipboardList,
+                                description: "Kết luận cho máy mới nhập và máy trả về có vấn đề",
+                            },
                         ],
                     },
                 ],
