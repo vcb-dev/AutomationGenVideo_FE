@@ -32,10 +32,6 @@ export interface LeaderDashboardMember {
   content_original_month: number;
   /** Số content đã được leader/admin/manager duyệt vào kho team trong tháng. */
   content_approved_month: number;
-  /** Số task trong kỳ dùng content được thêm vào kho VÀ gắn vào task cũng trong kỳ này ("content mới"). */
-  content_new: number;
-  /** Số task còn lại trong kỳ, không gắn với content mới ("content cũ"). */
-  content_old: number;
 }
 
 export interface LeaderTaskDashboard {
@@ -55,18 +51,37 @@ export interface LeaderTaskDashboard {
   video_by_line: { line: string; count: number }[];
   /** Số video (task đã duyệt) trong tháng của cả team, gộp theo dòng sản phẩm (GMV/Traffic/Profit). */
   product_by_category: { category: string; count: number }[];
+  content_by_classification: { classification: string; count: number }[];
+}
+
+export interface LeaderTaskDashboardParams {
+  month?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  pinTrafficMonth?: boolean;
 }
 
 /**
  * Task thật (task-auto) của team do leader hiện tại đang lead — BE tự khoá theo JWT, không cần truyền team.
  * `month` ("YYYY-MM") lọc báo cáo theo tháng — bỏ trống thì BE mặc định về tháng hiện tại.
  */
-export function useLeaderTaskDashboard(params: { month?: string }) {
+export function useLeaderTaskDashboard(params: LeaderTaskDashboardParams) {
   return useQuery({
-    queryKey: ["leaderTaskDashboard", params.month],
+    queryKey: [
+      "leaderTaskDashboard",
+      params.month,
+      params.dateFrom,
+      params.dateTo,
+      params.pinTrafficMonth ?? false,
+    ],
     queryFn: async ({ signal }) => {
       const { data } = await apiClient.get<LeaderTaskDashboard>("/task-auto/dashboard", {
-        params: { month: params.month },
+        params: {
+          month: params.month,
+          date_from: params.dateFrom,
+          date_to: params.dateTo,
+          ...(params.pinTrafficMonth ? { pin_traffic_month: 1 } : {}),
+        },
         signal,
       });
       return data;

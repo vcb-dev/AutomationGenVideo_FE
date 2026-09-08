@@ -31,6 +31,16 @@ export function AdminHeader({ tab, onTabChange }: AdminHeaderProps) {
                             tab === 1 ? "bg-indigo-600 text-white shadow" : "text-gray-500 hover:bg-gray-50",
                         )}
                     >
+                        Thống kê theo ngày
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => onTabChange(2)}
+                        className={cn(
+                            "rounded-lg px-5 py-2 text-sm font-medium",
+                            tab === 2 ? "bg-indigo-600 text-white shadow" : "text-gray-500 hover:bg-gray-50",
+                        )}
+                    >
                         KPI & Phân bổ
                     </button>
                 </nav>

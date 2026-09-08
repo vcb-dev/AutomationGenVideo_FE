@@ -35,6 +35,12 @@ export interface DashboardMonthPicker {
   onChange: (month: string) => void;
 }
 
+export interface DashboardSingleDatePicker {
+  value: string;
+  onChange: (date: string) => void;
+  max?: string;
+}
+
 interface DashboardFiltersProps {
   accent?: Accent;
   className?: string;
@@ -43,10 +49,17 @@ interface DashboardFiltersProps {
   defaultDateTo?: string;
   onDateRangeChange?: (range: DashboardDateRange) => void;
   monthPicker?: DashboardMonthPicker;
+  singleDate?: DashboardSingleDatePicker;
   adminTeamRegion?: AdminTeamRegionFilters;
   adminPlatformChannel?: AdminPlatformChannelFilters;
   showPlatformChannelFallback?: boolean;
   showTeamFallback?: boolean;
+}
+
+function isoDay(offsetDays = 0) {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 // Lấy ngày đầu và cuối tháng hiện tại
@@ -101,12 +114,25 @@ export function DashboardFilters({
   defaultDateTo,
   onDateRangeChange,
   monthPicker,
+  singleDate,
   adminTeamRegion,
   adminPlatformChannel,
   showPlatformChannelFallback = true,
   showTeamFallback = true,
 }: DashboardFiltersProps) {
   const { ring, badge } = accentStyles[accent];
+
+  const today = isoDay(0);
+  const yesterday = isoDay(-1);
+  const quickBtn = (active: boolean) =>
+    cn(
+      "rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors",
+      active
+        ? accent === "amber"
+          ? "border-amber-300 bg-amber-100 text-amber-800"
+          : "border-indigo-300 bg-indigo-100 text-indigo-800"
+        : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50",
+    );
 
   const monthRange = getCurrentMonthRange();
   const [from, setFrom] = useState(defaultDateFrom ?? monthRange.from);
@@ -248,6 +274,36 @@ export function DashboardFilters({
               className={cn(inputBase, ring)}
             />
           </label>
+        </>
+      ) : null}
+
+      {/* Single date */}
+      {singleDate ? (
+        <>
+          <Divider />
+          <label className="flex items-center gap-2">
+            <span className="flex items-center gap-1.5 text-xs font-medium text-gray-400">
+              <CalendarDays className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              Ngày
+            </span>
+            <input
+              type="date"
+              value={singleDate.value}
+              max={singleDate.max ?? today}
+              onChange={(e) => singleDate.onChange(e.target.value)}
+              className={cn(inputBase, ring)}
+            />
+          </label>
+          <button type="button" onClick={() => singleDate.onChange(today)} className={quickBtn(singleDate.value === today)}>
+            Hôm nay
+          </button>
+          <button
+            type="button"
+            onClick={() => singleDate.onChange(yesterday)}
+            className={quickBtn(singleDate.value === yesterday)}
+          >
+            Hôm qua
+          </button>
         </>
       ) : null}
 
