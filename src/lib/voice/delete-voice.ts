@@ -23,7 +23,7 @@ export interface DeleteVoiceResult {
  */
 export async function deleteClonedVoice(
     voiceId: string,
-    opts: { apiUrl: string; authHeaders?: Record<string, string>; fetchImpl?: typeof fetch },
+    opts: { apiUrl: string; authHeaders?: Record<string, string>; fetchImpl?: (input: string, init?: RequestInit) => Promise<Response> },
 ): Promise<DeleteVoiceResult> {
     const doFetch = opts.fetchImpl ?? fetch;
     const res = await doFetch(`${opts.apiUrl}/ai/voice/${encodeURIComponent(voiceId)}`, {
