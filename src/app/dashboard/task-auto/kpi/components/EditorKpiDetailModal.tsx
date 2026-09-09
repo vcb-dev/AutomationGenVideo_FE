@@ -21,8 +21,9 @@ export const CONTENT_ROWS: { key: keyof KpiFormState; label: string; bold?: bool
 ]
 
 export const PRODUCT_ROWS: { key: keyof KpiFormState; label: string }[] = [
-  { key: 'product_planned',     label: 'SP đẩy video theo kế hoạch' },
-  { key: 'product_win_collect', label: 'SP sưu tầm và test video win' },
+  { key: 'product_planned',     label: 'Số SP đẩy video theo kế hoạch' },
+  { key: 'product_win_collect', label: 'Số SP sưu tầm' },
+  { key: 'product_profit',      label: 'Số sản phẩm Profit' },
 ]
 
 interface Props {
@@ -101,32 +102,18 @@ export function EditorKpiDetailModal({ kpi, onClose }: Props) {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <AllocCardSection
-            items={(kpi.allocations ?? []).filter(a => a.type === 'CONTENT_LINE').map(a => ({ value: a.quantity, content_line: a.content_line }))}
-            label="Tuyến nội dung"
-            icon={<FileText className="w-3.5 h-3.5" />}
-            barColor="bg-indigo-500"
-            bgColor="bg-indigo-50/50"
-            borderColor="border-indigo-100"
-            labelColor="text-indigo-600"
-            totalColor="text-indigo-700"
-            mode="count"
-            target={kpi.total_target}
-          />
-          <AllocCardSection
-            items={(kpi.allocations ?? []).filter(a => a.type === 'PRODUCT_LINE').map(a => ({ value: a.quantity, product_line: a.product_line }))}
-            label="Dòng sản phẩm"
-            icon={<Package className="w-3.5 h-3.5" />}
-            barColor="bg-teal-500"
-            bgColor="bg-teal-50/50"
-            borderColor="border-teal-100"
-            labelColor="text-teal-600"
-            totalColor="text-teal-700"
-            mode="count"
-            target={kpi.product_planned}
-          />
-        </div>
+        <AllocCardSection
+          items={(kpi.allocations ?? []).filter(a => a.type === 'CONTENT_LINE').map(a => ({ value: a.quantity, content_line: a.content_line }))}
+          label="Tuyến nội dung"
+          icon={<FileText className="w-3.5 h-3.5" />}
+          barColor="bg-indigo-500"
+          bgColor="bg-indigo-50/50"
+          borderColor="border-indigo-100"
+          labelColor="text-indigo-600"
+          totalColor="text-indigo-700"
+          mode="count"
+          target={kpi.total_target}
+        />
       </div>
     </DarkModal>
   )
