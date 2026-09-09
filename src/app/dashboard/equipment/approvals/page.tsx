@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { RequireCatalogManager } from '@/components/equipment/RequireCatalogManager';
 import {
   BorrowRequest,
   approveRequest,
@@ -14,6 +13,7 @@ import {
 import { ApprovalOutcome, approvalOutcome } from '@/lib/equipment/approval-outcome';
 import { StepBar } from '@/components/equipment/StepBar';
 import { WorkflowSuccessModal } from '@/components/equipment/WorkflowSuccessModal';
+import { RequireCatalogManager } from '@/components/equipment/RequireCatalogManager';
 import { apiErrorMessage } from '@/lib/equipment/api-error';
 
 const cardClass =
@@ -23,7 +23,25 @@ const valueClass = 'mt-0.5 text-sm text-slate-900 dark:text-white';
 const inputClass =
   'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-white';
 
-const fmt = (iso: string) => new Date(iso).toLocaleString('vi-VN');
+const formatTimeRange = (fromIso?: string | null, toIso?: string | null) => {
+  if (!fromIso) return '—';
+  const from = new Date(fromIso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const fromTime = `${pad(from.getHours())}:${pad(from.getMinutes())}`;
+  const fromDate = `${pad(from.getDate())}/${pad(from.getMonth() + 1)}/${from.getFullYear()}`;
+
+  if (!toIso) return `${fromTime} ${fromDate}`;
+  const to = new Date(toIso);
+  const toTime = `${pad(to.getHours())}:${pad(to.getMinutes())}`;
+  const toDate = `${pad(to.getDate())}/${pad(to.getMonth() + 1)}/${to.getFullYear()}`;
+
+  if (fromDate === toDate) {
+    return `${fromTime} – ${toTime} · ${fromDate}`;
+  }
+  return `${fromTime} ${fromDate} → ${toTime} ${toDate}`;
+};
+
+const fmt = (iso?: string | null) => (iso ? new Date(iso).toLocaleString('vi-VN') : '—');
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING_APPROVAL: 'chờ duyệt',
@@ -47,7 +65,7 @@ function ApprovalsPageInner() {
   const [outcome, setOutcome] = useState<ApprovalOutcome | null>(null);
 
   const load = useCallback(async (keepId?: string) => {
-    const list = await fetchRequests();
+    const list = await fetchRequests('PENDING_APPROVAL');
     setRequests(list);
     const target = keepId ? list.find((r) => r.id === keepId) : list[0];
     setCurrent(target ?? null);
@@ -77,15 +95,13 @@ function ApprovalsPageInner() {
     setSaving(true);
     setError('');
     try {
-      if (kind === 'approve') await approveRequest(current.id, reason.trim() || undefined);
-      else await rejectRequest(current.id, reason.trim());
+      const targetId = current.id;
+      if (kind === 'approve') await approveRequest(targetId, reason.trim() || undefined);
+      else await rejectRequest(targetId, reason.trim());
       setReason('');
-      await load(current.id);
-      const refreshed = await fetchRequest(current.id);
-      setCurrent(refreshed);
-      // Nói rõ vừa xảy ra chuyện gì và còn phải làm gì. Trước đây màn hình gần như không đổi
-      // sau khi ký, nên người ký tưởng nút hỏng và bấm lại — lần hai ăn lỗi "đã ký rồi".
+      const refreshed = await fetchRequest(targetId);
       setOutcome(approvalOutcome(refreshed));
+      await load();
     } catch (e: unknown) {
       setError(
         apiErrorMessage(e, 'Không ghi được quyết định.'),
@@ -103,8 +119,7 @@ function ApprovalsPageInner() {
       <header className="mb-5">
         <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Duyệt phiếu mượn</h1>
         <p className="mt-1 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
-          Chọn một phiếu ở danh sách bên trái để xem chi tiết và ra quyết định. Từ chối bắt buộc
-          nhập lý do và nhả giữ chỗ ngay.
+          Chỉ hiển thị các phiếu đang chờ duyệt. Sau khi duyệt, phiếu sẽ chuyển sang Bước 2 (Gán máy & In phiếu).
         </p>
       </header>
 
@@ -113,7 +128,29 @@ function ApprovalsPageInner() {
       {loading ? (
         <p className="text-slate-500">Đang tải…</p>
       ) : requests.length === 0 ? (
-        <p className={cn(cardClass, 'p-8 text-center text-slate-500')}>Chưa có phiếu mượn nào.</p>
+        <div className={cn(cardClass, 'p-8 text-center')}>
+          <div className="text-3xl mb-2">🎉</div>
+          <h3 className="text-base font-bold text-slate-900 dark:text-white">
+            Hiện không có phiếu nào đang chờ duyệt
+          </h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
+            Các phiếu đã duyệt được chuyển sang Bước 2 (Chuẩn bị & Bàn giao). Toàn bộ lịch sử các phiếu đã duyệt, từ chối hoặc đã huỷ được lưu đầy đủ trong mục Nhật ký mượn.
+          </p>
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+            <Link
+              href="/dashboard/equipment/handover"
+              className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700 transition-colors"
+            >
+              Sang Bước 2: Chuẩn bị & Bàn giao →
+            </Link>
+            <Link
+              href="/dashboard/equipment/borrow-history"
+              className="rounded-xl border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-white/[0.12] dark:text-slate-300 dark:hover:bg-white/[0.05] transition-colors"
+            >
+              Xem Nhật ký mượn thiết bị
+            </Link>
+          </div>
+        </div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[20rem_minmax(0,1fr)]">
           <section className={cn(cardClass, 'self-start overflow-hidden')}>
@@ -142,8 +179,8 @@ function ApprovalsPageInner() {
                       <span className="block text-xs text-slate-500 dark:text-slate-400">
                         {r.project}
                       </span>
-                      <span className="mt-1 block text-xs text-slate-400">
-                        {fmt(r.from_time)} → {fmt(r.to_time)}
+                      <span className="mt-1 block text-xs text-slate-400 font-mono">
+                        {formatTimeRange(r.from_time, r.to_time)}
                       </span>
                     </span>
                     <span
@@ -184,8 +221,8 @@ function ApprovalsPageInner() {
               </div>
 
               <div className="p-5">
-                <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-5 dark:border-white/[0.06] dark:bg-white/[0.02]">
-                  <dl className="grid grid-cols-[repeat(auto-fit,minmax(10rem,1fr))] gap-5">
+                <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-4 sm:p-5 dark:border-white/[0.06] dark:bg-white/[0.02]">
+                  <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
                     <div>
                       <dt className={keyClass}>Bộ phận</dt>
                       <dd className={valueClass}>{current.department?.name ?? '—'}</dd>
@@ -201,7 +238,7 @@ function ApprovalsPageInner() {
                       <dd className={valueClass}>
                         {current.purpose === 'PERSONAL' ? (
                           <span className="rounded-md bg-amber-50 px-2 py-0.5 font-semibold text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
-                            Việc riêng của người mượn
+                            Việc riêng
                           </span>
                         ) : (
                           'Việc của công ty'
@@ -212,10 +249,10 @@ function ApprovalsPageInner() {
                       <dt className={keyClass}>Địa điểm</dt>
                       <dd className={valueClass}>{current.place}</dd>
                     </div>
-                    <div>
+                    <div className="col-span-2 sm:col-span-3">
                       <dt className={keyClass}>Khoảng mượn</dt>
-                      <dd className={valueClass}>
-                        {fmt(current.from_time)} → {fmt(current.to_time)}
+                      <dd className={cn(valueClass, 'font-medium font-mono text-xs sm:text-sm')}>
+                        {formatTimeRange(current.from_time, current.to_time)}
                       </dd>
                     </div>
                     <div>
@@ -244,12 +281,29 @@ function ApprovalsPageInner() {
                         className="border-b border-slate-100 last:border-0 dark:border-white/[0.05]"
                       >
                         <td className="px-5 py-3 font-medium text-slate-900 dark:text-white">
-                          {line.model.name}
-                          <span className="ml-2 text-xs font-normal text-slate-400">
-                            {line.model.category.name}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span>{line.model.name}</span>
+                            <span className="text-xs font-normal text-slate-400">
+                              ({line.model.category.name})
+                            </span>
+                          </div>
+                          {line.model.accessories && line.model.accessories.length > 0 && (
+                            <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px] font-normal text-slate-500 dark:text-slate-400">
+                              <span className="font-semibold text-slate-600 dark:text-slate-300">
+                                🎁 Phụ kiện đi kèm:
+                              </span>
+                              {line.model.accessories.map((acc, idx) => (
+                                <span
+                                  key={acc.id || idx}
+                                  className="inline-flex items-center rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700 dark:bg-white/[0.08] dark:text-slate-300"
+                                >
+                                  ✓ {acc.name}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </td>
-                        <td className="px-5 py-3">{line.quantity}</td>
+                        <td className="px-5 py-3 font-semibold">{line.quantity}</td>
                         <td className="px-5 py-3">
                           <span
                             className={cn(
@@ -366,9 +420,9 @@ function ApprovalsPageInner() {
         open={outcome?.kind === 'ready-to-prepare'}
         onClose={() => setOutcome(null)}
         title="Duyệt phiếu thành công!"
-        message={outcome?.message || 'Phiếu mượn đã đủ chữ ký và sẵn sàng cho bước gán thiết bị.'}
-        nextHref={outcome?.kind === 'ready-to-prepare' ? outcome.nextHref : '/dashboard/equipment/prepare'}
-        nextLabel="Sang bước Gán máy ngay →"
+        message={outcome?.message || 'Phiếu mượn đã đủ chữ ký và sẵn sàng cho bước chuẩn bị & bàn giao.'}
+        nextHref={outcome?.kind === 'ready-to-prepare' ? outcome.nextHref : '/dashboard/equipment/handover'}
+        nextLabel="Sang bước Bàn giao ngay →"
         stayLabel="Ở lại duyệt tiếp"
       />
     </div>
@@ -377,8 +431,7 @@ function ApprovalsPageInner() {
 
 /**
  * Ẩn đầu mục trên thanh điều hướng là chưa đủ — gõ thẳng địa chỉ vẫn vào được trang.
- * Cửa canh thật nằm ở `MemsMediaLeaderGuard` phía BE; chỗ này để người không có quyền đọc được
- * một câu giải thích thay vì một màn hình trống kèm vài thông báo lỗi đỏ.
+ * Cửa canh thật nằm ở `MemsMediaLeaderGuard` phía BE.
  */
 export default function ApprovalsPage() {
   return (
