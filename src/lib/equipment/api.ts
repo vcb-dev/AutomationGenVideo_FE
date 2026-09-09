@@ -256,10 +256,27 @@ export async function fetchAssetPhotos(assetCode: string) {
   return data;
 }
 
-export async function uploadAssetPhoto(assetCode: string, file: File, caption?: string) {
+/**
+ * Ảnh này chụp để làm gì — phải khớp với `PHOTO_PURPOSE` bên BE.
+ *
+ * Ảnh biên bản đi qua CHÍNH endpoint này, nên nếu không phân biệt thì mỗi lượt giao/nhận lại
+ * đẩy thêm ảnh vào thư viện ảnh hồ sơ của máy, và ảnh đại diện ở bảng kho có thể rơi trúng một
+ * tấm chụp vết xước.
+ *
+ * BE chưa có cột `purpose` thì bỏ qua trường này, ảnh vào thư viện như cũ — không vỡ gì.
+ */
+export type PhotoPurpose = 'CATALOG' | 'HANDOVER' | 'RETURN';
+
+export async function uploadAssetPhoto(
+  assetCode: string,
+  file: File,
+  caption?: string,
+  purpose?: PhotoPurpose,
+) {
   const form = new FormData();
   form.append('photo', file);
   if (caption) form.append('caption', caption);
+  if (purpose) form.append('purpose', purpose);
   const { data } = await apiClient.post<AssetPhoto>(
     `/mems/assets/${encodeURIComponent(assetCode)}/photos`,
     form,
