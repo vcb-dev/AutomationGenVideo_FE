@@ -13,7 +13,16 @@ export interface RequestLine {
   model_id: string;
   quantity: number;
   status: string;
-  model: { id: string; name: string; category: { id: string; name: string } };
+  model: {
+    id: string;
+    name: string;
+    category: { id: string; name: string };
+    /**
+     * Optional vì chỉ endpoint chi tiết phiếu mới trả kèm. Màn Duyệt cần nó để người ký biết
+     * phải soạn thêm những gì ngoài thân máy — thiếu một cái sạc là buổi quay hỏng.
+     */
+    accessories?: Accessory[];
+  };
   reservations?: { id: string; asset_id: string | null; asset: Asset | null }[];
 }
 
@@ -30,6 +39,9 @@ export interface BorrowRequest {
   id: string;
   request_code: string;
   owner_id: string;
+  /** Optional: chỉ endpoint danh sách và chi tiết phiếu mới trả kèm tên người mượn. */
+  owner_name?: string;
+  owner_email?: string | null;
   project: string;
   place: string;
   /** Phiếu cũ tạo trước khi có cột này đọc ra null — BE hiểu là WORK. */
@@ -231,4 +243,16 @@ export interface BorrowLogResponse {
 export async function fetchBorrowHistoryLog(query: Record<string, string | number>) {
   const { data } = await apiClient.get<BorrowLogResponse>('/mems/borrow-history', { params: query });
   return data;
+}
+
+/**
+ * Huỷ phiếu chưa giao máy.
+ *
+ * Khác Từ chối: từ chối là quản lý kho nói "không cho mượn", huỷ là người mượn nói "tôi không
+ * cần nữa". BE chốt quyền — chủ phiếu huỷ được khi phiếu chưa duyệt, quản lý kho huỷ được tới
+ * trước lúc bàn giao.
+ */
+export async function cancelRequest(id: string) {
+  const { data } = await apiClient.post(`/mems/requests/${id}/cancel`);
+  return data as BorrowRequest;
 }

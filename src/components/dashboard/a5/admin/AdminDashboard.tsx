@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AdminDailyTab } from "./AdminDailyTab";
 import { AdminHeader } from "./AdminHeader";
 import { AdminKpiTab } from "./AdminKpiTab";
 import { AdminOverviewFiltersProvider } from "./AdminOverviewFiltersContext";
@@ -13,7 +14,7 @@ export function AdminDashboard() {
     <AdminOverviewFiltersProvider>
       <div className="flex min-h-[calc(100vh-4rem)] w-full max-w-none flex-col pb-10 text-sm text-gray-900 antialiased">
         <AdminHeader tab={tab} onTabChange={setTab} />
-        {tab === 0 ? <AdminOverviewTab /> : <AdminKpiTab />}
+        {tab === 0 ? <AdminOverviewTab /> : tab === 1 ? <AdminDailyTab /> : <AdminKpiTab />}
       </div>
     </AdminOverviewFiltersProvider>
   );

@@ -44,6 +44,7 @@ export default function PageTableRow({
           src={getPageAvatar(page)}
           alt={page.name}
           className="w-full h-full object-cover"
+          referrerPolicy="no-referrer"
           onError={e => {
             const target = e.target as HTMLImageElement;
             if (page.avatar_url && target.src !== page.avatar_url) {

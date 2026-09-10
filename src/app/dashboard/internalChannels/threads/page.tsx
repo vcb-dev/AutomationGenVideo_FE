@@ -62,6 +62,7 @@ function PostCard({ post: v }: { post: ExternalVideo }) {
             alt=""
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
             loading="lazy"
+            referrerPolicy="no-referrer"
             onError={(e) => {
               (e.target as HTMLImageElement).style.display = 'none';
             }}
@@ -101,6 +102,7 @@ function PostCard({ post: v }: { post: ExternalVideo }) {
                 src={avatar}
                 alt=""
                 className="w-4 h-4 rounded-full"
+                referrerPolicy="no-referrer"
                 onError={(e) => {
                   (e.target as HTMLImageElement).style.display = 'none';
                 }}
@@ -293,6 +295,7 @@ export default function ThreadsChannelsPage() {
                       src={proxyImg(p.avatar_url)}
                       alt=""
                       className="w-10 h-10 rounded-full object-cover border border-border flex-shrink-0"
+                      referrerPolicy="no-referrer"
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = 'none';
                       }}

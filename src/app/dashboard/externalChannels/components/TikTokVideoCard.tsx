@@ -81,12 +81,14 @@ export default function TikTokVideoCard({
         rel="noopener noreferrer"
         className="relative block aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[320px]"
       >
-        {video.preview_image ? (
+        {video.preview_image && video.preview_image !== 'FAILED' ? (
           <img
             src={video.preview_image}
             alt=""
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
             loading="lazy"
+            referrerPolicy="no-referrer"
+            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-slate-800 text-slate-500">
@@ -151,8 +153,14 @@ export default function TikTokVideoCard({
         {/* Author */}
         {video.author && (
           <div className="flex items-center gap-2 mt-auto pt-1.5">
-            {video.author.avatar_url ? (
-              <img src={video.author.avatar_url} alt="" className="w-5 h-5 rounded-full ring-1 ring-slate-200 dark:ring-slate-600" />
+            {video.author.avatar_url && video.author.avatar_url !== 'FAILED' ? (
+              <img
+                src={video.author.avatar_url}
+                alt=""
+                className="w-5 h-5 rounded-full ring-1 ring-slate-200 dark:ring-slate-600 object-cover"
+                referrerPolicy="no-referrer"
+                onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
             ) : (
               <div className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-600" />
             )}

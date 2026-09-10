@@ -1,6 +1,6 @@
 "use client";
 
-import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
 interface LeaderProductCategoryChartProps {
   data: { category: string; count: number }[];
@@ -48,32 +48,50 @@ export function LeaderProductCategoryChart({ data }: LeaderProductCategoryChartP
           </p>
         </div>
       ) : (
-        <div className="h-56 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={chartData}
-                cx="50%"
-                cy="45%"
-                innerRadius={0}
-                outerRadius={78}
-                dataKey="value"
-                label={({ name, value }) => `${name}: ${value} (${pct(value, total)}%)`}
-                labelLine={{ stroke: "#d1d5db" }}
-              >
-                {chartData.map((entry) => (
-                  <Cell key={entry.name} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(value, name) => [`${value} (${pct(Number(value), total)}%)`, name]} />
-              <Legend
-                verticalAlign="bottom"
-                height={24}
-                formatter={(value) => <span className="text-xs text-gray-600">{value}</span>}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
+        <>
+          <div className="relative mx-auto h-40 w-40">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={chartData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={48}
+                  outerRadius={72}
+                  paddingAngle={1}
+                  dataKey="value"
+                  stroke="#fff"
+                  strokeWidth={2}
+                >
+                  {chartData.map((entry) => (
+                    <Cell key={entry.name} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(value, name) => [`${value} (${pct(Number(value), total)}%)`, name]}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-2xl font-extrabold leading-none text-gray-900">{total}</span>
+              <span className="text-[11px] text-gray-400">video</span>
+            </div>
+          </div>
+
+          <ul className="mt-3 flex flex-wrap justify-center gap-x-3 gap-y-1">
+            {chartData.map((d) => (
+              <li key={d.name} className="flex items-center gap-1.5 text-xs">
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: d.color }}
+                />
+                <span className="text-gray-600">{d.name}</span>
+                <span className="font-semibold text-gray-800">{d.value}</span>
+                <span className="text-gray-400">({pct(d.value, total)}%)</span>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </div>
   );
