@@ -33,14 +33,12 @@ export function IdCardPreview({
   employeeName,
   employeeTeam,
   employeeId,
-  employeeTitlePrefix,
   position,
   photoUrl,
 }: {
   employeeName: string;
   employeeTeam: string;
   employeeId: string;
-  employeeTitlePrefix?: string;
   position: IdPhotoPosition;
   photoUrl: string | null;
 }) {
@@ -50,7 +48,7 @@ export function IdCardPreview({
 
   return (
     <div
-      className="relative w-full max-w-[340px] mx-auto rounded-2xl shadow-lg overflow-hidden"
+      className="relative w-full max-w-[340px] mx-auto rounded-2xl shadow-lg overflow-hidden [container-type:inline-size]"
       style={{
         // Khung là ẢNH THẬT (đã crop đúng tỉ lệ 420/669) thay cho bản trước vẽ bằng SVG path:
         // dải ruy băng, đường cong lõm, logo và 6 sao đều nằm sẵn trong ảnh nên không còn sai
@@ -72,18 +70,21 @@ export function IdCardPreview({
         )}
       </div>
 
-      {/* Họ tên — in hoa, ghép tiền tố chức danh nếu có */}
+      {/* Họ tên — in hoa. (Tiền tố chức danh đã bỏ — chỉ in tên thường, khớp PDF bên BE.)
+          Cỡ chữ theo `cqw` (% bề rộng thẻ) thay vì `rem` cố định: thẻ dựng ở nhiều kích cỡ
+          (bước 4 luồng đơn lẻ ~340px, ô lưới batch nhỏ hơn) — dùng rem thì thẻ nhỏ bị tràn chữ,
+          đè lên dòng Team/ID. 6.3cqw ≈ 1.35rem tại 340px. */}
       <h4
-        className="absolute w-full px-5 text-center text-[1.35rem] font-bold uppercase leading-tight"
-        style={{ top: CARD_LAYOUT.nameTop, color: textColor }}
+        className="absolute w-full px-[6%] text-center font-bold uppercase leading-tight truncate"
+        style={{ top: CARD_LAYOUT.nameTop, color: textColor, fontSize: '6.3cqw' }}
       >
-        {[employeeTitlePrefix?.trim(), employeeName].filter(Boolean).join(' ') || 'Họ và tên'}
+        {employeeName || 'Họ và tên'}
       </h4>
 
       {/* Team + ID CÙNG một dòng như thẻ thật */}
       <p
-        className="absolute w-full px-4 text-center text-[0.8rem] font-medium"
-        style={{ top: CARD_LAYOUT.teamIdTop, color: textColor }}
+        className="absolute w-full px-[5%] text-center font-medium truncate"
+        style={{ top: CARD_LAYOUT.teamIdTop, color: textColor, fontSize: '3.7cqw' }}
       >
         Team: {employeeTeam || '—'}&nbsp;&nbsp;&nbsp;&nbsp;ID: {employeeId || '—'}
       </p>
@@ -108,7 +109,6 @@ export function ExportStep({
   employeeName,
   employeeTeam,
   employeeId,
-  employeeTitlePrefix,
   position,
   photoUrl,
   isExportingPdf,
@@ -131,7 +131,6 @@ export function ExportStep({
   employeeName: string;
   employeeTeam: string;
   employeeId: string;
-  employeeTitlePrefix?: string;
   position: IdPhotoPosition;
   photoUrl: string | null;
   isExportingPdf: boolean;
@@ -161,7 +160,7 @@ export function ExportStep({
   // bấm "Cập nhật", đúng thứ họ đang muốn kiểm chứng (vd tên dài có bị co chữ không).
   const shown = isEditingInfo
     ? editValues
-    : { employeeName, employeeTeam, employeeId, employeeTitlePrefix: employeeTitlePrefix ?? '', position };
+    : { employeeName, employeeTeam, employeeId, position };
 
   const opt = getPositionOption(shown.position);
   const isExporting = isExportingPdf || isDownloading;
@@ -263,7 +262,7 @@ export function ExportStep({
               <label className="block text-xs font-semibold text-[#464554] mb-1.5">Tên nhân viên</label>
               <input
                 readOnly
-                value={[shown.employeeTitlePrefix?.trim(), shown.employeeName].filter(Boolean).join(' ')}
+                value={shown.employeeName}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-[#e2e0ea] bg-[#fafafb] text-sm text-[#1b1b1d] cursor-default"
               />
             </div>
@@ -423,7 +422,6 @@ export function ExportStep({
             employeeName={shown.employeeName}
             employeeTeam={shown.employeeTeam}
             employeeId={shown.employeeId}
-            employeeTitlePrefix={shown.employeeTitlePrefix}
             position={shown.position}
             photoUrl={photoUrl}
           />
