@@ -1,51 +1,48 @@
 "use client";
 
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
+import {
+  CLASSIFICATION_PALETTE,
+  UNCLASSIFIED_COLOR,
+  UNCLASSIFIED_LABEL,
+} from "../shared/classification-colors";
 
-interface LeaderProductCategoryChartProps {
-  data: { category: string; count: number }[];
-}
-
-const CATEGORY_COLORS: Record<string, string> = {
-  GMV: "#4f6ef7",
-  TRAFFIC: "#10b981",
-  PROFIT: "#8b5cf6",
-};
-const FALLBACK_COLORS = ["#f59e0b", "#ec4899", "#64748b"];
-
-const CATEGORY_LABELS: Record<string, string> = {
-  GMV: "GMV",
-  TRAFFIC: "Traffic",
-  PROFIT: "Profit",
-};
-
-function labelOf(category: string) {
-  return CATEGORY_LABELS[category] ?? category.charAt(0) + category.slice(1).toLowerCase();
+interface LeaderContentByClassificationChartProps {
+  /** BE trả sẵn theo count giảm dần, "Chưa phân loại" xuống cuối. */
+  data: { classification: string; count: number }[];
 }
 
 function pct(part: number, total: number) {
   return total > 0 ? Math.round((part / total) * 1000) / 10 : 0;
 }
 
-/** Số video (task đã duyệt) trong kỳ của cả team, gộp theo dòng sản phẩm (GMV/Traffic/Profit). */
-export function LeaderProductCategoryChart({ data }: LeaderProductCategoryChartProps) {
+/**
+ * "Content theo phân loại" của cả team trong kỳ — số task tạo trong kỳ, gộp theo ContentClassification
+ * của content gắn vào task (thay biểu đồ "content mới/cũ" cũ). Donut + chú thích liệt kê số/%, không
+ * dùng nhãn ngoài vành (tên phân loại do người dùng tự đặt, dài ngắn tuỳ ý → dễ tràn card).
+ */
+export function LeaderContentByClassificationChart({ data }: LeaderContentByClassificationChartProps) {
   const total = data.reduce((s, d) => s + d.count, 0);
+
+  let paletteIdx = 0;
   const chartData = data
     .filter((d) => d.count > 0)
-    .map((d, i) => ({
-      name: labelOf(d.category),
-      value: d.count,
-      color: CATEGORY_COLORS[d.category] ?? FALLBACK_COLORS[i % FALLBACK_COLORS.length],
-    }));
+    .map((d) => {
+      const isUnclassified = d.classification === UNCLASSIFIED_LABEL;
+      const color = isUnclassified
+        ? UNCLASSIFIED_COLOR
+        : CLASSIFICATION_PALETTE[paletteIdx++ % CLASSIFICATION_PALETTE.length];
+      return { name: d.classification, value: d.count, color };
+    });
 
   return (
     <div className="flex h-full flex-col rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Sản phẩm</div>
+      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
+        Content theo phân loại
+      </div>
       {total === 0 ? (
         <div className="flex flex-1 items-center justify-center">
-          <p className="py-8 text-center text-xs text-gray-400">
-            Chưa có video được duyệt gắn dòng sản phẩm (GMV/Traffic/Profit) trong kỳ này.
-          </p>
+          <p className="py-8 text-center text-xs text-gray-400">Chưa có task nào trong kỳ này.</p>
         </div>
       ) : (
         <>
@@ -74,7 +71,7 @@ export function LeaderProductCategoryChart({ data }: LeaderProductCategoryChartP
             </ResponsiveContainer>
             <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
               <span className="text-2xl font-extrabold leading-none text-gray-900">{total}</span>
-              <span className="text-[11px] text-gray-400">video</span>
+              <span className="text-[11px] text-gray-400">task</span>
             </div>
           </div>
 
