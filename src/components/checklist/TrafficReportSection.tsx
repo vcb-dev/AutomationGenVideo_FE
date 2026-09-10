@@ -1,9 +1,10 @@
 import Image from "next/image";
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Activity, ImagePlus, X, Loader2, Sparkles } from 'lucide-react';
 import { digitsOnly, sumEntryValues, formatThousands } from './report-total';
 import { fetchWithAuth } from '@/lib/api-client';
 import toast from 'react-hot-toast';
+import { ChannelSelect, ChannelOptionItem } from './ChannelSelect';
 
 export const TRAFFIC_PLATFORMS = [
     { id: 'fb', label: 'Traffic FB', platform: 'FACEBOOK' },
@@ -367,6 +368,54 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
         setTimeout(() => fileInputRef.current?.click(), 0);
     };
 
+    const channelOptionsByPlatform = useMemo(() => {
+        const result: Record<string, ChannelOptionItem[]> = {};
+
+        TRAFFIC_PLATFORMS.forEach(platform => {
+            const list: ChannelOptionItem[] = [];
+            const addedNames = new Set<string>();
+
+            availableChannels
+                ?.filter(c => isPlatformMatch(platform.id, c.platform))
+                .forEach((c, cIdx) => {
+                    if (!c.name) return;
+                    const norm = c.name.toLowerCase();
+                    if (!addedNames.has(norm)) {
+                        addedNames.add(norm);
+                        list.push({
+                            id: `team-${c.id || cIdx}`,
+                            name: c.name,
+                            channelId: c.channel_id || c.link_channel,
+                            badge: 'Kênh nhóm',
+                            badgeColor: 'purple',
+                        });
+                    }
+                });
+
+            socialAccounts
+                ?.filter(sa => isPlatformMatch(platform.id, sa.platform))
+                .forEach((sa, saIdx) => {
+                    const name = sa.name || sa.username;
+                    if (!name) return;
+                    const norm = name.toLowerCase();
+                    if (!addedNames.has(norm)) {
+                        addedNames.add(norm);
+                        list.push({
+                            id: `oauth-${sa.id || saIdx}`,
+                            name: name,
+                            channelId: sa.id,
+                            badge: 'OAuth',
+                            badgeColor: 'blue',
+                        });
+                    }
+                });
+
+            result[platform.id] = list;
+        });
+
+        return result;
+    }, [availableChannels, socialAccounts]);
+
     return (
         <div className="space-y-6">
             <input
@@ -410,14 +459,20 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
             </div>
 
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 relative">
                 {TRAFFIC_PLATFORMS.filter(platform => {
                     const hasAccess = availableChannels.some(c => isPlatformMatch(platform.id, c.platform)) ||
                                       socialAccounts.some(sa => isPlatformMatch(platform.id, sa.platform));
                     const hasData = (entries[platform.id] || []).some(e => e.value !== '' || e.channel !== '');
                     return hasAccess || hasData || readOnly;
-                }).map((platform) => (
-                    <div key={platform.id} className={`flex flex-col gap-4 p-5 bg-slate-50/50 rounded-[2.5rem] border border-slate-100 transition-all duration-300 shadow-sm ${readOnly ? 'opacity-70 pointer-events-none' : 'hover:border-purple-200 hover:bg-white hover:shadow-md'}`}>
+                }).map((platform, platformIdx) => (
+                    <div
+                        key={platform.id}
+                        style={{ zIndex: 30 - platformIdx }}
+                        className={`relative flex flex-col gap-4 p-5 bg-slate-50/50 rounded-[2.5rem] border border-slate-100 transition-all duration-300 shadow-sm ${
+                            readOnly ? 'opacity-70 pointer-events-none' : 'hover:border-purple-200 hover:bg-white hover:shadow-md'
+                        }`}
+                    >
                         <div className="flex items-center justify-between px-1">
                             <div className="flex items-center gap-2">
                                 <span className="w-2 h-6 bg-purple-500 rounded-full" />
@@ -440,7 +495,11 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
 
                         <div className="space-y-4">
                             {(entries[platform.id] || []).map((entry, idx) => (
-                                <div key={entry.id} className="group/row bg-white rounded-3xl p-4 border border-slate-100 hover:border-purple-100 hover:shadow-sm transition-all">
+                                <div
+                                    key={entry.id}
+                                    style={{ zIndex: 20 - idx }}
+                                    className="relative group/row bg-white rounded-3xl p-4 border border-slate-100 hover:border-purple-100 hover:shadow-sm transition-all"
+                                >
                                     <div className="grid grid-cols-12 gap-3 items-end">
                                         <div className="col-span-12 sm:col-span-5 space-y-1.5">
                                             <div className="flex justify-between items-center px-1">
@@ -473,42 +532,15 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
 
                                         <div className="col-span-12 sm:col-span-5 space-y-1.5">
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Tên kênh</label>
-                                            <select
-                                                disabled={readOnly}
+                                            <ChannelSelect
+                                                theme="purple"
                                                 value={entry.channel}
-                                                onChange={(e) => updateRow(platform.id, entry.id, { channel: e.target.value })}
-                                                className="w-full h-12 px-4 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-700 text-sm font-bold focus:border-purple-400 focus:bg-white focus:ring-4 focus:ring-purple-100 transition-all outline-none appearance-none cursor-pointer"
-                                            >
-                                                <option value="">-- Chọn kênh --</option>
-                                                {availableChannels
-                                                    ?.filter(c => isPlatformMatch(platform.id, c.platform))
-                                                    .filter(c => {
-                                                        if (!c.name) return false;
-                                                        if (c.name === entry.channel) return true;
-                                                        const alreadySelected = (entries[platform.id] || []).some(e => e.channel === c.name);
-                                                        return !alreadySelected;
-                                                    })
-                                                    .map((c, cIdx) => (
-                                                        <option key={`team-${c.id || cIdx}`} value={c.name}>{c.name}</option>
-                                                    ))
-                                                }
-                                                {socialAccounts
-                                                    ?.filter(sa => isPlatformMatch(platform.id, sa.platform))
-                                                    .filter(sa => {
-                                                        const name = sa.name || sa.username;
-                                                        if (!name) return false;
-                                                        if (availableChannels?.some(ac => ac.name?.toLowerCase() === name.toLowerCase())) return false;
-                                                        if (name === entry.channel) return true;
-                                                        const alreadySelected = (entries[platform.id] || []).some(e => e.channel === name);
-                                                        return !alreadySelected;
-                                                    })
-                                                    .map((sa, saIdx) => (
-                                                        <option key={`oauth-${sa.id || saIdx}`} value={sa.name || sa.username}>
-                                                            {sa.name || sa.username} ★ (OAuth)
-                                                        </option>
-                                                    ))
-                                                }
-                                            </select>
+                                                options={channelOptionsByPlatform[platform.id] || []}
+                                                disabled={readOnly}
+                                                readOnly={readOnly}
+                                                placeholder="-- Chọn kênh --"
+                                                onChange={(channelName) => updateRow(platform.id, entry.id, { channel: channelName })}
+                                            />
                                         </div>
 
 
