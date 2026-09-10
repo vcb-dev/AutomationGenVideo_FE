@@ -60,10 +60,11 @@ export default function ReelCard({ reel }: ReelCardProps) {
         rel="noopener noreferrer"
         className="relative block aspect-[9/16] bg-slate-100 overflow-hidden max-h-[280px]"
       >
-        {reel.thumbnail_url ? (
+        {reel.thumbnail_url && reel.thumbnail_url !== 'FAILED' ? (
           <img
             src={reel.thumbnail_url}
             alt=""
+            referrerPolicy="no-referrer"
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
             loading="lazy"
             onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
@@ -102,12 +103,15 @@ export default function ReelCard({ reel }: ReelCardProps) {
         {/* Fanpage info */}
         {reel.fanpage && (
           <div className="flex items-center gap-1.5 pt-1.5">
-            <img
-              src={`https://graph.facebook.com/${reel.fanpage.id}/picture?type=small`}
-              alt=""
-              className="w-4 h-4 rounded-full"
-              onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-            />
+            {reel.fanpage.avatar_url && reel.fanpage.avatar_url !== 'FAILED' ? (
+              <img
+                src={reel.fanpage.avatar_url}
+                alt=""
+                referrerPolicy="no-referrer"
+                className="w-4 h-4 rounded-full object-cover"
+                onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+            ) : null}
             <span className="text-xs text-slate-500 truncate">{reel.fanpage.name}</span>
           </div>
         )}

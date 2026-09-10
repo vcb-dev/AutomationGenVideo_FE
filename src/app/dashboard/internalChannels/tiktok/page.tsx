@@ -47,6 +47,7 @@ function VideoCard({ video: v }: { video: ExternalVideo }) {
             alt=""
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
             loading="lazy"
+            referrerPolicy="no-referrer"
             onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
           />
         )}
@@ -68,7 +69,13 @@ function VideoCard({ video: v }: { video: ExternalVideo }) {
         {v.author_name && (
           <div className="flex items-center gap-1.5 mt-auto pt-1.5">
             {v.author_avatar && (
-              <img src={v.author_avatar} alt="" className="w-4 h-4 rounded-full" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+              <img
+                src={v.author_avatar}
+                alt=""
+                className="w-4 h-4 rounded-full"
+                referrerPolicy="no-referrer"
+                onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
             )}
             <span className="text-xs text-slate-500 truncate">{v.author_name}</span>
           </div>

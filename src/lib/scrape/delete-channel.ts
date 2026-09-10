@@ -48,11 +48,12 @@ export function buildSyncAllChannelsPath(platform: DeletableChannelPlatform): st
  * 0,0055 USD/lượt, Facebook ăn vào quota RapidAPI đang cạn). Và nó chạy vài phút vì mỗi
  * kênh nghỉ 5 giây giữa các lượt — không nói trước thì người dùng tưởng treo rồi bấm lại.
  */
-export function buildSyncAllConfirm(channelCount: number): string {
-  if (channelCount <= 0) return '';
+export function buildSyncAllConfirm(channelCount?: number): string {
+  if (channelCount !== undefined && channelCount <= 0) return '';
+  const targetStr = channelCount ? `cho ${channelCount.toLocaleString('vi-VN')} kênh trong ` : 'cho các kênh trong ';
   return (
-    `Đồng bộ lại toàn bộ ${channelCount.toLocaleString('vi-VN')} kênh của nền tảng này?\n\n` +
-    `Quá trình chạy nền và mất vài phút. Mỗi kênh là một lượt gọi API có tính phí.`
+    `Hệ thống sẽ tiến hành cào video mới ${targetStr}danh sách KÊNH CHÚ Ý (bật icon đồng hồ). Bạn có muốn tiếp tục?\n\n` +
+    'Quá trình chạy nền và mất vài phút. Mỗi kênh nghỉ vài giây giữa các lượt cào để tránh quá tải API.'
   );
 }
 

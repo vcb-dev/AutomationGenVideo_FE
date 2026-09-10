@@ -82,6 +82,7 @@ function VideoCard({
             alt=""
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
             loading="lazy"
+            referrerPolicy="no-referrer"
             onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
           />
         ) : null}
@@ -138,6 +139,7 @@ function VideoCard({
             src={getAuthorAvatar(video)}
             alt=""
             className="w-5 h-5 rounded-full ring-1 ring-slate-200 dark:ring-slate-600"
+            referrerPolicy="no-referrer"
             onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
           />
           <span className="text-xs text-slate-500 dark:text-slate-400 truncate">

@@ -15,7 +15,8 @@ import PageTableRow from '../PageTableRow';
 import { useAuthStore } from '@/store/auth-store';
 import { FacebookPage, PaginatedPages, PageFilters } from '@/types/facebook';
 import { facebookService } from '@/services/facebookService';
-import { scraperService, ExternalVideo } from '@/services/scraperService';
+import { scraperService, ExternalVideo, TrangThaiPaast } from '@/services/scraperService';
+import OPaastVideo from '../components/OPaastVideo';
 import ContentFilters from '../components/ContentFilters';
 import { FilterDateRange, FilterNumber, FilterReset, FilterSearch, FilterSelect } from '../components/FilterFields';
 import { channelsService, ChannelInfo } from '@/services/channelsService';
@@ -89,6 +90,7 @@ function FacebookPageCard({
             src={`https://graph.facebook.com/${p.page_id}/picture?type=large`}
             alt={p.name}
             className="w-full h-full object-cover"
+            referrerPolicy="no-referrer"
             onError={e => {
               const t = e.target as HTMLImageElement;
               if (p.avatar_url && t.src !== p.avatar_url) t.src = p.avatar_url;
@@ -177,7 +179,15 @@ function FacebookPageCard({
 
 // ─── FbVideoCard ─────────────────────────────────────────────────────────────
 
-function FbVideoCard({ video: v }: { video: ExternalVideo }) {
+function FbVideoCard({
+  video: v,
+  paast,
+  onPaastUpdate,
+}: {
+  video: ExternalVideo;
+  paast?: TrangThaiPaast;
+  onPaastUpdate?: (t: TrangThaiPaast) => void;
+}) {
   return (
     <a
       href={v.url}
@@ -192,9 +202,19 @@ function FbVideoCard({ video: v }: { video: ExternalVideo }) {
             alt=""
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
             loading="lazy"
+            referrerPolicy="no-referrer"
             onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
           />
         ) : null}
+
+        {/* Ô chấm điểm PAAST — bấm vào mới chấm, không tự chấm */}
+        <OPaastVideo
+          platform="facebook"
+          postId={v.post_id}
+          trangThai={paast}
+          onCapNhat={onPaastUpdate}
+        />
+
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-2.5 pb-2 pt-6">
           <div className="flex items-center gap-3 text-white text-xs">
             <span className="flex items-center gap-1"><Eye size={12} weight="fill" />{formatNum(v.play_count)}</span>
@@ -211,6 +231,7 @@ function FbVideoCard({ video: v }: { video: ExternalVideo }) {
               src={v.author_id ? `https://graph.facebook.com/${v.author_id}/picture?type=small` : (v.author_avatar || '')}
               alt=""
               className="w-4 h-4 rounded-full"
+              referrerPolicy="no-referrer"
               onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
             />
             <span className="text-xs text-slate-500 truncate">{v.author_name}</span>
@@ -284,6 +305,21 @@ export default function FacebookChannelsPage() {
   }, [token, page, debouncedSearch, status]);
 
   useEffect(() => { fetchPages(); }, [fetchPages]);
+
+  const handleManualSyncPages = async () => {
+    if (!token || syncing) return;
+    setSyncing(true);
+    const toastId = toast.loading('Đang đồng bộ danh sách Fanpage từ Facebook...');
+    try {
+      const res = await facebookService.importPages(token);
+      toast.success(res.message || `Đồng bộ thành công! (+${res.created} mới, ~${res.updated} cập nhật)`, { id: toastId });
+      await fetchPages();
+    } catch (e: any) {
+      toast.error(e.message || 'Lỗi khi đồng bộ từ Facebook', { id: toastId });
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const handleScrape = async (pg: FacebookPage) => {
     if (!token) return;
@@ -426,6 +462,23 @@ export default function FacebookChannelsPage() {
   const allVideos = videosQuery.data?.pages.flatMap(p => p.videos) || [];
   const totalVideos = videosQuery.data?.pages[0]?.count || 0;
 
+  // Trạng thái chấm điểm PAAST của cả lưới video Facebook (chỉ đọc dữ liệu đã lưu, không tự gọi LLM)
+  const [paastMap, setPaastMap] = useState<Record<string, TrangThaiPaast>>({});
+  const askedPaastKeysRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!token) return;
+    const pendingKeys = allVideos
+      .map(v => `facebook:${v.post_id}`)
+      .filter(k => !askedPaastKeysRef.current.has(k));
+    if (!pendingKeys.length) return;
+    pendingKeys.forEach(k => askedPaastKeysRef.current.add(k));
+    scraperService.getPaastStatus(token, pendingKeys).then(r => {
+      if (r && Object.keys(r).length) {
+        setPaastMap(cu => ({ ...cu, ...r }));
+      }
+    });
+  }, [allVideos.length, token]);
+
   const observerRef = useRef<IntersectionObserver>();
   const loadMoreRef = useCallback((node: HTMLDivElement | null) => {
     if (videosQuery.isFetchingNextPage) return;
@@ -454,25 +507,41 @@ export default function FacebookChannelsPage() {
             {pagesCollapsed ? <CaretDown size={15} /> : <CaretUp size={15} />}
           </button>
 
-          {/* View mode toggle */}
-          {!pagesCollapsed && (
-            <div className="flex items-center gap-1 p-0.5 bg-slate-100 dark:bg-slate-800 rounded-md">
-              <button
-                onClick={() => setViewMode('card')}
-                className={`p-1.5 rounded transition-colors ${viewMode === 'card' ? 'bg-white dark:bg-slate-700 shadow-sm text-foreground' : 'text-slate-400 hover:text-foreground'}`}
-                title="Dạng card"
-              >
-                <SquaresFour size={15} weight={viewMode === 'card' ? 'fill' : 'regular'} />
-              </button>
-              <button
-                onClick={() => setViewMode('table')}
-                className={`p-1.5 rounded transition-colors ${viewMode === 'table' ? 'bg-white dark:bg-slate-700 shadow-sm text-foreground' : 'text-slate-400 hover:text-foreground'}`}
-                title="Dạng bảng"
-              >
-                <Rows size={15} weight={viewMode === 'table' ? 'fill' : 'regular'} />
-              </button>
-            </div>
-          )}
+          {/* Action buttons + View mode toggle */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleManualSyncPages}
+              disabled={syncing}
+              title="Đồng bộ danh sách Fanpage từ tài khoản Facebook đã kết nối"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-primary text-primary-foreground hover:opacity-90 rounded-md disabled:opacity-50 transition-all shadow-sm"
+            >
+              {syncing ? (
+                <CircleNotch size={14} weight="bold" className="animate-spin" />
+              ) : (
+                <ArrowsClockwise size={14} weight="bold" />
+              )}
+              {syncing ? 'Đang đồng bộ...' : 'Đồng bộ từ Facebook'}
+            </button>
+
+            {!pagesCollapsed && (
+              <div className="flex items-center gap-1 p-0.5 bg-slate-100 dark:bg-slate-800 rounded-md">
+                <button
+                  onClick={() => setViewMode('card')}
+                  className={`p-1.5 rounded transition-colors ${viewMode === 'card' ? 'bg-white dark:bg-slate-700 shadow-sm text-foreground' : 'text-slate-400 hover:text-foreground'}`}
+                  title="Dạng card"
+                >
+                  <SquaresFour size={15} weight={viewMode === 'card' ? 'fill' : 'regular'} />
+                </button>
+                <button
+                  onClick={() => setViewMode('table')}
+                  className={`p-1.5 rounded transition-colors ${viewMode === 'table' ? 'bg-white dark:bg-slate-700 shadow-sm text-foreground' : 'text-slate-400 hover:text-foreground'}`}
+                  title="Dạng bảng"
+                >
+                  <Rows size={15} weight={viewMode === 'table' ? 'fill' : 'regular'} />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {!pagesCollapsed && (
@@ -632,7 +701,14 @@ export default function FacebookChannelsPage() {
         {allVideos.length > 0 && (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-              {allVideos.map(v => <FbVideoCard key={v.post_id} video={v} />)}
+              {allVideos.map(v => (
+                <FbVideoCard
+                  key={v.post_id}
+                  video={v}
+                  paast={paastMap[`facebook:${v.post_id}`]}
+                  onPaastUpdate={(t) => setPaastMap(cu => ({ ...cu, [`facebook:${v.post_id}`]: t }))}
+                />
+              ))}
               {videosQuery.isFetchingNextPage && Array.from({ length: 6 }).map((_, i) => (
                 <div key={`skel-${i}`} className="bg-card border border-border rounded-lg overflow-hidden animate-pulse">
                   <div className="aspect-[9/16] max-h-[280px] bg-slate-200 dark:bg-slate-700" />

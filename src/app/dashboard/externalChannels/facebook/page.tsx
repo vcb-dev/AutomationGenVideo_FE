@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CircleNotch, FilmReel, Warning, CaretDown, CaretUp, FacebookLogo, MagnifyingGlassPlus } from '@phosphor-icons/react';
+import { CircleNotch, FilmReel, Warning, CaretDown, CaretUp, FacebookLogo, MagnifyingGlassPlus, Timer, BookmarkSimple, ArrowsClockwise } from '@phosphor-icons/react';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -16,9 +16,11 @@ import { scraperService, ScrapedFanpage } from '@/services/scraperService';
 import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
 import { UserRole } from '@/types/auth';
 import { dedupeById } from '@/lib/dedupe-pages';
-import SyncAllChannelsButton from '../components/SyncAllChannelsButton';
 import { buildDeleteChannelConfirm } from '@/lib/scrape/delete-channel';
+import SyncAllChannelsButton from '../components/SyncAllChannelsButton';
 import WatchFeedButton from '../components/WatchFeedButton';
+import BulkAddFacebookModal from '../components/BulkAddFacebookModal';
+import { ListPlus } from 'lucide-react';
 
 const PAGE_SIZE_FANPAGES = 12;
 const PAGE_SIZE_REELS = 24;
@@ -54,16 +56,29 @@ export default function FacebookExternalPage() {
     deleteChannelMutation.mutate(id);
   };
 
-  // Fanpage pagination + search
+  // Fanpage pagination + search + tab filter ('all' | 'periodic' | 'bookmarked')
   const [fpPage, setFpPage] = useState(1);
   const [fpSearch, setFpSearch] = useState('');
   const [debouncedFpSearch, setDebouncedFpSearch] = useState('');
+  const [fpTab, setFpTab] = useState<'all' | 'periodic' | 'bookmarked'>('all');
   const fpSearchTimer = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
     fpSearchTimer.current = setTimeout(() => { setDebouncedFpSearch(fpSearch); setFpPage(1); }, 300);
     return () => clearTimeout(fpSearchTimer.current);
   }, [fpSearch]);
+
+  const syncPeriodicMutation = useMutation({
+    mutationFn: () => {
+      if (!token) throw new Error('No token');
+      return scraperService.syncAllExternalChannels(token, 'facebook');
+    },
+    onSuccess: (data) => {
+      toast.success(data.message || 'Đã bắt đầu cào reels mới cho các kênh chú ý!');
+      queryClient.invalidateQueries({ queryKey: ['scraper-fanpages'] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   // Reels filter
   const [reelSearch, setReelSearch] = useState('');
@@ -82,13 +97,15 @@ export default function FacebookExternalPage() {
 
   // Collapse fanpages section
   const [fpCollapsed, setFpCollapsed] = useState(false);
+  const [showBulkAddModal, setShowBulkAddModal] = useState(false);
 
   // Scrape by URL
   const [pageUrl, setPageUrl] = useState('');
+  const [reelCount, setReelCount] = useState('50');
   const scrapeByUrlMutation = useMutation({
-    mutationFn: (url: string) => {
+    mutationFn: ({ url, count }: { url: string; count?: number }) => {
       if (!token) throw new Error('No token');
-      return scraperService.fanpageScrapeByUrl(token, url);
+      return scraperService.fanpageScrapeByUrl(token, url, count);
     },
     onSuccess: (data) => {
       if (data.already_exists) {
@@ -113,9 +130,13 @@ export default function FacebookExternalPage() {
 
   // ─── Fanpages Query (paginated from backend) ─────────
   const fanpagesQuery = useQuery({
-    queryKey: ['scraper-fanpages', fpPage, debouncedFpSearch],
+    queryKey: ['scraper-fanpages', fpPage, debouncedFpSearch, fpTab],
     queryFn: () => token ? scraperService.getFanpages(token, {
-      page: fpPage, page_size: PAGE_SIZE_FANPAGES, search: debouncedFpSearch || undefined,
+      page: fpPage,
+      page_size: PAGE_SIZE_FANPAGES,
+      search: debouncedFpSearch || undefined,
+      periodic: fpTab === 'periodic' ? 'true' : undefined,
+      bookmarked: fpTab === 'bookmarked' ? 'true' : undefined,
     }) : Promise.reject('No token'),
     enabled: !!token,
     // Poll nhanh hơn khi có page đang cào, chuyển về 15s khi tất cả idle
@@ -226,13 +247,23 @@ export default function FacebookExternalPage() {
               type="text"
               value={pageUrl}
               onChange={e => setPageUrl(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && pageUrl.trim()) scrapeByUrlMutation.mutate(pageUrl.trim()); }}
+              onKeyDown={e => { if (e.key === 'Enter' && pageUrl.trim()) scrapeByUrlMutation.mutate({ url: pageUrl.trim(), count: Number(reelCount) || 50 }); }}
               placeholder="Nhập Facebook page URL (vd: https://www.facebook.com/pagename)"
               className="w-full pl-10 pr-3 py-2.5 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
             />
           </div>
+          <input
+            type="number"
+            value={reelCount}
+            onChange={e => setReelCount(e.target.value)}
+            min={1}
+            max={1000}
+            title="Số reels muốn cào (1-1000). Mặc định 50."
+            placeholder="Số video"
+            className="w-28 px-3 py-2.5 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          />
           <button
-            onClick={() => scrapeByUrlMutation.mutate(pageUrl.trim())}
+            onClick={() => scrapeByUrlMutation.mutate({ url: pageUrl.trim(), count: Number(reelCount) || 50 })}
             disabled={scrapeByUrlMutation.isPending || !pageUrl.trim()}
             className="flex items-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground text-sm font-bold rounded-md hover:opacity-90 disabled:opacity-50 whitespace-nowrap shadow-sm hover:shadow-md transition-all"
           >
@@ -242,6 +273,14 @@ export default function FacebookExternalPage() {
               <MagnifyingGlassPlus size={16} weight="bold" />
             )}
             {scrapeByUrlMutation.isPending ? 'Đang gửi...' : 'Cào Reels'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowBulkAddModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-foreground text-sm font-semibold rounded-md whitespace-nowrap transition-all border border-border shadow-sm"
+          >
+            <ListPlus size={16} />
+            Thêm hàng loạt
           </button>
         </div>
       </div>
@@ -258,34 +297,112 @@ export default function FacebookExternalPage() {
           onClick={() => setFpCollapsed(!fpCollapsed)}
           className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
         >
-          <h2 className="text-sm font-semibold text-foreground">
-            Fanpages ({fpTotal})
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-foreground">
+              Fanpages ({fpTotal})
+            </h2>
+            {fpTab === 'periodic' && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 font-medium">
+                Kênh chú ý
+              </span>
+            )}
+            {fpTab === 'bookmarked' && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 font-medium">
+                Đã lưu
+              </span>
+            )}
+          </div>
           {fpCollapsed ? <CaretDown size={16} /> : <CaretUp size={16} />}
         </button>
 
         {!fpCollapsed && (
           <div className="px-4 pb-4 space-y-4">
-            <input
-              type="text"
-              value={fpSearch}
-              onChange={e => setFpSearch(e.target.value)}
-              placeholder="Tìm fanpage theo tên..."
-              className="w-full max-w-sm px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            />
-
-            {fanpages.length > 0 && (
-              <div className="flex justify-end">
-                <SyncAllChannelsButton platform="facebook" channelCount={fanpages.length} />
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-1">
+              {/* Filter Tabs: Tất cả | Kênh chú ý | Đã lưu */}
+              <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg w-fit">
+                <button
+                  type="button"
+                  onClick={() => { setFpTab('all'); setFpPage(1); }}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                    fpTab === 'all'
+                      ? 'bg-card text-foreground shadow-sm'
+                      : 'text-slate-500 hover:text-foreground'
+                  }`}
+                >
+                  Tất cả
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setFpTab('periodic'); setFpPage(1); }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                    fpTab === 'periodic'
+                      ? 'bg-card text-emerald-600 dark:text-emerald-400 shadow-sm'
+                      : 'text-slate-500 hover:text-emerald-600'
+                  }`}
+                >
+                  <Timer size={14} weight="fill" />
+                  Kênh chú ý
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setFpTab('bookmarked'); setFpPage(1); }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                    fpTab === 'bookmarked'
+                      ? 'bg-card text-amber-600 dark:text-amber-400 shadow-sm'
+                      : 'text-slate-500 hover:text-amber-600'
+                  }`}
+                >
+                  <BookmarkSimple size={14} weight="fill" />
+                  Đã lưu
+                </button>
               </div>
-            )}
+
+              <div className="flex items-center gap-3">
+                <input
+                  type="text"
+                  value={fpSearch}
+                  onChange={e => setFpSearch(e.target.value)}
+                  placeholder="Tìm fanpage theo tên..."
+                  className="w-full sm:w-60 px-3 py-1.5 text-xs border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                />
+
+                {canManageChannels && (
+                  <button
+                    onClick={() => {
+                      if (window.confirm('Hệ thống sẽ tiến hành cào video reels mới cho các Fanpage trong danh sách Kênh chú ý (bật icon đồng hồ). Bạn có muốn tiếp tục?')) {
+                        syncPeriodicMutation.mutate();
+                      }
+                    }}
+                    disabled={syncPeriodicMutation.isPending}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800 rounded-md transition-all whitespace-nowrap shadow-sm disabled:opacity-50"
+                    title="Chỉ cào video mới cho các Fanpage đã được bật icon đồng hồ (Kênh chú ý)"
+                  >
+                    <ArrowsClockwise size={14} className={syncPeriodicMutation.isPending ? 'animate-spin' : ''} weight="bold" />
+                    {syncPeriodicMutation.isPending ? 'Đang cào...' : 'Cào video kênh chú ý'}
+                  </button>
+                )}
+              </div>
+            </div>
 
             {fanpagesQuery.isLoading ? (
               <div className="flex justify-center py-8">
                 <CircleNotch size={24} className="animate-spin text-primary" />
               </div>
             ) : fanpages.length === 0 ? (
-              <p className="text-sm text-slate-400 text-center py-6">Chưa có fanpage nào.</p>
+              <div className="text-center py-8 space-y-1">
+                <p className="text-sm text-slate-500 font-medium">
+                  {fpTab === 'periodic'
+                    ? 'Chưa có kênh nào được đánh dấu chú ý.'
+                    : fpTab === 'bookmarked'
+                    ? 'Chưa có kênh nào được lưu.'
+                    : 'Chưa có fanpage nào.'}
+                </p>
+                {fpTab === 'periodic' && (
+                  <p className="text-xs text-slate-400">
+                    Bấm vào biểu tượng chiếc đồng hồ ở góc dưới mỗi thẻ kênh để thêm vào danh sách theo dõi.
+                  </p>
+                )}
+              </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {fanpages.map(fp => (
@@ -380,6 +497,15 @@ export default function FacebookExternalPage() {
           </>
         )}
       </div>
+
+      {/* Modal thêm hàng loạt Fanpage */}
+      <BulkAddFacebookModal
+        isOpen={showBulkAddModal}
+        onClose={() => setShowBulkAddModal(false)}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['scraper-fanpages'] });
+        }}
+      />
     </div>
   );
 }

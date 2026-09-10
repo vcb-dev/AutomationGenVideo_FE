@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CircleNotch, FilmReel, Warning, MagnifyingGlassPlus, VideoCamera, UserCircle, Sparkle } from '@phosphor-icons/react';
+import { CircleNotch, FilmReel, Warning, MagnifyingGlassPlus, VideoCamera, UserCircle, Sparkle, Timer, BookmarkSimple } from '@phosphor-icons/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
@@ -63,6 +63,7 @@ export default function KuaishouExternalPage() {
   const [debouncedProfileSearch, setDebouncedProfileSearch] = useState('');
   const [profilePage, setProfilePage] = useState(1);
   const [profileSortBy, setProfileSortBy] = useState<'followers' | 'recent'>('followers');
+  const [profileTab, setProfileTab] = useState<'all' | 'periodic' | 'bookmarked'>('all');
   const profileSearchTimer = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
@@ -70,8 +71,8 @@ export default function KuaishouExternalPage() {
     return () => clearTimeout(profileSearchTimer.current);
   }, [profileSearch]);
 
-  const hasProfileFilters = !!profileSearch || profileSortBy !== 'followers';
-  const clearProfileFilters = () => { setProfileSearch(''); setProfileSortBy('followers'); };
+  const hasProfileFilters = !!profileSearch || profileSortBy !== 'followers' || profileTab !== 'all';
+  const clearProfileFilters = () => { setProfileSearch(''); setProfileSortBy('followers'); setProfileTab('all'); };
 
   // ─── Search state ─────────────────────────────────────
   const [keyword, setKeyword] = useState('');
@@ -232,13 +233,20 @@ export default function KuaishouExternalPage() {
 
   // ─── Profiles Query (paginated) ──────────────────────
   const profilesQuery = useQuery({
-    queryKey: ['kuaishou-profiles', profilePage, debouncedProfileSearch, profileSortBy],
+    queryKey: ['kuaishou-profiles', profilePage, debouncedProfileSearch, profileSortBy, profileTab],
     queryFn: () => token ? scraperService.getKuaishouProfiles(token, {
       page: profilePage, page_size: PAGE_SIZE_PROFILES, search: debouncedProfileSearch || undefined,
       sort_by: profileSortBy,
+      tracked: profileTab === 'periodic' ? 'true' : undefined,
+      bookmarked: profileTab === 'bookmarked' ? 'true' : undefined,
     }) : Promise.reject('No token'),
     enabled: !!token && activeTab === 'profiles',
-    refetchInterval: 15000,
+    refetchInterval: (query) => {
+      const hasProcessing = query.state.data?.profiles?.some(
+        (p) => p.scraping_status === 'processing'
+      );
+      return hasProcessing ? 3000 : 15000;
+    },
   });
 
   const profiles = profilesQuery.data?.profiles || [];
@@ -511,27 +519,72 @@ export default function KuaishouExternalPage() {
             </div>
           )}
 
-          <div className="flex flex-wrap items-center gap-3 border border-border rounded-xl p-4">
-            <input
-              type="text"
-              value={profileSearch}
-              onChange={e => setProfileSearch(e.target.value)}
-              placeholder="Tìm theo tên, username..."
-              className="flex-1 min-w-[180px] max-w-sm px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            />
-            <select
-              value={profileSortBy}
-              onChange={e => setProfileSortBy(e.target.value as 'followers' | 'recent')}
-              className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            >
-              <option value="followers">Nhiều follower nhất</option>
-              <option value="recent">Mới thêm gần đây</option>
-            </select>
-            {hasProfileFilters && (
-              <button onClick={clearProfileFilters} className="px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50">
-                Xóa bộ lọc
+          {/* Filter bar: Tabs + Search + Sort + Sync button */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border border-border rounded-xl p-4">
+            {/* Filter Tabs: Tất cả | Kênh chú ý | Đã lưu */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg w-fit">
+              <button
+                type="button"
+                onClick={() => { setProfileTab('all'); setProfilePage(1); }}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                  profileTab === 'all'
+                    ? 'bg-card text-foreground shadow-sm'
+                    : 'text-slate-500 hover:text-foreground'
+                }`}
+              >
+                Tất cả
               </button>
-            )}
+              <button
+                type="button"
+                onClick={() => { setProfileTab('periodic'); setProfilePage(1); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                  profileTab === 'periodic'
+                    ? 'bg-card text-emerald-600 dark:text-emerald-400 shadow-sm'
+                    : 'text-slate-500 hover:text-emerald-600'
+                }`}
+              >
+                <Timer size={14} weight="fill" />
+                Kênh chú ý
+              </button>
+              <button
+                type="button"
+                onClick={() => { setProfileTab('bookmarked'); setProfilePage(1); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                  profileTab === 'bookmarked'
+                    ? 'bg-card text-amber-600 dark:text-amber-400 shadow-sm'
+                    : 'text-slate-500 hover:text-amber-600'
+                }`}
+              >
+                <BookmarkSimple size={14} weight="fill" />
+                Đã lưu
+              </button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <input
+                type="text"
+                value={profileSearch}
+                onChange={e => setProfileSearch(e.target.value)}
+                placeholder="Tìm theo tên, username..."
+                className="w-full sm:w-56 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              />
+              <select
+                value={profileSortBy}
+                onChange={e => setProfileSortBy(e.target.value as 'followers' | 'recent')}
+                className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                <option value="followers">Nhiều follower nhất</option>
+                <option value="recent">Mới thêm gần đây</option>
+              </select>
+              {hasProfileFilters && (
+                <button onClick={clearProfileFilters} className="px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50">
+                  Xóa bộ lọc
+                </button>
+              )}
+              {canManageChannels && (
+                <SyncAllChannelsButton platform="kuaishou" channelCount={profileTotal} />
+              )}
+            </div>
           </div>
 
           <h2 className="text-sm font-semibold text-foreground">
@@ -545,16 +598,22 @@ export default function KuaishouExternalPage() {
           )}
 
           {!profilesQuery.isLoading && profiles.length === 0 && (
-            <div className="flex flex-col items-center py-16 gap-4 bg-card border border-border rounded-xl">
+            <div className="flex flex-col items-center py-16 gap-3 bg-card border border-border rounded-xl text-center">
               <UserCircle size={40} className="text-slate-300" />
-              <p className="text-sm text-foreground font-medium">Chưa có profile nào</p>
-              <p className="text-xs text-slate-400 text-center max-w-sm">Nhập User ID ở trên để bắt đầu cào.</p>
-            </div>
-          )}
-
-          {profiles.length > 0 && (
-            <div className="flex justify-end pb-2">
-              <SyncAllChannelsButton platform="kuaishou" channelCount={profiles.length} />
+              <p className="text-sm text-foreground font-medium">
+                {profileTab === 'periodic'
+                  ? 'Chưa có kênh nào được đánh dấu chú ý.'
+                  : profileTab === 'bookmarked'
+                  ? 'Chưa có kênh nào được lưu.'
+                  : 'Chưa có profile nào'}
+              </p>
+              <p className="text-xs text-slate-400 max-w-sm">
+                {profileTab === 'periodic'
+                  ? 'Bấm vào biểu tượng chiếc đồng hồ ở góc dưới mỗi thẻ kênh để thêm vào danh sách theo dõi.'
+                  : profileTab === 'bookmarked'
+                  ? 'Bấm vào biểu tượng bookmark để lưu kênh.'
+                  : 'Nhập User ID ở trên để bắt đầu cào.'}
+              </p>
             </div>
           )}
 

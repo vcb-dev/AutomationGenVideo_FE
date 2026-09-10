@@ -66,6 +66,8 @@ function InstagramReelCard({ reel }: { reel: InstagramReel }) {
             alt=""
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
             loading="lazy"
+            referrerPolicy="no-referrer"
+            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-slate-800 text-slate-500">
@@ -261,7 +263,13 @@ export default function OwnedInstagramProfileDetailPage() {
           <div className="flex items-start gap-6">
             <div className="w-28 h-28 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden flex-shrink-0 ring-4 ring-slate-200 dark:ring-slate-600">
               {p.avatar_url ? (
-                <img src={proxyImg(p.avatar_url)} alt={p.username} className="w-full h-full object-cover" />
+                <img
+                  src={proxyImg(p.avatar_url)}
+                  alt={p.username}
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                  onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/30 dark:to-pink-900/30 text-pink-400">
                   <Users size={40} />

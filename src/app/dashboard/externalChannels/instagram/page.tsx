@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CircleNotch, MagnifyingGlassPlus, UserCircle, FilmReel, CaretDown, CaretUp, Eye, Heart, ChatCircle, Warning, PaperPlaneTilt } from '@phosphor-icons/react';
+import { CircleNotch, MagnifyingGlassPlus, UserCircle, FilmReel, CaretDown, CaretUp, Eye, Heart, ChatCircle, Warning, PaperPlaneTilt, Timer, BookmarkSimple } from '@phosphor-icons/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { MagnifyingGlass, X } from '@phosphor-icons/react';
 import { useRouter } from 'next/navigation';
@@ -150,6 +150,7 @@ export default function InstagramExternalPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(1);
   const [sortBy, setSortBy] = useState<'followers' | 'recent'>('followers');
+  const [profileTab, setProfileTab] = useState<'all' | 'periodic' | 'bookmarked'>('all');
   const searchTimer = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
@@ -157,16 +158,23 @@ export default function InstagramExternalPage() {
     return () => clearTimeout(searchTimer.current);
   }, [search]);
 
-  const hasProfileFilters = !!search || sortBy !== 'followers';
-  const clearProfileFilters = () => { setSearch(''); setSortBy('followers'); };
+  const hasProfileFilters = !!search || sortBy !== 'followers' || profileTab !== 'all';
+  const clearProfileFilters = () => { setSearch(''); setSortBy('followers'); setProfileTab('all'); };
 
   const profilesQuery = useQuery({
-    queryKey: ['instagram-profiles', page, debouncedSearch, sortBy],
+    queryKey: ['instagram-profiles', page, debouncedSearch, sortBy, profileTab],
     queryFn: () => token ? scraperService.getInstagramProfiles(token, {
       page, page_size: PAGE_SIZE_PROFILES, search: debouncedSearch || undefined, is_owned: false,
+      tracked: profileTab === 'periodic' ? 'true' : undefined,
+      bookmarked: profileTab === 'bookmarked' ? 'true' : undefined,
     }) : Promise.reject('No token'),
     enabled: !!token,
-    refetchInterval: 15000,
+    refetchInterval: (query) => {
+      const hasProcessing = query.state.data?.profiles?.some(
+        (p) => p.scraping_status === 'processing'
+      );
+      return hasProcessing ? 3000 : 15000;
+    },
   });
 
   const profiles = profilesQuery.data?.profiles || [];
@@ -329,45 +337,96 @@ export default function InstagramExternalPage() {
 
         {!profilesCollapsed && (
           <div className="px-4 pb-4 space-y-4">
-            {/* Filter bar */}
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative flex-1 min-w-[180px] max-w-sm">
-                <MagnifyingGlass size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder="Tìm theo username..."
-                  className="w-full pl-9 pr-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                />
-              </div>
-              <select
-                value={sortBy}
-                onChange={e => setSortBy(e.target.value as 'followers' | 'recent')}
-                className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              >
-                <option value="followers">Nhiều followers nhất</option>
-                <option value="recent">Mới thêm gần đây</option>
-              </select>
-              {hasProfileFilters && (
-                <button onClick={clearProfileFilters} className="flex items-center gap-1 px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50 dark:hover:bg-slate-800">
-                  <X size={12} /> Xóa lọc
+            {/* Filter bar: Tabs + Search + Sort + Sync button */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-1">
+              {/* Filter Tabs: Tất cả | Kênh chú ý | Đã lưu */}
+              <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg w-fit">
+                <button
+                  type="button"
+                  onClick={() => { setProfileTab('all'); setPage(1); }}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                    profileTab === 'all'
+                      ? 'bg-card text-foreground shadow-sm'
+                      : 'text-slate-500 hover:text-foreground'
+                  }`}
+                >
+                  Tất cả
                 </button>
-              )}
-            </div>
-
-            {profiles.length > 0 && (
-              <div className="flex justify-end">
-                <SyncAllChannelsButton platform="instagram" channelCount={profiles.length} />
+                <button
+                  type="button"
+                  onClick={() => { setProfileTab('periodic'); setPage(1); }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                    profileTab === 'periodic'
+                      ? 'bg-card text-emerald-600 dark:text-emerald-400 shadow-sm'
+                      : 'text-slate-500 hover:text-emerald-600'
+                  }`}
+                >
+                  <Timer size={14} weight="fill" />
+                  Kênh chú ý
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setProfileTab('bookmarked'); setPage(1); }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                    profileTab === 'bookmarked'
+                      ? 'bg-card text-amber-600 dark:text-amber-400 shadow-sm'
+                      : 'text-slate-500 hover:text-amber-600'
+                  }`}
+                >
+                  <BookmarkSimple size={14} weight="fill" />
+                  Đã lưu
+                </button>
               </div>
-            )}
+
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="relative flex-1 min-w-[180px] max-w-sm">
+                  <MagnifyingGlass size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    placeholder="Tìm theo username..."
+                    className="w-full pl-9 pr-3 py-1.5 text-xs border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  />
+                </div>
+                <select
+                  value={sortBy}
+                  onChange={e => setSortBy(e.target.value as 'followers' | 'recent')}
+                  className="px-3 py-1.5 text-xs border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  <option value="followers">Nhiều followers nhất</option>
+                  <option value="recent">Mới thêm gần đây</option>
+                </select>
+                {hasProfileFilters && (
+                  <button onClick={clearProfileFilters} className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50 dark:hover:bg-slate-800">
+                    <X size={12} /> Xóa lọc
+                  </button>
+                )}
+                {canManageChannels && (
+                  <SyncAllChannelsButton platform="instagram" channelCount={totalProfiles} />
+                )}
+              </div>
+            </div>
 
             {profilesQuery.isLoading ? (
               <div className="flex justify-center py-8"><CircleNotch size={24} className="animate-spin text-primary" /></div>
             ) : profiles.length === 0 ? (
-              <div className="flex flex-col items-center py-12 gap-3">
+              <div className="flex flex-col items-center py-12 gap-2 text-center">
                 <UserCircle size={36} className="text-slate-300" />
-                <p className="text-sm text-slate-400">Chưa có profile nào</p>
+                <p className="text-sm font-medium text-foreground">
+                  {profileTab === 'periodic'
+                    ? 'Chưa có kênh nào được đánh dấu chú ý.'
+                    : profileTab === 'bookmarked'
+                    ? 'Chưa có kênh nào được lưu.'
+                    : 'Chưa có profile nào'}
+                </p>
+                <p className="text-xs text-slate-400 max-w-sm">
+                  {profileTab === 'periodic'
+                    ? 'Bấm vào biểu tượng chiếc đồng hồ ở góc dưới mỗi thẻ kênh để thêm vào danh sách theo dõi.'
+                    : profileTab === 'bookmarked'
+                    ? 'Bấm vào biểu tượng bookmark để lưu kênh.'
+                    : 'Nhập Instagram username ở trên để bắt đầu cào.'}
+                </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">

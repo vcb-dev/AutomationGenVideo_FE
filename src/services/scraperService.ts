@@ -1296,6 +1296,7 @@ export const scraperService = {
 
   getTiktokProfiles: async (token: string, params?: {
     page?: number; page_size?: number; search?: string; sort_by?: 'followers' | 'recent'; is_owned?: boolean;
+    tracked?: string | boolean; bookmarked?: string | boolean; periodic?: string | boolean;
   }): Promise<PaginatedTikTokProfiles> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/tiktok/profiles/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -1358,6 +1359,7 @@ export const scraperService = {
 
   getInstagramProfiles: async (token: string, params?: {
     page?: number; page_size?: number; search?: string; is_owned?: boolean;
+    tracked?: string | boolean; bookmarked?: string | boolean; periodic?: string | boolean;
   }): Promise<PaginatedInstagramProfiles> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/instagram/profiles/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -1436,6 +1438,7 @@ export const scraperService = {
 
   getYoutubeProfiles: async (token: string, params?: {
     page?: number; page_size?: number; search?: string; sort_by?: string; is_owned?: boolean;
+    tracked?: string | boolean; bookmarked?: string | boolean; periodic?: string | boolean;
   }): Promise<PaginatedYoutubeProfiles> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/youtube/profiles/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -1539,6 +1542,7 @@ export const scraperService = {
 
   getKuaishouProfiles: async (token: string, params?: {
     page?: number; page_size?: number; search?: string; sort_by?: string;
+    tracked?: string | boolean; bookmarked?: string | boolean; periodic?: string | boolean;
   }): Promise<PaginatedKuaishouProfiles> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/kuaishou/profiles/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -1632,6 +1636,7 @@ export const scraperService = {
 
   getBilibiliProfiles: async (token: string, params?: {
     page?: number; page_size?: number; search?: string; sort_by?: string;
+    tracked?: string | boolean; bookmarked?: string | boolean; periodic?: string | boolean;
   }): Promise<PaginatedBilibiliProfiles> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/bilibili/profiles/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -1671,12 +1676,12 @@ export const scraperService = {
 
   // ─── FACEBOOK ─────────────────────────────────────────
 
-  // Trigger scrape reels (auto 300/10)
-  triggerScrapeReels: async (token: string, fanpageId: number): Promise<{ message: string; is_scraping?: boolean }> => {
+  // Trigger scrape reels
+  triggerScrapeReels: async (token: string, fanpageId: number, numOfPosts?: number): Promise<{ message: string; is_scraping?: boolean }> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/scrape-reels`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fanpage_id: fanpageId }),
+      body: JSON.stringify({ fanpage_id: fanpageId, num_of_posts: numOfPosts }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
@@ -1685,15 +1690,49 @@ export const scraperService = {
     return res.json();
   },
 
-  fanpageScrapeByUrl: async (token: string, url: string): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; fanpage_id: number }> => {
+  fanpageScrapeByUrl: async (token: string, url: string, numOfPosts?: number): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; fanpage_id: number }> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/scrape-by-url`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }),
+      body: JSON.stringify({ url, num_of_posts: numOfPosts }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
       throw new Error(body?.error || 'Không thể cào fanpage');
+    }
+    return res.json();
+  },
+
+  bulkAddFanpages: async (
+    token: string,
+    urls: string[],
+  ): Promise<{
+    total_received: number;
+    added_count: number;
+    skipped_count: number;
+    added_pages: { id: number; name: string; handle: string; page_url: string }[];
+    skipped_urls: { url: string; reason: string }[];
+  }> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/bulk-add`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.error || body?.message || 'Không thể thêm hàng loạt fanpage');
+    }
+    return res.json();
+  },
+
+  periodicRefreshFacebook: async (token: string): Promise<{ success: boolean; message: string }> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/periodic-refresh`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.error || body?.message || 'Không thể kích hoạt quét định kỳ');
     }
     return res.json();
   },
@@ -1749,6 +1788,7 @@ export const scraperService = {
 
   getDouyinProfiles: async (token: string, params?: {
     page?: number; page_size?: number; search?: string; sort_by?: 'followers' | 'recent'; is_owned?: boolean;
+    tracked?: string | boolean; bookmarked?: string | boolean; periodic?: string | boolean;
   }): Promise<PaginatedDouyinProfiles> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/douyin/profiles/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -1842,8 +1882,8 @@ export const scraperService = {
   },
 
   getXhsProfiles: async (token: string, params: {
-    q?: string; page?: number; page_size?: number;
-    bookmarked?: boolean; tracked?: boolean; is_owned?: boolean;
+    q?: string; search?: string; page?: number; page_size?: number;
+    bookmarked?: boolean | string; tracked?: boolean | string; periodic?: boolean | string; is_owned?: boolean;
   } = {}): Promise<PaginatedXhsProfiles> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/xiaohongshu/profiles/${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },
