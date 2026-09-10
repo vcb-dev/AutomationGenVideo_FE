@@ -19,8 +19,11 @@ import {
     AlertTriangle,
     X,
     Zap,
+    History,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useAuthStore } from '@/store/auth-store';
+import { UserRole } from '@/types/auth';
 import {
     isUsableVoice,
     removeVoiceFromList,
@@ -31,9 +34,11 @@ import { deleteClonedVoice } from '@/lib/voice/delete-voice';
 import { buildConfirmContent, type VoiceAction } from '@/lib/voice/voice-action-confirm';
 import { TTS_LANGUAGES as LANGUAGES, TTS_LANGUAGE_TO_MINIMAX as LANGUAGE_TO_MINIMAX } from '@/lib/voice/tts-languages';
 import { fetchWithAuth } from '@/lib/api-client';
+import { VoiceHistoryTab } from './components/VoiceHistoryTab';
 
 // Trang nạp tiền / gia hạn gói của MiniMax (mở tab mới, cần đăng nhập tài khoản MiniMax công ty)
 const MINIMAX_RECHARGE_URL = 'https://www.minimax.io/platform/user-center/payment/recharge';
+
 
 // Đơn giá mặc định khi BE chưa cấu hình env MINIMAX_VND_PER_1K_CHARS:
 // gói 250.000đ / 500.000 ký tự → 500đ mỗi 1.000 ký tự. BE trả giá khác 0 thì dùng giá BE.
@@ -215,6 +220,8 @@ function VoiceContextPanel({
     onCloneVoiceNameChange,
     cloneGender,
     onCloneGenderChange,
+    clonePromptText,
+    onClonePromptTextChange,
     isCloning,
     onCloneSubmit,
     onRefreshVoices,
@@ -232,6 +239,8 @@ function VoiceContextPanel({
     onCloneVoiceNameChange: (v: string) => void;
     cloneGender: 'male' | 'female';
     onCloneGenderChange: (g: 'male' | 'female') => void;
+    clonePromptText: string;
+    onClonePromptTextChange: (v: string) => void;
     isCloning: boolean;
     onCloneSubmit: () => void;
     onRefreshVoices: () => void;
@@ -419,6 +428,20 @@ function VoiceContextPanel({
                         )}
                     </div>
 
+                    <div>
+                        <div className="flex items-center justify-between mb-1">
+                            <p className="text-[10px] text-gray-500 font-medium">Nội dung câu nói trong file mẫu (Tùy chọn)</p>
+                            <span className="text-[9px] text-teal-600 bg-teal-50 px-1.5 py-0.5 rounded font-semibold">Tự nhận diện nếu để trống</span>
+                        </div>
+                        <textarea
+                            value={clonePromptText}
+                            onChange={(e) => onClonePromptTextChange(e.target.value)}
+                            placeholder="Để trống để AI tự động nhận diện từ audio, hoặc dán câu nói trong file mẫu để chuẩn xác tuyệt đối..."
+                            rows={2}
+                            className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-700 placeholder-gray-400 shadow-sm focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 transition-all duration-200 resize-none"
+                        />
+                    </div>
+
                     {cloneFile && (
                         <button
                             onClick={onCloneSubmit}
@@ -476,6 +499,7 @@ export default function CloneVoicePage() {
     const [cloneFile, setCloneFile] = useState<File | null>(null);
     const [cloneVoiceName, setCloneVoiceName] = useState('');
     const [cloneGender, setCloneGender] = useState<'male' | 'female'>('female');
+    const [clonePromptText, setClonePromptText] = useState('');
     const [isCloning, setIsCloning] = useState(false);
     // Thao tác đang chờ xác nhận (clone mới hoặc xoá giọng) — null = không mở hộp thoại
     const [pendingAction, setPendingAction] = useState<VoiceAction | null>(null);
@@ -483,7 +507,10 @@ export default function CloneVoicePage() {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
-    const [charCount, setCharCount] = useState(0);
+    const user = useAuthStore((s) => s.user);
+    const isAdmin = Boolean(user?.roles?.includes(UserRole.ADMIN));
+    const [activeTab, setActiveTab] = useState<'create' | 'history'>('create');
+
     // Hạn mức tạo voice theo ngày (mặc định 8 lượt/ngày, Admin cấp thêm)
     const [quota, setQuota] = useState<{
         date: string;
@@ -619,6 +646,7 @@ export default function CloneVoicePage() {
             const result = await deleteClonedVoice(voiceId, {
                 apiUrl: getApiUrl(),
                 authHeaders: getAuthHeaders(),
+                fetchImpl: fetchWithAuth,
             });
 
             const remaining = removeVoiceFromList(voices, voiceId);
@@ -655,6 +683,9 @@ export default function CloneVoicePage() {
             // gửi nguyên khoảng trắng thừa thì tên lưu vào DB lệch với tên vừa kiểm tra.
             formData.append('voice_name', cloneVoiceName.trim());
             formData.append('gender', cloneGender);
+            if (clonePromptText.trim()) {
+                formData.append('prompt_text', clonePromptText.trim());
+            }
 
             const startRes = await fetchWithAuth(`${getApiUrl()}/ai/voice/clone/start`, {
                 method: 'POST',
@@ -692,6 +723,7 @@ export default function CloneVoicePage() {
                     toast.success(`Đã clone giọng "${statusData.voice?.name}" thành công!`, { id: loadingToast });
                     clearCloneFile();
                     setCloneVoiceName('');
+                    setClonePromptText('');
                     if (statusData.voice?.voice_id) setSelectedVoiceId(statusData.voice.voice_id);
                     await fetchVoices();
                     await fetchQuota();
@@ -786,6 +818,7 @@ export default function CloneVoicePage() {
                     pitch: 0,
                     volume: 100,
                     language: LANGUAGE_TO_MINIMAX[ttsLang],
+                    emotion: 'calm',
                 }),
             });
 
@@ -836,13 +869,49 @@ export default function CloneVoicePage() {
         }
     };
 
+
     return (
         <div className="min-h-screen bg-gray-50 -m-6">
             {/* Main content */}
             <div className="max-w-7xl mx-auto px-6 py-8">
 
-                {/* ── Top Quota Tracker Banner ── */}
-                <div className="mb-6 p-5 rounded-2xl bg-white border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                {/* ── Admin Tab Switcher ── */}
+                {isAdmin && (
+                    <div className="flex items-center gap-2 mb-6 p-1.5 bg-gray-200/60 border border-gray-200 rounded-2xl w-fit shadow-xs">
+                        <button
+                            onClick={() => setActiveTab('create')}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+                                activeTab === 'create'
+                                    ? 'bg-white text-gray-900 shadow-sm'
+                                    : 'text-gray-500 hover:text-gray-900'
+                            }`}
+                        >
+                            <Mic className="w-4 h-4 text-violet-600" />
+                            Tạo & Quản lý Voice
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('history')}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+                                activeTab === 'history'
+                                    ? 'bg-white text-gray-900 shadow-sm'
+                                    : 'text-gray-500 hover:text-gray-900'
+                            }`}
+                        >
+                            <History className="w-4 h-4 text-violet-600" />
+                            Lịch sử thao tác
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700">
+                                Admin
+                            </span>
+                        </button>
+                    </div>
+                )}
+
+                {activeTab === 'history' ? (
+                    <VoiceHistoryTab />
+                ) : (
+                    <>
+                        {/* ── Top Quota Tracker Banner ── */}
+                        <div className="mb-6 p-5 rounded-2xl bg-white border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex items-center gap-3.5">
                         <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm ${
                             quota.remaining > 0
@@ -926,50 +995,6 @@ export default function CloneVoicePage() {
                                 </a>
                             </div>
 
-                            {/* ── Daily Voice Quota Banner ── */}
-                            {quota && (
-                                <div className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs mb-4 ${
-                                    quota.remaining > 0
-                                        ? 'bg-violet-50/80 border-violet-200 text-violet-900'
-                                        : 'bg-amber-50 border-amber-300 text-amber-900'
-                                }`}>
-                                    <div className="flex items-center gap-2.5">
-                                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                                            quota.remaining > 0 ? 'bg-violet-100 text-violet-700' : 'bg-amber-200 text-amber-800'
-                                        }`}>
-                                            <Zap className="w-4 h-4" />
-                                        </div>
-                                        <div>
-                                            <p className="font-semibold">
-                                                Lượt tạo voice hôm nay: {' '}
-                                                <span className={quota.remaining > 0 ? 'text-violet-700 font-bold' : 'text-red-600 font-bold'}>
-                                                    {quota.used_count} / {quota.total_allowed} lượt
-                                                </span>
-                                                {quota.granted_extra > 0 && (
-                                                    <span className="ml-1 text-[11px] text-emerald-600 font-medium">
-                                                        (Admin đã cấp +{quota.granted_extra})
-                                                    </span>
-                                                )}
-                                            </p>
-                                            <p className="text-[11px] text-gray-500 mt-0.5">
-                                                {quota.remaining > 0
-                                                    ? `Bạn còn ${quota.remaining} lượt tạo voice trong ngày.`
-                                                    : 'Đã hết 8 lượt mặc định trong ngày. Vui lòng liên hệ Admin để được cấp thêm.'}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-2 self-end sm:self-auto">
-                                        <span className={`px-2.5 py-1 rounded-full font-semibold text-[11px] ${
-                                            quota.remaining > 0
-                                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                                                : 'bg-red-100 text-red-800 border border-red-200'
-                                        }`}>
-                                            {quota.remaining > 0 ? `Còn ${quota.remaining} lượt` : 'Hết lượt'}
-                                        </span>
-                                    </div>
-                                </div>
-                            )}
-
                             {/* Textarea */}
                             <p className="text-xs text-gray-500 mb-2 font-medium">Kịch bản / Văn bản</p>
                             <div className="relative">
@@ -989,11 +1014,11 @@ export default function CloneVoicePage() {
                                     >
                                         💰 ≈ {estimatedCostVnd.toLocaleString('vi-VN')}đ
                                     </span>
-                                    <span className="text-gray-400">{charCount} / {maxChars} ký tự</span>
+                                    <span className="text-gray-400">{text.length} / {maxChars} ký tự</span>
                                 </div>
                             </div>
 
-                            {/* Language selects */}
+                            {/* Language & Voice Controls */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
                                 <SelectDropdown
                                     icon={Globe}
@@ -1032,6 +1057,7 @@ export default function CloneVoicePage() {
                                     </button>
                                 </div>
                             </div>
+
 
                             {/* Generate button */}
                             <button
@@ -1122,6 +1148,8 @@ export default function CloneVoicePage() {
                                 onCloneVoiceNameChange={setCloneVoiceName}
                                 cloneGender={cloneGender}
                                 onCloneGenderChange={setCloneGender}
+                                clonePromptText={clonePromptText}
+                                onClonePromptTextChange={setClonePromptText}
                                 isCloning={isCloning}
                                 onCloneSubmit={requestClone}
                                 onRefreshVoices={fetchVoices}
@@ -1132,10 +1160,10 @@ export default function CloneVoicePage() {
                     </div>
 
                 </div>
+                    </>
+                )}
             </div>
 
-            {/* Hộp xác nhận — đóng ngay khi bấm xác nhận, tiến độ hiển thị tại chỗ
-                (nút Clone quay vòng / hàng giọng mờ đi) vì clone có thể mất vài phút */}
             {pendingAction && (
                 <ConfirmDialog
                     action={pendingAction}
