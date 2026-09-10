@@ -122,4 +122,8 @@ describe('buildSyncAllConfirm', () => {
   it('danh sách rỗng thì không mời gọi bấm', () => {
     expect(buildSyncAllConfirm(0)).toBe('');
   });
+
+  it('nêu rõ chỉ cào các kênh trong danh sách kênh chú ý', () => {
+    expect(buildSyncAllConfirm()).toContain('KÊNH CHÚ Ý');
+  });
 });

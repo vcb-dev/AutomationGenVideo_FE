@@ -50,19 +50,17 @@ export default function FanpageCard({
 
       {/* Header with avatar */}
       <div className="flex items-center gap-3 p-3.5 pb-2">
-        <div className="w-11 h-11 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden flex-shrink-0 ring-2 ring-slate-200 dark:ring-slate-600">
-          {fp.id ? (
+        <div className="w-11 h-11 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white overflow-hidden flex-shrink-0 ring-2 ring-slate-200 dark:ring-slate-600 relative flex items-center justify-center font-bold text-base shadow-sm select-none">
+          {fp.name ? fp.name.trim().charAt(0).toUpperCase() : <Users size={20} />}
+          {(fp.avatar_url && fp.avatar_url !== 'FAILED') || fp.profile_id ? (
             <img
-              src={`https://graph.facebook.com/${fp.profile_id || fp.id}/picture?type=large`}
+              src={fp.avatar_url || `https://graph.facebook.com/${fp.profile_id}/picture?type=large`}
               alt={fp.name}
-              className="w-full h-full object-cover"
+              referrerPolicy="no-referrer"
+              className="absolute inset-0 w-full h-full object-cover"
               onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
             />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-blue-50 dark:bg-blue-900/30 text-blue-400">
-              <Users size={20} />
-            </div>
-          )}
+          ) : null}
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-foreground truncate">{fp.name}</p>

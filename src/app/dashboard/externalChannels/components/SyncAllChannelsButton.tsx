@@ -51,15 +51,15 @@ export default function SyncAllChannelsButton({ platform, channelCount, onStarte
     <button
       onClick={handleClick}
       disabled={mutation.isPending}
-      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 border border-blue-200 dark:border-blue-800 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-      title={`Cào lại toàn bộ ${channelCount} kênh`}
+      className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800 rounded-md transition-all whitespace-nowrap shadow-sm disabled:opacity-50 cursor-pointer"
+      title="Chỉ cào video mới cho các kênh đã được bật icon đồng hồ (Kênh chú ý)"
     >
       {mutation.isPending ? (
-        <CircleNotch size={15} weight="bold" className="animate-spin" />
+        <CircleNotch size={14} weight="bold" className="animate-spin" />
       ) : (
-        <ArrowsClockwise size={15} weight="bold" />
+        <ArrowsClockwise size={14} weight="bold" />
       )}
-      Đồng bộ tất cả
+      {mutation.isPending ? 'Đang cào...' : 'Cào video kênh chú ý'}
     </button>
   );
 }

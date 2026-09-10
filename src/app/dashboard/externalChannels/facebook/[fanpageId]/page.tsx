@@ -169,19 +169,17 @@ export default function FanpageDetailPage() {
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <div className="px-5 pb-5 pt-4">
           <div className="flex items-start gap-4">
-            <div className="w-20 h-20 rounded-full border-4 border-card bg-slate-100 overflow-hidden flex-shrink-0">
-              {fp.profile_id ? (
+            <div className="w-20 h-20 rounded-full border-4 border-card bg-gradient-to-br from-blue-500 to-indigo-600 text-white overflow-hidden flex-shrink-0 relative flex items-center justify-center font-bold text-2xl shadow-sm select-none">
+              {fp.name ? fp.name.trim().charAt(0).toUpperCase() : <Users size={28} />}
+              {(fp.avatar_url && fp.avatar_url !== 'FAILED') || fp.profile_id ? (
                 <img
-                  src={`https://graph.facebook.com/${fp.profile_id}/picture?type=large`}
+                  src={fp.avatar_url || `https://graph.facebook.com/${fp.profile_id}/picture?type=large`}
                   alt={fp.name}
-                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                  className="absolute inset-0 w-full h-full object-cover"
                   onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
                 />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-blue-50 text-blue-400">
-                  <Users size={28} />
-                </div>
-              )}
+              ) : null}
             </div>
 
             <div className="flex-1 min-w-0 pt-1">
@@ -224,7 +222,7 @@ export default function FanpageDetailPage() {
                 className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-md hover:opacity-90 disabled:opacity-50"
               >
                 <ArrowsClockwise size={15} className={isProcessing ? 'animate-spin' : ''} />
-                {isProcessing ? 'Đang cào...' : fp.is_initial_scraped ? 'Cập nhật' : 'Cào lượt đầu (300)'}
+                {isProcessing ? 'Đang cào...' : fp.is_initial_scraped ? 'Cập nhật' : 'Cào lượt đầu'}
               </button>
             )}
             <button

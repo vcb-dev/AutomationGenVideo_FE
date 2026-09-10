@@ -52,8 +52,14 @@ export default function TikTokProfileCard({ profile: p, channelInfo, onScrape, o
       {/* Avatar + Info */}
       <div className="flex items-center gap-3 p-3.5 pb-2">
         <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden flex-shrink-0 ring-2 ring-slate-200 dark:ring-slate-600">
-          {p.avatar_url ? (
-            <img src={p.avatar_url} alt={p.nickname} className="w-full h-full object-cover" />
+          {p.avatar_url && p.avatar_url !== 'FAILED' ? (
+            <img
+              src={p.avatar_url}
+              alt={p.nickname}
+              className="w-full h-full object-cover"
+              referrerPolicy="no-referrer"
+              onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-pink-50 dark:bg-pink-900/30 text-pink-400">
               <Users size={22} />

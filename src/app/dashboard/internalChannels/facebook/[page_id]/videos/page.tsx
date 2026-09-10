@@ -89,6 +89,7 @@ export default function PageVideosPage() {
                 src={`https://graph.facebook.com/${pageInfo.page_id}/picture?type=large`}
                 alt=""
                 className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
                 onError={e => {
                   const target = e.target as HTMLImageElement;
                   if (pageInfo.avatar_url && target.src !== pageInfo.avatar_url) target.src = pageInfo.avatar_url;

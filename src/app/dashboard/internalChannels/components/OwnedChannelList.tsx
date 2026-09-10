@@ -220,6 +220,7 @@ export default function OwnedChannelList({ platform }: { platform: Platform }) {
                 <img
                   src={p.avatar_url || ''}
                   alt={getProfileName(p)}
+                  referrerPolicy="no-referrer"
                   onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
                   className="w-12 h-12 rounded-full object-cover bg-slate-100 flex-shrink-0"
                 />

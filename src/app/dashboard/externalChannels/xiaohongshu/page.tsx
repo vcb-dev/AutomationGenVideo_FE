@@ -555,6 +555,7 @@ function ProfilesTab() {
   const router = useRouter();
   const [userId, setUserId] = useState('');
   const [q, setQ] = useState('');
+  const [profileTab, setProfileTab] = useState<'all' | 'periodic' | 'bookmarked'>('all');
 
   // Xoá cứng kênh: BE xoá kèm toàn bộ video/lịch sử, không hoàn tác được. XiaoHongShu
   // dùng khoá ngoại SetNull nên BE phải tự xoá video — không có cascade đỡ hộ như 6 nền
@@ -588,8 +589,13 @@ function ProfilesTab() {
   const prevStatusMap = useRef<Record<number, string>>({});
 
   const profilesQuery = useQuery({
-    queryKey: ['xhs-profiles', q, 'external-only'],
-    queryFn: () => scraperService.getXhsProfiles(token!, { q: q || undefined, is_owned: false }),
+    queryKey: ['xhs-profiles', q, profileTab, 'external-only'],
+    queryFn: () => scraperService.getXhsProfiles(token!, {
+      q: q || undefined,
+      is_owned: false,
+      tracked: profileTab === 'periodic' ? true : undefined,
+      bookmarked: profileTab === 'bookmarked' ? true : undefined,
+    }),
     enabled: !!token,
     // Poll every 3s while any profile is processing
     refetchInterval: (query) => {
@@ -680,13 +686,57 @@ function ProfilesTab() {
         </div>
       )}
 
-      {/* Filter */}
-      <div className="flex items-center gap-3">
-        <input type="text" value={q} onChange={e => setQ(e.target.value)}
-          placeholder="Tìm theo nickname hoặc user_id..."
-          className="flex-1 max-w-sm px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        />
-        <p className="text-sm text-slate-500">{total > 0 && `${total} profiles`}</p>
+      {/* Filter bar: Tabs + Search + Sync button */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border border-border rounded-xl p-4">
+        {/* Filter Tabs: Tất cả | Kênh chú ý | Đã lưu */}
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg w-fit">
+          <button
+            type="button"
+            onClick={() => setProfileTab('all')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+              profileTab === 'all'
+                ? 'bg-card text-foreground shadow-sm'
+                : 'text-slate-500 hover:text-foreground'
+            }`}
+          >
+            Tất cả
+          </button>
+          <button
+            type="button"
+            onClick={() => setProfileTab('periodic')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+              profileTab === 'periodic'
+                ? 'bg-card text-emerald-600 dark:text-emerald-400 shadow-sm'
+                : 'text-slate-500 hover:text-emerald-600'
+            }`}
+          >
+            <Timer size={14} weight="fill" />
+            Kênh chú ý
+          </button>
+          <button
+            type="button"
+            onClick={() => setProfileTab('bookmarked')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+              profileTab === 'bookmarked'
+                ? 'bg-card text-amber-600 dark:text-amber-400 shadow-sm'
+                : 'text-slate-500 hover:text-amber-600'
+            }`}
+          >
+            <BookmarkSimple size={14} weight="fill" />
+            Đã lưu
+          </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <input type="text" value={q} onChange={e => setQ(e.target.value)}
+            placeholder="Tìm theo nickname hoặc user_id..."
+            className="w-full sm:w-64 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          />
+          <p className="text-xs text-slate-500">{profiles.length > 0 && `${profiles.length} profiles`}</p>
+          {canManageChannels && (
+            <SyncAllChannelsButton platform="xiaohongshu" channelCount={profiles.length} />
+          )}
+        </div>
       </div>
 
       {profilesQuery.isLoading && (
@@ -696,16 +746,22 @@ function ProfilesTab() {
       )}
 
       {!profilesQuery.isLoading && profiles.length === 0 && (
-        <div className="flex flex-col items-center py-16 gap-4 bg-card border border-border rounded-xl">
+        <div className="flex flex-col items-center py-16 gap-3 bg-card border border-border rounded-xl text-center">
           <span className="text-5xl">📕</span>
-          <p className="text-sm text-foreground font-medium">Chưa có profile nào</p>
-          <p className="text-xs text-slate-400">Nhập User ID ở trên để thêm và bắt đầu theo dõi.</p>
-        </div>
-      )}
-
-      {profiles.length > 0 && (
-        <div className="flex justify-end pb-2">
-          <SyncAllChannelsButton platform="xiaohongshu" channelCount={profiles.length} />
+          <p className="text-sm text-foreground font-medium">
+            {profileTab === 'periodic'
+              ? 'Chưa có kênh nào được đánh dấu chú ý.'
+              : profileTab === 'bookmarked'
+              ? 'Chưa có kênh nào được lưu.'
+              : 'Chưa có profile nào'}
+          </p>
+          <p className="text-xs text-slate-400 max-w-sm">
+            {profileTab === 'periodic'
+              ? 'Bấm vào biểu tượng chiếc đồng hồ ở góc dưới mỗi thẻ kênh để thêm vào danh sách theo dõi.'
+              : profileTab === 'bookmarked'
+              ? 'Bấm vào biểu tượng bookmark để lưu kênh.'
+              : 'Nhập User ID ở trên để thêm và bắt đầu theo dõi.'}
+          </p>
         </div>
       )}
 
