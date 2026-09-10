@@ -15,7 +15,7 @@ import {
 const NEW_LOCATION = '__new_location__';
 import { AssetEditForm, buildUpdatePayload } from '@/lib/equipment/asset-edit';
 import { manualStatusOptionsFor, statusDoorHints } from '@/lib/equipment/manual-status';
-import { CONDITION_OPTIONS } from '@/lib/equipment/status-label';
+import { conditionOptionsFor } from '@/lib/equipment/status-label';
 import { apiErrorMessage } from '@/lib/equipment/api-error';
 
 const inputClass =
@@ -100,8 +100,7 @@ export function EditAssetDialog({ asset, onClose, onSaved }: EditAssetDialogProp
       onSaved();
     } catch (e) {
       const message =
-        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-        'Không lưu được. Kiểm tra kết nối rồi thử lại.';
+        apiErrorMessage(e, 'Không lưu được. Kiểm tra kết nối rồi thử lại.');
       setError(message);
     } finally {
       setSaving(false);
@@ -146,6 +145,25 @@ export function EditAssetDialog({ asset, onClose, onSaved }: EditAssetDialogProp
                 </option>
               ))}
             </select>
+            {(() => {
+              const currentM = models.find((m) => m.id === form.modelId) || (asset.model as typeof models[0]);
+              if (!currentM?.accessories || currentM.accessories.length === 0) return null;
+              return (
+                <div className="mt-2 flex flex-wrap items-center gap-1.5 rounded-lg bg-slate-50 p-2 text-xs text-slate-600 dark:bg-white/[0.04] dark:text-slate-300">
+                  <span className="font-semibold text-slate-700 dark:text-slate-200">
+                    🎁 Phụ kiện chuẩn:
+                  </span>
+                  {currentM.accessories.map((acc, idx) => (
+                    <span
+                      key={acc.id || idx}
+                      className="inline-flex items-center rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-700 shadow-xs dark:border-white/[0.08] dark:bg-slate-800 dark:text-slate-200"
+                    >
+                      ✓ {acc.name}
+                    </span>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
 
           <div>
@@ -189,7 +207,7 @@ export function EditAssetDialog({ asset, onClose, onSaved }: EditAssetDialogProp
             )}
           </div>
 
-          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelClass} htmlFor="edit-condition">
                 Tình trạng
@@ -200,37 +218,60 @@ export function EditAssetDialog({ asset, onClose, onSaved }: EditAssetDialogProp
                 value={form.condition}
                 onChange={(e) => set('condition', e.target.value)}
               >
-                {CONDITION_OPTIONS.map((c) => (
+                {conditionOptionsFor(asset.condition).map((c) => (
                   <option key={c.value} value={c.value}>
                     {c.label}
                   </option>
                 ))}
               </select>
-              <span className={hintClass}>Chất lượng vật lý của máy.</span>
             </div>
 
             <div>
-              <label className={labelClass} htmlFor="edit-status">
-                Trạng thái
+              <label className={labelClass} htmlFor="edit-condition-percent">
+                Độ mới (%)
               </label>
-              <select
-                id="edit-status"
-                className={inputClass}
-                value={form.status}
-                onChange={(e) => set('status', e.target.value)}
-              >
-                {manualStatusOptionsFor(asset.status).map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-              <span className={hintClass}>
-                {asset.status === 'ON_LOAN'
-                  ? 'Máy đang ở ngoài — chỉ đánh dấu Mất được. Trầy, thiếu phụ kiện hay hỏng thì ghi lúc nhận trả.'
-                  : 'Sửa tay chỉ để đưa máy RA khỏi vòng dùng được.'}
-              </span>
+              <div className="relative">
+                <input
+                  id="edit-condition-percent"
+                  type="number"
+                  min="1"
+                  max="100"
+                  className={`${inputClass} pr-8 font-mono font-semibold`}
+                  defaultValue={form.condition === 'GOOD' ? 99 : form.condition === 'USED' ? 90 : 80}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val) set('note', `Độ mới: ${val}%`);
+                  }}
+                  placeholder="99"
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                  %
+                </span>
+              </div>
             </div>
+          </div>
+
+          <div>
+            <label className={labelClass} htmlFor="edit-status">
+              Trạng thái
+            </label>
+            <select
+              id="edit-status"
+              className={inputClass}
+              value={form.status}
+              onChange={(e) => set('status', e.target.value)}
+            >
+              {manualStatusOptionsFor(asset.status).map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+            <span className={hintClass}>
+              {asset.status === 'ON_LOAN'
+                ? 'Máy đang ở ngoài — chỉ đánh dấu Mất được. Trầy, thiếu phụ kiện hay hỏng thì ghi lúc nhận trả.'
+                : 'Chọn trạng thái phù hợp cho máy (Sẵn sàng, Bảo trì, Hỏng, Mất).'}
+            </span>
           </div>
 
           <div>

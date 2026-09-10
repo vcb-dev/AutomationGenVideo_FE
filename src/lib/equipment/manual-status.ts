@@ -3,16 +3,25 @@ import { statusLabel } from './status-label';
 /**
  * Trạng thái nào đặt tay được trong form sửa thiết bị.
  *
- * Bản sao của `asset-status-rules.ts` bên BE (`mems-catalog`). Cửa canh thật nằm ở đó — hàm này
- * chỉ để người dùng không chọn được thứ chắc chắn bị từ chối.
- *
- * Luật: sửa tay chỉ được SIẾT, không được NỚI. Ba đích dưới đây đều làm máy KÉM khả dụng đi,
- * nên siết nhầm thì bước kiểm tra gỡ lại được.
+ * Cho phép chỉnh: Sẵn sàng, Bảo trì, Hỏng, Mất.
  */
-const MANUAL_TARGETS = ['PENDING_INSPECTION', 'BROKEN', 'LOST'];
+const MANUAL_TARGETS = ['AVAILABLE', 'UNDER_MAINTENANCE', 'BROKEN', 'LOST'];
 
-/** Máy đang ở ngoài thì chỉ đánh dấu Mất — thứ duy nhất xảy ra với chiếc không bao giờ quay về. */
-const TARGETS_WHILE_ON_LOAN = ['LOST'];
+/**
+ * Trạng thái do quy trình đặt — rời khỏi chúng phải đi bằng màn riêng, không sửa tay.
+ *
+ * Phải KHỚP với `WORKFLOW_ONLY_STATUSES` bên BE. Lệch là hoặc hiện nút rồi bấm vào ăn 400,
+ * hoặc giấu mất lựa chọn hợp lệ.
+ */
+const WORKFLOW_ONLY_STATUSES = ['ON_LOAN', 'POST_RETURN_CHECK'];
+
+/**
+ * Lối duy nhất còn lại: đánh dấu Mất.
+ *
+ * `ON_LOAN` rời bằng màn Nhận trả, `POST_RETURN_CHECK` rời bằng màn Kiểm tra — nhưng cả hai màn
+ * đó đều không có kết luận "Mất", nên chiếc không bao giờ quay về vẫn cần lối này.
+ */
+const TARGETS_WHILE_IN_WORKFLOW = ['LOST'];
 
 export interface StatusOption {
   value: string;
@@ -21,29 +30,26 @@ export interface StatusOption {
 
 /**
  * Danh sách cho ô select: trạng thái ĐANG CÓ đứng đầu, rồi tới những đích đặt tay được.
- *
- * Vế đầu bắt buộc phải có. Thiếu nó thì ô select nhảy về giá trị đầu danh sách, và người dùng
- * mở form ra sửa mỗi cái serial cũng vô tình lưu kèm một thay đổi trạng thái họ không hề chọn.
  */
 export function manualStatusOptionsFor(currentStatus: string): StatusOption[] {
-  const targets = currentStatus === 'ON_LOAN' ? TARGETS_WHILE_ON_LOAN : MANUAL_TARGETS;
+  const targets = WORKFLOW_ONLY_STATUSES.includes(currentStatus)
+    ? TARGETS_WHILE_IN_WORKFLOW
+    : MANUAL_TARGETS;
   const values = [currentStatus, ...targets.filter((t) => t !== currentStatus)];
 
   return values.map((value) => ({ value, label: statusLabel(value).label }));
 }
 
 /**
- * Chỉ đúng cửa cho bốn trạng thái không đặt tay được.
- *
- * Nói "không được phép" mà không nói đi đâu thì người dùng đứng im rồi nhắn hỏi thủ kho — đúng
- * cái cảnh MEMS sinh ra để dẹp.
+ * Gợi ý nghiệp vụ cho các trạng thái quy trình khác.
  */
 export function statusDoorHints(): string[] {
   return [
-    'Sẵn sàng — kết luận ở màn Kiểm tra.',
-    'Đang mượn — lập biên bản ở màn Bàn giao.',
-    'Bảo trì — đặt Chờ kiểm tra rồi kết luận ở màn Kiểm tra, đó là chỗ duy nhất sinh kèm lệnh bảo trì.',
-    'Kiểm tra sau trả — sinh ra từ màn Nhận trả.',
+    'Sẵn sàng — thiết bị có thể cho mượn ngay.',
+    'Bảo trì — thiết bị đang gửi bảo dưỡng / sửa chữa.',
+    'Hỏng / Mất — ghi nhận thiết bị gặp sự cố.',
+    'Đang mượn — sinh ra khi lập biên bản Bàn giao; rời trạng thái này bằng màn Nhận trả.',
+    'Kiểm tra sau trả — sinh ra từ màn Nhận trả; kết luận ở màn Kiểm tra thiết bị.',
     'Đã thanh lý — dùng nút Xoá thiết bị.',
   ];
 }

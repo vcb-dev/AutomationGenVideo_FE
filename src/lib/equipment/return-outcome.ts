@@ -26,8 +26,15 @@ export interface ReturnOutcome {
   units: ReturnedUnit[];
 }
 
-/** Thang tình trạng theo mức xấu dần — dùng để biết máy có tệ đi so với lúc giao không. */
-const CONDITION_RANK = ['GOOD', 'USED', 'NEEDS_CHECK', 'BROKEN'];
+/**
+ * Thang tình trạng theo mức xấu dần — dùng để biết máy có tệ đi so với lúc giao không.
+ *
+ * Phải KHỚP TỪNG PHẦN TỬ với `CONDITION_RANK` trong `return-rules.ts` của BE. Bản này từng
+ * thiếu `IN_MAINTENANCE`, nên hai bên xếp `BROKEN` ở hai bậc khác nhau: màn hình báo trước
+ * "sẽ mở phiếu sự cố" trong khi BE lại ghi xuống "không có gì bất thường". Chưa ai gặp vì hai
+ * ô select hiện chỉ cho chọn tập con, nhưng thêm một lựa chọn là lệch ngay.
+ */
+const CONDITION_RANK = ['GOOD', 'USED', 'NEEDS_CHECK', 'IN_MAINTENANCE', 'BROKEN'];
 
 const rank = (condition: string) => {
   const index = CONDITION_RANK.indexOf(condition);
