@@ -30,6 +30,13 @@ export interface BatchPersonStatus {
   pdf_url: string | null;
   created_at: string;
   updated_at: string;
+  // "Điều chỉnh vị trí ảnh trong khung tròn" — KHÔNG có trong response GET /id-photo/batch/:id
+  // (BE cố ý không select, xem id-photo-batch.service.ts#getBatchStatus). Chỉ được điền LOCAL
+  // ở FE sau khi BulkTab lưu qua modal "Sửa thông tin thẻ" (PATCH /id-photo/:id trả về giá trị
+  // vừa lưu), để lưới kết quả (BulkResultGrid) hiện đúng ngay không cần đợi vòng poll sau.
+  crop_offset_x?: number | null;
+  crop_offset_y?: number | null;
+  crop_scale?: number | null;
 }
 
 export interface BatchStatusResponse {

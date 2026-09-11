@@ -141,6 +141,11 @@ function SuccessCell({
             employeeId={person.employee_id}
             position={person.position}
             photoUrl={thumbUrl}
+            crop={{
+              offsetX: person.crop_offset_x ?? 0,
+              offsetY: person.crop_offset_y ?? 0,
+              scale: person.crop_scale ?? 1,
+            }}
           />
         ) : (
           <div className="aspect-[420/669] flex items-center justify-center">

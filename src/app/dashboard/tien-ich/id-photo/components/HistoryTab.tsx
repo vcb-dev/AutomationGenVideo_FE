@@ -18,7 +18,8 @@ import apiClient from '@/lib/api-client';
 import { NumberedPagination } from '@/components/ui/NumberedPagination';
 import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
-import { IdCardPreview } from './ExportStep';
+import { IdCardPreview, CropControls } from './ExportStep';
+import { CROP_DEFAULT, CropTransform } from './crop-math';
 import { downloadBatchPdf, BatchError } from '../bulk/id-photo-batch';
 import {
   getPositionOption,
@@ -114,6 +115,16 @@ export function HistoryTab() {
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const detailRequestId = useRef(0);
 
+  // ── "Điều chỉnh vị trí ảnh trong khung tròn" trong modal chi tiết — đây là nơi phát hiện +
+  // sửa lỗi crop SAU KHI đã tạo xong thẻ (yêu cầu 4). `crop` = bản nháp, `savedCrop` = giá trị
+  // đã có trong DB (nạp từ `detail` khi tải xong) — cùng nguyên tắc bản nháp/đã lưu với ExportStep.
+  const [crop, setCrop] = useState<CropTransform>(CROP_DEFAULT);
+  const [savedCrop, setSavedCrop] = useState<CropTransform>(CROP_DEFAULT);
+  const [isSavingCrop, setIsSavingCrop] = useState(false);
+  const isSavingCropRef = useRef(false);
+  const cropDirty =
+    crop.offsetX !== savedCrop.offsetX || crop.offsetY !== savedCrop.offsetY || crop.scale !== savedCrop.scale;
+
   // ── Xoá ──
   const [deleteTarget, setDeleteTarget] = useState<IdPhotoHistoryItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -193,10 +204,21 @@ export function HistoryTab() {
     setDetailRow(item);
     setDetail(null);
     setIsLoadingDetail(true);
+    // Reset về mặc định TRƯỚC khi có dữ liệu thật — tránh hiện tạm crop của người mở TRƯỚC ĐÓ
+    // trong khoảnh khắc chờ API (state cũ không tự dọn khi đổi `detailRow`).
+    setCrop(CROP_DEFAULT);
+    setSavedCrop(CROP_DEFAULT);
     try {
       const res = await apiClient.get(`/id-photo/${item.id}`);
       if (rid !== detailRequestId.current) return;
       setDetail(res.data);
+      const loaded: CropTransform = {
+        offsetX: res.data.crop_offset_x ?? CROP_DEFAULT.offsetX,
+        offsetY: res.data.crop_offset_y ?? CROP_DEFAULT.offsetY,
+        scale: res.data.crop_scale ?? CROP_DEFAULT.scale,
+      };
+      setCrop(loaded);
+      setSavedCrop(loaded);
     } catch (err: any) {
       if (rid !== detailRequestId.current) return;
       toast.error(err.response?.data?.message || 'Không tải được chi tiết ảnh thẻ');
@@ -211,6 +233,33 @@ export function HistoryTab() {
     setDetailRow(null);
     setDetail(null);
     setIsLoadingDetail(false);
+    setIsSavingCrop(false);
+  };
+
+  /**
+   * PATCH /id-photo/:id — lưu "Điều chỉnh vị trí ảnh trong khung tròn" từ modal chi tiết. Cùng
+   * đường MIỄN PHÍ (không đụng AI) như handleUpdateInfo ở luồng đơn lẻ; ở đây chỉ gửi 3 field
+   * crop vì modal này không có form sửa chữ.
+   */
+  const handleSaveCrop = async () => {
+    if (!detailRow || isSavingCropRef.current) return;
+    isSavingCropRef.current = true;
+    setIsSavingCrop(true);
+    try {
+      await apiClient.patch(`/id-photo/${detailRow.id}`, {
+        cropOffsetX: crop.offsetX,
+        cropOffsetY: crop.offsetY,
+        cropScale: crop.scale,
+      });
+      setSavedCrop(crop);
+      setDetail((prev) => (prev ? { ...prev, crop_offset_x: crop.offsetX, crop_offset_y: crop.offsetY, crop_scale: crop.scale } : prev));
+      toast.success('Đã lưu vị trí ảnh. Bấm "Tải file PDF" để lấy bản mới.');
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Lưu vị trí ảnh thất bại, vui lòng thử lại.');
+    } finally {
+      isSavingCropRef.current = false;
+      setIsSavingCrop(false);
+    }
   };
 
   /**
@@ -638,28 +687,51 @@ export function HistoryTab() {
 
             <div className="flex-1 overflow-y-auto pr-1 mt-5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Khung thẻ — CHỈ phần này phải chờ API, phần chữ bên phải đã có sẵn từ dòng bảng */}
-                <div className="border border-[#e2e0ea] rounded-2xl bg-[#fafafb] p-5 flex items-center justify-center min-h-[300px]">
-                  {isLoadingDetail ? (
-                    <div className="flex flex-col items-center gap-2.5">
-                      <Loader2 className="w-7 h-7 animate-spin text-[#4441cc]" />
-                      <p className="text-xs text-[#464554] font-medium">Đang tải ảnh thẻ...</p>
-                    </div>
-                  ) : detail?.processed_image_data ? (
-                    <IdCardPreview
-                      employeeName={detail.employee_name}
-                      employeeTeam={detail.employee_team}
-                      employeeId={detail.employee_id}
-                      position={detail.position}
-                      photoUrl={detail.processed_image_data}
-                    />
-                  ) : (
-                    <div className="flex flex-col items-center gap-2 text-center px-4">
-                      <ImageOff className="w-7 h-7 text-[#c7c4d7]" />
-                      <p className="text-xs text-[#9c9aa8]">
-                        Bản ghi này chưa có ảnh đã ghép áo nên không dựng được khung thẻ.
-                      </p>
-                    </div>
+                {/* Khung thẻ — CHỈ phần này phải chờ API, phần chữ bên phải đã có sẵn từ dòng bảng.
+                    "Điều chỉnh vị trí ảnh trong khung tròn" nằm NGAY ĐÂY (yêu cầu 4): đây chính
+                    là nơi phát hiện lỗi crop sau khi đã tạo xong thẻ. */}
+                <div className="space-y-3">
+                  <div className="border border-[#e2e0ea] rounded-2xl bg-[#fafafb] p-5 flex items-center justify-center min-h-[300px]">
+                    {isLoadingDetail ? (
+                      <div className="flex flex-col items-center gap-2.5">
+                        <Loader2 className="w-7 h-7 animate-spin text-[#4441cc]" />
+                        <p className="text-xs text-[#464554] font-medium">Đang tải ảnh thẻ...</p>
+                      </div>
+                    ) : detail?.processed_image_data ? (
+                      <IdCardPreview
+                        employeeName={detail.employee_name}
+                        employeeTeam={detail.employee_team}
+                        employeeId={detail.employee_id}
+                        position={detail.position}
+                        photoUrl={detail.processed_image_data}
+                        crop={crop}
+                        onCropChange={isSavingCrop ? undefined : setCrop}
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center gap-2 text-center px-4">
+                        <ImageOff className="w-7 h-7 text-[#c7c4d7]" />
+                        <p className="text-xs text-[#9c9aa8]">
+                          Bản ghi này chưa có ảnh đã ghép áo nên không dựng được khung thẻ.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {!isLoadingDetail && detail?.processed_image_data && (
+                    <>
+                      <CropControls crop={crop} onChange={setCrop} disabled={isSavingCrop} />
+                      {cropDirty && (
+                        <button
+                          type="button"
+                          onClick={handleSaveCrop}
+                          disabled={isSavingCrop}
+                          className="w-full px-4 py-2.5 rounded-xl font-semibold text-sm text-white bg-[#4441cc] hover:bg-[#4441cc]/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                        >
+                          {isSavingCrop && <Loader2 className="w-4 h-4 animate-spin" />}
+                          {isSavingCrop ? 'Đang lưu vị trí ảnh...' : 'Lưu vị trí ảnh'}
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
 
