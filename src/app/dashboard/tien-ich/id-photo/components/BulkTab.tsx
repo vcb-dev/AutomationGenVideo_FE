@@ -4,10 +4,12 @@ import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateA
 import toast from 'react-hot-toast';
 import { Loader2, Wand2, WifiOff, RefreshCw, FileDown } from 'lucide-react';
 import apiClient from '@/lib/api-client';
-import { POSITION_OPTIONS, IdPhotoPosition } from './constants';
-import { EmployeeInfoValues } from './EmployeeInfoFields';
+import { IdPhotoPosition } from './constants';
+import { EmployeeInfoFields, EmployeeInfoValues, isEmployeeInfoValid } from './EmployeeInfoFields';
 import { BulkEmployeeCard, BulkPersonRow, BulkCardModel } from './BulkEmployeeCard';
 import { BulkResultGrid } from './BulkResultGrid';
+import { IdCardPreview, CropControls } from './ExportStep';
+import { CROP_DEFAULT, CropTransform } from './crop-math';
 import {
   uploadBatchImages,
   createBatch,
@@ -340,7 +342,7 @@ export function BulkTab() {
   // ── Sửa thông tin 1 người (PATCH /id-photo/:id — chỉ chữ, không đổi ảnh) ──
   const editingPerson = batchStatus?.people.find((p) => p.id === editPersonId) ?? null;
 
-  const handleSaveEdit = async (values: EmployeeInfoValues) => {
+  const handleSaveEdit = async (values: EmployeeInfoValues, crop: CropTransform) => {
     if (!editingPerson) return;
     try {
       await apiClient.patch(`/id-photo/${editingPerson.id}`, {
@@ -348,6 +350,9 @@ export function BulkTab() {
         employeeTeam: values.employeeTeam.trim(),
         employeeId: values.employeeId.trim(),
         position: values.position,
+        cropOffsetX: crop.offsetX,
+        cropOffsetY: crop.offsetY,
+        cropScale: crop.scale,
       });
       setBatchStatus((prev) =>
         prev
@@ -361,6 +366,9 @@ export function BulkTab() {
                       employee_team: values.employeeTeam.trim(),
                       employee_id: values.employeeId.trim(),
                       position: values.position,
+                      crop_offset_x: crop.offsetX,
+                      crop_offset_y: crop.offsetY,
+                      crop_scale: crop.scale,
                     }
                   : p,
               ),
@@ -496,7 +504,7 @@ export function BulkTab() {
                 )}
               </button>
               <p className="mt-1.5 text-center text-[11px] text-[#9c9aa8]">
-                Bấm <span className="font-semibold">+</span> ở góc card để thêm người · tối đa{' '}
+                Bấm <span className="font-semibold">&quot;Thêm nhân viên&quot;</span> ở cuối mỗi card để thêm người · tối đa{' '}
                 {ID_PHOTO_BATCH_MAX_PEOPLE} người/lần
                 {cards.length > ID_PHOTO_BATCH_MAX_PEOPLE && (
                   <span className="text-[#dc2626]"> — đang có {cards.length}, hãy bớt bớt</span>
@@ -522,6 +530,7 @@ export function BulkTab() {
                 position={p.position}
                 status={p.status}
                 thumbUrl={thumbs[p.id]}
+                crop={{ offsetX: p.crop_offset_x ?? 0, offsetY: p.crop_offset_y ?? 0, scale: p.crop_scale ?? 1 }}
                 onEdit={
                   (p.status === 'SUCCESS' || p.status === 'FAILED') && !p.id.startsWith('seed-')
                     ? () => setEditPersonId(p.id)
@@ -602,6 +611,7 @@ export function BulkTab() {
       {editingPerson && (
         <EditPersonModal
           person={editingPerson}
+          thumbUrl={thumbs[editingPerson.id]}
           onClose={() => setEditPersonId(null)}
           onSave={handleSaveEdit}
         />
@@ -611,14 +621,19 @@ export function BulkTab() {
 }
 
 // ── Modal sửa thông tin 1 người ────────────────────────────────────────────
+// Kèm "Điều chỉnh vị trí ảnh trong khung tròn" (yêu cầu 4 — cùng modal có sẵn, không tách
+// riêng): thumbUrl (ảnh đã ghép áo, cache sẵn từ syncThumbs) nên bên gọi chỉ SUCCESS mới có ảnh
+// để chỉnh — FAILED vẫn sửa được chữ như cũ, chỉ không có phần cropper.
 function EditPersonModal({
   person,
+  thumbUrl,
   onClose,
   onSave,
 }: {
   person: BatchStatusResponse['people'][number];
+  thumbUrl?: string;
   onClose: () => void;
-  onSave: (v: EmployeeInfoValues) => Promise<void>;
+  onSave: (v: EmployeeInfoValues, crop: CropTransform) => Promise<void>;
 }) {
   const [v, setV] = useState<EmployeeInfoValues>({
     employeeName: person.employee_name,
@@ -626,50 +641,53 @@ function EditPersonModal({
     employeeId: person.employee_id,
     position: person.position,
   });
+  // Nạp từ giá trị đã biết (chỉ có nếu người này vừa được sửa 1 lần trong phiên hiện tại — xem
+  // ghi chú kiểu BatchPersonStatus#crop_offset_x); chưa từng sửa thì mặc định = vị trí gốc,
+  // đúng hệt những gì PDF đang thật sự dùng (BE cũng NULL).
+  const [crop, setCrop] = useState<CropTransform>({
+    offsetX: person.crop_offset_x ?? CROP_DEFAULT.offsetX,
+    offsetY: person.crop_offset_y ?? CROP_DEFAULT.offsetY,
+    scale: person.crop_scale ?? CROP_DEFAULT.scale,
+  });
   const [saving, setSaving] = useState(false);
-  const valid = v.employeeName.trim() && v.employeeTeam.trim() && v.employeeId.trim();
-  const field =
-    'w-full px-3 py-2 rounded-lg border border-[#d5d3e0] focus:border-[#4441cc] focus:ring-2 focus:ring-[#4441cc]/10 outline-none text-sm';
+  const valid = isEmployeeInfoValid(v);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl bg-white p-5" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-md rounded-2xl bg-white p-5 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-base font-bold text-[#1b1b1d]">Sửa thông tin thẻ</h3>
         <p className="mt-0.5 mb-4 text-xs text-[#9c9aa8]">
-          Chỉ sửa được chữ in trên thẻ. Ảnh gốc đã gửi — nếu ảnh chưa đạt, dùng nút &quot;Thử lại&quot; ở lưới.
+          Sửa chữ in trên thẻ hoặc kéo/zoom lại ảnh trong khung tròn. Muốn đổi hẳn ảnh thì dùng nút &quot;Ghép áo lại&quot; ở lưới.
         </p>
-        <div className="space-y-2.5">
-          <input
-            className={field}
-            placeholder="Họ và tên"
-            value={v.employeeName}
-            onChange={(e) => setV({ ...v, employeeName: e.target.value })}
-          />
-          <div className="grid grid-cols-2 gap-2.5">
-            <input
-              className={field}
-              placeholder="Team"
-              value={v.employeeTeam}
-              onChange={(e) => setV({ ...v, employeeTeam: e.target.value })}
-            />
-            <input
-              className={field}
-              placeholder="Mã NV"
-              value={v.employeeId}
-              onChange={(e) => setV({ ...v, employeeId: e.target.value })}
-            />
+
+        {thumbUrl && (
+          <div className="mb-4 space-y-2.5">
+            <div className="max-w-[220px] mx-auto">
+              <IdCardPreview
+                employeeName={v.employeeName}
+                employeeTeam={v.employeeTeam}
+                employeeId={v.employeeId}
+                position={v.position}
+                photoUrl={thumbUrl}
+                crop={crop}
+                onCropChange={setCrop}
+              />
+            </div>
+            <CropControls crop={crop} onChange={setCrop} disabled={saving} />
           </div>
-          <select
-            className={field}
-            value={v.position}
-            onChange={(e) => setV({ ...v, position: e.target.value as IdPhotoPosition })}
-          >
-            {POSITION_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+        )}
+
+        {/* Component NGUYÊN BẢN của luồng đơn lẻ (label "Họ và tên"/"Team / Phòng ban"/"Mã nhân
+            viên (ID)" + radio "Vị trí công tác") — trước đây modal này tự dựng input/select
+            trơn không có label, người dùng không biết ô nào là ô nào. Ép 1 CỘT giống
+            BulkEmployeeCard: modal hẹp, 2 cột mặc định của EmployeeInfoFields sẽ chật. */}
+        <div className="[&>div]:!grid-cols-1 [&>div]:!gap-5">
+          <EmployeeInfoFields
+            values={v}
+            disabled={saving}
+            radioGroupName={`bulk-edit-position-${person.id}`}
+            onChange={(patch) => setV((prev) => ({ ...prev, ...patch }))}
+          />
         </div>
         <div className="mt-5 flex justify-end gap-2">
           <button
@@ -685,7 +703,7 @@ function EditPersonModal({
             onClick={async () => {
               setSaving(true);
               try {
-                await onSave(v);
+                await onSave(v, crop);
               } finally {
                 setSaving(false);
               }

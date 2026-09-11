@@ -1,10 +1,11 @@
 'use client';
 
-import { useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Plus, X, UploadCloud, Loader2, CheckCircle2, AlertTriangle, Pencil } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ALLOWED_IMAGE_TYPES, MAX_UPLOAD_SIZE_BYTES, getPositionOption, IdPhotoPosition } from './constants';
 import { EmployeeInfoFields, EmployeeInfoValues } from './EmployeeInfoFields';
+import { CROP_DEFAULT, CropTransform, computeCropLayout } from './crop-math';
 import { IdPhotoItemStatus } from '../bulk/id-photo-batch';
 
 export interface BulkCardModel {
@@ -64,29 +65,21 @@ export function BulkEmployeeCard({
 
   return (
     <div className="border border-[#e2e0ea] rounded-2xl bg-white p-6">
-      {/* Nhãn card — nhỏ, in hoa, xám: là ĐỊNH DANH card, không cùng cấp với header khối bên dưới. */}
+      {/* Nhãn card — nhỏ, in hoa, xám: là ĐỊNH DANH card, không cùng cấp với header khối bên dưới.
+          CHỈ còn nút "x" (xoá) ở đây — nút "+" (thêm) đã chuyển xuống CUỐI card (xem dưới):
+          card càng điền nhiều thì càng dài, để "+" ở trên buộc phải cuộn ngược lên sau khi vừa
+          điền xong, trong khi "x" (xoá cả card, ít bấm hơn) vẫn hợp lý ở đầu để nhận diện nhanh. */}
       <div className="flex items-center justify-between pb-4 mb-6 border-b border-[#e2e0ea]">
         <span className="text-xs font-bold uppercase tracking-wide text-[#9c9aa8]">Nhân viên {index + 1}</span>
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={onAddAfter}
-            title="Thêm 1 nhân viên ngay bên dưới"
-            className={`${iconBtn} hover:border-[#4441cc] hover:text-[#4441cc]`}
-          >
-            <Plus className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={onRemove}
-            title="Xoá nhân viên này khỏi danh sách"
-            className={`${iconBtn} hover:border-[#dc2626] hover:text-[#dc2626]`}
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={onRemove}
+          title="Xoá nhân viên này khỏi danh sách"
+          className={`${iconBtn} hover:border-[#dc2626] hover:text-[#dc2626]`}
+        >
+          <X className="w-4 h-4" />
+        </button>
       </div>
 
       {/* Khối 1 — Ảnh gốc (nét đứt, nền #fcfaff, icon UploadCloud như UploadStep) */}
@@ -155,6 +148,19 @@ export function BulkEmployeeCard({
           onChange={onChangeValues}
         />
       </div>
+
+      {/* Nút "+" (thêm nhân viên) — CUỐI card, ngay dưới "Vị trí công tác": điền xong form là
+          bấm được luôn tại chỗ, không phải cuộn ngược lên đầu card (xem ghi chú ở header trên). */}
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={onAddAfter}
+        title="Thêm 1 nhân viên ngay bên dưới"
+        className="mt-6 w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-dashed border-[#d5d3e0] text-sm font-semibold text-[#464554] hover:border-[#4441cc] hover:text-[#4441cc] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+      >
+        <Plus className="w-4 h-4" />
+        Thêm nhân viên
+      </button>
     </div>
   );
 }
@@ -187,17 +193,59 @@ const STATUS_META: Record<
   },
 };
 
+/**
+ * Ảnh chân dung 36px trong hàng — BUG THẬT đã báo lần 2 ("sửa crop xong, lưới vẫn hiện ảnh cũ
+ * nguyên khung"): hàng này (chứ không phải BulkResultGrid, nơi đã dùng IdCardPreview đúng crop)
+ * TỰ vẽ `<img object-cover>` trơn, hoàn toàn bỏ qua `crop_offset_x/y/scale` đã lưu — verify bằng
+ * Playwright network trace thật xác nhận BE trả đúng dữ liệu, DevTools style-diff xác nhận
+ * BulkResultGrid (bên phải) áp đúng crop, chỉ riêng hàng NÀY (bên trái) là chưa từng áp dụng.
+ * Dùng lại ĐÚNG công thức `computeCropLayout` (crop-math.ts) — không phải bản sao thứ 3, tái
+ * dùng nguyên hàm đã có.
+ */
+function CroppedAvatar({ thumbUrl, alt, crop }: { thumbUrl: string; alt: string; crop?: CropTransform | null }) {
+  const imgRef = useRef<HTMLImageElement>(null);
+  const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
+
+  useEffect(() => setNatural(null), [thumbUrl]);
+  // Ảnh cache/tải xong trước khi `onLoad` kịp gắn (data-URI) vẫn phải bắt được — xem ghi chú
+  // tương tự ở ExportStep.tsx#CircleCropArea.
+  useEffect(() => {
+    const el = imgRef.current;
+    if (el && el.complete && el.naturalWidth > 0) setNatural({ w: el.naturalWidth, h: el.naturalHeight });
+  }, [thumbUrl]);
+
+  const layout = natural ? computeCropLayout(natural.w, natural.h, crop ?? CROP_DEFAULT) : null;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      ref={imgRef}
+      src={thumbUrl}
+      alt={alt}
+      onLoad={(e) => setNatural({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
+      className="absolute select-none"
+      style={
+        layout
+          ? { left: `${layout.x * 100}%`, top: `${layout.y * 100}%`, width: `${layout.width * 100}%`, height: `${layout.height * 100}%`, maxWidth: 'none' }
+          : { inset: 0, width: '100%', height: '100%', objectFit: 'cover' }
+      }
+    />
+  );
+}
+
 export function BulkPersonRow({
   name,
   position,
   status,
   thumbUrl,
+  crop,
   onEdit,
 }: {
   name: string;
   position: IdPhotoPosition;
   status: IdPhotoItemStatus;
   thumbUrl?: string | null;
+  /** "Điều chỉnh vị trí ảnh trong khung tròn" đã lưu — null/undefined = vị trí gốc. */
+  crop?: CropTransform | null;
   /** Chỉ truyền khi status SUCCESS/FAILED — hiện nút "Sửa". */
   onEdit?: () => void;
 }) {
@@ -207,12 +255,11 @@ export function BulkPersonRow({
   return (
     <div className="flex items-center gap-3 rounded-xl border border-[#e2e0ea] bg-white px-3.5 py-2.5">
       <div
-        className="w-9 h-9 rounded-full flex-none overflow-hidden border bg-[#f4f4f6] flex items-center justify-center"
+        className="relative w-9 h-9 rounded-full flex-none overflow-hidden border bg-[#f4f4f6] flex items-center justify-center"
         style={{ borderColor: posColor === '#FFFFFF' ? '#e2e0ea' : posColor }}
       >
         {thumbUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={thumbUrl} alt={name} className="w-full h-full object-cover" />
+          <CroppedAvatar thumbUrl={thumbUrl} alt={name} crop={crop} />
         ) : status === 'PROCESSING' ? (
           <Loader2 className="w-3.5 h-3.5 animate-spin text-[#4441cc]" />
         ) : (

@@ -92,6 +92,10 @@ export interface IdPhotoHistoryItem {
  */
 export interface IdPhotoDetailItem extends IdPhotoHistoryItem {
   processed_image_data: string | null;
+  /** "Điều chỉnh vị trí ảnh trong khung tròn" đã lưu — null = vị trí gốc. Xem crop-math.ts. */
+  crop_offset_x: number | null;
+  crop_offset_y: number | null;
+  crop_scale: number | null;
 }
 
 export interface IdPhotoHistoryDetail extends IdPhotoHistoryItem {

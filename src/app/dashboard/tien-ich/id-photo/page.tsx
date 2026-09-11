@@ -14,6 +14,7 @@ import { InfoStep } from './components/InfoStep';
 import { ExportStep } from './components/ExportStep';
 import { EmployeeInfoValues } from './components/EmployeeInfoFields';
 import { IdPhotoPosition } from './components/constants';
+import { CROP_DEFAULT, CropTransform } from './components/crop-math';
 import { HistoryTab } from './components/HistoryTab';
 import { StatsTab } from './components/StatsTab';
 import { BulkTab } from './components/BulkTab';
@@ -157,6 +158,18 @@ function IdPhotoPageContent() {
   });
   const [isUpdatingInfo, setIsUpdatingInfo] = useState(false);
   const [isRemerging, setIsRemerging] = useState(false);
+
+  // ── Bước 4: "Điều chỉnh vị trí ảnh trong khung tròn" (kéo thả + zoom) ──
+  // `crop` = bản nháp đang chỉnh (mỗi lần kéo/chỉnh slider cập nhật NGAY để preview phản hồi
+  // tức thời) — TÁCH khỏi `savedCrop` (giá trị đã lưu ở BE) để biết còn thay đổi CHƯA LƯU hay
+  // không (`cropDirty`), đúng nguyên tắc bản nháp/giá trị lưu như `editValues` ở trên.
+  const [crop, setCrop] = useState<CropTransform>(CROP_DEFAULT);
+  const [savedCrop, setSavedCrop] = useState<CropTransform>(CROP_DEFAULT);
+  const [isSavingCrop, setIsSavingCrop] = useState(false);
+  const isSavingCropRef = useRef(false);
+  const cropDirty =
+    crop.offsetX !== savedCrop.offsetX || crop.offsetY !== savedCrop.offsetY || crop.scale !== savedCrop.scale;
+
   const isUpdatingInfoRef = useRef(false);
   // Quan trọng nhất trong nhóm ref chống bấm trùng: mỗi lượt remerge là 1 lượt Gemini có tính
   // phí, double-click là mất tiền 2 lần.
@@ -338,6 +351,10 @@ function IdPhotoPageContent() {
       const res = await apiClient.post(`/id-photo/${historyId}/remerge-outfit`);
       setMergedImageData(res.data.processedImageData);
       invalidateExportedPdf();
+      // BE reset crop_offset_x/y/scale về NULL khi ghép áo lại (ảnh mới bố cục khác, giữ crop
+      // cũ dễ sai — xem IdPhotoService#remergeOutfit) — đồng bộ lại state FE cho khớp.
+      setCrop(CROP_DEFAULT);
+      setSavedCrop(CROP_DEFAULT);
       toast.success('Đã có ảnh mới. Kiểm tra lại rồi bấm "Xuất file PDF".', { id: loadingToast });
     } catch (err: any) {
       // Dùng lại đúng bộ đổi lỗi của bước 2 — cùng một endpoint AI phía sau nên các mã lỗi
@@ -346,6 +363,31 @@ function IdPhotoPageContent() {
     } finally {
       isRemergingRef.current = false;
       setIsRemerging(false);
+    }
+  };
+
+  /**
+   * PATCH /id-photo/:id — lưu "Điều chỉnh vị trí ảnh trong khung tròn". Cùng đường MIỄN PHÍ với
+   * handleUpdateInfo (không đụng AI), chỉ khác field gửi lên — xem UpdateIdPhotoDto ở BE.
+   */
+  const handleSaveCrop = async () => {
+    if (!historyId || isSavingCropRef.current) return;
+    isSavingCropRef.current = true;
+    setIsSavingCrop(true);
+    try {
+      await apiClient.patch(`/id-photo/${historyId}`, {
+        cropOffsetX: crop.offsetX,
+        cropOffsetY: crop.offsetY,
+        cropScale: crop.scale,
+      });
+      setSavedCrop(crop);
+      invalidateExportedPdf();
+      toast.success('Đã lưu vị trí ảnh. Bấm "Xuất file PDF" để lấy bản mới.');
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Lưu vị trí ảnh thất bại, vui lòng thử lại.');
+    } finally {
+      isSavingCropRef.current = false;
+      setIsSavingCrop(false);
     }
   };
 
@@ -415,6 +457,9 @@ function IdPhotoPageContent() {
     setIsEditingInfo(false);
     setIsUpdatingInfo(false);
     setIsRemerging(false);
+    setCrop(CROP_DEFAULT);
+    setSavedCrop(CROP_DEFAULT);
+    setIsSavingCrop(false);
     setStep(1);
   };
 
@@ -577,6 +622,11 @@ function IdPhotoPageContent() {
               onCancelEditInfo={() => setIsEditingInfo(false)}
               onSubmitEditInfo={handleUpdateInfo}
               onRemergeOutfit={handleRemergeOutfit}
+              crop={crop}
+              cropDirty={cropDirty}
+              isSavingCrop={isSavingCrop}
+              onCropChange={setCrop}
+              onSaveCrop={handleSaveCrop}
               onExportAndDownload={handleExportAndDownload}
               onRestart={handleRestart}
             />
