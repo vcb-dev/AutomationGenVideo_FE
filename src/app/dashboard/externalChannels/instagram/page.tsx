@@ -2,13 +2,15 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CircleNotch, MagnifyingGlassPlus, UserCircle, FilmReel, CaretDown, CaretUp, Eye, Heart, ChatCircle, Warning, PaperPlaneTilt, Timer, BookmarkSimple } from '@phosphor-icons/react';
+import { CircleNotch, MagnifyingGlassPlus, UserCircle, FilmReel, CaretDown, CaretUp, Eye, Heart, ChatCircle, Warning, PaperPlaneTilt, Timer, BookmarkSimple, InstagramLogo, ArrowsDownUp } from '@phosphor-icons/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { MagnifyingGlass, X } from '@phosphor-icons/react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 
 import InstagramProfileCard from '../components/InstagramProfileCard';
+import FilterSelect from '../components/FilterSelect';
+import { DatePicker } from '@/components/ui/DatePicker';
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService, InstagramReel, InstagramToggleField } from '@/services/scraperService';
 import { videoLibraryService } from '@/services/videoLibraryService';
@@ -55,12 +57,12 @@ function InstagramReelCard({ reel }: { reel: InstagramReel }) {
   });
 
   return (
-    <div className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-md transition-shadow flex flex-col">
+    <div className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg hover:scale-[1.01] transition-all duration-200 flex flex-col">
       <a
         href={reel.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="relative block aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[280px]"
+        className="relative block aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden"
       >
         {reel.thumbnail_url ? (
           <img
@@ -389,14 +391,16 @@ export default function InstagramExternalPage() {
                     className="w-full pl-9 pr-3 py-1.5 text-xs border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   />
                 </div>
-                <select
+                <FilterSelect
                   value={sortBy}
-                  onChange={e => setSortBy(e.target.value as 'followers' | 'recent')}
-                  className="px-3 py-1.5 text-xs border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                >
-                  <option value="followers">Nhiều followers nhất</option>
-                  <option value="recent">Mới thêm gần đây</option>
-                </select>
+                  onChange={val => setSortBy(val as 'followers' | 'recent')}
+                  options={[
+                    { value: 'followers', label: 'Nhiều followers nhất' },
+                    { value: 'recent', label: 'Mới thêm gần đây' },
+                  ]}
+                  placeholder="Sắp xếp"
+                  triggerClassName="h-8 py-1 text-xs"
+                />
                 {hasProfileFilters && (
                   <button onClick={clearProfileFilters} className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50 dark:hover:bg-slate-800">
                     <X size={12} /> Xóa lọc
@@ -465,7 +469,7 @@ export default function InstagramExternalPage() {
       {/* ─── Reels section ───────────────────────────────── */}
       <div>
         {/* Filter bar */}
-        <div className="flex flex-wrap items-center gap-3 mb-3">
+        <div className="flex flex-wrap items-center gap-2.5 bg-card border border-border rounded-xl p-3 shadow-xs mb-3">
           <div className="relative flex-1 min-w-[180px] max-w-sm">
             <MagnifyingGlass size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
@@ -473,38 +477,72 @@ export default function InstagramExternalPage() {
               value={reelSearch}
               onChange={e => setReelSearch(e.target.value)}
               placeholder="Tìm theo caption..."
-              className="w-full pl-9 pr-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-primary outline-none"
+              className="w-full pl-9 pr-8 py-2 text-sm border border-border rounded-lg bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all"
             />
+            {reelSearch && (
+              <button
+                type="button"
+                onClick={() => setReelSearch('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X size={13} />
+              </button>
+            )}
           </div>
-          <select
+          <FilterSelect
             value={selectedProfile}
-            onChange={e => setSelectedProfile(e.target.value)}
-            className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          >
-            <option value="">Tất cả profile</option>
-            {profiles.map(p => <option key={p.id} value={p.id}>@{p.username}</option>)}
-          </select>
-          <input
-            type="number"
-            value={minPlays}
-            onChange={e => setMinPlays(e.target.value)}
-            placeholder="Min View"
-            className="w-28 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            onChange={setSelectedProfile}
+            options={[
+              { value: '', label: 'Tất cả profile' },
+              ...profiles.map(p => ({
+                value: String(p.id),
+                label: `@${p.username}`,
+                count: p.reels_in_db ?? undefined,
+              })),
+            ]}
+            placeholder="Tất cả profile"
+            icon={<InstagramLogo size={15} weight="bold" className="text-pink-500" />}
+            searchPlaceholder="Tìm profile..."
           />
-          <select
+          <div className="relative w-32">
+            <Eye size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+              type="number"
+              value={minPlays}
+              onChange={e => setMinPlays(e.target.value)}
+              placeholder="Min View"
+              className="w-full pl-8 pr-6 py-2 text-sm border border-border rounded-lg bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            />
+            {minPlays && (
+              <button
+                type="button"
+                onClick={() => setMinPlays('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+          <FilterSelect
             value={sortReels}
-            onChange={e => setSortReels(e.target.value)}
-            className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          >
-            <option value="date">Mới nhất</option>
-            <option value="plays">Nhiều views nhất</option>
-            <option value="likes">Nhiều likes nhất</option>
-          </select>
-          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none" title="Từ ngày" />
-          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none" title="Đến ngày" />
+            onChange={setSortReels}
+            options={[
+              { value: 'date', label: 'Mới nhất' },
+              { value: 'plays', label: 'Nhiều views nhất' },
+              { value: 'likes', label: 'Nhiều likes nhất' },
+            ]}
+            placeholder="Sắp xếp"
+            icon={<ArrowsDownUp size={15} />}
+          />
+          <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="Từ ngày" />
+          <DatePicker value={dateTo} onChange={setDateTo} placeholder="Đến ngày" align="right" />
           {hasReelFilters && (
-            <button onClick={clearReelFilters} className="flex items-center gap-1 px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50 dark:hover:bg-slate-800">
-              <X size={12} /> Xóa lọc
+            <button
+              type="button"
+              onClick={clearReelFilters}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-950/20 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/30 transition-all cursor-pointer select-none ml-auto sm:ml-0"
+            >
+              <X size={13} weight="bold" /> Xóa lọc
             </button>
           )}
         </div>
@@ -538,11 +576,11 @@ export default function InstagramExternalPage() {
 
         {allReels.length > 0 && (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4">
               {allReels.map(reel => <InstagramReelCard key={reel.post_id} reel={reel} />)}
               {reelsQuery.isFetchingNextPage && Array.from({ length: 6 }).map((_, i) => (
                 <div key={`skel-${i}`} className="bg-card border border-border rounded-lg overflow-hidden animate-pulse">
-                  <div className="aspect-[9/16] max-h-[280px] bg-slate-200 dark:bg-slate-700" />
+                  <div className="aspect-[9/16] bg-slate-200 dark:bg-slate-700" />
                   <div className="p-3 space-y-2"><div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-full" /><div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-2/3" /></div>
                 </div>
               ))}

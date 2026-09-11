@@ -79,7 +79,7 @@ export default function TikTokVideoCard({
         href={video.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="relative block aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[320px]"
+        className="relative block aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden"
       >
         {video.preview_image && video.preview_image !== 'FAILED' ? (
           <img

@@ -483,11 +483,11 @@ export default function FacebookExternalPage() {
 
         {allReels.length > 0 && (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4">
               {allReels.map(reel => <ReelCard key={reel.post_id} reel={reel} />)}
               {reelsQuery.isFetchingNextPage && Array.from({ length: 6 }).map((_, i) => (
                 <div key={`skel-${i}`} className="bg-card border border-border rounded-lg overflow-hidden animate-pulse">
-                  <div className="aspect-[9/16] max-h-[280px] bg-slate-200 dark:bg-slate-700" />
+                  <div className="aspect-[9/16] bg-slate-200 dark:bg-slate-700" />
                   <div className="p-3 space-y-2"><div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-full" /><div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-2/3" /></div>
                 </div>
               ))}

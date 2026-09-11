@@ -9,6 +9,7 @@ import VideoCard from '../../../VideoCard';
 import { useAuthStore } from '@/store/auth-store';
 import { FacebookPage, FacebookVideo, PaginatedVideos, VideoFilters } from '@/types/facebook';
 import { facebookService } from '@/services/facebookService';
+import { FilterSearch, FilterSelect, FilterNumber, FilterDateRange, FilterReset } from '../../../components/FilterFields';
 
 export default function PageVideosPage() {
   const { token } = useAuthStore();
@@ -109,37 +110,43 @@ export default function PageVideosPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Tìm theo caption, hashtag..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
-          />
-        </div>
-        <select
+      <div className="flex flex-wrap items-center gap-3 bg-card border border-border rounded-xl p-3 shadow-xs">
+        <FilterSearch
+          placeholder="Tìm theo caption, hashtag..."
+          value={search}
+          onChange={setSearch}
+        />
+        <FilterSelect
           value={hashtagCat}
-          onChange={e => { setHashtagCat(e.target.value as any); setPage(1); }}
-          className="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-        >
-          <option value="">Tất cả loại</option>
-          <option value="a1">A1 - Traffic</option>
-          <option value="a2">A2 - Knowledge</option>
-          <option value="a3">A3 - Credibility</option>
-          <option value="a4">A4 - Conversion</option>
-          <option value="a5">A5 - Combined</option>
-        </select>
-        <input type="number" placeholder="Min views" value={minViews} onChange={e => { setMinViews(e.target.value); setPage(1); }} className="w-28 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
-        <input type="number" placeholder="Min likes" value={minLikes} onChange={e => { setMinLikes(e.target.value); setPage(1); }} className="w-28 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
-        <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }} className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
-        <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); }} className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+          onChange={val => { setHashtagCat(val as any); setPage(1); }}
+          options={[
+            { value: '', label: 'Tất cả loại' },
+            { value: 'a1', label: 'A1 - Traffic' },
+            { value: 'a2', label: 'A2 - Knowledge' },
+            { value: 'a3', label: 'A3 - Credibility' },
+            { value: 'a4', label: 'A4 - Conversion' },
+            { value: 'a5', label: 'A5 - Combined' },
+          ]}
+          placeholder="Loại hashtag"
+        />
+        <FilterNumber
+          placeholder="Min views"
+          value={minViews}
+          onChange={val => { setMinViews(val); setPage(1); }}
+        />
+        <FilterNumber
+          placeholder="Min likes"
+          value={minLikes}
+          onChange={val => { setMinLikes(val); setPage(1); }}
+        />
+        <FilterDateRange
+          from={dateFrom}
+          to={dateTo}
+          onFromChange={val => { setDateFrom(val); setPage(1); }}
+          onToChange={val => { setDateTo(val); setPage(1); }}
+        />
         {hasFilters && (
-          <button onClick={clearFilters} className="px-3 py-2 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">
-            Xóa bộ lọc
-          </button>
+          <FilterReset onClick={clearFilters} />
         )}
       </div>
 
