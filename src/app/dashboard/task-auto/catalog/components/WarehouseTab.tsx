@@ -7,6 +7,7 @@ import {
   Package, FileText, Radio, Trash2, Plus, Loader2,
   Search, RefreshCw, ChevronLeft, ChevronRight,
 } from 'lucide-react'
+import { ContentWinProofLink } from '@/components/task-auto/ContentWinProofLink'
 import { cn } from '@/lib/utils'
 import { MonthPicker } from '@/components/task-auto/MonthPicker'
 import { currentMonth } from '@/components/task-auto/helpers'
@@ -36,6 +37,19 @@ function prevMonth(m: string): string {
   const [y, mo] = m.split('-').map(Number)
   if (mo === 1) return `${y - 1}-12`
   return `${y}-${String(mo - 1).padStart(2, '0')}`
+}
+
+// Ô "Link minh chứng" cho content được tự đẩy lên kho tổng do đạt content-win — link bài đăng
+// có view cao nhất, kèm nền tảng + số view. Content thường (không phải content-win) hiện "—".
+function ProofLinkCell({ item }: { item: any }) {
+  if (!item.win_video_url) return <span className="text-slate-300">—</span>
+  return (
+    <ContentWinProofLink
+      url={item.win_video_url}
+      views={item.win_video_views}
+      platform={item.win_video_platform}
+    />
+  )
 }
 
 // ── Pick modal (chọn từ kho có sẵn) ──────────────────────────────────────────
@@ -433,6 +447,7 @@ export function WarehouseTab({ brandType, isAdminOrManager = false, isScaleData 
                 </th>
                 {subTab === 'products' && <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">SKU</th>}
                 {subTab === 'contents' && <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Loại content</th>}
+                {subTab === 'contents' && <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Link minh chứng</th>}
                 {subTab === 'sources'  && <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Loại</th>}
                 <th className="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide w-20"></th>
               </tr>
@@ -449,6 +464,9 @@ export function WarehouseTab({ brandType, isAdminOrManager = false, isScaleData 
                     {itemCode && <span className="ml-2 text-xs font-mono font-normal text-slate-400">{itemCode}</span>}
                   </td>
                   <td className="px-5 py-3.5 text-slate-500">{subOf(item, subTab)}</td>
+                  {subTab === 'contents' && (
+                    <td className="px-5 py-3.5 text-sm whitespace-nowrap"><ProofLinkCell item={item} /></td>
+                  )}
                   <td className="px-5 py-3.5 text-right">
                     {canWriteCurrent && (
                       <button

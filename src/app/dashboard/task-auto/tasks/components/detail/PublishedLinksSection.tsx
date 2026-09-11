@@ -173,22 +173,27 @@ export function PublishedLinksSection({ taskId, publishedLinks, canEdit }: Props
                     >
                       {link.url}
                     </a>
-                    {/* Số liệu tương tác — hiện chỉ Facebook (page nội bộ) được tự động hỗ trợ */}
-                    {link.platform.trim().toUpperCase() === 'FACEBOOK' && (
+                    {/* Số liệu tương tác — hiện tự động hỗ trợ Facebook + Instagram (kênh nội bộ đã kết nối) và YouTube (video công khai bất kỳ, qua YOUTUBE_API_KEY) */}
+                    {['FACEBOOK', 'INSTAGRAM', 'YOUTUBE'].includes(link.platform.trim().toUpperCase()) && (
                       <div className="flex items-center gap-3 mt-1.5">
                         {link.stats?.status === 'success' && (
                           <div className="flex items-center gap-3 text-xs text-gray-500">
                             <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {formatCount(link.stats.views)}</span>
                             <span className="flex items-center gap-1"><Heart className="w-3 h-3" /> {formatCount(link.stats.likes)}</span>
                             <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" /> {formatCount(link.stats.comments)}</span>
-                            <span className="flex items-center gap-1"><Share2 className="w-3 h-3" /> {formatCount(link.stats.shares)}</span>
+                            {/* Instagram/YouTube không có field "shares" công khai — chỉ hiện cho Facebook */}
+                            {link.platform.trim().toUpperCase() === 'FACEBOOK' && (
+                              <span className="flex items-center gap-1"><Share2 className="w-3 h-3" /> {formatCount(link.stats.shares)}</span>
+                            )}
                           </div>
                         )}
                         {link.stats?.status === 'failed' && (
                           <p className="text-xs text-red-500">Không lấy được số liệu</p>
                         )}
                         {link.stats?.status === 'unsupported' && (
-                          <p className="text-xs text-gray-400">Page này chưa kết nối hệ thống</p>
+                          <p className="text-xs text-gray-400">
+                            {link.platform.trim().toUpperCase() === 'YOUTUBE' ? 'Chưa nhận diện được video này' : 'Kênh này chưa kết nối hệ thống'}
+                          </p>
                         )}
                         {!link.stats && (
                           <p className="text-xs text-gray-400">Chưa có số liệu</p>
