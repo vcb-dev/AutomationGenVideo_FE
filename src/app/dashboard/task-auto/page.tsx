@@ -13,6 +13,7 @@ import { TeamDashboard } from './components/TeamDashboard'
 import { PersonalDashboard } from './components/PersonalDashboard'
 import { ContentCreatorDashboard } from './components/ContentCreatorDashboard'
 import { ContentTeamLeaderDashboard } from './components/ContentTeamLeaderDashboard'
+import { ContentWinFailSection } from './components/ContentWinFailSection'
 
 // ── Date filter ───────────────────────────────────────────────────────────────
 
@@ -349,6 +350,26 @@ export default function TaskAutoDashboard() {
         : data.scope === 'team'   ? <TeamDashboard d={data} periodLabel={periodLabel} productStats={productStats} />
         : <PersonalDashboard d={data} periodLabel={periodLabel} productStats={productStats} />
       }
+
+      {/* Content Win/Fail — chỉ số MỚI, tự tính từ view link bài đăng (1 link bất kỳ >10.000 view = win), tách biệt các số KPI nhập tay ở trên */}
+      {!(isLoading || teamsLoading) && (
+        <ContentWinFailSection
+          from={from}
+          to={to}
+          teamId={
+            isContentLeader ? contentTeamsLed[0]?.id
+              : data?.scope === 'team' ? data.team?.id
+              : data?.scope === 'global' ? (teamFilter || undefined)
+              : undefined
+          }
+          fixedUserId={
+            isContentMember || data?.scope === 'personal' ? user?.id
+              : data?.scope === 'global' ? (memberFilter || undefined)
+              : undefined
+          }
+          showGlobalTop={data?.scope === 'global'}
+        />
+      )}
 
     </div>
   )
