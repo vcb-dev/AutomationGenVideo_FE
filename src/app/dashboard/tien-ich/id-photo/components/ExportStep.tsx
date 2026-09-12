@@ -1,23 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import {
-  FileDown,
-  RotateCcw,
-  Loader2,
-  Download,
-  ExternalLink,
-  Pencil,
-  Sparkles,
-  AlertTriangle,
-  X,
-  ZoomIn,
-  ZoomOut,
-  Move,
-} from 'lucide-react';
+import { useState } from 'react';
+import { FileDown, RotateCcw, Loader2, Download, ExternalLink, Pencil, Sparkles, AlertTriangle, X } from 'lucide-react';
 import { getPositionOption, IdPhotoPosition } from './constants';
 import { EmployeeInfoFields, EmployeeInfoValues, isEmployeeInfoValid } from './EmployeeInfoFields';
-import { CROP_DEFAULT, CROP_SCALE_MAX, CROP_SCALE_MIN, CropTransform, clampCropOffset, computeCropLayout } from './crop-math';
 
 /**
  * Toạ độ các phần tử đặt đè lên ảnh nền, quy ra % của khổ 420×669.
@@ -47,22 +33,16 @@ export function IdCardPreview({
   employeeName,
   employeeTeam,
   employeeId,
+  employeeTitlePrefix,
   position,
   photoUrl,
-  crop,
-  onCropChange,
 }: {
   employeeName: string;
   employeeTeam: string;
   employeeId: string;
+  employeeTitlePrefix?: string;
   position: IdPhotoPosition;
   photoUrl: string | null;
-  /** "Điều chỉnh vị trí ảnh trong khung tròn" đã lưu (null/undefined = vị trí gốc, xem crop-math.ts). */
-  crop?: CropTransform | null;
-  /** Có giá trị → khung tròn cho kéo thả (Pointer Events, hoạt động cả chuột lẫn chạm) để đổi
-   *  `crop`. Không truyền → preview CHỈ ĐỌC (dùng cho ô lưới hàng loạt), vẫn tôn trọng `crop`
-   *  đã lưu để hiển thị đúng như PDF thật sẽ ra. */
-  onCropChange?: (next: CropTransform) => void;
 }) {
   const opt = getPositionOption(position);
   const isLightBg = opt.color.toUpperCase() === '#FFFFFF';
@@ -70,7 +50,7 @@ export function IdCardPreview({
 
   return (
     <div
-      className="relative w-full max-w-[340px] mx-auto rounded-2xl shadow-lg overflow-hidden [container-type:inline-size]"
+      className="relative w-full max-w-[340px] mx-auto rounded-2xl shadow-lg overflow-hidden"
       style={{
         // Khung là ẢNH THẬT (đã crop đúng tỉ lệ 420/669) thay cho bản trước vẽ bằng SVG path:
         // dải ruy băng, đường cong lõm, logo và 6 sao đều nằm sẵn trong ảnh nên không còn sai
@@ -82,206 +62,33 @@ export function IdCardPreview({
       }}
     >
       {/* Ảnh chân dung cắt tròn, đặt đúng khung tròn rỗng có sẵn trên ảnh nền */}
-      <CircleCropArea
-        photoUrl={photoUrl}
-        alt={employeeName}
-        crop={crop}
-        onCropChange={onCropChange}
+      <div
+        className="absolute rounded-full overflow-hidden bg-[#f6f3f5]"
         style={{ ...CARD_LAYOUT.circle, aspectRatio: '1 / 1' }}
-      />
-
-      {/* Họ tên — in hoa. (Tiền tố chức danh đã bỏ — chỉ in tên thường, khớp PDF bên BE.)
-          Cỡ chữ theo `cqw` (% bề rộng thẻ) thay vì `rem` cố định: thẻ dựng ở nhiều kích cỡ
-          (bước 4 luồng đơn lẻ ~340px, ô lưới batch nhỏ hơn) — dùng rem thì thẻ nhỏ bị tràn chữ,
-          đè lên dòng Team/ID. 6.3cqw ≈ 1.35rem tại 340px. */}
-      <h4
-        className="absolute w-full px-[6%] text-center font-bold uppercase leading-tight truncate"
-        style={{ top: CARD_LAYOUT.nameTop, color: textColor, fontSize: '6.3cqw' }}
       >
-        {employeeName || 'Họ và tên'}
+        {photoUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={photoUrl} alt={employeeName} className="w-full h-full object-cover" />
+        )}
+      </div>
+
+      {/* Họ tên — in hoa, ghép tiền tố chức danh nếu có */}
+      <h4
+        className="absolute w-full px-5 text-center text-[1.35rem] font-bold uppercase leading-tight"
+        style={{ top: CARD_LAYOUT.nameTop, color: textColor }}
+      >
+        {[employeeTitlePrefix?.trim(), employeeName].filter(Boolean).join(' ') || 'Họ và tên'}
       </h4>
 
       {/* Team + ID CÙNG một dòng như thẻ thật */}
       <p
-        className="absolute w-full px-[5%] text-center font-medium truncate"
-        style={{ top: CARD_LAYOUT.teamIdTop, color: textColor, fontSize: '3.7cqw' }}
+        className="absolute w-full px-4 text-center text-[0.8rem] font-medium"
+        style={{ top: CARD_LAYOUT.teamIdTop, color: textColor }}
       >
         Team: {employeeTeam || '—'}&nbsp;&nbsp;&nbsp;&nbsp;ID: {employeeId || '—'}
       </p>
 
       {/* 6 sao KHÔNG vẽ ở đây nữa — đã có sẵn trong ảnh nền. */}
-    </div>
-  );
-}
-
-/**
- * Vòng tròn chân dung — vẽ ảnh theo ĐÚNG công thức `computeCropLayout` (crop-math.ts), khớp
- * tuyệt đối với PDF thật bên BE (id-photo.service.ts#drawIdCardPage dùng bản sao cùng công
- * thức). Luôn tôn trọng `crop` đã lưu (kể cả khi CHỈ ĐỌC, vd ô lưới hàng loạt) — khác bản trước
- * chỉ có `object-cover` (tương đương crop mặc định, không đổi được).
- *
- * Kéo thả bằng Pointer Events (không phải mousedown/touchstart riêng): 1 bộ handler chạy được
- * cả chuột lẫn chạm, đúng kiểu tương tác quen thuộc của crop avatar Facebook/Zalo mà không cần
- * thêm thư viện. Chỉ bật kéo khi có `onCropChange` — ô lưới hàng loạt (BulkResultGrid) truyền
- * `crop` để hiển thị đúng nhưng không truyền `onCropChange` nên vẫn chỉ đọc.
- */
-function CircleCropArea({
-  photoUrl,
-  alt,
-  crop,
-  onCropChange,
-  style,
-}: {
-  photoUrl: string | null;
-  alt: string;
-  crop?: CropTransform | null;
-  onCropChange?: (next: CropTransform) => void;
-  style: React.CSSProperties;
-}) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const imgRef = useRef<HTMLImageElement>(null);
-  // Kích thước THẬT (px gốc) của ảnh — chỉ biết được sau khi <img> nạp xong. Chưa có thì tạm
-  // coi ảnh vuông (object-fit:cover mặc định) để không "giật hình" 1 nhịp lúc đang tải.
-  const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
-  const dragRef = useRef<{ pointerId: number; startX: number; startY: number; startOffsetX: number; startOffsetY: number } | null>(null);
-  const [dragging, setDragging] = useState(false);
-
-  // Ảnh đổi (vd bấm "Ghép áo lại" ra ảnh mới) → kích thước cũ không còn đúng, phải đo lại.
-  useEffect(() => {
-    setNatural(null);
-  }, [photoUrl]);
-
-  // Phòng vệ thêm cho ảnh đã cache/tải xong trước khi `onLoad` kịp gắn (data-URI có thể hoàn
-  // tất trong cùng lượt commit) — `img.complete` luôn đúng bất kể `onLoad` có bắn hay không. Đã
-  // verify bằng Playwright thật: `onLoad` vẫn bắn bình thường ở luồng chính đang dùng, giữ nhánh
-  // này chỉ để chắc chắn cho các trường hợp tải nhanh bất thường khác, không phải nguyên nhân
-  // bug "lưới không cập nhật crop" đã báo — xem BulkPersonRow (BulkEmployeeCard.tsx) cho nguyên
-  // nhân THẬT của bug đó.
-  useEffect(() => {
-    const el = imgRef.current;
-    if (el && el.complete && el.naturalWidth > 0) {
-      setNatural({ w: el.naturalWidth, h: el.naturalHeight });
-    }
-  }, [photoUrl]);
-
-  const value = crop ?? CROP_DEFAULT;
-  const layout = natural ? computeCropLayout(natural.w, natural.h, value) : null;
-  const interactive = Boolean(onCropChange && natural);
-
-  const handlePointerDown = (e: React.PointerEvent<HTMLImageElement>) => {
-    if (!onCropChange || !natural) return;
-    e.preventDefault();
-    e.currentTarget.setPointerCapture(e.pointerId);
-    dragRef.current = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, startOffsetX: value.offsetX, startOffsetY: value.offsetY };
-    setDragging(true);
-  };
-
-  const handlePointerMove = (e: React.PointerEvent<HTMLImageElement>) => {
-    const drag = dragRef.current;
-    if (!drag || drag.pointerId !== e.pointerId || !onCropChange || !natural || !containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return;
-    // Khung LUÔN là hình vuông (aspectRatio 1/1) nên chia theo width/height riêng vẫn ra cùng
-    // 1 tỉ lệ — chia riêng để chịu được sai số bo tròn pixel của trình duyệt.
-    const dxFrac = (e.clientX - drag.startX) / rect.width;
-    const dyFrac = (e.clientY - drag.startY) / rect.height;
-    const { offsetX, offsetY } = clampCropOffset(natural.w, natural.h, value.scale, drag.startOffsetX + dxFrac, drag.startOffsetY + dyFrac);
-    onCropChange({ offsetX, offsetY, scale: value.scale });
-  };
-
-  const endDrag = (e: React.PointerEvent<HTMLImageElement>) => {
-    if (dragRef.current?.pointerId === e.pointerId) {
-      dragRef.current = null;
-      setDragging(false);
-      try {
-        e.currentTarget.releasePointerCapture(e.pointerId);
-      } catch {
-        /* pointer đã bị huỷ (vd rời trang giữa chừng) — không sao */
-      }
-    }
-  };
-
-  return (
-    <div ref={containerRef} className="absolute rounded-full overflow-hidden bg-[#f6f3f5]" style={style}>
-      {photoUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          ref={imgRef}
-          src={photoUrl}
-          alt={alt}
-          draggable={false}
-          onLoad={(e) => setNatural({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={endDrag}
-          onPointerCancel={endDrag}
-          className="absolute select-none touch-none"
-          style={
-            layout
-              ? {
-                  left: `${layout.x * 100}%`,
-                  top: `${layout.y * 100}%`,
-                  width: `${layout.width * 100}%`,
-                  height: `${layout.height * 100}%`,
-                  maxWidth: 'none',
-                  cursor: interactive ? (dragging ? 'grabbing' : 'grab') : undefined,
-                }
-              : { inset: 0, width: '100%', height: '100%', objectFit: 'cover' }
-          }
-        />
-      )}
-    </div>
-  );
-}
-
-/**
- * Thanh trượt zoom + nút "Đặt lại vị trí gốc" cho "Điều chỉnh vị trí ảnh trong khung tròn".
- * KHÔNG cần biết kích thước ảnh thật: đổi `scale` chỉ đổi khoảng kéo TỐI ĐA cho phép, còn
- * offset đã lưu vẫn được `computeCropLayout` tự kẹp lại đúng khi vẽ (xem crop-math.ts) — dù giá
- * trị lưu tạm có vượt biên mới, preview/PDF không bao giờ hở viền trắng.
- */
-export function CropControls({
-  crop,
-  onChange,
-  disabled,
-}: {
-  crop?: CropTransform | null;
-  onChange: (next: CropTransform) => void;
-  disabled?: boolean;
-}) {
-  const value = crop ?? CROP_DEFAULT;
-  const isDefault = value.offsetX === 0 && value.offsetY === 0 && value.scale === CROP_SCALE_MIN;
-
-  return (
-    <div className="rounded-xl border border-[#e2e0ea] bg-[#fafafb] px-3.5 py-3 space-y-2.5">
-      <div className="flex items-center gap-2 text-[11px] font-semibold text-[#464554]">
-        <Move className="w-3.5 h-3.5 flex-none" />
-        Kéo ảnh trong khung tròn để chỉnh vị trí — dùng thanh trượt để phóng to/nhỏ
-      </div>
-      <div className="flex items-center gap-2.5">
-        <ZoomOut className="w-4 h-4 flex-none text-[#9c9aa8]" />
-        <input
-          type="range"
-          min={CROP_SCALE_MIN}
-          max={CROP_SCALE_MAX}
-          step={0.01}
-          value={value.scale}
-          disabled={disabled}
-          onChange={(e) => onChange({ ...value, scale: Number(e.target.value) })}
-          className="flex-1 accent-[#4441cc] disabled:opacity-40"
-          aria-label="Phóng to/nhỏ ảnh trong khung tròn"
-        />
-        <ZoomIn className="w-4 h-4 flex-none text-[#9c9aa8]" />
-        <button
-          type="button"
-          onClick={() => onChange(CROP_DEFAULT)}
-          disabled={disabled || isDefault}
-          title="Đặt lại vị trí gốc — ảnh phủ khít khung, không lệch tâm"
-          className="flex-none px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border border-[#d5d3e0] text-[#464554] hover:border-[#4441cc] hover:text-[#4441cc] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          Đặt lại vị trí gốc
-        </button>
-      </div>
     </div>
   );
 }
@@ -301,6 +108,7 @@ export function ExportStep({
   employeeName,
   employeeTeam,
   employeeId,
+  employeeTitlePrefix,
   position,
   photoUrl,
   isExportingPdf,
@@ -319,15 +127,11 @@ export function ExportStep({
   onRemergeOutfit,
   onExportAndDownload,
   onRestart,
-  crop,
-  cropDirty,
-  isSavingCrop,
-  onCropChange,
-  onSaveCrop,
 }: {
   employeeName: string;
   employeeTeam: string;
   employeeId: string;
+  employeeTitlePrefix?: string;
   position: IdPhotoPosition;
   photoUrl: string | null;
   isExportingPdf: boolean;
@@ -350,13 +154,6 @@ export function ExportStep({
   onRemergeOutfit: () => void;
   onExportAndDownload: () => void;
   onRestart: () => void;
-  /** "Điều chỉnh vị trí ảnh trong khung tròn" — bản nháp đang chỉnh (kéo/zoom cập nhật ngay). */
-  crop: CropTransform;
-  /** true = khác bản ĐÃ LƯU trong DB — hiện nút "Lưu vị trí ảnh". */
-  cropDirty: boolean;
-  isSavingCrop: boolean;
-  onCropChange: (next: CropTransform) => void;
-  onSaveCrop: () => void;
 }) {
   const [confirmingRemerge, setConfirmingRemerge] = useState(false);
 
@@ -364,13 +161,13 @@ export function ExportStep({
   // bấm "Cập nhật", đúng thứ họ đang muốn kiểm chứng (vd tên dài có bị co chữ không).
   const shown = isEditingInfo
     ? editValues
-    : { employeeName, employeeTeam, employeeId, position };
+    : { employeeName, employeeTeam, employeeId, employeeTitlePrefix: employeeTitlePrefix ?? '', position };
 
   const opt = getPositionOption(shown.position);
   const isExporting = isExportingPdf || isDownloading;
   // Mọi thao tác nặng khoá lẫn nhau: đang ghép lại ảnh mà bấm xuất PDF thì file ra là ảnh cũ,
   // còn đang cập nhật chữ mà xuất PDF thì ra thông tin chưa lưu.
-  const busy = isExporting || isUpdatingInfo || isRemerging || isSavingCrop;
+  const busy = isExporting || isUpdatingInfo || isRemerging;
   // Các nút phụ (Sửa thông tin / Ghép áo lại / Làm lại từ đầu) bị khoá theo `busy` nhưng KHÔNG
   // phải là thao tác đang chạy, nên không thể gắn spinner lên chúng — spinner phải nằm đúng ở
   // nút đang xử lý. Thay vào đó nói rõ lý do bị khoá qua tooltip: trước đây chúng chỉ mờ đi và
@@ -379,8 +176,6 @@ export function ExportStep({
     ? 'Đang ghép áo lại, vui lòng đợi...'
     : isUpdatingInfo
     ? 'Đang cập nhật thông tin, vui lòng đợi...'
-    : isSavingCrop
-    ? 'Đang lưu vị trí ảnh, vui lòng đợi...'
     : isExporting
     ? 'Đang tạo file PDF, vui lòng đợi...'
     : null;
@@ -468,7 +263,7 @@ export function ExportStep({
               <label className="block text-xs font-semibold text-[#464554] mb-1.5">Tên nhân viên</label>
               <input
                 readOnly
-                value={shown.employeeName}
+                value={[shown.employeeTitlePrefix?.trim(), shown.employeeName].filter(Boolean).join(' ')}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-[#e2e0ea] bg-[#fafafb] text-sm text-[#1b1b1d] cursor-default"
               />
             </div>
@@ -623,48 +418,24 @@ export function ExportStep({
         </div>
 
         {/* Preview thẻ */}
-        <div className="space-y-3">
-          <div className="relative border border-[#e2e0ea] rounded-2xl bg-[#fafafb] p-6 flex items-center justify-center">
-            <IdCardPreview
-              employeeName={shown.employeeName}
-              employeeTeam={shown.employeeTeam}
-              employeeId={shown.employeeId}
-              position={shown.position}
-              photoUrl={photoUrl}
-              crop={crop}
-              onCropChange={photoUrl && !busy ? onCropChange : undefined}
-            />
+        <div className="relative border border-[#e2e0ea] rounded-2xl bg-[#fafafb] p-6 flex items-center justify-center">
+          <IdCardPreview
+            employeeName={shown.employeeName}
+            employeeTeam={shown.employeeTeam}
+            employeeId={shown.employeeId}
+            employeeTitlePrefix={shown.employeeTitlePrefix}
+            position={shown.position}
+            photoUrl={photoUrl}
+          />
 
-            {/* Che preview trong lúc AI dựng ảnh mới — ảnh đang hiện là ảnh CŨ sắp bị thay, để
-                trần thì người dùng tưởng đã xong rồi bấm xuất PDF ra ảnh cũ. */}
-            {isRemerging && (
-              <div className="absolute inset-0 rounded-2xl bg-white/80 backdrop-blur-[1px] flex flex-col items-center justify-center gap-2">
-                <Loader2 className="w-6 h-6 animate-spin text-[#4441cc]" />
-                <p className="text-xs font-semibold text-[#1b1b1d]">AI đang ghép áo lại...</p>
-                <p className="text-[11px] text-[#9c9aa8]">Thường mất 10-30 giây, vui lòng không đóng trang.</p>
-              </div>
-            )}
-          </div>
-
-          {/* "Điều chỉnh vị trí ảnh trong khung tròn" — LUÔN hiện ở đây (không giấu sau nút
-              riêng, khác panel "Sửa thông tin"): đây chính là chỗ người dùng phát hiện đầu/tóc
-              bị cắt khi vừa xem preview, sửa ngay tại chỗ thay vì phải tìm nút ẩn ở đâu đó. */}
-          {photoUrl && (
-            <>
-              <CropControls crop={crop} onChange={onCropChange} disabled={busy} />
-              {cropDirty && (
-                <button
-                  type="button"
-                  onClick={onSaveCrop}
-                  disabled={busy}
-                  title={busyHint ?? 'Lưu vị trí ảnh — PDF xuất sau đó sẽ dùng đúng vị trí này'}
-                  className="w-full px-4 py-2.5 rounded-xl font-semibold text-sm text-white bg-[#4441cc] hover:bg-[#4441cc]/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
-                >
-                  {isSavingCrop ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  {isSavingCrop ? 'Đang lưu vị trí ảnh...' : 'Lưu vị trí ảnh'}
-                </button>
-              )}
-            </>
+          {/* Che preview trong lúc AI dựng ảnh mới — ảnh đang hiện là ảnh CŨ sắp bị thay, để
+              trần thì người dùng tưởng đã xong rồi bấm xuất PDF ra ảnh cũ. */}
+          {isRemerging && (
+            <div className="absolute inset-0 rounded-2xl bg-white/80 backdrop-blur-[1px] flex flex-col items-center justify-center gap-2">
+              <Loader2 className="w-6 h-6 animate-spin text-[#4441cc]" />
+              <p className="text-xs font-semibold text-[#1b1b1d]">AI đang ghép áo lại...</p>
+              <p className="text-[11px] text-[#9c9aa8]">Thường mất 10-30 giây, vui lòng không đóng trang.</p>
+            </div>
           )}
         </div>
       </div>
