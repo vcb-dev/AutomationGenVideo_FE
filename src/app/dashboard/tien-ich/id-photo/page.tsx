@@ -1,8 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
+import { ImagePlus, Images, History, BarChart3 } from 'lucide-react';
 import apiClient from '@/lib/api-client';
+import { useAuthStore } from '@/store/auth-store';
+import { UserRole } from '@/types/auth';
 import { Stepper } from './components/Stepper';
 import { UploadStep } from './components/UploadStep';
 import { MergeOutfitStep, MergeStatus } from './components/MergeOutfitStep';
@@ -10,8 +14,29 @@ import { InfoStep } from './components/InfoStep';
 import { ExportStep } from './components/ExportStep';
 import { EmployeeInfoValues } from './components/EmployeeInfoFields';
 import { IdPhotoPosition } from './components/constants';
+import { CROP_DEFAULT, CropTransform } from './components/crop-math';
+import { HistoryTab } from './components/HistoryTab';
+import { StatsTab } from './components/StatsTab';
+import { BulkTab } from './components/BulkTab';
 
-type MainTab = 'single' | 'bulk';
+/**
+ * 1 DÒNG tab ngang duy nhất trên trang — thay cho IdPhotoSidebar cũ (3 route riêng biệt điều
+ * hướng qua sidebar dọc) VÀ thay cho cặp tab lồng nhau trước đó (tab lớn "Tạo ảnh thẻ" chứa
+ * tiếp 2 tab con "Tạo ảnh thẻ/Tạo hàng loạt" bên trong — nhìn như 2 hàng tab chồng lên nhau).
+ * "Tạo hàng loạt" giờ lên thẳng hàng với Lịch sử/Thống kê, không còn lồng cấp 2 nữa.
+ *
+ * Cùng kiểu chuyển tab với khu "Chuyển đổi content" (dashboard/ai/content-transform/page.tsx
+ * #activeTab): state cục bộ + đồng bộ 2 chiều với query `?tab=` để giữ được deep-link (vd link
+ * "Thống kê" ở menu header cho tài khoản Manager).
+ */
+type ModuleTab = 'single' | 'bulk' | 'history' | 'stats';
+
+const MODULE_TAB_VALUES: ModuleTab[] = ['single', 'bulk', 'history', 'stats'];
+
+function moduleTabFromSearchParam(tab: string | null): ModuleTab | null {
+  if (!tab) return null;
+  return MODULE_TAB_VALUES.includes(tab as ModuleTab) ? (tab as ModuleTab) : null;
+}
 
 const INITIAL_POSITION: IdPhotoPosition = 'NEW_STAFF_1_3M';
 
@@ -44,8 +69,43 @@ function toFriendlyMergeError(err: any): string {
   return 'Ghép áo không thành công. Vui lòng thử lại.';
 }
 
-export default function IdPhotoPage() {
-  const [mainTab, setMainTab] = useState<MainTab>('single');
+function IdPhotoPageContent() {
+  const { user } = useAuthStore();
+  const router = useRouter();
+  const pathname = usePathname() || '/dashboard/tien-ich/id-photo';
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab');
+
+  // Khớp @Roles ở IdPhotoController bên BE (xem layout.tsx): MANAGER chỉ mở được
+  // /id-photo/history/team-summary, nên chỉ được thấy đúng 1 tab "Thống kê" — 2 tab kia sẽ ăn
+  // 403 nếu cố bấm vào. Đây chỉ là lớp UX ẩn tab, BE mới là chốt chặn thật.
+  const statsOnly =
+    !(user?.roles?.some((r) => [UserRole.LEADER, UserRole.ADMIN].includes(r)) ?? false) &&
+    (user?.roles?.includes(UserRole.MANAGER) ?? false);
+
+  const [activeTab, setActiveTab] = useState<ModuleTab>(
+    () => (statsOnly ? 'stats' : moduleTabFromSearchParam(tabParam) ?? 'single'),
+  );
+
+  // Đồng bộ khi query đổi (vd bấm link "Thống kê" ở menu header trong khi trang đã mở sẵn).
+  useEffect(() => {
+    const next = moduleTabFromSearchParam(tabParam);
+    if (next && next !== activeTab) setActiveTab(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabParam]);
+
+  // Manager chỉ có 1 tab — ép về "Thống kê" nếu vì lý do gì đó state/URL đang trỏ tab khác.
+  useEffect(() => {
+    if (statsOnly && activeTab !== 'stats') setActiveTab('stats');
+  }, [statsOnly, activeTab]);
+
+  const handleTabChange = (tab: ModuleTab) => {
+    if (statsOnly && tab !== 'stats') return;
+    setActiveTab(tab);
+    const query = tab === 'single' ? '' : `?tab=${tab}`;
+    router.replace(`${pathname}${query}`, { scroll: false });
+  };
+
   const [step, setStep] = useState<number>(1);
 
   // ── Bước 1: ảnh gốc ──
@@ -69,8 +129,8 @@ export default function IdPhotoPage() {
   const [employeeName, setEmployeeName] = useState('');
   const [employeeTeam, setEmployeeTeam] = useState('');
   const [employeeId, setEmployeeId] = useState('');
-  // Tuỳ chọn — bỏ trống thì BE lưu null và thẻ in mỗi tên (xem CreateIdPhotoDto).
-  const [employeeTitlePrefix, setEmployeeTitlePrefix] = useState('');
+  // [ĐÃ BỎ] Field "Tiền tố chức danh" (employeeTitlePrefix) đã gỡ khỏi cả 2 luồng — BE không
+  // nhận/trả nữa, thẻ chỉ in tên thường.
   const [position, setPosition] = useState<IdPhotoPosition>(INITIAL_POSITION);
   const [isCreating, setIsCreating] = useState(false);
   const [historyId, setHistoryId] = useState<string | null>(null);
@@ -94,11 +154,22 @@ export default function IdPhotoPage() {
     employeeName: '',
     employeeTeam: '',
     employeeId: '',
-    employeeTitlePrefix: '',
     position: INITIAL_POSITION,
   });
   const [isUpdatingInfo, setIsUpdatingInfo] = useState(false);
   const [isRemerging, setIsRemerging] = useState(false);
+
+  // ── Bước 4: "Điều chỉnh vị trí ảnh trong khung tròn" (kéo thả + zoom) ──
+  // `crop` = bản nháp đang chỉnh (mỗi lần kéo/chỉnh slider cập nhật NGAY để preview phản hồi
+  // tức thời) — TÁCH khỏi `savedCrop` (giá trị đã lưu ở BE) để biết còn thay đổi CHƯA LƯU hay
+  // không (`cropDirty`), đúng nguyên tắc bản nháp/giá trị lưu như `editValues` ở trên.
+  const [crop, setCrop] = useState<CropTransform>(CROP_DEFAULT);
+  const [savedCrop, setSavedCrop] = useState<CropTransform>(CROP_DEFAULT);
+  const [isSavingCrop, setIsSavingCrop] = useState(false);
+  const isSavingCropRef = useRef(false);
+  const cropDirty =
+    crop.offsetX !== savedCrop.offsetX || crop.offsetY !== savedCrop.offsetY || crop.scale !== savedCrop.scale;
+
   const isUpdatingInfoRef = useRef(false);
   // Quan trọng nhất trong nhóm ref chống bấm trùng: mỗi lượt remerge là 1 lượt Gemini có tính
   // phí, double-click là mất tiền 2 lần.
@@ -200,7 +271,6 @@ export default function IdPhotoPage() {
         employeeName: employeeName.trim(),
         employeeTeam: employeeTeam.trim(),
         employeeId: employeeId.trim(),
-        employeeTitlePrefix: employeeTitlePrefix.trim() || undefined,
         position,
       });
       setHistoryId(res.data.id);
@@ -228,7 +298,7 @@ export default function IdPhotoPage() {
   const handleStartEditInfo = () => {
     // Nạp bản nháp từ dữ liệu đang hiển thị mỗi lần mở, để lần mở sau không dính bản nháp
     // dở dang của lần trước đã bấm Huỷ.
-    setEditValues({ employeeName, employeeTeam, employeeId, employeeTitlePrefix, position });
+    setEditValues({ employeeName, employeeTeam, employeeId, position });
     setIsEditingInfo(true);
   };
 
@@ -246,16 +316,12 @@ export default function IdPhotoPage() {
         employeeName: editValues.employeeName.trim(),
         employeeTeam: editValues.employeeTeam.trim(),
         employeeId: editValues.employeeId.trim(),
-        // Gửi chuỗi rỗng (không phải undefined) để BE hiểu là XOÁ tiền tố đang có — undefined
-        // sẽ bị coi là "không đổi" và tiền tố cũ vẫn còn nguyên trên thẻ.
-        employeeTitlePrefix: editValues.employeeTitlePrefix.trim(),
         position: editValues.position,
       });
 
       setEmployeeName(editValues.employeeName.trim());
       setEmployeeTeam(editValues.employeeTeam.trim());
       setEmployeeId(editValues.employeeId.trim());
-      setEmployeeTitlePrefix(editValues.employeeTitlePrefix.trim());
       setPosition(editValues.position);
       setIsEditingInfo(false);
       invalidateExportedPdf();
@@ -285,6 +351,10 @@ export default function IdPhotoPage() {
       const res = await apiClient.post(`/id-photo/${historyId}/remerge-outfit`);
       setMergedImageData(res.data.processedImageData);
       invalidateExportedPdf();
+      // BE reset crop_offset_x/y/scale về NULL khi ghép áo lại (ảnh mới bố cục khác, giữ crop
+      // cũ dễ sai — xem IdPhotoService#remergeOutfit) — đồng bộ lại state FE cho khớp.
+      setCrop(CROP_DEFAULT);
+      setSavedCrop(CROP_DEFAULT);
       toast.success('Đã có ảnh mới. Kiểm tra lại rồi bấm "Xuất file PDF".', { id: loadingToast });
     } catch (err: any) {
       // Dùng lại đúng bộ đổi lỗi của bước 2 — cùng một endpoint AI phía sau nên các mã lỗi
@@ -293,6 +363,31 @@ export default function IdPhotoPage() {
     } finally {
       isRemergingRef.current = false;
       setIsRemerging(false);
+    }
+  };
+
+  /**
+   * PATCH /id-photo/:id — lưu "Điều chỉnh vị trí ảnh trong khung tròn". Cùng đường MIỄN PHÍ với
+   * handleUpdateInfo (không đụng AI), chỉ khác field gửi lên — xem UpdateIdPhotoDto ở BE.
+   */
+  const handleSaveCrop = async () => {
+    if (!historyId || isSavingCropRef.current) return;
+    isSavingCropRef.current = true;
+    setIsSavingCrop(true);
+    try {
+      await apiClient.patch(`/id-photo/${historyId}`, {
+        cropOffsetX: crop.offsetX,
+        cropOffsetY: crop.offsetY,
+        cropScale: crop.scale,
+      });
+      setSavedCrop(crop);
+      invalidateExportedPdf();
+      toast.success('Đã lưu vị trí ảnh. Bấm "Xuất file PDF" để lấy bản mới.');
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Lưu vị trí ảnh thất bại, vui lòng thử lại.');
+    } finally {
+      isSavingCropRef.current = false;
+      setIsSavingCrop(false);
     }
   };
 
@@ -353,7 +448,6 @@ export default function IdPhotoPage() {
     setEmployeeName('');
     setEmployeeTeam('');
     setEmployeeId('');
-    setEmployeeTitlePrefix('');
     setPosition(INITIAL_POSITION);
     setHistoryId(null);
     if (pdfBlobUrlRef.current) URL.revokeObjectURL(pdfBlobUrlRef.current);
@@ -363,6 +457,9 @@ export default function IdPhotoPage() {
     setIsEditingInfo(false);
     setIsUpdatingInfo(false);
     setIsRemerging(false);
+    setCrop(CROP_DEFAULT);
+    setSavedCrop(CROP_DEFAULT);
+    setIsSavingCrop(false);
     setStep(1);
   };
 
@@ -387,40 +484,77 @@ export default function IdPhotoPage() {
 
   return (
     <div className="text-[#1b1b1d]">
+      {/* Khung căn giữa + giới hạn bề rộng — giống hệt khu "Chuyển đổi content"
+          (dashboard/ai/content-transform/page.tsx, max-w-[1680px] w-full mx-auto): màn hình
+          rộng hơn 1680px sẽ tự chừa khoảng trống đều 2 bên thay vì nội dung kéo dài hết cỡ. */}
+      <div className="max-w-[1680px] w-full mx-auto">
       <header className="mb-4">
         <h1 className="text-2xl md:text-3xl font-bold text-[#1b1b1d] tracking-tight">Tạo ảnh thẻ nhân viên</h1>
         <p className="text-[#464554] text-sm mt-0.5">Tải lên ảnh thô để AI tự động xử lý và ghép trang phục chuẩn form.</p>
       </header>
 
-      {/* Tabs */}
+      {/* 1 DÒNG tab menu ngang duy nhất — thay cho IdPhotoSidebar cũ (khối "Tiện ích" bên trái)
+          VÀ thay cho cặp tab lồng 2 hàng trước đó. Cùng kiểu chuyển tab với khu "Chuyển đổi
+          content". Manager chỉ còn đúng 1 tab "Thống kê". */}
       <div className="flex items-center gap-6 border-b border-[#e2e0ea] mb-6">
+        {!statsOnly && (
+          <button
+            onClick={() => handleTabChange('single')}
+            className={`py-2.5 px-1 text-sm font-semibold transition-colors ${
+              activeTab === 'single' ? 'border-b-2 border-[#4441cc] text-[#4441cc]' : 'text-[#464554] hover:text-[#4441cc]'
+            }`}
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <ImagePlus className="w-4 h-4" />
+              Tạo ảnh thẻ
+            </span>
+          </button>
+        )}
+        {!statsOnly && (
+          <button
+            onClick={() => handleTabChange('bulk')}
+            className={`py-2.5 px-1 text-sm font-semibold transition-colors ${
+              activeTab === 'bulk' ? 'border-b-2 border-[#4441cc] text-[#4441cc]' : 'text-[#464554] hover:text-[#4441cc]'
+            }`}
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <Images className="w-4 h-4" />
+              Tạo hàng loạt
+            </span>
+          </button>
+        )}
+        {!statsOnly && (
+          <button
+            onClick={() => handleTabChange('history')}
+            className={`py-2.5 px-1 text-sm font-semibold transition-colors ${
+              activeTab === 'history' ? 'border-b-2 border-[#4441cc] text-[#4441cc]' : 'text-[#464554] hover:text-[#4441cc]'
+            }`}
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <History className="w-4 h-4" />
+              Lịch sử
+            </span>
+          </button>
+        )}
         <button
-          onClick={() => setMainTab('single')}
+          onClick={() => handleTabChange('stats')}
           className={`py-2.5 px-1 text-sm font-semibold transition-colors ${
-            mainTab === 'single' ? 'border-b-2 border-[#4441cc] text-[#4441cc]' : 'text-[#464554] hover:text-[#4441cc]'
+            activeTab === 'stats' ? 'border-b-2 border-[#4441cc] text-[#4441cc]' : 'text-[#464554] hover:text-[#4441cc]'
           }`}
         >
-          Tạo ảnh thẻ
-        </button>
-        <button
-          onClick={() => setMainTab('bulk')}
-          className={`py-2.5 px-1 text-sm font-semibold transition-colors ${
-            mainTab === 'bulk' ? 'border-b-2 border-[#4441cc] text-[#4441cc]' : 'text-[#464554] hover:text-[#4441cc]'
-          }`}
-        >
-          Tạo hàng loạt
+          <span className="inline-flex items-center gap-1.5">
+            <BarChart3 className="w-4 h-4" />
+            Thống kê
+          </span>
         </button>
       </div>
 
-      {mainTab === 'bulk' ? (
-        <div className="border border-[#e2e0ea] rounded-2xl bg-white p-16 flex flex-col items-center justify-center text-center gap-2">
-          <span className="text-3xl">🚧</span>
-          <p className="text-sm font-semibold text-[#1b1b1d]">Sắp ra mắt</p>
-          <p className="text-xs text-[#9c9aa8] max-w-sm">
-            Tính năng tạo ảnh thẻ hàng loạt (upload nhiều ảnh + file danh sách nhân viên) đang được phát triển.
-          </p>
-        </div>
-      ) : (
+      {activeTab === 'history' && <HistoryTab />}
+      {activeTab === 'stats' && <StatsTab />}
+
+      {activeTab === 'bulk' && <BulkTab />}
+
+      {activeTab === 'single' && (
         <>
           <div className="mb-6">
             <Stepper currentStep={step} onStepClick={handleStepClick} />
@@ -456,13 +590,11 @@ export default function IdPhotoPage() {
               employeeName={employeeName}
               employeeTeam={employeeTeam}
               employeeId={employeeId}
-              employeeTitlePrefix={employeeTitlePrefix}
               position={position}
               isSubmitting={isCreating}
               onChangeEmployeeName={setEmployeeName}
               onChangeEmployeeTeam={setEmployeeTeam}
               onChangeEmployeeId={setEmployeeId}
-              onChangeEmployeeTitlePrefix={setEmployeeTitlePrefix}
               onChangePosition={setPosition}
               onBack={() => setStep(2)}
               onContinue={handleCreate}
@@ -474,7 +606,6 @@ export default function IdPhotoPage() {
               employeeName={employeeName}
               employeeTeam={employeeTeam}
               employeeId={employeeId}
-              employeeTitlePrefix={employeeTitlePrefix}
               position={position}
               photoUrl={mergedImageData}
               isExportingPdf={isExportingPdf}
@@ -491,12 +622,28 @@ export default function IdPhotoPage() {
               onCancelEditInfo={() => setIsEditingInfo(false)}
               onSubmitEditInfo={handleUpdateInfo}
               onRemergeOutfit={handleRemergeOutfit}
+              crop={crop}
+              cropDirty={cropDirty}
+              isSavingCrop={isSavingCrop}
+              onCropChange={setCrop}
+              onSaveCrop={handleSaveCrop}
               onExportAndDownload={handleExportAndDownload}
               onRestart={handleRestart}
             />
           )}
         </>
       )}
+      </div>
     </div>
+  );
+}
+
+/** Suspense bao ngoài bắt buộc cho useSearchParams trong App Router — cùng pattern với
+ *  dashboard/manager/user-activity/page.tsx#UserActivityPage. */
+export default function IdPhotoPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-[calc(100vh-160px)]" />}>
+      <IdPhotoPageContent />
+    </Suspense>
   );
 }
