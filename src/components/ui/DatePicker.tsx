@@ -26,9 +26,18 @@ interface DatePickerProps {
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  align?: 'left' | 'right';
+  buttonClassName?: string;
 }
 
-export function DatePicker({ value, onChange, placeholder = 'Chọn ngày', className }: DatePickerProps) {
+export function DatePicker({
+  value,
+  onChange,
+  placeholder = 'Chọn ngày',
+  className,
+  align = 'left',
+  buttonClassName,
+}: DatePickerProps) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
 
@@ -54,20 +63,21 @@ export function DatePicker({ value, onChange, placeholder = 'Chọn ngày', clas
         type="button"
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          'flex w-[150px] items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm',
-          'text-slate-800 transition-colors hover:border-slate-300',
+          'flex w-[140px] items-center gap-2 rounded-lg border border-slate-200 bg-card px-3 py-2 text-sm',
+          'text-foreground transition-colors hover:border-slate-300',
           'dark:border-white/[0.08] dark:bg-[#0f131a] dark:text-slate-100 dark:hover:border-white/20',
-          open && 'border-indigo-400 dark:border-indigo-400',
+          open && 'border-primary dark:border-primary ring-1 ring-primary/20',
+          buttonClassName,
         )}
       >
         <CalendarDays size={15} className="shrink-0 text-slate-400" />
-        <span className={cn('flex-1 text-left', !value && 'text-slate-400')}>
+        <span className={cn('flex-1 text-left truncate text-xs sm:text-sm', !value && 'text-slate-400')}>
           {value ? displayVi(value) : placeholder}
         </span>
         {value && (
           <X
             size={14}
-            className="shrink-0 text-slate-400 hover:text-slate-600"
+            className="shrink-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
             onClick={(e) => {
               e.stopPropagation();
               onChange('');
@@ -79,9 +89,10 @@ export function DatePicker({ value, onChange, placeholder = 'Chọn ngày', clas
       {open && (
         <div
           className={cn(
-            'absolute left-0 top-full z-50 mt-2 w-[276px] rounded-xl border border-slate-200 bg-white p-3',
+            'absolute top-full z-50 mt-2 w-[276px] rounded-xl border border-slate-200 bg-white p-3',
             'shadow-[0_12px_32px_rgba(17,24,39,0.12)]',
             'dark:border-white/[0.08] dark:bg-[#141821] dark:shadow-[0_12px_32px_rgba(0,0,0,0.5)]',
+            align === 'right' ? 'right-0' : 'left-0',
           )}
         >
           <MonthCalendar

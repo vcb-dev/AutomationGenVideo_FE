@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CircleNotch, FilmReel, Warning, CaretDown, CaretUp, FacebookLogo, MagnifyingGlassPlus, Timer, BookmarkSimple, ArrowsClockwise } from '@phosphor-icons/react';
+import { CircleNotch, FilmReel, Warning, CaretDown, CaretUp, FacebookLogo, MagnifyingGlassPlus, Timer, BookmarkSimple, ArrowsClockwise, ShoppingBag, Sparkle, Tag, Plus, Check } from '@phosphor-icons/react';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -11,8 +11,11 @@ import DiscoveryBar from '../components/DiscoveryBar';
 import FanpageCard from '../components/FanpageCard';
 import ReelCard from '../components/ReelCard';
 import FilterPanel from '../components/FilterPanel';
+import ChannelClassificationModal from '../components/ChannelClassificationModal';
+import AddTagModal from '../components/AddTagModal';
+import ConfirmModal from '../components/ConfirmModal';
 import { useAuthStore } from '@/store/auth-store';
-import { scraperService, ScrapedFanpage } from '@/services/scraperService';
+import { scraperService, ScrapedFanpage, ScraperChannelTag } from '@/services/scraperService';
 import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
 import { UserRole } from '@/types/auth';
 import { dedupeById } from '@/lib/dedupe-pages';
@@ -35,6 +38,9 @@ export default function FacebookExternalPage() {
   // Xoá cứng fanpage: BE xoá kèm toàn bộ reels/lịch sử chỉ số, không hoàn tác được.
   // Hộp xác nhận phải nói số reels sắp mất — trên thẻ thì fanpage đã cào 300 reels trông
   // y hệt một page rác chưa cào gì.
+  const [deletingChannel, setDeletingChannel] = useState<{ id: number; name: string; videoCount: number } | null>(null);
+  const [showPeriodicConfirm, setShowPeriodicConfirm] = useState(false);
+
   const deleteChannelMutation = useMutation({
     mutationFn: (id: number) => {
       if (!token) throw new Error('No token');
@@ -52,8 +58,7 @@ export default function FacebookExternalPage() {
   });
 
   const handleDeleteChannel = (id: number, name: string, videoCount: number) => {
-    if (!window.confirm(buildDeleteChannelConfirm({ name, videoCount }))) return;
-    deleteChannelMutation.mutate(id);
+    setDeletingChannel({ id, name, videoCount });
   };
 
   // Fanpage pagination + search + tab filter ('all' | 'periodic' | 'bookmarked')
@@ -62,6 +67,24 @@ export default function FacebookExternalPage() {
   const [debouncedFpSearch, setDebouncedFpSearch] = useState('');
   const [fpTab, setFpTab] = useState<'all' | 'periodic' | 'bookmarked'>('all');
   const fpSearchTimer = useRef<NodeJS.Timeout>();
+
+  // Channel Classification Tabs ('product' | 'content' | 'all') & Product line filter
+  const [channelTypeTab, setChannelTypeTab] = useState<'product' | 'content' | 'all'>('product');
+  const [selectedProductLine, setSelectedProductLine] = useState<string>('all');
+  const [editingFanpage, setEditingFanpage] = useState<ScrapedFanpage | null>(null);
+  const [showAddTagModal, setShowAddTagModal] = useState(false);
+
+  // New channel classification for Single URL Scrape
+  const [newChannelType, setNewChannelType] = useState<'product' | 'content'>('product');
+  const [newProductLines, setNewProductLines] = useState<string[]>([]);
+
+  // Tags query
+  const tagsQuery = useQuery({
+    queryKey: ['scraper-channel-tags'],
+    queryFn: () => (token ? scraperService.getChannelTags(token) : Promise.resolve([])),
+    enabled: !!token,
+  });
+  const availableTags = tagsQuery.data || [];
 
   useEffect(() => {
     fpSearchTimer.current = setTimeout(() => { setDebouncedFpSearch(fpSearch); setFpPage(1); }, 300);
@@ -105,7 +128,10 @@ export default function FacebookExternalPage() {
   const scrapeByUrlMutation = useMutation({
     mutationFn: ({ url, count }: { url: string; count?: number }) => {
       if (!token) throw new Error('No token');
-      return scraperService.fanpageScrapeByUrl(token, url, count);
+      return scraperService.fanpageScrapeByUrl(token, url, count, {
+        channel_type: newChannelType,
+        product_lines: newChannelType === 'product' ? newProductLines : [],
+      });
     },
     onSuccess: (data) => {
       if (data.already_exists) {
@@ -123,6 +149,7 @@ export default function FacebookExternalPage() {
         });
       }
       setPageUrl('');
+      setNewProductLines([]);
       queryClient.invalidateQueries({ queryKey: ['scraper-fanpages'] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -130,13 +157,15 @@ export default function FacebookExternalPage() {
 
   // ─── Fanpages Query (paginated from backend) ─────────
   const fanpagesQuery = useQuery({
-    queryKey: ['scraper-fanpages', fpPage, debouncedFpSearch, fpTab],
+    queryKey: ['scraper-fanpages', fpPage, debouncedFpSearch, fpTab, channelTypeTab, selectedProductLine],
     queryFn: () => token ? scraperService.getFanpages(token, {
       page: fpPage,
       page_size: PAGE_SIZE_FANPAGES,
       search: debouncedFpSearch || undefined,
       periodic: fpTab === 'periodic' ? 'true' : undefined,
       bookmarked: fpTab === 'bookmarked' ? 'true' : undefined,
+      channel_type: channelTypeTab !== 'all' ? channelTypeTab : undefined,
+      product_line: selectedProductLine !== 'all' ? selectedProductLine : undefined,
     }) : Promise.reject('No token'),
     enabled: !!token,
     // Poll nhanh hơn khi có page đang cào, chuyển về 15s khi tất cả idle
@@ -239,8 +268,8 @@ export default function FacebookExternalPage() {
       </div>
       {/* Scrape by URL — chỉ leader/admin được cào kênh mới */}
       {canManageChannels && (
-      <div className="bg-card border border-border rounded-xl p-4">
-        <div className="flex items-center gap-3">
+      <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <div className="relative flex-1 max-w-xl">
             <FacebookLogo size={16} weight="duotone" className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-500" />
             <input
@@ -283,6 +312,67 @@ export default function FacebookExternalPage() {
             Thêm hàng loạt
           </button>
         </div>
+
+        {/* Cấu hình phân loại nhanh khi thêm đơn */}
+        <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-border/50 text-xs">
+          <div className="flex items-center gap-1.5 font-medium text-slate-500">
+            <span>Loại kênh:</span>
+            <div className="flex items-center p-0.5 bg-slate-100 dark:bg-slate-800 rounded-md">
+              <button
+                type="button"
+                onClick={() => setNewChannelType('product')}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold transition-all ${
+                  newChannelType === 'product'
+                    ? 'bg-card text-primary shadow-xs'
+                    : 'text-slate-500 hover:text-foreground'
+                }`}
+              >
+                <ShoppingBag size={12} weight="bold" />
+                Sản phẩm
+              </button>
+              <button
+                type="button"
+                onClick={() => setNewChannelType('content')}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold transition-all ${
+                  newChannelType === 'content'
+                    ? 'bg-card text-purple-600 dark:text-purple-400 shadow-xs'
+                    : 'text-slate-500 hover:text-foreground'
+                }`}
+              >
+                <Sparkle size={12} weight="bold" />
+                Content
+              </button>
+            </div>
+          </div>
+
+          {newChannelType === 'product' && availableTags.length > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-slate-400">Gắn dòng:</span>
+              {availableTags.map((tag) => {
+                const isSelected = newProductLines.includes(tag.slug);
+                return (
+                  <button
+                    key={tag.slug}
+                    type="button"
+                    onClick={() => {
+                      setNewProductLines((prev) =>
+                        prev.includes(tag.slug) ? prev.filter((s) => s !== tag.slug) : [...prev, tag.slug]
+                      );
+                    }}
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border transition-all ${
+                      isSelected
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'bg-card text-slate-600 dark:text-slate-300 border-border hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    {isSelected && <Check size={10} weight="bold" />}
+                    <span>{tag.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
       )}
 
@@ -316,47 +406,48 @@ export default function FacebookExternalPage() {
         </button>
 
         {!fpCollapsed && (
-          <div className="px-4 pb-4 space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-1">
-              {/* Filter Tabs: Tất cả | Kênh chú ý | Đã lưu */}
-              <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg w-fit">
+          <div className="px-4 pb-4 space-y-3.5">
+            {/* TẦNG 1: TAB LOẠI KÊNH (Sản phẩm vs Content vs Tất cả) */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+              <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl w-fit">
                 <button
                   type="button"
-                  onClick={() => { setFpTab('all'); setFpPage(1); }}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
-                    fpTab === 'all'
+                  onClick={() => { setChannelTypeTab('product'); setSelectedProductLine('all'); setFpPage(1); }}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                    channelTypeTab === 'product'
+                      ? 'bg-card text-primary shadow-sm ring-1 ring-primary/20'
+                      : 'text-slate-500 hover:text-foreground'
+                  }`}
+                >
+                  <ShoppingBag size={14} weight="bold" />
+                  Sản phẩm
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setChannelTypeTab('content'); setSelectedProductLine('all'); setFpPage(1); }}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                    channelTypeTab === 'content'
+                      ? 'bg-card text-purple-600 dark:text-purple-400 shadow-sm ring-1 ring-purple-500/20'
+                      : 'text-slate-500 hover:text-foreground'
+                  }`}
+                >
+                  <Sparkle size={14} weight="bold" />
+                  Content
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setChannelTypeTab('all'); setFpPage(1); }}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                    channelTypeTab === 'all'
                       ? 'bg-card text-foreground shadow-sm'
                       : 'text-slate-500 hover:text-foreground'
                   }`}
                 >
                   Tất cả
                 </button>
-                <button
-                  type="button"
-                  onClick={() => { setFpTab('periodic'); setFpPage(1); }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
-                    fpTab === 'periodic'
-                      ? 'bg-card text-emerald-600 dark:text-emerald-400 shadow-sm'
-                      : 'text-slate-500 hover:text-emerald-600'
-                  }`}
-                >
-                  <Timer size={14} weight="fill" />
-                  Kênh chú ý
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setFpTab('bookmarked'); setFpPage(1); }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
-                    fpTab === 'bookmarked'
-                      ? 'bg-card text-amber-600 dark:text-amber-400 shadow-sm'
-                      : 'text-slate-500 hover:text-amber-600'
-                  }`}
-                >
-                  <BookmarkSimple size={14} weight="fill" />
-                  Đã lưu
-                </button>
               </div>
 
+              {/* Ô tìm kiếm fanpage & nút cào chú ý */}
               <div className="flex items-center gap-3">
                 <input
                   type="text"
@@ -368,13 +459,9 @@ export default function FacebookExternalPage() {
 
                 {canManageChannels && (
                   <button
-                    onClick={() => {
-                      if (window.confirm('Hệ thống sẽ tiến hành cào video reels mới cho các Fanpage trong danh sách Kênh chú ý (bật icon đồng hồ). Bạn có muốn tiếp tục?')) {
-                        syncPeriodicMutation.mutate();
-                      }
-                    }}
+                    onClick={() => setShowPeriodicConfirm(true)}
                     disabled={syncPeriodicMutation.isPending}
-                    className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800 rounded-md transition-all whitespace-nowrap shadow-sm disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800 rounded-md transition-all whitespace-nowrap shadow-sm disabled:opacity-50 cursor-pointer"
                     title="Chỉ cào video mới cho các Fanpage đã được bật icon đồng hồ (Kênh chú ý)"
                   >
                     <ArrowsClockwise size={14} className={syncPeriodicMutation.isPending ? 'animate-spin' : ''} weight="bold" />
@@ -382,6 +469,87 @@ export default function FacebookExternalPage() {
                   </button>
                 )}
               </div>
+            </div>
+
+            {/* TẦNG 2: DÒNG SẢN PHẨM (Vàng, Đá quý, Kim cương, Chế tác, Bạc, Moissanite + Thêm) */}
+            {(channelTypeTab === 'product' || channelTypeTab === 'all') && (
+              <div className="flex items-center gap-1.5 flex-wrap py-2 px-1 border-y border-border/50 bg-slate-50/40 dark:bg-slate-900/20 rounded-lg">
+                <span className="text-xs font-semibold text-slate-400 mr-1 ml-1">Dòng sản phẩm:</span>
+                <button
+                  type="button"
+                  onClick={() => { setSelectedProductLine('all'); setFpPage(1); }}
+                  className={`px-3 py-1 text-xs font-medium rounded-full transition-all ${
+                    selectedProductLine === 'all'
+                      ? 'bg-primary text-primary-foreground font-bold shadow-xs'
+                      : 'bg-card hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-border'
+                  }`}
+                >
+                  Tất cả dòng
+                </button>
+                {availableTags.map((tag) => (
+                  <button
+                    key={tag.slug}
+                    type="button"
+                    onClick={() => { setSelectedProductLine(tag.slug); setFpPage(1); }}
+                    className={`px-3 py-1 text-xs font-medium rounded-full transition-all ${
+                      selectedProductLine === tag.slug
+                        ? 'bg-primary text-primary-foreground font-bold shadow-xs'
+                        : 'bg-card hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-border'
+                    }`}
+                  >
+                    {tag.name}
+                  </button>
+                ))}
+                {canManageChannels && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAddTagModal(true)}
+                    className="inline-flex items-center gap-1 px-3 py-1 text-xs font-semibold rounded-full border border-dashed border-primary text-primary hover:bg-primary/5 transition-all ml-1"
+                  >
+                    <Plus size={12} weight="bold" />
+                    Thêm dòng
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* TẦNG 3: BỘ LỌC TRẠNG THÁI (Tất cả | Kênh chú ý | Đã lưu) */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg w-fit">
+              <button
+                type="button"
+                onClick={() => { setFpTab('all'); setFpPage(1); }}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                  fpTab === 'all'
+                    ? 'bg-card text-foreground shadow-sm'
+                    : 'text-slate-500 hover:text-foreground'
+                }`}
+              >
+                Tất cả ({fpTotal})
+              </button>
+              <button
+                type="button"
+                onClick={() => { setFpTab('periodic'); setFpPage(1); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                  fpTab === 'periodic'
+                    ? 'bg-card text-emerald-600 dark:text-emerald-400 shadow-sm'
+                    : 'text-slate-500 hover:text-emerald-600'
+                }`}
+              >
+                <Timer size={14} weight="fill" />
+                Kênh chú ý
+              </button>
+              <button
+                type="button"
+                onClick={() => { setFpTab('bookmarked'); setFpPage(1); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                  fpTab === 'bookmarked'
+                    ? 'bg-card text-amber-600 dark:text-amber-400 shadow-sm'
+                    : 'text-slate-500 hover:text-amber-600'
+                }`}
+              >
+                <BookmarkSimple size={14} weight="fill" />
+                Đã lưu
+              </button>
             </div>
 
             {fanpagesQuery.isLoading ? (
@@ -414,6 +582,7 @@ export default function FacebookExternalPage() {
                     onTogglePeriodic={canManageChannels ? () => toggleMutation.mutate({ id: fp.id, field: 'is_periodic_crawl' }) : undefined}
                     onViewDetail={() => router.push(`/dashboard/externalChannels/facebook/${fp.id}`)}
                     onDelete={canManageChannels ? (f) => handleDeleteChannel(f.id, f.name, f.reels_count ?? 0) : undefined}
+                    onEditClassification={canManageChannels ? (f) => setEditingFanpage(f) : undefined}
                   />
                 ))}
               </div>
@@ -483,11 +652,11 @@ export default function FacebookExternalPage() {
 
         {allReels.length > 0 && (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4">
               {allReels.map(reel => <ReelCard key={reel.post_id} reel={reel} />)}
               {reelsQuery.isFetchingNextPage && Array.from({ length: 6 }).map((_, i) => (
                 <div key={`skel-${i}`} className="bg-card border border-border rounded-lg overflow-hidden animate-pulse">
-                  <div className="aspect-[9/16] max-h-[280px] bg-slate-200 dark:bg-slate-700" />
+                  <div className="aspect-[9/16] bg-slate-200 dark:bg-slate-700" />
                   <div className="p-3 space-y-2"><div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-full" /><div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-2/3" /></div>
                 </div>
               ))}
@@ -502,10 +671,97 @@ export default function FacebookExternalPage() {
       <BulkAddFacebookModal
         isOpen={showBulkAddModal}
         onClose={() => setShowBulkAddModal(false)}
+        availableTags={availableTags}
         onSuccess={() => {
           queryClient.invalidateQueries({ queryKey: ['scraper-fanpages'] });
         }}
       />
+
+      {/* Modal sửa phân loại kênh */}
+      {editingFanpage && (
+        <ChannelClassificationModal
+          isOpen={!!editingFanpage}
+          onClose={() => setEditingFanpage(null)}
+          fanpage={editingFanpage}
+          availableTags={availableTags}
+          onRefreshTags={() => tagsQuery.refetch()}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['scraper-fanpages'] });
+          }}
+        />
+      )}
+
+      {/* Modal thêm dòng sản phẩm */}
+      {showAddTagModal && (
+        <AddTagModal
+          isOpen={showAddTagModal}
+          onClose={() => setShowAddTagModal(false)}
+          onSuccess={(newTag) => {
+            tagsQuery.refetch();
+            setSelectedProductLine(newTag.slug);
+          }}
+        />
+      )}
+
+      {/* Modal xác nhận cào video kênh chú ý */}
+      <ConfirmModal
+        isOpen={showPeriodicConfirm}
+        onClose={() => setShowPeriodicConfirm(false)}
+        onConfirm={() => {
+          setShowPeriodicConfirm(false);
+          syncPeriodicMutation.mutate();
+        }}
+        title="Cào video kênh chú ý"
+        description={
+          <div className="space-y-2">
+            <p>
+              Hệ thống sẽ tiến hành cào video reels mới cho các Fanpage trong danh sách{' '}
+              <strong className="text-emerald-600 dark:text-emerald-400 font-semibold">Kênh chú ý</strong> (được bật biểu tượng chiếc đồng hồ).
+            </p>
+            <p className="text-slate-400">
+              Tiến trình cào sẽ chạy ngầm và gửi thông báo khi hoàn tất. Bạn có muốn tiếp tục?
+            </p>
+          </div>
+        }
+        icon={<ArrowsClockwise size={22} weight="bold" />}
+        confirmText="Bắt đầu cào"
+        cancelText="Hủy"
+        variant="emerald"
+        isLoading={syncPeriodicMutation.isPending}
+      />
+
+      {/* Modal xác nhận xóa kênh */}
+      {deletingChannel && (
+        <ConfirmModal
+          isOpen={!!deletingChannel}
+          onClose={() => setDeletingChannel(null)}
+          onConfirm={() => {
+            const ch = deletingChannel;
+            setDeletingChannel(null);
+            if (ch) deleteChannelMutation.mutate(ch.id);
+          }}
+          title="Xác nhận xóa Fanpage"
+          description={
+            <div className="space-y-2">
+              <p>
+                Bạn có chắc chắn muốn xóa kênh <strong className="text-foreground">{deletingChannel.name}</strong>?
+              </p>
+              {deletingChannel.videoCount > 0 ? (
+                <p className="text-rose-500 font-medium">
+                  Toàn bộ {deletingChannel.videoCount.toLocaleString('vi-VN')} video reels và lịch sử dữ liệu của kênh này sẽ bị xóa vĩnh viễn và không thể khôi phục.
+                </p>
+              ) : (
+                <p className="text-slate-400">Kênh chưa có video reels nào trong hệ thống.</p>
+              )}
+            </div>
+          }
+          icon={<Timer size={22} weight="bold" />}
+          confirmText="Xóa vĩnh viễn"
+          cancelText="Hủy"
+          variant="danger"
+          isLoading={deleteChannelMutation.isPending}
+        />
+      )}
     </div>
   );
 }

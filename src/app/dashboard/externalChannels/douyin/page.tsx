@@ -5,6 +5,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import {
   CircleNotch, FilmReel, Warning, MagnifyingGlassPlus,
   VideoCamera, UserCircle, Sparkle, Heart, Timer, BookmarkSimple,
+  MagnifyingGlass, X, ArrowsDownUp, Tag,
 } from '@phosphor-icons/react';
 import toast from 'react-hot-toast';
 
@@ -12,6 +13,8 @@ import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import TikTokVideoCard from '../components/TikTokVideoCard';
 import DouyinProfileCard from '../components/DouyinProfileCard';
+import FilterSelect from '../components/FilterSelect';
+import { DatePicker } from '@/components/ui/DatePicker';
 import KeywordTranslateHint from '../components/KeywordTranslateHint';
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService, DouyinVideo } from '@/services/scraperService';
@@ -412,51 +415,83 @@ export default function DouyinExternalPage() {
           )}
 
           {/* Filter bar */}
-          <div className="flex flex-wrap items-center gap-3 border border-border rounded-xl p-4">
-            <input
-              type="text"
-              value={filterSearch}
-              onChange={e => setFilterSearch(e.target.value)}
-              placeholder="Lọc theo caption, hashtag..."
-              className="flex-1 min-w-[180px] max-w-sm px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            />
-            <select
+          <div className="flex flex-wrap items-center gap-2.5 bg-card border border-border rounded-xl p-3 shadow-xs">
+            <div className="relative flex-1 min-w-[180px] max-w-sm">
+              <MagnifyingGlass size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={filterSearch}
+                onChange={e => setFilterSearch(e.target.value)}
+                placeholder="Lọc theo caption, hashtag..."
+                className="w-full pl-9 pr-8 py-2 text-sm border border-border rounded-lg bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all"
+              />
+              {filterSearch && (
+                <button
+                  type="button"
+                  onClick={() => setFilterSearch('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+            {/* Keyword filter */}
+            <FilterSelect
               value={filterKeyword}
-              onChange={e => setFilterKeyword(e.target.value)}
-              className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            >
-              <option value="">Tất cả keyword</option>
-              {suggestions.length > 0
-                ? suggestions.map(s => <option key={s.keyword} value={s.keyword}>{s.keyword} ({s.count})</option>)
-                : allKeywords.map(k => <option key={k} value={k}>{k}</option>)
-              }
-            </select>
-            <div className="flex items-center gap-1.5">
-              <Heart size={14} className="text-rose-400 flex-shrink-0" />
+              onChange={setFilterKeyword}
+              options={[
+                { value: '', label: 'Tất cả keyword' },
+                ...(suggestions.length > 0
+                  ? suggestions.map(s => ({ value: s.keyword, label: s.keyword, count: s.count }))
+                  : allKeywords.map(k => ({ value: k, label: k }))),
+              ]}
+              placeholder="Tất cả keyword"
+              icon={<Tag size={15} />}
+              searchPlaceholder="Tìm keyword..."
+            />
+            {/* Min tim */}
+            <div className="relative w-28">
+              <Heart size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-rose-400 pointer-events-none" />
               <input
                 type="number"
                 value={minDigg}
                 onChange={e => setMinDigg(e.target.value)}
                 placeholder="Min tim"
                 min={0}
-                className="w-24 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="w-full pl-8 pr-6 py-2 text-sm border border-border rounded-lg bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 title="Lọc video có ít nhất X lượt tim"
               />
+              {minDigg && (
+                <button
+                  type="button"
+                  onClick={() => setMinDigg('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  <X size={12} />
+                </button>
+              )}
             </div>
-            <select
+            {/* Sort */}
+            <FilterSelect
               value={sortBy}
-              onChange={e => setSortBy(e.target.value)}
-              className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            >
-              <option value="scraped">Mới cào về</option>
-              <option value="date">Ngày đăng mới nhất</option>
-              <option value="likes">Nhiều tim nhất</option>
-            </select>
-            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none" title="Từ ngày" />
-            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none" title="Đến ngày" />
+              onChange={setSortBy}
+              options={[
+                { value: 'scraped', label: 'Mới cào về' },
+                { value: 'date', label: 'Ngày đăng mới nhất' },
+                { value: 'likes', label: 'Nhiều tim nhất' },
+              ]}
+              placeholder="Sắp xếp"
+              icon={<ArrowsDownUp size={15} />}
+            />
+            <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="Từ ngày" />
+            <DatePicker value={dateTo} onChange={setDateTo} placeholder="Đến ngày" align="right" />
             {hasFilters && (
-              <button onClick={clearFilters} className="px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50">
-                Xóa bộ lọc
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-950/20 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/30 transition-all cursor-pointer select-none ml-auto sm:ml-0"
+              >
+                <X size={13} weight="bold" /> Xóa bộ lọc
               </button>
             )}
           </div>
@@ -499,11 +534,11 @@ export default function DouyinExternalPage() {
           {/* Grid */}
           {allVideos.length > 0 && (
             <>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4">
                 {allVideos.map(v => <TikTokVideoCard key={v.post_id} video={mapVideo(v)} platform="douyin" />)}
                 {videosQuery.isFetchingNextPage && Array.from({ length: 6 }).map((_, i) => (
                   <div key={`skel-${i}`} className="bg-card border border-border rounded-lg overflow-hidden animate-pulse">
-                    <div className="aspect-[9/16] max-h-[280px] bg-slate-200 dark:bg-slate-700" />
+                    <div className="aspect-[9/16] bg-slate-200 dark:bg-slate-700" />
                     <div className="p-3 space-y-2">
                       <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-full" />
                       <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-2/3" />
@@ -601,14 +636,15 @@ export default function DouyinExternalPage() {
                 placeholder="Tìm theo username, tên..."
                 className="w-full sm:w-56 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
               />
-              <select
+              <FilterSelect
                 value={profileSortBy}
-                onChange={e => setProfileSortBy(e.target.value as 'followers' | 'recent')}
-                className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              >
-                <option value="followers">Nhiều followers nhất</option>
-                <option value="recent">Mới thêm gần đây</option>
-              </select>
+                onChange={val => setProfileSortBy(val as 'followers' | 'recent')}
+                options={[
+                  { value: 'followers', label: 'Nhiều followers nhất' },
+                  { value: 'recent', label: 'Mới thêm gần đây' },
+                ]}
+                placeholder="Sắp xếp"
+              />
               {hasProfileFilters && (
                 <button onClick={clearProfileFilters} className="px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50">
                   Xóa bộ lọc
