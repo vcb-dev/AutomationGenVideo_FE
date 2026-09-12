@@ -3,13 +3,22 @@
 import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
 import { ShieldAlert } from 'lucide-react';
-import { IdPhotoSidebar } from './components/IdPhotoSidebar';
 
 /**
- * Guard hiển thị ở tầng route: chỉ LEADER/ADMIN được vào khu "Tạo ảnh thẻ nhân viên" — khớp
- * đúng @Roles(UserRole.LEADER, UserRole.ADMIN) ở IdPhotoController bên BE. BE đã chặn ở API
- * (403) nên đây chỉ là lớp UX — ẩn hẳn giao diện thay vì để user thấy trang trắng/lỗi API
- * khi gõ thẳng URL, không phải lớp bảo mật thật.
+ * Guard hiển thị ở tầng route, khớp ĐÚNG @Roles bên IdPhotoController:
+ *  - LEADER/ADMIN: dùng được cả khu "Tạo ảnh thẻ nhân viên".
+ *  - MANAGER: CHỈ vào được tab Thống kê — endpoint /id-photo/history/team-summary mở riêng
+ *    cho MANAGER, còn 6 endpoint tạo/lịch sử vẫn trả 403. page.tsx tự ẩn 2 tab kia và ép về
+ *    tab "Thống kê" cho MANAGER (xem `statsOnly` ở page.tsx), nên ở đây chỉ cần chặn những ai
+ *    không có bất kỳ role liên quan nào.
+ *
+ * Trước đây khu này còn có IdPhotoSidebar (điều hướng dọc sang 3 route con /history, /stats)
+ * và một lớp chặn theo pathname riêng cho MANAGER. Từ khi 3 khu được gộp thành tab ngang trên
+ * cùng 1 trang (page.tsx#activeTab, cùng kiểu với khu "Chuyển đổi content"), route con không
+ * còn tồn tại nữa nên lớp chặn theo pathname cũng bỏ luôn — chỉ còn đúng 1 lớp gate ở đây.
+ *
+ * BE mới là chốt chặn thật (403); đây chỉ là lớp UX — ẩn hẳn giao diện thay vì để user thấy
+ * trang trắng/lỗi API khi gõ thẳng URL.
  */
 export default function IdPhotoLayout({ children }: { children: React.ReactNode }) {
   const { user } = useAuthStore();
@@ -24,23 +33,21 @@ export default function IdPhotoLayout({ children }: { children: React.ReactNode 
     );
   }
 
-  const isAuthorized = user.roles?.some((r) => [UserRole.LEADER, UserRole.ADMIN].includes(r));
-  if (!isAuthorized) {
+  const hasAnyAccess =
+    user.roles?.some((r) => [UserRole.LEADER, UserRole.ADMIN, UserRole.MANAGER].includes(r)) ?? false;
+
+  if (!hasAnyAccess) {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-160px)] text-center gap-3">
         <ShieldAlert className="w-10 h-10 text-[#9c9aa8]" />
         <h1 className="text-lg font-bold text-[#1b1b1d]">Bạn không có quyền truy cập tính năng này</h1>
         <p className="text-sm text-[#464554] max-w-sm">
-          Tạo ảnh thẻ nhân viên chỉ dành cho Leader và Admin. Liên hệ quản trị viên nếu bạn cần được cấp quyền.
+          Tạo ảnh thẻ nhân viên chỉ dành cho Leader và Admin (Manager xem được tab Thống kê). Liên hệ quản
+          trị viên nếu bạn cần được cấp quyền.
         </p>
       </div>
     );
   }
 
-  return (
-    <div className="text-[#1b1b1d] flex gap-6 min-h-[calc(100vh-160px)]">
-      <IdPhotoSidebar />
-      <div className="flex-1 min-w-0">{children}</div>
-    </div>
-  );
+  return <div className="text-[#1b1b1d] min-h-[calc(100vh-160px)]">{children}</div>;
 }
