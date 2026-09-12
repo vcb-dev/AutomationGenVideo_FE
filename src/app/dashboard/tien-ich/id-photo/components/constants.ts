@@ -23,7 +23,7 @@ export interface PositionOption {
  */
 export const POSITION_OPTIONS: PositionOption[] = [
   { value: 'NEW_STAFF_1_3M', label: 'Nhân viên chính thức (1-3 tháng)', color: '#FFFFFF' },
-  { value: 'STAFF_OVER_3M', label: 'Nhân viên chính thức (trên 3 tháng)', color: '#CC9933' },
+  { value: 'STAFF_OVER_3M', label: 'Nhân viên chính thức (trên 3 tháng)', color: '#F5C518' },
   { value: 'LEADER', label: 'Leader', color: '#2563EB' },
   { value: 'MANAGER', label: 'Quản lý', color: '#DC2626' },
   { value: 'BOD', label: 'BOD', color: '#111827' },
@@ -74,8 +74,6 @@ export interface IdPhotoHistoryItem {
   status: IdPhotoStatus;
   error_message: string | null;
   pdf_url: string | null;
-  /** Job cha nếu ảnh này thuộc 1 đợt "Tạo hàng loạt"; null = ảnh tạo đơn lẻ. */
-  batch_job_id: string | null;
   created_at: string;
   updated_at: string;
   createdByUser?: { id: string; full_name: string | null; email: string } | null;
@@ -87,15 +85,10 @@ export interface IdPhotoHistoryItem {
  * Khác IdPhotoHistoryItem đúng một field: `processed_image_data` (ảnh đã ghép áo, base64 data
  * URI) để dựng lại khung thẻ ngay trong modal. BE cố ý KHÔNG trả ảnh gốc — tối đa 10MB, base64
  * hoá thành ~13MB, mà modal không dùng đến. Null với bản ghi chưa ghép áo xong (FAILED/PENDING).
- *
- * [ĐÃ BỎ] `employee_title_prefix` — field "Tiền tố chức danh" đã gỡ khỏi nghiệp vụ, BE không trả nữa.
  */
 export interface IdPhotoDetailItem extends IdPhotoHistoryItem {
+  employee_title_prefix: string | null;
   processed_image_data: string | null;
-  /** "Điều chỉnh vị trí ảnh trong khung tròn" đã lưu — null = vị trí gốc. Xem crop-math.ts. */
-  crop_offset_x: number | null;
-  crop_offset_y: number | null;
-  crop_scale: number | null;
 }
 
 export interface IdPhotoHistoryDetail extends IdPhotoHistoryItem {
