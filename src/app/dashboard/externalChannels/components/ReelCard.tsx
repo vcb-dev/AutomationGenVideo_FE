@@ -52,31 +52,31 @@ export default function ReelCard({ reel }: ReelCardProps) {
   });
 
   return (
-    <div className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-md transition-shadow flex flex-col">
+    <div className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg hover:scale-[1.01] transition-all duration-200 flex flex-col">
       {/* Thumbnail */}
       <a
         href={reel.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="relative block aspect-[9/16] bg-slate-100 overflow-hidden max-h-[280px]"
+        className="relative block aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden"
       >
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-800 text-slate-500">
+          <Eye size={32} />
+        </div>
         {reel.thumbnail_url && reel.thumbnail_url !== 'FAILED' ? (
           <img
             src={reel.thumbnail_url}
             alt=""
             referrerPolicy="no-referrer"
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+            className="relative w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
             loading="lazy"
             onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
           />
         ) : null}
-        <div className="absolute inset-0 flex items-center justify-center bg-slate-800 text-slate-500 -z-10">
-          <Eye size={32} />
-        </div>
 
         {/* Metrics overlay */}
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-2.5 pb-2 pt-6">
-          <div className="flex items-center gap-3 text-white text-xs">
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-2.5 pb-2.5 pt-8">
+          <div className="flex items-center gap-2.5 text-white text-xs">
             <span className="flex items-center gap-1">
               <Eye size={12} weight="fill" />
               {formatNum(reel.views_count)}

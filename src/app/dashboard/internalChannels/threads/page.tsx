@@ -55,7 +55,7 @@ function PostCard({ post: v }: { post: ExternalVideo }) {
       rel="noopener noreferrer"
       className="group bg-card border border-border rounded-xl overflow-hidden hover:shadow-md transition-all duration-200 flex flex-col hover:border-slate-400 dark:hover:border-slate-600"
     >
-      <div className="relative aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[260px] flex items-center justify-center">
+      <div className="relative aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden flex items-center justify-center">
         {thumb ? (
           <img
             src={thumb}
@@ -359,11 +359,17 @@ export default function ThreadsChannelsPage() {
               if (v.contentLine !== undefined) setContentLine(v.contentLine);
             }}
           />
-          <FilterSelect value={sortVideos} onChange={setSortVideos} className="w-[160px]" title="Sắp xếp">
-            <option value="plays">Nhiều views nhất</option>
-            <option value="likes">Nhiều likes nhất</option>
-            <option value="date">Mới nhất</option>
-          </FilterSelect>
+          <FilterSelect
+            value={sortVideos}
+            onChange={setSortVideos}
+            className="w-[160px]"
+            title="Sắp xếp"
+            options={[
+              { value: 'plays', label: 'Nhiều views nhất' },
+              { value: 'likes', label: 'Nhiều likes nhất' },
+              { value: 'date', label: 'Mới nhất' },
+            ]}
+          />
           <FilterDateRange from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
           {hasVideoFilters && (
             <FilterReset

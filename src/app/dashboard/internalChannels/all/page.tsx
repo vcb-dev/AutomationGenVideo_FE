@@ -75,7 +75,7 @@ function VideoCard({
       rel="noopener noreferrer"
       className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg hover:scale-[1.01] transition-all duration-200 flex flex-col"
     >
-      <div className="relative aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[320px]">
+      <div className="relative aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden">
         {video.thumbnail_url ? (
           <img
             src={proxyImg(video.thumbnail_url, video.platform)}
@@ -242,13 +242,19 @@ function AllOwnedVideosPage() {
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2 bg-card border border-border rounded-xl p-3">
         <FilterSearch value={search} onChange={setSearch} />
-        <FilterSelect value={platform} onChange={setPlatform} className="w-[150px]" title="Lọc theo nền tảng">
-          <option value="">Tất cả nền tảng</option>
-          <option value="facebook">Facebook</option>
-          <option value="tiktok">TikTok</option>
-          <option value="instagram">Instagram</option>
-          <option value="youtube">YouTube</option>
-        </FilterSelect>
+        <FilterSelect
+          value={platform}
+          onChange={setPlatform}
+          className="w-[150px]"
+          title="Lọc theo nền tảng"
+          options={[
+            { value: '', label: 'Tất cả nền tảng' },
+            { value: 'facebook', label: 'Facebook' },
+            { value: 'tiktok', label: 'TikTok' },
+            { value: 'instagram', label: 'Instagram' },
+            { value: 'youtube', label: 'YouTube' },
+          ]}
+        />
         <FilterNumber value={minPlays} onChange={setMinPlays} />
         <ContentFilters
           value={{ channel, hashtag, market, contentLine }}
@@ -259,11 +265,17 @@ function AllOwnedVideosPage() {
             if (v.contentLine !== undefined) setContentLine(v.contentLine);
           }}
         />
-        <FilterSelect value={sortBy} onChange={setSortBy} className="w-[160px]" title="Sắp xếp">
-          <option value="date">Mới nhất</option>
-          <option value="plays">Nhiều views nhất</option>
-          <option value="likes">Nhiều likes nhất</option>
-        </FilterSelect>
+        <FilterSelect
+          value={sortBy}
+          onChange={setSortBy}
+          className="w-[160px]"
+          title="Sắp xếp"
+          options={[
+            { value: 'date', label: 'Mới nhất' },
+            { value: 'plays', label: 'Nhiều views nhất' },
+            { value: 'likes', label: 'Nhiều likes nhất' },
+          ]}
+        />
         <FilterDateRange from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
         {hasFilters && <FilterReset onClick={clearFilters} />}
       </div>
@@ -297,7 +309,7 @@ function AllOwnedVideosPage() {
 
       {allVideos.length > 0 && (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4">
             {allVideos.map(v => (
               <VideoCard
                 key={`${v.platform}-${v.post_id}`}
@@ -308,7 +320,7 @@ function AllOwnedVideosPage() {
             ))}
             {videosQuery.isFetchingNextPage && Array.from({ length: 6 }).map((_, i) => (
               <div key={`skel-${i}`} className="bg-card border border-border rounded-lg overflow-hidden animate-pulse">
-                <div className="aspect-[9/16] max-h-[280px] bg-slate-200 dark:bg-slate-700" />
+                <div className="aspect-[9/16] bg-slate-200 dark:bg-slate-700" />
                 <div className="p-3 space-y-2">
                   <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-full" />
                   <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-2/3" />

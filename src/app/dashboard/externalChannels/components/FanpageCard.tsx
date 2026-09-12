@@ -1,6 +1,6 @@
 'use client';
 
-import { Users, Heart, VideoCamera, ArrowsClockwise, BookmarkSimple, Timer, ArrowSquareOut, CircleNotch } from '@phosphor-icons/react';
+import { Users, Heart, VideoCamera, ArrowsClockwise, BookmarkSimple, Timer, ArrowSquareOut, CircleNotch, Tag, Sparkle, ShoppingBag } from '@phosphor-icons/react';
 import { ScrapedFanpage } from '@/services/scraperService';
 import DeleteChannelButton from './DeleteChannelButton';
 
@@ -11,6 +11,7 @@ interface FanpageCardProps {
   onTogglePeriodic?: (fp: ScrapedFanpage) => void;
   onViewDetail: (fp: ScrapedFanpage) => void;
   onDelete?: (fp: ScrapedFanpage) => void;
+  onEditClassification?: (fp: ScrapedFanpage) => void;
 }
 
 function formatNum(n: number): string {
@@ -19,80 +20,135 @@ function formatNum(n: number): string {
   return n.toString();
 }
 
+const TAG_COLOR_MAP: Record<string, string> = {
+  vang: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800',
+  da_quy: 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-800',
+  kim_cuong: 'bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/40 dark:text-cyan-300 dark:border-cyan-800',
+  che_tac: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800',
+  bac: 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
+  moissanite: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800',
+};
+
+const TAG_NAME_FALLBACK: Record<string, string> = {
+  vang: 'Vàng',
+  da_quy: 'Đá quý',
+  kim_cuong: 'Kim cương',
+  che_tac: 'Chế tác',
+  bac: 'Bạc',
+  moissanite: 'Moissanite',
+};
+
 export default function FanpageCard({
-  fanpage: fp, onScrapeReels, onToggleBookmark, onTogglePeriodic, onViewDetail, onDelete,
+  fanpage: fp, onScrapeReels, onToggleBookmark, onTogglePeriodic, onViewDetail, onDelete, onEditClassification,
 }: FanpageCardProps) {
   const isProcessing = fp.scraping_status === 'processing';
+  const isContentChannel = fp.channel_type === 'content';
+  const productLines = fp.product_lines || [];
 
   return (
     <div
-      className={`bg-card border rounded-xl overflow-hidden transition-all duration-200 hover:shadow-lg hover:scale-[1.01] cursor-default ${
+      className={`bg-card border rounded-xl overflow-hidden transition-all duration-200 hover:shadow-lg hover:scale-[1.01] cursor-default flex flex-col justify-between ${
         fp.is_bookmarked
           ? 'border-amber-200 dark:border-amber-700 ring-1 ring-amber-100 dark:ring-amber-900'
           : 'border-border'
       }`}
     >
-      {/* Bookmarked / Periodic badges */}
-      {(fp.is_bookmarked || fp.is_periodic_crawl) && (
-        <div className="flex items-center gap-1.5 px-3.5 pt-2.5 pb-0">
-          {/* {fp.is_bookmarked && (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded text-xs font-medium">
-              <BookmarkSimple size={10} weight="fill" /> Đã lưu
-            </span>
-          )} */}
-          {fp.is_periodic_crawl && (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded text-xs font-medium">
-              <Timer size={10} weight="fill" /> Kênh chú ý
+      <div>
+        {/* Bookmarked / Periodic badges */}
+        {(fp.is_bookmarked || fp.is_periodic_crawl) && (
+          <div className="flex items-center gap-1.5 px-3.5 pt-2.5 pb-0">
+            {fp.is_periodic_crawl && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded text-xs font-medium">
+                <Timer size={10} weight="fill" /> Kênh chú ý
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Header with avatar */}
+        <div className="flex items-center gap-3 p-3.5 pb-2">
+          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white overflow-hidden flex-shrink-0 ring-2 ring-slate-200 dark:ring-slate-600 relative flex items-center justify-center font-bold text-base shadow-sm select-none">
+            {fp.name ? fp.name.trim().charAt(0).toUpperCase() : <Users size={20} />}
+            {(fp.avatar_url && fp.avatar_url !== 'FAILED') || fp.profile_id ? (
+              <img
+                src={fp.avatar_url || `https://graph.facebook.com/${fp.profile_id}/picture?type=large`}
+                alt={fp.name}
+                referrerPolicy="no-referrer"
+                className="absolute inset-0 w-full h-full object-cover"
+                onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+            ) : null}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-foreground truncate">{fp.name}</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 truncate">@{fp.handle || fp.profile_id}</p>
+          </div>
+          {/* Processing badge */}
+          {isProcessing && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400">
+              <CircleNotch size={11} weight="bold" className="animate-spin" />
+              Đang cào
             </span>
           )}
         </div>
-      )}
 
-      {/* Header with avatar */}
-      <div className="flex items-center gap-3 p-3.5 pb-2">
-        <div className="w-11 h-11 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white overflow-hidden flex-shrink-0 ring-2 ring-slate-200 dark:ring-slate-600 relative flex items-center justify-center font-bold text-base shadow-sm select-none">
-          {fp.name ? fp.name.trim().charAt(0).toUpperCase() : <Users size={20} />}
-          {(fp.avatar_url && fp.avatar_url !== 'FAILED') || fp.profile_id ? (
-            <img
-              src={fp.avatar_url || `https://graph.facebook.com/${fp.profile_id}/picture?type=large`}
-              alt={fp.name}
-              referrerPolicy="no-referrer"
-              className="absolute inset-0 w-full h-full object-cover"
-              onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-            />
-          ) : null}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-foreground truncate">{fp.name}</p>
-          <p className="text-xs text-slate-400 dark:text-slate-500 truncate">@{fp.handle || fp.profile_id}</p>
-        </div>
-        {/* Processing badge */}
-        {isProcessing && (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400">
-            <CircleNotch size={11} weight="bold" className="animate-spin" />
-            Đang cào
-          </span>
-        )}
-      </div>
+        {/* Classification & Tags */}
+        <div className="px-3.5 pb-1 flex flex-wrap items-center gap-1.5">
+          {isContentChannel ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800">
+              <Sparkle size={11} weight="bold" />
+              Content
+            </span>
+          ) : (
+            <>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800">
+                <ShoppingBag size={11} weight="bold" />
+                Sản phẩm
+              </span>
+              {productLines.map((slug) => (
+                <span
+                  key={slug}
+                  className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-semibold border ${
+                    TAG_COLOR_MAP[slug] || 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300'
+                  }`}
+                >
+                  {TAG_NAME_FALLBACK[slug] || slug}
+                </span>
+              ))}
+            </>
+          )}
 
-      {/* Metrics — ẩn giá trị = 0 */}
-      <div className="flex items-center gap-4 px-3.5 py-2.5">
-        <div className="flex items-center gap-1.5">
-          <Users size={14} className="text-blue-500" />
-          <span className="text-sm font-bold text-foreground">{formatNum(fp.followers_count)}</span>
+          {onEditClassification && (
+            <button
+              type="button"
+              onClick={() => onEditClassification(fp)}
+              className="inline-flex items-center text-[11px] text-slate-400 hover:text-primary transition-colors ml-0.5"
+              title="Sửa phân loại kênh"
+            >
+              <Tag size={12} />
+            </button>
+          )}
         </div>
-        {fp.likes_count > 0 && (
+
+        {/* Metrics — ẩn giá trị = 0 */}
+        <div className="flex items-center gap-4 px-3.5 py-2">
           <div className="flex items-center gap-1.5">
-            <Heart size={14} className="text-pink-500" />
-            <span className="text-sm text-slate-600 dark:text-slate-400">{formatNum(fp.likes_count)}</span>
+            <Users size={14} className="text-blue-500" />
+            <span className="text-sm font-bold text-foreground">{formatNum(fp.followers_count)}</span>
           </div>
-        )}
-        {fp.reels_count > 0 && (
-          <div className="flex items-center gap-1.5">
-            <VideoCamera size={14} className="text-purple-500" />
-            <span className="text-sm text-slate-600 dark:text-slate-400">{fp.reels_count}</span>
-          </div>
-        )}
+          {fp.likes_count > 0 && (
+            <div className="flex items-center gap-1.5">
+              <Heart size={14} className="text-pink-500" />
+              <span className="text-sm text-slate-600 dark:text-slate-400">{formatNum(fp.likes_count)}</span>
+            </div>
+          )}
+          {fp.reels_count > 0 && (
+            <div className="flex items-center gap-1.5">
+              <VideoCamera size={14} className="text-purple-500" />
+              <span className="text-sm text-slate-600 dark:text-slate-400">{fp.reels_count}</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Action bar */}
@@ -116,6 +172,17 @@ export default function FanpageCard({
               <ArrowsClockwise size={13} weight="bold" />
             )}
             {isProcessing ? 'Đang cào...' : fp.is_initial_scraped ? 'Cào mới' : 'Cào lượt đầu'}
+          </button>
+        )}
+
+        {/* Classification quick button */}
+        {onEditClassification && (
+          <button
+            onClick={() => onEditClassification(fp)}
+            className="flex items-center gap-1 px-3 py-2.5 text-xs text-slate-400 hover:text-primary hover:bg-primary/10 transition-colors border-r border-border"
+            title="Đổi phân loại kênh"
+          >
+            <Tag size={14} />
           </button>
         )}
 
@@ -156,3 +223,4 @@ export default function FanpageCard({
     </div>
   );
 }
+

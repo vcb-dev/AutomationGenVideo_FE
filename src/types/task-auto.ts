@@ -303,6 +303,39 @@ export interface ContentCreatorReportRow {
   videos: ContentCreatorReportVideo[]
 }
 
+/** Trạng thái Content Win/Fail tự tính — "win" khi có ít nhất 1 link bài đăng bất kỳ (Facebook /
+ * YouTube / Instagram) đạt > 10.000 view, "fail" khi có số liệu nhưng không link nào vượt ngưỡng,
+ * "pending" khi chưa có link nào cào được số liệu thành công. */
+export type WinFailStatus = 'win' | 'fail' | 'pending'
+
+/** 1 content/video được gắn task, kèm phân loại win/fail tự tính. */
+export interface ContentWinFailVideo {
+  task_id: string
+  content_title: string | null
+  content_code: string | null
+  published_links: PublishedLink[] | null
+  win_status_auto: WinFailStatus
+  /** View của link cao nhất trong số link đã cào thành công (0 khi pending). */
+  views_auto: number
+}
+
+/** 1 dòng win/fail theo người — MỘT cơ chế duy nhất cho mọi thành viên team (không phân biệt
+ * content creator/editor): "content được gắn task trong kỳ". Trả về từ GET /kpi/content-win-fail.
+ * Chỉ số MỚI, tự tính, tách biệt EditorKpi.video_win/fail (nhập tay). */
+export interface ContentWinFailPersonRow {
+  user_id: string
+  user: Pick<UserBasic, 'id' | 'full_name'> | null
+  win: number
+  fail: number
+  pending: number
+  videos: ContentWinFailVideo[]
+}
+
+export interface ContentWinFailStats {
+  by_member: ContentWinFailPersonRow[]
+  totals: { win: number; fail: number; pending: number }
+}
+
 // ── Team Push Request (duyệt đẩy kho cá nhân → kho team) ──
 
 export interface TaskContentApproval {
@@ -540,6 +573,12 @@ export interface Content {
   approved_content_id: string | null
   added_by_id: string
   lark_record_id: string | null
+  /** Link bài đăng minh chứng (view cao nhất & > ngưỡng) khi content này được tự đẩy lên kho tổng
+   * do đạt content-win. NULL nếu không phải content-win tự đẩy; undefined nếu endpoint không trả. */
+  win_video_url?: string | null
+  win_video_views?: string | null
+  win_video_platform?: string | null
+  won_at?: string | null
   created_at: string
   updated_at: string
   content_line?: ContentLine | null
@@ -662,7 +701,7 @@ export interface PublishedLink {
   /** Tên nền tảng tự do; "FACEBOOK"/"TIKTOK"/"INSTAGRAM"/"YOUTUBE" được nhận icon thương hiệu, còn lại dùng icon mặc định */
   platform: string
   url: string
-  /** Số liệu tương tác do BE tự kéo — hiện chỉ Facebook (page nội bộ) được hỗ trợ, platform khác có status 'unsupported' */
+  /** Số liệu tương tác do BE tự kéo — hiện hỗ trợ Facebook + Instagram (kênh nội bộ) và YouTube, platform khác có status 'unsupported' */
   stats?: PublishedLinkStats | null
 }
 

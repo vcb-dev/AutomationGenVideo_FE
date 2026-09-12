@@ -6,9 +6,12 @@ import {
   CircleNotch, FilmReel, MagnifyingGlassPlus, Heart,
   Bookmarks, ChatCircle, User, Plus, Warning,
   ArrowsClockwise, BookmarkSimple, Timer, SealCheck, VideoCamera, PaperPlaneTilt,
+  MagnifyingGlass, X, ArrowsDownUp, Tag,
 } from '@phosphor-icons/react';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
+
+import FilterSelect from '../components/FilterSelect';
 
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService, XiaohongshuVideo, XiaohongshuProfile } from '@/services/scraperService';
@@ -76,7 +79,7 @@ function XhsVideoCard({ video }: { video: XiaohongshuVideo }) {
         href={video.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="relative block aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[300px]"
+        className="relative block aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden"
       >
         {video.thumbnail_url ? (
           <img
@@ -475,29 +478,83 @@ function VideoSearchTab() {
       )}
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 border border-border rounded-xl p-4">
-        <input type="text" value={filterQ} onChange={e => setFilterQ(e.target.value)}
-          placeholder="Lọc theo tiêu đề, caption..."
-          className="flex-1 min-w-[160px] max-w-sm px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      <div className="flex flex-wrap items-center gap-2.5 bg-card border border-border rounded-xl p-3 shadow-xs">
+        <div className="relative flex-1 min-w-[160px] max-w-sm">
+          <MagnifyingGlass size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={filterQ}
+            onChange={e => setFilterQ(e.target.value)}
+            placeholder="Lọc theo tiêu đề, caption..."
+            className="w-full pl-9 pr-8 py-2 text-sm border border-border rounded-lg bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all"
+          />
+          {filterQ && (
+            <button
+              type="button"
+              onClick={() => setFilterQ('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+            >
+              <X size={13} />
+            </button>
+          )}
+        </div>
+        <div className="relative w-36">
+          <Tag size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          <input
+            type="text"
+            value={keywordFilter}
+            onChange={e => setKeywordFilter(e.target.value)}
+            placeholder="Keyword"
+            className="w-full pl-8 pr-6 py-2 text-sm border border-border rounded-lg bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all"
+          />
+          {keywordFilter && (
+            <button
+              type="button"
+              onClick={() => setKeywordFilter('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+            >
+              <X size={12} />
+            </button>
+          )}
+        </div>
+        <div className="relative w-28">
+          <Heart size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-rose-400 pointer-events-none" />
+          <input
+            type="number"
+            value={minLikes}
+            onChange={e => setMinLikes(e.target.value)}
+            placeholder="Min likes"
+            className="w-full pl-8 pr-6 py-2 text-sm border border-border rounded-lg bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          />
+          {minLikes && (
+            <button
+              type="button"
+              onClick={() => setMinLikes('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+            >
+              <X size={12} />
+            </button>
+          )}
+        </div>
+        <FilterSelect
+          value={sortBy}
+          onChange={val => setSortBy(val as 'scraped' | 'likes' | 'date' | 'collects')}
+          options={[
+            { value: 'scraped', label: 'Mới cào về' },
+            { value: 'likes', label: 'Nhiều likes nhất' },
+            { value: 'collects', label: 'Nhiều saves nhất' },
+            { value: 'date', label: 'Ngày đăng mới nhất' },
+          ]}
+          placeholder="Sắp xếp"
+          icon={<ArrowsDownUp size={15} />}
         />
-        <input type="text" value={keywordFilter} onChange={e => setKeywordFilter(e.target.value)}
-          placeholder="Keyword"
-          className="w-36 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        />
-        <input type="number" value={minLikes} onChange={e => setMinLikes(e.target.value)}
-          placeholder="Min likes"
-          className="w-28 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        />
-        <select value={sortBy} onChange={e => setSortBy(e.target.value as 'scraped' | 'likes' | 'date' | 'collects')}
-          className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary">
-          <option value="scraped">Mới cào về</option>
-          <option value="likes">Nhiều likes nhất</option>
-          <option value="collects">Nhiều saves nhất</option>
-          <option value="date">Ngày đăng mới nhất</option>
-        </select>
         {hasFilters && (
-          <button onClick={clearFilters} className="px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50">
-            Xóa bộ lọc
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-950/20 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/30 transition-all cursor-pointer select-none ml-auto sm:ml-0"
+          >
+            <X size={13} weight="bold" /> Xóa bộ lọc
           </button>
         )}
       </div>
@@ -524,11 +581,11 @@ function VideoSearchTab() {
 
       {allVideos.length > 0 && (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3">
             {allVideos.map(v => <XhsVideoCard key={v.note_id} video={v} />)}
             {videosQuery.isFetchingNextPage && Array.from({ length: 6 }).map((_, i) => (
               <div key={`skel-${i}`} className="bg-card border border-border rounded-lg overflow-hidden animate-pulse">
-                <div className="aspect-[9/16] max-h-[280px] bg-slate-200 dark:bg-slate-700" />
+                <div className="aspect-[9/16] bg-slate-200 dark:bg-slate-700" />
                 <div className="p-3 space-y-2">
                   <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-3/4" />
                   <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-full" />

@@ -43,11 +43,20 @@ export interface ScrapedFanpage {
   scrape_error: string | null;
   reels_count: number;
   created_at: string;
+  channel_type?: 'product' | 'content';
+  product_lines?: string[];
   // detail only
   total_views?: number;
   total_likes?: number;
   total_comments?: number;
   total_shares?: number;
+}
+
+export interface ScraperChannelTag {
+  id: number;
+  name: string;
+  slug: string;
+  color?: string;
 }
 
 export interface ScrapedReel {
@@ -1203,6 +1212,7 @@ export const scraperService = {
   getFanpages: async (token: string, params?: {
     page?: number; page_size?: number; search?: string;
     bookmarked?: string; periodic?: string;
+    channel_type?: string; product_line?: string;
   }): Promise<PaginatedFanpages> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -1228,6 +1238,46 @@ export const scraperService = {
       body: JSON.stringify({ field }),
     });
     if (!res.ok) throw new Error('Toggle failed');
+    return res.json();
+  },
+
+  // Update classification (channel_type & product_lines)
+  updateFanpageClassification: async (
+    token: string,
+    id: number,
+    data: { channel_type?: string; product_lines?: string[] },
+  ): Promise<any> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/${id}/classification`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.error || body?.message || 'Cập nhật phân loại thất bại');
+    }
+    return res.json();
+  },
+
+  // List & create channel tags
+  getChannelTags: async (token: string): Promise<ScraperChannelTag[]> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/tags`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  createChannelTag: async (token: string, data: { name: string; color?: string }): Promise<ScraperChannelTag> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/tags`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.error || body?.message || 'Không thể tạo tag mới');
+    }
     return res.json();
   },
 
@@ -1690,11 +1740,21 @@ export const scraperService = {
     return res.json();
   },
 
-  fanpageScrapeByUrl: async (token: string, url: string, numOfPosts?: number): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; fanpage_id: number }> => {
+  fanpageScrapeByUrl: async (
+    token: string,
+    url: string,
+    numOfPosts?: number,
+    classification?: { channel_type?: string; product_lines?: string[] },
+  ): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; fanpage_id: number }> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/scrape-by-url`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, num_of_posts: numOfPosts }),
+      body: JSON.stringify({
+        url,
+        num_of_posts: numOfPosts,
+        channel_type: classification?.channel_type,
+        product_lines: classification?.product_lines,
+      }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
@@ -1706,6 +1766,7 @@ export const scraperService = {
   bulkAddFanpages: async (
     token: string,
     urls: string[],
+    classification?: { channel_type?: string; product_lines?: string[] },
   ): Promise<{
     total_received: number;
     added_count: number;
@@ -1716,7 +1777,11 @@ export const scraperService = {
     const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/bulk-add`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ urls }),
+      body: JSON.stringify({
+        urls,
+        channel_type: classification?.channel_type,
+        product_lines: classification?.product_lines,
+      }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
