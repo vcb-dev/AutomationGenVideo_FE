@@ -2,20 +2,23 @@
 
 import { useState, useMemo } from 'react';
 import { X, Loader2, ListPlus, CheckCircle2, AlertCircle } from 'lucide-react';
-import { FacebookLogo } from '@phosphor-icons/react';
+import { FacebookLogo, ShoppingBag, Sparkle, Check } from '@phosphor-icons/react';
 import toast from 'react-hot-toast';
-import { scraperService } from '@/services/scraperService';
+import { scraperService, ScraperChannelTag } from '@/services/scraperService';
 import { useAuthStore } from '@/store/auth-store';
 
 interface BulkAddFacebookModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  availableTags?: ScraperChannelTag[];
 }
 
-export default function BulkAddFacebookModal({ isOpen, onClose, onSuccess }: BulkAddFacebookModalProps) {
+export default function BulkAddFacebookModal({ isOpen, onClose, onSuccess, availableTags = [] }: BulkAddFacebookModalProps) {
   const { token } = useAuthStore();
   const [text, setText] = useState('');
+  const [channelType, setChannelType] = useState<'product' | 'content'>('product');
+  const [selectedProductLines, setSelectedProductLines] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [resultSummary, setResultSummary] = useState<{
     added_count: number;
@@ -40,6 +43,12 @@ export default function BulkAddFacebookModal({ isOpen, onClose, onSuccess }: Bul
 
   if (!isOpen) return null;
 
+  const toggleProductLine = (slug: string) => {
+    setSelectedProductLines((prev) =>
+      prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]
+    );
+  };
+
   const handleSubmit = async () => {
     if (!token) {
       toast.error('Chưa đăng nhập');
@@ -54,7 +63,10 @@ export default function BulkAddFacebookModal({ isOpen, onClose, onSuccess }: Bul
     setResultSummary(null);
 
     try {
-      const res = await scraperService.bulkAddFanpages(token, validUrls);
+      const res = await scraperService.bulkAddFanpages(token, validUrls, {
+        channel_type: channelType,
+        product_lines: channelType === 'product' ? selectedProductLines : [],
+      });
       setResultSummary({
         added_count: res.added_count,
         skipped_count: res.skipped_count,
@@ -85,18 +97,13 @@ export default function BulkAddFacebookModal({ isOpen, onClose, onSuccess }: Bul
       <div className="bg-card border border-border w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
         {/* Header */}
         <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg bg-blue-600/10 flex items-center justify-center text-blue-600">
-              <FacebookLogo size={20} weight="fill" />
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 flex items-center justify-center">
+              <FacebookLogo size={24} weight="duotone" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-foreground flex items-center gap-2">
-                Thêm hàng loạt Fanpage Facebook
-                <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
-                  Chưa cào video
-                </span>
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <h3 className="text-base font-bold text-foreground">Thêm Hàng Loạt Fanpage</h3>
+              <p className="text-xs text-slate-500">
                 Lưu sẵn danh sách Page đối thủ vào hệ thống. Bạn có thể bấm cào từng page bất kỳ lúc nào.
               </p>
             </div>
@@ -111,6 +118,67 @@ export default function BulkAddFacebookModal({ isOpen, onClose, onSuccess }: Bul
 
         {/* Body */}
         <div className="p-6 flex-1 overflow-y-auto space-y-4">
+          {/* Phân loại áp dụng cho cả lô */}
+          <div className="p-3.5 bg-slate-50 dark:bg-slate-800/40 border border-border rounded-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-foreground">
+                Áp dụng phân loại cho các link được thêm:
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setChannelType('product')}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md border transition-all ${
+                    channelType === 'product'
+                      ? 'bg-primary text-primary-foreground border-primary shadow-xs'
+                      : 'bg-card text-slate-500 border-border hover:text-foreground'
+                  }`}
+                >
+                  <ShoppingBag size={13} weight="bold" />
+                  Sản phẩm
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setChannelType('content')}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md border transition-all ${
+                    channelType === 'content'
+                      ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                      : 'bg-card text-slate-500 border-border hover:text-foreground'
+                  }`}
+                >
+                  <Sparkle size={13} weight="bold" />
+                  Content
+                </button>
+              </div>
+            </div>
+
+            {channelType === 'product' && availableTags.length > 0 && (
+              <div className="pt-2 border-t border-border/60">
+                <div className="text-[11px] text-slate-400 mb-1.5">Gắn dòng sản phẩm:</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {availableTags.map((tag) => {
+                    const isSelected = selectedProductLines.includes(tag.slug);
+                    return (
+                      <button
+                        key={tag.slug}
+                        type="button"
+                        onClick={() => toggleProductLine(tag.slug)}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold border transition-all ${
+                          isSelected
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'bg-card text-slate-600 dark:text-slate-300 border-border hover:bg-slate-100 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        {isSelected && <Check size={10} weight="bold" />}
+                        <span>{tag.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-semibold text-foreground">
@@ -124,7 +192,7 @@ export default function BulkAddFacebookModal({ isOpen, onClose, onSuccess }: Bul
               value={text}
               onChange={e => setText(e.target.value)}
               disabled={isLoading}
-              rows={8}
+              rows={6}
               placeholder={`https://www.facebook.com/thienmochuongvn
 https://www.facebook.com/hapasglobal
 https://www.facebook.com/kazan.jewelry

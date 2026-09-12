@@ -16,6 +16,7 @@ import { formatDate } from '@/components/task-auto/helpers'
 import { parseMarkets } from '@/components/task-auto/ContentFormModal'
 import { getContentLines, getContents, updateContent } from '@/lib/api/task-auto'
 import { useLoadMoreScroll } from '@/hooks/useLoadMoreScroll'
+import { ContentWinProofLink } from '@/components/task-auto/ContentWinProofLink'
 import type { Content, ContentLine, ContentUsageStatus } from '@/types/task-auto'
 
 const PAGE_SIZE = 10
@@ -155,6 +156,17 @@ function ContentCardBody({ c }: { c: Content }) {
       {c.code && <p className="text-[10px] text-slate-300 font-mono mt-0.5">{c.code}</p>}
       {c.source_team_content_id && (
         <p className="text-[11px] text-violet-400 italic mt-0.5">· từ kho team</p>
+      )}
+      {c.win_video_url && (
+        <div className="mt-1.5">
+          <ContentWinProofLink
+            url={c.win_video_url}
+            views={c.win_video_views}
+            platform={c.win_video_platform}
+            stopPropagation
+            className="text-[11px] font-semibold gap-1"
+          />
+        </div>
       )}
     </>
   )

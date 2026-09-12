@@ -52,7 +52,7 @@ function VideoCard({ video: v }: { video: ExternalVideo }) {
       rel="noopener noreferrer"
       className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-md transition-shadow flex flex-col"
     >
-      <div className="relative aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[280px]">
+      <div className="relative aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden">
         {thumb && (
           <img
             src={thumb}
@@ -145,12 +145,20 @@ export default function InstagramChannelsPage() {
       `https://www.instagram.com/${p.username}`,
       `https://instagram.com/${p.username}`,
       p.username,
+      (p as any).full_name,
     ].filter(Boolean));
     channelsService.scraperLookup(identifiers).then(setChannelInfoMap);
   }, [profileKey]);
 
-  const getIgChannelInfo = (p: { url: string; username: string }): ChannelInfo => {
-    const keys = [p.url, `https://www.instagram.com/${p.username}/`, `https://www.instagram.com/${p.username}`, `https://instagram.com/${p.username}`, p.username];
+  const getIgChannelInfo = (p: { url: string; username: string; full_name?: string | null }): ChannelInfo => {
+    const keys = [
+      p.url,
+      `https://www.instagram.com/${p.username}/`,
+      `https://www.instagram.com/${p.username}`,
+      `https://instagram.com/${p.username}`,
+      p.username,
+      p.full_name,
+    ].filter(Boolean) as string[];
     for (const k of keys) if (channelInfoMap[k]) return channelInfoMap[k];
     return { team_name: null, owner_name: null };
   };
@@ -324,26 +332,23 @@ export default function InstagramChannelsPage() {
       </div>
 
       {/* ── Filter bar ───────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-3 border border-border rounded-xl p-4">
-        <input
-          type="text"
+      <div className="flex flex-wrap items-center gap-3 border border-border rounded-xl p-3 bg-card shadow-xs">
+        <FilterSearch
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={setSearch}
           placeholder="Tìm theo username..."
-          className="flex-1 min-w-[180px] max-w-sm px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
         />
-        <select
+        <FilterSelect
           value={sortBy}
-          onChange={e => setSortBy(e.target.value as 'followers' | 'recent')}
-          className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        >
-          <option value="followers">Nhiều followers nhất</option>
-          <option value="recent">Mới thêm gần đây</option>
-        </select>
+          onChange={val => setSortBy(val as 'followers' | 'recent')}
+          options={[
+            { value: 'followers', label: 'Nhiều followers nhất' },
+            { value: 'recent', label: 'Mới thêm gần đây' },
+          ]}
+          placeholder="Sắp xếp"
+        />
         {hasProfileFilters && (
-          <button onClick={clearProfileFilters} className="px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50">
-            Xóa bộ lọc
-          </button>
+          <FilterReset onClick={clearProfileFilters} />
         )}
       </div>
 
@@ -401,11 +406,17 @@ export default function InstagramChannelsPage() {
       <div>
         <div className="flex flex-wrap items-center gap-2 bg-card border border-border rounded-xl p-3 mb-4">
           <FilterSearch value={videoSearch} onChange={setVideoSearch} />
-          <FilterSelect value={sortVideos} onChange={setSortVideos} className="w-[160px]" title="Sắp xếp">
-            <option value="date">Mới nhất</option>
-            <option value="plays">Nhiều views nhất</option>
-            <option value="likes">Nhiều likes nhất</option>
-          </FilterSelect>
+          <FilterSelect
+            value={sortVideos}
+            onChange={setSortVideos}
+            className="w-[160px]"
+            title="Sắp xếp"
+            options={[
+              { value: 'date', label: 'Mới nhất' },
+              { value: 'plays', label: 'Nhiều views nhất' },
+              { value: 'likes', label: 'Nhiều likes nhất' },
+            ]}
+          />
           <FilterDateRange from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
           <FilterNumber value={minPlays} onChange={setMinPlays} />
           <ContentFilters
@@ -452,11 +463,11 @@ export default function InstagramChannelsPage() {
 
         {allVideos.length > 0 && (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4">
               {allVideos.map(v => <VideoCard key={v.post_id} video={v} />)}
               {videosQuery.isFetchingNextPage && Array.from({ length: 6 }).map((_, i) => (
                 <div key={`skel-${i}`} className="bg-card border border-border rounded-lg overflow-hidden animate-pulse">
-                  <div className="aspect-[9/16] max-h-[280px] bg-slate-200 dark:bg-slate-700" />
+                  <div className="aspect-[9/16] bg-slate-200 dark:bg-slate-700" />
                   <div className="p-3 space-y-2">
                     <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-full" />
                     <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-2/3" />

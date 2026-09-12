@@ -39,6 +39,7 @@ import { UserRole } from '@/types/auth';
 import { videoLibraryService, ScraperVideoProposal, ProposeVideoPayload } from '@/services/videoLibraryService';
 import { useSubmitVideoToLibrary } from '@/hooks/useProposeVideo';
 import { fetchWithAuth } from '@/lib/api-client';
+import FilterSelect from '@/app/dashboard/externalChannels/components/FilterSelect';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -704,15 +705,15 @@ function ProposeVideoModal({
 
                     <div>
                         <label className="text-xs text-slate-500 mb-1.5 block">Nền tảng</label>
-                        <select
+                        <FilterSelect
                             value={platform}
-                            onChange={(e) => { setPlatform(e.target.value); setPlatformTouched(true); }}
-                            className="w-full bg-white border border-slate-300 text-slate-900 dark:bg-white/[0.04] dark:border-white/[0.08] dark:text-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500 dark:focus:border-blue-500/50 transition-all"
-                        >
-                            {PROPOSAL_PLATFORMS.map((p) => (
-                                <option key={p} value={p} className="bg-white dark:bg-[#0d1017]">{PLATFORM_LABEL[p.toUpperCase()] ?? p}</option>
-                            ))}
-                        </select>
+                            onChange={(val) => { setPlatform(val); setPlatformTouched(true); }}
+                            options={PROPOSAL_PLATFORMS.map((p) => ({
+                                value: p,
+                                label: PLATFORM_LABEL[p.toUpperCase()] ?? p,
+                            }))}
+                            placeholder="Chọn nền tảng"
+                        />
                     </div>
 
                     <div>

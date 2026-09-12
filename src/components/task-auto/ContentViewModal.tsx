@@ -7,8 +7,9 @@ import { useScrollLock } from '@/hooks/useScrollLock'
 import {
   FileText, X, Trash2, Mic, AlignLeft, Clapperboard,
   ExternalLink, Edit2, SendHorizontal, Globe,
-  User, Calendar, Tag, Languages, Loader2, Check, Plus, Gauge, Sparkles, ClipboardList,
+  User, Calendar, Tag, Languages, Loader2, Check, Plus, Gauge, Sparkles, ClipboardList, Trophy,
 } from 'lucide-react'
+import { ContentWinProofLink } from './ContentWinProofLink'
 import { cn, drivePreviewUrl } from '@/lib/utils'
 import { CustomSelect } from './DarkInput'
 import { getContentTranslations, upsertContentTranslation, deleteContentTranslation, aiTranslateContent } from '@/lib/api/task-auto'
@@ -224,6 +225,10 @@ export interface ContentViewItem {
   script?: string | null
   voice_url?: string | null
   file_content_url?: string | null
+  win_video_url?: string | null
+  win_video_views?: string | null
+  win_video_platform?: string | null
+  won_at?: string | null
   content_line?: { name: string } | null
   classification?: { name: string } | null
   added_by?: { full_name: string } | null
@@ -457,6 +462,22 @@ export function ContentViewModal({
                   </div>
                 )}
               </>
+            )}
+
+            {item.win_video_url && (
+              <div>
+                <p className="text-base font-semibold text-slate-700 mb-3">Link minh chứng</p>
+                <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-amber-100 bg-amber-50 px-5 py-3.5">
+                  <Trophy className="w-4 h-4 text-amber-500 shrink-0" aria-hidden="true" />
+                  <span className="text-sm font-semibold text-amber-700">Content Win</span>
+                  <ContentWinProofLink
+                    url={item.win_video_url}
+                    views={item.win_video_views}
+                    platform={item.win_video_platform}
+                    className="ml-auto text-sm"
+                  />
+                </div>
+              </div>
             )}
 
             {(itemVoiceUrl || itemFileContentUrl) && (
