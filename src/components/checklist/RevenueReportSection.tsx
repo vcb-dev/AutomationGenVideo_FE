@@ -9,6 +9,8 @@ export const REVENUE_PLATFORMS = [
     { id: 'fb', label: 'Doanh thu FB' },
     { id: 'ig', label: 'Doanh thu IG' },
     { id: 'tiktok', label: 'Doanh thu Tiktok' },
+    { id: 'yt', label: 'Doanh thu YT' },
+    { id: 'thread', label: 'Doanh thu Thread' },
     { id: 'zalo', label: 'Doanh thu Zalo' },
 ];
 
@@ -16,8 +18,8 @@ export interface RevenueData {
     fb: string;
     ig: string;
     tiktok: string;
-    yt?: string;
-    thread?: string;
+    yt: string;
+    thread: string;
     zalo: string;
 }
 
@@ -73,6 +75,27 @@ const RevenueReportSection: React.FC<RevenueReportSectionProps> = ({
     selectedTeam,
 }) => {
     const [isFetchingSapo, setIsFetchingSapo] = useState(false);
+    const [socialAccounts, setSocialAccounts] = useState<any[]>([]);
+
+    // Tự động tải các kênh kết nối từ Social Accounts (OAuth)
+    useEffect(() => {
+        const loadSocial = async () => {
+            try {
+                const beBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
+                const res = await fetchWithAuth(`${beBaseUrl}/social/accounts`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data)) {
+                        setSocialAccounts(data);
+                    }
+                }
+            } catch {
+                /* silent */
+            }
+        };
+        loadSocial();
+    }, []);
+
     const [entries, setEntries] = useState<Record<string, RevenueEntry[]>>(() => {
         if (initialEntries && Object.keys(initialEntries).length > 0) return initialEntries;
 
@@ -145,7 +168,7 @@ const RevenueReportSection: React.FC<RevenueReportSectionProps> = ({
         const platformMap: Record<string, string[]> = {
             'fb': ['fb', 'facebook', 'fanpage'],
             'ig': ['ig', 'instagram', 'ins'],
-            'tiktok': ['tiktok', 'tt'],
+            'tiktok': ['tiktok', 'tt', 'tiktokshop'],
             'yt': ['yt', 'youtube'],
             'thread': ['thread', 'threads'],
             'zalo': ['zalo', 'zalo oa', 'zalo video'],
@@ -179,6 +202,55 @@ const RevenueReportSection: React.FC<RevenueReportSectionProps> = ({
             .replace(/\s+/g, ' ')
             .trim();
     };
+
+    // Tổng hợp danh sách kênh cho ChannelSelect gồm cả kênh phân quyền và kênh OAuth
+    const channelOptionsByPlatform = useMemo(() => {
+        const result: Record<string, ChannelOptionItem[]> = {};
+
+        REVENUE_PLATFORMS.forEach(platform => {
+            const list: ChannelOptionItem[] = [];
+            const addedNames = new Set<string>();
+
+            availableChannels
+                ?.filter(c => isPlatformMatch(platform.id, c.platform))
+                .forEach((c, cIdx) => {
+                    if (!c.name) return;
+                    const norm = c.name.toLowerCase();
+                    if (!addedNames.has(norm)) {
+                        addedNames.add(norm);
+                        list.push({
+                            id: c.id || `team-${cIdx}`,
+                            name: c.name,
+                            channelId: extractNumericId(c.channel_id || c.link_channel || c.id) || undefined,
+                            badge: c.platform?.toUpperCase(),
+                            badgeColor: 'emerald',
+                        });
+                    }
+                });
+
+            socialAccounts
+                ?.filter(sa => isPlatformMatch(platform.id, sa.platform))
+                .forEach((sa, saIdx) => {
+                    const name = sa.name || sa.username;
+                    if (!name) return;
+                    const norm = name.toLowerCase();
+                    if (!addedNames.has(norm)) {
+                        addedNames.add(norm);
+                        list.push({
+                            id: `oauth-${sa.id || saIdx}`,
+                            name: name,
+                            channelId: sa.id,
+                            badge: 'OAuth',
+                            badgeColor: 'blue',
+                        });
+                    }
+                });
+
+            result[platform.id] = list;
+        });
+
+        return result;
+    }, [availableChannels, socialAccounts]);
 
     const getPreviousDayStr = (dateStr?: string) => {
         if (!dateStr) {
@@ -233,12 +305,15 @@ const RevenueReportSection: React.FC<RevenueReportSectionProps> = ({
                     const userChanNorm = normalizeExact(channelName);
                     const userChanId = extractNumericId(channelId);
 
-                    // 1. Tìm thông tin kênh trong availableChannels nếu có để bổ sung ID/Tên
+                    // 1. Tìm thông tin kênh trong availableChannels hoặc socialAccounts nếu có để bổ sung ID/Tên
                     const registeredAc = availableChannels.find(c =>
-                        (userChanId && extractNumericId(c.channel_id || c.link_channel) === userChanId) ||
+                        (userChanId && extractNumericId(c.channel_id || c.link_channel || c.id) === userChanId) ||
                         (userChanNorm && normalizeExact(c.name) === userChanNorm)
+                    ) || socialAccounts.find(sa =>
+                        (userChanId && extractNumericId(sa.id || sa.platform_id) === userChanId) ||
+                        (userChanNorm && (normalizeExact(sa.name) === userChanNorm || normalizeExact(sa.username) === userChanNorm))
                     );
-                    const acNumId = registeredAc ? extractNumericId(registeredAc.channel_id || registeredAc.link_channel) : '';
+                    const acNumId = registeredAc ? extractNumericId((registeredAc as any).channel_id || (registeredAc as any).link_channel || (registeredAc as any).id || (registeredAc as any).platform_id) : '';
                     const effectiveId = userChanId || acNumId;
 
                     // 2. Ưu tiên 1: Khớp chính xác ID
@@ -324,21 +399,25 @@ const RevenueReportSection: React.FC<RevenueReportSectionProps> = ({
                 } else {
                     // TRƯỜNG HỢP 2: Form chưa chọn kênh nào -> Tự động nạp các kênh từ Sapo
                     const filteredBreakdown: Record<string, RevenueEntry[]> = {};
+                    const allConfigured = [
+                        ...(availableChannels || []),
+                        ...socialAccounts.map(sa => ({ ...sa, name: sa.name || sa.username, channel_id: sa.id }))
+                    ];
 
                     REVENUE_PLATFORMS.forEach(p => {
                         const sapoList: any[] = data.breakdown[p.id] || [];
                         let targetList = sapoList;
-                        // Nếu user có danh mục kênh phân quyền riêng
-                        if (availableChannels && availableChannels.length > 0) {
-                            const userHasThisPlatform = availableChannels.some(c => isPlatformMatch(p.id, c.platform));
+                        // Nếu user có danh mục kênh phân quyền hoặc kênh OAuth
+                        if (allConfigured.length > 0) {
+                            const userHasThisPlatform = allConfigured.some(c => isPlatformMatch(p.id, c.platform));
                             if (userHasThisPlatform) {
                                 targetList = sapoList.filter(s => {
                                     if (!s.channel && !s.channelId) return false;
                                     const sNorm = normalizeExact(s.channel);
                                     const sId = extractNumericId(s.channelId);
-                                    return availableChannels.some(c => {
+                                    return allConfigured.some(c => {
                                         const cNorm = normalizeExact(c.name || '');
-                                        const cId = extractNumericId(c.channel_id || c.link_channel);
+                                        const cId = extractNumericId(c.channel_id || c.link_channel || c.id);
                                         return (sId && cId && sId === cId) || (sNorm && cNorm && sNorm === cNorm);
                                     });
                                 });
@@ -429,22 +508,13 @@ const RevenueReportSection: React.FC<RevenueReportSectionProps> = ({
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 relative">
                 {REVENUE_PLATFORMS.filter(platform => {
-                    const hasAccess = availableChannels.some(c => isPlatformMatch(platform.id, c.platform));
+                    const hasAccess = (availableChannels || []).some(c => isPlatformMatch(platform.id, c.platform)) ||
+                                      socialAccounts.some(sa => isPlatformMatch(platform.id, sa.platform));
                     const hasData = (entries[platform.id] || []).some(e => e.value !== '' || e.channel !== '');
                     return hasAccess || hasData || readOnly;
                 }).map((platform, platformIdx) => {
                     const platformOrderCount = (entries[platform.id] || []).reduce((acc, e) => acc + (e.orderCount || 0), 0);
-                    
-                    const channelOptions: ChannelOptionItem[] = availableChannels
-                        .filter(c => isPlatformMatch(platform.id, c.platform))
-                        .filter(c => Boolean(c.name))
-                        .map((c, cIdx) => ({
-                            id: c.id || `chan-${cIdx}`,
-                            name: c.name,
-                            channelId: extractNumericId(c.channel_id || c.link_channel) || undefined,
-                            badge: c.platform?.toUpperCase(),
-                            badgeColor: 'emerald',
-                        }));
+                    const platformTotalVal = sumEntryValues((entries[platform.id] || []).map(e => e.value));
 
                     return (
                         <div
@@ -455,7 +525,7 @@ const RevenueReportSection: React.FC<RevenueReportSectionProps> = ({
                             }`}
                         >
                             <div className="flex items-center justify-between px-1 flex-wrap gap-2">
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
                                     <span className="w-2 h-6 bg-emerald-500 rounded-full" />
                                     <label className="text-base font-black text-slate-800 uppercase tracking-tight">
                                         {platform.label}
@@ -465,13 +535,18 @@ const RevenueReportSection: React.FC<RevenueReportSectionProps> = ({
                                             📦 {platformOrderCount} đơn
                                         </span>
                                     )}
+                                    {platformTotalVal && (
+                                        <span className="text-xs font-black text-emerald-700 bg-emerald-100/90 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                                            Tổng: {formatThousands(platformTotalVal)} đ
+                                        </span>
+                                    )}
                                 </div>
                                 <div className="flex items-center gap-2">
                                     {!readOnly && (
                                         <button
                                             type="button"
                                             onClick={() => addRow(platform.id)}
-                                            className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-black hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 active:scale-95 flex items-center gap-2"
+                                            className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-black hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 active:scale-95 flex items-center gap-2 cursor-pointer"
                                         >
                                             <Plus className="w-4 h-4" /> Thêm kênh
                                         </button>
@@ -522,7 +597,7 @@ const RevenueReportSection: React.FC<RevenueReportSectionProps> = ({
                                                     theme="emerald"
                                                     value={entry.channel}
                                                     channelId={entry.channelId}
-                                                    options={channelOptions}
+                                                    options={channelOptionsByPlatform[platform.id] || []}
                                                     disabled={readOnly}
                                                     readOnly={readOnly}
                                                     placeholder="-- Chọn kênh --"
@@ -537,7 +612,7 @@ const RevenueReportSection: React.FC<RevenueReportSectionProps> = ({
                                                     <button
                                                         type="button"
                                                         onClick={() => removeRow(platform.id, entry.id)}
-                                                        className="p-2.5 rounded-xl bg-red-50 text-red-500 hover:bg-red-100 transition-all active:scale-95"
+                                                        className="p-2.5 rounded-xl bg-red-50 text-red-500 hover:bg-red-100 transition-all active:scale-95 cursor-pointer"
                                                         title="Xóa kênh"
                                                     >
                                                         <X className="w-5 h-5" />
@@ -553,13 +628,13 @@ const RevenueReportSection: React.FC<RevenueReportSectionProps> = ({
                 })}
             </div>
 
-            {availableChannels.length === 0 && !readOnly && (
+            {(availableChannels || []).length === 0 && socialAccounts.length === 0 && !readOnly && (
                 <div className="flex flex-col items-center justify-center p-12 bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200">
                     <div className="p-4 bg-white rounded-full shadow-sm mb-4">
                         <DollarSign className="w-8 h-8 text-slate-300" />
                     </div>
                     <p className="text-slate-500 font-bold uppercase tracking-wider text-xs">Không tìm thấy kênh nào bạn đang quản lý</p>
-                    <p className="text-slate-400 text-[10px] mt-1 italic">Vui lòng kiểm tra lại tài khoản hoặc liên hệ quản trị viên</p>
+                    <p className="text-slate-400 text-[10px] mt-1 italic">Vui lòng kết nối kênh tại mục Quản lý kênh / Đăng bài MXH</p>
                 </div>
             )}
         </div>
