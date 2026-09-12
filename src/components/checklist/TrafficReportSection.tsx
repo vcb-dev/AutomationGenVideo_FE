@@ -1,9 +1,10 @@
 import Image from "next/image";
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Activity, ImagePlus, X, Loader2, Sparkles } from 'lucide-react';
 import { digitsOnly, sumEntryValues, formatThousands } from './report-total';
 import { fetchWithAuth } from '@/lib/api-client';
 import toast from 'react-hot-toast';
+import { ChannelSelect, ChannelOptionItem } from './ChannelSelect';
 
 export const TRAFFIC_PLATFORMS = [
     { id: 'fb', label: 'Traffic FB', platform: 'FACEBOOK' },
@@ -277,8 +278,79 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
     };
 
     const [fetchingAll, setFetchingAll] = useState(false);
+    const [fetchingRows, setFetchingRows] = useState<Record<string, boolean>>({});
 
-    // Tự động kéo traffic cho TOÀN BỘ các kênh trên tất cả các nền tảng (1-Click)
+    // Chuẩn hoá và tìm đúng tài khoản theo NỀN TẢNG (tránh trùng tên giữa FB, TikTok...)
+    const resolveChannelForPlatform = (platformId: string, channelName: string) => {
+        const raw = (channelName || '').trim();
+        if (!raw) return { channelId: '', cleanName: '' };
+        const cleanName = raw.replace(/\s*★\s*\(OAuth\)\s*$/i, '').trim();
+
+        // 1. Tìm trong socialAccounts với đúng platform
+        const matchedSocial = socialAccounts.find(
+            sa => isPlatformMatch(platformId, sa.platform) && (
+                sa.name?.toLowerCase() === cleanName.toLowerCase() ||
+                sa.username?.toLowerCase() === cleanName.toLowerCase() ||
+                sa.platform_id === cleanName ||
+                sa.name?.toLowerCase() === raw.toLowerCase()
+            )
+        );
+
+        // 2. Tìm trong availableChannels với đúng platform
+        const matchedAvailable = availableChannels.find(
+            c => isPlatformMatch(platformId, c.platform) && (
+                c.name?.toLowerCase() === cleanName.toLowerCase() ||
+                c.channel_id === cleanName ||
+                c.name?.toLowerCase() === raw.toLowerCase()
+            )
+        );
+
+        // 3. Fallback ID: ưu tiên platform_id của social hoặc channel_id
+        const channelId = matchedSocial?.platform_id || matchedSocial?.id || matchedAvailable?.channel_id || cleanName;
+
+        return { channelId, cleanName };
+    };
+
+    // Tự động lấy số liệu cho 1 dòng kênh cụ thể
+    const fetchSingleEntryTraffic = async (platformId: string, entry: TrafficEntry) => {
+        if (!entry.channel.trim()) {
+            toast.error('Vui lòng chọn hoặc nhập tên kênh trước khi lấy số liệu.', { id: 'traffic-fetch-toast' });
+            return;
+        }
+
+        setFetchingRows(prev => ({ ...prev, [entry.id]: true }));
+        const beBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
+        const dateParam = selectedDate || new Date().toISOString().slice(0, 10);
+        const { channelId, cleanName } = resolveChannelForPlatform(platformId, entry.channel);
+
+        try {
+            const res = await fetchWithAuth(
+                `${beBaseUrl}/scraper/traffic-insights?channelId=${encodeURIComponent(channelId)}&platform=${encodeURIComponent(platformId)}&date=${dateParam}&scope=mtd`
+            );
+            if (res.ok) {
+                const data = await res.json();
+                const views = data.views ?? data.impressions ?? 0;
+                if (views > 0) {
+                    updateRow(platformId, entry.id, {
+                        value: String(views),
+                        isAutoFetched: true,
+                    });
+                    const periodLabel = data.period?.label ? ` (${data.period.label})` : ` (từ đầu tháng đến ${dateParam})`;
+                    toast.success(`Đã lấy được ${Number(views).toLocaleString('vi-VN')} views${periodLabel} cho kênh "${cleanName}"!`, { id: 'traffic-fetch-toast' });
+                } else {
+                    toast.error(`Kênh "${cleanName}" chưa có số liệu traffic lũy kế từ đầu tháng đến ngày ${dateParam}.`, { id: 'traffic-fetch-toast' });
+                }
+            } else {
+                toast.error(`Không thể lấy số liệu cho kênh "${cleanName}".`, { id: 'traffic-fetch-toast' });
+            }
+        } catch {
+            toast.error('Lỗi kết nối khi lấy số liệu traffic.', { id: 'traffic-fetch-toast' });
+        } finally {
+            setFetchingRows(prev => ({ ...prev, [entry.id]: false }));
+        }
+    };
+
+    // Tự động kéo traffic cho TOÀN BỘ các kênh trên tất cả các nền tảng (1-Click, Lũy kế đầu tháng MTD)
     const handleAutoFetchAllTraffic = async () => {
         const allEntriesList = Object.entries(entries);
         const hasAnyChannel = allEntriesList.some(([_, list]) =>
@@ -286,7 +358,7 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
         );
 
         if (!hasAnyChannel) {
-            toast.error('Vui lòng chọn hoặc nhập tên kênh trước khi lấy số liệu.');
+            toast.error('Vui lòng chọn hoặc nhập tên kênh trước khi lấy số liệu.', { id: 'traffic-fetch-toast' });
             return;
         }
 
@@ -305,19 +377,12 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
                         list.map(async (entry) => {
                             if (!entry.channel.trim()) return entry;
 
-                            const matchedSocial = socialAccounts.find(
-                                sa => sa.name?.toLowerCase() === entry.channel.toLowerCase() ||
-                                      sa.platform_id === entry.channel ||
-                                      sa.username === entry.channel
-                            );
-                            const matchedAvailable = availableChannels.find(
-                                c => c.name?.toLowerCase() === entry.channel.toLowerCase() ||
-                                     c.channel_id === entry.channel
-                            );
-                            const channelId = matchedSocial?.platform_id || matchedSocial?.id || matchedAvailable?.channel_id || entry.channel;
+                            const { channelId } = resolveChannelForPlatform(platformId, entry.channel);
 
                             try {
-                                const res = await fetchWithAuth(`${beBaseUrl}/scraper/traffic-insights?channelId=${encodeURIComponent(channelId)}&date=${dateParam}`);
+                                const res = await fetchWithAuth(
+                                    `${beBaseUrl}/scraper/traffic-insights?channelId=${encodeURIComponent(channelId)}&platform=${encodeURIComponent(platformId)}&date=${dateParam}&scope=mtd`
+                                );
                                 if (res.ok) {
                                     const data = await res.json();
                                     const views = data.views ?? data.impressions ?? 0;
@@ -351,12 +416,12 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
             });
 
             if (totalFetchedCount > 0) {
-                toast.success(`Đã tự động lấy số liệu cho ${totalFetchedCount} kênh (tổng ${totalViewsFetched.toLocaleString('vi-VN')} views)!`);
+                toast.success(`Đã tự động lấy số liệu lũy kế đầu tháng cho ${totalFetchedCount} kênh (tổng ${totalViewsFetched.toLocaleString('vi-VN')} views)!`, { id: 'traffic-fetch-toast' });
             } else {
-                toast.error(`Chưa tìm thấy số liệu traffic ngày ${dateParam} cho các kênh đã chọn.`);
+                toast.error(`Chưa tìm thấy số liệu traffic lũy kế từ đầu tháng đến ngày ${dateParam} cho các kênh đã chọn.`, { id: 'traffic-fetch-toast' });
             }
         } catch {
-            toast.error('Không thể kết nối máy chủ lấy số liệu.');
+            toast.error('Không thể kết nối máy chủ lấy số liệu.', { id: 'traffic-fetch-toast' });
         } finally {
             setFetchingAll(false);
         }
@@ -366,6 +431,54 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
         setActiveTarget({ platformId, entryId });
         setTimeout(() => fileInputRef.current?.click(), 0);
     };
+
+    const channelOptionsByPlatform = useMemo(() => {
+        const result: Record<string, ChannelOptionItem[]> = {};
+
+        TRAFFIC_PLATFORMS.forEach(platform => {
+            const list: ChannelOptionItem[] = [];
+            const addedNames = new Set<string>();
+
+            availableChannels
+                ?.filter(c => isPlatformMatch(platform.id, c.platform))
+                .forEach((c, cIdx) => {
+                    if (!c.name) return;
+                    const norm = c.name.toLowerCase();
+                    if (!addedNames.has(norm)) {
+                        addedNames.add(norm);
+                        list.push({
+                            id: `team-${c.id || cIdx}`,
+                            name: c.name,
+                            channelId: c.channel_id || c.link_channel,
+                            badge: 'Kênh nhóm',
+                            badgeColor: 'purple',
+                        });
+                    }
+                });
+
+            socialAccounts
+                ?.filter(sa => isPlatformMatch(platform.id, sa.platform))
+                .forEach((sa, saIdx) => {
+                    const name = sa.name || sa.username;
+                    if (!name) return;
+                    const norm = name.toLowerCase();
+                    if (!addedNames.has(norm)) {
+                        addedNames.add(norm);
+                        list.push({
+                            id: `oauth-${sa.id || saIdx}`,
+                            name: name,
+                            channelId: sa.id,
+                            badge: 'OAuth',
+                            badgeColor: 'blue',
+                        });
+                    }
+                });
+
+            result[platform.id] = list;
+        });
+
+        return result;
+    }, [availableChannels, socialAccounts]);
 
     return (
         <div className="space-y-6">
@@ -385,13 +498,13 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
                     </div>
                     <div>
                         <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight mb-0.5">Báo cáo Traffic</h3>
-                        <p className="text-sm text-slate-500 font-medium">Nhập hoặc lấy số liệu traffic tự động theo từng kênh bạn quản lý</p>
+                        <p className="text-sm text-slate-500 font-medium">Nhập hoặc lấy số liệu traffic lũy kế từ đầu tháng tới hiện tại tự động theo từng kênh bạn quản lý</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2.5 flex-wrap">
                     {selectedDate && (
                         <span className="text-xs font-bold px-3 py-2 bg-purple-50 text-purple-700 rounded-xl border border-purple-200">
-                            📅 {selectedDate}
+                            📅 Lũy kế đầu tháng → {selectedDate}
                         </span>
                     )}
                     {!readOnly && (
@@ -410,14 +523,20 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
             </div>
 
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 relative">
                 {TRAFFIC_PLATFORMS.filter(platform => {
                     const hasAccess = availableChannels.some(c => isPlatformMatch(platform.id, c.platform)) ||
-                                      socialAccounts.some(sa => isPlatformMatch(platform.id, sa.platform));
+                        socialAccounts.some(sa => isPlatformMatch(platform.id, sa.platform));
                     const hasData = (entries[platform.id] || []).some(e => e.value !== '' || e.channel !== '');
                     return hasAccess || hasData || readOnly;
-                }).map((platform) => (
-                    <div key={platform.id} className={`flex flex-col gap-4 p-5 bg-slate-50/50 rounded-[2.5rem] border border-slate-100 transition-all duration-300 shadow-sm ${readOnly ? 'opacity-70 pointer-events-none' : 'hover:border-purple-200 hover:bg-white hover:shadow-md'}`}>
+                }).map((platform, platformIdx) => (
+                    <div
+                        key={platform.id}
+                        style={{ zIndex: 30 - platformIdx }}
+                        className={`relative flex flex-col gap-4 p-5 bg-slate-50/50 rounded-[2.5rem] border border-slate-100 transition-all duration-300 shadow-sm ${
+                            readOnly ? 'opacity-70 pointer-events-none' : 'hover:border-purple-200 hover:bg-white hover:shadow-md'
+                        }`}
+                    >
                         <div className="flex items-center justify-between px-1">
                             <div className="flex items-center gap-2">
                                 <span className="w-2 h-6 bg-purple-500 rounded-full" />
@@ -440,7 +559,11 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
 
                         <div className="space-y-4">
                             {(entries[platform.id] || []).map((entry, idx) => (
-                                <div key={entry.id} className="group/row bg-white rounded-3xl p-4 border border-slate-100 hover:border-purple-100 hover:shadow-sm transition-all">
+                                <div
+                                    key={entry.id}
+                                    style={{ zIndex: 20 - idx }}
+                                    className="relative group/row bg-white rounded-3xl p-4 border border-slate-100 hover:border-purple-100 hover:shadow-sm transition-all"
+                                >
                                     <div className="grid grid-cols-12 gap-3 items-end">
                                         <div className="col-span-12 sm:col-span-5 space-y-1.5">
                                             <div className="flex justify-between items-center px-1">
@@ -459,9 +582,8 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
                                                         const rawValue = digitsOnly(e.target.value);
                                                         updateRow(platform.id, entry.id, { value: rawValue, isAutoFetched: false });
                                                     }}
-                                                    className={`w-full h-12 px-4 rounded-xl border ${
-                                                        entry.isAutoFetched ? 'border-purple-400 bg-purple-50/40 text-purple-800' : 'border-slate-200 bg-slate-50/50 text-slate-800'
-                                                    } text-base font-black focus:border-purple-400 focus:bg-white focus:ring-4 focus:ring-purple-100 transition-all outline-none`}
+                                                    className={`w-full h-12 px-4 rounded-xl border ${entry.isAutoFetched ? 'border-purple-400 bg-purple-50/40 text-purple-800' : 'border-slate-200 bg-slate-50/50 text-slate-800'
+                                                        } text-base font-black focus:border-purple-400 focus:bg-white focus:ring-4 focus:ring-purple-100 transition-all outline-none`}
                                                 />
                                                 {entry.isAutoFetched && (
                                                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-purple-600 bg-purple-100/90 px-2 py-0.5 rounded-md border border-purple-200">
@@ -473,46 +595,31 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
 
                                         <div className="col-span-12 sm:col-span-5 space-y-1.5">
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Tên kênh</label>
-                                            <select
-                                                disabled={readOnly}
+                                            <ChannelSelect
+                                                theme="purple"
                                                 value={entry.channel}
-                                                onChange={(e) => updateRow(platform.id, entry.id, { channel: e.target.value })}
-                                                className="w-full h-12 px-4 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-700 text-sm font-bold focus:border-purple-400 focus:bg-white focus:ring-4 focus:ring-purple-100 transition-all outline-none appearance-none cursor-pointer"
-                                            >
-                                                <option value="">-- Chọn kênh --</option>
-                                                {availableChannels
-                                                    ?.filter(c => isPlatformMatch(platform.id, c.platform))
-                                                    .filter(c => {
-                                                        if (!c.name) return false;
-                                                        if (c.name === entry.channel) return true;
-                                                        const alreadySelected = (entries[platform.id] || []).some(e => e.channel === c.name);
-                                                        return !alreadySelected;
-                                                    })
-                                                    .map((c, cIdx) => (
-                                                        <option key={`team-${c.id || cIdx}`} value={c.name}>{c.name}</option>
-                                                    ))
-                                                }
-                                                {socialAccounts
-                                                    ?.filter(sa => isPlatformMatch(platform.id, sa.platform))
-                                                    .filter(sa => {
-                                                        const name = sa.name || sa.username;
-                                                        if (!name) return false;
-                                                        if (availableChannels?.some(ac => ac.name?.toLowerCase() === name.toLowerCase())) return false;
-                                                        if (name === entry.channel) return true;
-                                                        const alreadySelected = (entries[platform.id] || []).some(e => e.channel === name);
-                                                        return !alreadySelected;
-                                                    })
-                                                    .map((sa, saIdx) => (
-                                                        <option key={`oauth-${sa.id || saIdx}`} value={sa.name || sa.username}>
-                                                            {sa.name || sa.username} ★ (OAuth)
-                                                        </option>
-                                                    ))
-                                                }
-                                            </select>
+                                                options={channelOptionsByPlatform[platform.id] || []}
+                                                disabled={readOnly}
+                                                readOnly={readOnly}
+                                                placeholder="-- Chọn kênh --"
+                                                onChange={(channelName) => updateRow(platform.id, entry.id, { channel: channelName })}
+                                            />
                                         </div>
 
 
                                         <div className="col-span-12 sm:col-span-2 flex items-center justify-end gap-2 mb-1">
+                                            {!readOnly && (
+                                                <button
+                                                    type="button"
+                                                    disabled={fetchingRows[entry.id] || fetchingAll || !entry.channel.trim()}
+                                                    onClick={() => fetchSingleEntryTraffic(platform.id, entry)}
+                                                    className="p-2.5 rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 transition-all active:scale-90 disabled:opacity-40"
+                                                    title="Lấy số liệu tự động cho kênh này"
+                                                >
+                                                    {fetchingRows[entry.id] ? <Loader2 className="w-5 h-5 animate-spin text-purple-600" /> : <Sparkles className="w-5 h-5" />}
+                                                </button>
+                                            )}
+
                                             {uploadingPlatform === platform.id && activeTarget?.entryId === entry.id ? (
                                                 <Loader2 className="w-5 h-5 animate-spin text-purple-600" />
                                             ) : (
