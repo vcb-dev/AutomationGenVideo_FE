@@ -12,6 +12,7 @@ import { AddAssetDialog } from '@/components/equipment/AddAssetDialog';
 import { EditAssetDialog } from '@/components/equipment/EditAssetDialog';
 import { DeleteAssetDialog } from '@/components/equipment/DeleteAssetDialog';
 import { ManageLocationsDialog } from '@/components/equipment/ManageLocationsDialog';
+import { ManageCatalogDialog } from '@/components/equipment/ManageCatalogDialog';
 import { canManageCatalog } from '@/lib/equipment/catalog-permissions';
 import { useAuthStore } from '@/store/auth-store';
 
@@ -51,6 +52,7 @@ function EquipmentTable() {
   const [editing, setEditing] = useState<Asset | null>(null);
   const [deleting, setDeleting] = useState<Asset | null>(null);
   const [managingLocations, setManagingLocations] = useState(false);
+  const [managingCatalog, setManagingCatalog] = useState(false);
   // Thêm, sửa, xoá chỉ hiện cho leader và admin — BE trả 403 cho những vai trò còn lại.
   // Nút Xem thì ai cũng thấy: đọc kho không cần quyền gì.
   // Phải truyền cả `team`: quyền quản lý kho giờ gắn với Team Media, thiếu tham số này thì
@@ -103,27 +105,34 @@ function EquipmentTable() {
             Quản lý máy ảnh, ống kính, đèn flash, phụ kiện và tình trạng mượn trả trong kho.
           </p>
         </div>
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2">
           {canAddAsset && (
             <>
               <button
                 onClick={() => setAdding(true)}
-                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 active:scale-95 transition-all"
+                className="flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white shadow-xs hover:bg-blue-700 active:scale-95 transition-all shrink-0"
               >
                 <span>+</span> Thêm thiết bị
               </button>
               <button
                 onClick={() => setManagingLocations(true)}
                 title="Thêm, đổi tên, xoá tủ/kệ/ngăn trong kho"
-                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 transition-all dark:border-white/[0.12] dark:text-slate-200 dark:hover:bg-white/[0.05]"
+                className="flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 transition-all dark:border-white/[0.12] dark:text-slate-200 dark:hover:bg-white/[0.05] shrink-0"
               >
-                <span>+</span> Thêm vị trí kho
+                <span>+</span> Vị trí kho
+              </button>
+              <button
+                onClick={() => setManagingCatalog(true)}
+                title="Quản lý và xóa danh mục/model thiết bị (Chỉ Admin)"
+                className="flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 transition-all dark:border-white/[0.12] dark:text-slate-200 dark:hover:bg-white/[0.05] shrink-0"
+              >
+                <span>⚙️</span> Danh mục / Model
               </button>
             </>
           )}
           <Link
             href="/dashboard/equipment/new-request"
-            className="flex-1 sm:flex-initial flex items-center justify-center rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 transition-all dark:border-white/[0.12] dark:text-slate-200 dark:hover:bg-white/[0.05]"
+            className="flex items-center justify-center whitespace-nowrap rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 transition-all dark:border-white/[0.12] dark:text-slate-200 dark:hover:bg-white/[0.05] shrink-0"
           >
             Tạo phiếu mượn
           </Link>
@@ -386,6 +395,9 @@ function EquipmentTable() {
       {managingLocations && (
         // Đổi tên hay xoá vị trí làm cột Vị trí của bảng lệch ngay, nên nạp lại kho khi đóng.
         <ManageLocationsDialog onClose={() => setManagingLocations(false)} onChanged={load} />
+      )}
+      {managingCatalog && (
+        <ManageCatalogDialog onClose={() => setManagingCatalog(false)} onChanged={load} />
       )}
       {deleting && (
         <DeleteAssetDialog

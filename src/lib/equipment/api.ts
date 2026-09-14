@@ -102,6 +102,11 @@ export async function createCategory(payload: {
   return data;
 }
 
+export async function deleteCategory(id: string) {
+  const { data } = await apiClient.delete(`/mems/categories/${id}`);
+  return data;
+}
+
 /**
  * Lấy model từ endpoint riêng chứ không gom từ danh sách máy: model vừa khai mà chưa nhập máy
  * nào sẽ không có trong danh sách máy, mà đó đúng là lúc form nhập kho cần tới nó.
@@ -129,17 +134,31 @@ export async function createModel(payload: {
   return data;
 }
 
-export async function createAsset(payload: {
+export async function deleteModel(id: string) {
+  const { data } = await apiClient.delete(`/mems/models/${id}`);
+  return data;
+}
+
+export interface CreateAssetPayload {
   modelId: string;
-  serialNumber: string;
+  serialNumber?: string;
+  serialNumbers?: string[];
+  quantity?: number;
   locationId?: string;
   purchaseDate?: string;
   purchasePrice?: number;
   /** Tình trạng vật lý lúc nhập kho; bỏ trống thì BE hiểu là GOOD. */
   condition?: string;
   intakeNote?: string;
-}) {
-  const { data } = await apiClient.post<Asset>('/mems/assets', payload);
+}
+
+export interface CreateAssetResult extends Asset {
+  assets?: Asset[];
+  totalCreated?: number;
+}
+
+export async function createAsset(payload: CreateAssetPayload) {
+  const { data } = await apiClient.post<CreateAssetResult>('/mems/assets', payload);
   return data;
 }
 

@@ -36,3 +36,11 @@ export function canManageCatalog(
 
   return false;
 }
+
+/**
+ * Chỉ cho phép ADMIN xóa Danh mục và Model thiết bị
+ */
+export function canDeleteCatalog(roles: string[] | undefined | null): boolean {
+  if (!roles?.length) return false;
+  return roles.map((r) => r.toUpperCase()).includes('ADMIN');
+}
