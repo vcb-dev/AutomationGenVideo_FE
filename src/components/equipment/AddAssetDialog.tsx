@@ -564,8 +564,7 @@ export function AddAssetDialog({ onClose, onCreated }: AddAssetDialogProps) {
             <label className="block">
               <span className={labelClass}>Tình trạng lúc nhập kho</span>
               <span className={hintClass}>
-                Khai đúng ngay từ đầu, vì đây là mốc đối chiếu cho mọi lần bàn giao và nhận trả
-                về sau. Máy không ở mức Tốt sẽ vào Chờ kiểm tra thay vì lên kệ ngay.
+                Khai đúng ngay từ đầu để đối chiếu khi bàn giao và nhận trả. Thiết bị sau khi lưu sẽ ở trạng thái Sẵn sàng để cho mượn ngay.
               </span>
               <select
                 className={cn(inputClass, 'mt-2')}
