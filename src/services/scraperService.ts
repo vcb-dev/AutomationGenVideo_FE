@@ -843,8 +843,10 @@ export interface PlatformMarketStats {
   platform: string;
   vn: number;
   global: number;
+  doda?: number;
   posts_vn: number;
   posts_global: number;
+  posts_doda?: number;
 }
 
 // Backward compatibility alias
