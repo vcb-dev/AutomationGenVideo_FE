@@ -37,7 +37,7 @@ function relativeTime(dateStr: string): string {
 
 function proxyImg(url: string, platform: string): string {
   if (!url) return '';
-  if (platform === 'instagram' && (url.includes('cdninstagram.com') || url.includes('fbcdn.net'))) {
+  if ((platform === 'instagram' || platform === 'threads') && (url.includes('cdninstagram.com') || url.includes('fbcdn.net'))) {
     return `https://wsrv.nl/?url=${encodeURIComponent(url)}`;
   }
   return url;
@@ -47,8 +47,8 @@ function getAuthorAvatar(video: ExternalVideo): string {
   if (video.platform === 'facebook' && video.author_id) {
     return `https://graph.facebook.com/${video.author_id}/picture?type=small`;
   }
-  if (video.platform === 'instagram' && video.author_avatar) {
-    return proxyImg(video.author_avatar, 'instagram');
+  if ((video.platform === 'instagram' || video.platform === 'threads') && video.author_avatar) {
+    return proxyImg(video.author_avatar, video.platform);
   }
   return video.author_avatar || '';
 }
