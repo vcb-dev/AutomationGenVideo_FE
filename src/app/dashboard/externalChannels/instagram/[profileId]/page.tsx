@@ -390,11 +390,17 @@ export default function InstagramProfileDetailPage() {
             )}
             <button
               onClick={() => toggleMutation.mutate('is_bookmarked')}
-              className={`flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-md transition-colors ${p.is_bookmarked ? 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-900/20 dark:border-amber-700' : 'hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+              className={`flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-md transition-colors ${p.is_bookmarked ? 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-900/20 dark:border-amber-700 font-medium' : 'hover:bg-slate-50 dark:hover:bg-slate-800'}`}
             >
               <BookmarkSimple size={15} weight={p.is_bookmarked ? 'fill' : 'regular'} />
               {p.is_bookmarked ? 'Đã lưu' : 'Lưu'}
             </button>
+            {p.is_bookmarked && p.bookmarked_by_name && (
+              <span className="inline-flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400 bg-amber-50/80 dark:bg-amber-900/20 px-2.5 py-1.5 rounded border border-amber-200/60 dark:border-amber-800/60 font-medium">
+                Được lưu bởi: <strong className="font-semibold text-foreground">{p.bookmarked_by_name}</strong>
+                {p.bookmarked_at && ` • ${new Date(p.bookmarked_at).toLocaleDateString('vi-VN')}`}
+              </span>
+            )}
             {canManageChannels && (
               <button
                 onClick={() => toggleMutation.mutate('is_tracked')}

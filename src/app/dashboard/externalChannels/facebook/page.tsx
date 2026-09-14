@@ -39,7 +39,6 @@ export default function FacebookExternalPage() {
   // Hộp xác nhận phải nói số reels sắp mất — trên thẻ thì fanpage đã cào 300 reels trông
   // y hệt một page rác chưa cào gì.
   const [deletingChannel, setDeletingChannel] = useState<{ id: number; name: string; videoCount: number } | null>(null);
-  const [showPeriodicConfirm, setShowPeriodicConfirm] = useState(false);
 
   const deleteChannelMutation = useMutation({
     mutationFn: (id: number) => {
@@ -91,17 +90,6 @@ export default function FacebookExternalPage() {
     return () => clearTimeout(fpSearchTimer.current);
   }, [fpSearch]);
 
-  const syncPeriodicMutation = useMutation({
-    mutationFn: () => {
-      if (!token) throw new Error('No token');
-      return scraperService.syncAllExternalChannels(token, 'facebook');
-    },
-    onSuccess: (data) => {
-      toast.success(data.message || 'Đã bắt đầu cào reels mới cho các kênh chú ý!');
-      queryClient.invalidateQueries({ queryKey: ['scraper-fanpages'] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
 
   // Reels filter
   const [reelSearch, setReelSearch] = useState('');
@@ -458,15 +446,11 @@ export default function FacebookExternalPage() {
                 />
 
                 {canManageChannels && (
-                  <button
-                    onClick={() => setShowPeriodicConfirm(true)}
-                    disabled={syncPeriodicMutation.isPending}
-                    className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800 rounded-md transition-all whitespace-nowrap shadow-sm disabled:opacity-50 cursor-pointer"
-                    title="Chỉ cào video mới cho các Fanpage đã được bật icon đồng hồ (Kênh chú ý)"
-                  >
-                    <ArrowsClockwise size={14} className={syncPeriodicMutation.isPending ? 'animate-spin' : ''} weight="bold" />
-                    {syncPeriodicMutation.isPending ? 'Đang cào...' : 'Cào video kênh chú ý'}
-                  </button>
+                  <SyncAllChannelsButton
+                    platform="facebook"
+                    channelCount={fpTotal}
+                    onStarted={() => queryClient.invalidateQueries({ queryKey: ['scraper-fanpages'] })}
+                  />
                 )}
               </div>
             </div>
@@ -703,32 +687,6 @@ export default function FacebookExternalPage() {
         />
       )}
 
-      {/* Modal xác nhận cào video kênh chú ý */}
-      <ConfirmModal
-        isOpen={showPeriodicConfirm}
-        onClose={() => setShowPeriodicConfirm(false)}
-        onConfirm={() => {
-          setShowPeriodicConfirm(false);
-          syncPeriodicMutation.mutate();
-        }}
-        title="Cào video kênh chú ý"
-        description={
-          <div className="space-y-2">
-            <p>
-              Hệ thống sẽ tiến hành cào video reels mới cho các Fanpage trong danh sách{' '}
-              <strong className="text-emerald-600 dark:text-emerald-400 font-semibold">Kênh chú ý</strong> (được bật biểu tượng chiếc đồng hồ).
-            </p>
-            <p className="text-slate-400">
-              Tiến trình cào sẽ chạy ngầm và gửi thông báo khi hoàn tất. Bạn có muốn tiếp tục?
-            </p>
-          </div>
-        }
-        icon={<ArrowsClockwise size={22} weight="bold" />}
-        confirmText="Bắt đầu cào"
-        cancelText="Hủy"
-        variant="emerald"
-        isLoading={syncPeriodicMutation.isPending}
-      />
 
       {/* Modal xác nhận xóa kênh */}
       {deletingChannel && (
