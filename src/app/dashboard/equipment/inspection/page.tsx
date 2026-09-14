@@ -28,6 +28,7 @@ import {
   suggestedCondition,
 } from '@/lib/equipment/inspection';
 import { conditionLabel } from '@/lib/equipment/status-label';
+import { RequireCatalogManager } from '@/components/equipment/RequireCatalogManager';
 
 const cardClass =
   'rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/[0.08] dark:bg-white/[0.03]';
@@ -322,5 +323,9 @@ function InspectionPageInner() {
 }
 
 export default function InspectionPage() {
-  return <InspectionPageInner />;
+  return (
+    <RequireCatalogManager>
+      <InspectionPageInner />
+    </RequireCatalogManager>
+  );
 }

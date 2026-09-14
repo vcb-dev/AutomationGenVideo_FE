@@ -10,7 +10,7 @@
  * Phải KHỚP TỪNG PHẦN TỬ với `MEDIA_TEAM_NAMES` trong `src/common/mems/media-team.ts` bên BE.
  * Lệch nhau thì hoặc hiện nút rồi bấm vào ăn 403, hoặc ẩn nút của người thật sự có quyền.
  */
-const MEDIA_TEAM_NAMES = ['media'];
+const MEDIA_TEAM_NAMES = ['media', 'team media', 'media team', 'bộ phận media'];
 
 /**
  * So khớp CHÍNH XÁC tên team, không dùng "có chứa": tên team do người dùng đặt được, nên đặt là

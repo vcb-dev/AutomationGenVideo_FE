@@ -454,7 +454,7 @@ export function useNavMenus(
                             },
                             // Nhật ký lộ thói quen mượn của từng người nên chỉ quản lý kho thấy.
                             // BE cũng chặn bằng @Roles — đây chỉ là ẩn đầu mục cho đỡ vướng mắt.
-                            ...(isManagerOrAdmin || isLeader
+                            ...(isMediaLeaderOrAdmin
                                 ? [{
                                     label: n.equipmentBorrowLog,
                                     href: "/dashboard/equipment/borrow-history",
@@ -476,44 +476,46 @@ export function useNavMenus(
                             },
                         ],
                     },
-                    {
-                        section: n.secEquipmentFlow,
-                        color: "violet" as const,
-                        items: [
-                            {
-                                label: n.equipmentApprovals,
-                                href: "/dashboard/equipment/approvals",
-                                icon: CheckSquare,
-                                description: n.equipmentApprovalsDesc,
-                            },
-                            {
-                                label: n.equipmentPrepare,
-                                href: "/dashboard/equipment/prepare",
-                                icon: PackageCheck,
-                                description: n.equipmentPrepareDesc,
-                            },
-                            {
-                                label: n.equipmentHandover,
-                                href: "/dashboard/equipment/handover",
-                                icon: Truck,
-                                description: n.equipmentHandoverDesc,
-                            },
-                            {
-                                label: n.equipmentReturns,
-                                href: "/dashboard/equipment/returns",
-                                icon: Undo2,
-                                description: n.equipmentReturnsDesc,
-                            },
-                            {
-                                // Mắt xích duy nhất đưa máy trở lại Sẵn sàng. Thiếu đầu mục này thì
-                                // máy trả về có vấn đề nằm lại bàn kiểm tra vĩnh viễn.
-                                label: "Kiểm tra thiết bị",
-                                href: "/dashboard/equipment/inspection",
-                                icon: ClipboardList,
-                                description: "Kết luận cho máy mới nhập và máy trả về có vấn đề",
-                            },
-                        ],
-                    },
+                    ...(isMediaLeaderOrAdmin
+                        ? [{
+                            section: n.secEquipmentFlow,
+                            color: "violet" as const,
+                            items: [
+                                {
+                                    label: n.equipmentApprovals,
+                                    href: "/dashboard/equipment/approvals",
+                                    icon: CheckSquare,
+                                    description: n.equipmentApprovalsDesc,
+                                },
+                                {
+                                    label: n.equipmentPrepare,
+                                    href: "/dashboard/equipment/prepare",
+                                    icon: PackageCheck,
+                                    description: n.equipmentPrepareDesc,
+                                },
+                                {
+                                    label: n.equipmentHandover,
+                                    href: "/dashboard/equipment/handover",
+                                    icon: Truck,
+                                    description: n.equipmentHandoverDesc,
+                                },
+                                {
+                                    label: n.equipmentReturns,
+                                    href: "/dashboard/equipment/returns",
+                                    icon: Undo2,
+                                    description: n.equipmentReturnsDesc,
+                                },
+                                {
+                                    // Mắt xích duy nhất đưa máy trở lại Sẵn sàng. Thiếu đầu mục này thì
+                                    // máy trả về có vấn đề nằm lại bàn kiểm tra vĩnh viễn.
+                                    label: "Kiểm tra thiết bị",
+                                    href: "/dashboard/equipment/inspection",
+                                    icon: ClipboardList,
+                                    description: "Kết luận cho máy mới nhập và máy trả về có vấn đề",
+                                },
+                            ],
+                        }]
+                        : []),
                 ],
             },
             {
@@ -653,6 +655,6 @@ export function useNavMenus(
                 ],
             },
         ],
-        [isManagerOrAdmin, isManagement, isAdmin, isLeader, isManager, n],
+        [isManagerOrAdmin, isManagement, isAdmin, isLeader, isManager, isMediaLeaderOrAdmin, n],
     );
 }
