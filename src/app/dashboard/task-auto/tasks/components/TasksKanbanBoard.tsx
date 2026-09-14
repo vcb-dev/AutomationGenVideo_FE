@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {
   DndContext, DragOverlay, useDraggable, useDroppable,
@@ -16,6 +16,7 @@ import { cn, driveImageUrl } from '@/lib/utils'
 import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
 import { formatDate, formatDateTime } from '@/components/task-auto/helpers'
 import { getTasks, updateTask, approveTask } from '@/lib/api/task-auto'
+import { useLoadMoreScroll } from '@/hooks/useLoadMoreScroll'
 import { RejectModal } from './RejectModal'
 import { VideoPreviewOverlay } from './detail/VideoPreviewOverlay'
 import { resolveContentTitle, resolveProductName, resolveProductImage } from './TasksTable'
@@ -246,17 +247,22 @@ function TaskCardBody({ task, variant, onOpenPreview }: { task: Task; variant: C
     </div>
   )
 
-  // Card gọn cho cột "Đã duyệt": khối lượng thường lớn nhất trong board nên bỏ tiêu đề/tag,
-  // chỉ giữ ai làm, duyệt lúc nào, xem lại kết quả ở đâu để lướt nhanh qua nhiều task.
+  // Card cột "Đã duyệt": giữ tiêu đề + tuyến nội dung, lược ảnh/tên SP + badge hạn/nộp cho nhẹ.
   if (variant === 'approved') {
     return (
       <>
-        {assigneeRow}
+        <p className="text-sm font-semibold text-gray-800 group-hover:text-indigo-700 line-clamp-2 leading-snug transition-colors">
+          {title ?? <span className="text-gray-400 italic font-normal">Không có tiêu đề</span>}
+        </p>
+
+        <div className="mt-3">{assigneeRow}</div>
+
         <div className="flex items-center flex-wrap gap-2 mt-2.5">
           <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-400 shrink-0">
             <Clock className="w-3 h-3 shrink-0" />
             {formatDateTime(task.reviewed_at ?? task.updated_at)}
           </span>
+          {categoryTag && <CategoryTag name={categoryTag} />}
           {missingLink && (
             <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold bg-red-50 text-red-600">
               <AlertTriangle className="w-3 h-3 shrink-0" /> Thiếu link
@@ -510,9 +516,12 @@ function KanbanColumn({
         assignee_id: filters.assigneeId,
         page: 1,
         limit,
-        sort: 'updated_at',
+        // Cột "Đã duyệt" sắp theo ngày tạo; các cột khác theo updated_at.
+        sort: column.status === 'APPROVED' ? 'created_at' : 'updated_at',
       }),
     refetchOnWindowFocus: true,
+    // Giữ thẻ cũ khi "Xem thêm" đổi queryKey — nếu không, cột chớp skeleton và scroll nhảy về đầu.
+    placeholderData: keepPreviousData,
   })
 
   const rawTasks = data?.data ?? []
@@ -534,13 +543,18 @@ function KanbanColumn({
     const map = new Map<string, Task>()
     for (const t of rawTasks) map.set(t.id, t)
     for (const t of missingOverdue) map.set(t.id, t)
-    return Array.from(map.values()).sort((a, b) => taskSortTier(a) - taskSortTier(b))
-  }, [rawTasks, missingOverdue])
+    const merged = Array.from(map.values())
+    // Cột "Đã duyệt" giữ thứ tự BE (created_at giảm dần), không áp taskSortTier.
+    if (column.status === 'APPROVED') return merged
+    return merged.sort((a, b) => taskSortTier(a) - taskSortTier(b))
+  }, [rawTasks, missingOverdue, column.status])
   // missingOverdue luôn được gộp trọn vẹn (không phân trang) nên cộng thẳng vào total — phép tính
   // "Xem thêm" bên dưới vẫn đúng vì cả tasks.length lẫn total đều cộng thêm đúng 1 lượng như nhau.
   const total = (data?.total ?? 0) + missingOverdue.length
   const hasMore = tasks.length < total
   const Icon = column.icon
+
+  const { listRef, markLoadMore } = useLoadMoreScroll(tasks.map(t => t.id), isFetching)
 
   useEffect(() => {
     if (!isLoading) onTotalChange(column.key, total)
@@ -574,7 +588,7 @@ function KanbanColumn({
         </span>
       </div>
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar px-3 pb-3 space-y-2.5 max-h-[calc(100vh-290px)] min-h-[140px]">
+      <div ref={listRef} className="flex-1 overflow-y-auto custom-scrollbar px-3 pb-3 space-y-2.5 max-h-[calc(100vh-290px)] min-h-[140px]">
         {isLoading ? (
           Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="bg-white rounded-xl border border-gray-100 p-3.5 space-y-2 animate-pulse">
@@ -607,7 +621,7 @@ function KanbanColumn({
             {hasMore && (
               <button
                 type="button"
-                onClick={() => setLimit(l => l + PAGE_SIZE)}
+                onClick={() => { markLoadMore(); setLimit(l => l + PAGE_SIZE) }}
                 disabled={isFetching}
                 className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-semibold text-gray-500 hover:text-indigo-600 hover:bg-white rounded-lg transition-colors disabled:opacity-50"
               >

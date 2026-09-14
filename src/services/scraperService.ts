@@ -1,6 +1,15 @@
 import { fetchWithAuth } from '@/lib/api-client';
 // Đi qua BE (proxy sang AI ở src/modules/scraper-proxy), không gọi thẳng AI nữa.
 import type { PlatformKey } from '@/lib/platform-config';
+import { buildDeleteChannelPath, buildSyncAllChannelsPath, type DeletableChannelPlatform } from '@/lib/scrape/delete-channel';
+
+/** BE trả về cả tên kênh lẫn số video đã xoá để FE báo lại mà không phải gọi thêm API. */
+export interface DeleteChannelResponse {
+  deleted: true;
+  id: number;
+  name: string;
+  videos_deleted: number;
+}
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
 
@@ -34,11 +43,20 @@ export interface ScrapedFanpage {
   scrape_error: string | null;
   reels_count: number;
   created_at: string;
+  channel_type?: 'product' | 'content';
+  product_lines?: string[];
   // detail only
   total_views?: number;
   total_likes?: number;
   total_comments?: number;
   total_shares?: number;
+}
+
+export interface ScraperChannelTag {
+  id: number;
+  name: string;
+  slug: string;
+  color?: string;
 }
 
 export interface ScrapedReel {
@@ -297,6 +315,9 @@ export interface PaginatedTikTokProfileVideos {
   total_pages: number;
   videos: TikTokProfileVideo[];
 }
+
+/** Khớp với TOGGLE_FIELDS bên BE (instagram-scraper.service.ts). */
+export type InstagramToggleField = 'is_bookmarked' | 'is_tracked' | 'is_owned';
 
 export interface InstagramProfile {
   id: number;
@@ -728,6 +749,12 @@ export interface DailyStats extends PeriodStats {
 
 export interface PlatformStats extends PeriodStats {
   platform: string;
+  /**
+   * false = nền tảng có bài trong kỳ nhưng KHÔNG lấy được lượt xem (ví dụ Instagram khi token
+   * thiếu quyền insight). Khác hẳn với "có lấy được và bằng 0". BE cũ không trả cờ này nên
+   * mặc định coi là true.
+   */
+  viewsAvailable?: boolean;
   previous?: PeriodStats;
   followers: number;
   /** Active channels with posts in period. */
@@ -849,6 +876,8 @@ export interface InternalStats {
   contentLines?: ContentLineStats[];
   hashtags?: HashtagStats[];
   alerts?: ChannelAlert[];
+  /** Tổng số cảnh báo trước khi cắt bớt cho vừa màn hình — `alerts` có thể ngắn hơn. */
+  alertTotal?: number;
   totalChannels?: number;
 
   // Backward compatibility:
@@ -860,6 +889,7 @@ export interface InternalStats {
   tuyen_noi_dung?: ContentLineStats[];
   hashtag?: HashtagStats[];
   canh_bao?: ChannelAlert[];
+  tong_canh_bao?: number;
   tong_kenh?: number;
 }
 
@@ -1182,6 +1212,7 @@ export const scraperService = {
   getFanpages: async (token: string, params?: {
     page?: number; page_size?: number; search?: string;
     bookmarked?: string; periodic?: string;
+    channel_type?: string; product_line?: string;
   }): Promise<PaginatedFanpages> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -1207,6 +1238,46 @@ export const scraperService = {
       body: JSON.stringify({ field }),
     });
     if (!res.ok) throw new Error('Toggle failed');
+    return res.json();
+  },
+
+  // Update classification (channel_type & product_lines)
+  updateFanpageClassification: async (
+    token: string,
+    id: number,
+    data: { channel_type?: string; product_lines?: string[] },
+  ): Promise<any> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/${id}/classification`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.error || body?.message || 'Cập nhật phân loại thất bại');
+    }
+    return res.json();
+  },
+
+  // List & create channel tags
+  getChannelTags: async (token: string): Promise<ScraperChannelTag[]> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/tags`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  createChannelTag: async (token: string, data: { name: string; color?: string }): Promise<ScraperChannelTag> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/tags`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.error || body?.message || 'Không thể tạo tag mới');
+    }
     return res.json();
   },
 
@@ -1275,6 +1346,7 @@ export const scraperService = {
 
   getTiktokProfiles: async (token: string, params?: {
     page?: number; page_size?: number; search?: string; sort_by?: 'followers' | 'recent'; is_owned?: boolean;
+    tracked?: string | boolean; bookmarked?: string | boolean; periodic?: string | boolean;
   }): Promise<PaginatedTikTokProfiles> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/tiktok/profiles/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -1337,6 +1409,7 @@ export const scraperService = {
 
   getInstagramProfiles: async (token: string, params?: {
     page?: number; page_size?: number; search?: string; is_owned?: boolean;
+    tracked?: string | boolean; bookmarked?: string | boolean; periodic?: string | boolean;
   }): Promise<PaginatedInstagramProfiles> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/instagram/profiles/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -1364,7 +1437,11 @@ export const scraperService = {
     return res.json();
   },
 
-  toggleInstagramProfile: async (token: string, id: number, field: 'is_bookmarked' | 'is_tracked'): Promise<any> => {
+  /**
+   * `is_owned` = kênh của công ty (BE chỉ cho leader/admin đổi). Đây là tiêu chí duy nhất để
+   * trang Tổng quan kênh nội bộ tính profile này vào số liệu.
+   */
+  toggleInstagramProfile: async (token: string, id: number, field: InstagramToggleField): Promise<any> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/instagram/profiles/${id}/toggle/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -1411,6 +1488,7 @@ export const scraperService = {
 
   getYoutubeProfiles: async (token: string, params?: {
     page?: number; page_size?: number; search?: string; sort_by?: string; is_owned?: boolean;
+    tracked?: string | boolean; bookmarked?: string | boolean; periodic?: string | boolean;
   }): Promise<PaginatedYoutubeProfiles> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/youtube/profiles/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -1514,6 +1592,7 @@ export const scraperService = {
 
   getKuaishouProfiles: async (token: string, params?: {
     page?: number; page_size?: number; search?: string; sort_by?: string;
+    tracked?: string | boolean; bookmarked?: string | boolean; periodic?: string | boolean;
   }): Promise<PaginatedKuaishouProfiles> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/kuaishou/profiles/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -1607,6 +1686,7 @@ export const scraperService = {
 
   getBilibiliProfiles: async (token: string, params?: {
     page?: number; page_size?: number; search?: string; sort_by?: string;
+    tracked?: string | boolean; bookmarked?: string | boolean; periodic?: string | boolean;
   }): Promise<PaginatedBilibiliProfiles> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/bilibili/profiles/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -1646,12 +1726,12 @@ export const scraperService = {
 
   // ─── FACEBOOK ─────────────────────────────────────────
 
-  // Trigger scrape reels (auto 300/10)
-  triggerScrapeReels: async (token: string, fanpageId: number): Promise<{ message: string; is_scraping?: boolean }> => {
-    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/scrape-reels/`, {
+  // Trigger scrape reels
+  triggerScrapeReels: async (token: string, fanpageId: number, numOfPosts?: number): Promise<{ message: string; is_scraping?: boolean }> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/scrape-reels`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fanpage_id: fanpageId }),
+      body: JSON.stringify({ fanpage_id: fanpageId, num_of_posts: numOfPosts }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
@@ -1660,15 +1740,64 @@ export const scraperService = {
     return res.json();
   },
 
-  fanpageScrapeByUrl: async (token: string, url: string): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; fanpage_id: number }> => {
-    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/scrape-by-url/`, {
+  fanpageScrapeByUrl: async (
+    token: string,
+    url: string,
+    numOfPosts?: number,
+    classification?: { channel_type?: string; product_lines?: string[] },
+  ): Promise<{ message: string; is_scraping?: boolean; already_exists?: boolean; fanpage_id: number }> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/scrape-by-url`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }),
+      body: JSON.stringify({
+        url,
+        num_of_posts: numOfPosts,
+        channel_type: classification?.channel_type,
+        product_lines: classification?.product_lines,
+      }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
       throw new Error(body?.error || 'Không thể cào fanpage');
+    }
+    return res.json();
+  },
+
+  bulkAddFanpages: async (
+    token: string,
+    urls: string[],
+    classification?: { channel_type?: string; product_lines?: string[] },
+  ): Promise<{
+    total_received: number;
+    added_count: number;
+    skipped_count: number;
+    added_pages: { id: number; name: string; handle: string; page_url: string }[];
+    skipped_urls: { url: string; reason: string }[];
+  }> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/bulk-add`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        urls,
+        channel_type: classification?.channel_type,
+        product_lines: classification?.product_lines,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.error || body?.message || 'Không thể thêm hàng loạt fanpage');
+    }
+    return res.json();
+  },
+
+  periodicRefreshFacebook: async (token: string): Promise<{ success: boolean; message: string }> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/periodic-refresh`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.error || body?.message || 'Không thể kích hoạt quét định kỳ');
     }
     return res.json();
   },
@@ -1724,6 +1853,7 @@ export const scraperService = {
 
   getDouyinProfiles: async (token: string, params?: {
     page?: number; page_size?: number; search?: string; sort_by?: 'followers' | 'recent'; is_owned?: boolean;
+    tracked?: string | boolean; bookmarked?: string | boolean; periodic?: string | boolean;
   }): Promise<PaginatedDouyinProfiles> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/douyin/profiles/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -1817,8 +1947,8 @@ export const scraperService = {
   },
 
   getXhsProfiles: async (token: string, params: {
-    q?: string; page?: number; page_size?: number;
-    bookmarked?: boolean; tracked?: boolean; is_owned?: boolean;
+    q?: string; search?: string; page?: number; page_size?: number;
+    bookmarked?: boolean | string; tracked?: boolean | string; periodic?: boolean | string; is_owned?: boolean;
   } = {}): Promise<PaginatedXhsProfiles> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/xiaohongshu/profiles/${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -1863,6 +1993,22 @@ export const scraperService = {
     return res.json();
   },
 
+  /**
+   * Đồng bộ kênh Instagram nội bộ từ các tài khoản đã kết nối ở trang đăng bài MXH.
+   * Đây là đường duy nhất bật `is_owned` hàng loạt — cron chạy 07:15 mỗi sáng, nút bấm này
+   * để chạy ngay khi vừa kết nối thêm tài khoản.
+   */
+  syncOwnedInstagram: async (
+    token: string,
+  ): Promise<{ accounts: number; createdProfiles: number; updatedProfiles: number; syncedMedia: number; failed: number }> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/instagram/owned/sync`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Đồng bộ kênh Instagram thất bại');
+    return res.json();
+  },
+
   getOwnedThreadsProfiles: async (token: string): Promise<any[]> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/threads/owned/profiles`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -1887,6 +2033,58 @@ export const scraperService = {
       body: JSON.stringify({ username, is_owned }),
     });
     if (!res.ok) throw new Error('Cập nhật trạng thái thất bại');
+    return res.json();
+  },
+
+  /**
+   * Xoá cứng một kênh khám phá bên ngoài. BE xoá kèm toàn bộ video/lịch sử chỉ số của
+   * kênh, không hoàn tác được — luôn gọi qua hộp xác nhận (buildDeleteChannelConfirm).
+   * Chỉ ADMIN/LEADER được phép, vai trò khác sẽ nhận 403.
+   */
+  /**
+   * Đồng bộ lại toàn bộ kênh của một nền tảng. BE chạy nền và trả về ngay — theo dõi tiến
+   * độ qua scraping_status của từng kênh. Chỉ ADMIN/LEADER, vai trò khác nhận 403.
+   */
+  syncAllExternalChannels: async (
+    token: string,
+    platform: DeletableChannelPlatform,
+  ): Promise<{ status: string; message: string; already_running?: boolean }> => {
+    const res = await fetchWithAuth(`${API_URL}${buildSyncAllChannelsPath(platform)}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || 'Không gửi được yêu cầu đồng bộ');
+    }
+    return res.json();
+  },
+
+  deleteExternalChannel: async (
+    token: string,
+    platform: DeletableChannelPlatform,
+    id: number,
+  ): Promise<DeleteChannelResponse> => {
+    const res = await fetchWithAuth(`${API_URL}${buildDeleteChannelPath(platform, id)}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || 'Xoá kênh thất bại');
+    }
+    return res.json();
+  },
+
+  deleteScrapedVideo: async (token: string, platform: string, videoId: string): Promise<{ success: boolean; message: string }> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/stream/${encodeURIComponent(platform)}/${encodeURIComponent(videoId)}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Xoá video thất bại');
+    }
     return res.json();
   },
 };

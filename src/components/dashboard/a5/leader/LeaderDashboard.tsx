@@ -2,7 +2,9 @@
 
 import { Camera } from "lucide-react";
 import { useRef, useState } from "react";
-import { LeaderContentFreshnessChart } from "./LeaderContentFreshnessChart";
+import { cn } from "@/lib/utils";
+import { DashboardFilters } from "../shared/DashboardFilters";
+import { LeaderContentByClassificationChart } from "./LeaderContentByClassificationChart";
 import { LeaderHeader } from "./LeaderHeader";
 import { LeaderMemberCard } from "./LeaderMemberCard";
 import { currentMonthKey, LeaderMonthFilter, monthLabelOf } from "./LeaderMonthFilter";
@@ -13,14 +15,50 @@ import { LeaderVideoByLineChart } from "./LeaderVideoByLineChart";
 import { LeaderVideoMonthCard } from "./LeaderVideoMonthCard";
 import { useLeaderTaskDashboard } from "./leader-task-dashboard-api";
 
+type TabKey = "month" | "day";
+
+function todayStr(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function dmy(dateStr: string) {
+  const [y, m, d] = dateStr.split("-");
+  return `${d}/${m}/${y}`;
+}
+
 export function LeaderDashboard() {
+  const [tab, setTab] = useState<TabKey>("month");
   const [month, setMonth] = useState(currentMonthKey);
+  const [day, setDay] = useState(todayStr);
   const [isCapturing, setIsCapturing] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
-  const { data, isLoading, isFetching } = useLeaderTaskDashboard({ month });
+
+  const isDay = tab === "day";
+  const { data, isLoading, isFetching } = useLeaderTaskDashboard(
+    isDay ? { dateFrom: day, dateTo: day, pinTrafficMonth: true } : { month },
+  );
   const members = data?.members ?? [];
-  const isCurrentMonth = month === currentMonthKey();
-  const monthLabel = monthLabelOf(month);
+
+  const periodLabel = isDay ? `Ngày ${dmy(day)}` : monthLabelOf(month);
+  const trafficLabel = isDay ? `Tháng ${Number(day.split("-")[1])}` : monthLabelOf(month);
+
+  // "Video tháng" chỉ tổng hợp editor — content creator dùng kpi_completed/kpi_target cho SỐ CONTENT
+  // (không phải video), gộp chung vào đây sẽ làm sai lệch tổng.
+  const videoTotals = members
+    .filter((m) => !m.is_content_creator)
+    .reduce(
+      (acc, m) =>
+        isDay
+          ? {
+              current: acc.current + m.kpi_day_completed,
+              target: acc.target + m.kpi_day_target,
+            }
+          : { current: acc.current + m.kpi_completed, target: acc.target + m.kpi_target },
+      { current: 0, target: 0 },
+    );
+  const videoCardLabel = isDay ? "Số video ngày" : "Số video tháng";
+
+  const trafficTotal = members.reduce((sum, m) => sum + m.traffic_month, 0);
+  const revenueTotal = members.reduce((sum, m) => sum + m.revenue_month, 0);
 
   const handleCapture = async () => {
     if (!reportRef.current || isCapturing) return;
@@ -37,28 +75,13 @@ export function LeaderDashboard() {
       });
       const teamSlug = (data?.team?.name ?? "team").replace(/[^a-zA-Z0-9]+/g, "-");
       const link = document.createElement("a");
-      link.download = `bao-cao-${teamSlug}-${month}.png`;
+      link.download = `bao-cao-${teamSlug}-${isDay ? day : month}.png`;
       link.href = dataUrl;
       link.click();
     } finally {
       setIsCapturing(false);
     }
   };
-
-  // "Video tháng" chỉ tổng hợp editor — content creator dùng kpi_completed/kpi_target cho SỐ CONTENT
-  // (không phải video), gộp chung vào đây sẽ làm sai lệch tổng.
-  const videoTotals = members
-    .filter((m) => !m.is_content_creator)
-    .reduce(
-      (acc, m) => ({ current: acc.current + m.kpi_completed, target: acc.target + m.kpi_target }),
-      { current: 0, target: 0 },
-    );
-  const trafficTotal = members.reduce((sum, m) => sum + m.traffic_month, 0);
-  const revenueTotal = members.reduce((sum, m) => sum + m.revenue_month, 0);
-  const contentFreshnessTotal = members.reduce(
-    (acc, m) => ({ new: acc.new + m.content_new, old: acc.old + m.content_old }),
-    { new: 0, old: 0 },
-  );
 
   if (isLoading) {
     return (
@@ -78,7 +101,28 @@ export function LeaderDashboard() {
 
   return (
     <div className="w-full max-w-none p-4 text-sm text-gray-900 antialiased">
-      <div className="mb-4 flex justify-end">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <nav className="flex shrink-0 gap-1 rounded-xl border border-amber-200 bg-amber-50 p-1">
+          {(
+            [
+              ["month", "Thống kê theo tháng"],
+              ["day", "Thống kê theo ngày"],
+            ] as [TabKey, string][]
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setTab(key)}
+              className={cn(
+                "rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+                tab === key ? "bg-amber-500 text-white shadow" : "text-amber-800 hover:bg-amber-100",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+
         <button
           type="button"
           onClick={handleCapture}
@@ -91,15 +135,29 @@ export function LeaderDashboard() {
       </div>
 
       <div ref={reportRef} className="bg-gray-50">
-        <LeaderHeader teamName={data.team.name} monthLabel={monthLabel} />
+        <LeaderHeader teamName={data.team.name} monthLabel={periodLabel} />
 
-        <LeaderMonthFilter month={month} onChange={setMonth} />
+        {isDay ? (
+          <DashboardFilters
+            accent="amber"
+            className="justify-center"
+            showTeamFallback={false}
+            showPlatformChannelFallback={false}
+            singleDate={{ value: day, onChange: setDay }}
+          />
+        ) : (
+          <LeaderMonthFilter month={month} onChange={setMonth} />
+        )}
 
         <div className={isFetching ? "pointer-events-none opacity-50 transition-opacity" : "transition-opacity"}>
           <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-            <LeaderVideoMonthCard current={videoTotals.current} target={videoTotals.target} />
-            <LeaderTrafficTotalCard total={trafficTotal} monthLabel={monthLabel} />
-            <LeaderRevenueTotalCard total={revenueTotal} monthLabel={monthLabel} />
+            <LeaderVideoMonthCard
+              current={videoTotals.current}
+              target={videoTotals.target}
+              label={videoCardLabel}
+            />
+            <LeaderTrafficTotalCard total={trafficTotal} monthLabel={trafficLabel} />
+            <LeaderRevenueTotalCard total={revenueTotal} monthLabel={trafficLabel} />
           </div>
 
           {members.length === 0 ? (
@@ -110,7 +168,8 @@ export function LeaderDashboard() {
                 <LeaderMemberCard
                   key={m.user_id}
                   index={i}
-                  showDailyKpi={isCurrentMonth}
+                  dayView={isDay}
+                  showDailyKpi={!isDay && month === currentMonthKey()}
                   entity={{
                     id: m.user_id,
                     name: m.full_name || m.email,
@@ -134,7 +193,7 @@ export function LeaderDashboard() {
               <LeaderVideoByLineChart data={data.video_by_line} />
             </div>
             <LeaderProductCategoryChart data={data.product_by_category} />
-            <LeaderContentFreshnessChart data={contentFreshnessTotal} />
+            <LeaderContentByClassificationChart data={data.content_by_classification} />
           </div>
         </div>
       </div>

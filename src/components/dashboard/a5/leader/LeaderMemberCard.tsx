@@ -26,24 +26,44 @@ interface LeaderMemberCardProps {
   index: number;
   /** "KPI ngày" chỉ có ý nghĩa khi đang xem đúng tháng hiện tại (chỉ tiêu/tiến độ trong NGÀY). */
   showDailyKpi: boolean;
+  dayView?: boolean;
 }
 
 /**
  * Video tháng là chỉ số chính (gauge lớn, căn giữa) — KPI ngày và Traffic là 2 ô phụ ở chân card.
  * Dùng chung cho cả card 1 người (leader dashboard) và card 1 team (admin dashboard, chế độ "Tất cả Team").
  */
-export function LeaderMemberCard({ entity, index, showDailyKpi }: LeaderMemberCardProps) {
+export function LeaderMemberCard({ entity, index, showDailyKpi, dayView = false }: LeaderMemberCardProps) {
   const name = entity.name;
-  const videoPct = entity.kpi_target > 0 ? Math.round((entity.kpi_completed / entity.kpi_target) * 100) : null;
+  const monthPct = entity.kpi_target > 0 ? Math.round((entity.kpi_completed / entity.kpi_target) * 100) : null;
   const dayPct =
     entity.kpi_day_target > 0 ? Math.round((entity.kpi_day_completed / entity.kpi_day_target) * 100) : null;
   const avatarColor = AVATAR_COLORS[index % AVATAR_COLORS.length];
+
+  const headPct = dayView ? dayPct : monthPct;
+  const headCurrent = dayView ? entity.kpi_day_completed : entity.kpi_completed;
+  const headTarget = dayView ? entity.kpi_day_target : entity.kpi_target;
+  const headLabel = dayView
+    ? entity.is_content_creator
+      ? "Content ngày"
+      : "Video ngày"
+    : entity.is_content_creator
+      ? "Content tháng"
+      : "Video tháng";
+
+  const footCols = entity.is_content_creator
+    ? dayView
+      ? "grid-cols-3"
+      : "grid-cols-4"
+    : dayView
+      ? "grid-cols-1"
+      : "grid-cols-2";
 
   return (
     <div
       className={cn(
         "flex h-full flex-col rounded-2xl border border-t-4 border-gray-100 bg-white p-5 shadow-sm",
-        statusAccent(videoPct),
+        statusAccent(headPct),
       )}
     >
       <div className="mb-2 flex items-center gap-3">
@@ -57,29 +77,31 @@ export function LeaderMemberCard({ entity, index, showDailyKpi }: LeaderMemberCa
         </div>
         <div className="min-w-0">
           <div className="truncate text-base font-bold text-gray-900">{name}</div>
-          <div className="text-xs text-gray-400">{entity.is_content_creator ? "Content tháng" : "Video tháng"}</div>
+          <div className="text-xs text-gray-400">{headLabel}</div>
         </div>
       </div>
 
       <div className="flex flex-col items-center">
-        <LeaderGaugeRing pct={videoPct} size={160} current={entity.kpi_completed} target={entity.kpi_target} />
+        <LeaderGaugeRing pct={headPct} size={160} current={headCurrent} target={headTarget} />
       </div>
 
-      <div className={cn("mt-4 grid gap-3 border-t border-gray-100 pt-4", entity.is_content_creator ? "grid-cols-4" : "grid-cols-2")}>
-        <div className="rounded-xl bg-gray-50 px-3 py-2.5 text-center">
-          <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">KPI ngày</div>
-          {showDailyKpi ? (
-            <div className="mt-0.5 text-base font-bold text-gray-800">
-              {entity.kpi_day_completed}
-              <span className="text-xs font-normal text-gray-400">
-                /{entity.kpi_day_target > 0 ? entity.kpi_day_target : "—"}
-              </span>
-              {dayPct != null ? <span className="ml-1 text-xs font-normal text-gray-400">({dayPct}%)</span> : null}
-            </div>
-          ) : (
-            <div className="mt-1 text-xs text-gray-400">Tháng hiện tại</div>
-          )}
-        </div>
+      <div className={cn("mt-4 grid gap-3 border-t border-gray-100 pt-4", footCols)}>
+        {!dayView && (
+          <div className="rounded-xl bg-gray-50 px-3 py-2.5 text-center">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">KPI ngày</div>
+            {showDailyKpi ? (
+              <div className="mt-0.5 text-base font-bold text-gray-800">
+                {entity.kpi_day_completed}
+                <span className="text-xs font-normal text-gray-400">
+                  /{entity.kpi_day_target > 0 ? entity.kpi_day_target : "—"}
+                </span>
+                {dayPct != null ? <span className="ml-1 text-xs font-normal text-gray-400">({dayPct}%)</span> : null}
+              </div>
+            ) : (
+              <div className="mt-1 text-xs text-gray-400">Tháng hiện tại</div>
+            )}
+          </div>
+        )}
         {entity.is_content_creator ? (
           <>
             <div className="rounded-xl bg-gray-50 px-3 py-2.5 text-center">

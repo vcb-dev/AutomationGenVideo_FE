@@ -13,13 +13,15 @@ import { TeamDashboard } from './components/TeamDashboard'
 import { PersonalDashboard } from './components/PersonalDashboard'
 import { ContentCreatorDashboard } from './components/ContentCreatorDashboard'
 import { ContentTeamLeaderDashboard } from './components/ContentTeamLeaderDashboard'
+import { ContentWinFailSection } from './components/ContentWinFailSection'
 
 // ── Date filter ───────────────────────────────────────────────────────────────
 
-type DatePreset = 'today' | '7days' | 'month' | 'last_month' | 'custom'
+type DatePreset = 'today' | 'yesterday' | '7days' | 'month' | 'last_month' | 'custom'
 
 const PRESETS: { key: DatePreset; label: string }[] = [
   { key: 'today',      label: 'Hôm nay' },
+  { key: 'yesterday',  label: 'Hôm qua' },
   { key: '7days',      label: '7 ngày qua' },
   { key: 'month',      label: 'Tháng này' },
   { key: 'last_month', label: 'Tháng trước' },
@@ -45,6 +47,12 @@ function getPresetRange(preset: DatePreset): { from: string; to: string } {
   switch (preset) {
     case 'today': {
       const s = fmt(today)
+      return { from: s, to: s }
+    }
+    case 'yesterday': {
+      const y = new Date(today)
+      y.setDate(y.getDate() - 1)
+      const s = fmt(y)
       return { from: s, to: s }
     }
     case '7days': {
@@ -342,6 +350,26 @@ export default function TaskAutoDashboard() {
         : data.scope === 'team'   ? <TeamDashboard d={data} periodLabel={periodLabel} productStats={productStats} />
         : <PersonalDashboard d={data} periodLabel={periodLabel} productStats={productStats} />
       }
+
+      {/* Content Win/Fail — chỉ số MỚI, tự tính từ view link bài đăng (1 link bất kỳ >10.000 view = win), tách biệt các số KPI nhập tay ở trên */}
+      {!(isLoading || teamsLoading) && (
+        <ContentWinFailSection
+          from={from}
+          to={to}
+          teamId={
+            isContentLeader ? contentTeamsLed[0]?.id
+              : data?.scope === 'team' ? data.team?.id
+              : data?.scope === 'global' ? (teamFilter || undefined)
+              : undefined
+          }
+          fixedUserId={
+            isContentMember || data?.scope === 'personal' ? user?.id
+              : data?.scope === 'global' ? (memberFilter || undefined)
+              : undefined
+          }
+          showGlobalTop={data?.scope === 'global'}
+        />
+      )}
 
     </div>
   )

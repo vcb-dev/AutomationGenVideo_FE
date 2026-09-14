@@ -2,6 +2,7 @@
 
 import { Users, VideoCamera, ArrowsClockwise, BookmarkSimple, Timer, CircleNotch, SealCheck } from '@phosphor-icons/react';
 import { DouyinProfile } from '@/services/scraperService';
+import DeleteChannelButton from './DeleteChannelButton';
 
 function formatNum(n: number): string {
   if (!n) return '0';
@@ -16,9 +17,10 @@ interface Props {
   onToggleBookmark: () => void;
   onToggleTracked?: () => void;
   onViewDetail: () => void;
+  onDelete?: () => void;
 }
 
-export default function DouyinProfileCard({ profile: p, onScrape, onToggleBookmark, onToggleTracked, onViewDetail }: Props) {
+export default function DouyinProfileCard({ profile: p, onScrape, onToggleBookmark, onToggleTracked, onViewDetail, onDelete }: Props) {
   const isProcessing = p.scraping_status === 'processing';
 
   return (
@@ -130,6 +132,7 @@ export default function DouyinProfileCard({ profile: p, onScrape, onToggleBookma
             <Timer size={14} weight={p.is_tracked ? 'fill' : 'regular'} />
           </button>
         )}
+        {onDelete && <DeleteChannelButton onDelete={onDelete} />}
       </div>
     </div>
   );

@@ -130,7 +130,8 @@ export default function DuplicateBlock({
 
 const NOTE_DUPLICATE_DETECTION =
   'Nhận diện bằng caption trùng khớp và độ dài video bằng nhau — không so file video, ' +
-  'nên video bị sửa lại caption sẽ không được tính là trùng.';
+  'nên video bị sửa lại caption sẽ không được tính là trùng. Riêng YouTube và Threads ' +
+  'không lấy được độ dài nên chỉ so caption, dễ báo trùng hơn thực tế.';
 
 function MetricCard({
   label,
@@ -332,12 +333,15 @@ function ChannelTable({ byChannel }: { byChannel: DuplicateByChannel[] }) {
                   {percent(ratio)}
                 </b>
               </div>
+              {/* Phần "Riêng" chính là nền của thanh — nền đó đã theo sáng/tối sẵn, nên vẽ
+                  thêm một đoạn màu cứng chỉ tổ chói ở chế độ tối. Quy đổi theo tổng video
+                  của kênh để đoạn "Trùng" vẫn đúng bề rộng. */}
               <SplitBar
                 cao={6}
                 className="my-1.5"
+                baseline={totalVideos}
                 segments={[
                   { gia_tri: duplicateVideos, mau: isWarning ? '#dd8a3e' : COLOR_PRIMARY, ten: 'Trùng' },
-                  { gia_tri: Math.max(0, totalVideos - duplicateVideos), mau: '#e2e8f0', ten: 'Riêng' },
                 ]}
               />
               <div className="text-[11.5px] text-slate-400 dark:text-slate-500 tabular-nums flex items-center justify-between">

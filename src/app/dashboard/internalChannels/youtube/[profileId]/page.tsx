@@ -13,6 +13,7 @@ import toast from 'react-hot-toast';
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService, YoutubeShort } from '@/services/scraperService';
 import { useScrapingStore } from '@/store/scraping-store';
+import { FilterSearch, FilterSelect, FilterNumber, FilterReset } from '../../components/FilterFields';
 
 function formatNum(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -45,13 +46,15 @@ function ShortCard({ short }: { short: YoutubeShort }) {
       rel="noopener noreferrer"
       className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg hover:scale-[1.01] transition-all duration-200 flex flex-col"
     >
-      <div className="relative aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[320px]">
+      <div className="relative aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden">
         {short.thumbnail_url ? (
           <img
             src={short.thumbnail_url}
             alt=""
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
             loading="lazy"
+            referrerPolicy="no-referrer"
+            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-slate-800 text-slate-500">
@@ -229,7 +232,13 @@ export default function OwnedYoutubeProfileDetailPage() {
           <div className="flex items-start gap-6">
             <div className="w-28 h-28 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden flex-shrink-0 ring-4 ring-slate-200 dark:ring-slate-600">
               {p.avatar_url ? (
-                <img src={p.avatar_url} alt={p.title} className="w-full h-full object-cover" />
+                <img
+                  src={p.avatar_url}
+                  alt={p.title}
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                  onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-red-50 dark:bg-red-900/30 text-red-400">
                   <Users size={40} />
@@ -338,36 +347,28 @@ export default function OwnedYoutubeProfileDetailPage() {
           Shorts {totalShorts > 0 && <span className="font-normal text-slate-500">({totalShorts})</span>}
         </h2>
 
-        <div className="flex flex-wrap items-center gap-3 mb-4">
-          <input
-            type="text"
+        <div className="flex flex-wrap items-center gap-3 mb-4 bg-card border border-border rounded-xl p-3 shadow-xs">
+          <FilterSearch
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={setSearch}
             placeholder="Tìm theo tiêu đề, hashtag..."
-            className="flex-1 min-w-[180px] max-w-sm px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
           />
-          <input
-            type="number"
+          <FilterNumber
             value={minViews}
-            onChange={e => setMinViews(e.target.value)}
+            onChange={setMinViews}
             placeholder="Min views"
-            className="w-28 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
           />
-          <select
+          <FilterSelect
             value={sortBy}
-            onChange={e => setSortBy(e.target.value as 'scraped' | 'views')}
-            className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          >
-            <option value="scraped">Mới cào về</option>
-            <option value="views">Nhiều views nhất</option>
-          </select>
+            onChange={val => setSortBy(val as 'scraped' | 'views')}
+            options={[
+              { value: 'scraped', label: 'Mới cào về' },
+              { value: 'views', label: 'Nhiều views nhất' },
+            ]}
+            placeholder="Sắp xếp"
+          />
           {hasFilters && (
-            <button
-              onClick={clearFilters}
-              className="px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-            >
-              Xóa bộ lọc
-            </button>
+            <FilterReset onClick={clearFilters} />
           )}
         </div>
 
@@ -387,13 +388,13 @@ export default function OwnedYoutubeProfileDetailPage() {
 
         {allShorts.length > 0 && (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3">
               {allShorts.map(s => (
                 <ShortCard key={s.video_id} short={s} />
               ))}
               {shortsQuery.isFetchingNextPage && Array.from({ length: 6 }).map((_, i) => (
                 <div key={`skel-${i}`} className="bg-card border border-border rounded-lg overflow-hidden animate-pulse">
-                  <div className="aspect-[9/16] max-h-[280px] bg-slate-200 dark:bg-slate-700" />
+                  <div className="aspect-[9/16] bg-slate-200 dark:bg-slate-700" />
                   <div className="p-3 space-y-2">
                     <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-full" />
                     <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-2/3" />

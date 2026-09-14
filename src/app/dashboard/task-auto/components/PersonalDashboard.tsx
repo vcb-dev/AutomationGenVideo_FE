@@ -15,6 +15,7 @@ import type { Task, TaskStatus } from '@/types/task-auto'
 import { StatCard } from './StatCard'
 import { DashboardCard } from './DashboardUI'
 import { VideoByLineCard } from './VideoByLineCard'
+import { ContentByClassificationCard } from './ContentByClassificationCard'
 import { ProductVideoBreakdownCard } from './ProductVideoBreakdownCard'
 import { TONE, CATEGORY, STATUS, TASK_STATUS_TO_KEY, kpiTone, type Tone } from './tokens'
 
@@ -93,7 +94,8 @@ function TaskRow({ task }: { task: Task }) {
     <Link
       href={`/dashboard/task-auto/tasks?id=${task.id}`}
       className={cn(
-        'group flex items-center gap-3 px-3.5 py-3 rounded-xl border transition-all hover:shadow-sm',
+        'group flex items-center gap-3 px-3.5 py-3 rounded-xl border transition-all hover:shadow-sm active:scale-[0.99]',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400',
         task.status === 'REJECTED'
           ? 'bg-red-50/80 border-red-100 hover:border-red-300'
           : overdue
@@ -101,7 +103,7 @@ function TaskRow({ task }: { task: Task }) {
             : 'bg-slate-50/50 border-slate-100/80 hover:border-indigo-200 hover:bg-indigo-50/30',
       )}
     >
-      <div className={cn('w-2 h-2 rounded-full shrink-0', cfg.dot)} />
+      <div className={cn('w-2 h-2 rounded-full shrink-0', cfg.dot)} aria-hidden />
 
       <div className="flex-1 min-w-0">
         <p className={cn('text-sm font-bold truncate leading-tight', task.status === 'REJECTED' ? 'text-red-700' : overdue ? 'text-red-700' : 'text-slate-800')}>
@@ -130,52 +132,16 @@ function TaskRow({ task }: { task: Task }) {
           {dl.text}
         </span>
       )}
-      <ArrowRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-indigo-400 transition-colors shrink-0" />
+      <ArrowRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-indigo-400 transition-colors shrink-0" aria-hidden />
     </Link>
   )
 }
 
-// ─── Rejected Tasks Panel ────────────────────────────────────────────────────
-
-function RejectedTasksPanel({ userId }: { userId: string }) {
-  const { data } = useQuery({
-    queryKey: ['task-auto', 'tasks-rejected', userId],
-    queryFn: () => getTasks({ assignee_id: userId, status: 'REJECTED', limit: 5 }),
-    enabled: !!userId,
-    refetchInterval: 60_000,
-  })
-
-  const tasks = data?.data ?? []
-  if (tasks.length === 0) return null
-
-  return (
-    <div className="bg-red-50/60 rounded-2xl border border-red-200 shadow-sm shadow-red-100 overflow-hidden">
-      <div className="px-5 py-4 border-b border-red-100/80 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
-            <AlertTriangle className="w-[18px] h-[18px] text-red-600" />
-          </div>
-          <div>
-            <h2 className="text-sm font-bold text-red-800 leading-tight tracking-tight">Cần xử lý lại</h2>
-            <p className="text-xs text-red-500 mt-0.5">Task bị từ chối — cần chỉnh sửa và nộp lại</p>
-          </div>
-          <span className="ml-1 px-2.5 py-0.5 text-xs font-bold bg-red-200 text-red-700 rounded-full">
-            {tasks.length}
-          </span>
-        </div>
-        <Link href="/dashboard/task-auto/tasks?status=REJECTED"
-          className="shrink-0 text-xs font-semibold text-red-600 hover:text-red-500 flex items-center gap-1">
-          Xem tất cả <ArrowRight className="w-3 h-3" />
-        </Link>
-      </div>
-      <div className="p-3 space-y-1.5">
-        {tasks.map(t => <TaskRow key={t.id} task={t} />)}
-      </div>
-    </div>
-  )
-}
-
 // ─── Daily Progress ─────────────────────────────────────────────────────────
+
+/** Cao tối đa của danh sách task (px) — chốt cứng để card không "tràn" theo số lượng task; phần
+ * dư cuộn trong khung, thay vì đẩy card dài mãi làm lệch lưới 2 cột cạnh biểu đồ. */
+const TASK_LIST_MAX_H = 'max-h-80'
 
 function DailyProgress({ userId, dailyKpiTarget = 0 }: { userId: string; dailyKpiTarget?: number }) {
   const today = new Date().toISOString().split('T')[0]
@@ -189,14 +155,28 @@ function DailyProgress({ userId, dailyKpiTarget = 0 }: { userId: string; dailyKp
   // xem tasks.service.ts findAll). Trước đây có gộp thêm MỌI task đang ở trạng thái "Đang làm"
   // bất kể deadline ngày nào, khiến task đang làm dở từ hôm trước/không liên quan hôm nay vẫn bị
   // tính vào tiến độ + mục tiêu hôm nay — sai lệch % hoàn thành và số liệu so với dailyKpiTarget.
-  const { data: todayData } = useQuery({
+  const { data: todayData, isLoading } = useQuery({
     queryKey: ['task-auto', 'tasks-today', userId, today],
     queryFn: () => getTasks({ assignee_id: userId, deadline_date: today, limit: 30 }),
     enabled: !!userId,
     refetchInterval: 60_000,
   })
 
+  // Task bị từ chối cần nộp lại có thể có hạn chót cũ (không rơi vào "hôm nay") nhưng vẫn cấp
+  // bách hơn mọi task khác — trước đây hiện ở 1 card riêng chiếm hẳn 1 hàng ngang, giờ gộp thẳng
+  // vào danh sách + chip của "Tiến độ hôm nay" cho gọn.
+  const { data: rejectedData } = useQuery({
+    queryKey: ['task-auto', 'tasks-rejected', userId],
+    queryFn: () => getTasks({ assignee_id: userId, status: 'REJECTED', limit: 5 }),
+    enabled: !!userId,
+    refetchInterval: 60_000,
+  })
+
   const merged: Task[] = todayData?.data ?? []
+  const rejectedTotal = rejectedData?.total ?? 0
+  // Chỉ những task bị từ chối CHƯA có mặt trong danh sách hôm nay mới cần chèn thêm — tránh trùng
+  // dòng khi task vừa bị từ chối vừa có hạn chót đúng hôm nay (đã nằm sẵn trong `merged`).
+  const extraRejected = (rejectedData?.data ?? []).filter(rt => !merged.some(m => m.id === rt.id))
 
   const ORDER: Record<TaskStatus, number> = {
     REJECTED: 0, IN_PROGRESS: 1, ASSIGNED: 2, PENDING: 3, SUBMITTED: 4, APPROVED: 5, CANCELLED: 6,
@@ -206,6 +186,8 @@ function DailyProgress({ userId, dailyKpiTarget = 0 }: { userId: string; dailyKp
     if (aO !== bO) return aO - bO
     return (ORDER[a.status] ?? 9) - (ORDER[b.status] ?? 9)
   })
+  // Task bị từ chối (kể cả hạn chót không phải hôm nay) luôn hiện đầu danh sách — cấp bách nhất.
+  const displayList = [...extraRejected, ...sorted]
 
   const done       = merged.filter(t => ['APPROVED', 'SUBMITTED'].includes(t.status)).length
   const total      = merged.filter(t => t.status !== 'CANCELLED').length
@@ -214,81 +196,108 @@ function DailyProgress({ userId, dailyKpiTarget = 0 }: { userId: string; dailyKp
 
   const barTone = pct === 100 ? 'success' : pct >= 60 ? 'brand' : 'warning'
 
-  const breakdown: { key: 'in_progress' | 'submitted' | 'approved' | 'rejected'; count: number }[] = [
+  const breakdown: { key: 'in_progress' | 'submitted' | 'approved'; count: number }[] = [
     { key: 'in_progress', count: merged.filter(t => t.status === 'IN_PROGRESS').length },
     { key: 'submitted',   count: merged.filter(t => t.status === 'SUBMITTED').length },
     { key: 'approved',    count: merged.filter(t => t.status === 'APPROVED').length },
-    { key: 'rejected',    count: merged.filter(t => t.status === 'REJECTED').length },
   ]
 
   return (
     <DashboardCard
-      icon={CalendarClock} iconColor="text-indigo-600" iconBg="bg-indigo-50"
       title="Tiến độ hôm nay"
       subtitle={dailyKpiTarget > 0 ? `${dateLabel} — Mục tiêu: ${dailyKpiTarget} video` : dateLabel}
       action={{ href: '/dashboard/task-auto/tasks', label: 'Xem tất cả' }}
       className="flex flex-col"
     >
-      {/* Progress summary */}
-      <div className="px-6 py-4 border-b border-slate-50">
-        <div className="flex items-center gap-5">
-          <div className="flex-1 space-y-2">
-            <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
-              <div className={cn('h-full rounded-full transition-all duration-700', TONE[barTone].bar)}
-                style={{ width: `${pct}%` }} />
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-500">
-                <span className="font-extrabold text-slate-800 text-sm">{done}</span>
-                <span className="text-slate-400"> / {total} nhiệm vụ</span>
-              </span>
-              <div className="flex items-center gap-2">
-                {overdueCnt > 0 && (
-                  <span className="flex items-center gap-1 text-red-500 font-bold bg-red-50 px-2 py-0.5 rounded-full">
-                    <Flame className="w-3 h-3" /> {overdueCnt} quá hạn
-                  </span>
-                )}
-                {pct === 100 && total > 0 && (
-                  <span className="flex items-center gap-1 text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full">
-                    <CheckCircle2 className="w-3 h-3" /> Hoàn thành!
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
+      {/* ── Progress summary ── */}
+      <div className="px-5 py-4 border-b border-slate-100">
+        <div className="flex items-end justify-between gap-2">
+          <p className="leading-none">
+            <span className="text-2xl font-black tabular-nums text-slate-900">{done}</span>
+            <span className="text-sm font-semibold text-slate-500"> / {total} nhiệm vụ</span>
+          </p>
+          <span className={cn('text-sm font-black tabular-nums', TONE[barTone].text)}>{pct}%</span>
         </div>
 
-        {/* Status breakdown */}
-        {total > 0 && (
-          <div className="flex gap-3 mt-3 pt-3 border-t border-slate-50">
+        <div className="mt-2 h-2.5 bg-slate-100 rounded-full overflow-hidden">
+          <div className={cn('h-full rounded-full transition-all duration-700', TONE[barTone].bar)}
+            style={{ width: `${pct}%` }} />
+        </div>
+
+        {/* Chips: cần xử lý lại + quá hạn + phân bố trạng thái + hoàn thành — bọc xuống dòng, mỗi chip không xuống dòng giữa chừng */}
+        {(total > 0 || rejectedTotal > 0) && (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            {rejectedTotal > 0 && (
+              <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-700">
+                <AlertTriangle className="w-3 h-3" aria-hidden /> {rejectedTotal} cần xử lý lại
+              </span>
+            )}
+            {overdueCnt > 0 && (
+              <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-bold text-red-600">
+                <Flame className="w-3 h-3" aria-hidden /> {overdueCnt} quá hạn
+              </span>
+            )}
             {breakdown.filter(s => s.count > 0).map(s => {
               const t = TONE[STATUS[s.key].tone]
               return (
-                <span key={s.key} className={cn('text-[11px] font-bold px-2 py-0.5 rounded-full', t.bg, t.text)}>
+                <span key={s.key} className={cn('inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold', t.bg, t.text)}>
                   {STATUS[s.key].label}: {s.count}
                 </span>
               )
             })}
+            {pct === 100 && (
+              <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-600">
+                <CheckCircle2 className="w-3 h-3" aria-hidden /> Hoàn thành
+              </span>
+            )}
           </div>
         )}
       </div>
 
-      {/* Task list */}
-      <div className="px-4 py-3 flex-1">
-        {sorted.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-10 gap-2 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center mb-1">
-              <CheckCircle2 className="w-6 h-6 text-slate-300" />
+      {/* ── Task list (chiều cao chốt cứng, cuộn trong khung) ── */}
+      {isLoading ? (
+        <div className="flex-1 px-4 py-3 space-y-1.5">
+          {[0, 1, 2].map(i => (
+            <div key={i} className="h-14 rounded-xl bg-slate-50 animate-pulse" />
+          ))}
+        </div>
+      ) : displayList.length === 0 ? (
+        <div className="flex flex-1 flex-col items-center justify-center py-9 gap-2 text-center">
+          <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center mb-1">
+            <CheckCircle2 className="w-6 h-6 text-slate-300" aria-hidden />
+          </div>
+          <p className="text-sm font-bold text-slate-400">Không có nhiệm vụ nào hôm nay</p>
+          <p className="text-xs text-slate-300">Thư giãn hoặc nhận thêm nhiệm vụ mới!</p>
+        </div>
+      ) : (
+        <div className="relative flex-1 flex flex-col min-h-0">
+          <div
+            tabIndex={0}
+            aria-label={`Danh sách nhiệm vụ hôm nay, ${displayList.length} mục`}
+            className={cn(
+              'custom-scrollbar flex-1 overflow-y-auto overscroll-contain',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-300',
+              TASK_LIST_MAX_H,
+            )}
+          >
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white/95 px-4 pt-3 pb-2 backdrop-blur-sm">
+              <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                {extraRejected.length > 0 ? 'Nhiệm vụ hôm nay + cần xử lý lại' : 'Nhiệm vụ hôm nay'}
+              </span>
+              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-slate-600">
+                {displayList.length}
+              </span>
             </div>
-            <p className="text-sm font-bold text-slate-400">Không có nhiệm vụ nào hôm nay</p>
-            <p className="text-xs text-slate-300">Thư giãn hoặc nhận thêm nhiệm vụ mới!</p>
+            <div className="px-4 py-3 space-y-1.5">
+              {displayList.map(t => <TaskRow key={t.id} task={t} />)}
+            </div>
           </div>
-        ) : (
-          <div className="space-y-1.5">
-            {sorted.map(t => <TaskRow key={t.id} task={t} />)}
-          </div>
-        )}
-      </div>
+          {/* Gợi ý còn nội dung bên dưới — chỉ khi danh sách dài hơn khung */}
+          {displayList.length > 5 && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-white to-transparent" />
+          )}
+        </div>
+      )}
     </DashboardCard>
   )
 }
@@ -363,13 +372,8 @@ export function PersonalDashboard({ d, periodLabel, productStats }: {
         />
       </div>
 
-      {/* ── Rejected tasks alert ── */}
-      {(tasks.rejected ?? 0) > 0 && user?.id && (
-        <RejectedTasksPanel userId={user.id} />
-      )}
-
-      {/* ── Main 2-col: Tiến độ hôm nay | Video theo tuyến nội dung ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+      {/* ── Main 2-col: Tiến độ hôm nay | Video theo tuyến nội dung (2 card cao bằng nhau — items-stretch) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
 
         {user?.id && <DailyProgress userId={user.id} dailyKpiTarget={d.daily_kpi_target ?? 0} />}
 
@@ -382,8 +386,8 @@ export function PersonalDashboard({ d, periodLabel, productStats }: {
 
       </div>
 
-      {/* ── 2-col: Video theo dòng sản phẩm | Sản phẩm được làm video — như màn Admin, thu hẹp về đúng chỉ số của riêng mình ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* ── 3-col: Video theo dòng sản phẩm | Content theo phân loại | Sản phẩm được làm video ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
 
         <VideoByLineCard
           data={(productStats?.video_by_product_line ?? []).map(p => ({ line: p.category, count: p.count }))}
@@ -393,6 +397,12 @@ export function PersonalDashboard({ d, periodLabel, productStats }: {
           icon={Video} iconColor={CATEGORY.video.text} iconBg={CATEGORY.video.bg}
           itemLabel="Dòng" unitLabel="video đã duyệt"
           emptyLabel="Chưa có video nào được duyệt theo dòng sản phẩm"
+        />
+
+        <ContentByClassificationCard
+          data={d.content_by_classification}
+          periodLabel={periodLabel}
+          subtitle="Của tôi"
         />
 
         <ProductVideoBreakdownCard

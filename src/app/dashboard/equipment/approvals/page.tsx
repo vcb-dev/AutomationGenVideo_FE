@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import {
   BorrowRequest,
@@ -9,6 +10,11 @@ import {
   fetchRequests,
   rejectRequest,
 } from '@/lib/equipment/request-api';
+import { ApprovalOutcome, approvalOutcome } from '@/lib/equipment/approval-outcome';
+import { StepBar } from '@/components/equipment/StepBar';
+import { WorkflowSuccessModal } from '@/components/equipment/WorkflowSuccessModal';
+import { RequireCatalogManager } from '@/components/equipment/RequireCatalogManager';
+import { apiErrorMessage } from '@/lib/equipment/api-error';
 
 const cardClass =
   'rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/[0.08] dark:bg-white/[0.03]';
@@ -17,7 +23,25 @@ const valueClass = 'mt-0.5 text-sm text-slate-900 dark:text-white';
 const inputClass =
   'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-white';
 
-const fmt = (iso: string) => new Date(iso).toLocaleString('vi-VN');
+const formatTimeRange = (fromIso?: string | null, toIso?: string | null) => {
+  if (!fromIso) return '—';
+  const from = new Date(fromIso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const fromTime = `${pad(from.getHours())}:${pad(from.getMinutes())}`;
+  const fromDate = `${pad(from.getDate())}/${pad(from.getMonth() + 1)}/${from.getFullYear()}`;
+
+  if (!toIso) return `${fromTime} ${fromDate}`;
+  const to = new Date(toIso);
+  const toTime = `${pad(to.getHours())}:${pad(to.getMinutes())}`;
+  const toDate = `${pad(to.getDate())}/${pad(to.getMonth() + 1)}/${to.getFullYear()}`;
+
+  if (fromDate === toDate) {
+    return `${fromTime} – ${toTime} · ${fromDate}`;
+  }
+  return `${fromTime} ${fromDate} → ${toTime} ${toDate}`;
+};
+
+const fmt = (iso?: string | null) => (iso ? new Date(iso).toLocaleString('vi-VN') : '—');
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING_APPROVAL: 'chờ duyệt',
@@ -31,16 +55,17 @@ const STATUS_LABEL: Record<string, string> = {
   DRAFT: 'nháp',
 };
 
-export default function ApprovalsPage() {
+function ApprovalsPageInner() {
   const [requests, setRequests] = useState<BorrowRequest[]>([]);
   const [current, setCurrent] = useState<BorrowRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [outcome, setOutcome] = useState<ApprovalOutcome | null>(null);
 
   const load = useCallback(async (keepId?: string) => {
-    const list = await fetchRequests();
+    const list = await fetchRequests('PENDING_APPROVAL');
     setRequests(list);
     const target = keepId ? list.find((r) => r.id === keepId) : list[0];
     setCurrent(target ?? null);
@@ -48,13 +73,15 @@ export default function ApprovalsPage() {
 
   useEffect(() => {
     load()
-      .catch(() => setError('Không đọc được danh sách phiếu.'))
+      .catch((e: unknown) => setError(apiErrorMessage(e, 'Không đọc được danh sách phiếu.')))
       .finally(() => setLoading(false));
   }, [load]);
 
   const select = async (id: string) => {
     setReason('');
     setError('');
+    // Kết quả của phiếu trước không được dính sang phiếu sau.
+    setOutcome(null);
     // Gọi chi tiết riêng vì danh sách không kèm máy đã ghim ở từng dòng.
     setCurrent(await fetchRequest(id));
   };
@@ -68,15 +95,16 @@ export default function ApprovalsPage() {
     setSaving(true);
     setError('');
     try {
-      if (kind === 'approve') await approveRequest(current.id, reason.trim() || undefined);
-      else await rejectRequest(current.id, reason.trim());
+      const targetId = current.id;
+      if (kind === 'approve') await approveRequest(targetId, reason.trim() || undefined);
+      else await rejectRequest(targetId, reason.trim());
       setReason('');
-      await load(current.id);
-      setCurrent(await fetchRequest(current.id));
+      const refreshed = await fetchRequest(targetId);
+      setOutcome(approvalOutcome(refreshed));
+      await load();
     } catch (e: unknown) {
       setError(
-        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-          'Không ghi được quyết định.',
+        apiErrorMessage(e, 'Không ghi được quyết định.'),
       );
     } finally {
       setSaving(false);
@@ -91,15 +119,38 @@ export default function ApprovalsPage() {
       <header className="mb-5">
         <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Duyệt phiếu mượn</h1>
         <p className="mt-1 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
-          Chọn một phiếu ở danh sách bên trái để xem chi tiết và ra quyết định. Từ chối bắt buộc
-          nhập lý do và nhả giữ chỗ ngay.
+          Chỉ hiển thị các phiếu đang chờ duyệt. Sau khi duyệt, phiếu sẽ chuyển sang Bước 2 (Gán máy & In phiếu).
         </p>
       </header>
+
+      <StepBar current="approvals" />
 
       {loading ? (
         <p className="text-slate-500">Đang tải…</p>
       ) : requests.length === 0 ? (
-        <p className={cn(cardClass, 'p-8 text-center text-slate-500')}>Chưa có phiếu mượn nào.</p>
+        <div className={cn(cardClass, 'p-8 text-center')}>
+          <div className="text-3xl mb-2">🎉</div>
+          <h3 className="text-base font-bold text-slate-900 dark:text-white">
+            Hiện không có phiếu nào đang chờ duyệt
+          </h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
+            Các phiếu đã duyệt được chuyển sang Bước 2 (Chuẩn bị & Bàn giao). Toàn bộ lịch sử các phiếu đã duyệt, từ chối hoặc đã huỷ được lưu đầy đủ trong mục Nhật ký mượn.
+          </p>
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+            <Link
+              href="/dashboard/equipment/handover"
+              className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700 transition-colors"
+            >
+              Sang Bước 2: Chuẩn bị & Bàn giao →
+            </Link>
+            <Link
+              href="/dashboard/equipment/borrow-history"
+              className="rounded-xl border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-white/[0.12] dark:text-slate-300 dark:hover:bg-white/[0.05] transition-colors"
+            >
+              Xem Nhật ký mượn thiết bị
+            </Link>
+          </div>
+        </div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[20rem_minmax(0,1fr)]">
           <section className={cn(cardClass, 'self-start overflow-hidden')}>
@@ -128,8 +179,8 @@ export default function ApprovalsPage() {
                       <span className="block text-xs text-slate-500 dark:text-slate-400">
                         {r.project}
                       </span>
-                      <span className="mt-1 block text-xs text-slate-400">
-                        {fmt(r.from_time)} → {fmt(r.to_time)}
+                      <span className="mt-1 block text-xs text-slate-400 font-mono">
+                        {formatTimeRange(r.from_time, r.to_time)}
                       </span>
                     </span>
                     <span
@@ -170,8 +221,8 @@ export default function ApprovalsPage() {
               </div>
 
               <div className="p-5">
-                <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-5 dark:border-white/[0.06] dark:bg-white/[0.02]">
-                  <dl className="grid grid-cols-[repeat(auto-fit,minmax(10rem,1fr))] gap-5">
+                <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-4 sm:p-5 dark:border-white/[0.06] dark:bg-white/[0.02]">
+                  <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
                     <div>
                       <dt className={keyClass}>Bộ phận</dt>
                       <dd className={valueClass}>{current.department?.name ?? '—'}</dd>
@@ -181,13 +232,27 @@ export default function ApprovalsPage() {
                       <dd className={valueClass}>{current.project}</dd>
                     </div>
                     <div>
+                      {/* Mục đích là thứ quyết định số cấp duyệt — người ký phải thấy nó ngay,
+                          không phải suy ngược từ con số "2 cấp". */}
+                      <dt className={keyClass}>Mục đích</dt>
+                      <dd className={valueClass}>
+                        {current.purpose === 'PERSONAL' ? (
+                          <span className="rounded-md bg-amber-50 px-2 py-0.5 font-semibold text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                            Việc riêng
+                          </span>
+                        ) : (
+                          'Việc của công ty'
+                        )}
+                      </dd>
+                    </div>
+                    <div>
                       <dt className={keyClass}>Địa điểm</dt>
                       <dd className={valueClass}>{current.place}</dd>
                     </div>
-                    <div>
+                    <div className="col-span-2 sm:col-span-3">
                       <dt className={keyClass}>Khoảng mượn</dt>
-                      <dd className={valueClass}>
-                        {fmt(current.from_time)} → {fmt(current.to_time)}
+                      <dd className={cn(valueClass, 'font-medium font-mono text-xs sm:text-sm')}>
+                        {formatTimeRange(current.from_time, current.to_time)}
                       </dd>
                     </div>
                     <div>
@@ -216,12 +281,29 @@ export default function ApprovalsPage() {
                         className="border-b border-slate-100 last:border-0 dark:border-white/[0.05]"
                       >
                         <td className="px-5 py-3 font-medium text-slate-900 dark:text-white">
-                          {line.model.name}
-                          <span className="ml-2 text-xs font-normal text-slate-400">
-                            {line.model.category.name}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span>{line.model.name}</span>
+                            <span className="text-xs font-normal text-slate-400">
+                              ({line.model.category.name})
+                            </span>
+                          </div>
+                          {line.model.accessories && line.model.accessories.length > 0 && (
+                            <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px] font-normal text-slate-500 dark:text-slate-400">
+                              <span className="font-semibold text-slate-600 dark:text-slate-300">
+                                🎁 Phụ kiện đi kèm:
+                              </span>
+                              {line.model.accessories.map((acc, idx) => (
+                                <span
+                                  key={acc.id || idx}
+                                  className="inline-flex items-center rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700 dark:bg-white/[0.08] dark:text-slate-300"
+                                >
+                                  ✓ {acc.name}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </td>
-                        <td className="px-5 py-3">{line.quantity}</td>
+                        <td className="px-5 py-3 font-semibold">{line.quantity}</td>
                         <td className="px-5 py-3">
                           <span
                             className={cn(
@@ -241,6 +323,22 @@ export default function ApprovalsPage() {
               </div>
 
               <div className="p-5">
+                {/* Kết quả vừa ký. Đứng trên mọi thứ khác vì đó là thứ người dùng đang chờ thấy. */}
+                {outcome && (
+                  <div
+                    className={cn(
+                      'mb-4 rounded-lg border p-3 text-sm',
+                      outcome.kind === 'ready-to-prepare'
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-200'
+                        : outcome.kind === 'rejected'
+                          ? 'border-red-200 bg-red-50 text-red-900 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200'
+                          : 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200',
+                    )}
+                  >
+                    <p className="leading-relaxed">{outcome.message}</p>
+                  </div>
+                )}
+
                 {current.required_levels === 2 && (
                   <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
                     Phiếu cần <b>2 cấp duyệt</b>: {current.approval_reasons.join(', ')}.
@@ -317,6 +415,28 @@ export default function ApprovalsPage() {
           )}
         </div>
       )}
+
+      <WorkflowSuccessModal
+        open={outcome?.kind === 'ready-to-prepare'}
+        onClose={() => setOutcome(null)}
+        title="Duyệt phiếu thành công!"
+        message={outcome?.message || 'Phiếu mượn đã đủ chữ ký và sẵn sàng cho bước chuẩn bị & bàn giao.'}
+        nextHref={outcome?.kind === 'ready-to-prepare' ? outcome.nextHref : '/dashboard/equipment/handover'}
+        nextLabel="Sang bước Bàn giao ngay →"
+        stayLabel="Ở lại duyệt tiếp"
+      />
     </div>
+  );
+}
+
+/**
+ * Ẩn đầu mục trên thanh điều hướng là chưa đủ — gõ thẳng địa chỉ vẫn vào được trang.
+ * Cửa canh thật nằm ở `MemsMediaLeaderGuard` phía BE.
+ */
+export default function ApprovalsPage() {
+  return (
+    <RequireCatalogManager>
+      <ApprovalsPageInner />
+    </RequireCatalogManager>
   );
 }

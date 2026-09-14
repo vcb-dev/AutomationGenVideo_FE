@@ -148,6 +148,7 @@ export function ProductFormModal({ open, editing, userId, title, defaultBrandTyp
 
   const handleSubmit = () => {
     if (!form.sku?.trim() || !form.name?.trim()) return toast.error('SKU và tên là bắt buộc')
+    if (!form.image_urls || form.image_urls.length === 0) return toast.error('Ảnh sản phẩm là bắt buộc')
     if (markets.length === 0) return toast.error('Chọn ít nhất một thị trường')
     if (!isEdit && sourceDraft.enabled && (!sourceDraft.name || !sourceDraft.link)) return toast.error('Source cần có tên và link')
     mut.mutate()

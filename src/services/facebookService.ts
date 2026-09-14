@@ -15,6 +15,19 @@ function buildParams(filters: Record<string, any>): string {
 }
 
 export const facebookService = {
+  // Import / Đồng bộ pages từ Facebook (gọi POST /api/facebook/import/)
+  importPages: async (token: string): Promise<{ status: string; created: number; updated: number; message: string }> => {
+    const res = await fetchWithAuth(`${API_URL}/facebook/import/`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Không thể import kênh từ Facebook');
+    }
+    return res.json();
+  },
+
   // Import pages metadata từ Facebook (nhẹ, không cào video)
   syncAndGetPages: async (token: string): Promise<FacebookPage[]> => {
     const importRes = await fetchWithAuth(`${API_URL}/facebook/import/`, {

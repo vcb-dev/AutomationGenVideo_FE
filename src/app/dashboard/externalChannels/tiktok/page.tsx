@@ -2,19 +2,23 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CircleNotch, FilmReel, Warning, MagnifyingGlassPlus, VideoCamera, UserCircle, Sparkle, Globe } from '@phosphor-icons/react';
+import { CircleNotch, FilmReel, Warning, MagnifyingGlassPlus, VideoCamera, UserCircle, Sparkle, Globe, Timer, BookmarkSimple, MagnifyingGlass, X, ArrowsDownUp, Eye, Tag } from '@phosphor-icons/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 
 import TikTokVideoCard from '../components/TikTokVideoCard';
 import TikTokProfileCard from '../components/TikTokProfileCard';
+import FilterSelect from '../components/FilterSelect';
+import { DatePicker } from '@/components/ui/DatePicker';
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService } from '@/services/scraperService';
 import { useScrapingStore } from '@/store/scraping-store';
 import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
 import { UserRole } from '@/types/auth';
 import { dedupeById } from '@/lib/dedupe-pages';
+import SyncAllChannelsButton from '../components/SyncAllChannelsButton';
+import { buildDeleteChannelConfirm } from '@/lib/scrape/delete-channel';
 import WatchFeedButton from '../components/WatchFeedButton';
 
 type Tab = 'videos' | 'profiles';
@@ -29,6 +33,29 @@ export default function TiktokExternalPage() {
   const { addNotification, updateNotification } = useScrapingStore();
   const { start: startProfileScrapeNotif } = useProfileScrapeNotification('tiktok');
 
+  // Xoá cứng kênh: BE xoá kèm toàn bộ video/lịch sử, không hoàn tác được. Hộp xác nhận
+  // phải nói số video sắp mất — trên thẻ thì kênh 300 video trông y hệt kênh rỗng.
+  const deleteChannelMutation = useMutation({
+    mutationFn: (id: number) => {
+      if (!token) throw new Error('No token');
+      return scraperService.deleteExternalChannel(token, 'tiktok', id);
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['tiktok-profiles'] });
+      toast.success(
+        data.videos_deleted > 0
+          ? `Đã xoá ${data.name} và ${data.videos_deleted.toLocaleString('vi-VN')} video`
+          : `Đã xoá ${data.name}`,
+      );
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const handleDeleteChannel = (id: number, name: string, videoCount: number) => {
+    if (!window.confirm(buildDeleteChannelConfirm({ name, videoCount }))) return;
+    deleteChannelMutation.mutate(id);
+  };
+
   // Tab state
   const [activeTab, setActiveTab] = useState<Tab>('videos');
 
@@ -38,6 +65,7 @@ export default function TiktokExternalPage() {
   const [debouncedProfileSearch, setDebouncedProfileSearch] = useState('');
   const [profilePage, setProfilePage] = useState(1);
   const [profileSortBy, setProfileSortBy] = useState<'followers' | 'recent'>('followers');
+  const [profileTab, setProfileTab] = useState<'all' | 'periodic' | 'bookmarked'>('all');
   const profileSearchTimer = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
@@ -45,8 +73,8 @@ export default function TiktokExternalPage() {
     return () => clearTimeout(profileSearchTimer.current);
   }, [profileSearch]);
 
-  const hasProfileFilters = !!profileSearch || profileSortBy !== 'followers';
-  const clearProfileFilters = () => { setProfileSearch(''); setProfileSortBy('followers'); };
+  const hasProfileFilters = !!profileSearch || profileSortBy !== 'followers' || profileTab !== 'all';
+  const clearProfileFilters = () => { setProfileSearch(''); setProfileSortBy('followers'); setProfileTab('all'); };
 
   // Search state
   const [keyword, setKeyword] = useState('');
@@ -203,13 +231,20 @@ export default function TiktokExternalPage() {
 
   // ─── Profiles Query (paginated) ──────────────────────
   const profilesQuery = useQuery({
-    queryKey: ['tiktok-profiles', profilePage, debouncedProfileSearch, profileSortBy],
+    queryKey: ['tiktok-profiles', profilePage, debouncedProfileSearch, profileSortBy, profileTab],
     queryFn: () => token ? scraperService.getTiktokProfiles(token, {
       page: profilePage, page_size: PAGE_SIZE_PROFILES, search: debouncedProfileSearch || undefined,
-      sort_by: profileSortBy,
+      sort_by: profileSortBy, is_owned: false,
+      tracked: profileTab === 'periodic' ? 'true' : undefined,
+      bookmarked: profileTab === 'bookmarked' ? 'true' : undefined,
     }) : Promise.reject('No token'),
     enabled: !!token && activeTab === 'profiles',
-    refetchInterval: 15000,
+    refetchInterval: (query) => {
+      const hasProcessing = query.state.data?.profiles?.some(
+        (p) => p.scraping_status === 'processing'
+      );
+      return hasProcessing ? 3000 : 15000;
+    },
   });
 
   const profiles = profilesQuery.data?.profiles || [];
@@ -360,48 +395,82 @@ export default function TiktokExternalPage() {
           )}
 
           {/* Filter bar */}
-          <div className="flex flex-wrap items-center gap-3 border border-border rounded-xl p-4">
-            <input
-              type="text"
-              value={filterSearch}
-              onChange={e => setFilterSearch(e.target.value)}
-              placeholder="Lọc theo caption, hashtag..."
-              className="flex-1 min-w-[180px] max-w-sm px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            />
+          <div className="flex flex-wrap items-center gap-2.5 bg-card border border-border rounded-xl p-3 shadow-xs">
+            <div className="relative flex-1 min-w-[180px] max-w-sm">
+              <MagnifyingGlass size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={filterSearch}
+                onChange={e => setFilterSearch(e.target.value)}
+                placeholder="Lọc theo caption, hashtag..."
+                className="w-full pl-9 pr-8 py-2 text-sm border border-border rounded-lg bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all"
+              />
+              {filterSearch && (
+                <button
+                  type="button"
+                  onClick={() => setFilterSearch('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
             {/* Keyword filter */}
-            <select
+            <FilterSelect
               value={filterKeyword}
-              onChange={e => setFilterKeyword(e.target.value)}
-              className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            >
-              <option value="">Tất cả keyword</option>
-              {suggestions.length > 0
-                ? suggestions.map(s => <option key={s.keyword} value={s.keyword}>{s.keyword} ({s.count})</option>)
-                : allKeywords.map(k => <option key={k} value={k}>{k}</option>)
-              }
-            </select>
-            <input
-              type="number"
-              value={minPlays}
-              onChange={e => setMinPlays(e.target.value)}
-              placeholder="Min View"
-              className="w-28 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              onChange={setFilterKeyword}
+              options={[
+                { value: '', label: 'Tất cả keyword' },
+                ...(suggestions.length > 0
+                  ? suggestions.map(s => ({ value: s.keyword, label: s.keyword, count: s.count }))
+                  : allKeywords.map(k => ({ value: k, label: k }))),
+              ]}
+              placeholder="Tất cả keyword"
+              icon={<Tag size={15} />}
+              searchPlaceholder="Tìm keyword..."
             />
-            <select
+            {/* Min View */}
+            <div className="relative w-32">
+              <Eye size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                type="number"
+                value={minPlays}
+                onChange={e => setMinPlays(e.target.value)}
+                placeholder="Min View"
+                className="w-full pl-8 pr-6 py-2 text-sm border border-border rounded-lg bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+              {minPlays && (
+                <button
+                  type="button"
+                  onClick={() => setMinPlays('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+            {/* Sort */}
+            <FilterSelect
               value={sortBy}
-              onChange={e => setSortBy(e.target.value)}
-              className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            >
-              <option value="scraped">Mới cào về</option>
-              <option value="date">Ngày đăng mới nhất</option>
-              <option value="plays">Nhiều views nhất</option>
-              <option value="likes">Nhiều likes nhất</option>
-            </select>
-            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none" title="Từ ngày" />
-            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none" title="Đến ngày" />
+              onChange={setSortBy}
+              options={[
+                { value: 'scraped', label: 'Mới cào về' },
+                { value: 'date', label: 'Ngày đăng mới nhất' },
+                { value: 'plays', label: 'Nhiều views nhất' },
+                { value: 'likes', label: 'Nhiều likes nhất' },
+              ]}
+              placeholder="Sắp xếp"
+              icon={<ArrowsDownUp size={15} />}
+            />
+            <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="Từ ngày" />
+            <DatePicker value={dateTo} onChange={setDateTo} placeholder="Đến ngày" align="right" />
             {hasFilters && (
-              <button onClick={clearFilters} className="px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50">
-                Xóa bộ lọc
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-950/20 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/30 transition-all cursor-pointer select-none ml-auto sm:ml-0"
+              >
+                <X size={13} weight="bold" /> Xóa bộ lọc
               </button>
             )}
           </div>
@@ -440,11 +509,11 @@ export default function TiktokExternalPage() {
           {/* Grid */}
           {allVideos.length > 0 && (
             <>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4">
                 {allVideos.map(v => <TikTokVideoCard key={v.post_id} video={v} />)}
                 {videosQuery.isFetchingNextPage && Array.from({ length: 6 }).map((_, i) => (
                   <div key={`skel-${i}`} className="bg-card border border-border rounded-lg overflow-hidden animate-pulse">
-                    <div className="aspect-[9/16] max-h-[280px] bg-slate-200 dark:bg-slate-700" />
+                    <div className="aspect-[9/16] bg-slate-200 dark:bg-slate-700" />
                     <div className="p-3 space-y-2"><div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-full" /><div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-2/3" /></div>
                   </div>
                 ))}
@@ -490,28 +559,73 @@ export default function TiktokExternalPage() {
             </div>
           )}
 
-          {/* Filter bar */}
-          <div className="flex flex-wrap items-center gap-3 border border-border rounded-xl p-4">
-            <input
-              type="text"
-              value={profileSearch}
-              onChange={e => setProfileSearch(e.target.value)}
-              placeholder="Tìm theo username, tên..."
-              className="flex-1 min-w-[180px] max-w-sm px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            />
-            <select
-              value={profileSortBy}
-              onChange={e => setProfileSortBy(e.target.value as 'followers' | 'recent')}
-              className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            >
-              <option value="followers">Nhiều followers nhất</option>
-              <option value="recent">Mới thêm gần đây</option>
-            </select>
-            {hasProfileFilters && (
-              <button onClick={clearProfileFilters} className="px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50">
-                Xóa bộ lọc
+          {/* Filter bar: Tabs + Search + Sort + Sync button */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border border-border rounded-xl p-4">
+            {/* Filter Tabs: Tất cả | Kênh chú ý | Đã lưu */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg w-fit">
+              <button
+                type="button"
+                onClick={() => { setProfileTab('all'); setProfilePage(1); }}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                  profileTab === 'all'
+                    ? 'bg-card text-foreground shadow-sm'
+                    : 'text-slate-500 hover:text-foreground'
+                }`}
+              >
+                Tất cả
               </button>
-            )}
+              <button
+                type="button"
+                onClick={() => { setProfileTab('periodic'); setProfilePage(1); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                  profileTab === 'periodic'
+                    ? 'bg-card text-emerald-600 dark:text-emerald-400 shadow-sm'
+                    : 'text-slate-500 hover:text-emerald-600'
+                }`}
+              >
+                <Timer size={14} weight="fill" />
+                Kênh chú ý
+              </button>
+              <button
+                type="button"
+                onClick={() => { setProfileTab('bookmarked'); setProfilePage(1); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                  profileTab === 'bookmarked'
+                    ? 'bg-card text-amber-600 dark:text-amber-400 shadow-sm'
+                    : 'text-slate-500 hover:text-amber-600'
+                }`}
+              >
+                <BookmarkSimple size={14} weight="fill" />
+                Đã lưu
+              </button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <input
+                type="text"
+                value={profileSearch}
+                onChange={e => setProfileSearch(e.target.value)}
+                placeholder="Tìm theo username, tên..."
+                className="w-full sm:w-56 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              />
+              <FilterSelect
+                value={profileSortBy}
+                onChange={val => setProfileSortBy(val as 'followers' | 'recent')}
+                options={[
+                  { value: 'followers', label: 'Nhiều followers nhất' },
+                  { value: 'recent', label: 'Mới thêm gần đây' },
+                ]}
+                placeholder="Sắp xếp"
+              />
+              {hasProfileFilters && (
+                <button onClick={clearProfileFilters} className="px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50">
+                  Xóa bộ lọc
+                </button>
+              )}
+              {canManageChannels && (
+                <SyncAllChannelsButton platform="tiktok" channelCount={profileTotal} />
+              )}
+            </div>
           </div>
 
           {/* Profiles count */}
@@ -528,10 +642,22 @@ export default function TiktokExternalPage() {
 
           {/* Empty */}
           {!profilesQuery.isLoading && profiles.length === 0 && (
-            <div className="flex flex-col items-center py-16 gap-4 bg-card border border-border rounded-xl">
+            <div className="flex flex-col items-center py-16 gap-3 bg-card border border-border rounded-xl text-center">
               <UserCircle size={40} className="text-slate-300" />
-              <p className="text-sm text-foreground font-medium">Chưa có profile nào</p>
-              <p className="text-xs text-slate-400 text-center max-w-sm">Nhập TikTok username ở trên để bắt đầu cào.</p>
+              <p className="text-sm text-foreground font-medium">
+                {profileTab === 'periodic'
+                  ? 'Chưa có kênh nào được đánh dấu chú ý.'
+                  : profileTab === 'bookmarked'
+                  ? 'Chưa có kênh nào được lưu.'
+                  : 'Chưa có profile nào'}
+              </p>
+              <p className="text-xs text-slate-400 max-w-sm">
+                {profileTab === 'periodic'
+                  ? 'Bấm vào biểu tượng chiếc đồng hồ ở góc dưới mỗi thẻ kênh để thêm vào danh sách theo dõi.'
+                  : profileTab === 'bookmarked'
+                  ? 'Bấm vào biểu tượng bookmark để lưu kênh.'
+                  : 'Nhập TikTok username ở trên để bắt đầu cào.'}
+              </p>
             </div>
           )}
 
@@ -546,6 +672,7 @@ export default function TiktokExternalPage() {
                   onToggleBookmark={() => profileToggleMutation.mutate({ id: p.id, field: 'is_bookmarked' })}
                   onToggleTracked={canManageChannels ? () => profileToggleMutation.mutate({ id: p.id, field: 'is_tracked' }) : undefined}
                   onViewDetail={() => router.push(`/dashboard/externalChannels/tiktok/${p.id}`)}
+                  onDelete={canManageChannels ? () => handleDeleteChannel(p.id, p.nickname || p.username, p.videos_count ?? 0) : undefined}
                 />
               ))}
             </div>

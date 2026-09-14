@@ -6,20 +6,22 @@ export interface EmployeeInfoValues {
   employeeName: string;
   employeeTeam: string;
   employeeId: string;
-  employeeTitlePrefix: string;
   position: IdPhotoPosition;
 }
 
-/** Đủ để bật nút submit: 3 field bắt buộc in trên thẻ. Tiền tố chức danh là tuỳ chọn nên
- * KHÔNG tính vào đây (khớp CreateIdPhotoDto/UpdateIdPhotoDto bên BE). Dùng chung cho cả bước 3
- * lẫn panel "Sửa thông tin" ở bước 4 để hai nơi không lệch điều kiện hợp lệ. */
+/** Đủ để bật nút submit: 3 field bắt buộc in trên thẻ. Dùng chung cho cả bước 3 lẫn panel
+ * "Sửa thông tin" ở bước 4 để hai nơi không lệch điều kiện hợp lệ.
+ * (Field "Tiền tố chức danh" đã bị bỏ hẳn — xem ghi chú ở dưới.) */
 export function isEmployeeInfoValid(v: EmployeeInfoValues): boolean {
   return Boolean(v.employeeName.trim() && v.employeeTeam.trim() && v.employeeId.trim());
 }
 
 /**
- * 4 ô nhập + chọn cấp bậc — phần THÂN dùng chung của bước 3 (InfoStep, lúc tạo mới) và panel
+ * 3 ô nhập + chọn cấp bậc — phần THÂN dùng chung của bước 3 (InfoStep, lúc tạo mới) và panel
  * "Sửa thông tin" ở bước 4 (ExportStep, lúc sửa bản ghi đã tạo).
+ *
+ * [ĐÃ BỎ từ 2026-09-09] Ô "Tiền tố chức danh" (employeeTitlePrefix) đã gỡ khỏi CẢ luồng đơn lẻ
+ * lẫn hàng loạt: BE không nhận/trả nữa, thẻ PDF chỉ in tên thường. Cột DB vẫn còn cho dữ liệu cũ.
  *
  * Tách ra để hai nơi không bao giờ lệch nhau: thêm/bớt một field, đổi maxLength hay đổi
  * POSITION_OPTIONS chỉ phải sửa đúng một chỗ. Component này CHỈ hiển thị — không giữ state,
@@ -81,22 +83,6 @@ export function EmployeeInfoFields({
               placeholder="VD: VCB12345"
               className={inputClass}
             />
-          </div>
-          {/* Tuỳ chọn — bỏ trống thì thẻ chỉ in tên, KHÔNG chặn nút submit (xem isEmployeeInfoValid) */}
-          <div>
-            <label className="block text-xs font-semibold text-[#464554] mb-1.5">
-              Tiền tố chức danh <span className="font-normal text-[#9c9aa8]">(không bắt buộc)</span>
-            </label>
-            <input
-              type="text"
-              value={values.employeeTitlePrefix}
-              disabled={disabled}
-              onChange={(e) => onChange({ employeeTitlePrefix: e.target.value })}
-              placeholder="VD: HĐ."
-              maxLength={20}
-              className={inputClass}
-            />
-            <p className="text-[11px] text-[#9c9aa8] mt-1">In trước tên trên thẻ, ví dụ &quot;HĐ. BẢO VIỆT&quot;.</p>
           </div>
         </div>
       </div>

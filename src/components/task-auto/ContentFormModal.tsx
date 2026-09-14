@@ -411,6 +411,8 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
   const saving = createMut.isPending || updateMut.isPending || resolvingVoice
 
   const handleSubmit = async () => {
+    if (!form.title?.trim()) return toast.error('Tiêu đề content là bắt buộc')
+
     setResolvingVoice(true)
     let voice_url: string
     try {
@@ -487,7 +489,7 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
               onChange={e => setForm(f => ({ ...f, code: e.target.value }))}
             />
             <DarkInput
-              label="Tiêu đề content"
+              label="Tiêu đề content *"
               placeholder="Nhập tiêu đề..."
               value={form.title ?? ''}
               onChange={e => setForm(f => ({ ...f, title: e.target.value }))}

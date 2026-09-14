@@ -2,13 +2,16 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useInfiniteQuery } from '@tanstack/react-query';
-import { ArrowLeft, ExternalLink, Heart, MessageCircle, Share2, Eye, Loader2, VideoOff, Play, Volume2, VolumeX } from 'lucide-react';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft, ExternalLink, Heart, MessageCircle, Share2, Eye, Loader2, VideoOff, Play, Volume2, VolumeX, Trash2, Sparkles, Shuffle, BookmarkCheck } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useAuthStore } from '@/store/auth-store';
 import { fetchFeedPage, type FeedVideo } from '@/lib/feed-source';
 import { planPlayback } from '@/lib/video-playback';
 import { dedupeById } from '@/lib/dedupe-pages';
 import { fetchWithAuth } from '@/lib/api-client';
+import { scraperService } from '@/services/scraperService';
+import { useSubmitVideoToLibrary } from '@/hooks/useProposeVideo';
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
 
@@ -36,6 +39,9 @@ function Slide({
     setTatTieng,
     hoiLyDo,
     lyDoChung,
+    onPropose,
+    isProposed,
+    onDelete,
 }: {
     video: FeedVideo;
     active: boolean;
@@ -44,20 +50,16 @@ function Slide({
     nearby: boolean;
     /** Đi kèm vào URL phát — thẻ <video> không gửi được header Authorization. */
     token: string;
-    /** Do trang cha giữ, KHÔNG để mỗi khung tự giữ: bật tiếng ở video này rồi cuộn xuống
-     *  video sau lại bị tắt tiếng, phải bật đi bật lại từng cái. */
     tatTieng: boolean;
     setTatTieng: (v: (prev: boolean) => boolean) => void;
-    /** Hỏi server vì sao hỏng — do trang cha giữ để CẢ TRANG chỉ hỏi một lần. */
     hoiLyDo: () => void;
-    /** Lý do dùng chung cho mọi khung, vì hết số dư là cả 4 nền tảng cùng chết. */
     lyDoChung: string;
+    onPropose?: (video: FeedVideo) => void;
+    isProposed?: boolean;
+    onDelete?: (video: FeedVideo) => void;
 }) {
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const [failed, setFailed] = useState(false);
-    // Video của 4 nền tảng đi qua trung gian mất 2-16 GIÂY mới có khung hình đầu: server phải
-    // đi xin link phát từ nền tảng gốc trước. Không báo gì trong lúc đó thì người dùng chỉ
-    // thấy màn hình đen và tưởng hỏng — đã bị hiểu nhầm đúng như vậy một lần.
     const [dangTai, setDangTai] = useState(false);
     const [tamDung, setTamDung] = useState(false);
     const plan = useMemo(
@@ -65,27 +67,13 @@ function Slide({
         [video.platform, video.videoId, video.url, token],
     );
 
-    /**
-     * Tự phát khi cuộn tới.
-     *
-     * Phải phụ thuộc cả `shouldLoad`, không chỉ `active`: lúc video vừa thành video-đang-xem
-     * thì link phát có thể CHƯA kịp gắn, play() trượt và trước đây không có gì gọi lại → người
-     * dùng phải bấm tay mới chạy. Ngoài ra còn gọi lại ở onCanPlay bên dưới, phòng trường hợp
-     * media sẵn sàng muộn hơn.
-     */
     const tuPhat = useCallback(() => {
         const el = videoRef.current;
         if (!el) return;
-        // Trình duyệt chặn tự phát có tiếng — muốn tự chạy thì phải tắt tiếng.
         el.muted = tatTieng;
         el.play().then(() => setTamDung(false)).catch(() => {
-            // Tới đây gần như luôn là vì người dùng ĐÃ BẬT TIẾNG: trình duyệt chỉ cho tự phát
-            // khi tắt tiếng, nên video sau bị từ chối và đứng im chờ bấm — đúng cái phiền mà
-            // người dùng gặp. Hạ xuống tắt tiếng để video vẫn chạy khi cuộn tới.
-            if (el.muted) return;      // đã tắt tiếng mà vẫn trượt thì do cuộn quá nhanh, kệ.
+            if (el.muted) return;
             el.muted = true;
-            // Đổi luôn trạng thái chung, nếu không thì loa vẫn vẽ "đang có tiếng" trong khi
-            // thực tế đã tắt — bấm vào lại thành tắt lần nữa, nhìn như nút hỏng.
             setTatTieng(() => true);
             el.play().then(() => setTamDung(false)).catch(() => {});
         });
@@ -98,109 +86,81 @@ function Slide({
         else { el.pause(); setTamDung(false); }
     }, [active, shouldLoad, tuPhat]);
 
-    /**
-     * Gắn/gỡ thẻ video — PHẢI dừng ngay lúc gỡ.
-     *
-     * Cuộn nhanh thì khung đang phát nhảy thẳng từ "đang xem" sang "ở xa" trong một lượt vẽ,
-     * thẻ <video> bị gỡ khỏi trang luôn. Lúc đó hiệu ứng ở trên chạy thì `videoRef.current` đã
-     * rỗng (React xoá ref TRƯỚC khi hiệu ứng chạy) nên nhánh `el.pause()` không tới lượt —
-     * thẻ video đã tách khỏi trang VẪN CHẠY TIẾP và tiếng vẫn phát chồng lên video mới.
-     *
-     * Hàm ref là chỗ duy nhất còn cầm được phần tử ngay khoảnh khắc bị gỡ.
-     */
     const ganVideo = useCallback((el: HTMLVideoElement | null) => {
         if (!el) videoRef.current?.pause();
         videoRef.current = el;
     }, []);
 
-    /** Bấm vào video để dừng / chạy lại — như TikTok. */
     const doiTrangThai = useCallback(() => {
         const el = videoRef.current;
         if (!el) return;
-        if (el.paused) { el.play().catch(() => {}); setTamDung(false); }
-        else { el.pause(); setTamDung(true); }
+        if (el.paused) {
+            el.play().then(() => setTamDung(false)).catch(() => {});
+        } else {
+            el.pause();
+            setTamDung(true);
+        }
     }, []);
 
     return (
-        <section className="relative h-full w-full snap-start snap-always flex items-center justify-center bg-black py-3">
-            {/*
-              Khung video dựng đứng, luôn nằm TRỌN trong màn hình.
-              Trước đây thẻ <video> trải kín cả vùng nên phần trên bị thanh menu (z-1000) che
-              và phần dưới bị tràn khỏi mép — nhìn như video bị phóng to và cắt mất.
-              aspect-[9/16] + h-full giữ đúng tỉ lệ dọc; màn hình hẹp thì w-full lo phần còn lại.
-            */}
-            {/*
-              KHÔNG bo góc / cắt viền quanh thẻ <video>: bo góc buộc trình duyệt bỏ đường vẽ
-              nhanh dành riêng cho video và phải ghép hình lại từng khung — đây là nguyên nhân
-              giật quen thuộc. Nền đã đen sẵn nên bỏ bo góc gần như không đổi gì về nhìn.
-            */}
-            <div className="relative flex h-full max-h-full w-full max-w-[calc(100vh*9/16)] items-center justify-center bg-black">
-            {!nearby && (
-                video.thumbnail
-                    ? <img src={video.thumbnail} alt="" className="h-full w-full object-contain opacity-70" />
-                    : <div className="h-full w-full bg-black" />
+        <section className="relative flex h-full w-full snap-start snap-always items-center justify-center bg-black">
+            <div className="relative flex h-full w-full max-w-[480px] items-center justify-center overflow-hidden bg-slate-950">
+            {nearby && plan.mode === 'proxy' && (
+                <>
+                    <video
+                        ref={ganVideo}
+                        src={shouldLoad ? plan.src : undefined}
+                        poster={video.thumbnail}
+                        playsInline
+                        loop
+                        preload={shouldLoad ? 'auto' : 'none'}
+                        onClick={doiTrangThai}
+                        onError={() => {
+                            setDangTai(false);
+                            setFailed(true);
+                            hoiLyDo();
+                        }}
+                        onLoadStart={() => setDangTai(true)}
+                        onWaiting={() => setDangTai(true)}
+                        onPlaying={() => setDangTai(false)}
+                        onCanPlay={() => {
+                            setDangTai(false);
+                            if (active) tuPhat();
+                        }}
+                        className={`h-full w-full cursor-pointer object-contain ${failed ? 'hidden' : ''}`}
+                    />
+
+                    {active && (
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setTatTieng((prev) => !prev);
+                            }}
+                            className="absolute right-4 top-20 z-30 flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur transition-all hover:bg-black/80 hover:scale-110 active:scale-95 shadow-lg"
+                            title={tatTieng ? 'Bật tiếng' : 'Tắt tiếng'}
+                        >
+                            {tatTieng ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+                        </button>
+                    )}
+                </>
             )}
 
-            {nearby && plan.mode === 'proxy' && !failed && (
-                <video
-                    ref={ganVideo}
-                    // Chỉ nạp khi tới lượt — tránh tải song song cả danh sách.
-                    src={shouldLoad ? plan.src : undefined}
-                    poster={video.thumbnail || undefined}
-                    className="h-full w-full cursor-pointer object-contain"
-                    playsInline
-                    loop
-                    // muted ngay từ đầu (không chỉ gán trong effect): trình duyệt quyết định
-                    // cho tự phát hay không NGAY lúc gọi play(), gán muộn là bị chặn.
-                    muted={tatTieng}
-                    // KHÔNG dùng `controls`: có thanh điều khiển thì bấm vào video không
-                    // dừng/chạy được, phải nhắm đúng nút — trái với thói quen lướt.
-                    // Video ĐANG XEM để 'auto' cho trình duyệt đệm sẵn thật nhiều — để
-                    // 'metadata' thì nó chỉ đệm trước ~6 giây, mạng chớp một cái là khựng.
-                    // Video kề chỉ 'metadata' để không tải song song tốn băng thông.
-                    preload={active ? 'auto' : shouldLoad ? 'metadata' : 'none'}
-                    onClick={doiTrangThai}
-                    onLoadStart={() => setDangTai(true)}
-                    onWaiting={() => setDangTai(true)}
-                    onCanPlay={() => { setDangTai(false); if (active) tuPhat(); }}
-                    onPlaying={() => { setDangTai(false); setTamDung(false); }}
-                    onPause={() => setTamDung(true)}
-                    onError={() => {
-                        setDangTai(false);
-                        setFailed(true);
-                        hoiLyDo();
-                    }}
-                />
-            )}
-
-            {/* Dấu tạm dừng ở giữa — chỉ hiện khi người dùng chủ động dừng.
-                PHẢI kèm `active`: lúc cuộn qua, khung cũ bị pause() và sự kiện `pause` về
-                MUỘN HƠN lệnh xoá cờ, nên khung vừa lướt qua đọng lại dấu tạm dừng — cuộn tới
-                lui sẽ thấy nút Play nhấp nháy ở khung bên cạnh. */}
-            {nearby && active && plan.mode === 'proxy' && !failed && tamDung && !dangTai && (
+            {/* Trạng thái tạm dừng */}
+            {nearby && active && tamDung && !dangTai && !failed && (
                 <button
                     type="button"
                     onClick={doiTrangThai}
-                    aria-label="Phát tiếp"
-                    className="absolute inset-0 flex items-center justify-center bg-black/20"
+                    className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/25"
+                    aria-label="Tiếp tục phát"
                 >
-                    <Play className="h-16 w-16 fill-white/90 text-white/90 drop-shadow-lg" />
+                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur">
+                        <Play className="ml-1 h-8 w-8" />
+                    </div>
                 </button>
             )}
 
-            {/* Bật/tắt tiếng. Tự phát bắt buộc phải tắt tiếng, nên cần chỗ để bật lại. */}
-            {nearby && active && plan.mode === 'proxy' && !failed && shouldLoad && (
-                <button
-                    type="button"
-                    onClick={() => setTatTieng((v) => !v)}
-                    aria-label={tatTieng ? 'Bật tiếng' : 'Tắt tiếng'}
-                    className="absolute right-3 top-3 rounded-full bg-black/55 p-2 text-white backdrop-blur transition-colors hover:bg-black/75"
-                >
-                    {tatTieng ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-                </button>
-            )}
-
-            {/* Báo đang tải — đè lên ảnh bìa, không chắn nút điều khiển ở dưới. */}
+            {/* Báo đang tải */}
             {nearby && active && plan.mode === 'proxy' && !failed && shouldLoad && dangTai && (
                 <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/45">
                     <Loader2 className="h-8 w-8 animate-spin text-white/90" />
@@ -238,23 +198,58 @@ function Slide({
                 </div>
             )}
 
-            {/* Thông tin đè lên video, nằm TRONG khung video chứ không tràn ra nền đen hai
-                bên. pointer-events-none để không chắn nút điều khiển của thẻ <video>; riêng
-                các link con thì bật lại. */}
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent p-4 pb-16">
-                <div>
-                    <p className="text-sm font-semibold text-white">{video.authorName || 'Không rõ kênh'}</p>
+            {/* Thanh tác vụ nhanh bên phải (Đề xuất vào kho, Xoá video) */}
+            {nearby && (
+                <div className="absolute right-3 bottom-24 z-30 flex flex-col items-center gap-3">
+                    {/* Nút Đề xuất vào Kho Video */}
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onPropose?.(video);
+                        }}
+                        title="Đề xuất vào Kho Video"
+                        className={`flex flex-col items-center gap-1 p-2.5 rounded-full backdrop-blur-md transition-all shadow-xl active:scale-95 ${
+                            isProposed
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-black/60 text-white hover:bg-violet-600 hover:scale-110'
+                        }`}
+                    >
+                        {isProposed ? <BookmarkCheck className="h-5 w-5" /> : <Sparkles className="h-5 w-5 text-amber-300" />}
+                        <span className="text-[10px] font-semibold">{isProposed ? 'Đã thêm' : 'Đề xuất'}</span>
+                    </button>
+
+                    {/* Nút Xoá video */}
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onDelete?.(video);
+                        }}
+                        title="Xoá video này"
+                        className="flex flex-col items-center gap-1 p-2.5 rounded-full bg-black/60 text-white hover:bg-rose-600 hover:scale-110 active:scale-95 backdrop-blur-md transition-all shadow-xl"
+                    >
+                        <Trash2 className="h-5 w-5 text-rose-400" />
+                        <span className="text-[10px] font-semibold">Xoá</span>
+                    </button>
+                </div>
+            )}
+
+            {/* Thông tin đè lên video */}
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-4 pb-14">
+                <div className="pr-14">
+                    <p className="text-sm font-bold text-white tracking-wide">{video.authorName || 'Không rõ kênh'}</p>
                     {video.title && (
-                        <p className="mt-1 line-clamp-2 text-sm text-slate-200">{video.title}</p>
+                        <p className="mt-1 line-clamp-2 text-xs text-slate-200 leading-relaxed">{video.title}</p>
                     )}
-                    <div className="mt-3 flex items-center gap-4 text-xs text-slate-300">
+                    <div className="mt-2.5 flex items-center gap-3.5 text-xs text-slate-300">
                         {video.views > 0 && (
-                            <span className="flex items-center gap-1"><Eye className="h-3.5 w-3.5" />{compact(video.views)}</span>
+                            <span className="flex items-center gap-1"><Eye className="h-3.5 w-3.5 text-slate-400" />{compact(video.views)}</span>
                         )}
-                        <span className="flex items-center gap-1"><Heart className="h-3.5 w-3.5" />{compact(video.likes)}</span>
-                        <span className="flex items-center gap-1"><MessageCircle className="h-3.5 w-3.5" />{compact(video.comments)}</span>
+                        <span className="flex items-center gap-1"><Heart className="h-3.5 w-3.5 text-rose-400" />{compact(video.likes)}</span>
+                        <span className="flex items-center gap-1"><MessageCircle className="h-3.5 w-3.5 text-sky-400" />{compact(video.comments)}</span>
                         {video.shares > 0 && (
-                            <span className="flex items-center gap-1"><Share2 className="h-3.5 w-3.5" />{compact(video.shares)}</span>
+                            <span className="flex items-center gap-1"><Share2 className="h-3.5 w-3.5 text-amber-400" />{compact(video.shares)}</span>
                         )}
                         <a
                             href={video.url}
@@ -276,24 +271,19 @@ function WatchInner() {
     const params = useSearchParams();
     const router = useRouter();
     const { token, isAuthenticated } = useAuthStore();
+    const { submit: submitToLibrary } = useSubmitVideoToLibrary();
 
     const platform = (params?.get('platform') || 'douyin').toLowerCase();
     const startId = params?.get('start') || '';
 
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [activeIndex, setActiveIndex] = useState(0);
-    // Giữ ở đây chứ không ở từng khung: bật tiếng một lần là giữ nguyên cho các video sau.
     const [tatTieng, setTatTieng] = useState(true);
 
-    /**
-     * Vì sao video hỏng — hỏi ĐÚNG MỘT LẦN cho cả trang.
-     *
-     * Bản đầu tôi để mỗi khung tự hỏi trong onError. Nhưng mỗi lần hỏi là một request đi
-     * hết đường xuống server và có thể kéo theo một lượt gọi TikHub TÍNH PHÍ. Cuộn qua
-     * mười video hỏng là mười lượt — đúng thứ vừa mới ngồi cắt giảm.
-     *
-     * Mà hỏi nhiều cũng vô nghĩa: hết số dư thì CẢ BỐN nền tảng cùng chết, lý do y hệt nhau.
-     */
+    const [isShuffled, setIsShuffled] = useState(true);
+    const [shuffleSeed, setShuffleSeed] = useState(1);
+    const [proposedIds, setProposedIds] = useState<Set<string>>(new Set());
+
     const [lyDoChung, setLyDoChung] = useState('');
     const daHoiLyDo = useRef(false);
     const hoiLyDo = useCallback(() => {
@@ -313,14 +303,33 @@ function WatchInner() {
         enabled: isAuthenticated,
     });
 
-    // Lọc trùng vì phân trang LIMIT/OFFSET: video mới cào về sẽ đẩy danh sách và làm trang
-    // sau lặp lại phần cuối trang trước (xem dedupe-pages.ts).
-    const videos = useMemo(
+    const rawVideos = useMemo(
         () => dedupeById(query.data?.pages.flatMap((p) => p.videos) || []),
         [query.data],
     );
 
-    // Nhảy tới đúng video người dùng bấm từ trang khám phá.
+    const [shuffledVideos, setShuffledVideos] = useState<FeedVideo[]>([]);
+
+    useEffect(() => {
+        if (!rawVideos.length) {
+            setShuffledVideos([]);
+            return;
+        }
+        if (isShuffled) {
+            const arr = [...rawVideos];
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            setShuffledVideos(arr);
+        } else {
+            setShuffledVideos(rawVideos);
+        }
+    }, [rawVideos, isShuffled, shuffleSeed]);
+
+    const videos = shuffledVideos.length > 0 ? shuffledVideos : rawVideos;
+
+    // Nhảy tới đúng video người dùng bấm từ trang khám phá
     const jumpedRef = useRef(false);
     useEffect(() => {
         if (jumpedRef.current || !startId || !videos.length) return;
@@ -333,7 +342,53 @@ function WatchInner() {
         });
     }, [startId, videos]);
 
-    // Video nào đang chiếm màn hình thì video đó phát.
+    // Xử lý Đề xuất video vào Kho video
+    const handlePropose = async (v: FeedVideo) => {
+        if (proposedIds.has(v.videoId)) {
+            toast('Video này đã được đề xuất', { icon: 'ℹ️' });
+            return;
+        }
+        try {
+            await submitToLibrary({
+                platform: v.platform,
+                video_url: v.url,
+                video_id: v.videoId,
+                title: v.title || `${v.platform} - ${v.authorName}`,
+                author_name: v.authorName,
+                author_username: v.authorName,
+                thumbnail_url: v.thumbnail || '',
+                views_count: v.views,
+                likes_count: v.likes,
+                comments_count: v.comments,
+                shares_count: v.shares,
+                source: 'SCRAPED',
+            });
+            setProposedIds((prev) => new Set(prev).add(v.videoId));
+            toast.success('Đã đề xuất video vào Kho Video!');
+        } catch (err: any) {
+            toast.error(err.message || 'Lỗi khi đề xuất video');
+        }
+    };
+
+    // Xử lý Xoá video khỏi cơ sở dữ liệu
+    const handleDelete = async (v: FeedVideo) => {
+        if (!token) return;
+        const confirmDelete = window.confirm(`Bạn có chắc muốn xoá video "${v.title || v.videoId}" khỏi hệ thống?`);
+        if (!confirmDelete) return;
+
+        try {
+            await scraperService.deleteScrapedVideo(token, v.platform, v.videoId);
+            setShuffledVideos((prev) => prev.filter((item) => item.videoId !== v.videoId));
+            toast.success('Đã xoá video khỏi cơ sở dữ liệu!');
+            if (activeIndex < videos.length - 1) {
+                containerRef.current?.children[activeIndex]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        } catch (err: any) {
+            toast.error(err.message || 'Lỗi khi xoá video');
+        }
+    };
+
+    // Video nào đang chiếm màn hình thì video đó phát
     const observerRef = useRef<IntersectionObserver | null>(null);
     const slideRef = useCallback((node: HTMLDivElement | null) => {
         if (!node) return;
@@ -359,17 +414,6 @@ function WatchInner() {
         return () => io.disconnect();
     }, [videos.length]);
 
-    /**
-     * Chốt chặn: chỉ khung đang xem được phát, mọi khung khác dừng.
-     *
-     * Mỗi khung đã tự dừng mình rồi, nhưng chỉ cần MỘT đường đi lọt (cuộn quá nhanh, khung bị
-     * gỡ giữa chừng, sau này thêm nhánh vẽ mới) là có hai video cùng ra tiếng — lỗi này rất
-     * khó lần vì nghe thì rõ mà nhìn vào trang không thấy gì bất thường. Quét ở đây rẻ: cùng
-     * lắm chỉ có 5 thẻ video trong trang.
-     *
-     * Chạy SAU các khung con (React luôn chạy hiệu ứng con trước cha) nên không cắt ngang lệnh
-     * phát của khung đang xem — miễn là bỏ qua đúng khung đó.
-     */
     useEffect(() => {
         const root = containerRef.current;
         if (!root) return;
@@ -379,9 +423,6 @@ function WatchInner() {
         }
     }, [activeIndex]);
 
-    // Gần hết danh sách thì tải thêm.
-    // Tách sẵn ra biến thay vì để cả `query` trong danh sách phụ thuộc: đối tượng `query` là
-    // đối tượng mới sau MỖI lần vẽ lại, để nguyên thì hiệu ứng này chạy lại liên tục vô ích.
     const { hasNextPage, isFetchingNextPage, fetchNextPage } = query;
     useEffect(() => {
         if (activeIndex >= videos.length - 3 && hasNextPage && !isFetchingNextPage) {
@@ -389,26 +430,17 @@ function WatchInner() {
         }
     }, [activeIndex, videos.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-    /**
-     * Xin trước link phát cho vài video sắp tới.
-     *
-     * Chỗ tốn thời gian nhất KHÔNG phải tải video mà là bước server đi hỏi nền tảng gốc lấy
-     * link phát — đo được 2 đến 16 giây. Ở đây chỉ xin 2 byte đầu (Range 0-1) để server làm
-     * xong bước đó và nhớ vào bộ đệm; lúc người dùng cuộn tới thì video chạy gần như ngay.
-     * Xin 2 byte nên gần như không tốn băng thông.
-     */
     const daXinTruoc = useRef(new Set<string>());
     useEffect(() => {
         if (!token || !videos.length) return;
         for (let i = activeIndex + 1; i <= activeIndex + 3 && i < videos.length; i++) {
             const v = videos[i];
             const plan = planPlayback(v.platform, v.videoId, v.url, API_URL, token);
-            if (plan.mode !== 'proxy') continue;             // nền tảng nhúng không cần
+            if (plan.mode !== 'proxy') continue;
             const key = `${v.platform}:${v.videoId}`;
             if (daXinTruoc.current.has(key)) continue;
             daXinTruoc.current.add(key);
             fetch(plan.src, { headers: { Range: 'bytes=0-1' } }).catch(() => {
-                // Hỏng thì bỏ qua — đây chỉ là bước làm ấm, video vẫn tải lại được khi tới lượt.
                 daXinTruoc.current.delete(key);
             });
         }
@@ -418,20 +450,37 @@ function WatchInner() {
         return <div className="flex h-screen items-center justify-center bg-black text-slate-400">Cần đăng nhập.</div>;
     }
 
-    // z phải CAO HƠN thanh menu của dashboard (z-1000) và khung nhắc cài app (z-300).
-    // Để z-50 như trước thì menu đè lên và che mất phần trên của video — nhìn tưởng video
-    // bị phóng to và cắt mất đầu.
     return (
         <div className="fixed inset-0 z-[2000] bg-black">
-            <button
-                type="button"
-                onClick={() => router.back()}
-                className="absolute left-4 top-4 z-10 flex items-center gap-2 rounded-full bg-black/60 px-3 py-2 text-sm text-white backdrop-blur hover:bg-black/80"
-            >
-                <ArrowLeft className="h-4 w-4" /> Quay lại
-            </button>
-            <div className="absolute right-4 top-4 z-10 rounded-full bg-black/60 px-3 py-2 text-xs text-slate-300 backdrop-blur">
-                {videos.length ? `${activeIndex + 1} / ${videos.length}` : ''}
+            {/* Header top bar: Nút Quay lại */}
+            <div className="absolute left-4 top-4 z-40 flex items-center gap-2">
+                <button
+                    type="button"
+                    onClick={() => router.back()}
+                    className="flex items-center gap-2 rounded-full bg-black/70 px-3.5 py-2 text-sm font-medium text-white backdrop-blur-md hover:bg-black/90 shadow-lg transition-all"
+                >
+                    <ArrowLeft className="h-4 w-4" /> Quay lại
+                </button>
+            </div>
+
+            {/* Header top bar: Nút Xáo trộn + Đếm số video */}
+            <div className="absolute right-4 top-4 z-40 flex items-center gap-2.5">
+                <button
+                    type="button"
+                    onClick={() => {
+                        setShuffleSeed((s) => s + 1);
+                        setIsShuffled(true);
+                        toast.success('Đã xáo trộn danh sách video!', { icon: '🔀' });
+                    }}
+                    className="flex items-center gap-1.5 rounded-full bg-violet-600/90 hover:bg-violet-600 px-3.5 py-2 text-xs font-semibold text-white backdrop-blur-md shadow-lg transition-all active:scale-95"
+                    title="Xáo trộn ngẫu nhiên video"
+                >
+                    <Shuffle className="h-3.5 w-3.5" /> Xáo trộn
+                </button>
+
+                <div className="rounded-full bg-black/70 px-3 py-2 text-xs font-medium text-slate-300 backdrop-blur-md shadow-lg">
+                    {videos.length ? `${activeIndex + 1} / ${videos.length}` : ''}
+                </div>
             </div>
 
             {query.isLoading && (
@@ -461,17 +510,16 @@ function WatchInner() {
                         <Slide
                             video={v}
                             active={i === activeIndex}
-                            // Nạp video đang xem + 1 video kế, để cuộn xuống là có ngay.
                             shouldLoad={Math.abs(i - activeIndex) <= 1}
-                            // Chỉ dựng thẻ video/iframe cho các khung ở gần. Lướt lâu thì danh
-                            // sách lên hàng chục khung; để nguyên chừng ấy thẻ video trong trang
-                            // là trình duyệt phải ghép hình cho tất cả và bắt đầu giật.
                             nearby={Math.abs(i - activeIndex) <= 2}
                             token={token}
                             tatTieng={tatTieng}
                             setTatTieng={setTatTieng}
                             hoiLyDo={hoiLyDo}
                             lyDoChung={lyDoChung}
+                            onPropose={handlePropose}
+                            isProposed={proposedIds.has(v.videoId)}
+                            onDelete={handleDelete}
                         />
                     </div>
                 ))}

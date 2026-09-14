@@ -7,8 +7,11 @@ import {
   ArrowLeft, Heart, ChatCircle, BookmarkSimple, Timer,
   VideoCamera, ArrowsClockwise, CircleNotch, FilmReel,
   SealCheck, Bookmarks, PaperPlaneTilt,
+  MagnifyingGlass, X, ArrowsDownUp,
 } from '@phosphor-icons/react';
 import toast from 'react-hot-toast';
+
+import FilterSelect from '../../components/FilterSelect';
 
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService, XiaohongshuVideo } from '@/services/scraperService';
@@ -77,7 +80,7 @@ function VideoCard({ video }: { video: XiaohongshuVideo }) {
         href={video.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="relative block aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[320px]"
+        className="relative block aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden"
       >
         {video.thumbnail_url ? (
           <img src={video.thumbnail_url} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" loading="lazy" />
@@ -378,36 +381,63 @@ export default function XhsProfileDetailPage() {
         </h2>
 
         {/* Filter bar */}
-        <div className="flex flex-wrap items-center gap-3 mb-4">
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Tìm theo tiêu đề, caption..."
-            className="flex-1 min-w-[180px] max-w-sm px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          />
-          <input
-            type="number"
-            value={minLikes}
-            onChange={e => setMinLikes(e.target.value)}
-            placeholder="Min likes"
-            className="w-28 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          />
-          <select
+        <div className="flex flex-wrap items-center gap-2.5 bg-card border border-border rounded-xl p-3 shadow-xs mb-4">
+          <div className="relative flex-1 min-w-[180px] max-w-sm">
+            <MagnifyingGlass size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Tìm theo tiêu đề, caption..."
+              className="w-full pl-9 pr-8 py-2 text-sm border border-border rounded-lg bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+          <div className="relative w-28">
+            <Heart size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-rose-400 pointer-events-none" />
+            <input
+              type="number"
+              value={minLikes}
+              onChange={e => setMinLikes(e.target.value)}
+              placeholder="Min likes"
+              className="w-full pl-8 pr-6 py-2 text-sm border border-border rounded-lg bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            />
+            {minLikes && (
+              <button
+                type="button"
+                onClick={() => setMinLikes('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+          <FilterSelect
             value={sortBy}
-            onChange={e => setSortBy(e.target.value as typeof sortBy)}
-            className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          >
-            <option value="date">Mới nhất</option>
-            <option value="likes">Nhiều likes nhất</option>
-            <option value="collects">Nhiều saves nhất</option>
-          </select>
+            onChange={val => setSortBy(val as typeof sortBy)}
+            options={[
+              { value: 'date', label: 'Mới nhất' },
+              { value: 'likes', label: 'Nhiều likes nhất' },
+              { value: 'collects', label: 'Nhiều saves nhất' },
+            ]}
+            placeholder="Sắp xếp"
+            icon={<ArrowsDownUp size={15} />}
+          />
           {hasFilters && (
             <button
+              type="button"
               onClick={clearFilters}
-              className="px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-950/20 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/30 transition-all cursor-pointer select-none ml-auto sm:ml-0"
             >
-              Xóa bộ lọc
+              <X size={13} weight="bold" /> Xóa bộ lọc
             </button>
           )}
         </div>
@@ -438,11 +468,11 @@ export default function XhsProfileDetailPage() {
 
         {allVideos.length > 0 && (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3">
               {allVideos.map(v => <VideoCard key={v.note_id} video={v} />)}
               {videosQuery.isFetchingNextPage && Array.from({ length: 6 }).map((_, i) => (
                 <div key={`skel-${i}`} className="bg-card border border-border rounded-lg overflow-hidden animate-pulse">
-                  <div className="aspect-[9/16] max-h-[280px] bg-slate-200 dark:bg-slate-700" />
+                  <div className="aspect-[9/16] bg-slate-200 dark:bg-slate-700" />
                   <div className="p-3 space-y-2">
                     <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-full" />
                     <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-2/3" />

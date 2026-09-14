@@ -1,13 +1,26 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Search, FileDown, Loader2, ImageOff, Eye, Trash2, X, AlertTriangle, History } from 'lucide-react';
+import {
+  Search,
+  FileDown,
+  Loader2,
+  ImageOff,
+  Trash2,
+  X,
+  AlertTriangle,
+  History,
+  Layers,
+  ChevronRight,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import apiClient from '@/lib/api-client';
 import { NumberedPagination } from '@/components/ui/NumberedPagination';
 import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
-import { IdCardPreview } from './ExportStep';
+import { IdCardPreview, CropControls } from './ExportStep';
+import { CROP_DEFAULT, CropTransform } from './crop-math';
+import { downloadBatchPdf, BatchError } from '../bulk/id-photo-batch';
 import {
   getPositionOption,
   IdPhotoDetailItem,
@@ -52,12 +65,12 @@ const buildPdfFileName = (item: IdPhotoHistoryItem) => {
   return `the-nhan-vien-${parts.join('-')}.pdf`;
 };
 
-/** Các ô chỉ đọc trong modal chi tiết. Lấy chữ từ DÒNG BẢNG (có ngay) và chỉ mượn
- *  employee_title_prefix từ payload chi tiết (chỉ endpoint /:id mới trả field này). */
+/** Các ô chỉ đọc trong modal chi tiết. Lấy chữ từ DÒNG BẢNG (có ngay).
+ *  (Field "Tiền tố chức danh" đã bỏ hẳn — không ghép vào tên nữa.) */
 const DETAIL_FIELDS = (row: IdPhotoHistoryItem, detail: IdPhotoDetailItem | null) => [
   {
     label: 'Họ và tên',
-    value: [detail?.employee_title_prefix?.trim(), row.employee_name].filter(Boolean).join(' '),
+    value: row.employee_name,
   },
   { label: 'Team / Khối', value: row.employee_team },
   { label: 'Mã nhân viên (ID)', value: row.employee_id },
@@ -86,6 +99,13 @@ export function HistoryTab() {
   const [search, setSearch] = useState('');
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
+  // ── Lọc theo 1 đợt "Tạo hàng loạt" (client-side) ──
+  // Khi bật: nạp lại danh sách với limit lớn (đủ bao trọn 1 đợt ≤20 người, các dòng con của
+  // đợt luôn liền kề nhau do tạo trong vài giây) rồi lọc trong JS — KHÔNG endpoint mới.
+  const [batchFilter, setBatchFilter] = useState<string | null>(null);
+  const [exportingBatch, setExportingBatch] = useState(false);
+  const exportingBatchRef = useRef(false);
+
   // ── Xem chi tiết ──
   // Giữ CẢ dòng trong danh sách (`detailRow`) lẫn payload đầy đủ (`detail`): dòng có ngay lập
   // tức nên modal mở ra là đã hiện đủ chữ, chỉ riêng khung thẻ chờ ảnh về — thay vì modal trống
@@ -94,6 +114,16 @@ export function HistoryTab() {
   const [detail, setDetail] = useState<IdPhotoDetailItem | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const detailRequestId = useRef(0);
+
+  // ── "Điều chỉnh vị trí ảnh trong khung tròn" trong modal chi tiết — đây là nơi phát hiện +
+  // sửa lỗi crop SAU KHI đã tạo xong thẻ (yêu cầu 4). `crop` = bản nháp, `savedCrop` = giá trị
+  // đã có trong DB (nạp từ `detail` khi tải xong) — cùng nguyên tắc bản nháp/đã lưu với ExportStep.
+  const [crop, setCrop] = useState<CropTransform>(CROP_DEFAULT);
+  const [savedCrop, setSavedCrop] = useState<CropTransform>(CROP_DEFAULT);
+  const [isSavingCrop, setIsSavingCrop] = useState(false);
+  const isSavingCropRef = useRef(false);
+  const cropDirty =
+    crop.offsetX !== savedCrop.offsetX || crop.offsetY !== savedCrop.offsetY || crop.scale !== savedCrop.scale;
 
   // ── Xoá ──
   const [deleteTarget, setDeleteTarget] = useState<IdPhotoHistoryItem | null>(null);
@@ -107,12 +137,13 @@ export function HistoryTab() {
   // Các blob URL đang chờ thu hồi -> timer của nó, để dọn sạch khi rời trang.
   const pendingBlobs = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
-  const fetchHistory = useCallback(async (p: number, q: string) => {
+  const fetchHistory = useCallback(async (p: number, q: string, forBatch: string | null) => {
     const id = ++requestId.current;
     setIsLoading(true);
     try {
       const res = await apiClient.get('/id-photo/history', {
-        params: { page: p, limit: LIMIT, search: q || undefined },
+        // forBatch: kéo 1 trang lớn (limit tối đa BE cho = 100) để lọc client-side, bỏ search.
+        params: forBatch ? { page: 1, limit: 100 } : { page: p, limit: LIMIT, search: q || undefined },
       });
       if (id !== requestId.current) return;
       setItems(res.data.items || []);
@@ -127,8 +158,8 @@ export function HistoryTab() {
   }, []);
 
   useEffect(() => {
-    fetchHistory(page, search);
-  }, [page, fetchHistory]);
+    fetchHistory(page, search, batchFilter);
+  }, [page, batchFilter, fetchHistory]);
 
   // Rời trang giữa chừng thì thu hồi ngay mọi blob còn treo, không đợi hết TTL.
   useEffect(() => {
@@ -145,7 +176,11 @@ export function HistoryTab() {
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setPage(1);
-    fetchHistory(1, search);
+    if (batchFilter) {
+      setBatchFilter(null); // tìm kiếm thoát chế độ lọc theo đợt (useEffect tự nạp lại)
+    } else {
+      fetchHistory(1, search, null);
+    }
   };
 
   const releaseBlobLater = (url: string) => {
@@ -169,10 +204,21 @@ export function HistoryTab() {
     setDetailRow(item);
     setDetail(null);
     setIsLoadingDetail(true);
+    // Reset về mặc định TRƯỚC khi có dữ liệu thật — tránh hiện tạm crop của người mở TRƯỚC ĐÓ
+    // trong khoảnh khắc chờ API (state cũ không tự dọn khi đổi `detailRow`).
+    setCrop(CROP_DEFAULT);
+    setSavedCrop(CROP_DEFAULT);
     try {
       const res = await apiClient.get(`/id-photo/${item.id}`);
       if (rid !== detailRequestId.current) return;
       setDetail(res.data);
+      const loaded: CropTransform = {
+        offsetX: res.data.crop_offset_x ?? CROP_DEFAULT.offsetX,
+        offsetY: res.data.crop_offset_y ?? CROP_DEFAULT.offsetY,
+        scale: res.data.crop_scale ?? CROP_DEFAULT.scale,
+      };
+      setCrop(loaded);
+      setSavedCrop(loaded);
     } catch (err: any) {
       if (rid !== detailRequestId.current) return;
       toast.error(err.response?.data?.message || 'Không tải được chi tiết ảnh thẻ');
@@ -187,6 +233,33 @@ export function HistoryTab() {
     setDetailRow(null);
     setDetail(null);
     setIsLoadingDetail(false);
+    setIsSavingCrop(false);
+  };
+
+  /**
+   * PATCH /id-photo/:id — lưu "Điều chỉnh vị trí ảnh trong khung tròn" từ modal chi tiết. Cùng
+   * đường MIỄN PHÍ (không đụng AI) như handleUpdateInfo ở luồng đơn lẻ; ở đây chỉ gửi 3 field
+   * crop vì modal này không có form sửa chữ.
+   */
+  const handleSaveCrop = async () => {
+    if (!detailRow || isSavingCropRef.current) return;
+    isSavingCropRef.current = true;
+    setIsSavingCrop(true);
+    try {
+      await apiClient.patch(`/id-photo/${detailRow.id}`, {
+        cropOffsetX: crop.offsetX,
+        cropOffsetY: crop.offsetY,
+        cropScale: crop.scale,
+      });
+      setSavedCrop(crop);
+      setDetail((prev) => (prev ? { ...prev, crop_offset_x: crop.offsetX, crop_offset_y: crop.offsetY, crop_scale: crop.scale } : prev));
+      toast.success('Đã lưu vị trí ảnh. Bấm "Tải file PDF" để lấy bản mới.');
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Lưu vị trí ảnh thất bại, vui lòng thử lại.');
+    } finally {
+      isSavingCropRef.current = false;
+      setIsSavingCrop(false);
+    }
   };
 
   /**
@@ -210,10 +283,10 @@ export function HistoryTab() {
       // Xoá dòng CUỐI CÙNG của một trang > 1 thì trang đó thành rỗng — lùi về trang trước thay
       // vì để người dùng nhìn bảng trắng và tự bấm. setPage tự kích hoạt useEffect nạp lại,
       // nên nhánh này KHÔNG gọi fetchHistory nữa (gọi cả hai sẽ thành 2 request thừa).
-      if (items.length === 1 && page > 1) {
+      if (items.length === 1 && page > 1 && !batchFilter) {
         setPage(page - 1);
       } else {
-        fetchHistory(page, search);
+        fetchHistory(page, search, batchFilter);
       }
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Xoá không thành công, vui lòng thử lại.', {
@@ -284,15 +357,65 @@ export function HistoryTab() {
     }
   };
 
+  /** Tải 1 file PDF GỘP cho cả đợt đang lọc — tái dùng POST /id-photo/batch/:id/export-pdf. */
+  const handleDownloadBatchPdf = async () => {
+    if (!batchFilter || exportingBatchRef.current) return;
+    exportingBatchRef.current = true;
+    setExportingBatch(true);
+    const loadingToast = toast.loading('Đang dựng file PDF cả đợt (đợt lớn có thể mất ~1 phút)...');
+    let blobUrl: string | null = null;
+    try {
+      const successCount = displayedItems.filter((i) => i.status === 'SUCCESS').length;
+      const { blob, exported, skipped } = await downloadBatchPdf(batchFilter, {
+        success: successCount,
+        failed: displayedItems.length - successCount,
+      });
+
+      blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `anh-the-hang-loat-${batchFilter.slice(0, 8)}.pdf`;
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      toast.success(
+        skipped > 0
+          ? `Đã tải PDF ${exported} người thành công (bỏ qua ${skipped} người lỗi).`
+          : `Đã tải PDF cả đợt (${exported} người).`,
+        { id: loadingToast, duration: 6000 },
+      );
+    } catch (err: any) {
+      toast.error(err instanceof BatchError ? err.message : 'Tải PDF cả đợt thất bại, vui lòng thử lại.', {
+        id: loadingToast,
+      });
+    } finally {
+      if (blobUrl) releaseBlobLater(blobUrl);
+      exportingBatchRef.current = false;
+      setExportingBatch(false);
+    }
+  };
+
+  // Chế độ lọc: chỉ hiện các dòng cùng batch_job_id (đã nạp sẵn 1 trang lớn ở fetchHistory).
+  const displayedItems = batchFilter
+    ? items.filter((it) => it.batch_job_id === batchFilter)
+    : items;
+
   return (
     <div className="text-[#1b1b1d]">
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+      <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
         <h2 className="text-lg font-bold text-[#1b1b1d] flex items-center gap-2">
           <History className="w-5 h-5 text-[#4441cc]" />
           Lịch sử tạo ảnh thẻ
         </h2>
         <span className="text-xs text-[#9c9aa8]">Danh sách ảnh thẻ đã tạo — không giới hạn theo team</span>
       </div>
+
+      {/* Chú thích CỐ ĐỊNH (không phải tooltip) — người dùng biết chỗ bấm mà không cần rê chuột. */}
+      <p className="mb-4 text-xs text-[#9c9aa8]">
+        Nhấn vào dòng để xem chi tiết ·{' '}
+        <span className="font-mono text-[#7c78d4]">#…</span> ở cột &quot;Đợt tạo&quot; để xem cả đợt hàng loạt
+      </p>
 
       <form onSubmit={handleSearchSubmit} className="mb-4 flex items-center gap-2 max-w-sm">
         <div className="relative flex-1">
@@ -324,6 +447,45 @@ export function HistoryTab() {
         </button>
       </form>
 
+      {batchFilter && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-[#4441cc]/30 bg-[#4441cc]/5 px-3 py-2">
+          <Layers className="w-4 h-4 text-[#4441cc] flex-none" />
+          <span className="text-xs font-semibold text-[#1b1b1d]">
+            Đang xem đợt hàng loạt{' '}
+            <span className="font-mono text-[#4441cc]">#{batchFilter.slice(0, 6)}</span> —{' '}
+            {displayedItems.length} ảnh
+            {displayedItems.some((i) => i.status === 'FAILED') && (
+              <span className="text-[#dc2626]">
+                {' '}
+                ({displayedItems.filter((i) => i.status === 'FAILED').length} lỗi)
+              </span>
+            )}
+          </span>
+          <button
+            type="button"
+            onClick={handleDownloadBatchPdf}
+            disabled={exportingBatch || !displayedItems.some((i) => i.status === 'SUCCESS')}
+            title={
+              displayedItems.some((i) => i.status === 'SUCCESS')
+                ? '1 file PDF gộp các ảnh thành công trong đợt này'
+                : 'Đợt này chưa có ảnh nào thành công'
+            }
+            className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-[#4441cc] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#4441cc]/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            {exportingBatch ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
+            {exportingBatch ? 'Đang dựng...' : 'Tải PDF cả đợt'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setBatchFilter(null)}
+            className="inline-flex items-center gap-1 rounded-lg border border-[#d5d3e0] px-2.5 py-1.5 text-xs font-semibold text-[#464554] hover:border-[#4441cc] hover:text-[#4441cc] transition-colors"
+          >
+            <X className="w-3 h-3" />
+            Bỏ lọc
+          </button>
+        </div>
+      )}
+
       <div className="border border-[#e2e0ea] rounded-2xl bg-white overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -332,29 +494,31 @@ export function HistoryTab() {
                 <th className="px-4 py-3">Nhân viên</th>
                 <th className="px-4 py-3">Team</th>
                 <th className="px-4 py-3">Mã NV</th>
-                <th className="px-4 py-3">Vị trí</th>
                 <th className="px-4 py-3">Trạng thái</th>
+                <th className="px-4 py-3">Đợt tạo</th>
                 <th className="px-4 py-3">Người tạo</th>
                 <th className="px-4 py-3">Ngày tạo</th>
                 <th className="px-4 py-3 text-right">Thao tác</th>
+                {/* cột hẹp cuối chỉ để chứa mũi tên "›" hiện khi hover dòng */}
+                <th className="w-6 px-2 py-3" aria-hidden />
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-[#9c9aa8]">
+                  <td colSpan={9} className="px-4 py-10 text-center text-[#9c9aa8]">
                     <Loader2 className="w-5 h-5 animate-spin inline-block" />
                   </td>
                 </tr>
-              ) : items.length === 0 ? (
+              ) : displayedItems.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-[#9c9aa8]">
+                  <td colSpan={9} className="px-4 py-10 text-center text-[#9c9aa8]">
                     <ImageOff className="w-6 h-6 mx-auto mb-2" />
-                    Chưa có ảnh thẻ nào được tạo
+                    {batchFilter ? 'Không có dòng nào thuộc đợt này' : 'Chưa có ảnh thẻ nào được tạo'}
                   </td>
                 </tr>
               ) : (
-                items.map((item) => {
+                displayedItems.map((item) => {
                   const isRowDownloading = downloadingId === item.id;
                   // Bị khoá vì DÒNG KHÁC đang tải — tách riêng để tooltip nói đúng lý do, thay vì
                   // vẫn ghi "Tải file PDF về máy" trên một nút bấm không ăn.
@@ -362,94 +526,126 @@ export function HistoryTab() {
                   const isNotSuccess = item.status !== 'SUCCESS';
 
                   return (
-                    <tr key={item.id} className="border-b border-[#f0eef5] last:border-0 hover:bg-[#fcfaff]">
+                    // Bấm vào CẢ DÒNG để mở chi tiết (hành vi bảng dashboard phổ biến). Các nút
+                    // trong cột Thao tác + badge "Đợt tạo" tự stopPropagation để không mở nhầm.
+                    <tr
+                      key={item.id}
+                      onClick={() => openDetail(item)}
+                      title="Bấm để xem chi tiết ảnh thẻ"
+                      className="group border-b border-[#f0eef5] last:border-0 cursor-pointer hover:bg-[#efecfc] transition-colors"
+                    >
                       <td className="px-4 py-3 font-medium">{item.employee_name}</td>
                       <td className="px-4 py-3 text-[#464554]">{item.employee_team}</td>
                       <td className="px-4 py-3 text-[#464554]">{item.employee_id}</td>
-                      <td className="px-4 py-3 text-[#464554]">{getPositionOption(item.position).label}</td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_CLASS[item.status]}`}>
                           {STATUS_LABEL[item.status]}
                         </span>
                       </td>
+                      <td className="px-4 py-3">
+                        {item.batch_job_id ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation(); // chỉ lọc theo đợt, KHÔNG mở chi tiết dòng
+                              setPage(1);
+                              setBatchFilter(item.batch_job_id);
+                            }}
+                            title={
+                              batchFilter === item.batch_job_id
+                                ? 'Đang lọc theo đợt này'
+                                : 'Xem tất cả ảnh trong đợt này'
+                            }
+                            disabled={batchFilter === item.batch_job_id}
+                            // Hover RIÊNG của badge: đổ nền tím đậm + chữ trắng — khác hẳn hover
+                            // nền tím NHẠT của cả dòng, nên đứng ở ranh giới vẫn phân biệt được
+                            // "bấm badge để lọc" với "bấm dòng để xem chi tiết".
+                            className="inline-flex items-center gap-1 rounded-full border border-[#d5d3e0] bg-white px-2 py-0.5 text-[11px] font-semibold font-mono text-[#4441cc] transition-colors hover:border-[#4441cc] hover:bg-[#4441cc] hover:text-white disabled:opacity-50 disabled:cursor-default disabled:hover:bg-white disabled:hover:text-[#4441cc]"
+                          >
+                            <Layers className="w-3 h-3 flex-none" />#{item.batch_job_id.slice(0, 6)}
+                          </button>
+                        ) : (
+                          <span className="text-[#c7c4d7]">—</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-[#464554]">{item.createdByUser?.full_name || item.createdByUser?.email || '—'}</td>
                       <td className="px-4 py-3 text-[#464554] whitespace-nowrap">
                         {new Date(item.created_at).toLocaleString('vi-VN')}
                       </td>
+                      {/* Cột "Thao tác": chỉ còn Tải + Xoá. Xoá tách hẳn (đường kẻ + khoảng cách)
+                          để giảm bấm nhầm. Cả hai stopPropagation — độc lập với click-row. */}
                       <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-3">
-                        <button
-                          type="button"
-                          onClick={() => openDetail(item)}
-                          title="Xem trước khung thẻ và thông tin đầy đủ"
-                          className="inline-flex items-center gap-1.5 font-semibold text-xs whitespace-nowrap text-[#464554] hover:text-[#4441cc] transition-colors"
-                        >
-                          <Eye className="w-3.5 h-3.5 flex-none" />
-                          Chi tiết
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleDownload(item)}
-                          // Khoá CẢ BẢNG khi đang tải một dòng: handleDownload chỉ chạy 1 lượt tại
-                          // một thời điểm, để nút dòng khác trông bấm được thì lại thành "bấm không
-                          // có phản hồi" đúng như lỗi vừa sửa.
-                          disabled={downloadingId !== null || isNotSuccess}
-                          title={
-                            isRowDownloading
-                              ? 'Đang chuẩn bị file PDF, vui lòng đợi...'
-                              : isNotSuccess
-                              ? 'Chỉ tải được ảnh thẻ đã tạo thành công'
-                              : isBlockedByOtherRow
-                              ? 'Đang tải file của dòng khác, vui lòng đợi...'
-                              : 'Tải file PDF về máy'
-                          }
-                          // Dòng ĐANG tải cũng nằm trong diện disabled (khoá cả bảng), nên nếu dùng
-                          // chung disabled:opacity-30 thì chính cái spinner báo "đang chạy" bị làm mờ còn
-                          // 30% — nhìn y hệt một nút chết. Vì vậy tách hẳn class cho hai trường hợp.
-                          // min-w giữ chỗ sẵn cho chữ dài hơn để cột không giật khi đổi trạng thái.
-                          className={`inline-flex items-center justify-end gap-1.5 font-semibold text-xs whitespace-nowrap min-w-[92px] transition-colors ${
-                            isRowDownloading
-                              ? 'text-[#4441cc] cursor-wait'
-                              : 'text-[#4441cc] hover:text-[#4441cc]/80 disabled:opacity-30 disabled:cursor-not-allowed'
-                          }`}
-                        >
-                          {isRowDownloading ? (
-                            <>
-                              <Loader2 className="w-3.5 h-3.5 animate-spin flex-none" />
-                              Đang tải...
-                            </>
-                          ) : (
-                            <>
-                              <FileDown className="w-3.5 h-3.5 flex-none" />
-                              Tải
-                            </>
-                          )}
-                        </button>
-
-                        {/* Ô GIỮ CHỖ cố định: nút Xoá chỉ hiện với người thật sự xoá được (hiện nút
-                            xám rồi trả 403 khi bấm thì tệ hơn hẳn là không hiện gì), nhưng nếu để
-                            nó biến mất hẳn thì "Chi tiết"/"Tải" của dòng đó bị kéo lệch sang phải
-                            so với các dòng còn lại. */}
-                        <span className="inline-flex justify-end min-w-[46px]">
-                        {canDelete(item) && (
+                        <div className="flex items-center justify-end whitespace-nowrap">
                           <button
                             type="button"
-                            onClick={() => setDeleteTarget(item)}
-                            disabled={downloadingId !== null}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDownload(item);
+                            }}
+                            // Khoá CẢ BẢNG khi đang tải một dòng: handleDownload chỉ chạy 1 lượt tại
+                            // một thời điểm. min-w giữ chỗ để không giật khi đổi "Tải" ↔ "Đang tải...".
+                            disabled={downloadingId !== null || isNotSuccess}
                             title={
-                              downloadingId !== null
-                                ? 'Đang tải file, vui lòng đợi...'
-                                : 'Xoá vĩnh viễn bản ghi ảnh thẻ này'
+                              isRowDownloading
+                                ? 'Đang chuẩn bị file PDF, vui lòng đợi...'
+                                : isNotSuccess
+                                ? 'Chỉ tải được ảnh thẻ đã tạo thành công'
+                                : isBlockedByOtherRow
+                                ? 'Đang tải file của dòng khác, vui lòng đợi...'
+                                : 'Tải file PDF về máy'
                             }
-                            className="inline-flex items-center gap-1.5 font-semibold text-xs whitespace-nowrap text-[#9c9aa8] hover:text-rose-600 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-[#9c9aa8] transition-colors"
+                            className={`inline-flex items-center gap-1 text-xs font-semibold min-w-[64px] transition-colors ${
+                              isRowDownloading
+                                ? 'text-[#4441cc] cursor-wait'
+                                : 'text-[#4441cc] hover:text-[#4441cc]/80 disabled:opacity-30 disabled:cursor-not-allowed'
+                            }`}
                           >
-                            <Trash2 className="w-3.5 h-3.5 flex-none" />
-                            Xoá
+                            {isRowDownloading ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin flex-none" />
+                                Đang tải...
+                              </>
+                            ) : (
+                              <>
+                                <FileDown className="w-3.5 h-3.5 flex-none" />
+                                Tải
+                              </>
+                            )}
                           </button>
-                        )}
-                        </span>
+
+                          {/* Vùng Xoá — tách hẳn: có khoảng cách + đường kẻ dọc trước Xoá. Nút chỉ
+                              hiện với người xoá được, nhưng vùng luôn giữ min-w để "Tải" các dòng
+                              thẳng hàng. */}
+                          <div
+                            className={`ml-3 flex justify-end min-w-[58px] ${
+                              canDelete(item) ? 'pl-3 border-l border-[#e2e0ea]' : ''
+                            }`}
+                          >
+                            {canDelete(item) && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeleteTarget(item);
+                                }}
+                                disabled={downloadingId !== null}
+                                title={
+                                  downloadingId !== null
+                                    ? 'Đang tải file, vui lòng đợi...'
+                                    : 'Xoá vĩnh viễn bản ghi ảnh thẻ này'
+                                }
+                                className="inline-flex items-center gap-1 text-xs font-semibold text-[#9c9aa8] hover:text-rose-600 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-[#9c9aa8] transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 flex-none" />
+                                Xoá
+                              </button>
+                            )}
+                          </div>
                         </div>
+                      </td>
+                      {/* Mũi tên gợi ý "bấm được cả dòng" — LUÔN hiện (mờ 40%), đậm lên khi hover. */}
+                      <td className="w-6 pr-3 text-right align-middle">
+                        <ChevronRight className="inline w-4 h-4 text-[#8b86c4] opacity-40 group-hover:opacity-100 transition-opacity" />
                       </td>
                     </tr>
                   );
@@ -460,7 +656,7 @@ export function HistoryTab() {
         </div>
       </div>
 
-      {totalPages > 1 && (
+      {!batchFilter && totalPages > 1 && (
         <div className="mt-4 flex justify-between items-center">
           <p className="text-xs text-[#9c9aa8]">{total} bản ghi</p>
           <NumberedPagination page={page} totalPages={totalPages} onPageChange={setPage} />
@@ -491,29 +687,51 @@ export function HistoryTab() {
 
             <div className="flex-1 overflow-y-auto pr-1 mt-5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Khung thẻ — CHỈ phần này phải chờ API, phần chữ bên phải đã có sẵn từ dòng bảng */}
-                <div className="border border-[#e2e0ea] rounded-2xl bg-[#fafafb] p-5 flex items-center justify-center min-h-[300px]">
-                  {isLoadingDetail ? (
-                    <div className="flex flex-col items-center gap-2.5">
-                      <Loader2 className="w-7 h-7 animate-spin text-[#4441cc]" />
-                      <p className="text-xs text-[#464554] font-medium">Đang tải ảnh thẻ...</p>
-                    </div>
-                  ) : detail?.processed_image_data ? (
-                    <IdCardPreview
-                      employeeName={detail.employee_name}
-                      employeeTeam={detail.employee_team}
-                      employeeId={detail.employee_id}
-                      employeeTitlePrefix={detail.employee_title_prefix ?? ''}
-                      position={detail.position}
-                      photoUrl={detail.processed_image_data}
-                    />
-                  ) : (
-                    <div className="flex flex-col items-center gap-2 text-center px-4">
-                      <ImageOff className="w-7 h-7 text-[#c7c4d7]" />
-                      <p className="text-xs text-[#9c9aa8]">
-                        Bản ghi này chưa có ảnh đã ghép áo nên không dựng được khung thẻ.
-                      </p>
-                    </div>
+                {/* Khung thẻ — CHỈ phần này phải chờ API, phần chữ bên phải đã có sẵn từ dòng bảng.
+                    "Điều chỉnh vị trí ảnh trong khung tròn" nằm NGAY ĐÂY (yêu cầu 4): đây chính
+                    là nơi phát hiện lỗi crop sau khi đã tạo xong thẻ. */}
+                <div className="space-y-3">
+                  <div className="border border-[#e2e0ea] rounded-2xl bg-[#fafafb] p-5 flex items-center justify-center min-h-[300px]">
+                    {isLoadingDetail ? (
+                      <div className="flex flex-col items-center gap-2.5">
+                        <Loader2 className="w-7 h-7 animate-spin text-[#4441cc]" />
+                        <p className="text-xs text-[#464554] font-medium">Đang tải ảnh thẻ...</p>
+                      </div>
+                    ) : detail?.processed_image_data ? (
+                      <IdCardPreview
+                        employeeName={detail.employee_name}
+                        employeeTeam={detail.employee_team}
+                        employeeId={detail.employee_id}
+                        position={detail.position}
+                        photoUrl={detail.processed_image_data}
+                        crop={crop}
+                        onCropChange={isSavingCrop ? undefined : setCrop}
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center gap-2 text-center px-4">
+                        <ImageOff className="w-7 h-7 text-[#c7c4d7]" />
+                        <p className="text-xs text-[#9c9aa8]">
+                          Bản ghi này chưa có ảnh đã ghép áo nên không dựng được khung thẻ.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {!isLoadingDetail && detail?.processed_image_data && (
+                    <>
+                      <CropControls crop={crop} onChange={setCrop} disabled={isSavingCrop} />
+                      {cropDirty && (
+                        <button
+                          type="button"
+                          onClick={handleSaveCrop}
+                          disabled={isSavingCrop}
+                          className="w-full px-4 py-2.5 rounded-xl font-semibold text-sm text-white bg-[#4441cc] hover:bg-[#4441cc]/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                        >
+                          {isSavingCrop && <Loader2 className="w-4 h-4 animate-spin" />}
+                          {isSavingCrop ? 'Đang lưu vị trí ảnh...' : 'Lưu vị trí ảnh'}
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
 

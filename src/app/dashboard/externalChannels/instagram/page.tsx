@@ -2,20 +2,24 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CircleNotch, MagnifyingGlassPlus, UserCircle, FilmReel, CaretDown, CaretUp, Eye, Heart, ChatCircle, Warning, PaperPlaneTilt } from '@phosphor-icons/react';
+import { CircleNotch, MagnifyingGlassPlus, UserCircle, FilmReel, CaretDown, CaretUp, Eye, Heart, ChatCircle, Warning, PaperPlaneTilt, Timer, BookmarkSimple, InstagramLogo, ArrowsDownUp } from '@phosphor-icons/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { MagnifyingGlass, X } from '@phosphor-icons/react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 
 import InstagramProfileCard from '../components/InstagramProfileCard';
+import FilterSelect from '../components/FilterSelect';
+import { DatePicker } from '@/components/ui/DatePicker';
 import { useAuthStore } from '@/store/auth-store';
-import { scraperService, InstagramReel } from '@/services/scraperService';
+import { scraperService, InstagramReel, InstagramToggleField } from '@/services/scraperService';
 import { videoLibraryService } from '@/services/videoLibraryService';
 import { useSubmitVideoToLibrary } from '@/hooks/useProposeVideo';
 import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
 import { UserRole } from '@/types/auth';
 import { dedupeById } from '@/lib/dedupe-pages';
+import SyncAllChannelsButton from '../components/SyncAllChannelsButton';
+import { buildDeleteChannelConfirm } from '@/lib/scrape/delete-channel';
 import WatchFeedButton from '../components/WatchFeedButton';
 
 const PAGE_SIZE_PROFILES = 12;
@@ -53,12 +57,12 @@ function InstagramReelCard({ reel }: { reel: InstagramReel }) {
   });
 
   return (
-    <div className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-md transition-shadow flex flex-col">
+    <div className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg hover:scale-[1.01] transition-all duration-200 flex flex-col">
       <a
         href={reel.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="relative block aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[280px]"
+        className="relative block aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden"
       >
         {reel.thumbnail_url ? (
           <img
@@ -118,6 +122,29 @@ export default function InstagramExternalPage() {
   const router = useRouter();
   const { start: startProfileScrapeNotif } = useProfileScrapeNotification('instagram');
 
+  // Xoá cứng kênh: BE xoá kèm toàn bộ reels/lịch sử, không hoàn tác được. Hộp xác nhận
+  // phải nói số video sắp mất — trên thẻ thì kênh 300 reels trông y hệt kênh rỗng.
+  const deleteChannelMutation = useMutation({
+    mutationFn: (id: number) => {
+      if (!token) throw new Error('No token');
+      return scraperService.deleteExternalChannel(token, 'instagram', id);
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['instagram-profiles'] });
+      toast.success(
+        data.videos_deleted > 0
+          ? `Đã xoá ${data.name} và ${data.videos_deleted.toLocaleString('vi-VN')} video`
+          : `Đã xoá ${data.name}`,
+      );
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const handleDeleteChannel = (id: number, name: string, videoCount: number) => {
+    if (!window.confirm(buildDeleteChannelConfirm({ name, videoCount }))) return;
+    deleteChannelMutation.mutate(id);
+  };
+
   // ─── Profiles section ─────────────────────────────────
   const [profilesCollapsed, setProfilesCollapsed] = useState(false);
   const [profileUsername, setProfileUsername] = useState('');
@@ -125,6 +152,7 @@ export default function InstagramExternalPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(1);
   const [sortBy, setSortBy] = useState<'followers' | 'recent'>('followers');
+  const [profileTab, setProfileTab] = useState<'all' | 'periodic' | 'bookmarked'>('all');
   const searchTimer = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
@@ -132,16 +160,23 @@ export default function InstagramExternalPage() {
     return () => clearTimeout(searchTimer.current);
   }, [search]);
 
-  const hasProfileFilters = !!search || sortBy !== 'followers';
-  const clearProfileFilters = () => { setSearch(''); setSortBy('followers'); };
+  const hasProfileFilters = !!search || sortBy !== 'followers' || profileTab !== 'all';
+  const clearProfileFilters = () => { setSearch(''); setSortBy('followers'); setProfileTab('all'); };
 
   const profilesQuery = useQuery({
-    queryKey: ['instagram-profiles', page, debouncedSearch, sortBy],
+    queryKey: ['instagram-profiles', page, debouncedSearch, sortBy, profileTab],
     queryFn: () => token ? scraperService.getInstagramProfiles(token, {
-      page, page_size: PAGE_SIZE_PROFILES, search: debouncedSearch || undefined,
+      page, page_size: PAGE_SIZE_PROFILES, search: debouncedSearch || undefined, is_owned: false,
+      tracked: profileTab === 'periodic' ? 'true' : undefined,
+      bookmarked: profileTab === 'bookmarked' ? 'true' : undefined,
     }) : Promise.reject('No token'),
     enabled: !!token,
-    refetchInterval: 15000,
+    refetchInterval: (query) => {
+      const hasProcessing = query.state.data?.profiles?.some(
+        (p) => p.scraping_status === 'processing'
+      );
+      return hasProcessing ? 3000 : 15000;
+    },
   });
 
   const profiles = profilesQuery.data?.profiles || [];
@@ -232,11 +267,20 @@ export default function InstagramExternalPage() {
   });
 
   const toggleMutation = useMutation({
-    mutationFn: ({ id, field }: { id: number; field: 'is_bookmarked' | 'is_tracked' }) => {
+    mutationFn: ({ id, field }: { id: number; field: InstagramToggleField }) => {
       if (!token) throw new Error('No token');
       return scraperService.toggleInstagramProfile(token, id, field);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['instagram-profiles'] }),
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['instagram-profiles'] });
+      if (vars.field === 'is_owned') {
+        // Trang Tổng quan kênh nội bộ đọc theo đúng cờ này; không dọn cache thì người dùng
+        // bật xong quay sang vẫn thấy trang cũ và tưởng là không ăn.
+        queryClient.invalidateQueries({ queryKey: ['owned-stats'] });
+        queryClient.invalidateQueries({ queryKey: ['owned-dup'] });
+        toast.success('Đã cập nhật kênh nội bộ — số liệu sẽ hiện ở trang Tổng quan kênh nội bộ');
+      }
+    },
   });
 
   const rescrapeMutation = useMutation({
@@ -295,39 +339,98 @@ export default function InstagramExternalPage() {
 
         {!profilesCollapsed && (
           <div className="px-4 pb-4 space-y-4">
-            {/* Filter bar */}
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative flex-1 min-w-[180px] max-w-sm">
-                <MagnifyingGlass size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder="Tìm theo username..."
-                  className="w-full pl-9 pr-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                />
-              </div>
-              <select
-                value={sortBy}
-                onChange={e => setSortBy(e.target.value as 'followers' | 'recent')}
-                className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              >
-                <option value="followers">Nhiều followers nhất</option>
-                <option value="recent">Mới thêm gần đây</option>
-              </select>
-              {hasProfileFilters && (
-                <button onClick={clearProfileFilters} className="flex items-center gap-1 px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50 dark:hover:bg-slate-800">
-                  <X size={12} /> Xóa lọc
+            {/* Filter bar: Tabs + Search + Sort + Sync button */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-1">
+              {/* Filter Tabs: Tất cả | Kênh chú ý | Đã lưu */}
+              <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg w-fit">
+                <button
+                  type="button"
+                  onClick={() => { setProfileTab('all'); setPage(1); }}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                    profileTab === 'all'
+                      ? 'bg-card text-foreground shadow-sm'
+                      : 'text-slate-500 hover:text-foreground'
+                  }`}
+                >
+                  Tất cả
                 </button>
-              )}
+                <button
+                  type="button"
+                  onClick={() => { setProfileTab('periodic'); setPage(1); }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                    profileTab === 'periodic'
+                      ? 'bg-card text-emerald-600 dark:text-emerald-400 shadow-sm'
+                      : 'text-slate-500 hover:text-emerald-600'
+                  }`}
+                >
+                  <Timer size={14} weight="fill" />
+                  Kênh chú ý
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setProfileTab('bookmarked'); setPage(1); }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                    profileTab === 'bookmarked'
+                      ? 'bg-card text-amber-600 dark:text-amber-400 shadow-sm'
+                      : 'text-slate-500 hover:text-amber-600'
+                  }`}
+                >
+                  <BookmarkSimple size={14} weight="fill" />
+                  Đã lưu
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="relative flex-1 min-w-[180px] max-w-sm">
+                  <MagnifyingGlass size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    placeholder="Tìm theo username..."
+                    className="w-full pl-9 pr-3 py-1.5 text-xs border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  />
+                </div>
+                <FilterSelect
+                  value={sortBy}
+                  onChange={val => setSortBy(val as 'followers' | 'recent')}
+                  options={[
+                    { value: 'followers', label: 'Nhiều followers nhất' },
+                    { value: 'recent', label: 'Mới thêm gần đây' },
+                  ]}
+                  placeholder="Sắp xếp"
+                  triggerClassName="h-8 py-1 text-xs"
+                />
+                {hasProfileFilters && (
+                  <button onClick={clearProfileFilters} className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50 dark:hover:bg-slate-800">
+                    <X size={12} /> Xóa lọc
+                  </button>
+                )}
+                {canManageChannels && (
+                  <SyncAllChannelsButton platform="instagram" channelCount={totalProfiles} />
+                )}
+              </div>
             </div>
 
             {profilesQuery.isLoading ? (
               <div className="flex justify-center py-8"><CircleNotch size={24} className="animate-spin text-primary" /></div>
             ) : profiles.length === 0 ? (
-              <div className="flex flex-col items-center py-12 gap-3">
+              <div className="flex flex-col items-center py-12 gap-2 text-center">
                 <UserCircle size={36} className="text-slate-300" />
-                <p className="text-sm text-slate-400">Chưa có profile nào</p>
+                <p className="text-sm font-medium text-foreground">
+                  {profileTab === 'periodic'
+                    ? 'Chưa có kênh nào được đánh dấu chú ý.'
+                    : profileTab === 'bookmarked'
+                    ? 'Chưa có kênh nào được lưu.'
+                    : 'Chưa có profile nào'}
+                </p>
+                <p className="text-xs text-slate-400 max-w-sm">
+                  {profileTab === 'periodic'
+                    ? 'Bấm vào biểu tượng chiếc đồng hồ ở góc dưới mỗi thẻ kênh để thêm vào danh sách theo dõi.'
+                    : profileTab === 'bookmarked'
+                    ? 'Bấm vào biểu tượng bookmark để lưu kênh.'
+                    : 'Nhập Instagram username ở trên để bắt đầu cào.'}
+                </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -338,7 +441,9 @@ export default function InstagramExternalPage() {
                     onScrape={canManageChannels ? () => rescrapeMutation.mutate({ id: p.id, username: p.username }) : undefined}
                     onToggleBookmark={() => toggleMutation.mutate({ id: p.id, field: 'is_bookmarked' })}
                     onToggleTracked={canManageChannels ? () => toggleMutation.mutate({ id: p.id, field: 'is_tracked' }) : undefined}
+                    onToggleOwned={canManageChannels ? () => toggleMutation.mutate({ id: p.id, field: 'is_owned' }) : undefined}
                     onViewDetail={() => router.push(`/dashboard/externalChannels/instagram/${p.id}`)}
+                    onDelete={canManageChannels ? () => handleDeleteChannel(p.id, p.username, p.reels_in_db ?? 0) : undefined}
                   />
                 ))}
               </div>
@@ -364,7 +469,7 @@ export default function InstagramExternalPage() {
       {/* ─── Reels section ───────────────────────────────── */}
       <div>
         {/* Filter bar */}
-        <div className="flex flex-wrap items-center gap-3 mb-3">
+        <div className="flex flex-wrap items-center gap-2.5 bg-card border border-border rounded-xl p-3 shadow-xs mb-3">
           <div className="relative flex-1 min-w-[180px] max-w-sm">
             <MagnifyingGlass size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
@@ -372,38 +477,72 @@ export default function InstagramExternalPage() {
               value={reelSearch}
               onChange={e => setReelSearch(e.target.value)}
               placeholder="Tìm theo caption..."
-              className="w-full pl-9 pr-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-primary outline-none"
+              className="w-full pl-9 pr-8 py-2 text-sm border border-border rounded-lg bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all"
             />
+            {reelSearch && (
+              <button
+                type="button"
+                onClick={() => setReelSearch('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X size={13} />
+              </button>
+            )}
           </div>
-          <select
+          <FilterSelect
             value={selectedProfile}
-            onChange={e => setSelectedProfile(e.target.value)}
-            className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          >
-            <option value="">Tất cả profile</option>
-            {profiles.map(p => <option key={p.id} value={p.id}>@{p.username}</option>)}
-          </select>
-          <input
-            type="number"
-            value={minPlays}
-            onChange={e => setMinPlays(e.target.value)}
-            placeholder="Min View"
-            className="w-28 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            onChange={setSelectedProfile}
+            options={[
+              { value: '', label: 'Tất cả profile' },
+              ...profiles.map(p => ({
+                value: String(p.id),
+                label: `@${p.username}`,
+                count: p.reels_in_db ?? undefined,
+              })),
+            ]}
+            placeholder="Tất cả profile"
+            icon={<InstagramLogo size={15} weight="bold" className="text-pink-500" />}
+            searchPlaceholder="Tìm profile..."
           />
-          <select
+          <div className="relative w-32">
+            <Eye size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+              type="number"
+              value={minPlays}
+              onChange={e => setMinPlays(e.target.value)}
+              placeholder="Min View"
+              className="w-full pl-8 pr-6 py-2 text-sm border border-border rounded-lg bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            />
+            {minPlays && (
+              <button
+                type="button"
+                onClick={() => setMinPlays('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+          <FilterSelect
             value={sortReels}
-            onChange={e => setSortReels(e.target.value)}
-            className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          >
-            <option value="date">Mới nhất</option>
-            <option value="plays">Nhiều views nhất</option>
-            <option value="likes">Nhiều likes nhất</option>
-          </select>
-          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none" title="Từ ngày" />
-          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none" title="Đến ngày" />
+            onChange={setSortReels}
+            options={[
+              { value: 'date', label: 'Mới nhất' },
+              { value: 'plays', label: 'Nhiều views nhất' },
+              { value: 'likes', label: 'Nhiều likes nhất' },
+            ]}
+            placeholder="Sắp xếp"
+            icon={<ArrowsDownUp size={15} />}
+          />
+          <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="Từ ngày" />
+          <DatePicker value={dateTo} onChange={setDateTo} placeholder="Đến ngày" align="right" />
           {hasReelFilters && (
-            <button onClick={clearReelFilters} className="flex items-center gap-1 px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50 dark:hover:bg-slate-800">
-              <X size={12} /> Xóa lọc
+            <button
+              type="button"
+              onClick={clearReelFilters}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-950/20 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/30 transition-all cursor-pointer select-none ml-auto sm:ml-0"
+            >
+              <X size={13} weight="bold" /> Xóa lọc
             </button>
           )}
         </div>
@@ -437,11 +576,11 @@ export default function InstagramExternalPage() {
 
         {allReels.length > 0 && (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4">
               {allReels.map(reel => <InstagramReelCard key={reel.post_id} reel={reel} />)}
               {reelsQuery.isFetchingNextPage && Array.from({ length: 6 }).map((_, i) => (
                 <div key={`skel-${i}`} className="bg-card border border-border rounded-lg overflow-hidden animate-pulse">
-                  <div className="aspect-[9/16] max-h-[280px] bg-slate-200 dark:bg-slate-700" />
+                  <div className="aspect-[9/16] bg-slate-200 dark:bg-slate-700" />
                   <div className="p-3 space-y-2"><div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-full" /><div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-2/3" /></div>
                 </div>
               ))}

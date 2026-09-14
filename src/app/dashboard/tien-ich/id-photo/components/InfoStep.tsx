@@ -14,13 +14,11 @@ export function InfoStep({
   employeeName,
   employeeTeam,
   employeeId,
-  employeeTitlePrefix,
   position,
   isSubmitting,
   onChangeEmployeeName,
   onChangeEmployeeTeam,
   onChangeEmployeeId,
-  onChangeEmployeeTitlePrefix,
   onChangePosition,
   onBack,
   onContinue,
@@ -28,18 +26,16 @@ export function InfoStep({
   employeeName: string;
   employeeTeam: string;
   employeeId: string;
-  employeeTitlePrefix: string;
   position: IdPhotoPosition;
   isSubmitting: boolean;
   onChangeEmployeeName: (v: string) => void;
   onChangeEmployeeTeam: (v: string) => void;
   onChangeEmployeeId: (v: string) => void;
-  onChangeEmployeeTitlePrefix: (v: string) => void;
   onChangePosition: (v: IdPhotoPosition) => void;
   onBack: () => void;
   onContinue: () => void;
 }) {
-  const values = { employeeName, employeeTeam, employeeId, employeeTitlePrefix, position };
+  const values = { employeeName, employeeTeam, employeeId, position };
   const isValid = isEmployeeInfoValid(values);
 
   return (
@@ -51,7 +47,6 @@ export function InfoStep({
           if (patch.employeeName !== undefined) onChangeEmployeeName(patch.employeeName);
           if (patch.employeeTeam !== undefined) onChangeEmployeeTeam(patch.employeeTeam);
           if (patch.employeeId !== undefined) onChangeEmployeeId(patch.employeeId);
-          if (patch.employeeTitlePrefix !== undefined) onChangeEmployeeTitlePrefix(patch.employeeTitlePrefix);
           if (patch.position !== undefined) onChangePosition(patch.position);
         }}
       />

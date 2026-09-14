@@ -13,6 +13,7 @@ import {
 } from '@/lib/api/paast-analyzer'
 import {
   LAYER_META, CRITERIA_LAYERS, VerdictBadge, LayerBlock, CriterionCard,
+  ScoreBandBadge, VideoRealismPanel, PreferInsightsBlock,
   renderHighlighted, stripAddTags, extractErrorMessage,
 } from './paast-score-display'
 
@@ -197,22 +198,30 @@ export function PaastScoreModal({ open, content, onClose, cachedResult, onAnalyz
                   <p className="text-3xl font-extrabold text-violet-700 mt-0.5 leading-none">
                     {result.total_score}<span className="text-base font-semibold text-violet-400">/100</span>
                   </p>
-                  {analysis.verdict && <VerdictBadge verdict={analysis.verdict} className="mt-2" />}
+                  <div className="flex items-center gap-2 flex-wrap mt-2">
+                    {analysis.verdict && <VerdictBadge verdict={analysis.verdict} />}
+                    {analysis.score_band && <ScoreBandBadge band={analysis.score_band} />}
+                  </div>
                 </div>
                 <div className="flex gap-2">
-                  {(['prefer', 'action', 'acknowledge', 'stick', 'trust'] as const).map(key => (
-                    <div key={key} className="text-center">
-                      <div
-                        className={`w-9 h-9 rounded-lg ${LAYER_META[key].bg} border ${LAYER_META[key].border} flex items-center justify-center text-xs font-bold ${LAYER_META[key].color}`}
-                        title={`${LAYER_META[key].label}: ${analysis.layers[key].score}/20`}
-                      >
-                        {analysis.layers[key].score}
+                  {(['prefer', 'action', 'acknowledge', 'stick', 'trust'] as const).map(key => {
+                    const max = analysis.layers[key].max ?? LAYER_META[key].max
+                    return (
+                      <div key={key} className="text-center">
+                        <div
+                          className={`w-9 h-9 rounded-lg ${LAYER_META[key].bg} border ${LAYER_META[key].border} flex items-center justify-center text-xs font-bold ${LAYER_META[key].color}`}
+                          title={`${LAYER_META[key].label}: ${analysis.layers[key].score}/${max}`}
+                        >
+                          {analysis.layers[key].score}
+                        </div>
+                        <p className="text-[10px] text-gray-400 mt-1 uppercase">{key[0]}</p>
                       </div>
-                      <p className="text-[10px] text-gray-400 mt-1 uppercase">{key[0]}</p>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
+
+              {analysis.video_realism && <VideoRealismPanel videoRealism={analysis.video_realism} />}
 
               {/* CTA warning */}
               {analysis.cta_warning?.detected && (
@@ -230,37 +239,10 @@ export function PaastScoreModal({ open, content, onClose, cachedResult, onAnalyz
               {/* Prefer — đánh giá tổng thể */}
               <LayerBlock
                 title={LAYER_META.prefer.label} sub={LAYER_META.prefer.sub} score={analysis.layers.prefer.score}
+                max={analysis.layers.prefer.max ?? LAYER_META.prefer.max}
                 color={LAYER_META.prefer.color} bg={LAYER_META.prefer.bg} border={LAYER_META.prefer.border}
               >
-                <div className="flex flex-wrap gap-1.5">
-                  {analysis.layers.prefer.insights.map(i => (
-                    <span
-                      key={i.code}
-                      title={i.description || undefined}
-                      className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${
-                        i.status === 'primary'
-                          ? 'bg-amber-600 border-amber-600 text-white'
-                          : i.status === 'secondary'
-                            ? 'bg-white border-amber-400 text-amber-700'
-                            : 'bg-white border-gray-200 text-gray-400'
-                      }`}
-                    >
-                      {i.name_en} · {i.name_vi}
-                    </span>
-                  ))}
-                </div>
-                {analysis.layers.prefer.insights
-                  .filter(i => i.status !== 'off' && i.evidence_sentences.length > 0)
-                  .map(i => (
-                    <div key={i.code} className="mt-2.5 space-y-1">
-                      <p className="text-xs font-semibold text-gray-600">{i.name_en} · {i.name_vi} — {i.description}</p>
-                      {i.evidence_sentences.map((s, idx) => (
-                        <p key={idx} className="text-xs italic text-gray-500 border-l-2 border-amber-300 bg-amber-50/50 px-2.5 py-1.5 rounded-r">
-                          &ldquo;{s}&rdquo;
-                        </p>
-                      ))}
-                    </div>
-                  ))}
+                <PreferInsightsBlock prefer={analysis.layers.prefer} />
               </LayerBlock>
 
               {/* Action / Acknowledge / Stick / Trust — đánh giá từng tiêu chí */}
@@ -268,6 +250,7 @@ export function PaastScoreModal({ open, content, onClose, cachedResult, onAnalyz
                 <LayerBlock
                   key={key}
                   title={LAYER_META[key].label} sub={LAYER_META[key].sub} score={analysis.layers[key].score}
+                  max={analysis.layers[key].max ?? LAYER_META[key].max}
                   color={LAYER_META[key].color} bg={LAYER_META[key].bg} border={LAYER_META[key].border}
                 >
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -289,9 +272,15 @@ export function PaastScoreModal({ open, content, onClose, cachedResult, onAnalyz
                     <span className="text-gray-300">→</span>
                     {upgradeResult.total_score}<span className="text-sm font-semibold text-emerald-400">/100</span>
                   </p>
-                  {upgradedAnalysis.verdict && <VerdictBadge verdict={upgradedAnalysis.verdict} className="mt-2" />}
+                  <div className="flex items-center gap-2 flex-wrap mt-2">
+                    {upgradedAnalysis.verdict && <VerdictBadge verdict={upgradedAnalysis.verdict} />}
+                    {upgradedAnalysis.score_band && <ScoreBandBadge band={upgradedAnalysis.score_band} />}
+                  </div>
                 </div>
               </div>
+
+              {/* Video Realism Check của bản sau nâng cấp */}
+              {upgradedAnalysis.video_realism && <VideoRealismPanel videoRealism={upgradedAnalysis.video_realism} />}
 
               {/* Danh sách phần AI đã thêm */}
               {!!upgradedAnalysis.changes_added?.length && (

@@ -428,6 +428,11 @@ function PersonalContentModal({
 
   const saving = createMut.isPending || updateMut.isPending
 
+  const handleSubmit = () => {
+    if (!form.title?.trim()) return toast.error('Tiêu đề content là bắt buộc')
+    isEdit ? updateMut.mutate() : createMut.mutate()
+  }
+
   return (
     <DarkModal
       open
@@ -438,7 +443,7 @@ function PersonalContentModal({
         <>
           <button onClick={onClose} className="bg-gray-100 hover:bg-gray-200 text-slate-800 rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors">Hủy</button>
           <button
-            onClick={() => { isEdit ? updateMut.mutate() : createMut.mutate() }}
+            onClick={handleSubmit}
             disabled={saving}
             className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors disabled:opacity-60"
           >
@@ -461,7 +466,7 @@ function PersonalContentModal({
               onChange={e => setForm(f => ({ ...f, code: e.target.value }))}
             />
             <DarkInput
-              label="Tiêu đề content"
+              label="Tiêu đề content *"
               placeholder="Nhập tiêu đề..."
               value={form.title ?? ''}
               onChange={e => setForm(f => ({ ...f, title: e.target.value }))}

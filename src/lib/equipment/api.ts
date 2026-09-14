@@ -41,9 +41,13 @@ export interface BorrowLine {
   note?: string;
 }
 
+/** PERSONAL cần hai chữ ký: leader rồi admin. Bỏ trống thì BE hiểu là WORK. */
+export type BorrowPurpose = 'WORK' | 'PERSONAL';
+
 export interface CreateBorrowRequestPayload {
   project: string;
   place: string;
+  purpose?: BorrowPurpose;
   fromTime: string;
   toTime: string;
   lines: BorrowLine[];
@@ -80,6 +84,8 @@ export interface EquipmentModel {
 export interface StorageLocation {
   id: string;
   name: string;
+  /** Số máy đang nằm ở đây — vị trí còn máy thì BE chặn xoá. Vắng mặt ở vài endpoint cũ. */
+  _count?: { assets: number };
 }
 
 export async function fetchCategories() {
@@ -137,6 +143,84 @@ export async function createAsset(payload: {
   return data;
 }
 
+export async function createLocation(payload: { name: string; parentId?: string }) {
+  const { data } = await apiClient.post<StorageLocation>('/mems/locations', payload);
+  return data;
+}
+
+export async function updateLocation(id: string, payload: { name: string; parentId?: string }) {
+  const { data } = await apiClient.patch<StorageLocation>(`/mems/locations/${id}`, payload);
+  return data;
+}
+
+/** Xoá mềm — BE giữ bản ghi, chỉ đánh dấu ngừng dùng. Chặn nếu vị trí còn chứa máy. */
+export async function deleteLocation(id: string) {
+  const { data } = await apiClient.delete<StorageLocation>(`/mems/locations/${id}`);
+  return data;
+}
+
+export interface UpdateAssetPayload {
+  modelId?: string;
+  serialNumber?: string;
+  /** Chuỗi rỗng = gỡ máy khỏi vị trí. Bỏ trống hẳn = giữ nguyên chỗ cũ. */
+  locationId?: string;
+  purchaseDate?: string;
+  purchasePrice?: number;
+  condition?: string;
+  status?: string;
+  note?: string;
+}
+
+export async function updateAsset(assetCode: string, payload: UpdateAssetPayload) {
+  const { data } = await apiClient.patch<Asset>(
+    `/mems/assets/${encodeURIComponent(assetCode)}`,
+    payload,
+  );
+  return data;
+}
+
+/** Xoá mềm — BE giữ lại hồ sơ máy, chỉ chuyển sang ngừng dùng. */
+export async function deleteAsset(assetCode: string) {
+  const { data } = await apiClient.delete<{ success: boolean; message: string }>(
+    `/mems/assets/${encodeURIComponent(assetCode)}`,
+  );
+  return data;
+}
+
+export interface PendingInspectionAsset extends Asset {
+  location: { id: string; name: string } | null;
+  returnLines?: {
+    condition_before: string;
+    condition_after: string;
+    note: string | null;
+    returnRecord: { returned_at: string } | null;
+    incidents: { kind: string; description: string }[];
+  }[];
+}
+
+/** NV-14: máy đang chờ kết luận kiểm tra. Chỉ quản lý kho gọi được (BE chặn bằng guard). */
+export async function fetchPendingInspection() {
+  const { data } = await apiClient.get<PendingInspectionAsset[]>('/mems/pending-inspection');
+  return data;
+}
+
+/**
+ * Kết luận kiểm tra, đưa máy ra khỏi bàn nhận.
+ *
+ * Kết luận `UNDER_MAINTENANCE` sinh thêm một lệnh bảo trì bỏ ngỏ điểm kết thúc — máy bận cho tới
+ * khi có người đóng lệnh, không phải chỉ đổi cột trạng thái.
+ */
+export async function inspectAsset(
+  assetCode: string,
+  payload: { result: string; condition?: string; note?: string },
+) {
+  const { data } = await apiClient.post<Asset>(
+    `/mems/assets/${encodeURIComponent(assetCode)}/inspect`,
+    payload,
+  );
+  return data;
+}
+
 export interface AssetPhoto {
   id: string;
   url: string;
@@ -172,10 +256,27 @@ export async function fetchAssetPhotos(assetCode: string) {
   return data;
 }
 
-export async function uploadAssetPhoto(assetCode: string, file: File, caption?: string) {
+/**
+ * Ảnh này chụp để làm gì — phải khớp với `PHOTO_PURPOSE` bên BE.
+ *
+ * Ảnh biên bản đi qua CHÍNH endpoint này, nên nếu không phân biệt thì mỗi lượt giao/nhận lại
+ * đẩy thêm ảnh vào thư viện ảnh hồ sơ của máy, và ảnh đại diện ở bảng kho có thể rơi trúng một
+ * tấm chụp vết xước.
+ *
+ * BE chưa có cột `purpose` thì bỏ qua trường này, ảnh vào thư viện như cũ — không vỡ gì.
+ */
+export type PhotoPurpose = 'CATALOG' | 'HANDOVER' | 'RETURN';
+
+export async function uploadAssetPhoto(
+  assetCode: string,
+  file: File,
+  caption?: string,
+  purpose?: PhotoPurpose,
+) {
   const form = new FormData();
   form.append('photo', file);
   if (caption) form.append('caption', caption);
+  if (purpose) form.append('purpose', purpose);
   const { data } = await apiClient.post<AssetPhoto>(
     `/mems/assets/${encodeURIComponent(assetCode)}/photos`,
     form,

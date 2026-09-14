@@ -14,6 +14,7 @@ import MobileDrawer from "./MobileDrawer";
 import NotificationBell from "@/components/social/NotificationBell";
 import { useSocialLang } from "@/contexts/SocialLanguageContext";
 import { useTheme } from "@/contexts/ThemeContext";
+import { canManageCatalog } from "@/lib/equipment/catalog-permissions";
 
 export default function HeaderInner({ user, onLogout, allowedMenuIds }: HeaderProps) {
     const { lang, setLang, t } = useSocialLang();
@@ -40,6 +41,7 @@ export default function HeaderInner({ user, onLogout, allowedMenuIds }: HeaderPr
     const isAdmin = user?.roles?.includes(UserRole.ADMIN);
     const isLeader = user?.roles?.includes(UserRole.LEADER);
     const isManager = user?.roles?.includes(UserRole.MANAGER);
+    const isMediaLeaderOrAdmin = canManageCatalog(user?.roles, user?.team);
 
     const userInitial = user?.full_name
         ? (user.full_name.trim().split(" ").pop()?.[0]?.toUpperCase() ?? "?")
@@ -49,6 +51,8 @@ export default function HeaderInner({ user, onLogout, allowedMenuIds }: HeaderPr
         isAdmin: !!isAdmin,
         isLeader: !!isLeader,
         isManager: !!isManager,
+        // Quyền điều phối kho thiết bị gắn với Team Media, khác hẳn ba cờ vai trò ở trên.
+        isMediaLeaderOrAdmin: !!isMediaLeaderOrAdmin,
     });
 
     // allowedMenuIds chứa tab-level permissions, không phải nav menu IDs.

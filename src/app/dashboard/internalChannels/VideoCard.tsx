@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Play, Pause, Eye, Heart, MessageCircle, Share2, Users, ExternalLink } from 'lucide-react';
 import { FacebookVideo } from '@/types/facebook';
+import OPaastVideo from './components/OPaastVideo';
 
 function formatNumber(num: number): string {
   if (num >= 1_000_000) return (num / 1_000_000).toFixed(1) + 'M';
@@ -85,6 +86,7 @@ export default function VideoCard({ video, isPlaying, onPlay }: VideoCardProps) 
               src={video.thumbnail_url}
               alt=""
               className="w-full h-full object-cover"
+              referrerPolicy="no-referrer"
               onError={e => {
                 (e.target as HTMLImageElement).style.display = 'none';
               }}
@@ -105,6 +107,12 @@ export default function VideoCard({ video, isPlaying, onPlay }: VideoCardProps) 
               </div>
             </button>
           )}
+
+          {/* Ô chấm điểm PAAST — bấm vào mới chấm, không tự chấm */}
+          <OPaastVideo
+            platform="facebook"
+            postId={video.post_id}
+          />
 
           {/* Views badge */}
           <div className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-1 bg-black/60 backdrop-blur-sm rounded-md">

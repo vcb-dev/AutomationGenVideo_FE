@@ -87,6 +87,9 @@ export interface TeamProduct {
   source_product_id: string | null
   /** có giá trị = đẩy từ kho cá nhân (FK reference) */
   source_editor_product_id: string | null
+  /** có giá trị = được leader kéo về từ kho tổng (OMS) — dùng để "Làm mới từ OMS" */
+  oms_product_id: string | null
+  oms_variant_id: string | null
   added_by_id: string
   added_at: string
   updated_at: string
@@ -145,6 +148,8 @@ export interface TeamContent {
     content_line?: { id: string; name: string } | null
     classification?: { id: string; name: string } | null
   } | null
+  /** tasks = "số lần được làm". */
+  _count?: { tasks?: number }
 }
 
 // ── Editor Approvals ────────────────────────────
@@ -201,9 +206,10 @@ export interface EditorKpi {
   content_new: number
   content_collected: number
   content_win_cover: number
-  // ── Product ──
+  // ── Product ── (product_planned = SP GMV, product_win_collect = SP Traffic, product_profit = SP Profit)
   product_planned: number
   product_win_collect: number
+  product_profit: number
   set_by_id: string
   created_at: string
   updated_at: string
@@ -295,6 +301,39 @@ export interface ContentCreatorReportRow {
   translations_count: number
   videos_made: number
   videos: ContentCreatorReportVideo[]
+}
+
+/** Trạng thái Content Win/Fail tự tính — "win" khi có ít nhất 1 link bài đăng bất kỳ (Facebook /
+ * YouTube / Instagram) đạt > 10.000 view, "fail" khi có số liệu nhưng không link nào vượt ngưỡng,
+ * "pending" khi chưa có link nào cào được số liệu thành công. */
+export type WinFailStatus = 'win' | 'fail' | 'pending'
+
+/** 1 content/video được gắn task, kèm phân loại win/fail tự tính. */
+export interface ContentWinFailVideo {
+  task_id: string
+  content_title: string | null
+  content_code: string | null
+  published_links: PublishedLink[] | null
+  win_status_auto: WinFailStatus
+  /** View của link cao nhất trong số link đã cào thành công (0 khi pending). */
+  views_auto: number
+}
+
+/** 1 dòng win/fail theo người — MỘT cơ chế duy nhất cho mọi thành viên team (không phân biệt
+ * content creator/editor): "content được gắn task trong kỳ". Trả về từ GET /kpi/content-win-fail.
+ * Chỉ số MỚI, tự tính, tách biệt EditorKpi.video_win/fail (nhập tay). */
+export interface ContentWinFailPersonRow {
+  user_id: string
+  user: Pick<UserBasic, 'id' | 'full_name'> | null
+  win: number
+  fail: number
+  pending: number
+  videos: ContentWinFailVideo[]
+}
+
+export interface ContentWinFailStats {
+  by_member: ContentWinFailPersonRow[]
+  totals: { win: number; fail: number; pending: number }
 }
 
 // ── Team Push Request (duyệt đẩy kho cá nhân → kho team) ──
@@ -442,6 +481,75 @@ export interface Product {
   } | null
 }
 
+// ── OMS Integration (kho tổng — proxy trực tiếp từ hệ thống OMS ngoài) ──────────
+
+export interface OmsProductSummary {
+  id: string
+  alias: string
+  name: string
+  image_url: string | null
+  default_sku: string
+  skus: string[]
+  variant_count: number
+  matched_sku: string | null
+  vendor: string | null
+  product_type: string | null
+  unit: string | null
+  tags: string[]
+  price_from: number
+  is_published: boolean
+}
+
+export interface OmsProductListResponse {
+  data: OmsProductSummary[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface OmsProductVariant {
+  id: string
+  sku: string
+  barcode: string | null
+  price: number
+  compare_at_price: number | null
+  cost: number | null
+  image_url: string | null
+  enabled: boolean
+  option_values: string[]
+}
+
+export interface OmsProductImage {
+  id: string
+  url: string
+  position: number
+  is_primary: boolean
+}
+
+export interface OmsProductDetail {
+  id: string
+  alias: string
+  name: string
+  vendor: string | null
+  product_type: string | null
+  tags: string[]
+  is_published: boolean
+  image_url: string | null
+  images: OmsProductImage[]
+  variants: OmsProductVariant[]
+  category_ids: string[]
+  created_at: string
+  updated_at: string
+}
+
+export interface OmsProductQuery {
+  q?: string
+  page?: number
+  page_size?: number
+  is_published?: boolean
+  category_id?: string
+}
+
 export interface Content {
   id: string
   brand_type: BrandType
@@ -465,6 +573,12 @@ export interface Content {
   approved_content_id: string | null
   added_by_id: string
   lark_record_id: string | null
+  /** Link bài đăng minh chứng (view cao nhất & > ngưỡng) khi content này được tự đẩy lên kho tổng
+   * do đạt content-win. NULL nếu không phải content-win tự đẩy; undefined nếu endpoint không trả. */
+  win_video_url?: string | null
+  win_video_views?: string | null
+  win_video_platform?: string | null
+  won_at?: string | null
   created_at: string
   updated_at: string
   content_line?: ContentLine | null
@@ -485,7 +599,8 @@ export interface Content {
     } | null
   } | null
   translations?: ContentTranslation[]
-  _count?: { translations: number }
+  /** tasks = "số lần được làm". */
+  _count?: { translations?: number; tasks?: number }
 }
 
 // ── Content Translations (bản dịch content theo thị trường) ────────────
@@ -586,7 +701,7 @@ export interface PublishedLink {
   /** Tên nền tảng tự do; "FACEBOOK"/"TIKTOK"/"INSTAGRAM"/"YOUTUBE" được nhận icon thương hiệu, còn lại dùng icon mặc định */
   platform: string
   url: string
-  /** Số liệu tương tác do BE tự kéo — hiện chỉ Facebook (page nội bộ) được hỗ trợ, platform khác có status 'unsupported' */
+  /** Số liệu tương tác do BE tự kéo — hiện hỗ trợ Facebook + Instagram (kênh nội bộ) và YouTube, platform khác có status 'unsupported' */
   stats?: PublishedLinkStats | null
 }
 
@@ -599,6 +714,10 @@ export interface Task {
   product_id: string | null
   editor_product_id: string | null
   team_product_id: string | null
+  /** Chọn trực tiếp từ kho tổng (OMS) nhưng task đang PENDING (chưa có assignee) — tạm giữ,
+   *  materialize thành editor_product_id lúc gán assignee. Null sau khi đã materialize. */
+  oms_product_id?: string | null
+  oms_variant_id?: string | null
   content_line_id: string | null
   product_line_id?: string | null
   /** true = task đẩy SP theo kế hoạch (SP kho team) — luôn đi kèm task_type AUTO */
@@ -617,6 +736,8 @@ export interface Task {
   team_source_huyk_id:         string | null
   status: TaskStatus
   assignee_id: string | null
+  /** Ai đã set assignee_id (leader/admin/manager giao tay); null nếu assignee tự nhận task hoặc chưa có assignee */
+  assigned_by_id: string | null
   assigned_at: string | null
   deadline: string | null
   /** AUTO = task đẩy SP theo kế hoạch (không cho sửa) · EXTRA = task sáng tạo, gồm cả lane sáng tạo của auto-assign lẫn tạo tay (cho sửa) */

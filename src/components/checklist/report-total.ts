@@ -15,6 +15,22 @@ export function digitsOnly(text: string): string {
     return (text || '').replace(/\D/g, '');
 }
 
+/**
+ * Chèn dấu chấm ngăn cách hàng nghìn để đọc số cho dễ: 5821696 → 5.821.696.
+ *
+ * Chỉ dùng để HIỂN THỊ. Giá trị lưu trong state vẫn là chuỗi số thuần, vì `onChange` của ô
+ * nhập chạy `digitsOnly` — nên người dùng gõ hay dán "1.234.567 VNĐ" đều quay về "1234567".
+ *
+ * Chuỗi rỗng phải trả về rỗng, không được thành '0': `sumEntryValues` phân biệt "chưa gõ gì"
+ * (chuỗi rỗng) với "gõ số 0" ('0'), và hiện '0' ở ô trống sẽ khiến bước kiểm tra trước khi
+ * nộp tưởng đã có dữ liệu.
+ */
+export function formatThousands(text: string): string {
+    const digits = digitsOnly(text);
+    if (digits === '') return '';
+    return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
 export function sumEntryValues(values: Array<string | undefined | null>): string {
     let hasAnyValue = false;
     let total = BigInt(0);

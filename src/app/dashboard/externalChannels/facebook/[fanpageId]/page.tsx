@@ -6,10 +6,13 @@ import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft, Users, Heart, Eye, ChatCircle, ShareNetwork,
   VideoCamera, ArrowsClockwise, BookmarkSimple, Timer, CircleNotch, FilmReel, Globe,
+  MagnifyingGlass, X, ArrowsDownUp,
 } from '@phosphor-icons/react';
 import toast from 'react-hot-toast';
 
 import ReelCard from '../../components/ReelCard';
+import FilterSelect from '../../components/FilterSelect';
+import { DatePicker } from '@/components/ui/DatePicker';
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService } from '@/services/scraperService';
 import { useScrapingStore } from '@/store/scraping-store';
@@ -169,19 +172,17 @@ export default function FanpageDetailPage() {
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <div className="px-5 pb-5 pt-4">
           <div className="flex items-start gap-4">
-            <div className="w-20 h-20 rounded-full border-4 border-card bg-slate-100 overflow-hidden flex-shrink-0">
-              {fp.profile_id ? (
+            <div className="w-20 h-20 rounded-full border-4 border-card bg-gradient-to-br from-blue-500 to-indigo-600 text-white overflow-hidden flex-shrink-0 relative flex items-center justify-center font-bold text-2xl shadow-sm select-none">
+              {fp.name ? fp.name.trim().charAt(0).toUpperCase() : <Users size={28} />}
+              {(fp.avatar_url && fp.avatar_url !== 'FAILED') || fp.profile_id ? (
                 <img
-                  src={`https://graph.facebook.com/${fp.profile_id}/picture?type=large`}
+                  src={fp.avatar_url || `https://graph.facebook.com/${fp.profile_id}/picture?type=large`}
                   alt={fp.name}
-                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                  className="absolute inset-0 w-full h-full object-cover"
                   onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
                 />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-blue-50 text-blue-400">
-                  <Users size={28} />
-                </div>
-              )}
+              ) : null}
             </div>
 
             <div className="flex-1 min-w-0 pt-1">
@@ -224,7 +225,7 @@ export default function FanpageDetailPage() {
                 className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-md hover:opacity-90 disabled:opacity-50"
               >
                 <ArrowsClockwise size={15} className={isProcessing ? 'animate-spin' : ''} />
-                {isProcessing ? 'Đang cào...' : fp.is_initial_scraped ? 'Cập nhật' : 'Cào lượt đầu (300)'}
+                {isProcessing ? 'Đang cào...' : fp.is_initial_scraped ? 'Cập nhật' : 'Cào lượt đầu'}
               </button>
             )}
             <button
@@ -263,34 +264,64 @@ export default function FanpageDetailPage() {
           Video {totalReels > 0 && <span className="font-normal text-slate-500">({totalReels})</span>}
         </h2>
 
-        <div className="flex flex-wrap items-center gap-3 mb-4">
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Tìm theo caption, hashtag..."
-            className="flex-1 min-w-[180px] max-w-sm px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          />
-          <input
-            type="number"
-            value={minViews}
-            onChange={e => setMinViews(e.target.value)}
-            placeholder="Min views"
-            className="w-28 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          />
-          <select
+        <div className="flex flex-wrap items-center gap-2.5 bg-card border border-border rounded-xl p-3 shadow-xs mb-4">
+          <div className="relative flex-1 min-w-[180px] max-w-sm">
+            <MagnifyingGlass size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Tìm theo caption, hashtag..."
+              className="w-full pl-9 pr-8 py-2 text-sm border border-border rounded-lg bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+          <div className="relative w-32">
+            <Eye size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+              type="number"
+              value={minViews}
+              onChange={e => setMinViews(e.target.value)}
+              placeholder="Min views"
+              className="w-full pl-8 pr-6 py-2 text-sm border border-border rounded-lg bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            />
+            {minViews && (
+              <button
+                type="button"
+                onClick={() => setMinViews('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+          <FilterSelect
             value={sortBy}
-            onChange={e => setSortBy(e.target.value as 'date' | 'views')}
-            className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          >
-            <option value="date">Mới nhất</option>
-            <option value="views">Nhiều views nhất</option>
-          </select>
-          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none" title="Từ ngày" />
-          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none" title="Đến ngày" />
+            onChange={val => setSortBy(val as 'date' | 'views')}
+            options={[
+              { value: 'date', label: 'Mới nhất' },
+              { value: 'views', label: 'Nhiều views nhất' },
+            ]}
+            placeholder="Sắp xếp"
+            icon={<ArrowsDownUp size={15} />}
+          />
+          <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="Từ ngày" />
+          <DatePicker value={dateTo} onChange={setDateTo} placeholder="Đến ngày" align="right" />
           {hasFilters && (
-            <button onClick={clearFilters} className="px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-              Xóa bộ lọc
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-950/20 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/30 transition-all cursor-pointer select-none ml-auto sm:ml-0"
+            >
+              <X size={13} weight="bold" /> Xóa bộ lọc
             </button>
           )}
         </div>
@@ -311,13 +342,13 @@ export default function FanpageDetailPage() {
 
         {allReels.length > 0 && (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3">
               {allReels.map(reel => (
                 <ReelCard key={reel.post_id} reel={reel} />
               ))}
               {reelsQuery.isFetchingNextPage && Array.from({ length: 6 }).map((_, i) => (
                 <div key={`skel-${i}`} className="bg-card border border-border rounded-lg overflow-hidden animate-pulse">
-                  <div className="aspect-[9/16] max-h-[280px] bg-slate-200 dark:bg-slate-700" />
+                  <div className="aspect-[9/16] bg-slate-200 dark:bg-slate-700" />
                   <div className="p-3 space-y-2">
                     <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-full" />
                     <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-2/3" />

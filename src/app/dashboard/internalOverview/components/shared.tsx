@@ -35,23 +35,56 @@ export function computeDelta(nay: number, truoc: number): number | null {
   return Math.round(((nay - truoc) / truoc) * 100);
 }
 
+/**
+ * BE gom nhóm mọi con số theo NGÀY GIỜ VIỆT NAM, nên nhãn ngày cũng phải đọc theo múi giờ
+ * đó chứ không theo đồng hồ máy. `new Date('2026-08-25')` là nửa đêm UTC: máy đặt múi giờ
+ * âm sẽ hiện ra 24/8 trong khi BE tính cho ngày 25/8 — lệch đúng một ngày trên cả trục
+ * biểu đồ lẫn ngày đăng của video.
+ */
+const VN_TZ = 'Asia/Ho_Chi_Minh';
+
+/** Ngày theo lịch Việt Nam, dạng 'YYYY-MM-DD'. */
+function vietnamDateKey(d: Date): string {
+  return d.toLocaleDateString('sv-SE', { timeZone: VN_TZ });
+}
+
 export function shortDate(iso: string): string {
   const d = new Date(iso);
-  return `${d.getDate()} Th${d.getMonth() + 1}`;
+  if (Number.isNaN(d.getTime())) return '';
+  const [, thang, ngay] = vietnamDateKey(d).split('-');
+  return `${Number(ngay)} Th${Number(thang)}`;
 }
 
 export function fullDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('vi-VN', {
+    timeZone: VN_TZ,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 }
 
 /** "06:12 hôm nay" / "3 ngày trước" — dòng phụ dưới tên kênh trong bảng xếp hạng. */
 export function syncDescription(iso: string | null): string {
   if (!iso) return 'Chưa đồng bộ';
   const d = new Date(iso);
-  const dayCount = Math.floor((Date.now() - d.getTime()) / 86_400_000);
-  const gio = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-  if (dayCount <= 0) return `Đồng bộ ${gio} hôm nay`;
-  if (dayCount === 1) return `Đồng bộ ${gio} hôm qua`;
+  if (Number.isNaN(d.getTime())) return 'Chưa đồng bộ';
+
+  const time = d.toLocaleTimeString('vi-VN', { timeZone: VN_TZ, hour: '2-digit', minute: '2-digit' });
+
+  // Đếm theo lịch chứ không theo số giờ trôi qua: đồng bộ lúc 23h hôm qua, sáng nay xem thì
+  // hiệu số mới 9 tiếng — cách cũ làm tròn xuống 0 và nói "hôm nay".
+  const today = vietnamDateKey(new Date());
+  const syncedDate = vietnamDateKey(d);
+  if (syncedDate === today) return `Đồng bộ ${time} hôm nay`;
+
+  const dayCount = Math.round(
+    (Date.parse(`${today}T00:00:00Z`) - Date.parse(`${syncedDate}T00:00:00Z`)) / 86_400_000,
+  );
+  if (dayCount === 1) return `Đồng bộ ${time} hôm qua`;
+  if (dayCount < 1) return `Đồng bộ ${time} hôm nay`;
   return `Đồng bộ ${dayCount} ngày trước`;
 }
 

@@ -37,7 +37,7 @@ const PLATFORM_LABEL: Record<string, string> = {
   facebook: 'Facebook',
 };
 
-const DEFAULT_COUNT = 300;
+const DEFAULT_COUNT = 50;
 const MAX_COUNT = 1000;
 
 export default function QuickAddChannel() {
@@ -65,8 +65,7 @@ export default function QuickAddChannel() {
         case 'kuaishou': return scraperService.kuaishouProfileScrape(token, trimmed, n);
         case 'bilibili': return scraperService.bilibiliProfileScrape(token, trimmed, n);
         case 'xiaohongshu': return scraperService.xhsProfileScrape(token, trimmed, n);
-        // Facebook cào theo fanpage, BE không nhận tham số số lượng riêng.
-        case 'facebook': return scraperService.fanpageScrapeByUrl(token, trimmed);
+        case 'facebook': return scraperService.fanpageScrapeByUrl(token, trimmed, n);
       }
     },
     onSuccess: (data) => {
@@ -86,7 +85,6 @@ export default function QuickAddChannel() {
       </p>
       <p className="text-xs text-slate-400 mb-2">
         Số video là mức tối đa muốn lấy — nếu kênh có ít hơn thì chỉ lấy được đúng số kênh đó có.
-        {detected === 'facebook' && ' Facebook cào theo fanpage nên không áp dụng số này.'}
       </p>
       <div className="flex items-center gap-3">
         <input

@@ -10,7 +10,6 @@ import {
   COLOR_SECONDARY,
   COLOR_ENGAGEMENT,
   Subtitle,
-  PlatformCard,
   Card,
   SplitBar,
   CardTitle,

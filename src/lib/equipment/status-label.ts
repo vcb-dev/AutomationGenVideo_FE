@@ -22,11 +22,10 @@ const STATUS: Record<string, { label: string; tone: StatusTone }> = {
 
 const CONDITION: Record<string, { label: string; tone: ConditionTone }> = {
   GOOD: { label: 'Tốt', tone: 'good' },
-  USED: { label: 'Có dấu hiệu sử dụng', tone: 'used' },
-  NEEDS_CHECK: { label: 'Cần kiểm tra', tone: 'check' },
+  USED: { label: 'Tốt', tone: 'good' },
+  NEEDS_CHECK: { label: 'Bảo trì', tone: 'check' },
   BROKEN: { label: 'Hỏng', tone: 'broken' },
-  // Máy đang nằm ở xưởng: tình trạng vật lý chưa kết luận được cho tới khi thợ trả lời.
-  IN_MAINTENANCE: { label: 'Đang sửa chữa', tone: 'check' },
+  IN_MAINTENANCE: { label: 'Bảo trì', tone: 'check' },
 };
 
 /** Enum lạ vẫn phải hiện ra được: thà thấy mã thô còn hơn thấy ô trống. */
@@ -44,7 +43,29 @@ export const STATUS_OPTIONS = Object.keys(STATUS).map((value) => ({
   label: STATUS[value].label,
 }));
 
-export const CONDITION_OPTIONS = Object.keys(CONDITION).map((value) => ({
-  value,
-  label: CONDITION[value].label,
-}));
+/**
+ * Ba mức người dùng CHỌN được. Enum của BE có năm giá trị nhưng `USED` và `IN_MAINTENANCE` được
+ * gộp nhãn với `GOOD` và `NEEDS_CHECK` cho gọn — kho không cần phân biệt ở mức thao tác.
+ */
+export const CONDITION_OPTIONS = [
+  { value: 'GOOD', label: 'Tốt' },
+  { value: 'NEEDS_CHECK', label: 'Bảo trì' },
+  { value: 'BROKEN', label: 'Hỏng' },
+];
+
+/**
+ * Lựa chọn cho ô Tình trạng ở form sửa, có tính tới giá trị máy ĐANG mang.
+ *
+ * Ba mức chọn được không phủ hết enum: màn Bàn giao luôn ghi `USED`, còn màn Kiểm tra ghi được
+ * `IN_MAINTENANCE`. Đưa thẳng `CONDITION_OPTIONS` vào ô select thì một chiếc máy vừa bàn giao
+ * xong mở form ra sẽ không có option nào khớp — trình duyệt hiện ô trống hoặc nhảy về mục đầu,
+ * và người dùng đọc sai tình trạng thật của máy.
+ *
+ * Cùng một luật với `manualStatusOptionsFor`: giá trị ĐANG CÓ đứng đầu, rồi tới những đích
+ * chọn được.
+ */
+export function conditionOptionsFor(currentCondition: string): { value: string; label: string }[] {
+  const targets = CONDITION_OPTIONS.filter((o) => o.value !== currentCondition);
+  if (!currentCondition) return targets;
+  return [{ value: currentCondition, label: conditionLabel(currentCondition).label }, ...targets];
+}

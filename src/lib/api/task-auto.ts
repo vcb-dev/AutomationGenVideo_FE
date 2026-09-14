@@ -14,6 +14,7 @@ import type {
   ContentCreatorKpi,
   ContentCreatorDailyKpi,
   ContentCreatorReportRow,
+  ContentWinFailStats,
   ContentTranslation,
   ContentLine,
   ProductLine,
@@ -22,6 +23,9 @@ import type {
   ContentClassification,
   Product,
   ProductsQuery,
+  OmsProductListResponse,
+  OmsProductDetail,
+  OmsProductQuery,
   Content,
   ContentsQuery,
   Source,
@@ -477,6 +481,28 @@ export const deleteContentCreatorDailyKpi = (id: string) =>
 export const getContentCreatorKpiReport = (params: { user_id?: string; team_id?: string; from?: string; to?: string }) =>
   apiClient.get<ContentCreatorReportRow[]>(`/task-auto/kpi/content-creators/report${qs(params)}`).then(r => r.data)
 
+/** Chỉ số MỚI, tự tính win/fail (1 link bài đăng bất kỳ >10.000 view = win) theo content creator
+ * lẫn editor — tách biệt EditorKpi.video_win/fail (nhập tay). Cần truyền user_id hoặc team_id. */
+export const getContentWinFailStats = (params: { user_id?: string; team_id?: string; from?: string; to?: string }) =>
+  apiClient.get<ContentWinFailStats>(`/task-auto/kpi/content-win-fail${qs(params)}`).then(r => r.data)
+
+/** Cào lại traffic Facebook/YouTube mới nhất cho đúng scope rồi trả về win/fail đã tính lại — CHỦ
+ * ĐỘNG, chỉ chạy khi user bấm nút "Cập nhật" (không tự động khi mở chi tiết 1 thành viên nữa —
+ * từng gây dội hàng loạt request khi duyệt qua nhiều người, làm chậm hệ thống). Số liệu mặc định
+ * đã được làm mới mỗi ngày qua cron 8:15 sáng. */
+export const refreshContentWinFailStats = (params: { user_id?: string; team_id?: string; from?: string; to?: string }) =>
+  apiClient.post<ContentWinFailStats>(`/task-auto/kpi/content-win-fail/refresh${qs(params)}`).then(r => r.data)
+
+/** Top N người có nhiều content win nhất TOÀN HỆ THỐNG — mặc định cho ADMIN/MANAGER khi chưa
+ * chọn team/thành viên cụ thể ở trang Tổng quan (không bắt buộc chọn team trước mới xem được). */
+export const getTopContentWinFailStats = (params: { from?: string; to?: string; limit?: number }) =>
+  apiClient.get<ContentWinFailStats>(`/task-auto/kpi/content-win-fail/top${qs(params)}`).then(r => r.data)
+
+/** Nút "Cập nhật" khi đang xem bảng xếp hạng Top N (không có team_id/user_id để gọi route refresh
+ * bên trên) — chỉ cào lại traffic cho top N đang hiển thị. */
+export const refreshTopContentWinFailStats = (params: { from?: string; to?: string; limit?: number }) =>
+  apiClient.post<ContentWinFailStats>(`/task-auto/kpi/content-win-fail/top/refresh${qs(params)}`).then(r => r.data)
+
 // ── Catalog — Lookup Tables ────────────────────────────────────────────────────
 
 export const getProductLines = () =>
@@ -552,6 +578,17 @@ export const updateProduct = (id: string, body: Partial<Product>) =>
 
 export const deleteProduct = (id: string) =>
   apiClient.delete(`/task-auto/products/${id}`).then(r => r.data)
+
+// ── OMS Integration (kho tổng — proxy trực tiếp từ OMS) ─────────────────────────
+
+export const searchOmsProducts = (q: OmsProductQuery = {}) =>
+  apiClient.get<OmsProductListResponse>(`/task-auto/oms/products${qs(q as any)}`).then(r => r.data)
+
+export const getOmsProductDetail = (omsProductId: string) =>
+  apiClient.get<OmsProductDetail>(`/task-auto/oms/products/${omsProductId}`).then(r => r.data)
+
+export const refreshTeamProductFromOms = (teamId: string, teamProductId: string) =>
+  apiClient.patch<TeamProduct>(`/task-auto/teams/${teamId}/products/${teamProductId}/refresh-from-oms`).then(r => r.data)
 
 export const uploadProductImage = (file: File): Promise<{ url: string }> => {
   const fd = new FormData()

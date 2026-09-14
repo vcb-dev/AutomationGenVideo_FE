@@ -1,5 +1,7 @@
 # Dependencies
-node_modules/
+# Không có gạch chéo cuối: `node_modules/` chỉ khớp THƯ MỤC, không khớp symlink cùng tên.
+# Symlink là file thường dưới mắt git nên `git add -A` nuốt luôn, không cảnh báo gì.
+node_modules
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

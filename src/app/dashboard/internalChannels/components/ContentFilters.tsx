@@ -65,53 +65,54 @@ export default function ContentFilters({
                 onChange={(v) => onChange({ channel: v })}
                 className="w-[190px]"
                 title="Chỉ hiện video của kênh đã chọn"
-            >
-                <option value="">Tất cả kênh{kenh.length ? ` (${kenh.length})` : ''}</option>
-                {kenh.map((c) => (
-                    <option key={`${c.platform}:${c.id}`} value={c.id}>
-                        {c.ten} ({c.so_video})
-                    </option>
-                ))}
-            </FilterSelect>
+                options={[
+                    { value: '', label: `Tất cả kênh${kenh.length ? ` (${kenh.length})` : ''}` },
+                    ...kenh.map((c) => ({
+                        value: String(c.id),
+                        label: `${c.ten} (${c.so_video})`,
+                    })),
+                ]}
+            />
 
             <FilterSelect
                 value={value.hashtag}
                 onChange={(v) => onChange({ hashtag: v })}
                 className="w-[170px]"
                 title="Chỉ hiện video có hashtag đã chọn"
-            >
-                <option value="">Tất cả hashtag</option>
-                {(hashtagQuery.data || []).map((h) => (
-                    <option key={h.the} value={h.the}>
-                        #{h.the} ({h.so_video})
-                    </option>
-                ))}
-            </FilterSelect>
+                options={[
+                    { value: '', label: 'Tất cả hashtag' },
+                    ...(hashtagQuery.data || []).map((h) => ({
+                        value: h.the || '',
+                        label: `#${h.the} (${h.so_video})`,
+                    })),
+                ]}
+            />
 
             <FilterSelect
                 value={value.market}
                 onChange={(v) => onChange({ market: v })}
                 className="w-[140px]"
                 title="Kênh VN nhận theo dấu tiếng Việt trong caption"
-            >
-                <option value="">VN + Global</option>
-                <option value="vn">Kênh VN</option>
-                <option value="global">Kênh Global</option>
-            </FilterSelect>
+                options={[
+                    { value: '', label: 'VN + Global' },
+                    { value: 'vn', label: 'Kênh VN' },
+                    { value: 'global', label: 'Kênh Global' },
+                ]}
+            />
 
             <FilterSelect
                 value={value.contentLine}
                 onChange={(v) => onChange({ contentLine: v })}
                 className="w-[140px]"
                 title="Bắt theo hashtag #A1…#A5 có trong caption"
-            >
-                <option value="">Tất cả tuyến</option>
-                {TUYEN_NOI_DUNG.map((ma) => (
-                    <option key={ma} value={ma}>
-                        Tuyến {ma}
-                    </option>
-                ))}
-            </FilterSelect>
+                options={[
+                    { value: '', label: 'Tất cả tuyến' },
+                    ...TUYEN_NOI_DUNG.map((ma) => ({
+                        value: ma,
+                        label: `Tuyến ${ma}`,
+                    })),
+                ]}
+            />
         </>
     );
 }

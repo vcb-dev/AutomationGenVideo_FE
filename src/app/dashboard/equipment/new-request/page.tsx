@@ -5,12 +5,34 @@ import { useRouter } from 'next/navigation';
 import {
   Asset,
   AvailabilityResponse,
+  BorrowPurpose,
   checkAvailability,
   createBorrowRequest,
   fetchAssets,
 } from '@/lib/equipment/api';
 import { groupModels } from '@/lib/equipment/group-models';
 import { availabilityLabel } from '@/lib/equipment/availability-label';
+import { apiErrorMessage } from '@/lib/equipment/api-error';
+import { DateTimePicker } from '@/components/ui/DateTimePicker';
+
+/**
+ * Mục đích mượn — thứ quyết định phiếu cần một hay hai chữ ký.
+ *
+ * Luật cũ xét theo ĐỊA ĐIỂM: mang máy ra khỏi công ty là phải qua admin. Bỏ vì đi quay ngoại
+ * cảnh và đi sự kiện là việc thường ngày của cả kho, bắt qua admin thì nghẽn khâu duyệt.
+ */
+const PURPOSE_OPTIONS: { value: BorrowPurpose; label: string; hint: string }[] = [
+  {
+    value: 'WORK',
+    label: 'Việc của công ty',
+    hint: 'Một chữ ký của leader là đủ.',
+  },
+  {
+    value: 'PERSONAL',
+    label: 'Việc riêng của tôi',
+    hint: 'Cần hai chữ ký: leader rồi admin, dù mượn ngắn và dù máy rẻ.',
+  },
+];
 
 interface Line {
   modelId: string;
@@ -37,6 +59,9 @@ export default function NewRequestPage() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [project, setProject] = useState('');
   const [place, setPlace] = useState('');
+  // Mặc định việc công ty: đó là phần lớn phiếu, và chọn nhầm sang cá nhân thì phiếu kẹt chờ
+  // thêm chữ ký admin mà người tạo không hiểu vì sao.
+  const [purpose, setPurpose] = useState<BorrowPurpose>('WORK');
   const [fromTime, setFromTime] = useState('');
   const [toTime, setToTime] = useState('');
   const [lines, setLines] = useState<Line[]>([
@@ -46,7 +71,7 @@ export default function NewRequestPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    fetchAssets().then(setAssets).catch(() => setError('Không đọc được danh sách thiết bị.'));
+    fetchAssets().then(setAssets).catch((e: unknown) => setError(apiErrorMessage(e, 'Không đọc được danh sách thiết bị.')));
   }, []);
 
   const models = useMemo(() => groupModels(assets), [assets]);
@@ -111,6 +136,7 @@ export default function NewRequestPage() {
       const created = await createBorrowRequest({
         project: project.trim(),
         place: place.trim(),
+        purpose,
         fromTime: new Date(fromTime).toISOString(),
         toTime: new Date(toTime).toISOString(),
         lines: filledLines.map((l) => ({ modelId: l.modelId, quantity: l.quantity })),
@@ -118,8 +144,7 @@ export default function NewRequestPage() {
       router.push(`/dashboard/equipment?created=${created.request_code}`);
     } catch (e: unknown) {
       setError(
-        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-          'Gửi phiếu không thành công.',
+        apiErrorMessage(e, 'Gửi phiếu không thành công.'),
       );
     } finally {
       setSubmitting(false);
@@ -155,11 +180,52 @@ export default function NewRequestPage() {
               />
             </label>
 
+            {/* Mục đích quyết định SỐ CẤP DUYỆT nên đặt ngay trước địa điểm, không giấu cuối form. */}
+            <fieldset className="block">
+              <legend className={labelClass}>
+                Mục đích mượn <em className="not-italic text-red-600">*</em>
+              </legend>
+              <span className={hintClass}>
+                Đây là thứ quyết định phiếu cần mấy chữ ký, không phải địa điểm hay giá trị máy.
+              </span>
+              <div className="mt-2 grid max-w-lg gap-2 sm:grid-cols-2">
+                {PURPOSE_OPTIONS.map((option) => (
+                  <label
+                    key={option.value}
+                    className={`cursor-pointer rounded-xl border p-3 transition-colors ${
+                      purpose === option.value
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/10'
+                        : 'border-slate-300 hover:bg-slate-50 dark:border-white/[0.12] dark:hover:bg-white/[0.04]'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="purpose"
+                        value={option.value}
+                        checked={purpose === option.value}
+                        onChange={() => setPurpose(option.value)}
+                      />
+                      <span className="text-sm font-semibold text-slate-900 dark:text-white">
+                        {option.label}
+                      </span>
+                    </span>
+                    <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
+                      {option.hint}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
             <label className="block">
               <span className={labelClass}>
                 Địa điểm sử dụng <em className="not-italic text-red-600">*</em>
               </span>
-              <span className={hintClass}>Ngoài công ty sẽ cần thêm một cấp duyệt.</span>
+              <span className={hintClass}>
+                Ghi lại để biết máy đi đâu. Địa điểm KHÔNG còn làm thay đổi số cấp duyệt — mục
+                đích mượn mới quyết định.
+              </span>
               <input
                 className={`${inputClass} mt-2 max-w-sm`}
                 value={place}
@@ -168,25 +234,18 @@ export default function NewRequestPage() {
               />
             </label>
 
-            <div className="grid max-w-lg gap-3 sm:grid-cols-2">
-              <label className="block">
+            {/* Bộ chọn tự vẽ thay cho `datetime-local`: lịch của trình duyệt chỉ có ngày, không
+                có đồng hồ, nên người dùng tưởng màn hình không cho chọn giờ và để nguyên 00:00 —
+                trong khi giờ nhận/trả quyết định cả phép tính khả dụng lẫn hạn trả của phiếu. */}
+            <div className="grid max-w-2xl gap-3 sm:grid-cols-2">
+              <div className="block">
                 <span className={labelClass}>Thời điểm nhận</span>
-                <input
-                  type="datetime-local"
-                  className={`${inputClass} mt-2`}
-                  value={fromTime}
-                  onChange={(e) => setFromTime(e.target.value)}
-                />
-              </label>
-              <label className="block">
+                <DateTimePicker className="mt-2" value={fromTime} onChange={setFromTime} />
+              </div>
+              <div className="block">
                 <span className={labelClass}>Thời điểm trả</span>
-                <input
-                  type="datetime-local"
-                  className={`${inputClass} mt-2`}
-                  value={toTime}
-                  onChange={(e) => setToTime(e.target.value)}
-                />
-              </label>
+                <DateTimePicker className="mt-2" value={toTime} onChange={setToTime} />
+              </div>
             </div>
             {fromTime && toTime && !rangeValid && (
               <p className="text-sm font-semibold text-red-600 dark:text-red-400">

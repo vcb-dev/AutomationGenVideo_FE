@@ -6,9 +6,12 @@ import {
   CircleNotch, FilmReel, MagnifyingGlassPlus, Heart,
   Bookmarks, ChatCircle, User, Plus, Warning,
   ArrowsClockwise, BookmarkSimple, Timer, SealCheck, VideoCamera, PaperPlaneTilt,
+  MagnifyingGlass, X, ArrowsDownUp, Tag,
 } from '@phosphor-icons/react';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
+
+import FilterSelect from '../components/FilterSelect';
 
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService, XiaohongshuVideo, XiaohongshuProfile } from '@/services/scraperService';
@@ -19,6 +22,9 @@ import { useSubmitVideoToLibrary } from '@/hooks/useProposeVideo';
 import { dedupeById } from '@/lib/dedupe-pages';
 import WatchFeedButton from '../components/WatchFeedButton';
 import KeywordTranslateHint from '../components/KeywordTranslateHint';
+import DeleteChannelButton from '../components/DeleteChannelButton';
+import SyncAllChannelsButton from '../components/SyncAllChannelsButton';
+import { buildDeleteChannelConfirm } from '@/lib/scrape/delete-channel';
 
 function formatNum(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -73,7 +79,7 @@ function XhsVideoCard({ video }: { video: XiaohongshuVideo }) {
         href={video.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="relative block aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden max-h-[300px]"
+        className="relative block aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden"
       >
         {video.thumbnail_url ? (
           <img
@@ -134,12 +140,14 @@ function XhsProfileCard({
   onToggleBookmark,
   onToggleTracked,
   onViewDetail,
+  onDelete,
 }: {
   profile: XiaohongshuProfile;
   onScrape?: () => void;
   onToggleBookmark: () => void;
   onToggleTracked?: () => void;
   onViewDetail: () => void;
+  onDelete?: () => void;
 }) {
   const isProcessing = p.scraping_status === 'processing';
 
@@ -255,6 +263,7 @@ function XhsProfileCard({
             <Timer size={14} weight={p.is_tracked ? 'fill' : 'regular'} />
           </button>
         )}
+        {onDelete && <DeleteChannelButton onDelete={onDelete} />}
       </div>
     </div>
   );
@@ -469,29 +478,83 @@ function VideoSearchTab() {
       )}
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 border border-border rounded-xl p-4">
-        <input type="text" value={filterQ} onChange={e => setFilterQ(e.target.value)}
-          placeholder="Lọc theo tiêu đề, caption..."
-          className="flex-1 min-w-[160px] max-w-sm px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      <div className="flex flex-wrap items-center gap-2.5 bg-card border border-border rounded-xl p-3 shadow-xs">
+        <div className="relative flex-1 min-w-[160px] max-w-sm">
+          <MagnifyingGlass size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={filterQ}
+            onChange={e => setFilterQ(e.target.value)}
+            placeholder="Lọc theo tiêu đề, caption..."
+            className="w-full pl-9 pr-8 py-2 text-sm border border-border rounded-lg bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all"
+          />
+          {filterQ && (
+            <button
+              type="button"
+              onClick={() => setFilterQ('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+            >
+              <X size={13} />
+            </button>
+          )}
+        </div>
+        <div className="relative w-36">
+          <Tag size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          <input
+            type="text"
+            value={keywordFilter}
+            onChange={e => setKeywordFilter(e.target.value)}
+            placeholder="Keyword"
+            className="w-full pl-8 pr-6 py-2 text-sm border border-border rounded-lg bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all"
+          />
+          {keywordFilter && (
+            <button
+              type="button"
+              onClick={() => setKeywordFilter('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+            >
+              <X size={12} />
+            </button>
+          )}
+        </div>
+        <div className="relative w-28">
+          <Heart size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-rose-400 pointer-events-none" />
+          <input
+            type="number"
+            value={minLikes}
+            onChange={e => setMinLikes(e.target.value)}
+            placeholder="Min likes"
+            className="w-full pl-8 pr-6 py-2 text-sm border border-border rounded-lg bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          />
+          {minLikes && (
+            <button
+              type="button"
+              onClick={() => setMinLikes('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+            >
+              <X size={12} />
+            </button>
+          )}
+        </div>
+        <FilterSelect
+          value={sortBy}
+          onChange={val => setSortBy(val as 'scraped' | 'likes' | 'date' | 'collects')}
+          options={[
+            { value: 'scraped', label: 'Mới cào về' },
+            { value: 'likes', label: 'Nhiều likes nhất' },
+            { value: 'collects', label: 'Nhiều saves nhất' },
+            { value: 'date', label: 'Ngày đăng mới nhất' },
+          ]}
+          placeholder="Sắp xếp"
+          icon={<ArrowsDownUp size={15} />}
         />
-        <input type="text" value={keywordFilter} onChange={e => setKeywordFilter(e.target.value)}
-          placeholder="Keyword"
-          className="w-36 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        />
-        <input type="number" value={minLikes} onChange={e => setMinLikes(e.target.value)}
-          placeholder="Min likes"
-          className="w-28 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        />
-        <select value={sortBy} onChange={e => setSortBy(e.target.value as 'scraped' | 'likes' | 'date' | 'collects')}
-          className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary">
-          <option value="scraped">Mới cào về</option>
-          <option value="likes">Nhiều likes nhất</option>
-          <option value="collects">Nhiều saves nhất</option>
-          <option value="date">Ngày đăng mới nhất</option>
-        </select>
         {hasFilters && (
-          <button onClick={clearFilters} className="px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50">
-            Xóa bộ lọc
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-950/20 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/30 transition-all cursor-pointer select-none ml-auto sm:ml-0"
+          >
+            <X size={13} weight="bold" /> Xóa bộ lọc
           </button>
         )}
       </div>
@@ -518,11 +581,11 @@ function VideoSearchTab() {
 
       {allVideos.length > 0 && (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3">
             {allVideos.map(v => <XhsVideoCard key={v.note_id} video={v} />)}
             {videosQuery.isFetchingNextPage && Array.from({ length: 6 }).map((_, i) => (
               <div key={`skel-${i}`} className="bg-card border border-border rounded-lg overflow-hidden animate-pulse">
-                <div className="aspect-[9/16] max-h-[280px] bg-slate-200 dark:bg-slate-700" />
+                <div className="aspect-[9/16] bg-slate-200 dark:bg-slate-700" />
                 <div className="p-3 space-y-2">
                   <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-3/4" />
                   <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-full" />
@@ -549,6 +612,31 @@ function ProfilesTab() {
   const router = useRouter();
   const [userId, setUserId] = useState('');
   const [q, setQ] = useState('');
+  const [profileTab, setProfileTab] = useState<'all' | 'periodic' | 'bookmarked'>('all');
+
+  // Xoá cứng kênh: BE xoá kèm toàn bộ video/lịch sử, không hoàn tác được. XiaoHongShu
+  // dùng khoá ngoại SetNull nên BE phải tự xoá video — không có cascade đỡ hộ như 6 nền
+  // tảng kia. Hộp xác nhận phải nói số video sắp mất.
+  const deleteChannelMutation = useMutation({
+    mutationFn: (id: number) => {
+      if (!token) throw new Error('No token');
+      return scraperService.deleteExternalChannel(token, 'xiaohongshu', id);
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['xhs-profiles'] });
+      toast.success(
+        data.videos_deleted > 0
+          ? `Đã xoá ${data.name} và ${data.videos_deleted.toLocaleString('vi-VN')} video`
+          : `Đã xoá ${data.name}`,
+      );
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const handleDeleteChannel = (id: number, name: string, videoCount: number) => {
+    if (!window.confirm(buildDeleteChannelConfirm({ name, videoCount }))) return;
+    deleteChannelMutation.mutate(id);
+  };
 
   // Track notification IDs per user_id so we can update them when scraping finishes
   const scrapeNotifIds = useRef<Map<string, string>>(new Map());
@@ -558,8 +646,13 @@ function ProfilesTab() {
   const prevStatusMap = useRef<Record<number, string>>({});
 
   const profilesQuery = useQuery({
-    queryKey: ['xhs-profiles', q],
-    queryFn: () => scraperService.getXhsProfiles(token!, { q: q || undefined }),
+    queryKey: ['xhs-profiles', q, profileTab, 'external-only'],
+    queryFn: () => scraperService.getXhsProfiles(token!, {
+      q: q || undefined,
+      is_owned: false,
+      tracked: profileTab === 'periodic' ? true : undefined,
+      bookmarked: profileTab === 'bookmarked' ? true : undefined,
+    }),
     enabled: !!token,
     // Poll every 3s while any profile is processing
     refetchInterval: (query) => {
@@ -650,13 +743,57 @@ function ProfilesTab() {
         </div>
       )}
 
-      {/* Filter */}
-      <div className="flex items-center gap-3">
-        <input type="text" value={q} onChange={e => setQ(e.target.value)}
-          placeholder="Tìm theo nickname hoặc user_id..."
-          className="flex-1 max-w-sm px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        />
-        <p className="text-sm text-slate-500">{total > 0 && `${total} profiles`}</p>
+      {/* Filter bar: Tabs + Search + Sync button */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border border-border rounded-xl p-4">
+        {/* Filter Tabs: Tất cả | Kênh chú ý | Đã lưu */}
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg w-fit">
+          <button
+            type="button"
+            onClick={() => setProfileTab('all')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+              profileTab === 'all'
+                ? 'bg-card text-foreground shadow-sm'
+                : 'text-slate-500 hover:text-foreground'
+            }`}
+          >
+            Tất cả
+          </button>
+          <button
+            type="button"
+            onClick={() => setProfileTab('periodic')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+              profileTab === 'periodic'
+                ? 'bg-card text-emerald-600 dark:text-emerald-400 shadow-sm'
+                : 'text-slate-500 hover:text-emerald-600'
+            }`}
+          >
+            <Timer size={14} weight="fill" />
+            Kênh chú ý
+          </button>
+          <button
+            type="button"
+            onClick={() => setProfileTab('bookmarked')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+              profileTab === 'bookmarked'
+                ? 'bg-card text-amber-600 dark:text-amber-400 shadow-sm'
+                : 'text-slate-500 hover:text-amber-600'
+            }`}
+          >
+            <BookmarkSimple size={14} weight="fill" />
+            Đã lưu
+          </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <input type="text" value={q} onChange={e => setQ(e.target.value)}
+            placeholder="Tìm theo nickname hoặc user_id..."
+            className="w-full sm:w-64 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          />
+          <p className="text-xs text-slate-500">{profiles.length > 0 && `${profiles.length} profiles`}</p>
+          {canManageChannels && (
+            <SyncAllChannelsButton platform="xiaohongshu" channelCount={profiles.length} />
+          )}
+        </div>
       </div>
 
       {profilesQuery.isLoading && (
@@ -666,10 +803,22 @@ function ProfilesTab() {
       )}
 
       {!profilesQuery.isLoading && profiles.length === 0 && (
-        <div className="flex flex-col items-center py-16 gap-4 bg-card border border-border rounded-xl">
+        <div className="flex flex-col items-center py-16 gap-3 bg-card border border-border rounded-xl text-center">
           <span className="text-5xl">📕</span>
-          <p className="text-sm text-foreground font-medium">Chưa có profile nào</p>
-          <p className="text-xs text-slate-400">Nhập User ID ở trên để thêm và bắt đầu theo dõi.</p>
+          <p className="text-sm text-foreground font-medium">
+            {profileTab === 'periodic'
+              ? 'Chưa có kênh nào được đánh dấu chú ý.'
+              : profileTab === 'bookmarked'
+              ? 'Chưa có kênh nào được lưu.'
+              : 'Chưa có profile nào'}
+          </p>
+          <p className="text-xs text-slate-400 max-w-sm">
+            {profileTab === 'periodic'
+              ? 'Bấm vào biểu tượng chiếc đồng hồ ở góc dưới mỗi thẻ kênh để thêm vào danh sách theo dõi.'
+              : profileTab === 'bookmarked'
+              ? 'Bấm vào biểu tượng bookmark để lưu kênh.'
+              : 'Nhập User ID ở trên để thêm và bắt đầu theo dõi.'}
+          </p>
         </div>
       )}
 
@@ -683,6 +832,7 @@ function ProfilesTab() {
               onToggleBookmark={() => toggleMutation.mutate({ id: p.id, field: 'is_bookmarked', currentValue: p.is_bookmarked })}
               onToggleTracked={canManageChannels ? () => toggleMutation.mutate({ id: p.id, field: 'is_tracked', currentValue: p.is_tracked }) : undefined}
               onViewDetail={() => router.push(`/dashboard/externalChannels/xiaohongshu/${p.id}`)}
+              onDelete={canManageChannels ? () => handleDeleteChannel(p.id, p.nickname || p.user_id, p.videos_count ?? 0) : undefined}
             />
           ))}
         </div>

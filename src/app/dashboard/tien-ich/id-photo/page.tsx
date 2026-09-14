@@ -14,8 +14,10 @@ import { InfoStep } from './components/InfoStep';
 import { ExportStep } from './components/ExportStep';
 import { EmployeeInfoValues } from './components/EmployeeInfoFields';
 import { IdPhotoPosition } from './components/constants';
+import { CROP_DEFAULT, CropTransform } from './components/crop-math';
 import { HistoryTab } from './components/HistoryTab';
 import { StatsTab } from './components/StatsTab';
+import { BulkTab } from './components/BulkTab';
 
 /**
  * 1 DÒNG tab ngang duy nhất trên trang — thay cho IdPhotoSidebar cũ (3 route riêng biệt điều
@@ -127,8 +129,8 @@ function IdPhotoPageContent() {
   const [employeeName, setEmployeeName] = useState('');
   const [employeeTeam, setEmployeeTeam] = useState('');
   const [employeeId, setEmployeeId] = useState('');
-  // Tuỳ chọn — bỏ trống thì BE lưu null và thẻ in mỗi tên (xem CreateIdPhotoDto).
-  const [employeeTitlePrefix, setEmployeeTitlePrefix] = useState('');
+  // [ĐÃ BỎ] Field "Tiền tố chức danh" (employeeTitlePrefix) đã gỡ khỏi cả 2 luồng — BE không
+  // nhận/trả nữa, thẻ chỉ in tên thường.
   const [position, setPosition] = useState<IdPhotoPosition>(INITIAL_POSITION);
   const [isCreating, setIsCreating] = useState(false);
   const [historyId, setHistoryId] = useState<string | null>(null);
@@ -152,11 +154,22 @@ function IdPhotoPageContent() {
     employeeName: '',
     employeeTeam: '',
     employeeId: '',
-    employeeTitlePrefix: '',
     position: INITIAL_POSITION,
   });
   const [isUpdatingInfo, setIsUpdatingInfo] = useState(false);
   const [isRemerging, setIsRemerging] = useState(false);
+
+  // ── Bước 4: "Điều chỉnh vị trí ảnh trong khung tròn" (kéo thả + zoom) ──
+  // `crop` = bản nháp đang chỉnh (mỗi lần kéo/chỉnh slider cập nhật NGAY để preview phản hồi
+  // tức thời) — TÁCH khỏi `savedCrop` (giá trị đã lưu ở BE) để biết còn thay đổi CHƯA LƯU hay
+  // không (`cropDirty`), đúng nguyên tắc bản nháp/giá trị lưu như `editValues` ở trên.
+  const [crop, setCrop] = useState<CropTransform>(CROP_DEFAULT);
+  const [savedCrop, setSavedCrop] = useState<CropTransform>(CROP_DEFAULT);
+  const [isSavingCrop, setIsSavingCrop] = useState(false);
+  const isSavingCropRef = useRef(false);
+  const cropDirty =
+    crop.offsetX !== savedCrop.offsetX || crop.offsetY !== savedCrop.offsetY || crop.scale !== savedCrop.scale;
+
   const isUpdatingInfoRef = useRef(false);
   // Quan trọng nhất trong nhóm ref chống bấm trùng: mỗi lượt remerge là 1 lượt Gemini có tính
   // phí, double-click là mất tiền 2 lần.
@@ -258,7 +271,6 @@ function IdPhotoPageContent() {
         employeeName: employeeName.trim(),
         employeeTeam: employeeTeam.trim(),
         employeeId: employeeId.trim(),
-        employeeTitlePrefix: employeeTitlePrefix.trim() || undefined,
         position,
       });
       setHistoryId(res.data.id);
@@ -286,7 +298,7 @@ function IdPhotoPageContent() {
   const handleStartEditInfo = () => {
     // Nạp bản nháp từ dữ liệu đang hiển thị mỗi lần mở, để lần mở sau không dính bản nháp
     // dở dang của lần trước đã bấm Huỷ.
-    setEditValues({ employeeName, employeeTeam, employeeId, employeeTitlePrefix, position });
+    setEditValues({ employeeName, employeeTeam, employeeId, position });
     setIsEditingInfo(true);
   };
 
@@ -304,16 +316,12 @@ function IdPhotoPageContent() {
         employeeName: editValues.employeeName.trim(),
         employeeTeam: editValues.employeeTeam.trim(),
         employeeId: editValues.employeeId.trim(),
-        // Gửi chuỗi rỗng (không phải undefined) để BE hiểu là XOÁ tiền tố đang có — undefined
-        // sẽ bị coi là "không đổi" và tiền tố cũ vẫn còn nguyên trên thẻ.
-        employeeTitlePrefix: editValues.employeeTitlePrefix.trim(),
         position: editValues.position,
       });
 
       setEmployeeName(editValues.employeeName.trim());
       setEmployeeTeam(editValues.employeeTeam.trim());
       setEmployeeId(editValues.employeeId.trim());
-      setEmployeeTitlePrefix(editValues.employeeTitlePrefix.trim());
       setPosition(editValues.position);
       setIsEditingInfo(false);
       invalidateExportedPdf();
@@ -343,6 +351,10 @@ function IdPhotoPageContent() {
       const res = await apiClient.post(`/id-photo/${historyId}/remerge-outfit`);
       setMergedImageData(res.data.processedImageData);
       invalidateExportedPdf();
+      // BE reset crop_offset_x/y/scale về NULL khi ghép áo lại (ảnh mới bố cục khác, giữ crop
+      // cũ dễ sai — xem IdPhotoService#remergeOutfit) — đồng bộ lại state FE cho khớp.
+      setCrop(CROP_DEFAULT);
+      setSavedCrop(CROP_DEFAULT);
       toast.success('Đã có ảnh mới. Kiểm tra lại rồi bấm "Xuất file PDF".', { id: loadingToast });
     } catch (err: any) {
       // Dùng lại đúng bộ đổi lỗi của bước 2 — cùng một endpoint AI phía sau nên các mã lỗi
@@ -351,6 +363,31 @@ function IdPhotoPageContent() {
     } finally {
       isRemergingRef.current = false;
       setIsRemerging(false);
+    }
+  };
+
+  /**
+   * PATCH /id-photo/:id — lưu "Điều chỉnh vị trí ảnh trong khung tròn". Cùng đường MIỄN PHÍ với
+   * handleUpdateInfo (không đụng AI), chỉ khác field gửi lên — xem UpdateIdPhotoDto ở BE.
+   */
+  const handleSaveCrop = async () => {
+    if (!historyId || isSavingCropRef.current) return;
+    isSavingCropRef.current = true;
+    setIsSavingCrop(true);
+    try {
+      await apiClient.patch(`/id-photo/${historyId}`, {
+        cropOffsetX: crop.offsetX,
+        cropOffsetY: crop.offsetY,
+        cropScale: crop.scale,
+      });
+      setSavedCrop(crop);
+      invalidateExportedPdf();
+      toast.success('Đã lưu vị trí ảnh. Bấm "Xuất file PDF" để lấy bản mới.');
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Lưu vị trí ảnh thất bại, vui lòng thử lại.');
+    } finally {
+      isSavingCropRef.current = false;
+      setIsSavingCrop(false);
     }
   };
 
@@ -411,7 +448,6 @@ function IdPhotoPageContent() {
     setEmployeeName('');
     setEmployeeTeam('');
     setEmployeeId('');
-    setEmployeeTitlePrefix('');
     setPosition(INITIAL_POSITION);
     setHistoryId(null);
     if (pdfBlobUrlRef.current) URL.revokeObjectURL(pdfBlobUrlRef.current);
@@ -421,6 +457,9 @@ function IdPhotoPageContent() {
     setIsEditingInfo(false);
     setIsUpdatingInfo(false);
     setIsRemerging(false);
+    setCrop(CROP_DEFAULT);
+    setSavedCrop(CROP_DEFAULT);
+    setIsSavingCrop(false);
     setStep(1);
   };
 
@@ -513,15 +552,7 @@ function IdPhotoPageContent() {
       {activeTab === 'history' && <HistoryTab />}
       {activeTab === 'stats' && <StatsTab />}
 
-      {activeTab === 'bulk' && (
-        <div className="border border-[#e2e0ea] rounded-2xl bg-white p-16 flex flex-col items-center justify-center text-center gap-2">
-          <span className="text-3xl">🚧</span>
-          <p className="text-sm font-semibold text-[#1b1b1d]">Sắp ra mắt</p>
-          <p className="text-xs text-[#9c9aa8] max-w-sm">
-            Tính năng tạo ảnh thẻ hàng loạt (upload nhiều ảnh + file danh sách nhân viên) đang được phát triển.
-          </p>
-        </div>
-      )}
+      {activeTab === 'bulk' && <BulkTab />}
 
       {activeTab === 'single' && (
         <>
@@ -559,13 +590,11 @@ function IdPhotoPageContent() {
               employeeName={employeeName}
               employeeTeam={employeeTeam}
               employeeId={employeeId}
-              employeeTitlePrefix={employeeTitlePrefix}
               position={position}
               isSubmitting={isCreating}
               onChangeEmployeeName={setEmployeeName}
               onChangeEmployeeTeam={setEmployeeTeam}
               onChangeEmployeeId={setEmployeeId}
-              onChangeEmployeeTitlePrefix={setEmployeeTitlePrefix}
               onChangePosition={setPosition}
               onBack={() => setStep(2)}
               onContinue={handleCreate}
@@ -577,7 +606,6 @@ function IdPhotoPageContent() {
               employeeName={employeeName}
               employeeTeam={employeeTeam}
               employeeId={employeeId}
-              employeeTitlePrefix={employeeTitlePrefix}
               position={position}
               photoUrl={mergedImageData}
               isExportingPdf={isExportingPdf}
@@ -594,6 +622,11 @@ function IdPhotoPageContent() {
               onCancelEditInfo={() => setIsEditingInfo(false)}
               onSubmitEditInfo={handleUpdateInfo}
               onRemergeOutfit={handleRemergeOutfit}
+              crop={crop}
+              cropDirty={cropDirty}
+              isSavingCrop={isSavingCrop}
+              onCropChange={setCrop}
+              onSaveCrop={handleSaveCrop}
               onExportAndDownload={handleExportAndDownload}
               onRestart={handleRestart}
             />

@@ -1,7 +1,9 @@
 'use client';
 
-import { MagnifyingGlass, X } from '@phosphor-icons/react';
+import { MagnifyingGlass, X, ArrowsDownUp, Eye, FacebookLogo } from '@phosphor-icons/react';
 import { ScrapedFanpage } from '@/services/scraperService';
+import { DatePicker } from '@/components/ui/DatePicker';
+import FilterSelect from './FilterSelect';
 
 interface FilterPanelProps {
   search: string;
@@ -39,8 +41,23 @@ export default function FilterPanel({
     onDateToChange('');
   };
 
+  const fanpageOptions = [
+    { value: '', label: 'Tất cả Fanpage' },
+    ...fanpages.map(fp => ({
+      value: String(fp.id),
+      label: fp.name,
+      count: fp.reels_count ?? undefined,
+    })),
+  ];
+
+  const sortOptions = [
+    { value: 'date', label: 'Mới nhất' },
+    { value: 'views', label: 'Nhiều views nhất' },
+    { value: 'likes', label: 'Nhiều likes nhất' },
+  ];
+
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className="flex flex-wrap items-center gap-2.5 bg-card border border-border rounded-xl p-3 shadow-xs">
       {/* Search input */}
       <div className="relative flex-1 min-w-[180px] max-w-sm">
         <MagnifyingGlass size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -49,53 +66,80 @@ export default function FilterPanel({
           value={search}
           onChange={e => onSearchChange(e.target.value)}
           placeholder="Tìm theo caption, hashtag..."
-          className="w-full pl-9 pr-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-primary outline-none"
+          className="w-full pl-9 pr-8 py-2 text-sm border border-border rounded-lg bg-card text-foreground placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-primary outline-none transition-all"
         />
+        {search && (
+          <button
+            type="button"
+            onClick={() => onSearchChange('')}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+          >
+            <X size={13} />
+          </button>
+        )}
       </div>
 
-      {/* Fanpage filter */}
-      <select
+      {/* Fanpage custom filter */}
+      <FilterSelect
         value={selectedFanpage}
-        onChange={e => onFanpageChange(e.target.value)}
-        className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
-      >
-        <option value="">Tất cả Fanpage</option>
-        {fanpages.map(fp => (
-          <option key={fp.id} value={fp.id}>{fp.name}</option>
-        ))}
-      </select>
-
-      {/* Min Views */}
-      <input
-        type="number"
-        value={minViews}
-        onChange={e => onMinViewsChange(e.target.value)}
-        placeholder="Min views"
-        className="w-28 px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        onChange={onFanpageChange}
+        options={fanpageOptions}
+        placeholder="Tất cả Fanpage"
+        icon={<FacebookLogo size={15} weight="fill" className="text-blue-600" />}
+        searchPlaceholder="Tìm fanpage..."
       />
 
-      {/* Sort */}
-      <select
-        value={sortBy}
-        onChange={e => onSortChange(e.target.value)}
-        className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary"
-      >
-        <option value="date">Mới nhất</option>
-        <option value="views">Nhiều views nhất</option>
-        <option value="likes">Nhiều likes nhất</option>
-      </select>
+      {/* Min Views */}
+      <div className="relative w-32">
+        <Eye size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        <input
+          type="number"
+          value={minViews}
+          onChange={e => onMinViewsChange(e.target.value)}
+          placeholder="Min views"
+          className="w-full pl-8 pr-6 py-2 text-sm border border-border rounded-lg bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        />
+        {minViews && (
+          <button
+            type="button"
+            onClick={() => onMinViewsChange('')}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+          >
+            <X size={12} />
+          </button>
+        )}
+      </div>
 
-      {/* Date range */}
-      <input type="date" value={dateFrom} onChange={e => onDateFromChange(e.target.value)} className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none" title="Từ ngày" />
-      <input type="date" value={dateTo} onChange={e => onDateToChange(e.target.value)} className="px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground outline-none" title="Đến ngày" />
+      {/* Sort */}
+      <FilterSelect
+        value={sortBy}
+        onChange={onSortChange}
+        options={sortOptions}
+        placeholder="Sắp xếp"
+        icon={<ArrowsDownUp size={15} />}
+      />
+
+      {/* Date range with custom DatePicker */}
+      <DatePicker
+        value={dateFrom}
+        onChange={onDateFromChange}
+        placeholder="Từ ngày"
+      />
+      <DatePicker
+        value={dateTo}
+        onChange={onDateToChange}
+        placeholder="Đến ngày"
+        align="right"
+      />
 
       {/* Clear all */}
       {hasFilters && (
         <button
+          type="button"
           onClick={clearAll}
-          className="flex items-center gap-1 px-3 py-2 text-xs font-medium text-slate-600 border border-border rounded-md hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+          className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-950/20 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/30 transition-all cursor-pointer select-none ml-auto sm:ml-0"
         >
-          <X size={12} /> Xóa lọc
+          <X size={13} weight="bold" /> Xóa lọc
         </button>
       )}
     </div>

@@ -14,7 +14,14 @@ import {
 import { Eye, Users, VideoCamera } from '@phosphor-icons/react';
 
 import type { PlatformStats } from '@/services/scraperService';
-import { METRICS, MetricCode, Summary } from './calculations';
+import {
+  METRICS,
+  MetricCode,
+  Summary,
+  averageViewsPerPost,
+  lacksViewData,
+  platformsWithoutViews,
+} from './calculations';
 import {
   PercentDelta,
   Legend,
@@ -51,7 +58,19 @@ export default function TrendChart({
   dayCount: number;
 }) {
   const metricLabel = METRICS.find((c) => c.ma === metric)!.nhan;
-  const hasMultiplePlatforms = platform.length > 1;
+
+  // Nền tảng chưa lấy được lượt xem thì KHÔNG vẽ khi đang xem chỉ số lượt xem: một đường
+  // phẳng dính đáy mang tên "Instagram" đọc thành "kênh không ai xem", trong khi sự thật là
+  // chưa có số. Các chỉ số khác (thích/bình luận/chia sẻ) vẫn có thật nên vẫn vẽ bình thường.
+  const thieuLuotXem = metric === 'views' ? platformsWithoutViews(platform) : [];
+  // useMemo để giữ nguyên tham chiếu — mảng dựng lại mỗi lần render sẽ làm useMemo bên dưới
+  // tính lại vô ích ở mọi lượt vẽ.
+  const platformVe = useMemo(
+    () => (metric === 'views' ? platform.filter((nt) => !lacksViewData(nt)) : platform),
+    [platform, metric],
+  );
+
+  const hasMultiplePlatforms = platformVe.length > 1;
   const tachThat = tach && hasMultiplePlatforms;
 
   // Tra theo NGÀY chứ không theo vị trí trong mảng: hiện BE trả các nền tảng cùng một dải
@@ -59,27 +78,28 @@ export default function TrendChart({
   // tra theo vị trí sẽ gán nhầm số của ngày này sang ngày khác mà biểu đồ vẫn vẽ trơn tru.
   const data = useMemo(() => {
     const bang = new Map(
-      platform.map((nt) => [nt.platform, new Map(nt.theo_ngay.map((d) => [d.ngay, d[metric]]))]),
+      platformVe.map((nt) => [nt.platform, new Map(nt.theo_ngay.map((d) => [d.ngay, d[metric]]))]),
     );
     return total.theo_ngay.map((d) => {
-      const dong: Record<string, number | string> = { ngay: d.ngay || d.date || '', total: d[metric] };
-      for (const nt of platform) dong[nt.platform] = bang.get(nt.platform)?.get(d.ngay) ?? 0;
+      const tong = platformVe.reduce((s, nt) => s + (bang.get(nt.platform)?.get(d.ngay) ?? 0), 0);
+      const dong: Record<string, number | string> = { ngay: d.ngay || d.date || '', total: tong };
+      for (const nt of platformVe) dong[nt.platform] = bang.get(nt.platform)?.get(d.ngay) ?? 0;
       return dong;
     });
-  }, [total.theo_ngay, platform, metric]);
+  }, [total.theo_ngay, platformVe, metric]);
 
   const duong = tachThat
-    ? platform.map((nt) => ({ khoa: nt.platform, mau: platformColor(nt.platform), ten: platformName(nt.platform) }))
+    ? platformVe.map((nt) => ({ khoa: nt.platform, mau: platformColor(nt.platform), ten: platformName(nt.platform) }))
     : [
         {
           khoa: 'total',
-          mau: hasMultiplePlatforms ? '#5b5bd6' : platformColor(platform[0]?.platform ?? ''),
-          ten: hasMultiplePlatforms ? `Tổng ${platform.length} nền tảng` : platformName(platform[0]?.platform ?? ''),
+          mau: hasMultiplePlatforms ? '#5b5bd6' : platformColor(platformVe[0]?.platform ?? ''),
+          ten: hasMultiplePlatforms ? `Tổng ${platformVe.length} nền tảng` : platformName(platformVe[0]?.platform ?? ''),
         },
       ];
 
   const delta = computeDelta(total[metric], total.truoc[metric]);
-  const average = total.posts > 0 ? Math.round(total.views / total.posts) : 0;
+  const average = averageViewsPerPost(platform);
 
   // Cách 5-6 ngày mới in một nhãn trục ngang — 90 ngày mà in hết thì nhãn chồng lên nhau.
   const buocNhan = Math.max(0, Math.ceil(data.length / 6) - 1);
@@ -98,8 +118,15 @@ export default function TrendChart({
       </div>
       <div className="text-[12.5px] text-slate-400 dark:text-slate-500">
         <PercentDelta delta={delta} /> so với {dayCount} ngày trước đó ·{' '}
-        {hasMultiplePlatforms ? `gộp ${platform.length} nền tảng` : platformName(platform[0]?.platform ?? '')}
+        {hasMultiplePlatforms ? `gộp ${platformVe.length} nền tảng` : platformName(platformVe[0]?.platform ?? '')}
       </div>
+
+      {thieuLuotXem.length > 0 && (
+        <div className="mt-2 text-[12.5px] text-amber-600 dark:text-amber-400">
+          Chưa lấy được lượt xem của {thieuLuotXem.map(platformName).join(', ')} — đã để riêng
+          khỏi biểu đồ và khỏi phép tính trung bình, không phải các kênh đó không có người xem.
+        </div>
+      )}
 
       <div className="mt-3 h-[272px]">
         <ResponsiveContainer width="100%" height="100%">

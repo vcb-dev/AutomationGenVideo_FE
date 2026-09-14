@@ -13,10 +13,6 @@ export interface AdminTeamReportRow {
   kpi_day_target: number;
   traffic_month: number;
   revenue_month: number;
-  /** Số task trong kỳ dùng content được thêm vào kho VÀ gắn vào task cũng trong kỳ này ("content mới"). */
-  content_new: number;
-  /** Số task còn lại trong kỳ, không gắn với content mới ("content cũ"). */
-  content_old: number;
   /** true = row này là content creator — chỉ có ở scope "single_team" (rows theo từng người); scope
    * "all_teams" (rows theo từng team) không set field này vì 1 team có thể gồm cả editor lẫn content
    * creator, không quy về đúng 1 loại. */
@@ -34,6 +30,7 @@ export interface AdminTeamReport {
   video_by_line: { line: string; count: number }[];
   /** Số video (task đã duyệt) trong kỳ, gộp theo dòng sản phẩm (GMV/Traffic/Profit). */
   product_by_category: { category: string; count: number }[];
+  content_by_classification: { classification: string; count: number }[];
 }
 
 /**
@@ -41,12 +38,28 @@ export interface AdminTeamReport {
  * tổng hợp tất cả team (rows = từng team) khi `team` là "all"/bỏ trống. `team` khớp theo Team.name,
  * cùng quy ước với AdminOverviewFiltersContext (dropdown chọn team hiện có).
  */
-export function useAdminTeamReport(params: { team: string; dateFrom?: string; dateTo?: string }) {
+export function useAdminTeamReport(params: {
+  team: string;
+  dateFrom?: string;
+  dateTo?: string;
+  pinTrafficMonth?: boolean;
+}) {
   return useQuery({
-    queryKey: ["adminTeamReport", params.team, params.dateFrom, params.dateTo],
+    queryKey: [
+      "adminTeamReport",
+      params.team,
+      params.dateFrom,
+      params.dateTo,
+      params.pinTrafficMonth ?? false,
+    ],
     queryFn: async ({ signal }) => {
       const { data } = await apiClient.get<AdminTeamReport>("/task-auto/team-report", {
-        params: { team: params.team, date_from: params.dateFrom, date_to: params.dateTo },
+        params: {
+          team: params.team,
+          date_from: params.dateFrom,
+          date_to: params.dateTo,
+          ...(params.pinTrafficMonth ? { pin_traffic_month: 1 } : {}),
+        },
         signal,
       });
       return data;

@@ -7,31 +7,34 @@
 import { getLayerStatus, buildHighlightSegments, computeDefaultOpenLayers } from './paast-highlight.util';
 
 describe('getLayerStatus', () => {
-  it('>= 80% điểm tối đa (20) là "good"', () => {
-    expect(getLayerStatus(20)).toBe('good');
-    expect(getLayerStatus(16)).toBe('good');
+  it('>= 80% điểm tối đa là "good", bất kể max là bao nhiêu', () => {
+    expect(getLayerStatus(20, 20)).toBe('good');
+    expect(getLayerStatus(16, 20)).toBe('good');
+    expect(getLayerStatus(20, 25)).toBe('good'); // 20/25 = 0.8
+    expect(getLayerStatus(12, 15)).toBe('good'); // 12/15 = 0.8
   });
 
   it('50%-79% là "warning"', () => {
-    expect(getLayerStatus(15)).toBe('warning');
-    expect(getLayerStatus(10)).toBe('warning');
+    expect(getLayerStatus(15, 20)).toBe('warning');
+    expect(getLayerStatus(10, 20)).toBe('warning');
   });
 
   it('< 50% là "error"', () => {
-    expect(getLayerStatus(9)).toBe('error');
-    expect(getLayerStatus(0)).toBe('error');
+    expect(getLayerStatus(9, 20)).toBe('error');
+    expect(getLayerStatus(0, 20)).toBe('error');
   });
 
   it('đúng biên 80% và 50% (không lệch do làm tròn)', () => {
-    expect(getLayerStatus(16)).toBe('good'); // 16/20 = 0.8 đúng biên
-    expect(getLayerStatus(15.99)).toBe('warning');
-    expect(getLayerStatus(10)).toBe('warning'); // 10/20 = 0.5 đúng biên
-    expect(getLayerStatus(9.99)).toBe('error');
+    expect(getLayerStatus(16, 20)).toBe('good'); // 16/20 = 0.8 đúng biên
+    expect(getLayerStatus(15.99, 20)).toBe('warning');
+    expect(getLayerStatus(10, 20)).toBe('warning'); // 10/20 = 0.5 đúng biên
+    expect(getLayerStatus(9.99, 20)).toBe('error');
   });
 });
 
 describe('computeDefaultOpenLayers', () => {
-  const layer = (score: number) => ({ score, insights: [], criteria: [] } as any);
+  // max=20 đều nhau cho fixture để so tỷ lệ ngang, tách khỏi DEFAULT_LAYER_MAX thật.
+  const layer = (score: number, max = 20) => ({ score, max, insights: [], criteria: [] } as any);
 
   it('mọi lớp đều "good" thì không mở lớp nào', () => {
     const result = computeDefaultOpenLayers({

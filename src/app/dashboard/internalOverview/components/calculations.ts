@@ -28,6 +28,35 @@ export interface Summary extends PeriodStats {
 const EMPTY_STATS: PeriodStats = { views: 0, likes: 0, comments: 0, shares: 0, posts: 0 };
 
 /**
+ * Nền tảng có bài trong kỳ nhưng không lấy được lượt xem.
+ *
+ * BE gửi cờ `viewsAvailable`; bản cũ không có cờ thì tự suy ra theo đúng quy tắc đó. Đây là
+ * thứ phân biệt "không ai xem" với "chưa lấy được số" — xem chú thích trong owned-stats.service.ts.
+ */
+export function lacksViewData(p: PlatformStats): boolean {
+  if (p.viewsAvailable !== undefined) return !p.viewsAvailable;
+  return p.posts > 0 && p.views === 0;
+}
+
+/** Danh sách nền tảng thiếu số lượt xem, để giao diện nói ra thay vì hiện số 0. */
+export function platformsWithoutViews(list: PlatformStats[]): string[] {
+  return list.filter(lacksViewData).map((p) => p.platform);
+}
+
+/**
+ * Lượt xem trung bình mỗi bài — chỉ tính trên các nền tảng THẬT SỰ có số lượt xem.
+ *
+ * Gộp cả nền tảng thiếu số vào mẫu số sẽ kéo trung bình xuống một cách vô căn cứ: 1.156 bài
+ * Instagram không có lượt xem mà vẫn bị đếm thì con số của Facebook cũng sai theo.
+ */
+export function averageViewsPerPost(list: PlatformStats[]): number {
+  const usable = list.filter((p) => !lacksViewData(p));
+  const views = usable.reduce((s, p) => s + p.views, 0);
+  const posts = usable.reduce((s, p) => s + p.posts, 0);
+  return posts > 0 ? Math.round(views / posts) : 0;
+}
+
+/**
  * Merges platform stats across multiple platforms for "All Platforms" summary mode.
  */
 export function mergePlatforms(list: PlatformStats[]): Summary {

@@ -44,6 +44,7 @@ interface DatePreset {
 
 const DATE_PRESETS: DatePreset[] = [
   { label: 'Hôm nay', range: () => [todayString(), todayString()] },
+  { label: 'Hôm qua', range: () => [addDays(todayString(), -1), addDays(todayString(), -1)] },
   { label: '7 ngày qua', range: () => [addDays(todayString(), -6), todayString()] },
   { label: '30 ngày qua', range: () => [addDays(todayString(), -29), todayString()] },
   { label: 'Tháng này', range: () => [monthStart(), todayString()] },
@@ -124,6 +125,7 @@ export function TaskFilters({
 }: Props) {
   const isToday = dateFromFilter === todayString() && dateToFilter === todayString()
   const isSingleDay = !!dateFromFilter && dateFromFilter === dateToFilter
+  const isYesterday = isSingleDay && dateFromFilter === addDays(todayString(), -1)
   const isAtDefault = dateFilterDefaultPreset === 'today' ? isToday : (!dateFromFilter && !dateToFilter)
   const [datePickerOpen, setDatePickerOpen] = useState(false)
   const datePickerRef = useRef<HTMLDivElement>(null)
@@ -167,9 +169,11 @@ export function TaskFilters({
     ? `${dateFilterLabel}: Tất cả`
     : isToday
       ? `${dateFilterLabel}: Hôm nay`
-      : isSingleDay
-        ? `${dateFilterLabel}: ${formatShortDate(dateFromFilter)}`
-        : `${dateFilterLabel}: ${dateFromFilter ? formatShortDate(dateFromFilter) : '…'} → ${dateToFilter ? formatShortDate(dateToFilter) : '…'}`
+      : isYesterday
+        ? `${dateFilterLabel}: Hôm qua`
+        : isSingleDay
+          ? `${dateFilterLabel}: ${formatShortDate(dateFromFilter)}`
+          : `${dateFilterLabel}: ${dateFromFilter ? formatShortDate(dateFromFilter) : '…'} → ${dateToFilter ? formatShortDate(dateToFilter) : '…'}`
 
   // Gõ tìm kiếm phản hồi tức thì trên input, nhưng chỉ bắn query lên cha sau khi
   // ngừng gõ ~300ms — tránh gọi lại getTasks mỗi phím gõ (giật/nháy danh sách).
