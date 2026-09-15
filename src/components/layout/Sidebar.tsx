@@ -398,9 +398,12 @@ function SidebarContent({
                   {section.items.map((item: any) => {
                     const itemUrl = item.href.split('?')[0];
                     const itemTab = new URLSearchParams(item.href.split('?')[1] || '').get('tab');
+                    const isPathMatch = itemUrl === '/dashboard'
+                      ? pathname === '/dashboard'
+                      : (pathname === itemUrl || pathname.startsWith(itemUrl + '/'));
                     const isActive = itemTab
                       ? (pathname === itemUrl && currentTab === itemTab)
-                      : (pathname === itemUrl && !currentTab);
+                      : (isPathMatch && !currentTab);
                     return (
                       <Link
                         key={item.href}

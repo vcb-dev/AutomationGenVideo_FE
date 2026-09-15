@@ -12,6 +12,7 @@ import { dedupeById } from '@/lib/dedupe-pages';
 import { fetchWithAuth } from '@/lib/api-client';
 import { scraperService } from '@/services/scraperService';
 import { useSubmitVideoToLibrary } from '@/hooks/useProposeVideo';
+import ConfirmModal from '../components/ConfirmModal';
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
 
@@ -370,21 +371,29 @@ function WatchInner() {
         }
     };
 
-    // Xử lý Xoá video khỏi cơ sở dữ liệu
-    const handleDelete = async (v: FeedVideo) => {
-        if (!token) return;
-        const confirmDelete = window.confirm(`Bạn có chắc muốn xoá video "${v.title || v.videoId}" khỏi hệ thống?`);
-        if (!confirmDelete) return;
+    const [deleteTarget, setDeleteTarget] = useState<FeedVideo | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
+    // Xử lý Xoá video khỏi cơ sở dữ liệu
+    const handleDelete = (v: FeedVideo) => {
+        setDeleteTarget(v);
+    };
+
+    const confirmDeleteVideo = async () => {
+        if (!token || !deleteTarget) return;
+        setIsDeleting(true);
         try {
-            await scraperService.deleteScrapedVideo(token, v.platform, v.videoId);
-            setShuffledVideos((prev) => prev.filter((item) => item.videoId !== v.videoId));
+            await scraperService.deleteScrapedVideo(token, deleteTarget.platform, deleteTarget.videoId);
+            setShuffledVideos((prev) => prev.filter((item) => item.videoId !== deleteTarget.videoId));
             toast.success('Đã xoá video khỏi cơ sở dữ liệu!');
+            setDeleteTarget(null);
             if (activeIndex < videos.length - 1) {
                 containerRef.current?.children[activeIndex]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
         } catch (err: any) {
             toast.error(err.message || 'Lỗi khi xoá video');
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -529,6 +538,20 @@ function WatchInner() {
                 <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-slate-400">
                     <Loader2 className="h-5 w-5 animate-spin" />
                 </div>
+            )}
+
+            {deleteTarget && (
+                <ConfirmModal
+                    isOpen={true}
+                    title="Xoá video khỏi cơ sở dữ liệu"
+                    description={`Bạn có chắc muốn xoá video "${deleteTarget.title || deleteTarget.videoId}" khỏi hệ thống? Thao tác này không thể hoàn tác.`}
+                    confirmText="Xoá video"
+                    cancelText="Huỷ"
+                    variant="danger"
+                    isLoading={isDeleting}
+                    onConfirm={confirmDeleteVideo}
+                    onClose={() => setDeleteTarget(null)}
+                />
             )}
         </div>
     );

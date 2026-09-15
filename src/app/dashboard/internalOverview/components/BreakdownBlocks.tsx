@@ -8,6 +8,7 @@ import {
   TotalRow,
   COLOR_PRIMARY,
   COLOR_SECONDARY,
+  COLOR_LEATHER,
   COLOR_ENGAGEMENT,
   Subtitle,
   Card,
@@ -28,8 +29,8 @@ import {
  * công khai từ bên ngoài nên KHÔNG có mấy con số đó — dựng khung rỗng chờ API thì mãi mãi
  * rỗng. Ba khối dưới đây giữ nguyên bố cục nhưng thay bằng thứ tính được từ dữ liệu thật:
  *
- *   - Thị trường VN / Global  — đoán theo dấu tiếng Việt trong caption, cùng quy tắc với bộ
- *     lọc thị trường sẵn có ở trang danh sách video (content-filters.ts bên BE).
+ *   - Thị trường VN / Global / Đồ Da — phân tách theo ngành hàng và đặc trưng nội dung,
+ *     cùng quy tắc với bộ lọc thị trường ở các trang kênh nội bộ (content-filters.ts bên BE).
  *   - Tuyến nội dung A1–A5    — đội nội dung vốn đã gắn thẳng #A1…#A5 vào caption.
  *   - Cơ cấu tương tác        — thích / bình luận / chia sẻ, số cào về được thật.
  */
@@ -39,11 +40,12 @@ import {
 export function MarketBlock({ thiTruong }: { thiTruong: ThiTruongNenTang[] }) {
   const vn = thiTruong.reduce((s, t) => s + t.vn, 0);
   const global = thiTruong.reduce((s, t) => s + t.global, 0);
-  const total = vn + global;
+  const doda = thiTruong.reduce((s, t) => s + (t.doda || 0), 0);
+  const total = vn + global + doda;
 
   return (
     <Card className="!mb-0 flex flex-col">
-      <CardTitle hint="Đoán theo dấu tiếng Việt trong caption — caption tiếng Việt không dấu sẽ bị xếp sang Global">
+      <CardTitle hint="Phân tách theo ngành hàng: Việt Nam (trang sức/đá quý VN), Global (quốc tế) và Đồ Da (xưởng da thủ công)">
         Thị trường nội dung
       </CardTitle>
       <Subtitle>Theo lượt xem trong kỳ</Subtitle>
@@ -53,16 +55,25 @@ export function MarketBlock({ thiTruong }: { thiTruong: ThiTruongNenTang[] }) {
       ) : (
         <>
           <div className="flex flex-col items-center pt-2.5">
-            <Donut phanChinh={ratio(vn, total)} />
-            <div className="flex gap-3.5 mt-5 flex-wrap w-full">
+            <Donut
+              total={total}
+              segments={[
+                { val: vn, mau: COLOR_PRIMARY, nhan: 'Việt Nam' },
+                { val: global, mau: COLOR_SECONDARY, nhan: 'Global' },
+                { val: doda, mau: COLOR_LEATHER, nhan: 'Đồ Da' },
+              ]}
+            />
+            <div className="flex gap-2 mt-5 flex-wrap w-full">
               <ODonut mau={COLOR_PRIMARY} nhan="Việt Nam" value={percent(ratio(vn, total))} />
               <ODonut mau={COLOR_SECONDARY} nhan="Global" value={percent(ratio(global, total))} />
+              <ODonut mau={COLOR_LEATHER} nhan="Đồ Da" value={percent(ratio(doda, total))} />
             </div>
           </div>
 
           <div className="w-full mt-5 border-t border-slate-100 dark:border-slate-800 pt-1">
             {thiTruong.map((t, i) => {
-              const tongP = t.vn + t.global;
+              const tDoda = t.doda || 0;
+              const tongP = t.vn + t.global + tDoda;
               return (
                 <BreakdownRow
                   key={t.platform}
@@ -77,14 +88,16 @@ export function MarketBlock({ thiTruong }: { thiTruong: ThiTruongNenTang[] }) {
                   segments={[
                     { gia_tri: t.vn, mau: COLOR_PRIMARY, ten: `Việt Nam: ${fullNumber(t.vn)}` },
                     { gia_tri: t.global, mau: COLOR_SECONDARY, ten: `Global: ${fullNumber(t.global)}` },
+                    { gia_tri: tDoda, mau: COLOR_LEATHER, ten: `Đồ Da: ${fullNumber(tDoda)}` },
                   ]}
                   chu_giai={[
                     { mau: COLOR_PRIMARY, nhan: 'Việt Nam', gia_tri: `${compactNumber(t.vn)} · ${percent(ratio(t.vn, tongP))}` },
                     { mau: COLOR_SECONDARY, nhan: 'Global', gia_tri: `${compactNumber(t.global)} · ${percent(ratio(t.global, tongP))}` },
+                    { mau: COLOR_LEATHER, nhan: 'Đồ Da', gia_tri: `${compactNumber(tDoda)} · ${percent(ratio(tDoda, tongP))}` },
                   ]}
                   ty_le_cuoi={{
                     nhan: 'Số bài',
-                    gia_tri: `${fullNumber(t.posts_vn)} VN · ${fullNumber(t.posts_global)} Global`,
+                    gia_tri: `${fullNumber(t.posts_vn)} VN · ${fullNumber(t.posts_global)} Global · ${fullNumber(t.posts_doda || 0)} Đồ Da`,
                   }}
                 />
               );
@@ -96,14 +109,15 @@ export function MarketBlock({ thiTruong }: { thiTruong: ThiTruongNenTang[] }) {
             <SplitBar
               className="mt-3"
               segments={[
-                { gia_tri: vn, mau: COLOR_PRIMARY },
-                { gia_tri: global, mau: COLOR_SECONDARY },
+                { gia_tri: vn, mau: COLOR_PRIMARY, ten: `Việt Nam: ${fullNumber(vn)}` },
+                { gia_tri: global, mau: COLOR_SECONDARY, ten: `Global: ${fullNumber(global)}` },
+                { gia_tri: doda, mau: COLOR_LEATHER, ten: `Đồ Da: ${fullNumber(doda)}` },
               ]}
             />
             <div className="flex items-center gap-2 mt-2.5 text-[11.5px] text-slate-400 dark:text-slate-500">
-              Lượt xem đến từ nội dung tiếng Việt
-              <b className="ml-auto text-foreground font-semibold tabular-nums text-[12.5px]">
-                {percent(ratio(vn, total))}
+              Lượt xem đến từ line Đồ Da
+              <b className="ml-auto text-amber-600 dark:text-amber-400 font-semibold tabular-nums text-[12.5px]">
+                {percent(ratio(doda, total))}
               </b>
             </div>
           </BreakdownFooter>
@@ -113,36 +127,57 @@ export function MarketBlock({ thiTruong }: { thiTruong: ThiTruongNenTang[] }) {
   );
 }
 
-/** Vành khuyên hai đoạn, đầu bo tròn và chừa khe hở — dựng thẳng bằng SVG như bản thiết kế. */
-function Donut({ phanChinh }: { phanChinh: number }) {
+/** Vành khuyên phân đoạn, đầu bo tròn và chừa khe hở — dựng bằng SVG. */
+function Donut({
+  total,
+  segments,
+}: {
+  total: number;
+  segments: { val: number; mau: string; nhan: string }[];
+}) {
   const R = 68;
   const C = 2 * Math.PI * R;
-  const khe = 7;
-  const doanChinh = Math.max(0, (C * phanChinh) / 100 - khe);
-  const doanPhu = Math.max(0, (C * (100 - phanChinh)) / 100 - khe);
+  const khe = 6;
+
+  const activeSegments = segments.filter((s) => s.val > 0);
+
+  let currentOffset = 0;
+  const rendered = activeSegments.map((s) => {
+    const p = total > 0 ? s.val / total : 0;
+    const arcLen = Math.max(0, C * p - (activeSegments.length > 1 ? khe : 0));
+    const offset = -currentOffset - (activeSegments.length > 1 ? khe / 2 : 0);
+    currentOffset += C * p;
+    return {
+      ...s,
+      dashArray: `${arcLen} ${C - arcLen}`,
+      dashOffset: offset,
+    };
+  });
+
+  const mainVal = segments[0]?.val || 0;
 
   return (
     <svg width="164" height="164" viewBox="0 0 184 184">
       <g transform="translate(92,92) rotate(-90)">
-        <circle r={R} fill="none" strokeWidth="17" stroke="currentColor" className="text-slate-100 dark:text-slate-800" />
         <circle
           r={R}
           fill="none"
-          stroke={COLOR_SECONDARY}
           strokeWidth="17"
-          strokeLinecap="round"
-          strokeDasharray={`${doanPhu} ${C - doanPhu}`}
-          strokeDashoffset={-((C * phanChinh) / 100) - khe / 2}
+          stroke="currentColor"
+          className="text-slate-100 dark:text-slate-800"
         />
-        <circle
-          r={R}
-          fill="none"
-          stroke={COLOR_PRIMARY}
-          strokeWidth="17"
-          strokeLinecap="round"
-          strokeDasharray={`${doanChinh} ${C - doanChinh}`}
-          strokeDashoffset={-khe / 2}
-        />
+        {rendered.map((s, idx) => (
+          <circle
+            key={idx}
+            r={R}
+            fill="none"
+            stroke={s.mau}
+            strokeWidth="17"
+            strokeLinecap="round"
+            strokeDasharray={s.dashArray}
+            strokeDashoffset={s.dashOffset}
+          />
+        ))}
       </g>
       <text
         x="92"
@@ -152,10 +187,17 @@ function Donut({ phanChinh }: { phanChinh: number }) {
         className="text-foreground"
         style={{ fontSize: 27, fontWeight: 600, letterSpacing: '-.04em' }}
       >
-        {percent(phanChinh)}
+        {percent(ratio(mainVal, total))}
       </text>
-      <text x="92" y="108" textAnchor="middle" fill="currentColor" className="text-slate-400" style={{ fontSize: 11.5 }}>
-        tiếng Việt
+      <text
+        x="92"
+        y="108"
+        textAnchor="middle"
+        fill="currentColor"
+        className="text-slate-400"
+        style={{ fontSize: 11.5 }}
+      >
+        Việt Nam
       </text>
     </svg>
   );

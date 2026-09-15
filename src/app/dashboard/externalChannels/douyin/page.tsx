@@ -17,7 +17,7 @@ import FilterSelect from '../components/FilterSelect';
 import { DatePicker } from '@/components/ui/DatePicker';
 import KeywordTranslateHint from '../components/KeywordTranslateHint';
 import { useAuthStore } from '@/store/auth-store';
-import { scraperService, DouyinVideo } from '@/services/scraperService';
+import { scraperService, DouyinVideo, DouyinProfile } from '@/services/scraperService';
 import { useScrapingStore } from '@/store/scraping-store';
 import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
 import { UserRole } from '@/types/auth';
@@ -25,6 +25,9 @@ import { dedupeById } from '@/lib/dedupe-pages';
 import SyncAllChannelsButton from '../components/SyncAllChannelsButton';
 import { buildDeleteChannelConfirm } from '@/lib/scrape/delete-channel';
 import WatchFeedButton from '../components/WatchFeedButton';
+import ChannelClassificationFilterBar from '../components/ChannelClassificationFilterBar';
+import ChannelClassificationModal from '../components/ChannelClassificationModal';
+import ConfirmModal from '../components/ConfirmModal';
 
 type Tab = 'videos' | 'profiles';
 
@@ -111,6 +114,7 @@ export default function DouyinExternalPage() {
   // ─── Notification refs ────────────────────────────────
   const notifIdRef = useRef<string | null>(null);
   const queryClient = useQueryClient();
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; name: string; videoCount: number } | null>(null);
 
   // Xoá cứng kênh: BE xoá kèm toàn bộ video/lịch sử, không hoàn tác được. Hộp xác nhận
   // phải nói số video sắp mất — trên thẻ thì kênh 300 video trông y hệt kênh rỗng.
@@ -121,6 +125,7 @@ export default function DouyinExternalPage() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['douyin-profiles'] });
+      setDeleteConfirm(null);
       toast.success(
         data.videos_deleted > 0
           ? `Đã xoá ${data.name} và ${data.videos_deleted.toLocaleString('vi-VN')} video`
@@ -131,8 +136,7 @@ export default function DouyinExternalPage() {
   });
 
   const handleDeleteChannel = (id: number, name: string, videoCount: number) => {
-    if (!window.confirm(buildDeleteChannelConfirm({ name, videoCount }))) return;
-    deleteChannelMutation.mutate(id);
+    setDeleteConfirm({ id, name, videoCount });
   };
 
   // ─── Search mutation ──────────────────────────────────
@@ -210,6 +214,16 @@ export default function DouyinExternalPage() {
   const [profilePage, setProfilePage] = useState(1);
   const [profileSortBy, setProfileSortBy] = useState<'followers' | 'recent'>('followers');
   const [profileTab, setProfileTab] = useState<'all' | 'periodic' | 'bookmarked'>('all');
+  const [channelTypeTab, setChannelTypeTab] = useState<'all' | 'product' | 'content'>('all');
+  const [selectedProductLine, setSelectedProductLine] = useState<string>('all');
+  const [classifyingProfile, setClassifyingProfile] = useState<DouyinProfile | null>(null);
+
+  const { data: availableTags = [], refetch: refetchTags } = useQuery({
+    queryKey: ['scraper-channel-tags'],
+    queryFn: () => scraperService.getChannelTags(token!),
+    enabled: !!token,
+  });
+
   const profileSearchTimer = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
@@ -217,16 +231,24 @@ export default function DouyinExternalPage() {
     return () => clearTimeout(profileSearchTimer.current);
   }, [profileSearch]);
 
-  const hasProfileFilters = !!profileSearch || profileSortBy !== 'followers' || profileTab !== 'all';
-  const clearProfileFilters = () => { setProfileSearch(''); setProfileSortBy('followers'); setProfileTab('all'); };
+  const hasProfileFilters = !!profileSearch || profileSortBy !== 'followers' || profileTab !== 'all' || channelTypeTab !== 'all' || selectedProductLine !== 'all';
+  const clearProfileFilters = () => {
+    setProfileSearch('');
+    setProfileSortBy('followers');
+    setProfileTab('all');
+    setChannelTypeTab('all');
+    setSelectedProductLine('all');
+  };
 
   const profilesQuery = useQuery({
-    queryKey: ['douyin-profiles', profilePage, debouncedProfileSearch, profileSortBy, profileTab],
+    queryKey: ['douyin-profiles', profilePage, debouncedProfileSearch, profileSortBy, profileTab, channelTypeTab, selectedProductLine],
     queryFn: () => scraperService.getDouyinProfiles(token!, {
       page: profilePage, page_size: 12, search: debouncedProfileSearch || undefined,
       sort_by: profileSortBy, is_owned: false,
       tracked: profileTab === 'periodic' ? 'true' : undefined,
       bookmarked: profileTab === 'bookmarked' ? 'true' : undefined,
+      channel_type: channelTypeTab === 'all' ? undefined : channelTypeTab,
+      product_line: selectedProductLine === 'all' ? undefined : selectedProductLine,
     }),
     enabled: !!token && activeTab === 'profiles',
     refetchInterval: (query) => {
@@ -587,6 +609,23 @@ export default function DouyinExternalPage() {
             </div>
           )}
 
+          {/* 2-tier Classification Filter Bar */}
+          <ChannelClassificationFilterBar
+            channelType={channelTypeTab}
+            onChannelTypeChange={(type) => {
+              setChannelTypeTab(type);
+              setProfilePage(1);
+            }}
+            productLine={selectedProductLine}
+            onProductLineChange={(line) => {
+              setSelectedProductLine(line);
+              setProfilePage(1);
+            }}
+            availableTags={availableTags}
+            onRefreshTags={refetchTags}
+            canManageChannels={canManageChannels}
+          />
+
           {/* Filter bar: Tabs + Search + Sort + Sync button */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border border-border rounded-xl p-4">
             {/* Filter Tabs: Tất cả | Kênh chú ý | Đã lưu */}
@@ -699,6 +738,7 @@ export default function DouyinExternalPage() {
                   onToggleBookmark={() => profileToggleMutation.mutate({ id: p.id, field: 'is_bookmarked' })}
                   onToggleTracked={canManageChannels ? () => profileToggleMutation.mutate({ id: p.id, field: 'is_tracked' }) : undefined}
                   onViewDetail={() => router.push(`/dashboard/externalChannels/douyin/${p.id}`)}
+                  onEditClassification={canManageChannels ? () => setClassifyingProfile(p) : undefined}
                   onDelete={canManageChannels ? () => handleDeleteChannel(p.id, p.nickname || p.username, p.videos_in_db ?? 0) : undefined}
                 />
               ))}
@@ -720,6 +760,40 @@ export default function DouyinExternalPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* Classification Modal */}
+      {classifyingProfile && (
+        <ChannelClassificationModal
+          isOpen={true}
+          onClose={() => setClassifyingProfile(null)}
+          channel={{
+            id: classifyingProfile.id,
+            name: classifyingProfile.nickname || classifyingProfile.username,
+            avatar_url: classifyingProfile.avatar_url,
+            channel_type: classifyingProfile.channel_type,
+            product_lines: classifyingProfile.product_lines,
+          }}
+          platform="douyin"
+          onSaved={() => {
+            queryClient.invalidateQueries({ queryKey: ['douyin-profiles'] });
+          }}
+        />
+      )}
+
+      {/* Confirm Hard Delete Modal */}
+      {deleteConfirm && (
+        <ConfirmModal
+          isOpen={true}
+          title="Xác nhận xoá kênh"
+          description={buildDeleteChannelConfirm({ name: deleteConfirm.name, videoCount: deleteConfirm.videoCount })}
+          confirmText="Xoá kênh vĩnh viễn"
+          cancelText="Huỷ"
+          variant="danger"
+          isLoading={deleteChannelMutation.isPending}
+          onConfirm={() => deleteChannelMutation.mutate(deleteConfirm.id)}
+          onClose={() => setDeleteConfirm(null)}
+        />
       )}
     </div>
   );

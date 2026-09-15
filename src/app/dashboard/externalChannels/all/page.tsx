@@ -15,6 +15,7 @@ import FilterSelect from '../components/FilterSelect';
 import { DatePicker } from '@/components/ui/DatePicker';
 import WatchFeedButton from '../components/WatchFeedButton';
 import QuickAddChannel from '../components/QuickAddChannel';
+import SyncAllChannelsButton from '../components/SyncAllChannelsButton';
 
 function formatNum(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -237,8 +238,13 @@ export default function AllExternalVideosPage() {
     <div className="flex flex-col gap-5">
       <QuickAddChannel />
 
-      <div>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <WatchFeedButton platform="all" label="Xem ngay tại đây" />
+        <SyncAllChannelsButton
+          platform="all"
+          label="Cào tay tất cả kênh"
+          onStarted={() => videosQuery.refetch()}
+        />
       </div>
 
       {/* Filter bar */}
