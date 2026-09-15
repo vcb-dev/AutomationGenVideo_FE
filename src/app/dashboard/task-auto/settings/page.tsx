@@ -3,6 +3,7 @@
 import { AlertTriangle } from 'lucide-react'
 import { useAuthStore } from '@/store/auth-store'
 import { SettingsCard } from './components/SettingsCard'
+import { LarkWebhookSettingsCard } from './components/LarkWebhookSettingsCard'
 import { RunsTable } from './components/RunsTable'
 
 export default function SettingsPage() {
@@ -24,6 +25,7 @@ export default function SettingsPage() {
       )}
 
       <SettingsCard canEdit={canEdit} />
+      <LarkWebhookSettingsCard canEdit={canEdit} />
       <RunsTable />
     </div>
   )
