@@ -12,7 +12,7 @@ import InstagramProfileCard from '../components/InstagramProfileCard';
 import FilterSelect from '../components/FilterSelect';
 import { DatePicker } from '@/components/ui/DatePicker';
 import { useAuthStore } from '@/store/auth-store';
-import { scraperService, InstagramReel, InstagramToggleField } from '@/services/scraperService';
+import { scraperService, InstagramReel, InstagramProfile, InstagramToggleField } from '@/services/scraperService';
 import { videoLibraryService } from '@/services/videoLibraryService';
 import { useSubmitVideoToLibrary } from '@/hooks/useProposeVideo';
 import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
@@ -21,6 +21,9 @@ import { dedupeById } from '@/lib/dedupe-pages';
 import SyncAllChannelsButton from '../components/SyncAllChannelsButton';
 import { buildDeleteChannelConfirm } from '@/lib/scrape/delete-channel';
 import WatchFeedButton from '../components/WatchFeedButton';
+import ChannelClassificationFilterBar from '../components/ChannelClassificationFilterBar';
+import ChannelClassificationModal from '../components/ChannelClassificationModal';
+import ConfirmModal from '../components/ConfirmModal';
 
 const PAGE_SIZE_PROFILES = 12;
 const PAGE_SIZE_REELS = 24;
@@ -121,9 +124,10 @@ export default function InstagramExternalPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const { start: startProfileScrapeNotif } = useProfileScrapeNotification('instagram');
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; name: string; videoCount: number } | null>(null);
 
-  // Xoá cứng kênh: BE xoá kèm toàn bộ reels/lịch sử, không hoàn tác được. Hộp xác nhận
-  // phải nói số video sắp mất — trên thẻ thì kênh 300 reels trông y hệt kênh rỗng.
+  // Xoá cứng kênh: BE xoá kèm toàn bộ video/lịch sử, không hoàn tác được. Hộp xác nhận
+  // phải nói số video sắp mất — trên thẻ thì kênh 300 video trông y hệt kênh rỗng.
   const deleteChannelMutation = useMutation({
     mutationFn: (id: number) => {
       if (!token) throw new Error('No token');
@@ -131,6 +135,7 @@ export default function InstagramExternalPage() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['instagram-profiles'] });
+      setDeleteConfirm(null);
       toast.success(
         data.videos_deleted > 0
           ? `Đã xoá ${data.name} và ${data.videos_deleted.toLocaleString('vi-VN')} video`
@@ -141,8 +146,7 @@ export default function InstagramExternalPage() {
   });
 
   const handleDeleteChannel = (id: number, name: string, videoCount: number) => {
-    if (!window.confirm(buildDeleteChannelConfirm({ name, videoCount }))) return;
-    deleteChannelMutation.mutate(id);
+    setDeleteConfirm({ id, name, videoCount });
   };
 
   // ─── Profiles section ─────────────────────────────────
@@ -153,22 +157,40 @@ export default function InstagramExternalPage() {
   const [page, setPage] = useState(1);
   const [sortBy, setSortBy] = useState<'followers' | 'recent'>('followers');
   const [profileTab, setProfileTab] = useState<'all' | 'periodic' | 'bookmarked'>('all');
+  const [channelTypeTab, setChannelTypeTab] = useState<'all' | 'product' | 'content'>('all');
+  const [selectedProductLine, setSelectedProductLine] = useState('all');
+  const [classifyingProfile, setClassifyingProfile] = useState<InstagramProfile | null>(null);
   const searchTimer = useRef<NodeJS.Timeout>();
+
+  const { data: availableTags = [], refetch: refetchTags } = useQuery({
+    queryKey: ['scraper-channel-tags'],
+    queryFn: () => token ? scraperService.getChannelTags(token) : Promise.resolve([]),
+    enabled: !!token,
+    staleTime: 5 * 60 * 1000,
+  });
 
   useEffect(() => {
     searchTimer.current = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 300);
     return () => clearTimeout(searchTimer.current);
   }, [search]);
 
-  const hasProfileFilters = !!search || sortBy !== 'followers' || profileTab !== 'all';
-  const clearProfileFilters = () => { setSearch(''); setSortBy('followers'); setProfileTab('all'); };
+  const hasProfileFilters = !!search || sortBy !== 'followers' || profileTab !== 'all' || channelTypeTab !== 'all' || selectedProductLine !== 'all';
+  const clearProfileFilters = () => {
+    setSearch('');
+    setSortBy('followers');
+    setProfileTab('all');
+    setChannelTypeTab('all');
+    setSelectedProductLine('all');
+  };
 
   const profilesQuery = useQuery({
-    queryKey: ['instagram-profiles', page, debouncedSearch, sortBy, profileTab],
+    queryKey: ['instagram-profiles', page, debouncedSearch, sortBy, profileTab, channelTypeTab, selectedProductLine],
     queryFn: () => token ? scraperService.getInstagramProfiles(token, {
       page, page_size: PAGE_SIZE_PROFILES, search: debouncedSearch || undefined, is_owned: false,
       tracked: profileTab === 'periodic' ? 'true' : undefined,
       bookmarked: profileTab === 'bookmarked' ? 'true' : undefined,
+      channel_type: channelTypeTab !== 'all' ? channelTypeTab : undefined,
+      product_line: selectedProductLine !== 'all' ? selectedProductLine : undefined,
     }) : Promise.reject('No token'),
     enabled: !!token,
     refetchInterval: (query) => {
@@ -187,20 +209,31 @@ export default function InstagramExternalPage() {
   const [reelSearch, setReelSearch] = useState('');
   const [debouncedReelSearch, setDebouncedReelSearch] = useState('');
   const [selectedProfile, setSelectedProfile] = useState('');
-  const [sortReels, setSortReels] = useState('date');
+  const [sortReels, setSortReels] = useState('scraped');
   const [minPlays, setMinPlays] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const reelSearchTimer = useRef<NodeJS.Timeout>();
+
+  // Tải danh sách toàn bộ profile khám phá (is_owned = false) để dropdown luôn đầy đủ
+  const allProfilesQuery = useQuery({
+    queryKey: ['instagram-all-external-profiles'],
+    queryFn: () => token ? scraperService.getInstagramProfiles(token, {
+      page: 1, page_size: 200, is_owned: false, sort_by: 'recent',
+    }) : Promise.reject('No token'),
+    enabled: !!token,
+    staleTime: 30 * 1000,
+  });
+  const allExternalProfiles = allProfilesQuery.data?.profiles || profiles;
 
   useEffect(() => {
     reelSearchTimer.current = setTimeout(() => setDebouncedReelSearch(reelSearch), 300);
     return () => clearTimeout(reelSearchTimer.current);
   }, [reelSearch]);
 
-  const hasReelFilters = !!reelSearch || !!selectedProfile || sortReels !== 'date' || !!minPlays || !!dateFrom || !!dateTo;
+  const hasReelFilters = !!reelSearch || !!selectedProfile || sortReels !== 'scraped' || !!minPlays || !!dateFrom || !!dateTo;
   const clearReelFilters = () => {
-    setReelSearch(''); setSelectedProfile(''); setSortReels('date');
+    setReelSearch(''); setSelectedProfile(''); setSortReels('scraped');
     setMinPlays(''); setDateFrom(''); setDateTo('');
   };
 
@@ -217,6 +250,7 @@ export default function InstagramExternalPage() {
         date_from: dateFrom || undefined,
         date_to: dateTo || undefined,
         sort: sortReels,
+        is_owned: false,
       });
     },
     getNextPageParam: (lastPage) => lastPage.page < lastPage.total_pages ? lastPage.page + 1 : undefined,
@@ -255,6 +289,8 @@ export default function InstagramExternalPage() {
     }
     setProfileUsername('');
     queryClient.invalidateQueries({ queryKey: ['instagram-profiles'] });
+    queryClient.invalidateQueries({ queryKey: ['instagram-all-external-profiles'] });
+    queryClient.invalidateQueries({ queryKey: ['instagram-reels'] });
   };
 
   const scrapeMutation = useMutation({
@@ -339,6 +375,23 @@ export default function InstagramExternalPage() {
 
         {!profilesCollapsed && (
           <div className="px-4 pb-4 space-y-4">
+            {/* Phân loại kênh 2 tầng (Sản phẩm / Content & Dòng sản phẩm) */}
+            <ChannelClassificationFilterBar
+              channelType={channelTypeTab}
+              onChannelTypeChange={(t) => {
+                setChannelTypeTab(t);
+                setPage(1);
+              }}
+              productLine={selectedProductLine}
+              onProductLineChange={(line) => {
+                setSelectedProductLine(line);
+                setPage(1);
+              }}
+              availableTags={availableTags}
+              onRefreshTags={refetchTags}
+              canManageChannels={canManageChannels}
+            />
+
             {/* Filter bar: Tabs + Search + Sort + Sync button */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-1">
               {/* Filter Tabs: Tất cả | Kênh chú ý | Đã lưu */}
@@ -444,6 +497,7 @@ export default function InstagramExternalPage() {
                     onToggleOwned={canManageChannels ? () => toggleMutation.mutate({ id: p.id, field: 'is_owned' }) : undefined}
                     onViewDetail={() => router.push(`/dashboard/externalChannels/instagram/${p.id}`)}
                     onDelete={canManageChannels ? () => handleDeleteChannel(p.id, p.username, p.reels_in_db ?? 0) : undefined}
+                    onEditClassification={canManageChannels ? () => setClassifyingProfile(p) : undefined}
                   />
                 ))}
               </div>
@@ -494,7 +548,7 @@ export default function InstagramExternalPage() {
             onChange={setSelectedProfile}
             options={[
               { value: '', label: 'Tất cả profile' },
-              ...profiles.map(p => ({
+              ...allExternalProfiles.map(p => ({
                 value: String(p.id),
                 label: `@${p.username}`,
                 count: p.reels_in_db ?? undefined,
@@ -527,7 +581,8 @@ export default function InstagramExternalPage() {
             value={sortReels}
             onChange={setSortReels}
             options={[
-              { value: 'date', label: 'Mới nhất' },
+              { value: 'scraped', label: 'Mới cào về' },
+              { value: 'date', label: 'Ngày đăng mới nhất' },
               { value: 'plays', label: 'Nhiều views nhất' },
               { value: 'likes', label: 'Nhiều likes nhất' },
             ]}
@@ -590,6 +645,42 @@ export default function InstagramExternalPage() {
           </>
         )}
       </div>
+
+      {/* Modal phân loại kênh */}
+      {classifyingProfile && (
+        <ChannelClassificationModal
+          isOpen={!!classifyingProfile}
+          onClose={() => setClassifyingProfile(null)}
+          channel={{
+            id: classifyingProfile.id,
+            name: classifyingProfile.username,
+            channel_type: classifyingProfile.channel_type,
+            product_lines: classifyingProfile.product_lines,
+          }}
+          platform="instagram"
+          availableTags={availableTags}
+          onRefreshTags={refetchTags}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['instagram-profiles'] });
+          }}
+        />
+      )}
+
+      {/* Modal xác nhận xoá kênh */}
+      {deleteConfirm && (
+        <ConfirmModal
+          isOpen={!!deleteConfirm}
+          onClose={() => setDeleteConfirm(null)}
+          onConfirm={() => {
+            deleteChannelMutation.mutate(deleteConfirm.id);
+          }}
+          title="Xác nhận xoá kênh"
+          description={buildDeleteChannelConfirm({ name: deleteConfirm.name, videoCount: deleteConfirm.videoCount })}
+          confirmText="Xoá kênh vĩnh viễn"
+          variant="danger"
+          isLoading={deleteChannelMutation.isPending}
+        />
+      )}
     </div>
   );
 }

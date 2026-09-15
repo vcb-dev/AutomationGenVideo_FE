@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import {
-  Gauge, Loader2, AlertTriangle, RefreshCw, Sparkles, Copy, Check, ArrowLeft, Plus, Eraser, AudioLines,
+  Gauge, Loader2, AlertTriangle, RefreshCw, Sparkles, Copy, Check, ArrowLeft, Plus, Eraser, FileText,
 } from 'lucide-react'
 import {
   analyzePaastContent,
@@ -15,7 +15,6 @@ import {
   ScoreBandBadge, VideoRealismPanel, PreferInsightsBlock,
   renderHighlighted, stripAddTags, extractErrorMessage,
 } from '@/components/task-auto/paast-score-display'
-import { TtsVoiceModal } from '@/components/task-auto/TtsVoiceModal'
 
 // Công cụ chấm điểm PAAST độc lập, không gắn với task cụ thể — dán/gõ content bất kỳ để chấm,
 // tách ra khỏi ContentSection (chi tiết task) theo yêu cầu người dùng để dùng nhanh mà không cần mở task.
@@ -27,15 +26,15 @@ export function ContentScoringTab() {
   const [scoredContent, setScoredContent] = useState('')
   const [fromCache, setFromCache] = useState(false)
 
+  // Content dài thường được đưa dưới dạng link Google Docs / Google Drive thay vì dán thẳng.
+  // Chấm từ link: server trích text rồi đổ vào ô bên trên để xem / nâng cấp như content thường.
+  const [fileLink, setFileLink] = useState('')
+
   const [view, setView] = useState<'score' | 'upgraded'>('score')
   const [upgrading, setUpgrading] = useState(false)
   const [upgradeError, setUpgradeError] = useState<string | null>(null)
   const [upgradeResult, setUpgradeResult] = useState<PaastAnalysisHistory | null>(null)
   const [copied, setCopied] = useState(false)
-
-  // Tạo voice nhanh từ content đang chấm (tái dùng TTS Minimax của Tiện ích → Clone Voice) — chỉ
-  // tạo để nghe/tải tại chỗ, không lưu lại.
-  const [showVoiceModal, setShowVoiceModal] = useState(false)
 
   // Textarea tự co giãn: reset height 'auto' trước khi đo scrollHeight để co lại đúng khi xoá bớt.
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -47,22 +46,39 @@ export function ContentScoringTab() {
   }, [content])
 
   const trimmed = content.trim()
+  const link = fileLink.trim()
   const tooShort = trimmed.length < PAAST_MIN_LENGTH
+  // Dùng link khi chưa có đủ text dán thẳng nhưng đã nhập link file.
+  const useFile = tooShort && !!link
+  const canScore = useFile || !tooShort
   const isStale = !!result && content !== scoredContent
+
+  // Chấm từ file: nhận về bản ghi có input_text là text đã trích — đổ ngược vào ô content và xoá
+  // link, để từ đó trở đi mọi thao tác (chấm lại, nâng cấp, tạo voice) chạy trên text thường.
+  function applyResult(r: PaastAnalysisHistory, fromFile: boolean) {
+    setResult(r)
+    if (fromFile && r.input_text) {
+      setContent(r.input_text)
+      setScoredContent(r.input_text)
+      setFileLink('')
+    } else {
+      setScoredContent(content)
+    }
+  }
 
   function runAnalyze() {
     setResult(null)
     setError(null)
     setLoading(true)
     setFromCache(false)
-    const target = content
-    analyzePaastContent(target)
+    const fromFile = useFile
+    const source = fromFile ? { fileUrl: link } : content
+    analyzePaastContent(source)
       .then(r => {
         if (r.status === 'FAILED' || !r.analysis_result) {
           setError(r.error_message || 'Không chấm điểm được content này')
         } else {
-          setResult(r)
-          setScoredContent(target)
+          applyResult(r, fromFile)
         }
       })
       .catch(e => setError(extractErrorMessage(e, 'Không chấm điểm được content này')))
@@ -77,12 +93,12 @@ export function ContentScoringTab() {
     setView('score')
     setUpgradeResult(null)
     setUpgradeError(null)
-    const target = content
-    findPaastAnalysisByContent(target)
+    const fromFile = useFile
+    const source = fromFile ? { fileUrl: link } : content
+    findPaastAnalysisByContent(source)
       .then(existing => {
         if (existing && existing.analysis_result) {
-          setResult(existing)
-          setScoredContent(target)
+          applyResult(existing, fromFile)
           setFromCache(true)
           setLoading(false)
         } else {
@@ -133,6 +149,7 @@ export function ContentScoringTab() {
 
   function handleReset() {
     setContent('')
+    setFileLink('')
     setResult(null)
     setScoredContent('')
     setError(null)
@@ -176,15 +193,35 @@ export function ContentScoringTab() {
         />
       </div>
 
+      {/* Hoặc chấm từ link file — dùng khi content dài để trong Google Docs/Drive thay vì dán */}
+      <div>
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <FileText className="w-3.5 h-3.5 text-gray-400" />
+          <p className="text-xs font-medium text-gray-400">Hoặc dán link Google Docs / Google Drive (Word, PDF, text)</p>
+        </div>
+        <input
+          type="url"
+          value={fileLink}
+          onChange={e => setFileLink(e.target.value)}
+          placeholder="https://docs.google.com/document/d/..."
+          className="w-full text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-violet-300 focus:border-violet-300"
+        />
+        {useFile && (
+          <p className="text-xs text-violet-500 mt-1.5">
+            Sẽ đọc nội dung từ link này để chấm — file cần mở quyền "Bất kỳ ai có đường liên kết".
+          </p>
+        )}
+      </div>
+
       {/* Hành động */}
       <div className="flex items-center gap-2 flex-wrap">
         <button
           type="button"
           onClick={handleScore}
-          disabled={tooShort || loading}
-          title={tooShort ? `Cần ít nhất ${PAAST_MIN_LENGTH} ký tự để chấm điểm` : undefined}
+          disabled={!canScore || loading}
+          title={!canScore ? `Cần ít nhất ${PAAST_MIN_LENGTH} ký tự nội dung, hoặc dán link file để chấm điểm` : undefined}
           className={`flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors ${
-            !tooShort && !loading
+            canScore && !loading
               ? 'bg-violet-600 hover:bg-violet-700 text-white'
               : 'bg-gray-100 text-gray-400 cursor-not-allowed'
           }`}
@@ -203,7 +240,7 @@ export function ContentScoringTab() {
             <RefreshCw className="w-3.5 h-3.5" /> Chấm điểm lại
           </button>
         )}
-        {(content || result) && (
+        {(content || fileLink || result) && (
           <button
             type="button"
             onClick={handleReset}
@@ -212,19 +249,6 @@ export function ContentScoringTab() {
             <Eraser className="w-3.5 h-3.5" /> Xoá, làm lại
           </button>
         )}
-        <button
-          type="button"
-          onClick={() => setShowVoiceModal(true)}
-          disabled={!content.trim()}
-          title={!content.trim() ? 'Cần có nội dung để tạo voice' : undefined}
-          className={`flex items-center gap-1.5 text-sm font-medium px-3.5 py-2 rounded-lg border transition-colors ${
-            content.trim()
-              ? 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-              : 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed'
-          }`}
-        >
-          <AudioLines className="w-3.5 h-3.5" /> Tạo voice
-        </button>
       </div>
 
       {isStale && !loading && (
@@ -403,12 +427,6 @@ export function ContentScoringTab() {
           </div>
         </div>
       )}
-
-      <TtsVoiceModal
-        open={showVoiceModal}
-        content={content}
-        onClose={() => setShowVoiceModal(false)}
-      />
     </div>
   )
 }

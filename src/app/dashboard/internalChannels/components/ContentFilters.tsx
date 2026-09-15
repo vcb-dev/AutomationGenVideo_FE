@@ -91,12 +91,13 @@ export default function ContentFilters({
             <FilterSelect
                 value={value.market}
                 onChange={(v) => onChange({ market: v })}
-                className="w-[140px]"
-                title="Kênh VN nhận theo dấu tiếng Việt trong caption"
+                className="w-[155px]"
+                title="Lọc theo Kênh VN, Kênh Global hoặc Kênh Đồ Da"
                 options={[
-                    { value: '', label: 'VN + Global' },
+                    { value: '', label: 'Tất cả thị trường' },
                     { value: 'vn', label: 'Kênh VN' },
                     { value: 'global', label: 'Kênh Global' },
+                    { value: 'doda', label: 'Kênh Đồ Da' },
                 ]}
             />
 

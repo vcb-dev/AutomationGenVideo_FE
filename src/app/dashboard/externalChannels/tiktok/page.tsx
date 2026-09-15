@@ -12,7 +12,7 @@ import TikTokProfileCard from '../components/TikTokProfileCard';
 import FilterSelect from '../components/FilterSelect';
 import { DatePicker } from '@/components/ui/DatePicker';
 import { useAuthStore } from '@/store/auth-store';
-import { scraperService } from '@/services/scraperService';
+import { scraperService, TikTokProfile } from '@/services/scraperService';
 import { useScrapingStore } from '@/store/scraping-store';
 import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
 import { UserRole } from '@/types/auth';
@@ -20,6 +20,9 @@ import { dedupeById } from '@/lib/dedupe-pages';
 import SyncAllChannelsButton from '../components/SyncAllChannelsButton';
 import { buildDeleteChannelConfirm } from '@/lib/scrape/delete-channel';
 import WatchFeedButton from '../components/WatchFeedButton';
+import ChannelClassificationFilterBar from '../components/ChannelClassificationFilterBar';
+import ChannelClassificationModal from '../components/ChannelClassificationModal';
+import ConfirmModal from '../components/ConfirmModal';
 
 type Tab = 'videos' | 'profiles';
 
@@ -33,6 +36,8 @@ export default function TiktokExternalPage() {
   const { addNotification, updateNotification } = useScrapingStore();
   const { start: startProfileScrapeNotif } = useProfileScrapeNotification('tiktok');
 
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; name: string; videoCount: number } | null>(null);
+
   // Xoá cứng kênh: BE xoá kèm toàn bộ video/lịch sử, không hoàn tác được. Hộp xác nhận
   // phải nói số video sắp mất — trên thẻ thì kênh 300 video trông y hệt kênh rỗng.
   const deleteChannelMutation = useMutation({
@@ -42,6 +47,7 @@ export default function TiktokExternalPage() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['tiktok-profiles'] });
+      setDeleteConfirm(null);
       toast.success(
         data.videos_deleted > 0
           ? `Đã xoá ${data.name} và ${data.videos_deleted.toLocaleString('vi-VN')} video`
@@ -52,8 +58,7 @@ export default function TiktokExternalPage() {
   });
 
   const handleDeleteChannel = (id: number, name: string, videoCount: number) => {
-    if (!window.confirm(buildDeleteChannelConfirm({ name, videoCount }))) return;
-    deleteChannelMutation.mutate(id);
+    setDeleteConfirm({ id, name, videoCount });
   };
 
   // Tab state
@@ -66,15 +71,31 @@ export default function TiktokExternalPage() {
   const [profilePage, setProfilePage] = useState(1);
   const [profileSortBy, setProfileSortBy] = useState<'followers' | 'recent'>('followers');
   const [profileTab, setProfileTab] = useState<'all' | 'periodic' | 'bookmarked'>('all');
+  const [channelTypeTab, setChannelTypeTab] = useState<'all' | 'product' | 'content'>('all');
+  const [selectedProductLine, setSelectedProductLine] = useState('all');
+  const [classifyingProfile, setClassifyingProfile] = useState<TikTokProfile | null>(null);
   const profileSearchTimer = useRef<NodeJS.Timeout>();
+
+  const { data: availableTags = [], refetch: refetchTags } = useQuery({
+    queryKey: ['scraper-channel-tags'],
+    queryFn: () => token ? scraperService.getChannelTags(token) : Promise.resolve([]),
+    enabled: !!token,
+    staleTime: 5 * 60 * 1000,
+  });
 
   useEffect(() => {
     profileSearchTimer.current = setTimeout(() => { setDebouncedProfileSearch(profileSearch); setProfilePage(1); }, 300);
     return () => clearTimeout(profileSearchTimer.current);
   }, [profileSearch]);
 
-  const hasProfileFilters = !!profileSearch || profileSortBy !== 'followers' || profileTab !== 'all';
-  const clearProfileFilters = () => { setProfileSearch(''); setProfileSortBy('followers'); setProfileTab('all'); };
+  const hasProfileFilters = !!profileSearch || profileSortBy !== 'followers' || profileTab !== 'all' || channelTypeTab !== 'all' || selectedProductLine !== 'all';
+  const clearProfileFilters = () => {
+    setProfileSearch('');
+    setProfileSortBy('followers');
+    setProfileTab('all');
+    setChannelTypeTab('all');
+    setSelectedProductLine('all');
+  };
 
   // Search state
   const [keyword, setKeyword] = useState('');
@@ -231,12 +252,14 @@ export default function TiktokExternalPage() {
 
   // ─── Profiles Query (paginated) ──────────────────────
   const profilesQuery = useQuery({
-    queryKey: ['tiktok-profiles', profilePage, debouncedProfileSearch, profileSortBy, profileTab],
+    queryKey: ['tiktok-profiles', profilePage, debouncedProfileSearch, profileSortBy, profileTab, channelTypeTab, selectedProductLine],
     queryFn: () => token ? scraperService.getTiktokProfiles(token, {
       page: profilePage, page_size: PAGE_SIZE_PROFILES, search: debouncedProfileSearch || undefined,
       sort_by: profileSortBy, is_owned: false,
       tracked: profileTab === 'periodic' ? 'true' : undefined,
       bookmarked: profileTab === 'bookmarked' ? 'true' : undefined,
+      channel_type: channelTypeTab !== 'all' ? channelTypeTab : undefined,
+      product_line: selectedProductLine !== 'all' ? selectedProductLine : undefined,
     }) : Promise.reject('No token'),
     enabled: !!token && activeTab === 'profiles',
     refetchInterval: (query) => {
@@ -559,6 +582,23 @@ export default function TiktokExternalPage() {
             </div>
           )}
 
+          {/* Phân loại kênh 2 tầng (Sản phẩm / Content & Dòng sản phẩm) */}
+          <ChannelClassificationFilterBar
+            channelType={channelTypeTab}
+            onChannelTypeChange={(t) => {
+              setChannelTypeTab(t);
+              setProfilePage(1);
+            }}
+            productLine={selectedProductLine}
+            onProductLineChange={(line) => {
+              setSelectedProductLine(line);
+              setProfilePage(1);
+            }}
+            availableTags={availableTags}
+            onRefreshTags={refetchTags}
+            canManageChannels={canManageChannels}
+          />
+
           {/* Filter bar: Tabs + Search + Sort + Sync button */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border border-border rounded-xl p-4">
             {/* Filter Tabs: Tất cả | Kênh chú ý | Đã lưu */}
@@ -673,6 +713,7 @@ export default function TiktokExternalPage() {
                   onToggleTracked={canManageChannels ? () => profileToggleMutation.mutate({ id: p.id, field: 'is_tracked' }) : undefined}
                   onViewDetail={() => router.push(`/dashboard/externalChannels/tiktok/${p.id}`)}
                   onDelete={canManageChannels ? () => handleDeleteChannel(p.id, p.nickname || p.username, p.videos_count ?? 0) : undefined}
+                  onEditClassification={canManageChannels ? () => setClassifyingProfile(p) : undefined}
                 />
               ))}
             </div>
@@ -693,6 +734,42 @@ export default function TiktokExternalPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* Modal phân loại kênh */}
+      {classifyingProfile && (
+        <ChannelClassificationModal
+          isOpen={!!classifyingProfile}
+          onClose={() => setClassifyingProfile(null)}
+          channel={{
+            id: classifyingProfile.id,
+            name: classifyingProfile.nickname || classifyingProfile.username,
+            channel_type: classifyingProfile.channel_type,
+            product_lines: classifyingProfile.product_lines,
+          }}
+          platform="tiktok"
+          availableTags={availableTags}
+          onRefreshTags={refetchTags}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['tiktok-profiles'] });
+          }}
+        />
+      )}
+
+      {/* Modal xác nhận xoá kênh */}
+      {deleteConfirm && (
+        <ConfirmModal
+          isOpen={!!deleteConfirm}
+          onClose={() => setDeleteConfirm(null)}
+          onConfirm={() => {
+            deleteChannelMutation.mutate(deleteConfirm.id);
+          }}
+          title="Xác nhận xoá kênh"
+          description={buildDeleteChannelConfirm({ name: deleteConfirm.name, videoCount: deleteConfirm.videoCount })}
+          confirmText="Xoá kênh vĩnh viễn"
+          variant="danger"
+          isLoading={deleteChannelMutation.isPending}
+        />
       )}
     </div>
   );

@@ -15,6 +15,7 @@ import {
 import { ConditionDot } from '@/components/equipment/ConditionDot';
 import { StepBar } from '@/components/equipment/StepBar';
 import { WorkflowSuccessModal } from '@/components/equipment/WorkflowSuccessModal';
+import { RequireCatalogManager } from '@/components/equipment/RequireCatalogManager';
 import { apiErrorMessage } from '@/lib/equipment/api-error';
 
 const cardClass =
@@ -310,8 +311,10 @@ function PrepareInner() {
  */
 export default function PreparePage() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-sm text-slate-500">Đang tải…</div>}>
-      <PrepareInner />
-    </Suspense>
+    <RequireCatalogManager>
+      <Suspense fallback={<div className="p-8 text-center text-sm text-slate-500">Đang tải…</div>}>
+        <PrepareInner />
+      </Suspense>
+    </RequireCatalogManager>
   );
 }

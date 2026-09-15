@@ -3,12 +3,11 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   FileText, Link2, Mic, Download, X, ChevronDown, ChevronUp,
-  Sparkles, Loader2, Copy, Check, Languages, Save, Send, Clock, CheckCircle2, XCircle, PenLine, Wand2, AudioLines, Gauge,
+  Sparkles, Loader2, Copy, Check, Languages, Save, Send, Clock, CheckCircle2, XCircle, PenLine, Wand2, Gauge,
 } from 'lucide-react'
 import { cn, drivePreviewUrl, cleanContentText } from '@/lib/utils'
 import { ServerSearchSelect } from '@/components/task-auto/DarkInput'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
-import { TtsVoiceModal } from '@/components/task-auto/TtsVoiceModal'
 import { PaastScoreModal } from '@/components/task-auto/PaastScoreModal'
 import type { PaastAnalysisHistory } from '@/lib/api/paast-analyzer'
 import { Section } from './Section'
@@ -150,11 +149,7 @@ export function ContentSection({
 
   // Chấm điểm PAAST — công cụ học hỏi/cải thiện, mọi role đều dùng được, không phải bước duyệt.
   const [showScoreModal, setShowScoreModal] = useState(false)
-  const [scoreCache, setScoreCache] = useState<{ content: string; result: PaastAnalysisHistory } | null>(null)
-
-  // Tạo voice nhanh từ content hiện tại (tái dùng TTS Minimax của Tiện ích → Clone Voice) — chỉ
-  // tạo để nghe/tải tại chỗ, không lưu lại vào task.
-  const [showVoiceModal, setShowVoiceModal] = useState(false)
+  const [scoreCache, setScoreCache] = useState<{ key: string; result: PaastAnalysisHistory } | null>(null)
 
   // "Sinh lại" ghi đè toàn bộ ô content — hỏi lại nếu đang có sửa tay chưa lưu để tránh mất trắng.
   const [showRegenConfirm, setShowRegenConfirm] = useState(false)
@@ -390,6 +385,12 @@ export function ContentSection({
   const hasContent = !!(view.contentTitle || view.scriptText || view.fileUrl)
   const hasProduct = !!productName
   const canGenerate = hasContent && hasProduct
+
+  // Chấm điểm PAAST được khi có đủ text dán thẳng, HOẶC content nằm trong file đính kèm
+  // (server tự trích text — thường là link Google Docs của content dài).
+  const hasScoreText = editedContent.trim().length >= PAAST_MIN_LENGTH
+  const canScorePaast = hasScoreText || !!view.fileUrl
+  const scoreKey = hasScoreText ? editedContent : (view.fileUrl || '')
   // Ưu tiên market gắn thẳng vào content/sản phẩm nếu là thị trường nước ngoài (content/sản phẩm
   // được gắn nhãn rõ cho thị trường đó); nếu cả hai đều trống hoặc là VN (vd. content lấy từ kho
   // tổng vốn mặc định VIETNAM) thì rơi về market của team đang xử lý task (editorMarket) — đây là
@@ -543,30 +544,22 @@ export function ContentSection({
             <button
               type="button"
               onClick={() => setShowScoreModal(true)}
-              disabled={editedContent.trim().length < PAAST_MIN_LENGTH}
-              title={editedContent.trim().length < PAAST_MIN_LENGTH ? `Cần ít nhất ${PAAST_MIN_LENGTH} ký tự để chấm điểm` : undefined}
+              disabled={!canScorePaast}
+              title={
+                !canScorePaast
+                  ? `Cần ít nhất ${PAAST_MIN_LENGTH} ký tự nội dung, hoặc có file content đính kèm để chấm điểm`
+                  : !hasScoreText
+                  ? 'Chấm điểm từ file content đính kèm'
+                  : undefined
+              }
               className={cn(
                 'flex items-center gap-1.5 text-sm font-medium px-3.5 py-2 rounded-lg border transition-colors',
-                editedContent.trim().length >= PAAST_MIN_LENGTH
+                canScorePaast
                   ? 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
                   : 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed',
               )}
             >
               <Gauge className="w-3.5 h-3.5" /> Chấm điểm content
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowVoiceModal(true)}
-              disabled={!editedContent.trim()}
-              title={!editedContent.trim() ? 'Cần có content để tạo voice' : undefined}
-              className={cn(
-                'flex items-center gap-1.5 text-sm font-medium px-3.5 py-2 rounded-lg border transition-colors',
-                editedContent.trim()
-                  ? 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                  : 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed',
-              )}
-            >
-              <AudioLines className="w-3.5 h-3.5" /> Tạo voice
             </button>
             {(foreignMarket || script?.translation) && (
               <button
@@ -949,22 +942,17 @@ export function ContentSection({
       <PaastScoreModal
         open={showScoreModal}
         content={editedContent}
+        fileUrl={view.fileUrl}
         onClose={() => setShowScoreModal(false)}
-        cachedResult={scoreCache?.content === editedContent ? scoreCache.result : null}
-        onAnalyzed={result => setScoreCache({ content: editedContent, result })}
+        cachedResult={scoreCache?.key === scoreKey ? scoreCache.result : null}
+        onAnalyzed={result => setScoreCache({ key: scoreKey, result })}
         onApply={(upgradedContent, result) => {
           // Đưa bản nâng cấp vào content như 1 lần sửa tay — vẫn cần bấm "Lưu" để lưu thật sự.
           userTouchedRef.current = true
           setRewriteMode(true)
           setEditedContent(upgradedContent)
-          setScoreCache({ content: upgradedContent, result })
+          setScoreCache({ key: upgradedContent, result })
         }}
-      />
-
-      <TtsVoiceModal
-        open={showVoiceModal}
-        content={editedContent}
-        onClose={() => setShowVoiceModal(false)}
       />
 
       <ConfirmDialog

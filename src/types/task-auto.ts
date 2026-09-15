@@ -44,6 +44,10 @@ export interface Team {
   market: TeamMarket
   team_kind: TeamKind
   is_active: boolean
+  /** Webhook bot Lark riêng của team — null = chưa cấu hình, thông báo "cần duyệt" của team này chỉ đi vào webhook chung. */
+  lark_webhook_url: string | null
+  /** BE không bao giờ trả secret thật (write-only, giống mật khẩu) — chỉ báo đã đặt hay chưa. */
+  lark_webhook_secret_set: boolean
   created_at: string
   updated_at: string
   leader?: UserBasic | null
@@ -853,6 +857,16 @@ export interface AutoAssignSetting {
   default_cooldown_days: number
   updated_by: string | null
   updated_at: string
+}
+
+// ── Webhook Lark chung (thông báo task/content cần duyệt) ──
+
+export interface LarkWebhookGlobalSetting {
+  webhook_url: string | null
+  /** BE không bao giờ trả secret thật (write-only) — chỉ báo đã đặt hay chưa. */
+  webhook_secret_set: boolean
+  /** 'database' = đã cấu hình qua UI này; 'none' = chưa có gì, không gửi webhook chung. */
+  source: 'database' | 'none'
 }
 
 // ── Notifications ───────────────────────────────

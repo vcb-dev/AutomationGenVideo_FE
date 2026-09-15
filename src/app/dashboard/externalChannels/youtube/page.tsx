@@ -11,7 +11,7 @@ import toast from 'react-hot-toast';
 import YoutubeProfileCard from '../components/YoutubeProfileCard';
 import FilterSelect from '../components/FilterSelect';
 import { useAuthStore } from '@/store/auth-store';
-import { scraperService, YoutubeShortWithProfile } from '@/services/scraperService';
+import { scraperService, YoutubeProfile, YoutubeShortWithProfile } from '@/services/scraperService';
 import { videoLibraryService } from '@/services/videoLibraryService';
 import { useSubmitVideoToLibrary } from '@/hooks/useProposeVideo';
 import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
@@ -20,6 +20,9 @@ import { dedupeById } from '@/lib/dedupe-pages';
 import SyncAllChannelsButton from '../components/SyncAllChannelsButton';
 import { buildDeleteChannelConfirm } from '@/lib/scrape/delete-channel';
 import WatchFeedButton from '../components/WatchFeedButton';
+import ChannelClassificationFilterBar from '../components/ChannelClassificationFilterBar';
+import ChannelClassificationModal from '../components/ChannelClassificationModal';
+import ConfirmModal from '../components/ConfirmModal';
 
 const PAGE_SIZE_PROFILES = 12;
 const PAGE_SIZE_SHORTS = 24;
@@ -115,9 +118,10 @@ export default function YoutubeExternalPage() {
   const { token, user } = useAuthStore();
   const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
   const queryClient = useQueryClient();
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; name: string; videoCount: number } | null>(null);
 
-  // Xoá cứng kênh: BE xoá kèm toàn bộ video/lịch sử, không hoàn tác được. Hộp xác nhận
-  // phải nói số video sắp mất — trên thẻ thì kênh 300 video trông y hệt kênh rỗng.
+  // Xoá cứng kênh: BE xoá kèm toàn bộ shorts/lịch sử, không hoàn tác được. Hộp xác nhận
+  // phải nói số video sắp mất — trên thẻ thì kênh 300 shorts trông y hệt kênh rỗng.
   const deleteChannelMutation = useMutation({
     mutationFn: (id: number) => {
       if (!token) throw new Error('No token');
@@ -125,6 +129,7 @@ export default function YoutubeExternalPage() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['youtube-profiles'] });
+      setDeleteConfirm(null);
       toast.success(
         data.videos_deleted > 0
           ? `Đã xoá ${data.name} và ${data.videos_deleted.toLocaleString('vi-VN')} video`
@@ -135,8 +140,7 @@ export default function YoutubeExternalPage() {
   });
 
   const handleDeleteChannel = (id: number, name: string, videoCount: number) => {
-    if (!window.confirm(buildDeleteChannelConfirm({ name, videoCount }))) return;
-    deleteChannelMutation.mutate(id);
+    setDeleteConfirm({ id, name, videoCount });
   };
   const router = useRouter();
   const { start: startProfileScrapeNotif } = useProfileScrapeNotification('youtube');
@@ -149,22 +153,40 @@ export default function YoutubeExternalPage() {
   const [page, setPage] = useState(1);
   const [sortBy, setSortBy] = useState<'subscribers' | 'recent'>('subscribers');
   const [profileTab, setProfileTab] = useState<'all' | 'periodic' | 'bookmarked'>('all');
+  const [channelTypeTab, setChannelTypeTab] = useState<'all' | 'product' | 'content'>('all');
+  const [selectedProductLine, setSelectedProductLine] = useState('all');
+  const [classifyingProfile, setClassifyingProfile] = useState<YoutubeProfile | null>(null);
   const searchTimer = useRef<NodeJS.Timeout>();
+
+  const { data: availableTags = [], refetch: refetchTags } = useQuery({
+    queryKey: ['scraper-channel-tags'],
+    queryFn: () => token ? scraperService.getChannelTags(token) : Promise.resolve([]),
+    enabled: !!token,
+    staleTime: 5 * 60 * 1000,
+  });
 
   useEffect(() => {
     searchTimer.current = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 300);
     return () => clearTimeout(searchTimer.current);
   }, [search]);
 
-  const hasProfileFilters = !!search || sortBy !== 'subscribers' || profileTab !== 'all';
-  const clearProfileFilters = () => { setSearch(''); setSortBy('subscribers'); setProfileTab('all'); };
+  const hasProfileFilters = !!search || sortBy !== 'subscribers' || profileTab !== 'all' || channelTypeTab !== 'all' || selectedProductLine !== 'all';
+  const clearProfileFilters = () => {
+    setSearch('');
+    setSortBy('subscribers');
+    setProfileTab('all');
+    setChannelTypeTab('all');
+    setSelectedProductLine('all');
+  };
 
   const profilesQuery = useQuery({
-    queryKey: ['youtube-profiles', page, debouncedSearch, sortBy, profileTab],
+    queryKey: ['youtube-profiles', page, debouncedSearch, sortBy, profileTab, channelTypeTab, selectedProductLine],
     queryFn: () => token ? scraperService.getYoutubeProfiles(token, {
       page, page_size: PAGE_SIZE_PROFILES, search: debouncedSearch || undefined, sort_by: sortBy, is_owned: false,
       tracked: profileTab === 'periodic' ? 'true' : undefined,
       bookmarked: profileTab === 'bookmarked' ? 'true' : undefined,
+      channel_type: channelTypeTab !== 'all' ? channelTypeTab : undefined,
+      product_line: selectedProductLine !== 'all' ? selectedProductLine : undefined,
     }) : Promise.reject('No token'),
     enabled: !!token,
     refetchInterval: (query) => {
@@ -322,6 +344,23 @@ export default function YoutubeExternalPage() {
 
         {!profilesCollapsed && (
           <div className="px-4 pb-4 space-y-4">
+            {/* Phân loại kênh 2 tầng (Sản phẩm / Content & Dòng sản phẩm) */}
+            <ChannelClassificationFilterBar
+              channelType={channelTypeTab}
+              onChannelTypeChange={(t) => {
+                setChannelTypeTab(t);
+                setPage(1);
+              }}
+              productLine={selectedProductLine}
+              onProductLineChange={(line) => {
+                setSelectedProductLine(line);
+                setPage(1);
+              }}
+              availableTags={availableTags}
+              onRefreshTags={refetchTags}
+              canManageChannels={canManageChannels}
+            />
+
             {/* Filter bar: Tabs + Search + Sort + Sync button */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-1">
               {/* Filter Tabs: Tất cả | Kênh chú ý | Đã lưu */}
@@ -425,7 +464,8 @@ export default function YoutubeExternalPage() {
                     onToggleBookmark={() => toggleMutation.mutate({ id: p.id, field: 'is_bookmarked' })}
                     onToggleTracked={canManageChannels ? () => toggleMutation.mutate({ id: p.id, field: 'is_tracked' }) : undefined}
                     onViewDetail={() => router.push(`/dashboard/externalChannels/youtube/${p.id}`)}
-                  onDelete={canManageChannels ? () => handleDeleteChannel(p.id, p.title, p.video_count ?? 0) : undefined}
+                    onDelete={canManageChannels ? () => handleDeleteChannel(p.id, p.title, p.video_count ?? 0) : undefined}
+                    onEditClassification={canManageChannels ? () => setClassifyingProfile(p) : undefined}
                   />
                 ))}
               </div>
@@ -569,6 +609,42 @@ export default function YoutubeExternalPage() {
           </>
         )}
       </div>
+
+      {/* Modal phân loại kênh */}
+      {classifyingProfile && (
+        <ChannelClassificationModal
+          isOpen={!!classifyingProfile}
+          onClose={() => setClassifyingProfile(null)}
+          channel={{
+            id: classifyingProfile.id,
+            name: classifyingProfile.title || classifyingProfile.channel_id,
+            channel_type: classifyingProfile.channel_type,
+            product_lines: classifyingProfile.product_lines,
+          }}
+          platform="youtube"
+          availableTags={availableTags}
+          onRefreshTags={refetchTags}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['youtube-profiles'] });
+          }}
+        />
+      )}
+
+      {/* Modal xác nhận xoá kênh */}
+      {deleteConfirm && (
+        <ConfirmModal
+          isOpen={!!deleteConfirm}
+          onClose={() => setDeleteConfirm(null)}
+          onConfirm={() => {
+            deleteChannelMutation.mutate(deleteConfirm.id);
+          }}
+          title="Xác nhận xoá kênh"
+          description={buildDeleteChannelConfirm({ name: deleteConfirm.name, videoCount: deleteConfirm.videoCount })}
+          confirmText="Xoá kênh vĩnh viễn"
+          variant="danger"
+          isLoading={deleteChannelMutation.isPending}
+        />
+      )}
     </div>
   );
 }

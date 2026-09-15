@@ -34,6 +34,7 @@ import type {
   TeamSourcesQuery,
   AssignmentRun,
   AutoAssignSetting,
+  LarkWebhookGlobalSetting,
   PaginatedResult,
   UserBasic,
   TeamProduct,
@@ -762,6 +763,15 @@ export const triggerAutoAssign = () =>
   apiClient.post<{ message: string; timestamp: string; assigned: number; skipped: number; runId: string }>(
     '/task-auto/assignment-runs/trigger', {}
   ).then(r => r.data)
+
+// ── Webhook Lark chung (thông báo task/content cần duyệt) ───────────────────────
+
+export const getLarkWebhookGlobalSetting = () =>
+  apiClient.get<LarkWebhookGlobalSetting>('/task-auto/settings/lark-webhook').then(r => r.data)
+
+/** webhook_url/webhook_secret: bỏ qua (không truyền key) = giữ nguyên, null = xoá. */
+export const updateLarkWebhookGlobalSetting = (body: { webhook_url?: string | null; webhook_secret?: string | null }) =>
+  apiClient.put<LarkWebhookGlobalSetting>('/task-auto/settings/lark-webhook', body).then(r => r.data)
 
 export const getAssignmentRuns = (limit = 50) =>
   apiClient.get<AssignmentRun[]>(`/task-auto/assignment-runs${qs({ limit })}`).then(r => r.data)

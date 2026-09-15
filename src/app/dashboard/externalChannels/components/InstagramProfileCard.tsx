@@ -1,9 +1,10 @@
 'use client';
 
-import { Users, Heart, VideoCamera, ArrowsClockwise, BookmarkSimple, Timer, CircleNotch, SealCheck, Buildings, UserCircle, House } from '@phosphor-icons/react';
+import { Users, Heart, VideoCamera, ArrowsClockwise, BookmarkSimple, Timer, CircleNotch, SealCheck, Buildings, UserCircle, House, Warning } from '@phosphor-icons/react';
 import { InstagramProfile } from '@/services/scraperService';
 import { ChannelInfo } from '@/services/channelsService';
 import DeleteChannelButton from './DeleteChannelButton';
+import ChannelClassificationBadges from './ChannelClassificationBadges';
 
 function proxyImg(url: string): string {
   if (!url) return '';
@@ -32,9 +33,10 @@ interface Props {
   onToggleOwned?: () => void;
   onViewDetail: () => void;
   onDelete?: () => void;
+  onEditClassification?: () => void;
 }
 
-export default function InstagramProfileCard({ profile: p, channelInfo, onScrape, onToggleBookmark, onToggleTracked, onToggleOwned, onViewDetail, onDelete }: Props) {
+export default function InstagramProfileCard({ profile: p, channelInfo, onScrape, onToggleBookmark, onToggleTracked, onToggleOwned, onViewDetail, onDelete, onEditClassification }: Props) {
   const isProcessing = p.scraping_status === 'processing';
 
   return (
@@ -47,8 +49,8 @@ export default function InstagramProfileCard({ profile: p, channelInfo, onScrape
       }`}
     >
       {/* Badges */}
-      {(p.is_owned || p.is_tracked || isProcessing) && (
-        <div className="flex items-center gap-1.5 px-3.5 pt-2.5 pb-0">
+      {(p.is_owned || p.is_tracked || isProcessing || p.is_bookmarked || (!isProcessing && p.scrape_error)) && (
+        <div className="flex flex-wrap items-center gap-1.5 px-3.5 pt-2.5 pb-0">
           {p.is_owned && (
             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded text-xs font-medium">
               <House size={10} weight="fill" /> Kênh nội bộ
@@ -59,9 +61,26 @@ export default function InstagramProfileCard({ profile: p, channelInfo, onScrape
               <Timer size={10} weight="fill" /> Kênh chú ý
             </span>
           )}
+          {p.is_bookmarked && (
+            <span
+              title={p.bookmarked_at ? `Lưu lúc ${new Date(p.bookmarked_at).toLocaleDateString('vi-VN')}` : undefined}
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded text-xs font-medium border border-amber-200/60 dark:border-amber-800/60"
+            >
+              <BookmarkSimple size={10} weight="fill" />
+              {p.bookmarked_by_name ? `Lưu bởi: ${p.bookmarked_by_name}` : 'Đã lưu'}
+            </span>
+          )}
           {isProcessing && (
             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded text-xs font-medium">
               <CircleNotch size={10} weight="bold" className="animate-spin" /> Đang cào
+            </span>
+          )}
+          {!isProcessing && p.scrape_error && (
+            <span
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded text-xs font-medium max-w-full"
+              title={p.scrape_error}
+            >
+              <Warning size={10} weight="bold" /> <span className="truncate">Cào lỗi</span>
             </span>
           )}
         </div>
@@ -85,6 +104,12 @@ export default function InstagramProfileCard({ profile: p, channelInfo, onScrape
           </div>
         </div>
       </div>
+
+      <ChannelClassificationBadges
+        channelType={p.channel_type}
+        productLines={p.product_lines}
+        onEdit={onEditClassification}
+      />
 
       {/* Stats */}
       <div className="flex items-center gap-4 px-3.5 py-2">
@@ -159,7 +184,11 @@ export default function InstagramProfileCard({ profile: p, channelInfo, onScrape
               ? 'text-amber-500 bg-amber-50/50 dark:bg-amber-900/10'
               : 'text-slate-400 hover:text-amber-500 hover:bg-amber-50/50'
           }`}
-          title={p.is_bookmarked ? 'Bỏ lưu' : 'Lưu'}
+          title={
+            p.is_bookmarked
+              ? `Bỏ lưu${p.bookmarked_by_name ? ` (đã lưu bởi ${p.bookmarked_by_name})` : ''}`
+              : 'Lưu kênh'
+          }
         >
           <BookmarkSimple size={14} weight={p.is_bookmarked ? 'fill' : 'regular'} />
         </button>

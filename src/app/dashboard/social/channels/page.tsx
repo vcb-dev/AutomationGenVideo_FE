@@ -651,22 +651,22 @@ export default function ChannelsPage() {
                                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full">
                                   {(pagesExpanded[account.id] ? pages : pages.slice(0, PAGES_PER_ROW)).map((page) => {
                                     const bgColor = letterColor(page.name);
+                                    const cleanId = (page.extra_data as any)?.pageId || (page.platform_id?.startsWith('page_') ? page.platform_id.replace('page_', '') : null);
+                                    const directAvatar = cleanId ? `https://graph.facebook.com/${cleanId}/picture?type=large` : (page.avatar_url || accountAvatarUrl(page.id));
                                     return (
                                       <div
                                         key={page.id}
                                         className="flex items-center gap-4 px-5 py-5 rounded-2xl border border-slate-200 bg-white hover:shadow-sm transition-all w-full"
                                       >
-                                        {page.avatar_url ? (
+                                        {directAvatar ? (
                                           <img loading="lazy"
-                                            src={accountAvatarUrl(page.id)}
+                                            src={directAvatar}
                                             alt={page.name}
                                             referrerPolicy="no-referrer"
                                             className="w-14 h-14 rounded-2xl object-cover flex-shrink-0 shadow-md border-2 border-white"
                                             onError={(e) => {
-                                              const cleanId = (page.extra_data as any)?.pageId || (page.platform_id?.startsWith('page_') ? page.platform_id.replace('page_', '') : null);
-                                              if (cleanId && !e.currentTarget.dataset.fallback) {
-                                                e.currentTarget.dataset.fallback = '1';
-                                                e.currentTarget.src = `https://graph.facebook.com/${cleanId}/picture?type=large`;
+                                              if (page.avatar_url && e.currentTarget.src !== page.avatar_url) {
+                                                e.currentTarget.src = page.avatar_url;
                                                 return;
                                               }
                                               e.currentTarget.style.display = 'none';
@@ -678,7 +678,7 @@ export default function ChannelsPage() {
                                             }}
                                           />
                                         ) : null}
-                                        <div className={`w-14 h-14 ${bgColor} rounded-2xl flex items-center justify-center text-white font-bold text-2xl flex-shrink-0 shadow-md ${page.avatar_url ? 'hidden' : ''}`}>
+                                        <div className={`w-14 h-14 ${bgColor} rounded-2xl flex items-center justify-center text-white font-bold text-2xl flex-shrink-0 shadow-md ${directAvatar ? 'hidden' : ''}`}>
                                           {page.name.charAt(0).toUpperCase()}
                                         </div>
 

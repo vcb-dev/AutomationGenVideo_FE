@@ -25,6 +25,10 @@ import KeywordTranslateHint from '../components/KeywordTranslateHint';
 import DeleteChannelButton from '../components/DeleteChannelButton';
 import SyncAllChannelsButton from '../components/SyncAllChannelsButton';
 import { buildDeleteChannelConfirm } from '@/lib/scrape/delete-channel';
+import ChannelClassificationBadges from '../components/ChannelClassificationBadges';
+import ChannelClassificationFilterBar from '../components/ChannelClassificationFilterBar';
+import ChannelClassificationModal from '../components/ChannelClassificationModal';
+import ConfirmModal from '../components/ConfirmModal';
 
 function formatNum(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -141,6 +145,7 @@ function XhsProfileCard({
   onToggleTracked,
   onViewDetail,
   onDelete,
+  onEditClassification,
 }: {
   profile: XiaohongshuProfile;
   onScrape?: () => void;
@@ -148,6 +153,7 @@ function XhsProfileCard({
   onToggleTracked?: () => void;
   onViewDetail: () => void;
   onDelete?: () => void;
+  onEditClassification?: () => void;
 }) {
   const isProcessing = p.scraping_status === 'processing';
 
@@ -161,11 +167,20 @@ function XhsProfileCard({
       }`}
     >
       {/* Badges */}
-      {(p.is_tracked || isProcessing) && (
-        <div className="flex items-center gap-1.5 px-3.5 pt-2.5 pb-0">
+      {(p.is_tracked || isProcessing || p.is_bookmarked) && (
+        <div className="flex flex-wrap items-center gap-1.5 px-3.5 pt-2.5 pb-0">
           {p.is_tracked && (
             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded text-xs font-medium">
               <Timer size={10} weight="fill" /> Kênh chú ý
+            </span>
+          )}
+          {p.is_bookmarked && (
+            <span
+              title={p.bookmarked_at ? `Lưu lúc ${new Date(p.bookmarked_at).toLocaleDateString('vi-VN')}` : undefined}
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded text-xs font-medium border border-amber-200/60 dark:border-amber-800/60"
+            >
+              <BookmarkSimple size={10} weight="fill" />
+              {p.bookmarked_by_name ? `Lưu bởi: ${p.bookmarked_by_name}` : 'Đã lưu'}
             </span>
           )}
           {isProcessing && (
@@ -197,6 +212,12 @@ function XhsProfileCard({
           <p className="text-xs text-slate-400 dark:text-slate-500 truncate font-mono">{p.user_id}</p>
         </div>
       </div>
+
+      <ChannelClassificationBadges
+        channelType={p.channel_type}
+        productLines={p.product_lines}
+        onEdit={onEditClassification}
+      />
 
       {/* Stats */}
       <div className="flex items-center gap-4 px-3.5 py-2">
@@ -246,7 +267,11 @@ function XhsProfileCard({
               ? 'text-amber-500 bg-amber-50/50 dark:bg-amber-900/10'
               : 'text-slate-400 hover:text-amber-500 hover:bg-amber-50/50'
           }`}
-          title={p.is_bookmarked ? 'Bỏ lưu' : 'Lưu'}
+          title={
+            p.is_bookmarked
+              ? `Bỏ lưu${p.bookmarked_by_name ? ` (đã lưu bởi ${p.bookmarked_by_name})` : ''}`
+              : 'Lưu kênh'
+          }
         >
           <BookmarkSimple size={14} weight={p.is_bookmarked ? 'fill' : 'regular'} />
         </button>
@@ -613,6 +638,16 @@ function ProfilesTab() {
   const [userId, setUserId] = useState('');
   const [q, setQ] = useState('');
   const [profileTab, setProfileTab] = useState<'all' | 'periodic' | 'bookmarked'>('all');
+  const [channelTypeTab, setChannelTypeTab] = useState<'all' | 'product' | 'content'>('all');
+  const [selectedProductLine, setSelectedProductLine] = useState<string>('all');
+  const [classifyingProfile, setClassifyingProfile] = useState<XiaohongshuProfile | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; name: string; videoCount: number } | null>(null);
+
+  const { data: availableTags = [], refetch: refetchTags } = useQuery({
+    queryKey: ['scraper-channel-tags'],
+    queryFn: () => scraperService.getChannelTags(token!),
+    enabled: !!token,
+  });
 
   // Xoá cứng kênh: BE xoá kèm toàn bộ video/lịch sử, không hoàn tác được. XiaoHongShu
   // dùng khoá ngoại SetNull nên BE phải tự xoá video — không có cascade đỡ hộ như 6 nền
@@ -624,6 +659,7 @@ function ProfilesTab() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['xhs-profiles'] });
+      setDeleteConfirm(null);
       toast.success(
         data.videos_deleted > 0
           ? `Đã xoá ${data.name} và ${data.videos_deleted.toLocaleString('vi-VN')} video`
@@ -634,8 +670,7 @@ function ProfilesTab() {
   });
 
   const handleDeleteChannel = (id: number, name: string, videoCount: number) => {
-    if (!window.confirm(buildDeleteChannelConfirm({ name, videoCount }))) return;
-    deleteChannelMutation.mutate(id);
+    setDeleteConfirm({ id, name, videoCount });
   };
 
   // Track notification IDs per user_id so we can update them when scraping finishes
@@ -646,12 +681,14 @@ function ProfilesTab() {
   const prevStatusMap = useRef<Record<number, string>>({});
 
   const profilesQuery = useQuery({
-    queryKey: ['xhs-profiles', q, profileTab, 'external-only'],
+    queryKey: ['xhs-profiles', q, profileTab, 'external-only', channelTypeTab, selectedProductLine],
     queryFn: () => scraperService.getXhsProfiles(token!, {
       q: q || undefined,
       is_owned: false,
       tracked: profileTab === 'periodic' ? true : undefined,
       bookmarked: profileTab === 'bookmarked' ? true : undefined,
+      channel_type: channelTypeTab === 'all' ? undefined : channelTypeTab,
+      product_line: selectedProductLine === 'all' ? undefined : selectedProductLine,
     }),
     enabled: !!token,
     // Poll every 3s while any profile is processing
@@ -743,6 +780,21 @@ function ProfilesTab() {
         </div>
       )}
 
+      {/* 2-tier Classification Filter Bar */}
+      <ChannelClassificationFilterBar
+        channelType={channelTypeTab}
+        onChannelTypeChange={(type) => {
+          setChannelTypeTab(type);
+        }}
+        productLine={selectedProductLine}
+        onProductLineChange={(line) => {
+          setSelectedProductLine(line);
+        }}
+        availableTags={availableTags}
+        onRefreshTags={refetchTags}
+        canManageChannels={canManageChannels}
+      />
+
       {/* Filter bar: Tabs + Search + Sync button */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border border-border rounded-xl p-4">
         {/* Filter Tabs: Tất cả | Kênh chú ý | Đã lưu */}
@@ -832,10 +884,45 @@ function ProfilesTab() {
               onToggleBookmark={() => toggleMutation.mutate({ id: p.id, field: 'is_bookmarked', currentValue: p.is_bookmarked })}
               onToggleTracked={canManageChannels ? () => toggleMutation.mutate({ id: p.id, field: 'is_tracked', currentValue: p.is_tracked }) : undefined}
               onViewDetail={() => router.push(`/dashboard/externalChannels/xiaohongshu/${p.id}`)}
+              onEditClassification={canManageChannels ? () => setClassifyingProfile(p) : undefined}
               onDelete={canManageChannels ? () => handleDeleteChannel(p.id, p.nickname || p.user_id, p.videos_count ?? 0) : undefined}
             />
           ))}
         </div>
+      )}
+
+      {/* Classification Modal */}
+      {classifyingProfile && (
+        <ChannelClassificationModal
+          isOpen={true}
+          onClose={() => setClassifyingProfile(null)}
+          channel={{
+            id: classifyingProfile.id,
+            name: classifyingProfile.nickname || classifyingProfile.user_id,
+            avatar_url: classifyingProfile.avatar_url,
+            channel_type: classifyingProfile.channel_type,
+            product_lines: classifyingProfile.product_lines,
+          }}
+          platform="xiaohongshu"
+          onSaved={() => {
+            queryClient.invalidateQueries({ queryKey: ['xhs-profiles'] });
+          }}
+        />
+      )}
+
+      {/* Confirm Hard Delete Modal */}
+      {deleteConfirm && (
+        <ConfirmModal
+          isOpen={true}
+          title="Xác nhận xoá kênh"
+          description={buildDeleteChannelConfirm({ name: deleteConfirm.name, videoCount: deleteConfirm.videoCount })}
+          confirmText="Xoá vĩnh viễn"
+          cancelText="Huỷ"
+          variant="danger"
+          isLoading={deleteChannelMutation.isPending}
+          onConfirm={() => deleteChannelMutation.mutate(deleteConfirm.id)}
+          onClose={() => setDeleteConfirm(null)}
+        />
       )}
     </div>
   );

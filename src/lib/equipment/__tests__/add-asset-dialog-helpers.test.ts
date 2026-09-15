@@ -1,4 +1,4 @@
-import { formatCategoryName, suggestCode } from '@/components/equipment/AddAssetDialog';
+import { formatCategoryName, suggestCode, findExistingModel } from '@/components/equipment/AddAssetDialog';
 import { createCategory, createModel, createAsset } from '@/lib/equipment/api';
 import { apiClient } from '@/lib/api-client';
 
@@ -27,6 +27,28 @@ describe('AddAssetDialog Helpers & API flows', () => {
       expect(suggestCode('Thẻ nhớ SD')).toBe('THEN');
       expect(suggestCode('Pin & Sạc')).toBe('PINS');
       expect(suggestCode('')).toBe('EQP');
+    });
+  });
+
+  describe('findExistingModel', () => {
+    const mockModels: any[] = [
+      { id: 'm1', name: 'Sony A7 IV', category: { id: 'cat-cam' } },
+      { id: 'm2', name: '1234', category: { id: 'cat-cam' } },
+      { id: 'm3', name: 'Canon R6', category: { id: 'cat-cam-2' } },
+    ];
+
+    it('should find existing model case-insensitively and trimmed', () => {
+      expect(findExistingModel(mockModels, 'cat-cam', '  1234  ')?.id).toBe('m2');
+      expect(findExistingModel(mockModels, 'cat-cam', 'sony a7 iv')?.id).toBe('m1');
+    });
+
+    it('should respect categoryId', () => {
+      expect(findExistingModel(mockModels, 'cat-other', '1234')).toBeUndefined();
+    });
+
+    it('should return undefined when name is empty or not matched', () => {
+      expect(findExistingModel(mockModels, 'cat-cam', '')).toBeUndefined();
+      expect(findExistingModel(mockModels, 'cat-cam', 'Nikon Z8')).toBeUndefined();
     });
   });
 

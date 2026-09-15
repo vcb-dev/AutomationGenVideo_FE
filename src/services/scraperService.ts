@@ -37,6 +37,8 @@ export interface ScrapedFanpage {
   is_visible_on_ui: boolean;
   is_periodic_crawl: boolean;
   is_bookmarked: boolean;
+  bookmarked_by_name?: string | null;
+  bookmarked_at?: string | null;
   is_initial_scraped: boolean;
   scraping_status: 'idle' | 'processing' | 'completed' | 'failed';
   last_scraped_at: string | null;
@@ -157,6 +159,8 @@ export interface XiaohongshuProfile {
   is_verified: boolean;
   is_tracked: boolean;
   is_bookmarked: boolean;
+  bookmarked_by_name?: string | null;
+  bookmarked_at?: string | null;
   is_owned: boolean;
   is_initial_scraped: boolean;
   last_scraped_at: string | null;
@@ -164,6 +168,8 @@ export interface XiaohongshuProfile {
   scrape_error: string | null;
   created_at: string;
   videos_count?: number;
+  channel_type?: 'product' | 'content';
+  product_lines?: string[];
 }
 
 export interface PaginatedXhsProfiles {
@@ -211,6 +217,8 @@ export interface DouyinProfile {
   is_verified: boolean;
   followers_count: number;
   is_bookmarked: boolean;
+  bookmarked_by_name?: string | null;
+  bookmarked_at?: string | null;
   is_tracked: boolean;
   is_owned: boolean;
   is_initial_scraped: boolean;
@@ -219,6 +227,8 @@ export interface DouyinProfile {
   scrape_error: string | null;
   created_at: string;
   videos_in_db: number;
+  channel_type?: 'product' | 'content';
+  product_lines?: string[];
   total_diggs?: number;
   total_comments?: number;
   total_shares?: number;
@@ -258,6 +268,8 @@ export interface TikTokProfile {
   videos_count: number;
   is_tracked: boolean;
   is_bookmarked: boolean;
+  bookmarked_by_name?: string | null;
+  bookmarked_at?: string | null;
   is_owned: boolean;
   is_initial_scraped: boolean;
   scraping_status: 'idle' | 'processing' | 'completed' | 'failed';
@@ -265,6 +277,8 @@ export interface TikTokProfile {
   last_scraped_at: string | null;
   created_at: string;
   videos_in_db: number;
+  channel_type?: 'product' | 'content';
+  product_lines?: string[];
   // detail only
   total_plays?: number;
   total_diggs?: number;
@@ -330,6 +344,8 @@ export interface InstagramProfile {
   posts_count: number;
   is_tracked: boolean;
   is_bookmarked: boolean;
+  bookmarked_by_name?: string | null;
+  bookmarked_at?: string | null;
   is_owned: boolean;
   is_initial_scraped: boolean;
   scraping_status: 'idle' | 'processing' | 'completed' | 'failed';
@@ -337,6 +353,8 @@ export interface InstagramProfile {
   last_scraped_at: string | null;
   created_at: string;
   reels_in_db: number;
+  channel_type?: 'product' | 'content';
+  product_lines?: string[];
   // detail only
   total_plays?: number;
   total_likes?: number;
@@ -401,6 +419,8 @@ export interface YoutubeProfile {
   channel_created_at: string | null;
   is_tracked: boolean;
   is_bookmarked: boolean;
+  bookmarked_by_name?: string | null;
+  bookmarked_at?: string | null;
   is_owned: boolean;
   is_initial_scraped: boolean;
   scraping_status: 'idle' | 'processing' | 'completed' | 'failed';
@@ -408,6 +428,8 @@ export interface YoutubeProfile {
   last_scraped_at: string | null;
   created_at: string;
   shorts_in_db: number;
+  channel_type?: 'product' | 'content';
+  product_lines?: string[];
   // detail only
   total_views?: number;
 }
@@ -474,12 +496,16 @@ export interface KuaishouProfile {
   videos_count: number;
   is_tracked: boolean;
   is_bookmarked: boolean;
+  bookmarked_by_name?: string | null;
+  bookmarked_at?: string | null;
   is_initial_scraped: boolean;
   scraping_status: 'idle' | 'processing' | 'completed' | 'failed';
   scrape_error: string | null;
   last_scraped_at: string | null;
   created_at: string;
   videos_in_db: number;
+  channel_type?: 'product' | 'content';
+  product_lines?: string[];
   // detail only
   total_views?: number;
 }
@@ -567,12 +593,16 @@ export interface BilibiliProfile {
   videos_count: number;
   is_tracked: boolean;
   is_bookmarked: boolean;
+  bookmarked_by_name?: string | null;
+  bookmarked_at?: string | null;
   is_initial_scraped: boolean;
   scraping_status: 'idle' | 'processing' | 'completed' | 'failed';
   scrape_error: string | null;
   last_scraped_at: string | null;
   created_at: string;
   videos_in_db: number;
+  channel_type?: 'product' | 'content';
+  product_lines?: string[];
   // detail only
   total_views?: number;
 }
@@ -813,8 +843,10 @@ export interface PlatformMarketStats {
   platform: string;
   vn: number;
   global: number;
+  doda?: number;
   posts_vn: number;
   posts_global: number;
+  posts_doda?: number;
 }
 
 // Backward compatibility alias
@@ -1241,13 +1273,17 @@ export const scraperService = {
     return res.json();
   },
 
-  // Update classification (channel_type & product_lines)
-  updateFanpageClassification: async (
+  // Update classification (channel_type & product_lines) for any platform
+  updateChannelClassification: async (
     token: string,
+    platform: 'facebook' | 'tiktok' | 'instagram' | 'youtube' | 'douyin' | 'xiaohongshu' | 'kuaishou' | 'bilibili',
     id: number,
     data: { channel_type?: string; product_lines?: string[] },
   ): Promise<any> => {
-    const res = await fetchWithAuth(`${API_URL}/scraper/fanpages/${id}/classification`, {
+    const endpoint = platform === 'facebook'
+      ? `${API_URL}/scraper/fanpages/${id}/classification`
+      : `${API_URL}/scraper/${platform}/profiles/${id}/classification`;
+    const res = await fetchWithAuth(endpoint, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -1257,6 +1293,14 @@ export const scraperService = {
       throw new Error(body?.error || body?.message || 'Cập nhật phân loại thất bại');
     }
     return res.json();
+  },
+
+  updateFanpageClassification: async (
+    token: string,
+    id: number,
+    data: { channel_type?: string; product_lines?: string[] },
+  ): Promise<any> => {
+    return scraperService.updateChannelClassification(token, 'facebook', id, data);
   },
 
   // List & create channel tags
@@ -1347,6 +1391,7 @@ export const scraperService = {
   getTiktokProfiles: async (token: string, params?: {
     page?: number; page_size?: number; search?: string; sort_by?: 'followers' | 'recent'; is_owned?: boolean;
     tracked?: string | boolean; bookmarked?: string | boolean; periodic?: string | boolean;
+    channel_type?: string; product_line?: string;
   }): Promise<PaginatedTikTokProfiles> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/tiktok/profiles/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -1410,6 +1455,7 @@ export const scraperService = {
   getInstagramProfiles: async (token: string, params?: {
     page?: number; page_size?: number; search?: string; is_owned?: boolean;
     tracked?: string | boolean; bookmarked?: string | boolean; periodic?: string | boolean;
+    channel_type?: string; product_line?: string; sort_by?: string;
   }): Promise<PaginatedInstagramProfiles> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/instagram/profiles/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -1455,6 +1501,7 @@ export const scraperService = {
     page?: number; page_size?: number; q?: string;
     profile_id?: number; min_plays?: number;
     date_from?: string; date_to?: string; sort?: string;
+    is_owned?: boolean | string;
   }): Promise<PaginatedInstagramReels> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/instagram/reels/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -1489,6 +1536,7 @@ export const scraperService = {
   getYoutubeProfiles: async (token: string, params?: {
     page?: number; page_size?: number; search?: string; sort_by?: string; is_owned?: boolean;
     tracked?: string | boolean; bookmarked?: string | boolean; periodic?: string | boolean;
+    channel_type?: string; product_line?: string;
   }): Promise<PaginatedYoutubeProfiles> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/youtube/profiles/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -1593,6 +1641,7 @@ export const scraperService = {
   getKuaishouProfiles: async (token: string, params?: {
     page?: number; page_size?: number; search?: string; sort_by?: string;
     tracked?: string | boolean; bookmarked?: string | boolean; periodic?: string | boolean;
+    channel_type?: string; product_line?: string;
   }): Promise<PaginatedKuaishouProfiles> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/kuaishou/profiles/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -1687,6 +1736,7 @@ export const scraperService = {
   getBilibiliProfiles: async (token: string, params?: {
     page?: number; page_size?: number; search?: string; sort_by?: string;
     tracked?: string | boolean; bookmarked?: string | boolean; periodic?: string | boolean;
+    channel_type?: string; product_line?: string;
   }): Promise<PaginatedBilibiliProfiles> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/bilibili/profiles/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -1854,6 +1904,7 @@ export const scraperService = {
   getDouyinProfiles: async (token: string, params?: {
     page?: number; page_size?: number; search?: string; sort_by?: 'followers' | 'recent'; is_owned?: boolean;
     tracked?: string | boolean; bookmarked?: string | boolean; periodic?: string | boolean;
+    channel_type?: string; product_line?: string;
   }): Promise<PaginatedDouyinProfiles> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/douyin/profiles/${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -1949,6 +2000,7 @@ export const scraperService = {
   getXhsProfiles: async (token: string, params: {
     q?: string; search?: string; page?: number; page_size?: number;
     bookmarked?: boolean | string; tracked?: boolean | string; periodic?: boolean | string; is_owned?: boolean;
+    channel_type?: string; product_line?: string;
   } = {}): Promise<PaginatedXhsProfiles> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/xiaohongshu/profiles/${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -2042,16 +2094,50 @@ export const scraperService = {
    * Chỉ ADMIN/LEADER được phép, vai trò khác sẽ nhận 403.
    */
   /**
-   * Đồng bộ lại toàn bộ kênh của một nền tảng. BE chạy nền và trả về ngay — theo dõi tiến
-   * độ qua scraping_status của từng kênh. Chỉ ADMIN/LEADER, vai trò khác nhận 403.
+   * Đồng bộ lại toàn bộ kênh của một nền tảng (hoặc 'all' cho tất cả). BE chạy nền và trả về ngay.
+   * Hỗ trợ chọn phạm vi (scope: tracked | bookmarked | all) và hình thức (mode: count | days).
    */
   syncAllExternalChannels: async (
     token: string,
-    platform: DeletableChannelPlatform,
+    platform: DeletableChannelPlatform | 'all',
+    options?: {
+      scope?: 'tracked' | 'bookmarked' | 'all';
+      mode?: 'count' | 'days';
+      count?: number;
+      days?: number;
+    },
   ): Promise<{ status: string; message: string; already_running?: boolean }> => {
+    if (platform === 'all') {
+      const platforms: DeletableChannelPlatform[] = [
+        'tiktok',
+        'facebook',
+        'instagram',
+        'youtube',
+        'douyin',
+        'xiaohongshu',
+        'kuaishou',
+        'bilibili',
+      ];
+      const results = await Promise.allSettled(
+        platforms.map((p) =>
+          fetchWithAuth(`${API_URL}${buildSyncAllChannelsPath(p)}`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: options ? JSON.stringify(options) : undefined,
+          }).then((r) => (r.ok ? r.json() : Promise.reject(new Error(`Failed ${p}`))))
+        )
+      );
+      const successCount = results.filter((r) => r.status === 'fulfilled').length;
+      return {
+        status: 'ok',
+        message: `Đã kích hoạt cào dữ liệu cho ${successCount}/${platforms.length} nền tảng trong nền!`,
+      };
+    }
+
     const res = await fetchWithAuth(`${API_URL}${buildSyncAllChannelsPath(platform)}`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: options ? JSON.stringify(options) : undefined,
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
