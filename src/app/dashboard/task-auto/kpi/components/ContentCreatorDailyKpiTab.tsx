@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Loader2, Users, Info, Save, Wand2 } from 'lucide-react'
+import { Loader2, Users, Info, Save, Wand2, CalendarRange } from 'lucide-react'
 import { CustomSelect, DarkInput, EmptyState } from '@/components/task-auto'
 import { getContentCreatorDailyKpis, upsertContentCreatorDailyKpis, getTeams } from '@/lib/api/task-auto'
 import { ContentCreatorDailyKpi } from '@/types/task-auto'
@@ -11,6 +11,13 @@ import { cn } from '@/lib/utils'
 
 // Ngày local của trình duyệt dạng YYYY-MM-DD — không dùng toISOString vì buổi sáng VN còn là hôm trước theo UTC
 const todayStr = () => new Date().toLocaleDateString('en-CA')
+
+// Toàn bộ "YYYY-MM-DD" của các ngày trong tháng chứa ngày `d`
+const daysInMonthOf = (d: string) => {
+  const [y, m] = d.split('-').map(Number)
+  const total = new Date(y, m, 0).getDate()
+  return Array.from({ length: total }, (_, i) => `${y}-${String(m).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`)
+}
 
 interface Props {
   canEdit: boolean
@@ -82,6 +89,24 @@ export function ContentCreatorDailyKpiTab({ canEdit, isLeader, userId, selectedT
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Không thể lưu KPI ngày'),
   })
 
+  // Áp KPI đang hiển thị (đã lưu hoặc đang gõ dở) cho mọi ngày trong tháng đang chọn,
+  // khỏi phải bấm "Lưu KPI ngày" từng ngày một.
+  const applyMonthMut = useMutation({
+    mutationFn: () => {
+      const entries = members.map(m => ({ user_id: m.user_id, target: valueOf(m.user_id) }))
+      return Promise.all(
+        daysInMonthOf(date).map(d => upsertContentCreatorDailyKpis({ team_id: teamId, date: d, entries })),
+      )
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['task-auto', 'content-creator-daily-kpis'] })
+      setDrafts({})
+      const [y, m] = date.split('-')
+      toast.success(`Đã áp dụng KPI ngày cho cả tháng ${m}/${y}`)
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Không thể áp dụng KPI cho cả tháng'),
+  })
+
   const handleTeamChange = (id: string) => {
     setTeamId(id)
     onTeamChange?.(id)
@@ -90,6 +115,15 @@ export function ContentCreatorDailyKpiTab({ canEdit, isLeader, userId, selectedT
   const applyFillAll = () => {
     const n = Math.max(0, Number(fillAll) || 0)
     setDrafts(Object.fromEntries(members.map(m => [m.user_id, n])))
+  }
+
+  const handleApplyMonth = () => {
+    const [y, m] = date.split('-')
+    const count = daysInMonthOf(date).length
+    if (!window.confirm(
+      `Áp dụng KPI ngày hiện tại cho toàn bộ ${count} ngày trong tháng ${m}/${y}? KPI đã set trước đó cho các ngày khác trong tháng sẽ bị ghi đè.`,
+    )) return
+    applyMonthMut.mutate()
   }
 
   return (
@@ -140,6 +174,16 @@ export function ContentCreatorDailyKpiTab({ canEdit, isLeader, userId, selectedT
               <Wand2 className="w-4 h-4" /> Áp cho tất cả
             </button>
           </div>
+        )}
+        {canEdit && members.length > 0 && (
+          <button
+            onClick={handleApplyMonth}
+            disabled={applyMonthMut.isPending}
+            className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
+          >
+            {applyMonthMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarRange className="w-4 h-4" />}
+            Áp dụng cả tháng
+          </button>
         )}
         {canEdit && (
           <button
