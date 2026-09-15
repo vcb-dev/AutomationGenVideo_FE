@@ -1,4 +1,4 @@
-import { canManageCatalog } from '../catalog-permissions';
+import { canManageCatalog, canDeleteCatalog } from '../catalog-permissions';
 
 /**
  * Khai báo & quản lý kho — chỉ leader/manager thuộc Team Media và Admin.
@@ -74,5 +74,25 @@ describe('canManageCatalog — khớp CHÍNH XÁC tên team', () => {
 
   it('đổi tên team ra khỏi chữ media là mất quyền ngay', () => {
     expect(canManageCatalog(['LEADER'], 'Truyền thông')).toBe(false);
+  });
+});
+
+describe('canDeleteCatalog — chỉ cho phép ADMIN xóa Danh mục / Model', () => {
+  it('admin có quyền xóa', () => {
+    expect(canDeleteCatalog(['ADMIN'])).toBe(true);
+    expect(canDeleteCatalog(['admin'])).toBe(true);
+    expect(canDeleteCatalog(['LEADER', 'ADMIN'])).toBe(true);
+  });
+
+  it('leader và manager không có quyền xóa', () => {
+    expect(canDeleteCatalog(['LEADER'])).toBe(false);
+    expect(canDeleteCatalog(['MANAGER'])).toBe(false);
+    expect(canDeleteCatalog(['MEMBER'])).toBe(false);
+  });
+
+  it('chưa nạp role hoặc rỗng thì không có quyền', () => {
+    expect(canDeleteCatalog([])).toBe(false);
+    expect(canDeleteCatalog(undefined)).toBe(false);
+    expect(canDeleteCatalog(null)).toBe(false);
   });
 });
