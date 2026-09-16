@@ -11,6 +11,7 @@ import {
   fetchAssets,
 } from '@/lib/equipment/api';
 import { groupModels } from '@/lib/equipment/group-models';
+import { noModelLeft, selectableModels } from '@/lib/equipment/selectable-models';
 import { availabilityLabel } from '@/lib/equipment/availability-label';
 import { apiErrorMessage } from '@/lib/equipment/api-error';
 import { DateTimePicker } from '@/components/ui/DateTimePicker';
@@ -126,6 +127,8 @@ export default function NewRequestPage() {
 
   const filledLines = lines.filter((l) => l.modelId);
   const totalUnits = filledLines.reduce((sum, l) => sum + l.quantity, 0);
+  const lineModelIds = lines.map((l) => l.modelId);
+  const addLineDisabled = noModelLeft(models, lineModelIds);
   const canSubmit =
     !!project.trim() && !!place.trim() && rangeValid && filledLines.length > 0 && !submitting;
 
@@ -271,6 +274,7 @@ export default function NewRequestPage() {
                 ? availabilityLabel(line.availability.available, line.quantity)
                 : null;
               const model = models.find((m) => m.id === line.modelId);
+              const options = selectableModels(models, lineModelIds, i);
               return (
                 <div key={i} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_6rem_13rem_2.5rem]">
                   <select
@@ -279,7 +283,7 @@ export default function NewRequestPage() {
                     onChange={(e) => setLine(i, { modelId: e.target.value })}
                   >
                     <option value="">— Chọn model —</option>
-                    {models.map((m) => (
+                    {options.map((m) => (
                       <option key={m.id} value={m.id}>
                         {m.name} · {m.categoryName} ({m.totalUnits} máy)
                       </option>
@@ -331,7 +335,9 @@ export default function NewRequestPage() {
             <button
               type="button"
               onClick={addLine}
-              className="self-start rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-white/[0.12] dark:text-slate-300 dark:hover:bg-white/[0.05]"
+              disabled={addLineDisabled}
+              title={addLineDisabled ? 'Đã khai hết model đang có trong kho' : undefined}
+              className="self-start rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent dark:border-white/[0.12] dark:text-slate-300 dark:hover:bg-white/[0.05]"
             >
               + Thêm dòng thiết bị
             </button>
