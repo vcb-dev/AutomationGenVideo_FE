@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService } from '@/services/scraperService';
 import { type DeletableChannelPlatform } from '@/lib/scrape/delete-channel';
+import { hasPermission } from '@/lib/permissions';
 import ManualSyncModal, { type ManualSyncConfig } from './ManualSyncModal';
 
 interface Props {
@@ -33,7 +34,7 @@ export default function SyncAllChannelsButton({
   className,
   label,
 }: Props) {
-  const { token } = useAuthStore();
+  const { token, user } = useAuthStore();
   const [showModal, setShowModal] = useState(false);
 
   const mutation = useMutation({
@@ -54,6 +55,15 @@ export default function SyncAllChannelsButton({
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  // Các điều kiện ẩn nút phải nằm SAU toàn bộ hook: auth-store khởi tạo user = null rồi mới
+  // rehydrate, nên nếu return sớm ở trên useMutation thì lần render thứ hai gọi nhiều hook hơn
+  // lần đầu và React ném "Rendered more hooks than during the previous render" — trắng trang.
+
+  // Chỉ hiển thị nút nếu user có quyền cào tay (social:external:crawl_all hoặc Admin)
+  if (!hasPermission(user, 'social:external:crawl_all')) {
+    return null;
+  }
 
   // Nếu không phải trang "all" và số kênh <= 0 thì không render để tránh gọi API vô ích
   if (platform !== 'all' && channelCount !== undefined && channelCount <= 0) {

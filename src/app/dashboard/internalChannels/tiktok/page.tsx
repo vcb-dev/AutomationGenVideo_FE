@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 
 import TikTokProfileCard from '../../externalChannels/components/TikTokProfileCard';
 import { useAuthStore } from '@/store/auth-store';
+import { UserRole } from '@/types/auth';
 import { scraperService, ExternalVideo } from '@/services/scraperService';
 import ContentFilters from '../components/ContentFilters';
 import { FilterDateRange, FilterNumber, FilterReset, FilterSearch, FilterSelect } from '../components/FilterFields';
@@ -87,7 +88,8 @@ function VideoCard({ video: v }: { video: ExternalVideo }) {
 }
 
 export default function TikTokChannelsPage() {
-  const { token } = useAuthStore();
+  const { token, user } = useAuthStore();
+  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
   const queryClient = useQueryClient();
   const router = useRouter();
   const { start: startProfileScrapeNotif } = useProfileScrapeNotification('tiktok');
@@ -322,7 +324,7 @@ export default function TikTokChannelsPage() {
               key={p.id}
               profile={p}
               channelInfo={getTikTokChannelInfo(p)}
-              onScrape={() => rescrape.mutate({ id: p.id, url: p.url, label: p.nickname || p.username })}
+              onScrape={canManageChannels ? () => rescrape.mutate({ id: p.id, url: p.url, label: p.nickname || p.username }) : undefined}
               onToggleBookmark={() => toggleMutation.mutate({ id: p.id, field: 'is_bookmarked' })}
               onToggleTracked={() => toggleMutation.mutate({ id: p.id, field: 'is_tracked' })}
               onViewDetail={() => router.push(`/dashboard/internalChannels/tiktok/${p.id}`)}

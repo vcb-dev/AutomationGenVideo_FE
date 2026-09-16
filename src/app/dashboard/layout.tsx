@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
+import RoutePermissionGuard from '@/components/layout/RoutePermissionGuard';
 import Header from '@/components/layout/Header';
 import { BackgroundTaskManager } from '@/components/social/BackgroundTaskManager';
 import { fetchWithAuth } from '@/lib/api-client';
@@ -100,6 +101,11 @@ export default function DashboardLayout({
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Ẩn mục trên menu thôi là chưa đủ — link vẫn dán vào được. Đây là chốt chặn thật. */}
+      <Suspense fallback={null}>
+        <RoutePermissionGuard user={user} />
+      </Suspense>
+
       <Header
         user={user}
         onLogout={handleLogout}

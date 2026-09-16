@@ -13,6 +13,7 @@ import toast from 'react-hot-toast';
 
 import PageTableRow from '../PageTableRow';
 import { useAuthStore } from '@/store/auth-store';
+import { UserRole } from '@/types/auth';
 import { FacebookPage, PaginatedPages, PageFilters } from '@/types/facebook';
 import { facebookService } from '@/services/facebookService';
 import { scraperService, ExternalVideo, TrangThaiPaast } from '@/services/scraperService';
@@ -52,8 +53,8 @@ function FacebookPageCard({
   page: FacebookPage;
   channelInfo: ChannelInfo;
   onViewVideos: () => void;
-  onScrape: () => void;
-  onBackfill: () => void;
+  onScrape?: () => void;
+  onBackfill?: () => void;
 }) {
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden hover:shadow-md transition-shadow">
@@ -150,28 +151,34 @@ function FacebookPageCard({
       <div className="flex items-center border-t border-border bg-slate-50/50 dark:bg-slate-800/30">
         <button
           onClick={onViewVideos}
-          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors border-r border-border"
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors ${
+            onScrape || onBackfill ? 'border-r border-border' : ''
+          }`}
         >
           <VideoCamera size={13} weight="bold" /> Xem video
         </button>
-        <button
-          onClick={onScrape}
-          disabled={p.is_scraping}
-          className="flex items-center gap-1 px-3 py-2.5 text-xs text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors border-r border-border disabled:opacity-40"
-          title="Cào video mới"
-        >
-          {p.is_scraping
-            ? <CircleNotch size={13} weight="bold" className="animate-spin" />
-            : <ArrowsClockwise size={13} weight="bold" />}
-        </button>
-        <button
-          onClick={onBackfill}
-          disabled={p.is_scraping}
-          className="flex items-center gap-1 px-3 py-2.5 text-xs text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors disabled:opacity-40"
-          title="Backfill video cũ"
-        >
-          <Archive size={13} />
-        </button>
+        {onScrape && (
+          <button
+            onClick={onScrape}
+            disabled={p.is_scraping}
+            className="flex items-center gap-1 px-3 py-2.5 text-xs text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors border-r border-border disabled:opacity-40"
+            title="Cào video mới"
+          >
+            {p.is_scraping
+              ? <CircleNotch size={13} weight="bold" className="animate-spin" />
+              : <ArrowsClockwise size={13} weight="bold" />}
+          </button>
+        )}
+        {onBackfill && (
+          <button
+            onClick={onBackfill}
+            disabled={p.is_scraping}
+            className="flex items-center gap-1 px-3 py-2.5 text-xs text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors disabled:opacity-40"
+            title="Backfill video cũ"
+          >
+            <Archive size={13} />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -246,7 +253,8 @@ function FbVideoCard({
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function FacebookChannelsPage() {
-  const { token } = useAuthStore();
+  const { token, user } = useAuthStore();
+  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER, UserRole.MANAGER].includes(r)) ?? false;
   const router = useRouter();
   const autoSyncDone = useRef(false);
 
@@ -590,8 +598,8 @@ export default function FacebookChannelsPage() {
                     page={p}
                     channelInfo={getFbChannelInfo(p)}
                     onViewVideos={() => router.push(`/dashboard/internalChannels/facebook/${p.page_id}/videos`)}
-                    onScrape={() => handleScrape(p)}
-                    onBackfill={() => handleBackfill(p)}
+                    onScrape={canManageChannels ? () => handleScrape(p) : undefined}
+                    onBackfill={canManageChannels ? () => handleBackfill(p) : undefined}
                   />
                 ))}
               </div>
@@ -614,8 +622,8 @@ export default function FacebookChannelsPage() {
                       page={p}
                       channelInfo={getFbChannelInfo(p)}
                       onViewVideos={() => router.push(`/dashboard/internalChannels/facebook/${p.page_id}/videos`)}
-                      onTriggerScrape={() => handleScrape(p)}
-                      onBackfill={() => handleBackfill(p)}
+                      onTriggerScrape={canManageChannels ? () => handleScrape(p) : undefined}
+                      onBackfill={canManageChannels ? () => handleBackfill(p) : undefined}
                       loadingVideos={false}
                       selectedPageId={undefined}
                     />

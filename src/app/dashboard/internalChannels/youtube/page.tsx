@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 
 import YoutubeProfileCard from '../../externalChannels/components/YoutubeProfileCard';
 import { useAuthStore } from '@/store/auth-store';
+import { UserRole } from '@/types/auth';
 import { scraperService, ExternalVideo } from '@/services/scraperService';
 import ContentFilters from '../components/ContentFilters';
 import { FilterDateRange, FilterNumber, FilterReset, FilterSearch, FilterSelect } from '../components/FilterFields';
@@ -80,7 +81,8 @@ function VideoCard({ video: v }: { video: ExternalVideo }) {
 }
 
 export default function YoutubeChannelsPage() {
-  const { token } = useAuthStore();
+  const { token, user } = useAuthStore();
+  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
   const queryClient = useQueryClient();
   const router = useRouter();
   const { start: startProfileScrapeNotif } = useProfileScrapeNotification('youtube');
@@ -312,7 +314,7 @@ export default function YoutubeChannelsPage() {
               key={p.id}
               profile={p}
               channelInfo={getYoutubeChannelInfo(p)}
-              onScrape={() => rescrape.mutate({ id: p.id, channel_id: p.channel_id, label: p.title || p.channel_id })}
+              onScrape={canManageChannels ? () => rescrape.mutate({ id: p.id, channel_id: p.channel_id, label: p.title || p.channel_id }) : undefined}
               onToggleBookmark={() => toggleMutation.mutate({ id: p.id, field: 'is_bookmarked' })}
               onToggleTracked={() => toggleMutation.mutate({ id: p.id, field: 'is_tracked' })}
               onViewDetail={() => router.push(`/dashboard/internalChannels/youtube/${p.id}`)}
