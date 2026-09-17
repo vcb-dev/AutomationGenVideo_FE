@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react';
 import CreatableSelect from 'react-select/creatable';
 import type { StylesConfig, MultiValue } from 'react-select';
 import { UserRole } from '@/types/auth';
-import { UserCog, Crown, X, Loader2, UserMinus } from 'lucide-react';
+import { UserCog, Crown, X, Loader2, UserMinus, ShieldCheck } from 'lucide-react';
+import PermissionTreePicker from '@/components/common/PermissionTreePicker';
+import { getDefaultPermissionsForRole } from '@/config/permission-tree';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -13,6 +15,7 @@ export interface TeamMember {
   email: string;
   full_name: string;
   roles: UserRole[];
+  permissions?: string[];
   /** Có thể nhiều team, phân cách dấu phẩy (vd "Team A,Team B") — 1 người có thể ở nhiều team. */
   team: string | null;
   manager_id: string | null;
@@ -29,6 +32,7 @@ export interface FormData {
   email: string;
   password: string;
   roles: UserRole[];
+  permissions: string[];
   /** Nhiều team, phân cách dấu phẩy — backend tự suy ra team_leader_id từ Team/TeamMember. */
   team: string;
   manager_id: string;
@@ -36,7 +40,10 @@ export interface FormData {
 
 export const EMPTY_FORM: FormData = {
   full_name: '', email: '', password: '',
-  roles: [UserRole.MEMBER], team: '', manager_id: '',
+  roles: [UserRole.MEMBER],
+  // Mở form tạo mới là cây quyền đã tick sẵn bộ mặc định của Member, khớp với ô Vai trò bên trên.
+  permissions: getDefaultPermissionsForRole(UserRole.MEMBER),
+  team: '', manager_id: '',
 };
 
 // ─── Team multi-select ────────────────────────────────────────────────────────
@@ -173,7 +180,9 @@ export function HRModal({ open, onClose, onSave, editing, callerRole, managers, 
     if (editing) {
       setForm({
         full_name: editing.full_name, email: editing.email, password: '',
-        roles: editing.roles, team: editing.team ?? (callerRole === 'LEADER' ? (selfTeam ?? '') : ''),
+        roles: editing.roles,
+        permissions: editing.permissions ? [...editing.permissions] : [],
+        team: editing.team ?? (callerRole === 'LEADER' ? (selfTeam ?? '') : ''),
         manager_id: editing.manager_id ?? '',
       });
     } else {
@@ -199,8 +208,8 @@ export function HRModal({ open, onClose, onSave, editing, callerRole, managers, 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
-        <div className="flex items-center justify-between px-6 py-4 border-b">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
           <div className="flex items-center gap-2">
             <UserCog className="w-5 h-5 text-blue-600" />
             <h2 className="text-base font-semibold text-gray-900">
@@ -212,7 +221,7 @@ export function HRModal({ open, onClose, onSave, editing, callerRole, managers, 
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="px-6 py-4 space-y-4">
+        <form onSubmit={handleSubmit} className="px-6 py-4 space-y-4 overflow-y-auto flex-1">
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg px-3 py-2">{error}</div>
           )}
@@ -253,6 +262,10 @@ export function HRModal({ open, onClose, onSave, editing, callerRole, managers, 
                     ...f,
                     roles: [r],
                     manager_id: '',
+                    // Đổi vai trò thì nạp lại bộ quyền mặc định của vai trò đó. Đây là lý do
+                    // modal chỉ còn MỘT chỗ chọn vai trò: hàng nút "preset" cũ đã bỏ, cây quyền
+                    // bên dưới chạy theo ô này rồi Admin tinh chỉnh lẻ nếu cần.
+                    permissions: getDefaultPermissionsForRole(r),
                     // Rời role LEADER thì loại các team gõ tay chưa tồn tại (chỉ LEADER được tạo
                     // team mới) — nếu giữ lại, backend sẽ từ chối khi lưu.
                     team: r === UserRole.LEADER
@@ -335,7 +348,25 @@ export function HRModal({ open, onClose, onSave, editing, callerRole, managers, 
             </div>
           )}
 
-          <div className="flex justify-end gap-2 pt-2 border-t">
+          {callerRole === 'MANAGER' && (
+            <div className="space-y-2 pt-3 border-t border-gray-100">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-blue-600" />
+                  <span>Phân quyền chức năng từ to đến nhỏ (Granular Permissions)</span>
+                </label>
+                <span className="text-[11px] text-gray-400">
+                  Tùy chỉnh quyền truy cập từng phân hệ & nền tảng
+                </span>
+              </div>
+              <PermissionTreePicker
+                selectedPermissions={form.permissions}
+                onChange={(newPerms) => setForm(f => ({ ...f, permissions: newPerms }))}
+              />
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2 border-t shrink-0">
             <button type="button" onClick={onClose}
               className="px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 transition">
               Hủy

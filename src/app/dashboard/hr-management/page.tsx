@@ -187,7 +187,10 @@ export default function HRManagementPage() {
       manager_id: formData.manager_id || null,
     };
     // LEADER can't change roles — backend rejects the request outright if the field is even present.
-    if (!editing || callerRole === 'MANAGER') payload.roles = formData.roles;
+    if (!editing || callerRole === 'MANAGER') {
+      payload.roles = formData.roles;
+      payload.permissions = formData.permissions;
+    }
     if (!editing && formData.password) payload.password = formData.password;
 
     const res = await fetchWithAuth(editing ? `${apiBase}/users/${editing.id}/hr` : `${apiBase}/users/hr`, {

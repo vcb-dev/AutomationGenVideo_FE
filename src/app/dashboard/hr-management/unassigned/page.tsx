@@ -84,7 +84,10 @@ export default function UnassignedTeamPage() {
       manager_id: formData.manager_id || null,
     };
     // LEADER can't change roles — backend rejects the request outright if the field is even present.
-    if (callerRole === 'MANAGER') payload.roles = formData.roles;
+    if (callerRole === 'MANAGER') {
+      payload.roles = formData.roles;
+      payload.permissions = formData.permissions;
+    }
     const res = await fetchWithAuth(`${apiBase}/users/${editing!.id}/hr`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
