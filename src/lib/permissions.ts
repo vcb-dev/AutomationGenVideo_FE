@@ -1,5 +1,5 @@
 import { User, UserRole } from '@/types/auth';
-import { getRequiredPermissionForPath } from '@/config/permission-routes';
+import { getRouteRuleForPath } from '@/config/permission-routes';
 
 /** Danh sách các quyền hành động đặc thù / nhạy cảm không được tự động thừa hưởng từ quyền xem ':all' */
 const SENSITIVE_ACTION_PERMISSIONS = new Set([
@@ -98,18 +98,18 @@ export function canAccessExternalPlatform(user: User | null | undefined, platfor
     return true;
   }
 
-  // Nếu user có quyền xem tất cả nền tảng
-  const hasAll = permissions.includes('social:external:all') || permissions.includes('*');
+  // Wildcard toàn cục mở mọi thứ.
+  if (permissions.includes('*')) return true;
 
+  // `social:external:all` CHỈ mở tab tổng hợp "Tất cả".
+  //
+  // Trước đây nó mở luôn cả 8 nền tảng con, khiến 8 ô tick còn lại trong cây quyền trở nên vô
+  // nghĩa: Admin tick đúng một ô "Xem Tất cả nền tảng" rồi mở tài khoản ra vẫn thấy đủ Facebook,
+  // TikTok, Instagram... Muốn thấy nền tảng nào thì tick đích danh nền tảng đó.
   if (platformId === 'all') {
-    return hasAll;
+    return permissions.includes('social:external:all');
   }
 
-  if (hasAll) {
-    return true;
-  }
-
-  // Kiểm tra quyền riêng cho từng nền tảng
   return permissions.includes(`social:external:${platformId}`);
 }
 
@@ -136,11 +136,19 @@ export function canAccessRoute(user: User | null | undefined, href: string): boo
   // Chưa cấu hình quyền chi tiết -> giữ nguyên hành vi cũ theo role, không lọc gì thêm.
   if (!hasGranularPermissions(user)) return true;
 
-  const required = getRequiredPermissionForPath(href);
+  const rule = getRouteRuleForPath(href);
   // Trang không khai báo quyền (vd hướng dẫn sử dụng) mở cho mọi người đã đăng nhập.
-  if (!required) return true;
+  if (!rule) return true;
 
-  return checkPermissionMatch(user.permissions ?? [], required);
+  const permissions = user.permissions ?? [];
+
+  // Mục chứa nhiều mục con độc lập: có bất kỳ quyền con nào là vào được khu vực đó. Nếu không,
+  // cấp riêng "Nền tảng TikTok" sẽ không vào nổi Khám phá kênh ngoài vì thiếu quyền "Xem tất cả".
+  if (rule.anyOfPrefix && permissions.some((p) => p.startsWith(rule.anyOfPrefix!))) {
+    return true;
+  }
+
+  return checkPermissionMatch(permissions, rule.permission);
 }
 
 /**
@@ -149,12 +157,33 @@ export function canAccessRoute(user: User | null | undefined, href: string): boo
  * Viết theo kiểu generic để không phải kéo type NavMenu của tầng giao diện xuống tầng lib.
  */
 export function filterNavMenusByPermissions<
-  TItem extends { href: string },
+  TItem extends { href: string; subPanel?: Array<{ href: string }> },
   TSection extends { items: TItem[] },
   TMenu extends { sections: TSection[]; directHref?: string },
 >(user: User | null | undefined, menus: TMenu[]): TMenu[] {
   if (!user) return [];
   if (user.roles?.includes(UserRole.ADMIN) || !hasGranularPermissions(user)) return menus;
+
+  /**
+   * Một mục menu có thể KHÔNG tự điều hướng (href rỗng) mà chỉ mở bảng con chứa link thật —
+   * ví dụ mục "Báo cáo" trong VCB Portal. Nếu coi href rỗng là "trang công khai" thì mục đó
+   * luôn sống sót, kéo theo cả nhóm và cả menu gốc không bao giờ bị ẩn: tài khoản chỉ có đúng
+   * một quyền vẫn thấy nguyên nút "VCB Portal" với dropdown rỗng.
+   */
+  const keepItem = (item: TItem): TItem | null => {
+    const subPanel = item.subPanel?.filter((card) => canAccessRoute(user, card.href));
+
+    if (item.subPanel && item.subPanel.length > 0) {
+      // Mục có bảng con: chỉ giữ khi còn ít nhất một thẻ con được phép.
+      if (!subPanel || subPanel.length === 0) return null;
+      return { ...item, subPanel };
+    }
+
+    // Mục không có bảng con mà cũng không có đường dẫn thì chẳng dẫn đi đâu — bỏ.
+    if (!item.href) return null;
+
+    return canAccessRoute(user, item.href) ? item : null;
+  };
 
   return menus
     .map((menu) => ({
@@ -162,7 +191,9 @@ export function filterNavMenusByPermissions<
       sections: menu.sections
         .map((section) => ({
           ...section,
-          items: section.items.filter((item) => canAccessRoute(user, item.href)),
+          items: section.items
+            .map(keepItem)
+            .filter((item): item is TItem => item !== null),
         }))
         .filter((section) => section.items.length > 0),
     }))

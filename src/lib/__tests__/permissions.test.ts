@@ -112,11 +112,30 @@ describe('Frontend RBAC Permissions Helper', () => {
       expect(canAccessExternalPlatform(mockAdminUser, 'tiktok')).toBe(true);
     });
 
-    it('User có social:external:all truy cập được tab all và mọi nền tảng con', () => {
+    it('social:external:all CHỈ mở tab tổng hợp, không mở từng nền tảng', () => {
+      // Nếu tick một ô này mà mở luôn 8 nền tảng thì 8 ô tick còn lại trong cây quyền vô nghĩa —
+      // Admin cấp đúng "Tất cả" rồi mở tài khoản ra vẫn thấy đủ Facebook/TikTok/Instagram...
       expect(canAccessExternalPlatform(mockAllPlatformsUser, 'all')).toBe(true);
-      expect(canAccessExternalPlatform(mockAllPlatformsUser, 'douyin')).toBe(true);
-      expect(canAccessExternalPlatform(mockAllPlatformsUser, 'tiktok')).toBe(true);
-      expect(canAccessExternalPlatform(mockAllPlatformsUser, 'facebook')).toBe(true);
+      expect(canAccessExternalPlatform(mockAllPlatformsUser, 'douyin')).toBe(false);
+      expect(canAccessExternalPlatform(mockAllPlatformsUser, 'tiktok')).toBe(false);
+      expect(canAccessExternalPlatform(mockAllPlatformsUser, 'facebook')).toBe(false);
+    });
+
+    it('wildcard toàn cục * vẫn mở mọi nền tảng', () => {
+      const sieuQuyen: User = { ...mockAllPlatformsUser, permissions: ['*'] };
+      expect(canAccessExternalPlatform(sieuQuyen, 'all')).toBe(true);
+      expect(canAccessExternalPlatform(sieuQuyen, 'douyin')).toBe(true);
+    });
+
+    it('cấp đủ cả tab tổng hợp lẫn từng nền tảng thì thấy hết', () => {
+      const dayDu: User = {
+        ...mockAllPlatformsUser,
+        permissions: ['social:external:all', 'social:external:tiktok', 'social:external:facebook'],
+      };
+      expect(canAccessExternalPlatform(dayDu, 'all')).toBe(true);
+      expect(canAccessExternalPlatform(dayDu, 'tiktok')).toBe(true);
+      expect(canAccessExternalPlatform(dayDu, 'facebook')).toBe(true);
+      expect(canAccessExternalPlatform(dayDu, 'douyin')).toBe(false);
     });
 
     it('User chỉ được cấp TikTok và Facebook thì không vào được Douyin hoặc tab All', () => {
@@ -133,9 +152,23 @@ describe('Frontend RBAC Permissions Helper', () => {
       expect(allowed.map((p) => p.id)).toEqual(['all', 'facebook', 'tiktok', 'douyin', 'xiaohongshu']);
     });
 
-    it('User có quyền all thấy đầy đủ các tab', () => {
+    it('chỉ có quyền tab tổng hợp thì CHỈ thấy đúng tab "Tất cả"', () => {
       const allowed = filterAllowedPlatforms(mockAllPlatformsUser, samplePlatforms);
-      expect(allowed.map((p) => p.id)).toEqual(['all', 'facebook', 'tiktok', 'douyin', 'xiaohongshu']);
+      expect(allowed.map((p) => p.id)).toEqual(['all']);
+    });
+
+    it('cấp tab tổng hợp + 2 nền tảng thì thấy đúng 3 tab', () => {
+      const dayDu: User = {
+        ...mockAllPlatformsUser,
+        permissions: ['social:external:all', 'social:external:tiktok', 'social:external:douyin'],
+      };
+      expect(filterAllowedPlatforms(dayDu, samplePlatforms).map((p) => p.id))
+        .toEqual(['all', 'tiktok', 'douyin']);
+    });
+
+    it('chỉ cấp TikTok thì không thấy tab "Tất cả"', () => {
+      const chiTikTok: User = { ...mockAllPlatformsUser, permissions: ['social:external:tiktok'] };
+      expect(filterAllowedPlatforms(chiTikTok, samplePlatforms).map((p) => p.id)).toEqual(['tiktok']);
     });
 
     it('User chỉ có TikTok và Facebook chỉ thấy đúng 2 tab đó', () => {

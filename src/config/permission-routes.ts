@@ -19,11 +19,19 @@ export interface RoutePermission {
   tab?: string;
   /** Mã quyền cần có. */
   permission: string;
+  /**
+   * Nếu đặt: chỉ cần user có BẤT KỲ quyền nào bắt đầu bằng tiền tố này là vào được, không cần
+   * đúng `permission` ở trên.
+   *
+   * Dùng cho các mục chứa nhiều mục con độc lập: cấp riêng "Nền tảng TikTok" thì phải vào được
+   * Khám phá kênh ngoài, chứ không bắt buộc phải có thêm quyền "Xem tất cả nền tảng".
+   */
+  anyOfPrefix?: string;
 }
 
 export const ROUTE_PERMISSIONS: RoutePermission[] = [
   // ─── Khám phá Video & Mạng xã hội ───────────────────────────────────────────
-  { prefix: '/dashboard/externalChannels', permission: 'social:external:all' },
+  { prefix: '/dashboard/externalChannels', permission: 'social:external:all', anyOfPrefix: 'social:external:' },
   { prefix: '/dashboard/internalOverview', permission: 'social:internal:overview' },
   { prefix: '/dashboard/internalChannels', permission: 'social:internal:view' },
   { prefix: '/dashboard/search-video', permission: 'social:hub:search' },
@@ -58,7 +66,11 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   { prefix: '/dashboard/manager/user-activity', tab: 'personal', permission: 'portal:performance:view_self' },
   { prefix: '/dashboard/manager/user-activity', tab: 'daily_checklist', permission: 'portal:checklist:fill' },
   { prefix: '/dashboard/manager/user-activity', tab: 'daily_outstanding', permission: 'portal:checklist:approve' },
-  { prefix: '/dashboard/manager/user-activity', tab: 'daily_report', permission: 'portal:reports:view' },
+  // CHÚ Ý: tab này là FORM NỘP báo cáo ngày (traffic/doanh thu) của chính nhân sự, không phải màn
+  // hình xem tổng hợp — nó render ChecklistContainer. Gắn quyền 'portal:reports:view' ở đây sẽ
+  // chặn đúng những người bắt buộc phải nộp. Nội dung bên trong đã tự phân nhánh theo vai trò
+  // (isAdminUser/isLeaderUser) cho phần xem tổng hợp.
+  { prefix: '/dashboard/manager/user-activity', tab: 'daily_report', permission: 'portal:checklist:fill' },
   { prefix: '/dashboard/manager', permission: 'portal:performance:view_team' },
   { prefix: '/dashboard/channel-team', permission: 'portal:team:assign' },
   { prefix: '/dashboard/editor-management', permission: 'portal:editor:manage' },
@@ -79,6 +91,16 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   { prefix: '/dashboard/tools/video-downloader', permission: 'tools:video:download' },
   { prefix: '/dashboard/tools/lucky-spin', permission: 'tools:lucky_spin:play' },
   { prefix: '/dashboard/tien-ich/id-photo', permission: 'tools:id_photo:create' },
+
+  // ─── Hướng dẫn sử dụng ──────────────────────────────────────────────────────
+  // Mỗi bài hướng dẫn đi theo phân hệ nó mô tả: không có quyền dùng phân hệ thì đọc hướng dẫn
+  // của nó cũng vô nghĩa, mà lại làm menu đầy mục người dùng không bao giờ mở được.
+  { prefix: '/dashboard/user-guide/video-discovery', permission: 'social:external:all', anyOfPrefix: 'social:' },
+  { prefix: '/dashboard/user-guide/social-publishing', permission: 'publishing:compose', anyOfPrefix: 'publishing:' },
+  { prefix: '/dashboard/user-guide/tasks', permission: 'tasks:list', anyOfPrefix: 'tasks:' },
+  { prefix: '/dashboard/user-guide/equipment', permission: 'equipment:stock:view', anyOfPrefix: 'equipment:' },
+  { prefix: '/dashboard/user-guide/utilities', permission: 'tools:video:download', anyOfPrefix: 'tools:' },
+  { prefix: '/dashboard/user-guide/vcb-portal', permission: 'portal:checklist:fill', anyOfPrefix: 'portal:' },
 ];
 
 /**
@@ -86,7 +108,7 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
  *
  * Khớp theo tiền tố dài nhất để '/dashboard/task-auto/kpi' không bị '/dashboard/task-auto' nuốt.
  */
-export function getRequiredPermissionForPath(href: string): string | null {
+export function getRouteRuleForPath(href: string): RoutePermission | null {
   const [path, queryString = ''] = (href || '').split('?');
   const tab = new URLSearchParams(queryString).get('tab');
 
@@ -108,5 +130,11 @@ export function getRequiredPermissionForPath(href: string): string | null {
     if (moreSpecific) best = entry;
   }
 
-  return best ? best.permission : null;
+  return best;
+}
+
+/** Mã quyền chính của đường dẫn, hoặc null nếu trang công khai. */
+export function getRequiredPermissionForPath(href: string): string | null {
+  const rule = getRouteRuleForPath(href);
+  return rule ? rule.permission : null;
 }

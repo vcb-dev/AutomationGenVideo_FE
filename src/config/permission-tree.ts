@@ -24,8 +24,8 @@ export const PERMISSION_TREE: PermissionGroup[] = [
         children: [
           {
             id: 'social:external:all',
-            label: 'Xem Tất cả nền tảng (Tab "Tất cả")',
-            description: 'Cho phép truy cập tab tổng hợp và toàn bộ nền tảng',
+            label: 'Tab "Tất cả" (xem tổng hợp)',
+            description: 'CHỈ mở tab tổng hợp. Muốn thấy từng nền tảng thì tick riêng bên dưới',
           },
           { id: 'social:external:facebook', label: 'Nền tảng Facebook' },
           { id: 'social:external:tiktok', label: 'Nền tảng TikTok' },
