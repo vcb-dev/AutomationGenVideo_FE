@@ -5,6 +5,10 @@ import { getRouteRuleForPath } from '@/config/permission-routes';
 const SENSITIVE_ACTION_PERMISSIONS = new Set([
   'social:external:crawl_all',
   'social:external:propose',
+  'social:external:delete_channel',
+  'social:internal:sync',
+  'social:internal:delete_channel',
+  'portal:hr:delete',
 ]);
 
 /**
@@ -64,7 +68,7 @@ export function hasPermission(user: User | null | undefined, requiredPerm: strin
 
   // 3. Fallback cho tài khoản cũ chưa được gán permissions chi tiết (backward compatibility)
   // Tuyệt đối chặn quyền cào tay đối với role MEMBER nếu chưa được cấp quyền
-  if (requiredPerm === 'social:external:crawl_all') {
+  if (requiredPerm === 'social:external:crawl_all' || requiredPerm === 'social:internal:sync') {
     // Chỉ LEADER hoặc MANAGER cũ mới có thể tạm thời được cào tay, MEMBER tuyệt đối không!
     return roles.includes(UserRole.LEADER) || roles.includes(UserRole.MANAGER);
   }
@@ -78,11 +82,15 @@ export function hasPermission(user: User | null | undefined, requiredPerm: strin
     return true;
   }
 
+  if (requiredPerm.startsWith('social:internal:') && !SENSITIVE_ACTION_PERMISSIONS.has(requiredPerm)) {
+    return true;
+  }
+
   return false;
 }
 
 /**
- * Kiểm tra xem user có quyền truy cập vào một nền tảng mạng xã hội cụ thể hay không.
+ * Kiểm tra xem user có quyền truy cập vào một nền tảng Kênh ngoài cụ thể hay không.
  * platformId: 'all' | 'facebook' | 'tiktok' | 'instagram' | 'youtube' | 'douyin' | 'xiaohongshu' | 'kuaishou' | 'bilibili'
  */
 export function canAccessExternalPlatform(user: User | null | undefined, platformId: string): boolean {
@@ -101,16 +109,39 @@ export function canAccessExternalPlatform(user: User | null | undefined, platfor
   // Wildcard toàn cục mở mọi thứ.
   if (permissions.includes('*')) return true;
 
-  // `social:external:all` CHỈ mở tab tổng hợp "Tất cả".
-  //
-  // Trước đây nó mở luôn cả 8 nền tảng con, khiến 8 ô tick còn lại trong cây quyền trở nên vô
-  // nghĩa: Admin tick đúng một ô "Xem Tất cả nền tảng" rồi mở tài khoản ra vẫn thấy đủ Facebook,
-  // TikTok, Instagram... Muốn thấy nền tảng nào thì tick đích danh nền tảng đó.
   if (platformId === 'all') {
     return permissions.includes('social:external:all');
   }
 
   return permissions.includes(`social:external:${platformId}`);
+}
+
+/**
+ * Kiểm tra xem user có quyền truy cập vào một nền tảng Kênh nội bộ cụ thể hay không.
+ * platformId: 'all' | 'facebook' | 'tiktok' | 'instagram' | 'youtube' | 'threads' | 'douyin' | 'xiaohongshu'
+ */
+export function canAccessInternalPlatform(user: User | null | undefined, platformId: string): boolean {
+  if (!user) return false;
+
+  const roles = user.roles ?? [];
+  if (roles.includes(UserRole.ADMIN)) return true;
+
+  const permissions = user.permissions ?? [];
+
+  // Nếu chưa cấu hình permissions chi tiết, cho phép truy cập (backward compatibility)
+  if (permissions.length === 0) {
+    return true;
+  }
+
+  // Wildcard toàn cục mở mọi thứ.
+  if (permissions.includes('*')) return true;
+
+  // 'all' tab: CHỈ mở khi có quyền 'social:internal:view'
+  if (platformId === 'all') {
+    return permissions.includes('social:internal:view');
+  }
+
+  return permissions.includes(`social:internal:${platformId}`);
 }
 
 /**
@@ -126,8 +157,7 @@ export function hasGranularPermissions(user: User | null | undefined): boolean {
 /**
  * Tài khoản có được vào đường dẫn này không.
  *
- * Dùng chung cho cả việc ẩn mục trên thanh điều hướng lẫn chốt chặn khi người dùng gõ thẳng URL,
- * nên hai nơi không thể lệch nhau.
+ * Dùng chung cho cả việc ẩn mục trên thanh điều hướng lẫn chốt chặn khi người dùng gõ thẳng URL.
  */
 export function canAccessRoute(user: User | null | undefined, href: string): boolean {
   if (!user) return false;
@@ -142,8 +172,7 @@ export function canAccessRoute(user: User | null | undefined, href: string): boo
 
   const permissions = user.permissions ?? [];
 
-  // Mục chứa nhiều mục con độc lập: có bất kỳ quyền con nào là vào được khu vực đó. Nếu không,
-  // cấp riêng "Nền tảng TikTok" sẽ không vào nổi Khám phá kênh ngoài vì thiếu quyền "Xem tất cả".
+  // Mục chứa nhiều mục con độc lập: có bất kỳ quyền con nào là vào được khu vực đó.
   if (rule.anyOfPrefix && permissions.some((p) => p.startsWith(rule.anyOfPrefix!))) {
     return true;
   }
@@ -153,8 +182,6 @@ export function canAccessRoute(user: User | null | undefined, href: string): boo
 
 /**
  * Lọc cây menu điều hướng theo quyền: bỏ mục không được phép, bỏ luôn nhóm/menu rỗng sau khi lọc.
- *
- * Viết theo kiểu generic để không phải kéo type NavMenu của tầng giao diện xuống tầng lib.
  */
 export function filterNavMenusByPermissions<
   TItem extends { href: string; subPanel?: Array<{ href: string }> },
@@ -164,22 +191,14 @@ export function filterNavMenusByPermissions<
   if (!user) return [];
   if (user.roles?.includes(UserRole.ADMIN) || !hasGranularPermissions(user)) return menus;
 
-  /**
-   * Một mục menu có thể KHÔNG tự điều hướng (href rỗng) mà chỉ mở bảng con chứa link thật —
-   * ví dụ mục "Báo cáo" trong VCB Portal. Nếu coi href rỗng là "trang công khai" thì mục đó
-   * luôn sống sót, kéo theo cả nhóm và cả menu gốc không bao giờ bị ẩn: tài khoản chỉ có đúng
-   * một quyền vẫn thấy nguyên nút "VCB Portal" với dropdown rỗng.
-   */
   const keepItem = (item: TItem): TItem | null => {
     const subPanel = item.subPanel?.filter((card) => canAccessRoute(user, card.href));
 
     if (item.subPanel && item.subPanel.length > 0) {
-      // Mục có bảng con: chỉ giữ khi còn ít nhất một thẻ con được phép.
       if (!subPanel || subPanel.length === 0) return null;
       return { ...item, subPanel };
     }
 
-    // Mục không có bảng con mà cũng không có đường dẫn thì chẳng dẫn đi đâu — bỏ.
     if (!item.href) return null;
 
     return canAccessRoute(user, item.href) ? item : null;
@@ -198,22 +217,33 @@ export function filterNavMenusByPermissions<
         .filter((section) => section.items.length > 0),
     }))
     .filter((menu) => {
-      // Menu bấm thẳng (directHref) không có mục con để đếm — xét chính đường dẫn của nó.
       if (menu.directHref) return canAccessRoute(user, menu.directHref);
       return menu.sections.length > 0;
     });
 }
 
 /**
- * Lọc danh sách platforms cho thanh tabs dựa trên quyền của user.
+ * Lọc danh sách platforms cho thanh tabs Kênh ngoài dựa trên quyền của user.
  */
 export function filterAllowedPlatforms<T extends { id: string }>(user: User | null | undefined, platforms: T[]): T[] {
   if (!user) return [];
 
-  // Nếu user là ADMIN hoặc chưa có permissions tùy biến -> Cho phép tất cả
   if (user.roles?.includes(UserRole.ADMIN) || !user.permissions || user.permissions.length === 0) {
     return platforms;
   }
 
   return platforms.filter((p) => canAccessExternalPlatform(user, p.id));
+}
+
+/**
+ * Lọc danh sách platforms cho thanh tabs Kênh nội bộ dựa trên quyền của user.
+ */
+export function filterAllowedInternalPlatforms<T extends { id: string }>(user: User | null | undefined, platforms: T[]): T[] {
+  if (!user) return [];
+
+  if (user.roles?.includes(UserRole.ADMIN) || !user.permissions || user.permissions.length === 0) {
+    return platforms;
+  }
+
+  return platforms.filter((p) => canAccessInternalPlatform(user, p.id));
 }
