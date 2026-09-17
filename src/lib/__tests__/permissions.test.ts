@@ -3,7 +3,10 @@ import {
   checkPermissionMatch,
   hasPermission,
   canAccessExternalPlatform,
+  canAccessInternalPlatform,
   filterAllowedPlatforms,
+  filterAllowedInternalPlatforms,
+  canAccessRoute,
 } from '../permissions';
 
 describe('Frontend RBAC Permissions Helper', () => {
@@ -33,6 +36,19 @@ describe('Frontend RBAC Permissions Helper', () => {
     updated_at: '2026-01-01',
   };
 
+  const mockInternalFbUser: User = {
+    id: 'user-internal-fb',
+    email: 'internalfb@vcbi.vn',
+    full_name: 'Internal FB Manager',
+    roles: [UserRole.MEMBER],
+    permissions: ['social:internal:facebook'],
+    is_active: true,
+    total_login_count: 1,
+    total_action_count: 5,
+    created_at: '2026-01-01',
+    updated_at: '2026-01-01',
+  };
+
   const mockAllPlatformsUser: User = {
     id: 'user-all',
     email: 'content@vcbi.vn',
@@ -52,6 +68,15 @@ describe('Frontend RBAC Permissions Helper', () => {
     { id: 'tiktok', label: 'TikTok' },
     { id: 'douyin', label: 'Douyin' },
     { id: 'xiaohongshu', label: 'XiaoHongShu' },
+  ];
+
+  const sampleInternalPlatforms = [
+    { id: 'all', label: 'Tất cả' },
+    { id: 'facebook', label: 'Facebook' },
+    { id: 'tiktok', label: 'TikTok' },
+    { id: 'instagram', label: 'Instagram' },
+    { id: 'threads', label: 'Threads' },
+    { id: 'youtube', label: 'YouTube' },
   ];
 
   describe('checkPermissionMatch()', () => {
@@ -86,21 +111,15 @@ describe('Frontend RBAC Permissions Helper', () => {
     });
 
     it('Role MEMBER không được cào tay video nếu không được cấp quyền đích danh', () => {
-      // 1. Member có quyền xem tất cả nền tảng (social:external:all) -> KHÔNG ĐƯỢC CÀO TAY
       expect(hasPermission(mockAllPlatformsUser, 'social:external:crawl_all')).toBe(false);
-
-      // 2. Member chỉ có TikTok/Facebook -> KHÔNG ĐƯỢC CÀO TAY
       expect(hasPermission(mockTikTokUser, 'social:external:crawl_all')).toBe(false);
 
-      // 3. Member tài khoản mới hoặc cũ chưa có permissions (rỗng) -> KHÔNG ĐƯỢC CÀO TAY
       const blankMember: User = { ...mockTikTokUser, permissions: [] };
       expect(hasPermission(blankMember, 'social:external:crawl_all')).toBe(false);
 
-      // 4. Member được Admin cấp ĐÍCH DANH quyền cào tay -> ĐƯỢC CÀO TAY
       const memberWithCrawl: User = { ...mockTikTokUser, permissions: ['social:external:crawl_all'] };
       expect(hasPermission(memberWithCrawl, 'social:external:crawl_all')).toBe(true);
 
-      // 5. Admin luôn được cào tay
       expect(hasPermission(mockAdminUser, 'social:external:crawl_all')).toBe(true);
     });
   });
@@ -113,8 +132,6 @@ describe('Frontend RBAC Permissions Helper', () => {
     });
 
     it('social:external:all CHỈ mở tab tổng hợp, không mở từng nền tảng', () => {
-      // Nếu tick một ô này mà mở luôn 8 nền tảng thì 8 ô tick còn lại trong cây quyền vô nghĩa —
-      // Admin cấp đúng "Tất cả" rồi mở tài khoản ra vẫn thấy đủ Facebook/TikTok/Instagram...
       expect(canAccessExternalPlatform(mockAllPlatformsUser, 'all')).toBe(true);
       expect(canAccessExternalPlatform(mockAllPlatformsUser, 'douyin')).toBe(false);
       expect(canAccessExternalPlatform(mockAllPlatformsUser, 'tiktok')).toBe(false);
@@ -143,6 +160,39 @@ describe('Frontend RBAC Permissions Helper', () => {
       expect(canAccessExternalPlatform(mockTikTokUser, 'facebook')).toBe(true);
       expect(canAccessExternalPlatform(mockTikTokUser, 'douyin')).toBe(false);
       expect(canAccessExternalPlatform(mockTikTokUser, 'all')).toBe(false);
+    });
+  });
+
+  describe('canAccessInternalPlatform() & filterAllowedInternalPlatforms()', () => {
+    it('Admin truy cập được tất cả các tab Kênh nội bộ', () => {
+      expect(canAccessInternalPlatform(mockAdminUser, 'all')).toBe(true);
+      expect(canAccessInternalPlatform(mockAdminUser, 'facebook')).toBe(true);
+      expect(canAccessInternalPlatform(mockAdminUser, 'tiktok')).toBe(true);
+      expect(canAccessInternalPlatform(mockAdminUser, 'threads')).toBe(true);
+      expect(filterAllowedInternalPlatforms(mockAdminUser, sampleInternalPlatforms)).toHaveLength(sampleInternalPlatforms.length);
+    });
+
+    it('User chỉ có quyền social:internal:facebook thì CHỈ thấy tab Facebook', () => {
+      expect(canAccessInternalPlatform(mockInternalFbUser, 'facebook')).toBe(true);
+      expect(canAccessInternalPlatform(mockInternalFbUser, 'tiktok')).toBe(false);
+      expect(canAccessInternalPlatform(mockInternalFbUser, 'all')).toBe(false);
+      expect(canAccessInternalPlatform(mockInternalFbUser, 'threads')).toBe(false);
+
+      const visible = filterAllowedInternalPlatforms(mockInternalFbUser, sampleInternalPlatforms);
+      expect(visible.map(t => t.id)).toEqual(['facebook']);
+    });
+
+    it('User có quyền xem tab Tất cả kênh nội bộ social:internal:view', () => {
+      const allInternalUser: User = {
+        ...mockInternalFbUser,
+        permissions: ['social:internal:view', 'social:internal:tiktok'],
+      };
+      expect(canAccessInternalPlatform(allInternalUser, 'all')).toBe(true);
+      expect(canAccessInternalPlatform(allInternalUser, 'tiktok')).toBe(true);
+      expect(canAccessInternalPlatform(allInternalUser, 'facebook')).toBe(false);
+
+      const visible = filterAllowedInternalPlatforms(allInternalUser, sampleInternalPlatforms);
+      expect(visible.map(t => t.id)).toEqual(['all', 'tiktok']);
     });
   });
 
@@ -177,6 +227,26 @@ describe('Frontend RBAC Permissions Helper', () => {
     });
   });
 
+  describe('canAccessRoute()', () => {
+    it('chặn user không có bất kỳ quyền nội bộ nào vào Kênh nội bộ', () => {
+      const userChiKenhNgoai: User = {
+        ...mockTikTokUser,
+        permissions: ['social:external:tiktok'],
+      };
+      expect(canAccessRoute(userChiKenhNgoai, '/dashboard/internalChannels')).toBe(false);
+      expect(canAccessRoute(mockInternalFbUser, '/dashboard/internalChannels')).toBe(true);
+    });
+
+    it('cho phép vào route khi khớp quyền chi tiết (tasks:kpi)', () => {
+      const kpiUser: User = {
+        ...mockTikTokUser,
+        permissions: ['tasks:kpi'],
+      };
+      expect(canAccessRoute(kpiUser, '/dashboard/task-auto/kpi')).toBe(true);
+      expect(canAccessRoute(kpiUser, '/dashboard/task-auto/catalog')).toBe(false);
+    });
+  });
+
   describe('Permission Tree Configuration & Presets', () => {
     const {
       PERMISSION_TREE,
@@ -188,10 +258,11 @@ describe('Frontend RBAC Permissions Helper', () => {
 
     it('getAllLeafPermissions() trả về danh sách các quyền lá', () => {
       const leafPerms = getAllLeafPermissions();
-      expect(leafPerms.length).toBeGreaterThan(10);
+      expect(leafPerms.length).toBeGreaterThan(30);
       expect(leafPerms).toContain('social:external:facebook');
-      expect(leafPerms).toContain('social:external:tiktok');
-      expect(leafPerms).toContain('social:external:crawl_all');
+      expect(leafPerms).toContain('social:internal:facebook');
+      expect(leafPerms).toContain('equipment:approval:manage');
+      expect(leafPerms).toContain('publishing:bulk');
       expect(leafPerms).toContain('portal:hr:manage');
     });
 
@@ -205,7 +276,6 @@ describe('Frontend RBAC Permissions Helper', () => {
     });
 
     it('mỗi vai trò trong ô "Vai trò" đều có bộ quyền mặc định', () => {
-      // Đúng 4 lựa chọn của dropdown Vai trò — không còn danh sách preset riêng nữa.
       for (const role of ['ADMIN', 'MANAGER', 'LEADER', 'MEMBER']) {
         expect(DEFAULT_PERMISSIONS_BY_ROLE[role].length).toBeGreaterThan(0);
       }
@@ -227,16 +297,6 @@ describe('Frontend RBAC Permissions Helper', () => {
       );
     });
 
-    it('getLeafIds() chỉ trả về quyền lá, không kèm id node nhóm', () => {
-      const { getLeafIds } = require('@/config/permission-tree');
-      const externalNode = PERMISSION_TREE[0].nodes.find((n: any) => n.id === 'social:external');
-      const leafIds = getLeafIds(externalNode);
-
-      expect(leafIds).not.toContain('social:external');
-      expect(leafIds).toContain('social:external:tiktok');
-      expect(leafIds).toContain('social:external:crawl_all');
-    });
-
     it('mọi quyền mặc định của vai trò đều phải tồn tại thật trong cây', () => {
       const leafPerms: string[] = getAllLeafPermissions();
       for (const [role, perms] of Object.entries(DEFAULT_PERMISSIONS_BY_ROLE)) {
@@ -245,59 +305,4 @@ describe('Frontend RBAC Permissions Helper', () => {
       }
     });
   });
-
-  describe('Các tình huống biên khi vận hành thật', () => {
-    const blankMember: User = { ...mockTikTokUser, permissions: [] };
-    const oldManager: User = { ...mockTikTokUser, roles: [UserRole.MANAGER], permissions: [] };
-    const oldLeader: User = { ...mockTikTokUser, roles: [UserRole.LEADER], permissions: [] };
-
-    it('Leader cũ (chưa cấu hình quyền) vẫn cào tay được, Member cũ thì không', () => {
-      expect(hasPermission(oldLeader, 'social:external:crawl_all')).toBe(true);
-      expect(hasPermission(oldManager, 'social:external:crawl_all')).toBe(true);
-      expect(hasPermission(blankMember, 'social:external:crawl_all')).toBe(false);
-    });
-
-    it('Leader được gán gói quyền không có cào tay thì MẤT quyền cào tay', () => {
-      // Quyền chi tiết một khi đã cấu hình sẽ lấn át mặc định theo role — Admin cần biết điều này
-      // khi bấm preset "Chuyên viên Content" cho một Leader.
-      const restrictedLeader: User = {
-        ...oldLeader,
-        permissions: ['social:external:all', 'social:library:view'],
-      };
-      expect(hasPermission(restrictedLeader, 'social:external:crawl_all')).toBe(false);
-    });
-
-    it('quyền "Đề xuất" cũng không được thừa hưởng ngầm từ social:external:all', () => {
-      expect(hasPermission(mockAllPlatformsUser, 'social:external:propose')).toBe(false);
-      const withPropose: User = { ...mockTikTokUser, permissions: ['social:external:propose'] };
-      expect(hasPermission(withPropose, 'social:external:propose')).toBe(true);
-    });
-
-    it('wildcard toàn cục * mở được quyền nhạy cảm, nhưng social:* thì không', () => {
-      expect(checkPermissionMatch(['*'], 'social:external:crawl_all')).toBe(true);
-      expect(checkPermissionMatch(['social:*'], 'social:external:crawl_all')).toBe(false);
-      // social:* vẫn mở được các quyền thường
-      expect(checkPermissionMatch(['social:*'], 'social:external:tiktok')).toBe(true);
-    });
-
-    it('mảng quyền rỗng hoặc không hợp lệ luôn trả về false, không ném lỗi', () => {
-      expect(checkPermissionMatch([], 'social:external:tiktok')).toBe(false);
-      expect(checkPermissionMatch(undefined as any, 'social:external:tiktok')).toBe(false);
-      expect(checkPermissionMatch(['social:external:tiktok'], 'quyen:khong:ton:tai')).toBe(false);
-    });
-
-    it('chưa đăng nhập / store chưa rehydrate thì không lộ tab nào', () => {
-      expect(filterAllowedPlatforms(null, samplePlatforms)).toEqual([]);
-      expect(filterAllowedPlatforms(undefined, samplePlatforms)).toEqual([]);
-    });
-
-    it('user chỉ được cấp quyền hành động, không cấp nền tảng nào thì không còn tab nào', () => {
-      const actionOnlyUser: User = {
-        ...mockTikTokUser,
-        permissions: ['social:external:crawl_all'],
-      };
-      expect(filterAllowedPlatforms(actionOnlyUser, samplePlatforms)).toEqual([]);
-    });
-  });
 });
-

@@ -1,30 +1,19 @@
 /**
  * Bản đồ ĐƯỜNG DẪN → MÃ QUYỀN.
  *
- * Đây là nguồn sự thật duy nhất để trả lời "tài khoản này có được vào trang kia không". Cả thanh
- * điều hướng (ẩn mục) lẫn chốt chặn ở dashboard/layout.tsx (gõ thẳng URL) đều đọc từ đây, nên
- * không có chuyện ẩn nút mà vẫn vào được bằng cách dán link.
- *
- * Quy tắc khớp: lấy mục có tiền tố DÀI NHẤT khớp với đường dẫn. Đường dẫn không nằm trong bảng
- * này mặc định là CÔNG KHAI với mọi người đã đăng nhập (vd trang hướng dẫn sử dụng) — thêm quyền
- * mới thì khai báo ở đây, đừng đi rải rác trong từng trang.
+ * Nguồn sự thật duy nhất để trả lời "tài khoản này có được vào trang kia không".
+ * Cả thanh điều hướng (HeaderInner) lẫn chốt chặn (RoutePermissionGuard) đều đọc từ đây.
  */
 export interface RoutePermission {
   /** Tiền tố đường dẫn, không tính query string. */
   prefix: string;
-  /**
-   * Chỉ khớp khi query `tab` đúng giá trị này. Dùng cho /dashboard/manager/user-activity —
-   * cùng một trang nhưng mỗi tab là một nghiệp vụ với quyền khác nhau.
-   */
+  /** Chỉ khớp khi query `tab` đúng giá trị này. */
   tab?: string;
   /** Mã quyền cần có. */
   permission: string;
   /**
-   * Nếu đặt: chỉ cần user có BẤT KỲ quyền nào bắt đầu bằng tiền tố này là vào được, không cần
-   * đúng `permission` ở trên.
-   *
-   * Dùng cho các mục chứa nhiều mục con độc lập: cấp riêng "Nền tảng TikTok" thì phải vào được
-   * Khám phá kênh ngoài, chứ không bắt buộc phải có thêm quyền "Xem tất cả nền tảng".
+   * Nếu đặt: chỉ cần user có BẤT KỲ quyền nào bắt đầu bằng tiền tố này là vào được,
+   * không bắt buộc phải có đúng `permission` ở trên.
    */
   anyOfPrefix?: string;
 }
@@ -33,13 +22,21 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   // ─── Khám phá Video & Mạng xã hội ───────────────────────────────────────────
   { prefix: '/dashboard/externalChannels', permission: 'social:external:all', anyOfPrefix: 'social:external:' },
   { prefix: '/dashboard/internalOverview', permission: 'social:internal:overview' },
-  { prefix: '/dashboard/internalChannels', permission: 'social:internal:view' },
+  { prefix: '/dashboard/internalChannels', permission: 'social:internal:view', anyOfPrefix: 'social:internal:' },
   { prefix: '/dashboard/search-video', permission: 'social:hub:search' },
   { prefix: '/dashboard/video-library', permission: 'social:library:view' },
+  { prefix: '/dashboard/collections', permission: 'social:collections:view' },
   { prefix: '/dashboard/content/generate', permission: 'social:content:translate' },
+  { prefix: '/dashboard/content/product-selection', permission: 'social:content:product' },
+  { prefix: '/dashboard/videos', permission: 'social:videos:manage' },
+  { prefix: '/dashboard/video-filter', permission: 'social:videos:filter' },
+  { prefix: '/dashboard/video-review', permission: 'social:videos:review' },
+  { prefix: '/dashboard/channel-analysis', permission: 'social:analysis:channel' },
+  { prefix: '/dashboard/thong-ke', permission: 'social:analysis:stats' },
 
   // ─── Đăng bài Mạng xã hội ───────────────────────────────────────────────────
   { prefix: '/dashboard/social/compose', permission: 'publishing:compose' },
+  { prefix: '/dashboard/social/bulk', permission: 'publishing:bulk' },
   { prefix: '/dashboard/social/schedule', permission: 'publishing:schedule' },
   { prefix: '/dashboard/social/calendar', permission: 'publishing:calendar' },
   { prefix: '/dashboard/social/history', permission: 'publishing:history' },
@@ -53,11 +50,14 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   { prefix: '/dashboard/task-auto/teams', permission: 'tasks:teams' },
   { prefix: '/dashboard/task-auto/settings', permission: 'tasks:settings' },
   { prefix: '/dashboard/task-auto/kpi', permission: 'tasks:kpi' },
+  { prefix: '/dashboard/task-auto/content', permission: 'tasks:content' },
+  { prefix: '/dashboard/task-auto/tasks', permission: 'tasks:list' },
   { prefix: '/dashboard/task-auto', permission: 'tasks:list' },
 
   // ─── VCB Portal ─────────────────────────────────────────────────────────────
   { prefix: '/dashboard/admin', permission: 'portal:admin:panel' },
   { prefix: '/dashboard/leader', permission: 'portal:leader:panel' },
+  { prefix: '/dashboard/hr-management/unassigned', permission: 'portal:hr:manage' },
   { prefix: '/dashboard/hr-management', permission: 'portal:hr:manage' },
   // Trang hiệu suất/checklist dùng chung một đường dẫn, tách quyền theo tab.
   { prefix: '/dashboard/manager/user-activity', tab: 'performance', permission: 'portal:performance:view_team' },
@@ -76,6 +76,9 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   { prefix: '/dashboard/editor-management', permission: 'portal:editor:manage' },
 
   // ─── Thiết bị Media (MEMS) ──────────────────────────────────────────────────
+  { prefix: '/dashboard/equipment/overview', permission: 'equipment:overview' },
+  { prefix: '/dashboard/equipment/borrow-history', permission: 'equipment:borrow_history' },
+  { prefix: '/dashboard/equipment/assets', permission: 'equipment:asset:detail' },
   { prefix: '/dashboard/equipment/approvals', permission: 'equipment:approval:manage' },
   { prefix: '/dashboard/equipment/handover', permission: 'equipment:approval:manage' },
   { prefix: '/dashboard/equipment/returns', permission: 'equipment:approval:manage' },
