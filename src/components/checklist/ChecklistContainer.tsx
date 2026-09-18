@@ -890,6 +890,16 @@ const ChecklistContainer = ({
                 // Backend cảnh báo khi tài khoản chưa thuộc team nào: báo cáo lưu đúng nhưng mọi
                 // bảng điều khiển gom số theo team nên số này sẽ không hiện ở đâu cả.
                 const trafficData = await trafficRes.json().catch(() => ({} as any));
+
+                // BE trả HTTP 200 nhưng KHÔNG lưu được dòng nào (mọi ô trống hoặc không phải số).
+                // Không được báo thành công ở đây: người nộp sẽ đóng form và yên tâm, hôm sau mới
+                // biết mình bị tính là chưa báo cáo. Dừng luôn để họ nhập lại ngay.
+                if (trafficData?.savedNothing) {
+                    toast.error(trafficData.message || 'Chưa lưu được số liệu traffic nào. Vui lòng nhập lại.');
+                    setLoading(false);
+                    return;
+                }
+
                 let teamlessWarning: string | undefined = trafficData?.warning;
 
                 // Gửi báo cáo doanh thu cùng lúc — nộp chung 1 form với traffic
