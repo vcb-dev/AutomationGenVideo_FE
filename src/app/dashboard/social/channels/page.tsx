@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { RefreshCw, CheckCircle, ChevronDown, ChevronUp, AlertTriangle, Clock } from 'lucide-react';
+import { RefreshCw, CheckCircle, ChevronDown, ChevronUp, AlertTriangle, Clock, Sparkles, ExternalLink, Music2, Plus } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { accountAvatarUrl } from '@/lib/social/account-avatar';
@@ -11,6 +11,8 @@ import { useSocialAccounts, useInvalidateAccounts, SOCIAL_ACCOUNTS_KEY } from '@
 import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
 import { useSocialLang } from '@/contexts/SocialLanguageContext';
+import { SapoTiktokSyncModal } from './components/SapoTiktokSyncModal';
+import { ManualTiktokModal } from './components/ManualTiktokModal';
 
 // ─── Platform meta ─────────────────────────────────────────────────────────
 
@@ -35,19 +37,30 @@ const P_STATIC: Record<SocialPlatform, { label: string; color: string; icon: Rea
     color: '#FF0000',
     icon: <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current"><path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" /></svg>,
   },
+  TIKTOK: {
+    label: 'TikTok',
+    color: '#000000',
+    icon: (
+      <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current">
+        <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.298-.002.595.042.88.13V9.4a6.33 6.33 0 0 0-1-.08A6.34 6.34 0 0 0 3 15.66a6.34 6.34 0 0 0 10.82 4.49 6.31 6.31 0 0 0 1.96-4.49V8.65a8.28 8.28 0 0 0 3.81 1.48v-3.44z" />
+      </svg>
+    ),
+  },
 };
 
 const LETTER_COLORS = ['bg-slate-500', 'bg-slate-600', 'bg-gray-500', 'bg-zinc-500', 'bg-neutral-500', 'bg-stone-500', 'bg-slate-400', 'bg-gray-600', 'bg-zinc-600', 'bg-neutral-600'];
 const letterColor = (name: string) => LETTER_COLORS[name.charCodeAt(0) % LETTER_COLORS.length];
 
 type Tab = 'ALL' | SocialPlatform;
-const ALL_PLATFORMS: SocialPlatform[] = ['FACEBOOK', 'INSTAGRAM', 'THREADS', 'YOUTUBE'];
+const ALL_PLATFORMS: SocialPlatform[] = ['FACEBOOK', 'INSTAGRAM', 'THREADS', 'YOUTUBE', 'TIKTOK'];
 
 // ─── Component ─────────────────────────────────────────────────────────────
 
 export default function ChannelsPage() {
   const { lang, setLang, t } = useSocialLang();
   const [activeTab, setActiveTab] = useState<Tab>('ALL');
+  const [showSapoTiktokModal, setShowSapoTiktokModal] = useState(false);
+  const [showManualModal, setShowManualModal] = useState(false);
   const { data: accounts = [], isLoading: loading, error } = useSocialAccounts();
   const currentUser = useAuthStore(s => s.user);
   const isAdmin = currentUser?.roles?.includes(UserRole.ADMIN) ?? false;
@@ -408,8 +421,32 @@ export default function ChannelsPage() {
                         </button>
                       </div>
                     )}
+                    {/* TikTok: nút đồng bộ từ Sapo & Thêm thủ công */}
+                    {platform === 'TIKTOK' && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          onClick={() => setShowManualModal(true)}
+                          className="flex items-center gap-1.5 px-3.5 py-2 text-slate-700 hover:text-black bg-slate-100 hover:bg-slate-200 text-sm font-semibold rounded-xl transition-all active:scale-95 border border-slate-200 shadow-sm"
+                        >
+                          <Plus className="w-4 h-4" />
+                          Thêm thủ công
+                        </button>
+                        {/* Đồng bộ Sapo kéo về kênh của TOÀN CÔNG TY và gán chủ sở hữu là người
+                            bấm — chỉ Admin dùng để đối soát. Nhân sự tự thêm kênh của mình. */}
+                        {isAdmin && (
+                          <button
+                            onClick={() => setShowSapoTiktokModal(true)}
+                            className="flex items-center gap-1.5 px-4 py-2 text-white text-sm font-semibold rounded-xl bg-slate-900 hover:bg-black transition-all shadow-sm hover:shadow-md active:scale-95"
+                          >
+                            <Sparkles className="w-4 h-4 text-pink-400" />
+                            Đồng bộ từ Sapo
+                          </button>
+                        )}
+                      </div>
+                    )}
+
                     {/* Các platform khác: nút login */}
-                    {platform !== 'INSTAGRAM' && displayAccts.length === 0 && (
+                    {platform !== 'INSTAGRAM' && platform !== 'TIKTOK' && displayAccts.length === 0 && (
                       <div className="flex flex-col items-end gap-2">
                         <button
                           onClick={() => handleConnect(platform)}
@@ -422,7 +459,7 @@ export default function ChannelsPage() {
                         </button>
                       </div>
                     )}
-                    {platform !== 'INSTAGRAM' && displayAccts.length > 0 && (
+                    {platform !== 'INSTAGRAM' && platform !== 'TIKTOK' && displayAccts.length > 0 && (
                       <div className="flex flex-col items-end gap-2">
                         <button
                           onClick={() => handleConnect(platform)}
@@ -542,8 +579,158 @@ export default function ChannelsPage() {
                 )}
                 </AnimatePresence>
 
+                {/* ── TIKTOK: grid cards ── */}
+                {platform === 'TIKTOK' && displayAccts.length > 0 && (
+                  <div className="px-4 md:px-8 py-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <p className="text-sm font-semibold text-slate-600">
+                        Các kênh TikTok đã kết nối ({displayAccts.length})
+                      </p>
+                      <div className="flex items-center gap-2">
+                        {/* Admin thấy kênh toàn công ty, leader thấy cả team — danh sách dài,
+                            mặc định chỉ hiện một hàng như Instagram/Facebook đang làm. */}
+                        {displayAccts.length > PAGES_PER_ROW && (
+                          <>
+                            <button
+                              onClick={() => setPagesExpanded(prev => ({ ...prev, tiktok: !prev['tiktok'] }))}
+                              className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-black transition-colors"
+                            >
+                              {pagesExpanded['tiktok'] ? (
+                                <><ChevronUp className="w-3.5 h-3.5" /> {t.collapse}</>
+                              ) : (
+                                <><ChevronDown className="w-3.5 h-3.5" /> {t.showMoreAccounts(displayAccts.length - PAGES_PER_ROW)}</>
+                              )}
+                            </button>
+                            <span className="text-slate-300">|</span>
+                          </>
+                        )}
+                        <button
+                          onClick={() => setShowManualModal(true)}
+                          className="inline-flex items-center gap-1 text-xs font-bold text-slate-700 hover:text-black transition-colors"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          Thêm thủ công
+                        </button>
+                        {isAdmin && (
+                          <>
+                            <span className="text-slate-300">|</span>
+                            <button
+                              onClick={() => setShowSapoTiktokModal(true)}
+                              className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-black transition-colors"
+                            >
+                              <Sparkles className="w-3.5 h-3.5 text-pink-500" />
+                              Quét thêm từ Sapo
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full">
+                      {(pagesExpanded['tiktok'] ? displayAccts : displayAccts.slice(0, PAGES_PER_ROW)).map((account: SocialAccount) => {
+                        const extra = (account.extra_data as any) || {};
+                        const linkChannel = extra.link_channel || (account.username ? `https://www.tiktok.com/@${account.username}` : null);
+                        const bgColor = letterColor(account.name || 'TikTok');
+                        const orderCount = extra.order_count;
+                        // Backend chỉ kèm quan hệ `user` khi người gọi là admin hoặc leader.
+                        const ownerName = (account as any).user?.full_name as string | undefined;
+
+                        return (
+                          <div
+                            key={account.id}
+                            className="flex flex-col justify-between p-4 rounded-2xl border border-slate-200 bg-white hover:shadow-md transition-all group"
+                          >
+                            <div>
+                              <div className="flex items-start justify-between gap-3 mb-3">
+                                <div className="flex items-center gap-3">
+                                  {account.avatar_url ? (
+                                    <img
+                                      loading="lazy"
+                                      src={accountAvatarUrl(account.id)}
+                                      alt={account.name}
+                                      referrerPolicy="no-referrer"
+                                      className="w-12 h-12 rounded-2xl object-cover flex-shrink-0 shadow-sm border border-slate-200"
+                                      onError={(e) => {
+                                        e.currentTarget.style.display = 'none';
+                                        const sibling = e.currentTarget.nextElementSibling as HTMLElement;
+                                        if (sibling) {
+                                          sibling.classList.remove('hidden');
+                                          sibling.style.display = 'flex';
+                                        }
+                                      }}
+                                    />
+                                  ) : null}
+                                  <div className={`w-12 h-12 ${bgColor} rounded-2xl flex items-center justify-center text-white font-bold text-lg flex-shrink-0 shadow-sm ${account.avatar_url ? 'hidden' : ''}`}>
+                                    <Music2 className="w-6 h-6" />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-bold text-slate-900 truncate leading-snug">
+                                      {account.name}
+                                    </p>
+                                    {account.username && (
+                                      <p className="text-xs text-pink-600 font-semibold truncate">
+                                        @{account.username}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1">
+                                  <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                                </div>
+                              </div>
+
+                              {/* Badges / Details */}
+                              <div className="space-y-1.5 mb-3">
+                                {/* Admin thấy kênh toàn công ty, leader thấy cả team — không ghi
+                                    tên chủ kênh thì nhìn một rừng kênh không biết của ai. */}
+                                {ownerName && account.user_id !== currentUser?.id && (
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">
+                                    👤 {ownerName}
+                                  </span>
+                                )}
+                                {orderCount != null && (
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 rounded-full">
+                                    📦 {orderCount} đơn hàng Sapo
+                                  </span>
+                                )}
+                                {linkChannel && (
+                                  <a
+                                    href={linkChannel}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline truncate"
+                                    title={linkChannel}
+                                  >
+                                    <ExternalLink className="w-3.5 h-3.5 flex-shrink-0" />
+                                    <span className="truncate">{linkChannel}</span>
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                              <span className="text-[11px] text-slate-400 font-medium">Sapo Sync</span>
+                              {canRemove(account) && (
+                                <button
+                                  onClick={() => handleDisconnect(account)}
+                                  disabled={disconnecting === account.id}
+                                  className="font-semibold text-slate-400 hover:text-red-500 transition-colors"
+                                >
+                                  {disconnecting === account.id ? '...' : t.remove}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* ── FACEBOOK & CÁC PLATFORM KHÁC ── */}
-                {platform !== 'INSTAGRAM' && displayAccts.map((account: SocialAccount) => {
+                {platform !== 'INSTAGRAM' && platform !== 'TIKTOK' && displayAccts.map((account: SocialAccount) => {
                   const pages = accounts.filter((a) => a.parent_id === account.id && (a.extra_data as any)?.type === 'page');
                   const isCollapsed = collapsed[account.id];
                   const extra = account.extra_data as any;
@@ -718,6 +905,35 @@ export default function ChannelsPage() {
                   <div className="px-8 py-10 text-center text-slate-400">
                     {platform === 'INSTAGRAM'
                       ? t.igAutoNote
+                      : platform === 'TIKTOK'
+                      ? (
+                        <div className="max-w-md mx-auto space-y-3">
+                          <p className="text-slate-600 font-medium">Chưa có kênh TikTok nào được liên kết.</p>
+                          <p className="text-xs text-slate-400 leading-relaxed">
+                            {isAdmin
+                              ? 'Thêm thủ công kênh của bạn, hoặc quét đơn hàng Sapo (TikTok Business & TikTok Shop) để đối soát kênh toàn công ty.'
+                              : 'Thêm kênh TikTok của bạn để hệ thống theo dõi và lên báo cáo. Kênh bạn thêm chỉ mình bạn quản lý.'}
+                          </p>
+                          <div className="flex items-center justify-center gap-2 pt-2 flex-wrap">
+                            <button
+                              onClick={() => setShowManualModal(true)}
+                              className="inline-flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-semibold rounded-xl transition-all shadow-sm active:scale-95"
+                            >
+                              <Plus className="w-4 h-4 text-slate-600" />
+                              Thêm kênh thủ công
+                            </button>
+                            {isAdmin && (
+                              <button
+                                onClick={() => setShowSapoTiktokModal(true)}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-black text-white text-xs font-semibold rounded-xl transition-all shadow-sm active:scale-95"
+                              >
+                                <Sparkles className="w-4 h-4 text-pink-400" />
+                                Quét &amp; Đồng bộ từ Sapo
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )
                       : t.noAccounts(meta.label, loginLabel)}
                   </div>
                 )}
@@ -726,6 +942,20 @@ export default function ChannelsPage() {
           })
         )}
       </div>
+
+      {/* Sapo TikTok Sync Modal */}
+      <SapoTiktokSyncModal
+        isOpen={showSapoTiktokModal}
+        onClose={() => setShowSapoTiktokModal(false)}
+        onSuccess={loadAccounts}
+      />
+
+      {/* Manual TikTok Modal */}
+      <ManualTiktokModal
+        isOpen={showManualModal}
+        onClose={() => setShowManualModal(false)}
+        onSuccess={loadAccounts}
+      />
     </div>
   );
 }

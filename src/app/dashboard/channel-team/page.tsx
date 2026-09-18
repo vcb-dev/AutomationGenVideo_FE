@@ -13,6 +13,7 @@ import toast from 'react-hot-toast';
 import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
 import { fetchWithAuth } from '@/lib/api-client';
+import { SapoTiktokSyncModal } from '../social/channels/components/SapoTiktokSyncModal';
 
 interface Channel {
   id: string;
@@ -102,6 +103,7 @@ export default function InternalChannelsPage() {
   const [teamMembers,   setTeamMembers]   = useState<OwnerOption[]>([]);
 
   const [showMetaModal, setShowMetaModal] = useState(false);
+  const [showSapoTiktokModal, setShowSapoTiktokModal] = useState(false);
   const [metaAccounts,  setMetaAccounts]  = useState<any[]>([]);
   const [loadingMeta,   setLoadingMeta]   = useState(false);
   const [selectedMetaIds, setSelectedMetaIds] = useState<string[]>([]);
@@ -342,6 +344,11 @@ export default function InternalChannelsPage() {
                     className="flex items-center gap-2 px-4 py-3 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-sm font-bold rounded-xl transition-all active:scale-95 whitespace-nowrap">
                     <Sparkles className="w-4 h-4 text-blue-600" />
                     Nhập từ Meta
+                  </button>
+                  <button onClick={() => setShowSapoTiktokModal(true)}
+                    className="flex items-center gap-2 px-4 py-3 bg-slate-900 hover:bg-black text-white text-sm font-bold rounded-xl transition-all active:scale-95 whitespace-nowrap shadow-sm">
+                    <Sparkles className="w-4 h-4 text-pink-400" />
+                    Nhập TikTok (Sapo)
                   </button>
                   <button onClick={openCreate}
                     className="flex items-center gap-2.5 px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-indigo-200 active:scale-95 whitespace-nowrap">
@@ -844,6 +851,13 @@ export default function InternalChannelsPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Sapo TikTok Sync Modal */}
+      <SapoTiktokSyncModal
+        isOpen={showSapoTiktokModal}
+        onClose={() => setShowSapoTiktokModal(false)}
+        onSuccess={fetchChannels}
+      />
     </div>
   );
 }

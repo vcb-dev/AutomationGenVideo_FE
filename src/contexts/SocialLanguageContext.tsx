@@ -56,6 +56,7 @@ const T = {
       INSTAGRAM: 'Kết nối Instagram',
       THREADS: 'Đăng nhập với Threads',
       YOUTUBE: 'Đăng nhập với YouTube',
+      TIKTOK: 'Đồng bộ từ Sapo',
     },
     dateLocale: 'vi',
     // ── NotificationBell ───────────────────────────────────────────────────
@@ -897,6 +898,7 @@ const T = {
       INSTAGRAM: 'Connect Instagram',
       THREADS: 'Login with Threads',
       YOUTUBE: 'Login with YouTube',
+      TIKTOK: 'Sync from Sapo',
     },
     dateLocale: 'en-US',
     notifTitle: '🔔 Post Notifications',
