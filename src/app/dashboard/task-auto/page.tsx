@@ -14,6 +14,7 @@ import { PersonalDashboard } from './components/PersonalDashboard'
 import { ContentCreatorDashboard } from './components/ContentCreatorDashboard'
 import { ContentTeamLeaderDashboard } from './components/ContentTeamLeaderDashboard'
 import { ContentWinFailSection } from './components/ContentWinFailSection'
+import { DailyVideoPlanCard } from './components/DailyVideoPlanCard'
 
 // ── Date filter ───────────────────────────────────────────────────────────────
 
@@ -273,6 +274,7 @@ export default function TaskAutoDashboard() {
     : <Users className="w-4 h-4" />
 
   const showDateFilter = isContentLeader || isContentMember || data?.scope === 'global' || data?.scope === 'team' || data?.scope === 'personal'
+  const showEditorDailyPlan = !isContentLeader && !isContentMember && data?.scope === 'personal'
 
   return (
     <div className="space-y-6">
@@ -352,7 +354,21 @@ export default function TaskAutoDashboard() {
       }
 
       {/* Content Win/Fail — chỉ số MỚI, tự tính từ view link bài đăng (1 link bất kỳ >10.000 view = win), tách biệt các số KPI nhập tay ở trên */}
-      {!(isLoading || teamsLoading) && (
+      {!(isLoading || teamsLoading) && showEditorDailyPlan ? (
+        <div className="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-2">
+          <DailyVideoPlanCard
+            month={data?.kpi?.month}
+            monthlyTarget={data?.kpi?.total_target ?? 0}
+            completed={data?.kpi?.completed ?? 0}
+            contentAllocations={data?.kpi?.content_allocations}
+          />
+          <ContentWinFailSection
+            from={from}
+            to={to}
+            fixedUserId={user?.id}
+          />
+        </div>
+      ) : !(isLoading || teamsLoading) ? (
         <ContentWinFailSection
           from={from}
           to={to}
@@ -369,7 +385,7 @@ export default function TaskAutoDashboard() {
           }
           showGlobalTop={data?.scope === 'global'}
         />
-      )}
+      ) : null}
 
     </div>
   )
