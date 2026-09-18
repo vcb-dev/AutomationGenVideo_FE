@@ -1,8 +1,11 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import { FacebookLogo, TiktokLogo, InstagramLogo, YoutubeLogo, SquaresFour } from '@phosphor-icons/react';
 import NotificationBell from './components/NotificationBell';
+import { useAuthStore } from '@/store/auth-store';
+import { filterAllowedPlatforms, canAccessExternalPlatform } from '@/lib/permissions';
 
 const platforms = [
   { id: 'all', label: 'Tất cả', icon: SquaresFour, color: 'text-slate-700 dark:text-slate-300' },
@@ -19,6 +22,9 @@ const platforms = [
 export default function ExternalChannelsLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { user } = useAuthStore();
+
+  const visiblePlatforms = filterAllowedPlatforms(user, platforms);
 
   const getActivePlatform = () => {
     for (const p of platforms) {
@@ -29,6 +35,14 @@ export default function ExternalChannelsLayout({ children }: { children: React.R
   };
 
   const active = getActivePlatform();
+
+  // Nếu user đang ở nền tảng mà họ không có quyền, tự chuyển về nền tảng hợp lệ đầu tiên
+  useEffect(() => {
+    if (!user) return;
+    if (visiblePlatforms.length > 0 && !canAccessExternalPlatform(user, active)) {
+      router.replace(`/dashboard/externalChannels/${visiblePlatforms[0].id}`);
+    }
+  }, [user, active, visiblePlatforms, router]);
 
   return (
     <div className="flex flex-col gap-5">
@@ -43,7 +57,7 @@ export default function ExternalChannelsLayout({ children }: { children: React.R
         <div className="flex items-center gap-3">
         {/* Platform tabs */}
         <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg w-fit">
-          {platforms.map(p => {
+          {visiblePlatforms.map(p => {
             const isActive = active === p.id;
             const Icon = p.icon;
             return (

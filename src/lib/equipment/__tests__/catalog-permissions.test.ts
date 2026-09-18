@@ -75,6 +75,39 @@ describe('canManageCatalog — khớp CHÍNH XÁC tên team', () => {
   it('đổi tên team ra khỏi chữ media là mất quyền ngay', () => {
     expect(canManageCatalog(['LEADER'], 'Truyền thông')).toBe(false);
   });
+
+  it.each(['Team Media', 'Media Team', 'Bộ phận Media'])(
+    'team tên "%s" KHÔNG được tính là Media, vì BE cũng không tính',
+    (ten) => {
+      // Ba tên này TỪNG nằm trong danh sách của FE trong khi BE chỉ nhận đúng 'media'. Nhóm test
+      // ngay trên khẳng định "khớp CHÍNH XÁC" nhưng không ca nào chạm tới chúng, nên lệch lọt
+      // qua: leader của team đặt tên như vậy thấy đủ nút Duyệt và bàn giao rồi bấm vào ăn 403.
+      //
+      // Muốn cho những tên này có quyền thật thì phải sửa BE trước, rồi mới nới ở đây — không
+      // bao giờ nới một mình FE.
+      expect(canManageCatalog(['LEADER'], ten)).toBe(false);
+    },
+  );
+
+  it('đúng tên team thật trong hệ thống thì vẫn có quyền', () => {
+    // Trong 18 team đang có, chỉ duy nhất "MEDIA" chứa chữ media. Siết danh sách không lấy mất
+    // quyền của ai đang dùng.
+    expect(canManageCatalog(['LEADER'], 'MEDIA')).toBe(true);
+  });
+
+  it.each([
+    'Team K1',
+    'Team K2',
+    'Team ADS',
+    'Scale Data',
+    'Global - Indo',
+    'Global Thái Lan',
+    'Đá Quý - Chung Thợ Đá',
+    'Đồ Da',
+    'AFF 01',
+  ])('leader team "%s" không quản lý được kho Media', (ten) => {
+    expect(canManageCatalog(['LEADER'], ten)).toBe(false);
+  });
 });
 
 describe('canDeleteCatalog — chỉ cho phép ADMIN xóa Danh mục / Model', () => {

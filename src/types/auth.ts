@@ -12,6 +12,7 @@ export interface User {
   email: string;
   full_name: string;
   roles: UserRole[];
+  permissions?: string[];
   manager_id?: string;
   is_active: boolean;
   last_login_at?: string;

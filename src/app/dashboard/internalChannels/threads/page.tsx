@@ -18,6 +18,7 @@ import { SiThreads } from 'react-icons/si';
 import toast from 'react-hot-toast';
 
 import { useAuthStore } from '@/store/auth-store';
+import { UserRole } from '@/types/auth';
 import { scraperService, ExternalVideo } from '@/services/scraperService';
 import { channelsService, ChannelInfo } from '@/services/channelsService';
 import ContentFilters from '../components/ContentFilters';
@@ -126,7 +127,10 @@ function PostCard({ post: v }: { post: ExternalVideo }) {
 }
 
 export default function ThreadsChannelsPage() {
-  const { token } = useAuthStore();
+  const { token, user } = useAuthStore();
+  // Đồng bộ Threads là thao tác quản lý (BE chỉ cho ADMIN/LEADER) — ẩn nút để member không bấm
+  // vào rồi nhận 403 mà không hiểu vì sao.
+  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
   const queryClient = useQueryClient();
 
   // ── Profiles ─────────────────────────────────────────
@@ -284,18 +288,20 @@ export default function ThreadsChannelsPage() {
             </div>
           </div>
 
-          <button
-            onClick={() => syncMutation.mutate()}
-            disabled={syncMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 text-xs font-semibold bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50"
-          >
-            {syncMutation.isPending ? (
-              <CircleNotch size={14} className="animate-spin" />
-            ) : (
-              <ArrowsClockwise size={14} />
-            )}
-            {syncMutation.isPending ? 'Đang đồng bộ...' : 'Đồng bộ bài viết & Views'}
-          </button>
+          {canManageChannels && (
+            <button
+              onClick={() => syncMutation.mutate()}
+              disabled={syncMutation.isPending}
+              className="flex items-center gap-2 px-4 py-2 text-xs font-semibold bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              {syncMutation.isPending ? (
+                <CircleNotch size={14} className="animate-spin" />
+              ) : (
+                <ArrowsClockwise size={14} />
+              )}
+              {syncMutation.isPending ? 'Đang đồng bộ...' : 'Đồng bộ bài viết & Views'}
+            </button>
+          )}
         </div>
 
         {profilesQuery.isLoading ? (
