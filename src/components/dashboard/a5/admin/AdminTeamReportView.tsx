@@ -2,6 +2,7 @@
 
 import { LeaderContentByClassificationChart } from "../leader/LeaderContentByClassificationChart";
 import { LeaderMemberCard } from "../leader/LeaderMemberCard";
+import { LeaderOrderTotalCard } from "../leader/LeaderOrderTotalCard";
 import { LeaderProductCategoryChart } from "../leader/LeaderProductCategoryChart";
 import { LeaderRevenueTotalCard } from "../leader/LeaderRevenueTotalCard";
 import { LeaderTrafficTotalCard } from "../leader/LeaderTrafficTotalCard";
@@ -49,10 +50,11 @@ export function AdminTeamReportView({
 
   return (
     <div className={isFetching ? "pointer-events-none opacity-50 transition-opacity" : "transition-opacity"}>
-      <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <LeaderVideoMonthCard current={totals.current} target={totals.target} label={videoCardLabel} />
         <LeaderTrafficTotalCard total={totals.traffic} monthLabel={trafficLabel} />
         <LeaderRevenueTotalCard total={totals.revenue} monthLabel={trafficLabel} />
+        <LeaderOrderTotalCard total={data?.total_orders ?? 0} monthLabel={trafficLabel} />
       </div>
 
       {isLoading ? (
