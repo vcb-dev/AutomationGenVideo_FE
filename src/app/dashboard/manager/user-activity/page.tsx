@@ -477,7 +477,7 @@ const UserActivityPageContent = () => {
                     activeTab !== "daily_outstanding" && (
                         <div className="relative z-10 transition-all duration-500 space-y-2">
                             {loading && !summary ? (
-                                <KpiCardsSkeleton count={4} />
+                                <KpiCardsSkeleton count={5} />
                             ) : (
                                 <ActivityKPIs
                                     summary={summary}

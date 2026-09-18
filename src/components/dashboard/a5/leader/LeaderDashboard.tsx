@@ -9,6 +9,7 @@ import { LeaderHeader } from "./LeaderHeader";
 import { LeaderMemberCard } from "./LeaderMemberCard";
 import { currentMonthKey, LeaderMonthFilter, monthLabelOf } from "./LeaderMonthFilter";
 import { LeaderProductCategoryChart } from "./LeaderProductCategoryChart";
+import { LeaderOrderTotalCard } from "./LeaderOrderTotalCard";
 import { LeaderRevenueTotalCard } from "./LeaderRevenueTotalCard";
 import { LeaderTrafficTotalCard } from "./LeaderTrafficTotalCard";
 import { LeaderVideoByLineChart } from "./LeaderVideoByLineChart";
@@ -150,7 +151,7 @@ export function LeaderDashboard() {
         )}
 
         <div className={isFetching ? "pointer-events-none opacity-50 transition-opacity" : "transition-opacity"}>
-          <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <LeaderVideoMonthCard
               current={videoTotals.current}
               target={videoTotals.target}
@@ -158,6 +159,7 @@ export function LeaderDashboard() {
             />
             <LeaderTrafficTotalCard total={trafficTotal} monthLabel={trafficLabel} />
             <LeaderRevenueTotalCard total={revenueTotal} monthLabel={trafficLabel} />
+            <LeaderOrderTotalCard total={data?.total_orders ?? 0} monthLabel={periodLabel} />
           </div>
 
           {members.length === 0 ? (
