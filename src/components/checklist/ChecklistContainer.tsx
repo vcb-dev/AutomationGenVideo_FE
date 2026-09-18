@@ -838,6 +838,9 @@ const ChecklistContainer = ({
                     return;
                 }
                 toast.success(data.message || 'Báo cáo thành công');
+                if (data.warning) {
+                    toast(data.warning, { icon: '⚠️', duration: 8000 });
+                }
 
                 setIsReadOnly(true); // Khóa form ngay lập tức sau khi gửi thành công
 
@@ -884,6 +887,10 @@ const ChecklistContainer = ({
                     setLoading(false);
                     return;
                 }
+                // Backend cảnh báo khi tài khoản chưa thuộc team nào: báo cáo lưu đúng nhưng mọi
+                // bảng điều khiển gom số theo team nên số này sẽ không hiện ở đâu cả.
+                const trafficData = await trafficRes.json().catch(() => ({} as any));
+                let teamlessWarning: string | undefined = trafficData?.warning;
 
                 // Gửi báo cáo doanh thu cùng lúc — nộp chung 1 form với traffic
                 const hasRevenueData = Object.values(revenue).some(val => val !== '');
@@ -915,6 +922,13 @@ const ChecklistContainer = ({
                         setLoading(false);
                         return;
                     }
+                    const revenueData = await revenueRes.json().catch(() => ({} as any));
+                    teamlessWarning = teamlessWarning || revenueData?.warning;
+                }
+
+                // Một cảnh báo duy nhất dù nộp cả traffic lẫn doanh thu — cùng một nguyên nhân.
+                if (teamlessWarning) {
+                    toast(teamlessWarning, { icon: '⚠️', duration: 8000 });
                 }
 
                 if (showOnlyTraffic) {
@@ -1066,7 +1080,7 @@ const ChecklistContainer = ({
 
                     {/* Traffic Section - Show for both Member and Leader if needed - Hide if only work */}
                     {(showForm12 || showForm3) && !showOnlyWork && (
-                        <div className="bg-slate-50/50 backdrop-blur-sm rounded-2xl p-3 shadow-lg shadow-blue-500/5 lg:col-span-2 border-2 border-blue-500/30">
+                        <div className="relative z-30 bg-slate-50/50 backdrop-blur-sm rounded-2xl p-3 shadow-lg shadow-blue-500/5 lg:col-span-2 border-2 border-blue-500/30">
                             {userTeams.length > 1 && (
                                 <div className="flex flex-wrap items-center gap-3 mb-5 px-1 py-3 bg-blue-50/60 rounded-xl border border-blue-100">
                                     <div className="flex items-center gap-2 px-2">
@@ -1109,7 +1123,7 @@ const ChecklistContainer = ({
 
                     {/* Revenue Section - nộp chung form với Traffic, cùng team đang chọn */}
                     {(showForm12 || showForm3) && !showOnlyWork && (
-                        <div className="bg-slate-50/50 backdrop-blur-sm rounded-2xl p-3 shadow-lg shadow-emerald-500/5 lg:col-span-2 border-2 border-emerald-500/30">
+                        <div className="relative z-20 bg-slate-50/50 backdrop-blur-sm rounded-2xl p-3 shadow-lg shadow-emerald-500/5 lg:col-span-2 border-2 border-emerald-500/30">
                             <RevenueReportSection
                                 key={`${submitCount}-${reportDate}-${selectedTeam}`}
                                 values={revenue}
@@ -1130,7 +1144,7 @@ const ChecklistContainer = ({
 
             {/* Nút submit — Luôn hiện */}
             {!(showOnlyTraffic && availableChannels.length === 0) && (
-                <div className="flex justify-center items-center gap-3 pt-8 border-t border-gray-100">
+                <div className="relative z-10 flex justify-center items-center gap-3 pt-8 border-t border-gray-100">
                     <button
                         type="button"
                         onClick={handleSubmit}
