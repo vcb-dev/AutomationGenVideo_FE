@@ -28,12 +28,18 @@ import {
 import toast from 'react-hot-toast';
 import {
     fetchVoiceActionHistory,
+    resolveAudioUrl,
     type VoiceActionHistoryItem,
     type VoiceActionType,
     type VoiceActionStatus,
 } from '@/lib/voice/voice-history';
+import { downloadSrtFile } from '@/lib/api/voice-tts';
 
-export function VoiceHistoryTab() {
+export interface VoiceHistoryTabProps {
+    isAdmin?: boolean;
+}
+
+export function VoiceHistoryTab({ isAdmin = true }: VoiceHistoryTabProps) {
     const [history, setHistory] = useState<VoiceActionHistoryItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(1);
@@ -56,7 +62,12 @@ export function VoiceHistoryTab() {
     const [playingUrl, setPlayingUrl] = useState<string | null>(null);
     const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
 
-    const handlePlayAudio = (url: string) => {
+    const handlePlayAudio = (rawUrl: string) => {
+        const url = resolveAudioUrl(rawUrl);
+        if (!url) {
+            toast.error('Không tìm thấy link âm thanh');
+            return;
+        }
         if (playingUrl === url) {
             audioElement?.pause();
             setPlayingUrl(null);
@@ -65,7 +76,11 @@ export function VoiceHistoryTab() {
                 audioElement.pause();
             }
             const audio = new Audio(url);
-            audio.play();
+            audio.play().catch((err) => {
+                console.error('Failed to play audio:', err);
+                toast.error('Không thể phát âm thanh này');
+                setPlayingUrl(null);
+            });
             audio.onended = () => setPlayingUrl(null);
             setAudioElement(audio);
             setPlayingUrl(url);
@@ -234,10 +249,12 @@ export function VoiceHistoryTab() {
                 <div>
                     <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
                         <FileText className="w-5 h-5 text-violet-600" />
-                        Nhật ký & Lịch sử Thao tác Người dùng (Admin)
+                        {isAdmin ? 'Nhật ký & Lịch sử Thao tác Người dùng (Admin)' : 'Lịch sử Tạo Voice Của Tôi'}
                     </h3>
                     <p className="text-xs text-gray-500 mt-1">
-                        Theo dõi toàn bộ các hoạt động tạo voice, clone giọng, xoá giọng và cấp hạn mức trong hệ thống.
+                        {isAdmin
+                            ? 'Theo dõi toàn bộ các hoạt động tạo voice, clone giọng, xoá giọng và cấp hạn mức trong hệ thống.'
+                            : 'Xem lại các bản thu âm và phụ đề bạn đã tạo, nghe thử và tải về bất kỳ lúc nào mà không lo mất file.'}
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -269,7 +286,7 @@ export function VoiceHistoryTab() {
                                 setSearch(e.target.value);
                                 setPage(1);
                             }}
-                            placeholder="Tìm user, kịch bản, tên giọng..."
+                            placeholder={isAdmin ? "Tìm user, kịch bản, tên giọng..." : "Tìm kịch bản, tên giọng..."}
                             className="w-full pl-9 pr-3.5 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-violet-400 focus:bg-white transition-colors"
                         />
                     </div>
@@ -406,7 +423,7 @@ export function VoiceHistoryTab() {
                         <thead>
                             <tr className="bg-gray-50/80 border-b border-gray-200 text-gray-500 uppercase tracking-wider font-semibold text-[11px]">
                                 <th className="py-3.5 px-4">Thời gian</th>
-                                <th className="py-3.5 px-4">Người thực hiện</th>
+                                {isAdmin && <th className="py-3.5 px-4">Người thực hiện</th>}
                                 <th className="py-3.5 px-4">Thao tác</th>
                                 <th className="py-3.5 px-4">Chi tiết thao tác</th>
                                 <th className="py-3.5 px-4">Trạng thái</th>
@@ -417,7 +434,7 @@ export function VoiceHistoryTab() {
                         <tbody className="divide-y divide-gray-100">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={7} className="py-12 text-center text-gray-400">
+                                    <td colSpan={isAdmin ? 7 : 6} className="py-12 text-center text-gray-400">
                                         <div className="flex flex-col items-center justify-center gap-2">
                                             <RefreshCw className="w-6 h-6 animate-spin text-violet-500" />
                                             <span>Đang tải nhật ký thao tác...</span>
@@ -426,7 +443,7 @@ export function VoiceHistoryTab() {
                                 </tr>
                             ) : history.length === 0 ? (
                                 <tr>
-                                    <td colSpan={7} className="py-12 text-center text-gray-400">
+                                    <td colSpan={isAdmin ? 7 : 6} className="py-12 text-center text-gray-400">
                                         <div className="flex flex-col items-center justify-center gap-2">
                                             <FileText className="w-8 h-8 text-gray-300" />
                                             <span>Chưa có dữ liệu thao tác nào phù hợp với bộ lọc.</span>
@@ -435,8 +452,14 @@ export function VoiceHistoryTab() {
                                 </tr>
                             ) : (
                                 history.map((item) => {
-                                    const hasAudio = Boolean(item.output_url);
-                                    const isPlaying = playingUrl === item.output_url;
+                                    const audioUrl = item.audio_play_url || item.output_url;
+                                    const hasAudio = Boolean(audioUrl);
+                                    const resolvedPlayUrl = resolveAudioUrl(audioUrl);
+                                    const isPlaying = playingUrl === resolvedPlayUrl;
+                                    const resolvedDownloadUrl = resolveAudioUrl(item.audio_download_url || item.output_url);
+                                    const cleanVoiceName = (item.voice_name || item.voice_id || 'voice').replace(/[\/\\:*?"<>|]+/g, ' ').trim();
+                                    const mp3FileName = `${cleanVoiceName}.mp3`;
+                                    const srtFileName = `${cleanVoiceName}.srt`;
 
                                     return (
                                         <tr key={item.id} className="hover:bg-gray-50/60 transition-colors">
@@ -445,27 +468,29 @@ export function VoiceHistoryTab() {
                                                 {formatDate(item.created_at)}
                                             </td>
 
-                                            {/* Người thực hiện */}
-                                            <td className="py-3.5 px-4">
-                                                <div className="flex items-center gap-2.5 min-w-[160px]">
-                                                    <div className="w-7 h-7 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center font-bold text-xs flex-shrink-0">
-                                                        {item.user?.full_name ? item.user.full_name.charAt(0).toUpperCase() : <User className="w-3.5 h-3.5" />}
+                                            {/* Người thực hiện (chỉ Admin mới hiển thị) */}
+                                            {isAdmin && (
+                                                <td className="py-3.5 px-4">
+                                                    <div className="flex items-center gap-2.5 min-w-[160px]">
+                                                        <div className="w-7 h-7 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center font-bold text-xs flex-shrink-0">
+                                                            {item.user?.full_name ? item.user.full_name.charAt(0).toUpperCase() : <User className="w-3.5 h-3.5" />}
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <p className="font-semibold text-gray-900 truncate">
+                                                                {item.user?.full_name || 'Người dùng'}
+                                                            </p>
+                                                            <p className="text-[10px] text-gray-400 truncate">
+                                                                {item.user?.email || item.user_id}
+                                                            </p>
+                                                            {item.user?.team && (
+                                                                <span className="inline-block mt-0.5 text-[9px] px-1.5 py-0.2 rounded bg-gray-100 text-gray-600 font-medium">
+                                                                    {item.user.team}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                    <div className="min-w-0">
-                                                        <p className="font-semibold text-gray-900 truncate">
-                                                            {item.user?.full_name || 'Người dùng'}
-                                                        </p>
-                                                        <p className="text-[10px] text-gray-400 truncate">
-                                                            {item.user?.email || item.user_id}
-                                                        </p>
-                                                        {item.user?.team && (
-                                                            <span className="inline-block mt-0.5 text-[9px] px-1.5 py-0.2 rounded bg-gray-100 text-gray-600 font-medium">
-                                                                {item.user.team}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </td>
+                                                </td>
+                                            )}
 
                                             {/* Loại thao tác */}
                                             <td className="py-3.5 px-4 whitespace-nowrap">
@@ -547,7 +572,7 @@ export function VoiceHistoryTab() {
                                                 {hasAudio ? (
                                                     <div className="flex items-center justify-center gap-1.5">
                                                         <button
-                                                            onClick={() => handlePlayAudio(item.output_url!)}
+                                                            onClick={() => handlePlayAudio(audioUrl!)}
                                                             className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
                                                                 isPlaying
                                                                     ? 'bg-violet-600 text-white'
@@ -558,15 +583,31 @@ export function VoiceHistoryTab() {
                                                             {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
                                                         </button>
                                                         <a
-                                                            href={item.output_url!}
-                                                            download={`voice_${item.voice_id || 'sample'}.mp3`}
+                                                            href={resolvedDownloadUrl}
+                                                            download={mp3FileName}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                             className="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center transition-colors"
-                                                            title="Tải file âm thanh"
+                                                            title="Tải file âm thanh MP3"
                                                         >
                                                             <Download className="w-3.5 h-3.5" />
                                                         </a>
+                                                        {(item.srt_content || item.srt_download_url) && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    if (item.srt_content) {
+                                                                        downloadSrtFile(item.srt_content, srtFileName);
+                                                                    } else if (item.srt_download_url) {
+                                                                        window.open(resolveAudioUrl(item.srt_download_url), '_blank');
+                                                                    }
+                                                                }}
+                                                                className="w-7 h-7 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 flex items-center justify-center transition-colors border border-indigo-200"
+                                                                title="Tải phụ đề SRT"
+                                                            >
+                                                                <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 ) : (
                                                     <span className="text-gray-300 text-[11px]">—</span>
@@ -688,25 +729,44 @@ export function VoiceHistoryTab() {
                         )}
 
                         {/* Audio Preview nếu có */}
-                        {selectedItem.output_url && (
+                        {(selectedItem.audio_play_url || selectedItem.output_url) && (
                             <div className="p-4 bg-violet-50 border border-violet-200 rounded-xl space-y-2">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2 text-xs font-semibold text-violet-900">
                                         <Volume2 className="w-4 h-4 text-violet-600" />
                                         <span>File âm thanh kết quả</span>
                                     </div>
-                                    <a
-                                        href={selectedItem.output_url}
-                                        download={`voice_${selectedItem.voice_id || 'tts'}.mp3`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-xs text-violet-700 font-medium flex items-center gap-1 hover:underline"
-                                    >
-                                        <Download className="w-3.5 h-3.5" />
-                                        Tải file về máy
-                                    </a>
+                                    <div className="flex items-center gap-3">
+                                        {(selectedItem.srt_content || selectedItem.srt_download_url) && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const srtName = `${(selectedItem.voice_name || selectedItem.voice_id || 'voice').replace(/[\/\\:*?"<>|]+/g, ' ').trim()}.srt`;
+                                                    if (selectedItem.srt_content) {
+                                                        downloadSrtFile(selectedItem.srt_content, srtName);
+                                                    } else if (selectedItem.srt_download_url) {
+                                                        window.open(resolveAudioUrl(selectedItem.srt_download_url), '_blank');
+                                                    }
+                                                }}
+                                                className="text-xs text-indigo-700 font-medium flex items-center gap-1 hover:underline"
+                                            >
+                                                <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                                                Tải phụ đề SRT
+                                            </button>
+                                        )}
+                                        <a
+                                            href={resolveAudioUrl(selectedItem.audio_download_url || selectedItem.output_url)}
+                                            download={`${(selectedItem.voice_name || selectedItem.voice_id || 'voice').replace(/[\/\\:*?"<>|]+/g, ' ').trim()}.mp3`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-xs text-violet-700 font-medium flex items-center gap-1 hover:underline"
+                                        >
+                                            <Download className="w-3.5 h-3.5" />
+                                            Tải MP3 về máy
+                                        </a>
+                                    </div>
                                 </div>
-                                <audio controls src={selectedItem.output_url} className="w-full h-9" />
+                                <audio controls src={resolveAudioUrl(selectedItem.audio_play_url || selectedItem.output_url)} className="w-full h-9" />
                             </div>
                         )}
 
