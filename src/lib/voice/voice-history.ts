@@ -21,6 +21,11 @@ export interface VoiceActionHistoryItem {
     voice_name?: string | null;
     input_text?: string | null;
     output_url?: string | null;
+    audio_play_url?: string | null;
+    audio_download_url?: string | null;
+    srt_download_url?: string | null;
+    srt_content?: string | null;
+    has_srt?: boolean;
     characters: number;
     duration_ms: number;
     details?: any;
@@ -76,4 +81,17 @@ export async function fetchVoiceActionHistory(
     }
 
     return res.json();
+}
+
+/**
+ * Chuẩn hóa URL phát/tải audio từ bản ghi lịch sử, đảm bảo trỏ đúng origin của Backend API
+ */
+export function resolveAudioUrl(url?: string | null): string {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) {
+        return url;
+    }
+    const base = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/api$/, '').replace(/\/$/, '');
+    const cleanPath = url.startsWith('/') ? url : `/${url}`;
+    return `${base}${cleanPath}`;
 }

@@ -20,6 +20,7 @@ import {
     X,
     Zap,
     History,
+    FileText,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '@/store/auth-store';
@@ -34,6 +35,8 @@ import { deleteClonedVoice } from '@/lib/voice/delete-voice';
 import { buildConfirmContent, type VoiceAction } from '@/lib/voice/voice-action-confirm';
 import { TTS_LANGUAGES as LANGUAGES, TTS_LANGUAGE_TO_MINIMAX as LANGUAGE_TO_MINIMAX } from '@/lib/voice/tts-languages';
 import { fetchWithAuth } from '@/lib/api-client';
+import { downloadSrtFile, checkDuplicateVoice, type DuplicateCheckResult } from '@/lib/api/voice-tts';
+import ConfirmModal from '@/components/ui/ConfirmModal';
 import { VoiceHistoryTab } from './components/VoiceHistoryTab';
 
 // Trang nạp tiền / gia hạn gói của MiniMax (mở tab mới, cần đăng nhập tài khoản MiniMax công ty)
@@ -490,6 +493,9 @@ export default function CloneVoicePage() {
     const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
     // Tên file tải về, dạng "<tên giọng>_<ngày>_<giờ phút>.mp3" — BE nhận qua ?filename=
     const [downloadName, setDownloadName] = useState<string | null>(null);
+    // File phụ đề .SRT đồng bộ với file audio
+    const [generatedSrtContent, setGeneratedSrtContent] = useState<string | null>(null);
+    const [srtDownloadName, setSrtDownloadName] = useState<string | null>(null);
     // Đơn giá VND / 1000 ký tự (BE trả kèm trong /ai/voice/list; 0 = chưa cấu hình → ẩn phần tiền)
     const [vndPer1kChars, setVndPer1kChars] = useState(0);
 
@@ -510,6 +516,8 @@ export default function CloneVoicePage() {
     const user = useAuthStore((s) => s.user);
     const isAdmin = Boolean(user?.roles?.includes(UserRole.ADMIN));
     const [activeTab, setActiveTab] = useState<'create' | 'history'>('create');
+    const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+    const [duplicateVoiceItem, setDuplicateVoiceItem] = useState<DuplicateCheckResult['existing_item'] | null>(null);
 
     // Hạn mức tạo voice theo ngày (mặc định 8 lượt/ngày, Admin cấp thêm)
     const [quota, setQuota] = useState<{
@@ -785,7 +793,7 @@ export default function CloneVoicePage() {
     };
 
     // Handle TTS generation
-    const handleGenerate = async () => {
+    const handleGenerate = async (skipDuplicateCheck = false) => {
         if (!text.trim()) {
             toast.error('Vui lòng nhập văn bản cần đọc');
             return;
@@ -800,6 +808,20 @@ export default function CloneVoicePage() {
         if (!usable) {
             toast.error('Vui lòng chọn một giọng đã clone (Minimax) trong danh sách, hoặc clone giọng mới trước.');
             return;
+        }
+
+        // Kiểm tra kịch bản trùng lặp để tránh người dùng tạo nhiều lần gây tốn tiền
+        if (!skipDuplicateCheck) {
+            try {
+                const dupCheck = await checkDuplicateVoice(text, selectedVoiceId);
+                if (dupCheck.is_duplicate && dupCheck.existing_item) {
+                    setDuplicateVoiceItem(dupCheck.existing_item);
+                    setShowDuplicateModal(true);
+                    return;
+                }
+            } catch (dupErr) {
+                console.warn('Check duplicate script failed, proceeding:', dupErr);
+            }
         }
 
         setIsGenerating(true);
@@ -848,6 +870,7 @@ export default function CloneVoicePage() {
                 const pad = (n: number) => String(n).padStart(2, '0');
                 const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
                 const fileName = `${voiceName}_${stamp}.mp3`;
+                const srtFileName = `${voiceName}_${stamp}.srt`;
 
                 setGeneratedUrl(proxyUrl ?? data.audio_url);
                 setDownloadUrl(
@@ -856,6 +879,13 @@ export default function CloneVoicePage() {
                         : data.audio_url,
                 );
                 setDownloadName(fileName);
+                if (data.srt_content) {
+                    setGeneratedSrtContent(data.srt_content);
+                    setSrtDownloadName(srtFileName);
+                } else {
+                    setGeneratedSrtContent(null);
+                    setSrtDownloadName(null);
+                }
                 toast.success('Đã tạo giọng nói thành công!', { id: generatingToast });
                 await fetchQuota();
             } else {
@@ -875,39 +905,39 @@ export default function CloneVoicePage() {
             {/* Main content */}
             <div className="max-w-7xl mx-auto px-6 py-8">
 
-                {/* ── Admin Tab Switcher ── */}
-                {isAdmin && (
-                    <div className="flex items-center gap-2 mb-6 p-1.5 bg-gray-200/60 border border-gray-200 rounded-2xl w-fit shadow-xs">
-                        <button
-                            onClick={() => setActiveTab('create')}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
-                                activeTab === 'create'
-                                    ? 'bg-white text-gray-900 shadow-sm'
-                                    : 'text-gray-500 hover:text-gray-900'
-                            }`}
-                        >
-                            <Mic className="w-4 h-4 text-violet-600" />
-                            Tạo & Quản lý Voice
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('history')}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
-                                activeTab === 'history'
-                                    ? 'bg-white text-gray-900 shadow-sm'
-                                    : 'text-gray-500 hover:text-gray-900'
-                            }`}
-                        >
-                            <History className="w-4 h-4 text-violet-600" />
-                            Lịch sử thao tác
+                {/* ── Tab Switcher cho mọi người dùng ── */}
+                <div className="flex items-center gap-2 mb-6 p-1.5 bg-gray-200/60 border border-gray-200 rounded-2xl w-fit shadow-xs">
+                    <button
+                        onClick={() => setActiveTab('create')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+                            activeTab === 'create'
+                                ? 'bg-white text-gray-900 shadow-sm'
+                                : 'text-gray-500 hover:text-gray-900'
+                        }`}
+                    >
+                        <Mic className="w-4 h-4 text-violet-600" />
+                        Tạo & Quản lý Voice
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('history')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+                            activeTab === 'history'
+                                ? 'bg-white text-gray-900 shadow-sm'
+                                : 'text-gray-500 hover:text-gray-900'
+                        }`}
+                    >
+                        <History className="w-4 h-4 text-violet-600" />
+                        {isAdmin ? 'Lịch sử thao tác' : 'Lịch sử tạo Voice'}
+                        {isAdmin && (
                             <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700">
                                 Admin
                             </span>
-                        </button>
-                    </div>
-                )}
+                        )}
+                    </button>
+                </div>
 
                 {activeTab === 'history' ? (
-                    <VoiceHistoryTab />
+                    <VoiceHistoryTab isAdmin={isAdmin} />
                 ) : (
                     <>
                         {/* ── Top Quota Tracker Banner ── */}
@@ -1062,7 +1092,7 @@ export default function CloneVoicePage() {
                             {/* Generate button */}
                             <button
                                 id="generate-voice-btn"
-                                onClick={handleGenerate}
+                                onClick={() => handleGenerate()}
                                 disabled={!text.trim() || isGenerating || (quota !== null && quota.remaining <= 0)}
                                 className={`mt-5 w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl font-semibold text-sm transition-all duration-200
                                     ${text.trim() && !isGenerating && (quota === null || quota.remaining > 0)
@@ -1103,15 +1133,28 @@ export default function CloneVoicePage() {
                                                 <p className="text-[11px] text-gray-500">{downloadName ?? 'minimax_voice.mp3'}</p>
                                             </div>
                                         </div>
-                                        <a
-                                            href={downloadUrl ?? generatedUrl}
-                                            download={downloadName ?? 'minimax_voice.mp3'}
-                                            rel="noreferrer"
-                                            className="w-8 h-8 rounded-lg bg-violet-100 hover:bg-violet-200 flex items-center justify-center transition-colors"
-                                            title="Tải xuống"
-                                        >
-                                            <Download className="w-3.5 h-3.5 text-violet-600" />
-                                        </a>
+                                        <div className="flex items-center gap-2">
+                                            {generatedSrtContent && (
+                                                <button
+                                                    onClick={() => downloadSrtFile(generatedSrtContent, srtDownloadName ?? 'subtitles.srt')}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 text-xs font-medium transition-colors shadow-xs cursor-pointer"
+                                                    title="Tải phụ đề (.SRT) cho CapCut/Premiere"
+                                                >
+                                                    <FileText className="w-3.5 h-3.5 text-emerald-600" />
+                                                    <span>Tải SRT</span>
+                                                </button>
+                                            )}
+                                            <a
+                                                href={downloadUrl ?? generatedUrl}
+                                                download={downloadName ?? 'minimax_voice.mp3'}
+                                                rel="noreferrer"
+                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-100 hover:bg-violet-200 text-violet-700 text-xs font-medium transition-colors"
+                                                title="Tải âm thanh MP3"
+                                            >
+                                                <Download className="w-3.5 h-3.5 text-violet-600" />
+                                                <span>Tải MP3</span>
+                                            </a>
+                                        </div>
                                     </div>
                                     {/* Player nghe trực tiếp trên web — không cần tải về */}
                                     <audio
@@ -1179,6 +1222,49 @@ export default function CloneVoicePage() {
                     }}
                 />
             )}
+
+            {/* Modal cảnh báo kịch bản trùng lặp */}
+            <ConfirmModal
+                isOpen={showDuplicateModal}
+                onClose={() => setShowDuplicateModal(false)}
+                onConfirm={() => {
+                    setShowDuplicateModal(false);
+                    handleGenerate(true);
+                }}
+                title="Kịch bản này đã từng được tạo voice!"
+                description={
+                    <div className="space-y-3 text-xs text-gray-600">
+                        <p>
+                            Bạn đã từng tạo voice với nội dung kịch bản này vào lúc{' '}
+                            <strong className="text-gray-900 font-semibold">
+                                {duplicateVoiceItem?.created_at ? new Date(duplicateVoiceItem.created_at).toLocaleString('vi-VN') : ''}
+                            </strong>
+                            {duplicateVoiceItem?.voice_name && (
+                                <> (Giọng: <strong className="text-violet-700">{duplicateVoiceItem.voice_name}</strong>)</>
+                            )}.
+                        </p>
+                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 space-y-2">
+                            <div>
+                                💡 <strong>Tiết kiệm chi phí:</strong> Bạn có thể mở tab <strong>&ldquo;Lịch sử tạo Voice&rdquo;</strong> để nghe và tải lại file âm thanh (.MP3) cũng như phụ đề (.SRT) đã lưu mà không tốn thêm chi phí!
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowDuplicateModal(false);
+                                    setActiveTab('history');
+                                }}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white font-semibold text-xs rounded-lg transition-colors shadow-xs"
+                            >
+                                <History className="w-3.5 h-3.5" />
+                                Mở Lịch sử tạo Voice ngay
+                            </button>
+                        </div>
+                    </div>
+                }
+                confirmText="Vẫn muốn tạo mới"
+                cancelText="Đóng"
+                variant="primary"
+            />
         </div>
     );
 }
