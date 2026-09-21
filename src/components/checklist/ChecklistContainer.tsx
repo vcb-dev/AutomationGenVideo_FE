@@ -243,8 +243,8 @@ const ChecklistContainer = ({
                 const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
                 const base = apiBase.replace(/\/$/, '');
                 const url = base.endsWith('/api')
-                    ? `${base}/lark/user-permission?email=${encodeURIComponent(user.email)}`
-                    : `${base}/api/lark/user-permission?email=${encodeURIComponent(user.email)}`;
+                    ? `${base}/work-report/user-permission?email=${encodeURIComponent(user.email)}`
+                    : `${base}/api/work-report/user-permission?email=${encodeURIComponent(user.email)}`;
 
                 const response = await fetchWithAuth(url);
                 if (response.ok) {
@@ -287,7 +287,7 @@ const ChecklistContainer = ({
 
             try {
                 const beBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
-                const url = `${beBaseUrl}/lark/user-report-details?email=${encodeURIComponent(user.email)}&date=${reportDate}&_t=${Date.now()}`;
+                const url = `${beBaseUrl}/work-report/user-report-details?email=${encodeURIComponent(user.email)}&date=${reportDate}&_t=${Date.now()}`;
 
                 const response = await fetchWithAuth(url, { cache: 'no-store' });
                 if (response.ok) {
@@ -823,7 +823,7 @@ const ChecklistContainer = ({
                 // Checklist API được chuyển sang NestJS BE (NEXT_PUBLIC_API_URL) thay vì Django AI
                 // NestJS ghi thẳng vào lüc_reports qua Prisma → đúng DB server luôn
                 const beBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
-                const url = `${beBaseUrl}/lark/checklist-report`;
+                const url = `${beBaseUrl}/work-report/checklist-report`;
                 const response = await fetchWithAuth(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -850,7 +850,7 @@ const ChecklistContainer = ({
             const hasTrafficData = Object.values(traffic).some(val => val !== '');
             if (hasTrafficData && !showOnlyWork) {
                 const beBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
-                const trafficRes = await fetchWithAuth(`${beBaseUrl}/lark/traffic-report`, {
+                const trafficRes = await fetchWithAuth(`${beBaseUrl}/work-report/traffic-report`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -906,7 +906,7 @@ const ChecklistContainer = ({
                 const hasRevenueData = Object.values(revenue).some(val => val !== '');
                 let revenueRes: Response | null = null;
                 if (hasRevenueData) {
-                    revenueRes = await fetchWithAuth(`${beBaseUrl}/lark/revenue-report`, {
+                    revenueRes = await fetchWithAuth(`${beBaseUrl}/work-report/revenue-report`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
