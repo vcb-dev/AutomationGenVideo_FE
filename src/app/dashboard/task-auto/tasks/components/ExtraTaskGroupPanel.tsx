@@ -14,6 +14,7 @@ import { isOverdue } from '@/components/task-auto/helpers'
 import { SubmitModal, RejectModal } from './TaskModals'
 import { Task } from '@/types/task-auto'
 import { approveTask, getTasks, startTask } from '@/lib/api/task-auto'
+import { useBackdropClose } from '@/hooks/useBackdropClose'
 
 interface Props {
   assigneeId: string
@@ -25,6 +26,7 @@ interface Props {
 
 export function ExtraTaskGroupPanel({ assigneeId, deadlineDate, onClose, userRoles, currentUserId }: Props) {
   useScrollLock()
+  const backdrop = useBackdropClose(onClose)
   const qc = useQueryClient()
   const [submitTask, setSubmitTask]   = useState<Task | null>(null)
   const [rejectTask, setRejectTask]   = useState<Task | null>(null)
@@ -67,9 +69,10 @@ export function ExtraTaskGroupPanel({ assigneeId, deadlineDate, onClose, userRol
 
   return (
     <>
-      <div className="fixed inset-0 z-[1001] bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 z-[1001] bg-black/50 backdrop-blur-sm" />
 
-      <div className="fixed inset-0 z-[1002] flex items-center justify-center p-4 sm:p-6">
+      {/* Lớp này cũng inset-0 nên phủ kín backdrop — click ra ngoài phải bắt ở đây */}
+      <div className="fixed inset-0 z-[1002] flex items-center justify-center p-4 sm:p-6" {...backdrop}>
         <div className="relative w-full max-w-2xl max-h-[88vh] bg-gray-50 rounded-2xl shadow-2xl flex flex-col overflow-hidden ring-1 ring-black/8">
 
           {/* Header */}
