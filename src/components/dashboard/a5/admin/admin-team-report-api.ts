@@ -27,6 +27,7 @@ export interface AdminTeamReport {
   scope: "single_team" | "all_teams";
   team: { id: string; name: string; member_count: number } | null;
   rows: AdminTeamReportRow[];
+  total_orders?: number;
   video_by_line: { line: string; count: number }[];
   /** Số video (task đã duyệt) trong kỳ, gộp theo dòng sản phẩm (GMV/Traffic/Profit). */
   product_by_category: { category: string; count: number }[];

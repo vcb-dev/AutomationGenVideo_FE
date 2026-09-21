@@ -3,7 +3,7 @@
 import Image from "next/image";
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Target, Globe, Video, TrendingUp, DollarSign, Tv2, Flame, CheckCircle2 } from 'lucide-react';
+import { Target, Globe, Video, TrendingUp, DollarSign, Tv2, Flame, CheckCircle2, Package } from 'lucide-react';
 
 interface ActivityKPIsProps {
     summary?: {
@@ -14,11 +14,12 @@ interface ActivityKPIsProps {
         totalRevenueTarget: number;
         totalRevenueCompleted: number;
         totalChannels: number;
+        totalOrders?: number;
     };
     teamContributions?: any[];
     groupContributions?: {
-        global: { videos: number; traffic: number; revenue: number; channels: number; videoPct: number; trafficPct: number; revenuePct: number; channelPct: number };
-        vn: { videos: number; traffic: number; revenue: number; channels: number; videoPct: number; trafficPct: number; revenuePct: number; channelPct: number };
+        global: { videos: number; traffic: number; revenue: number; channels: number; orders?: number; videoPct: number; trafficPct: number; revenuePct: number; channelPct: number; orderPct?: number };
+        vn: { videos: number; traffic: number; revenue: number; channels: number; orders?: number; videoPct: number; trafficPct: number; revenuePct: number; channelPct: number; orderPct?: number };
     } | null;
 }
 
@@ -42,7 +43,8 @@ const ActivityKPIs = ({ summary, teamContributions, groupContributions }: Activi
             accent: 'blue',
             groupKey: 'videos',
             pctKey: 'videoPct',
-            isChannel: false,
+            isCountOnly: false,
+            showRegionPct: true,
         },
         {
             title: 'Tổng traffic',
@@ -54,7 +56,8 @@ const ActivityKPIs = ({ summary, teamContributions, groupContributions }: Activi
             accent: 'violet',
             groupKey: 'traffic',
             pctKey: 'trafficPct',
-            isChannel: false,
+            isCountOnly: false,
+            showRegionPct: true,
         },
         {
             title: 'Doanh thu',
@@ -66,7 +69,8 @@ const ActivityKPIs = ({ summary, teamContributions, groupContributions }: Activi
             accent: 'emerald',
             groupKey: 'revenue',
             pctKey: 'revenuePct',
-            isChannel: false,
+            isCountOnly: false,
+            showRegionPct: true,
         },
         {
             title: 'Kênh hoạt động',
@@ -78,11 +82,25 @@ const ActivityKPIs = ({ summary, teamContributions, groupContributions }: Activi
             accent: 'orange',
             groupKey: 'channels',
             pctKey: 'channelPct',
-            isChannel: true,
+            isCountOnly: true,
+            showRegionPct: false,
+        },
+        {
+            title: 'Tổng số đơn',
+            value: formatNumber(summary?.totalOrders || 0),
+            target: null,
+            targetUnit: 'đơn',
+            percentage: 100,
+            icon: Package,
+            accent: 'amber',
+            groupKey: 'orders',
+            pctKey: 'orderPct',
+            isCountOnly: true,
+            showRegionPct: true,
         },
     ];
 
-    type AccentKey = 'blue' | 'violet' | 'emerald' | 'orange';
+    type AccentKey = 'blue' | 'violet' | 'emerald' | 'orange' | 'amber';
 
     const accentMap: Record<AccentKey, {
         gradient: string;
@@ -139,6 +157,17 @@ const ActivityKPIs = ({ summary, teamContributions, groupContributions }: Activi
             cardBg: 'from-orange-50/40 to-white',
             cardBorder: 'border-orange-100',
         },
+        amber: {
+            gradient: 'from-amber-500 to-amber-600',
+            iconBg: 'bg-amber-50 border-amber-100',
+            iconColor: 'text-amber-500',
+            ringTrack: '#fef3c7',
+            ringFill: '#f59e0b',
+            barBg: 'bg-amber-100',
+            barFill: 'bg-gradient-to-r from-amber-400 to-amber-600',
+            cardBg: 'from-amber-50/40 to-white',
+            cardBorder: 'border-amber-100',
+        },
     };
 
     const hasAnyKpi =
@@ -148,10 +177,11 @@ const ActivityKPIs = ({ summary, teamContributions, groupContributions }: Activi
         (summary?.totalTrafficCompleted || 0) +
         (summary?.totalRevenueTarget || 0) +
         (summary?.totalRevenueCompleted || 0) +
-        (summary?.totalChannels || 0) > 0;
+        (summary?.totalChannels || 0) +
+        (summary?.totalOrders || 0) > 0;
 
     return (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
             {kpis.map((kpi, idx) => {
                 const a = accentMap[kpi.accent as AccentKey];
                 const Icon = kpi.icon;
@@ -192,7 +222,7 @@ const ActivityKPIs = ({ summary, teamContributions, groupContributions }: Activi
                                 </div>
 
                                 {/* Status badge */}
-                                {!kpi.isChannel && (
+                                {!kpi.isCountOnly && (
                                     isDone ? (
                                         <span className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full border bg-emerald-50 border-emerald-200 text-emerald-600">
                                             <CheckCircle2 className="w-3 h-3" /> DONE
@@ -215,7 +245,7 @@ const ActivityKPIs = ({ summary, teamContributions, groupContributions }: Activi
                                     <p className="text-[30px] font-extrabold text-slate-900 leading-none tracking-tight tabular-nums truncate">
                                         {kpi.value}
                                     </p>
-                                    <div className={`mt-2 flex items-center gap-1 ${kpi.isChannel ? 'invisible' : ''}`}>
+                                    <div className={`mt-2 flex items-center gap-1 ${kpi.isCountOnly ? 'invisible' : ''}`}>
                                         <Target className="w-3 h-3 text-slate-400 flex-shrink-0" />
                                         <p className="text-[11px] text-slate-400 leading-tight">
                                             Mục tiêu:&nbsp;
@@ -227,7 +257,7 @@ const ActivityKPIs = ({ summary, teamContributions, groupContributions }: Activi
                                 </div>
 
                                 {/* Ring with % inside */}
-                                <div className={`flex-shrink-0 ${kpi.isChannel ? 'invisible' : ''}`}>
+                                <div className={`flex-shrink-0 ${kpi.isCountOnly ? 'invisible' : ''}`}>
                                     <svg width="64" height="64" viewBox="0 0 64 64">
                                         <circle
                                             cx="32" cy="32" r={ringR}
@@ -261,7 +291,7 @@ const ActivityKPIs = ({ summary, teamContributions, groupContributions }: Activi
 
                             {/* Progress bar */}
                             <div className="px-5 pb-4">
-                                {kpi.isChannel ? (
+                                {kpi.isCountOnly ? (
                                     <div className="h-2" />
                                 ) : (
                                     <div className={`w-full h-2 rounded-full ${a.barBg} overflow-hidden shadow-inner`}>
@@ -286,7 +316,7 @@ const ActivityKPIs = ({ summary, teamContributions, groupContributions }: Activi
                                     <p className="text-[16px] font-bold text-slate-800 leading-none tabular-nums">
                                         {formatNumber(globalVal)}
                                     </p>
-                                    <p className={`text-[10px] font-semibold text-amber-500 leading-none ${kpi.isChannel ? 'invisible' : ''}`}>
+                                    <p className={`text-[10px] font-semibold text-amber-500 leading-none ${!kpi.showRegionPct ? 'invisible' : ''}`}>
                                         {globalPct}%
                                     </p>
                                 </div>
@@ -302,7 +332,7 @@ const ActivityKPIs = ({ summary, teamContributions, groupContributions }: Activi
                                     <p className="text-[16px] font-bold text-slate-800 leading-none tabular-nums">
                                         {formatNumber(vnVal)}
                                     </p>
-                                    <p className={`text-[10px] font-semibold text-blue-500 leading-none ${kpi.isChannel ? 'invisible' : ''}`}>
+                                    <p className={`text-[10px] font-semibold text-blue-500 leading-none ${!kpi.showRegionPct ? 'invisible' : ''}`}>
                                         {vnPct}%
                                     </p>
                                 </div>
