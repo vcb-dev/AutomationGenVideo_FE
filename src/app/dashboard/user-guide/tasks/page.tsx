@@ -391,7 +391,7 @@ export default function NhiemVuGuidePage() {
             <ul className="list-disc pl-5 space-y-1.5">
               <li><strong>Admin/Manager</strong> — nhìn toàn hệ thống: tỷ lệ hoàn thành, phân bố trạng thái, số liệu editor chờ duyệt.</li>
               <li><strong>Leader (team sản xuất)</strong> — hiệu suất team, KPI team theo tháng, bảng KPI từng thành viên.</li>
-              <li><strong>Member/Editor</strong> — bảng tin cá nhân: việc quá hạn, đến hạn hôm nay, tiến độ hôm nay, KPI cá nhân theo tháng.</li>
+              <li><strong>Member/Editor</strong> — bảng tin cá nhân: việc quá hạn, đến hạn hôm nay, tiến độ hôm nay, KPI cá nhân theo tháng và bảng <strong>Kế hoạch từng ngày</strong> ở cuối trang, cạnh Content Win/Fail. Bảng chia số video KPI còn thiếu theo từng ngày và từng tuyến A1–A5; Chủ nhật hiển thị là ngày nghỉ, phần dư được ưu tiên cho ngày gần nhất.</li>
               <li><strong>Content Creator</strong> — số liệu sưu tầm content/bản dịch, video được sản xuất từ content của mình.</li>
               <li><strong>Leader Content Team</strong> — hiệu suất cả team content creator.</li>
             </ul>
