@@ -230,7 +230,7 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
             const formData = new FormData();
             files.forEach(f => formData.append('files', f));
 
-            const res = await fetchWithAuth(`${beBaseUrl}/lark/upload-evidence`, {
+            const res = await fetchWithAuth(`${beBaseUrl}/work-report/upload-evidence`, {
                 method: 'POST',
                 body: formData,
             });

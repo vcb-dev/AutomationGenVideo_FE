@@ -1,4 +1,4 @@
-/** Team thật (task-auto Team/TeamMember) — không còn mock. Dữ liệu lấy từ GET /lark/dashboard-5a. */
+/** Team thật (task-auto Team/TeamMember) — không còn mock. Dữ liệu lấy từ GET /work-report/dashboard-5a. */
 
 /** ID lọc team trên UI: "all" hoặc TÊN team thật (Team.name — dùng trực tiếp làm query param `team`). */
 export type AdminTeamRegionId = string;

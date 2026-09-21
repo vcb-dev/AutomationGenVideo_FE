@@ -236,7 +236,7 @@ export function useActivityData({
             if (debouncedFilter.timeType) params.append("timeType", debouncedFilter.timeType);
 
             const apiBase = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api").replace(/\/$/, '');
-            const url = `${apiBase}/lark/user-activity?${params.toString()}`;
+            const url = `${apiBase}/work-report/user-activity?${params.toString()}`;
             const response = await fetchWithAuth(url, { cache: "no-store", signal });
             if (!response.ok) throw new Error("Failed to fetch user activity reports");
             let data = await response.json();
@@ -250,7 +250,7 @@ export function useActivityData({
             if (isSuspiciousEmptyFirstLoad) {
                 try {
                     await fetchWithAuth(
-                        `${apiBase}/lark/clear-activity-cache`,
+                        `${apiBase}/work-report/clear-activity-cache`,
                         { method: "POST", cache: "no-store", signal },
                     );
                     const retryResponse = await fetchWithAuth(url, { cache: "no-store", signal });
@@ -284,7 +284,7 @@ export function useActivityData({
                 params.append("name", debouncedSearchName);
             }
             const apiBase = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api").replace(/\/$/, '');
-            const url = `${apiBase}/lark/personal-history?${params.toString()}`;
+            const url = `${apiBase}/work-report/personal-history?${params.toString()}`;
             const response = await fetchWithAuth(url, { cache: "no-store", signal });
             if (!response.ok) throw new Error("Failed to fetch personal history");
             return await response.json();
@@ -344,7 +344,7 @@ export function useActivityData({
         try {
             const apiBase = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api").replace(/\/$/, '');
             const response = await fetchWithAuth(
-                `${apiBase}/lark/update-outstanding-status`,
+                `${apiBase}/work-report/update-outstanding-status`,
                 {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },

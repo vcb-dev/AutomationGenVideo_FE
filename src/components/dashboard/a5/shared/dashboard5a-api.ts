@@ -58,7 +58,7 @@ export function useDashboard5A(params: Dashboard5AParams, options?: { enabled?: 
   return useQuery({
     queryKey: ["dashboard5A", params.startDate, params.endDate, params.team],
     queryFn: async ({ signal }) => {
-      const { data } = await apiClient.get<Dashboard5AResponse>("/lark/dashboard-5a", {
+      const { data } = await apiClient.get<Dashboard5AResponse>("/work-report/dashboard-5a", {
         params: {
           startDate: params.startDate,
           endDate: params.endDate,

@@ -37,7 +37,7 @@ const DashboardAnalytics = ({ startDate, endDate, activeTeam }: DashboardAnalyti
             if (endStr)   params.append('endDate',   endStr);
             if (activeTeam !== 'All') params.append('team', activeTeam);
 
-            const url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api'}/lark/dashboard-analytics?${params.toString()}`;
+            const url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api'}/work-report/dashboard-analytics?${params.toString()}`;
             const response = await fetchWithAuth(url, { signal });
             if (!response.ok) throw new Error('Failed to fetch dashboard analytics');
             return await response.json();
