@@ -378,7 +378,7 @@ export default function InstagramChannelsPage() {
               key={p.id}
               profile={p}
               channelInfo={getIgChannelInfo(p)}
-              onScrape={() => rescrape.mutate({ id: p.id, username: p.username })}
+              onScrape={canManageChannels ? () => rescrape.mutate({ id: p.id, username: p.username }) : undefined}
               onToggleBookmark={() => toggleMutation.mutate({ id: p.id, field: 'is_bookmarked' })}
               onToggleTracked={() => toggleMutation.mutate({ id: p.id, field: 'is_tracked' })}
               onToggleOwned={canManageChannels ? () => toggleMutation.mutate({ id: p.id, field: 'is_owned' }) : undefined}

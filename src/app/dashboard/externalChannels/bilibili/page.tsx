@@ -13,7 +13,7 @@ import FilterSelect from '../components/FilterSelect';
 import { DatePicker } from '@/components/ui/DatePicker';
 import KeywordTranslateHint from '../components/KeywordTranslateHint';
 import { useAuthStore } from '@/store/auth-store';
-import { scraperService } from '@/services/scraperService';
+import { scraperService, BilibiliProfile } from '@/services/scraperService';
 import { useScrapingStore } from '@/store/scraping-store';
 import { useProfileScrapeNotification } from '@/hooks/useProfileScrapeNotification';
 import { UserRole } from '@/types/auth';
@@ -21,6 +21,9 @@ import { dedupeById } from '@/lib/dedupe-pages';
 import SyncAllChannelsButton from '../components/SyncAllChannelsButton';
 import { buildDeleteChannelConfirm } from '@/lib/scrape/delete-channel';
 import WatchFeedButton from '../components/WatchFeedButton';
+import ChannelClassificationFilterBar from '../components/ChannelClassificationFilterBar';
+import ChannelClassificationModal from '../components/ChannelClassificationModal';
+import ConfirmModal from '../components/ConfirmModal';
 
 type Tab = 'videos' | 'profiles';
 
@@ -30,6 +33,7 @@ export default function BilibiliExternalPage() {
   const { token, user } = useAuthStore();
   const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
   const queryClient = useQueryClient();
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; name: string; videoCount: number } | null>(null);
 
   // Xoá cứng kênh: BE xoá kèm toàn bộ video/lịch sử, không hoàn tác được. Hộp xác nhận
   // phải nói số video sắp mất — trên thẻ thì kênh 300 video trông y hệt kênh rỗng.
@@ -40,6 +44,7 @@ export default function BilibiliExternalPage() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['bilibili-profiles'] });
+      setDeleteConfirm(null);
       toast.success(
         data.videos_deleted > 0
           ? `Đã xoá ${data.name} và ${data.videos_deleted.toLocaleString('vi-VN')} video`
@@ -50,8 +55,7 @@ export default function BilibiliExternalPage() {
   });
 
   const handleDeleteChannel = (id: number, name: string, videoCount: number) => {
-    if (!window.confirm(buildDeleteChannelConfirm({ name, videoCount }))) return;
-    deleteChannelMutation.mutate(id);
+    setDeleteConfirm({ id, name, videoCount });
   };
   const router = useRouter();
   const { addNotification, updateNotification } = useScrapingStore();
@@ -66,6 +70,16 @@ export default function BilibiliExternalPage() {
   const [profilePage, setProfilePage] = useState(1);
   const [profileSortBy, setProfileSortBy] = useState<'followers' | 'recent'>('followers');
   const [profileTab, setProfileTab] = useState<'all' | 'periodic' | 'bookmarked'>('all');
+  const [channelTypeTab, setChannelTypeTab] = useState<'all' | 'product' | 'content'>('all');
+  const [selectedProductLine, setSelectedProductLine] = useState<string>('all');
+  const [classifyingProfile, setClassifyingProfile] = useState<BilibiliProfile | null>(null);
+
+  const { data: availableTags = [], refetch: refetchTags } = useQuery({
+    queryKey: ['scraper-channel-tags'],
+    queryFn: () => scraperService.getChannelTags(token!),
+    enabled: !!token,
+  });
+
   const profileSearchTimer = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
@@ -73,8 +87,14 @@ export default function BilibiliExternalPage() {
     return () => clearTimeout(profileSearchTimer.current);
   }, [profileSearch]);
 
-  const hasProfileFilters = !!profileSearch || profileSortBy !== 'followers' || profileTab !== 'all';
-  const clearProfileFilters = () => { setProfileSearch(''); setProfileSortBy('followers'); setProfileTab('all'); };
+  const hasProfileFilters = !!profileSearch || profileSortBy !== 'followers' || profileTab !== 'all' || channelTypeTab !== 'all' || selectedProductLine !== 'all';
+  const clearProfileFilters = () => {
+    setProfileSearch('');
+    setProfileSortBy('followers');
+    setProfileTab('all');
+    setChannelTypeTab('all');
+    setSelectedProductLine('all');
+  };
 
   // ─── Search state ─────────────────────────────────────
   const [keyword, setKeyword] = useState('');
@@ -235,12 +255,14 @@ export default function BilibiliExternalPage() {
 
   // ─── Profiles Query (paginated) ──────────────────────
   const profilesQuery = useQuery({
-    queryKey: ['bilibili-profiles', profilePage, debouncedProfileSearch, profileSortBy, profileTab],
+    queryKey: ['bilibili-profiles', profilePage, debouncedProfileSearch, profileSortBy, profileTab, channelTypeTab, selectedProductLine],
     queryFn: () => token ? scraperService.getBilibiliProfiles(token, {
       page: profilePage, page_size: PAGE_SIZE_PROFILES, search: debouncedProfileSearch || undefined,
       sort_by: profileSortBy,
       tracked: profileTab === 'periodic' ? 'true' : undefined,
       bookmarked: profileTab === 'bookmarked' ? 'true' : undefined,
+      channel_type: channelTypeTab === 'all' ? undefined : channelTypeTab,
+      product_line: selectedProductLine === 'all' ? undefined : selectedProductLine,
     }) : Promise.reject('No token'),
     enabled: !!token && activeTab === 'profiles',
     refetchInterval: (query) => {
@@ -556,6 +578,23 @@ export default function BilibiliExternalPage() {
             </div>
           )}
 
+          {/* 2-tier Classification Filter Bar */}
+          <ChannelClassificationFilterBar
+            channelType={channelTypeTab}
+            onChannelTypeChange={(type) => {
+              setChannelTypeTab(type);
+              setProfilePage(1);
+            }}
+            productLine={selectedProductLine}
+            onProductLineChange={(line) => {
+              setSelectedProductLine(line);
+              setProfilePage(1);
+            }}
+            availableTags={availableTags}
+            onRefreshTags={refetchTags}
+            canManageChannels={canManageChannels}
+          />
+
           {/* Filter bar: Tabs + Search + Sort + Sync button */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border border-border rounded-xl p-4">
             {/* Filter Tabs: Tất cả | Kênh chú ý | Đã lưu */}
@@ -665,6 +704,7 @@ export default function BilibiliExternalPage() {
                   onToggleBookmark={() => profileToggleMutation.mutate({ id: p.id, field: 'is_bookmarked' })}
                   onToggleTracked={canManageChannels ? () => profileToggleMutation.mutate({ id: p.id, field: 'is_tracked' }) : undefined}
                   onViewDetail={() => router.push(`/dashboard/externalChannels/bilibili/${p.id}`)}
+                  onEditClassification={canManageChannels ? () => setClassifyingProfile(p) : undefined}
                   onDelete={canManageChannels ? () => handleDeleteChannel(p.id, p.nickname || p.username, p.videos_count ?? 0) : undefined}
                 />
               ))}
@@ -685,6 +725,40 @@ export default function BilibiliExternalPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* Classification Modal */}
+      {classifyingProfile && (
+        <ChannelClassificationModal
+          isOpen={true}
+          onClose={() => setClassifyingProfile(null)}
+          channel={{
+            id: classifyingProfile.id,
+            name: classifyingProfile.nickname || classifyingProfile.username,
+            avatar_url: classifyingProfile.avatar_url,
+            channel_type: classifyingProfile.channel_type,
+            product_lines: classifyingProfile.product_lines,
+          }}
+          platform="bilibili"
+          onSaved={() => {
+            queryClient.invalidateQueries({ queryKey: ['bilibili-profiles'] });
+          }}
+        />
+      )}
+
+      {/* Confirm Hard Delete Modal */}
+      {deleteConfirm && (
+        <ConfirmModal
+          isOpen={true}
+          title="Xác nhận xoá kênh"
+          description={buildDeleteChannelConfirm({ name: deleteConfirm.name, videoCount: deleteConfirm.videoCount })}
+          confirmText="Xoá vĩnh viễn"
+          cancelText="Huỷ"
+          variant="danger"
+          isLoading={deleteChannelMutation.isPending}
+          onConfirm={() => deleteChannelMutation.mutate(deleteConfirm.id)}
+          onClose={() => setDeleteConfirm(null)}
+        />
       )}
     </div>
   );

@@ -12,12 +12,15 @@ import {
   ArrowsClockwise,
   ArrowSquareOut,
   CheckCircle,
+  Buildings,
 } from '@phosphor-icons/react';
 import { SiThreads } from 'react-icons/si';
 import toast from 'react-hot-toast';
 
 import { useAuthStore } from '@/store/auth-store';
+import { UserRole } from '@/types/auth';
 import { scraperService, ExternalVideo } from '@/services/scraperService';
+import { channelsService, ChannelInfo } from '@/services/channelsService';
 import ContentFilters from '../components/ContentFilters';
 import { FilterDateRange, FilterNumber, FilterReset, FilterSearch, FilterSelect } from '../components/FilterFields';
 
@@ -124,7 +127,10 @@ function PostCard({ post: v }: { post: ExternalVideo }) {
 }
 
 export default function ThreadsChannelsPage() {
-  const { token } = useAuthStore();
+  const { token, user } = useAuthStore();
+  // Đồng bộ Threads là thao tác quản lý (BE chỉ cho ADMIN/LEADER) — ẩn nút để member không bấm
+  // vào rồi nhận 403 mà không hiểu vì sao.
+  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
   const queryClient = useQueryClient();
 
   // ── Profiles ─────────────────────────────────────────
@@ -136,6 +142,32 @@ export default function ThreadsChannelsPage() {
   });
 
   const profiles = profilesQuery.data || [];
+
+  const [channelInfoMap, setChannelInfoMap] = useState<Record<string, ChannelInfo>>({});
+  const profileKey = profiles.map((p: any) => p.id).join(',');
+  useEffect(() => {
+    if (!profiles.length) return;
+    const identifiers = profiles.flatMap((p: any) => [
+      p.url,
+      `https://www.threads.net/@${p.username}`,
+      `https://threads.net/@${p.username}`,
+      p.username,
+      p.name,
+    ].filter(Boolean));
+    channelsService.scraperLookup(identifiers).then(setChannelInfoMap);
+  }, [profileKey]);
+
+  const getThreadsChannelInfo = (p: any): ChannelInfo => {
+    const keys = [
+      p.url,
+      `https://www.threads.net/@${p.username}`,
+      `https://threads.net/@${p.username}`,
+      p.username,
+      p.name,
+    ].filter(Boolean) as string[];
+    for (const k of keys) if (channelInfoMap[k]) return channelInfoMap[k];
+    return { team_name: null, owner_name: null };
+  };
 
   const syncMutation = useMutation({
     mutationFn: () => {
@@ -256,18 +288,20 @@ export default function ThreadsChannelsPage() {
             </div>
           </div>
 
-          <button
-            onClick={() => syncMutation.mutate()}
-            disabled={syncMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 text-xs font-semibold bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50"
-          >
-            {syncMutation.isPending ? (
-              <CircleNotch size={14} className="animate-spin" />
-            ) : (
-              <ArrowsClockwise size={14} />
-            )}
-            {syncMutation.isPending ? 'Đang đồng bộ...' : 'Đồng bộ bài viết & Views'}
-          </button>
+          {canManageChannels && (
+            <button
+              onClick={() => syncMutation.mutate()}
+              disabled={syncMutation.isPending}
+              className="flex items-center gap-2 px-4 py-2 text-xs font-semibold bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              {syncMutation.isPending ? (
+                <CircleNotch size={14} className="animate-spin" />
+              ) : (
+                <ArrowsClockwise size={14} />
+              )}
+              {syncMutation.isPending ? 'Đang đồng bộ...' : 'Đồng bộ bài viết & Views'}
+            </button>
+          )}
         </div>
 
         {profilesQuery.isLoading ? (
@@ -284,55 +318,101 @@ export default function ThreadsChannelsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-            {profiles.map((p: any) => (
-              <div
-                key={p.id}
-                className="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-800/60 border border-border rounded-xl"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  {p.avatar_url ? (
-                    <img
-                      src={proxyImg(p.avatar_url)}
-                      alt=""
-                      className="w-10 h-10 rounded-full object-cover border border-border flex-shrink-0"
-                      referrerPolicy="no-referrer"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                      <UserCircle size={24} className="text-slate-500" />
+            {profiles.map((p: any) => {
+              const channelInfo = getThreadsChannelInfo(p);
+              return (
+                <div
+                  key={p.id}
+                  className="flex flex-col bg-slate-50 dark:bg-slate-800/60 border border-border rounded-xl overflow-hidden"
+                >
+                  {/* Status badges */}
+                  {(p.scraping_status === 'processing' || p.scrape_error) && (
+                    <div className="flex items-center gap-1.5 px-3.5 pt-2.5 pb-0">
+                      {p.scraping_status === 'processing' && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded text-xs font-medium">
+                          <CircleNotch size={10} weight="bold" className="animate-spin" /> Đang cào
+                        </span>
+                      )}
+                      {p.scraping_status !== 'processing' && p.scrape_error && (
+                        <span
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded text-xs font-medium max-w-full"
+                          title={p.scrape_error}
+                        >
+                          <Warning size={10} weight="bold" /> <span className="truncate">Cào lỗi</span>
+                        </span>
+                      )}
                     </div>
                   )}
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-sm font-semibold text-foreground truncate">
-                        {p.name || p.username}
-                      </span>
-                      {p.is_verified && <CheckCircle size={14} className="text-blue-500 flex-shrink-0" weight="fill" />}
-                    </div>
-                    <p className="text-xs text-slate-500 truncate">@{p.username}</p>
-                    <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-400">
-                      <span>{p.posts_count ?? 0} bài viết</span>
-                      {p.last_scraped_at && (
-                        <span>• Đồng bộ {relativeTime(p.last_scraped_at)}</span>
+
+                  <div className="flex items-center justify-between p-3.5 pb-2">
+                    <div className="flex items-center gap-3 min-w-0">
+                      {p.avatar_url ? (
+                        <img
+                          src={proxyImg(p.avatar_url)}
+                          alt=""
+                          className="w-10 h-10 rounded-full object-cover border border-border flex-shrink-0"
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
+                          <UserCircle size={24} className="text-slate-500" />
+                        </div>
                       )}
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm font-semibold text-foreground truncate">
+                            {p.name || p.username}
+                          </span>
+                          {p.is_verified && <CheckCircle size={14} className="text-blue-500 flex-shrink-0" weight="fill" />}
+                        </div>
+                        <p className="text-xs text-slate-500 truncate">@{p.username}</p>
+                        <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-400">
+                          <span>{p.posts_count ?? 0} bài viết</span>
+                          {p.last_scraped_at && (
+                            <span>• Đồng bộ {relativeTime(p.last_scraped_at)}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <a
+                      href={p.url || `https://www.threads.net/@${p.username}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2 text-slate-400 hover:text-foreground hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors flex-shrink-0"
+                      title="Mở trên Threads"
+                    >
+                      <ArrowSquareOut size={16} />
+                    </a>
+                  </div>
+
+                  {/* Team / Owner */}
+                  <div className="grid grid-cols-2 gap-x-3 px-3.5 py-2 border-t border-border/50 bg-slate-100/50 dark:bg-slate-800/30 mt-auto">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1 text-slate-400 mb-0.5">
+                        <Buildings size={10} />
+                        <span className="text-[10px] uppercase tracking-wide">Team</span>
+                      </div>
+                      <p className={`text-xs truncate ${channelInfo.team_name ? 'font-medium text-foreground' : 'italic text-slate-400'}`}>
+                        {channelInfo.team_name ?? 'Chưa có dữ liệu'}
+                      </p>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1 text-slate-400 mb-0.5">
+                        <UserCircle size={10} />
+                        <span className="text-[10px] uppercase tracking-wide">Chủ kênh</span>
+                      </div>
+                      <p className={`text-xs truncate ${channelInfo.owner_name ? 'font-medium text-foreground' : 'italic text-slate-400'}`}>
+                        {channelInfo.owner_name ?? 'Chưa có dữ liệu'}
+                      </p>
                     </div>
                   </div>
                 </div>
-
-                <a
-                  href={p.url || `https://www.threads.net/@${p.username}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="p-2 text-slate-400 hover:text-foreground hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors flex-shrink-0"
-                  title="Mở trên Threads"
-                >
-                  <ArrowSquareOut size={16} />
-                </a>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

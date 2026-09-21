@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { X, Check, Tag, ShoppingBag, Sparkle, Plus, CircleNotch } from '@phosphor-icons/react';
 import toast from 'react-hot-toast';
+import { useQuery } from '@tanstack/react-query';
 import { scraperService, ScrapedFanpage, ScraperChannelTag } from '@/services/scraperService';
 import { useAuthStore } from '@/store/auth-store';
 import AddTagModal from './AddTagModal';
@@ -10,19 +11,31 @@ import AddTagModal from './AddTagModal';
 interface ChannelClassificationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  fanpage: ScrapedFanpage;
-  availableTags: ScraperChannelTag[];
+  fanpage?: ScrapedFanpage;
+  channel?: {
+    id: number;
+    name: string;
+    avatar_url?: string;
+    channel_type?: 'product' | 'content';
+    product_lines?: string[];
+  };
+  platform?: 'facebook' | 'tiktok' | 'instagram' | 'youtube' | 'douyin' | 'xiaohongshu' | 'kuaishou' | 'bilibili';
+  availableTags?: ScraperChannelTag[];
   onRefreshTags?: () => void;
-  onSuccess: (updated: { channel_type: string; product_lines: string[] }) => void;
+  onSuccess?: (updated: { channel_type: string; product_lines: string[] }) => void;
+  onSaved?: () => void;
 }
 
 export default function ChannelClassificationModal({
   isOpen,
   onClose,
   fanpage,
-  availableTags,
-  onRefreshTags,
+  channel,
+  platform = 'facebook',
+  availableTags: propTags,
+  onRefreshTags: propRefreshTags,
   onSuccess,
+  onSaved,
 }: ChannelClassificationModalProps) {
   const { token } = useAuthStore();
   const [channelType, setChannelType] = useState<'product' | 'content'>('product');
@@ -30,14 +43,30 @@ export default function ChannelClassificationModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAddTagModal, setShowAddTagModal] = useState(false);
 
-  useEffect(() => {
-    if (fanpage) {
-      setChannelType(fanpage.channel_type === 'content' ? 'content' : 'product');
-      setSelectedProductLines(fanpage.product_lines || []);
-    }
-  }, [fanpage, isOpen]);
+  const { data: fetchedTags = [], refetch: refetchTags } = useQuery({
+    queryKey: ['scraper-channel-tags'],
+    queryFn: () => (token ? scraperService.getChannelTags(token) : Promise.resolve([])),
+    enabled: !propTags && !!token,
+  });
 
-  if (!isOpen) return null;
+  const availableTags = propTags || fetchedTags;
+  const onRefreshTags = propRefreshTags || refetchTags;
+
+  const targetChannel = channel || (fanpage ? {
+    id: fanpage.id,
+    name: fanpage.name,
+    channel_type: fanpage.channel_type,
+    product_lines: fanpage.product_lines,
+  } : null);
+
+  useEffect(() => {
+    if (targetChannel) {
+      setChannelType(targetChannel.channel_type === 'content' ? 'content' : 'product');
+      setSelectedProductLines(targetChannel.product_lines || []);
+    }
+  }, [targetChannel?.id, targetChannel?.channel_type, JSON.stringify(targetChannel?.product_lines), isOpen]);
+
+  if (!isOpen || !targetChannel) return null;
 
   const toggleProductLine = (slug: string) => {
     setSelectedProductLines((prev) =>
@@ -53,15 +82,16 @@ export default function ChannelClassificationModal({
 
     setIsSubmitting(true);
     try {
-      await scraperService.updateFanpageClassification(token, fanpage.id, {
+      await scraperService.updateChannelClassification(token, platform, targetChannel.id, {
         channel_type: channelType,
         product_lines: channelType === 'product' ? selectedProductLines : [],
       });
-      toast.success(`Đã cập nhật phân loại cho kênh ${fanpage.name}`);
-      onSuccess({
+      toast.success(`Đã cập nhật phân loại cho kênh ${targetChannel.name}`);
+      onSuccess?.({
         channel_type: channelType,
         product_lines: channelType === 'product' ? selectedProductLines : [],
       });
+      onSaved?.();
       onClose();
     } catch (err: any) {
       toast.error(err.message || 'Lỗi khi cập nhật phân loại');
@@ -82,7 +112,7 @@ export default function ChannelClassificationModal({
                 Phân Loại Kênh
               </h3>
               <p className="text-xs text-slate-500 truncate max-w-sm mt-0.5 font-medium">
-                {fanpage.name}
+                {targetChannel.name}
               </p>
             </div>
             <button

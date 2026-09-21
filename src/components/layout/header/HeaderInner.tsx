@@ -15,6 +15,7 @@ import NotificationBell from "@/components/social/NotificationBell";
 import { useSocialLang } from "@/contexts/SocialLanguageContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { canManageCatalog } from "@/lib/equipment/catalog-permissions";
+import { filterNavMenusByPermissions } from "@/lib/permissions";
 
 export default function HeaderInner({ user, onLogout, allowedMenuIds }: HeaderProps) {
     const { lang, setLang, t } = useSocialLang();
@@ -55,9 +56,11 @@ export default function HeaderInner({ user, onLogout, allowedMenuIds }: HeaderPr
         isMediaLeaderOrAdmin: !!isMediaLeaderOrAdmin,
     });
 
-    // allowedMenuIds chứa tab-level permissions, không phải nav menu IDs.
-    // Hiển thị tất cả nav menus, role-based visibility đã được xử lý bởi isManagerOrAdmin / isManagement.
-    const allowedNavMenus = navMenus;
+    // allowedMenuIds chứa tab-level permissions của hệ role_permissions cũ, không phải nav menu IDs.
+    // Tầng lọc theo vai trò đã nằm trong useNavMenus (isManagerOrAdmin / isManagement); ở đây lọc
+    // thêm một tầng nữa theo quyền chi tiết mà Admin tick cho TỪNG tài khoản. Tài khoản chưa được
+    // cấu hình quyền (permissions rỗng) đi qua nguyên vẹn, nên không ảnh hưởng người đang dùng.
+    const allowedNavMenus = filterNavMenusByPermissions(user, navMenus);
 
     const isMenuActive = useCallback(
         (menu: (typeof navMenus)[0]) =>

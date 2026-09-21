@@ -56,10 +56,19 @@ export default function FanpageCard({
       <div>
         {/* Bookmarked / Periodic badges */}
         {(fp.is_bookmarked || fp.is_periodic_crawl) && (
-          <div className="flex items-center gap-1.5 px-3.5 pt-2.5 pb-0">
+          <div className="flex flex-wrap items-center gap-1.5 px-3.5 pt-2.5 pb-0">
             {fp.is_periodic_crawl && (
               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded text-xs font-medium">
                 <Timer size={10} weight="fill" /> Kênh chú ý
+              </span>
+            )}
+            {fp.is_bookmarked && (
+              <span
+                title={fp.bookmarked_at ? `Lưu lúc ${new Date(fp.bookmarked_at).toLocaleDateString('vi-VN')}` : undefined}
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded text-xs font-medium border border-amber-200/60 dark:border-amber-800/60"
+              >
+                <BookmarkSimple size={10} weight="fill" />
+                {fp.bookmarked_by_name ? `Lưu bởi: ${fp.bookmarked_by_name}` : 'Đã lưu'}
               </span>
             )}
           </div>
@@ -194,7 +203,11 @@ export default function FanpageCard({
               ? 'text-amber-500 bg-amber-50/50 dark:bg-amber-900/10'
               : 'text-slate-400 hover:text-amber-500 hover:bg-amber-50/50 dark:hover:bg-amber-900/10'
           }`}
-          title={fp.is_bookmarked ? 'Bỏ lưu' : 'Lưu'}
+          title={
+            fp.is_bookmarked
+              ? `Bỏ lưu${fp.bookmarked_by_name ? ` (đã lưu bởi ${fp.bookmarked_by_name})` : ''}`
+              : 'Lưu kênh'
+          }
         >
           <BookmarkSimple size={14} weight={fp.is_bookmarked ? 'fill' : 'regular'} />
         </button>

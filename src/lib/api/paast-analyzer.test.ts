@@ -61,6 +61,6 @@ describe('upgradePaastAnalysis', () => {
   it('gọi đúng /ai/paast/upgrade/:id, ghép ID vào path chứ không phải body', async () => {
     await upgradePaastAnalysis('analysis-42');
 
-    expect(mockPost).toHaveBeenCalledWith('/ai/paast/upgrade/analysis-42');
+    expect(mockPost).toHaveBeenCalledWith('/ai/paast/upgrade/analysis-42', undefined, { timeout: 420000 });
   });
 });

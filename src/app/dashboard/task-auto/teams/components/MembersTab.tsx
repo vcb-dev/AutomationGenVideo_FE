@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Crown, Users, PenLine, Pencil, Check, X, Loader2, Trash2, Sparkles } from 'lucide-react'
+import { Crown, Users, PenLine, Pencil, Check, X, Loader2, Trash2, Sparkles, Link2, Lock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
 import { EmptyState } from '@/components/task-auto/EmptyState'
@@ -51,6 +51,9 @@ export function MembersTab({ canManage, isAdmin, isAdminOrManager, userId, selec
   const [pendingMarket, setPendingMarket] = useState<TeamMarket | null>(null)
   const [pendingTeamKind, setPendingTeamKind] = useState<TeamKind | null>(null)
   const [deletingTeam, setDeletingTeam] = useState(false)
+  const [editingWebhook, setEditingWebhook] = useState(false)
+  const [pendingWebhookUrl, setPendingWebhookUrl] = useState('')
+  const [pendingWebhookSecret, setPendingWebhookSecret] = useState('')
 
   const { data: teams } = useQuery({
     queryKey: ['task-auto', 'teams'],
@@ -73,6 +76,8 @@ export function MembersTab({ canManage, isAdmin, isAdminOrManager, userId, selec
 
   const isLeaderOfSelected = selectedTeam?.leader_id === userId
   const canEditBrand = (isAdminOrManager || isLeaderOfSelected) && !isScaleDataTeam
+  // Webhook Lark không gắn với brand/thị trường — cho phép cấu hình kể cả với Scale Data.
+  const canEditWebhook = isAdminOrManager || isLeaderOfSelected
 
   const myTeams = (teams ?? []).filter(t =>
     t.leader_id === userId || t.members?.some((m: any) => m.user_id === userId)
@@ -120,6 +125,23 @@ export function MembersTab({ canManage, isAdmin, isAdminOrManager, userId, selec
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Thay đổi thất bại'),
   })
 
+  // secret: undefined = giữ nguyên secret hiện có (không gửi field này lên BE — BE là write-only,
+  // không có cách nào đọc lại giá trị cũ để so sánh), null = xoá hẳn, string = ghi đè.
+  const webhookMut = useMutation({
+    mutationFn: ({ url, secret }: { url: string | null; secret?: string | null }) =>
+      updateTeam(selectedTeamId, {
+        lark_webhook_url: url,
+        ...(secret !== undefined ? { lark_webhook_secret: secret } : {}),
+      } as any),
+    onSuccess: () => {
+      toast.success('Đã cập nhật webhook Lark')
+      qc.invalidateQueries({ queryKey: ['task-auto', 'teams'] })
+      setEditingWebhook(false)
+      setPendingWebhookSecret('')
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message || 'Cập nhật webhook thất bại — kiểm tra lại URL'),
+  })
+
   const deleteMut = useMutation({
     mutationFn: () => deleteTeam(selectedTeamId),
     onSuccess: () => {
@@ -142,6 +164,23 @@ export function MembersTab({ canManage, isAdmin, isAdminOrManager, userId, selec
     }
   }
 
+  const handleSaveWebhook = () => {
+    const trimmedUrl = pendingWebhookUrl.trim()
+    const trimmedSecret = pendingWebhookSecret.trim()
+    const urlChanged = trimmedUrl !== (selectedTeam?.lark_webhook_url ?? '')
+    // Ô secret để trống = không đổi secret hiện có (BE không trả lại secret thật nên không thể
+    // so sánh) — chỉ gửi field này lên khi người dùng thực sự gõ giá trị mới.
+    if (!urlChanged && !trimmedSecret) {
+      setEditingWebhook(false)
+      return
+    }
+    webhookMut.mutate({ url: trimmedUrl || null, secret: trimmedSecret ? trimmedSecret : undefined })
+  }
+
+  const handleClearWebhookSecret = () => {
+    webhookMut.mutate({ url: selectedTeam?.lark_webhook_url ?? null, secret: null })
+  }
+
   const currentBrand = BRANDS.find(b => b.key === brand)!
 
   return (
@@ -152,7 +191,7 @@ export function MembersTab({ canManage, isAdmin, isAdminOrManager, userId, selec
           {showTeamPicker ? (
             <CustomSelect
               value={selectedTeamId}
-              onChange={v => { setSelectedTeamId(v); setEditingTeam(false); setPendingBrand(null); setPendingMarket(null); setPendingTeamKind(null) }}
+              onChange={v => { setSelectedTeamId(v); setEditingTeam(false); setPendingBrand(null); setPendingMarket(null); setPendingTeamKind(null); setEditingWebhook(false); setPendingWebhookSecret('') }}
               options={teamPickerOptions}
               className="min-w-[220px]"
               searchable
@@ -286,6 +325,94 @@ export function MembersTab({ canManage, isAdmin, isAdminOrManager, userId, selec
                     </button>
                   )}
                 </>
+              )}
+            </div>
+          )}
+
+          {/* Webhook Lark — thông báo "task/content cần duyệt" của team này */}
+          {selectedTeam && (
+            <div className="w-full pt-3 mt-1 border-t border-slate-100">
+              {editingWebhook ? (
+                <div className="flex flex-col gap-2 w-full">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Link2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span className="text-xs text-slate-400 font-medium shrink-0 w-16">URL:</span>
+                    <input
+                      type="url"
+                      autoFocus
+                      value={pendingWebhookUrl}
+                      onChange={e => setPendingWebhookUrl(e.target.value)}
+                      placeholder="https://open.larksuite.com/open-apis/bot/v2/hook/..."
+                      className="flex-1 min-w-[240px] px-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span className="text-xs text-slate-400 font-medium shrink-0 w-16">Secret:</span>
+                    <input
+                      type="password"
+                      value={pendingWebhookSecret}
+                      onChange={e => setPendingWebhookSecret(e.target.value)}
+                      placeholder={selectedTeam.lark_webhook_secret_set ? 'Để trống = giữ nguyên secret hiện có' : 'Chỉ cần nếu bot bật Ký số bảo mật'}
+                      className="flex-1 min-w-[240px] px-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <button
+                      onClick={handleSaveWebhook}
+                      disabled={webhookMut.isPending}
+                      className="p-1.5 rounded-lg bg-green-500 text-white hover:bg-green-600 disabled:opacity-50 transition-colors"
+                    >
+                      {webhookMut.isPending
+                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        : <Check className="w-3.5 h-3.5" />
+                      }
+                    </button>
+                    <button
+                      onClick={() => { setEditingWebhook(false); setPendingWebhookSecret('') }}
+                      disabled={webhookMut.isPending}
+                      className="p-1.5 rounded-lg bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors disabled:opacity-50"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  {selectedTeam.lark_webhook_secret_set && (
+                    <button
+                      onClick={handleClearWebhookSecret}
+                      disabled={webhookMut.isPending}
+                      className="text-[11px] text-slate-400 hover:text-red-600 self-start disabled:opacity-50 transition-colors"
+                    >
+                      Xoá secret đã đặt
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Link2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <span className="text-xs text-slate-400 font-medium shrink-0">Webhook Lark:</span>
+                  <span className={cn(
+                    'text-xs font-medium truncate max-w-[360px]',
+                    selectedTeam.lark_webhook_url ? 'text-slate-600' : 'text-slate-400 italic'
+                  )}>
+                    {selectedTeam.lark_webhook_url || 'Chưa cấu hình — thông báo cần duyệt chỉ gửi vào webhook chung'}
+                  </span>
+                  {selectedTeam.lark_webhook_secret_set && (
+                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-500">
+                      <Lock className="w-2.5 h-2.5" /> Đã đặt Secret
+                    </span>
+                  )}
+                  {canEditWebhook && (
+                    <button
+                      onClick={() => {
+                        setEditingWebhook(true)
+                        setPendingWebhookUrl(selectedTeam.lark_webhook_url ?? '')
+                        setPendingWebhookSecret('')
+                      }}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors"
+                      title="Cấu hình webhook Lark riêng cho team"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           )}

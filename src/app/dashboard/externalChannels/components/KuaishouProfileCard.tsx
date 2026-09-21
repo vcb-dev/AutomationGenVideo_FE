@@ -3,6 +3,7 @@
 import { Users, VideoCamera, ArrowsClockwise, BookmarkSimple, Timer, CircleNotch, Heart } from '@phosphor-icons/react';
 import { KuaishouProfile } from '@/services/scraperService';
 import DeleteChannelButton from './DeleteChannelButton';
+import ChannelClassificationBadges from './ChannelClassificationBadges';
 
 function formatNum(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -17,9 +18,10 @@ interface Props {
   onToggleTracked?: () => void;
   onViewDetail: () => void;
   onDelete?: () => void;
+  onEditClassification?: () => void;
 }
 
-export default function KuaishouProfileCard({ profile: p, onScrape, onToggleBookmark, onToggleTracked, onViewDetail, onDelete }: Props) {
+export default function KuaishouProfileCard({ profile: p, onScrape, onToggleBookmark, onToggleTracked, onViewDetail, onDelete, onEditClassification }: Props) {
   const isProcessing = p.scraping_status === 'processing';
 
   return (
@@ -32,11 +34,20 @@ export default function KuaishouProfileCard({ profile: p, onScrape, onToggleBook
       }`}
     >
       {/* Badges */}
-      {(p.is_tracked || isProcessing) && (
-        <div className="flex items-center gap-1.5 px-3.5 pt-2.5 pb-0">
+      {(p.is_tracked || isProcessing || p.is_bookmarked) && (
+        <div className="flex flex-wrap items-center gap-1.5 px-3.5 pt-2.5 pb-0">
           {p.is_tracked && (
             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded text-xs font-medium">
               <Timer size={10} weight="fill" /> Kênh chú ý
+            </span>
+          )}
+          {p.is_bookmarked && (
+            <span
+              title={p.bookmarked_at ? `Lưu lúc ${new Date(p.bookmarked_at).toLocaleDateString('vi-VN')}` : undefined}
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded text-xs font-medium border border-amber-200/60 dark:border-amber-800/60"
+            >
+              <BookmarkSimple size={10} weight="fill" />
+              {p.bookmarked_by_name ? `Lưu bởi: ${p.bookmarked_by_name}` : 'Đã lưu'}
             </span>
           )}
           {isProcessing && (
@@ -63,6 +74,12 @@ export default function KuaishouProfileCard({ profile: p, onScrape, onToggleBook
           {p.username && <p className="text-xs text-slate-400 truncate">@{p.username}</p>}
         </div>
       </div>
+
+      <ChannelClassificationBadges
+        channelType={p.channel_type}
+        productLines={p.product_lines}
+        onEdit={onEditClassification}
+      />
 
       {/* Stats */}
       <div className="flex items-center gap-4 px-3.5 py-2">
@@ -113,7 +130,11 @@ export default function KuaishouProfileCard({ profile: p, onScrape, onToggleBook
               ? 'text-amber-500 bg-amber-50/50 dark:bg-amber-900/10'
               : 'text-slate-400 hover:text-amber-500 hover:bg-amber-50/50'
           }`}
-          title={p.is_bookmarked ? 'Bỏ lưu' : 'Lưu'}
+          title={
+            p.is_bookmarked
+              ? `Bỏ lưu${p.bookmarked_by_name ? ` (đã lưu bởi ${p.bookmarked_by_name})` : ''}`
+              : 'Lưu kênh'
+          }
         >
           <BookmarkSimple size={14} weight={p.is_bookmarked ? 'fill' : 'regular'} />
         </button>

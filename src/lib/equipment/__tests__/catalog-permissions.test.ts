@@ -1,4 +1,4 @@
-import { canManageCatalog } from '../catalog-permissions';
+import { canManageCatalog, canDeleteCatalog } from '../catalog-permissions';
 
 /**
  * Khai báo & quản lý kho — chỉ leader/manager thuộc Team Media và Admin.
@@ -74,5 +74,58 @@ describe('canManageCatalog — khớp CHÍNH XÁC tên team', () => {
 
   it('đổi tên team ra khỏi chữ media là mất quyền ngay', () => {
     expect(canManageCatalog(['LEADER'], 'Truyền thông')).toBe(false);
+  });
+
+  it.each(['Team Media', 'Media Team', 'Bộ phận Media'])(
+    'team tên "%s" KHÔNG được tính là Media, vì BE cũng không tính',
+    (ten) => {
+      // Ba tên này TỪNG nằm trong danh sách của FE trong khi BE chỉ nhận đúng 'media'. Nhóm test
+      // ngay trên khẳng định "khớp CHÍNH XÁC" nhưng không ca nào chạm tới chúng, nên lệch lọt
+      // qua: leader của team đặt tên như vậy thấy đủ nút Duyệt và bàn giao rồi bấm vào ăn 403.
+      //
+      // Muốn cho những tên này có quyền thật thì phải sửa BE trước, rồi mới nới ở đây — không
+      // bao giờ nới một mình FE.
+      expect(canManageCatalog(['LEADER'], ten)).toBe(false);
+    },
+  );
+
+  it('đúng tên team thật trong hệ thống thì vẫn có quyền', () => {
+    // Trong 18 team đang có, chỉ duy nhất "MEDIA" chứa chữ media. Siết danh sách không lấy mất
+    // quyền của ai đang dùng.
+    expect(canManageCatalog(['LEADER'], 'MEDIA')).toBe(true);
+  });
+
+  it.each([
+    'Team K1',
+    'Team K2',
+    'Team ADS',
+    'Scale Data',
+    'Global - Indo',
+    'Global Thái Lan',
+    'Đá Quý - Chung Thợ Đá',
+    'Đồ Da',
+    'AFF 01',
+  ])('leader team "%s" không quản lý được kho Media', (ten) => {
+    expect(canManageCatalog(['LEADER'], ten)).toBe(false);
+  });
+});
+
+describe('canDeleteCatalog — chỉ cho phép ADMIN xóa Danh mục / Model', () => {
+  it('admin có quyền xóa', () => {
+    expect(canDeleteCatalog(['ADMIN'])).toBe(true);
+    expect(canDeleteCatalog(['admin'])).toBe(true);
+    expect(canDeleteCatalog(['LEADER', 'ADMIN'])).toBe(true);
+  });
+
+  it('leader và manager không có quyền xóa', () => {
+    expect(canDeleteCatalog(['LEADER'])).toBe(false);
+    expect(canDeleteCatalog(['MANAGER'])).toBe(false);
+    expect(canDeleteCatalog(['MEMBER'])).toBe(false);
+  });
+
+  it('chưa nạp role hoặc rỗng thì không có quyền', () => {
+    expect(canDeleteCatalog([])).toBe(false);
+    expect(canDeleteCatalog(undefined)).toBe(false);
+    expect(canDeleteCatalog(null)).toBe(false);
   });
 });

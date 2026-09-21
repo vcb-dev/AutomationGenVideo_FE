@@ -10,8 +10,10 @@ import {
   findPaastAnalysisByContent,
   upgradePaastAnalysis,
   type PaastAnalysisHistory,
+  type PaastScoreInput,
 } from '@/lib/api/paast-analyzer'
 import {
+  PAAST_MIN_LENGTH,
   LAYER_META, CRITERIA_LAYERS, VerdictBadge, LayerBlock, CriterionCard,
   ScoreBandBadge, VideoRealismPanel, PreferInsightsBlock,
   renderHighlighted, stripAddTags, extractErrorMessage,
@@ -20,6 +22,9 @@ import {
 interface Props {
   open: boolean
   content: string
+  /** Link file chứa nội dung (thường là Google Docs) — dùng khi `content` rỗng/quá ngắn vì
+   *  content dài được đính kèm dưới dạng file. Server tự trích text rồi chấm. */
+  fileUrl?: string | null
   onClose: () => void
   /** Kết quả đã chấm trước đó cho đúng nội dung này (do component cha cache) — nếu có thì hiển thị lại,
    *  không gọi phân tích lại. Truyền `null`/`undefined` khi content chưa từng được chấm hoặc đã bị sửa. */
@@ -31,11 +36,15 @@ interface Props {
   onApply?: (upgradedContent: string, result: PaastAnalysisHistory) => void
 }
 
-export function PaastScoreModal({ open, content, onClose, cachedResult, onAnalyzed, onApply }: Props) {
+export function PaastScoreModal({ open, content, fileUrl, onClose, cachedResult, onAnalyzed, onApply }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<PaastAnalysisHistory | null>(null)
   const [fromCache, setFromCache] = useState(false)
+
+  // Không có (đủ) text dán thẳng nhưng có file đính kèm → chấm từ file, server tự trích text.
+  const useFile = content.trim().length < PAAST_MIN_LENGTH && !!fileUrl
+  const scoreSource: PaastScoreInput = useFile ? { fileUrl: fileUrl as string } : content
 
   // Màn "nâng cấp content" — tách riêng khỏi state chấm điểm, chỉ có khi user chủ động bấm nâng cấp.
   const [view, setView] = useState<'score' | 'upgraded'>('score')
@@ -49,7 +58,7 @@ export function PaastScoreModal({ open, content, onClose, cachedResult, onAnalyz
     setError(null)
     setLoading(true)
     setFromCache(false)
-    analyzePaastContent(content)
+    analyzePaastContent(scoreSource)
       .then(r => {
         if (r.status === 'FAILED' || !r.analysis_result) {
           setError(r.error_message || 'Không chấm điểm được content này')
@@ -69,7 +78,7 @@ export function PaastScoreModal({ open, content, onClose, cachedResult, onAnalyz
     setError(null)
     setLoading(true)
     setFromCache(false)
-    findPaastAnalysisByContent(content)
+    findPaastAnalysisByContent(scoreSource)
       .then(existing => {
         if (existing && existing.analysis_result) {
           setResult(existing)
@@ -132,7 +141,7 @@ export function PaastScoreModal({ open, content, onClose, cachedResult, onAnalyz
     }
     checkExistingThenAnalyze()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, content, cachedResult])
+  }, [open, content, fileUrl, cachedResult])
 
   if (!open) return null
 
@@ -156,7 +165,9 @@ export function PaastScoreModal({ open, content, onClose, cachedResult, onAnalyz
               <p className="text-xs text-slate-400">
                 {view === 'upgraded'
                   ? 'AI đã bổ sung phần còn thiếu theo gợi ý, giữ nguyên văn phong gốc'
-                  : fromCache ? 'Đã chấm điểm trước đó — hiển thị lại kết quả cũ' : 'Prefer · Action · Acknowledge · Stick · Trust'}
+                  : fromCache ? 'Đã chấm điểm trước đó — hiển thị lại kết quả cũ'
+                  : useFile ? 'Đọc nội dung từ file đính kèm rồi chấm theo 5 lăng kính PAAST'
+                  : 'Prefer · Action · Acknowledge · Stick · Trust'}
               </p>
             </div>
           </div>

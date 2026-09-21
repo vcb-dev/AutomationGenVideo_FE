@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import {
     Users,
+    UserPlus,
     Search,
     Edit2,
     Trash2,
@@ -22,7 +23,8 @@ import {
     Settings,
     CheckSquare,
     Eye,
-    FileText
+    FileText,
+    ShieldCheck
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
@@ -37,12 +39,14 @@ import {
 import Button from '@/components/ui/button';
 import Input from '@/components/ui/input';
 import { fetchWithAuth } from '@/lib/api-client';
+import PermissionTreePicker from '@/components/common/PermissionTreePicker';
 
 interface User {
     id: string;
     email: string;
     full_name: string;
     roles: UserRole[];
+    permissions?: string[];
     is_active: boolean;
     team: string | null;
     created_at: string;
@@ -80,15 +84,38 @@ export default function AccountManagement() {
     const [editForm, setEditForm] = useState<{
         full_name: string;
         roles: UserRole[];
+        permissions: string[];
         is_active: boolean;
         team: string;
     }>({
         full_name: '',
         roles: [],
+        permissions: [],
         is_active: true,
         team: ''
     });
     const [isSaving, setIsSaving] = useState(false);
+
+    // Create Modal State
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [createForm, setCreateForm] = useState<{
+        email: string;
+        password: string;
+        full_name: string;
+        roles: UserRole[];
+        permissions: string[];
+        team: string;
+        is_active: boolean;
+    }>({
+        email: '',
+        password: '',
+        full_name: '',
+        roles: [UserRole.MEMBER],
+        permissions: [],
+        team: '',
+        is_active: true,
+    });
+    const [isCreating, setIsCreating] = useState(false);
 
     // Delete Modal State
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -120,6 +147,7 @@ export default function AccountManagement() {
         setEditForm({
             full_name: user.full_name,
             roles: [...user.roles],
+            permissions: user.permissions ? [...user.permissions] : [],
             is_active: user.is_active,
             team: user.team || ''
         });
@@ -136,15 +164,82 @@ export default function AccountManagement() {
         });
     };
 
+    const handleCreateRoleToggle = (role: UserRole) => {
+        setCreateForm(prev => {
+            if (prev.roles.includes(role)) {
+                return { ...prev, roles: prev.roles.filter(r => r !== role) };
+            } else {
+                return { ...prev, roles: [...prev.roles, role] };
+            }
+        });
+    };
+
+    const handleCreateUser = async () => {
+        if (!token) return;
+        if (!createForm.email.trim()) {
+            toast.error('Vui lòng nhập email');
+            return;
+        }
+        if (!createForm.full_name.trim()) {
+            toast.error('Vui lòng nhập họ và tên');
+            return;
+        }
+        if (!createForm.password || createForm.password.length < 8) {
+            toast.error('Mật khẩu phải có tối thiểu 8 ký tự');
+            return;
+        }
+
+        try {
+            setIsCreating(true);
+            const payload = {
+                email: createForm.email.trim().toLowerCase(),
+                password: createForm.password,
+                full_name: createForm.full_name.trim(),
+                roles: createForm.roles.length > 0 ? createForm.roles : [UserRole.MEMBER],
+                permissions: createForm.permissions,
+                team: createForm.team.trim() || undefined,
+                is_active: createForm.is_active,
+            };
+
+            const response = await fetchWithAuth(`${apiBaseUrl}/users`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.message || 'Không thể tạo tài khoản');
+            }
+
+            toast.success('Cấp tài khoản mới thành công!');
+            setIsCreateModalOpen(false);
+            setCreateForm({
+                email: '',
+                password: '',
+                full_name: '',
+                roles: [UserRole.MEMBER],
+                permissions: [],
+                team: '',
+                is_active: true,
+            });
+            await fetchUsers();
+        } catch (err: any) {
+            toast.error(err.message);
+        } finally {
+            setIsCreating(false);
+        }
+    };
+
     const handleUpdateUser = async () => {
         if (!selectedUser || !token) return;
         try {
             setIsSaving(true);
-            // team là field phái sinh từ Đội nhóm (Team/TeamMember) — chỉ gửi khi admin thực sự
-            // sửa ô team, để việc đổi role/tên không vô tình ghi đè/xoá team hiện có (gửi chuỗi
-            // rỗng sẽ gỡ user khỏi TOÀN BỘ team phía backend).
             const { team, ...rest } = editForm;
-            const payload: Record<string, unknown> = { ...rest };
+            const payload: Record<string, unknown> = {
+                ...rest,
+                permissions: editForm.permissions,
+            };
             if (team.trim() !== (selectedUser.team || '').trim()) {
                 payload.team = team.trim();
             }
@@ -157,9 +252,9 @@ export default function AccountManagement() {
             });
             if (!response.ok) throw new Error('Failed to update user');
 
-            // Refresh list
             await fetchUsers();
             setIsEditModalOpen(false);
+            toast.success('Cập nhật tài khoản thành công!');
         } catch (err: any) {
             toast.error(err.message);
         } finally {
@@ -223,9 +318,18 @@ export default function AccountManagement() {
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
-                <div className="flex items-center gap-2 text-sm text-slate-500">
-                    <Users className="w-4 h-4" />
-                    <span>Tổng số: {filteredUsers.length} tài khoản</span>
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 text-sm text-slate-500">
+                        <Users className="w-4 h-4" />
+                        <span>Tổng số: {filteredUsers.length} tài khoản</span>
+                    </div>
+                    <Button
+                        onClick={() => setIsCreateModalOpen(true)}
+                        className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 px-4 py-2"
+                    >
+                        <UserPlus className="w-4 h-4" />
+                        <span>Cấp tài khoản mới</span>
+                    </Button>
                 </div>
             </div>
 
@@ -259,12 +363,17 @@ export default function AccountManagement() {
                                     </div>
                                 </td>
                                 <td className="px-6 py-4">
-                                    <div className="flex flex-wrap gap-1">
+                                    <div className="flex flex-wrap items-center gap-1">
                                         {user.roles.map(role => (
                                             <Badge key={role} variant="default" className={getRoleBadgeColor(role)}>
                                                 {role}
                                             </Badge>
                                         ))}
+                                        {user.permissions && user.permissions.length > 0 && !user.roles.includes(UserRole.ADMIN) && (
+                                            <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-blue-500/10 text-blue-400 border border-blue-500/20" title={user.permissions.join(', ')}>
+                                                +{user.permissions.length} quyền
+                                            </span>
+                                        )}
                                     </div>
                                 </td>
                                 <td className="px-6 py-4">
@@ -314,9 +423,119 @@ export default function AccountManagement() {
                 </table>
             </div>
 
+            {/* Create Modal */}
+            <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+                <DialogContent className="bg-slate-900 border-slate-800 text-white max-w-3xl p-6 overflow-y-auto max-h-[92vh]">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-xl text-white">
+                            <UserPlus className="w-5 h-5 text-blue-500" />
+                            Cấp tài khoản mới & Phân quyền chi tiết
+                        </DialogTitle>
+                    </DialogHeader>
+
+                    <div className="space-y-6 py-4">
+                        {/* 1. Thông tin cơ bản */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-semibold text-slate-300">
+                                    Họ và tên <span className="text-red-400">*</span>
+                                </label>
+                                <Input
+                                    placeholder="Nguyễn Văn A"
+                                    value={createForm.full_name}
+                                    onChange={(e) => setCreateForm(prev => ({ ...prev, full_name: e.target.value }))}
+                                    className="bg-slate-800 border-slate-700 text-white text-sm"
+                                />
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-semibold text-slate-300">
+                                    Email đăng nhập <span className="text-red-400">*</span>
+                                </label>
+                                <Input
+                                    type="email"
+                                    placeholder="user@vcbi.vn"
+                                    value={createForm.email}
+                                    onChange={(e) => setCreateForm(prev => ({ ...prev, email: e.target.value }))}
+                                    className="bg-slate-800 border-slate-700 text-white text-sm"
+                                />
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-semibold text-slate-300">
+                                    Mật khẩu khởi tạo <span className="text-red-400">* (tối thiểu 8 ký tự)</span>
+                                </label>
+                                <Input
+                                    type="password"
+                                    placeholder="••••••••"
+                                    value={createForm.password}
+                                    onChange={(e) => setCreateForm(prev => ({ ...prev, password: e.target.value }))}
+                                    className="bg-slate-800 border-slate-700 text-white text-sm"
+                                />
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-semibold text-slate-300">Đội nhóm (Team)</label>
+                                <Input
+                                    placeholder="Ví dụ: Team Media, Team Marketing"
+                                    value={createForm.team}
+                                    onChange={(e) => setCreateForm(prev => ({ ...prev, team: e.target.value }))}
+                                    className="bg-slate-800 border-slate-700 text-white text-sm"
+                                />
+                            </div>
+                        </div>
+
+                        {/* 2. Vai trò chính */}
+                        <div className="space-y-2">
+                            <label className="text-xs font-semibold text-slate-300">Vai trò chính (Roles)</label>
+                            <div className="flex flex-wrap gap-2">
+                                {Object.values(UserRole).map(role => (
+                                    <button
+                                        key={role}
+                                        type="button"
+                                        onClick={() => handleCreateRoleToggle(role)}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                                            createForm.roles.includes(role)
+                                                ? 'bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-500/20'
+                                                : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'
+                                        }`}
+                                    >
+                                        {role}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* 3. Phân quyền chi tiết (Cây quyền từ to đến nhỏ) */}
+                        <div className="space-y-2">
+                            <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                                <ShieldCheck className="w-4 h-4 text-blue-400" />
+                                <span>Phân quyền chi tiết (Granular Permissions)</span>
+                            </label>
+                            <PermissionTreePicker
+                                theme="dark"
+                                selectedPermissions={createForm.permissions}
+                                onChange={(newPerms) => setCreateForm(prev => ({ ...prev, permissions: newPerms }))}
+                            />
+                        </div>
+                    </div>
+
+                    <DialogFooter className="flex gap-2 border-t border-slate-800 pt-4">
+                        <Button variant="ghost" onClick={() => setIsCreateModalOpen(false)}>Hủy bỏ</Button>
+                        <Button
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-6"
+                            onClick={handleCreateUser}
+                            isLoading={isCreating}
+                        >
+                            Tạo tài khoản & Cấp quyền
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             {/* Edit Modal */}
             <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-                <DialogContent className="bg-slate-900 border-slate-800 text-white max-w-2xl p-6 overflow-y-auto max-h-[90vh]">
+                <DialogContent className="bg-slate-900 border-slate-800 text-white max-w-3xl p-6 overflow-y-auto max-h-[92vh]">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-xl">
                             <Edit2 className="w-5 h-5 text-blue-500" />
@@ -324,66 +543,80 @@ export default function AccountManagement() {
                         </DialogTitle>
                     </DialogHeader>
 
-                    <div className="grid grid-cols-1 gap-8 py-6">
-                        {/* Cột 1: Thông tin cơ bản */}
-                        <div className="space-y-6">
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-slate-400">Họ và tên</label>
+                    <div className="space-y-6 py-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-semibold text-slate-300">Họ và tên</label>
                                 <Input
                                     value={editForm.full_name}
                                     onChange={(e) => setEditForm(prev => ({ ...prev, full_name: e.target.value }))}
-                                    className="bg-slate-800 border-slate-700 text-white"
+                                    className="bg-slate-800 border-slate-700 text-white text-sm"
                                 />
                             </div>
 
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-slate-400">Team</label>
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-semibold text-slate-300">Team</label>
                                 <Input
                                     value={editForm.team}
                                     onChange={(e) => setEditForm(prev => ({ ...prev, team: e.target.value }))}
-                                    className="bg-slate-800 border-slate-700 text-white"
+                                    className="bg-slate-800 border-slate-700 text-white text-sm"
                                     placeholder="Ví dụ: Team Marketing"
                                 />
                             </div>
+                        </div>
 
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-slate-400">Vai trò chính (Roles)</label>
-                                <div className="flex flex-wrap gap-2">
-                                    {Object.values(UserRole).map(role => (
-                                        <button
-                                            key={role}
-                                            onClick={() => handleRoleToggle(role)}
-                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${editForm.roles.includes(role)
-                                                ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20'
+                        <div className="space-y-2">
+                            <label className="text-xs font-semibold text-slate-300">Vai trò chính (Roles)</label>
+                            <div className="flex flex-wrap gap-2">
+                                {Object.values(UserRole).map(role => (
+                                    <button
+                                        key={role}
+                                        type="button"
+                                        onClick={() => handleRoleToggle(role)}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                                            editForm.roles.includes(role)
+                                                ? 'bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-500/20'
                                                 : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'
-                                                }`}
-                                        >
-                                            {role}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl border border-slate-700">
-                                <div className="flex items-center gap-3">
-                                    {editForm.is_active ? <UserCheck className="w-5 h-5 text-green-500" /> : <UserX className="w-5 h-5 text-red-500" />}
-                                    <div>
-                                        <div className="text-sm font-bold">Trạng thái hoạt động</div>
-                                        <div className="text-[10px] text-slate-500">Cho phép truy cập hệ thống</div>
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={() => setEditForm(prev => ({ ...prev, is_active: !prev.is_active }))}
-                                    className={`w-12 h-6 rounded-full p-1 transition-colors ${editForm.is_active ? 'bg-green-600' : 'bg-slate-600'}`}
-                                >
-                                    <div className={`w-4 h-4 rounded-full bg-white transition-transform ${editForm.is_active ? 'translate-x-6' : 'translate-x-0'}`} />
-                                </button>
+                                        }`}
+                                    >
+                                        {role}
+                                    </button>
+                                ))}
                             </div>
                         </div>
 
+                        <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl border border-slate-700">
+                            <div className="flex items-center gap-3">
+                                {editForm.is_active ? <UserCheck className="w-5 h-5 text-green-500" /> : <UserX className="w-5 h-5 text-red-500" />}
+                                <div>
+                                    <div className="text-sm font-semibold">Trạng thái hoạt động</div>
+                                    <div className="text-[11px] text-slate-400">Cho phép đăng nhập và sử dụng hệ thống</div>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setEditForm(prev => ({ ...prev, is_active: !prev.is_active }))}
+                                className={`w-12 h-6 rounded-full p-1 transition-colors ${editForm.is_active ? 'bg-green-600' : 'bg-slate-600'}`}
+                            >
+                                <div className={`w-4 h-4 rounded-full bg-white transition-transform ${editForm.is_active ? 'translate-x-6' : 'translate-x-0'}`} />
+                            </button>
+                        </div>
+
+                        {/* Phân quyền chi tiết */}
+                        <div className="space-y-2">
+                            <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                                <ShieldCheck className="w-4 h-4 text-blue-400" />
+                                <span>Phân quyền chi tiết (Granular Permissions)</span>
+                            </label>
+                            <PermissionTreePicker
+                                theme="dark"
+                                selectedPermissions={editForm.permissions}
+                                onChange={(newPerms) => setEditForm(prev => ({ ...prev, permissions: newPerms }))}
+                            />
+                        </div>
                     </div>
 
-                    <DialogFooter className="flex gap-2 border-t border-slate-800 pt-6">
+                    <DialogFooter className="flex gap-2 border-t border-slate-800 pt-4">
                         <Button variant="ghost" onClick={() => setIsEditModalOpen(false)}>Hủy bỏ</Button>
                         <Button
                             className="bg-blue-600 hover:bg-blue-700 text-white px-8"

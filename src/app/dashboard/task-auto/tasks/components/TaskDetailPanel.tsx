@@ -22,6 +22,7 @@ import { TaskPanelFooter } from './detail/TaskPanelFooter'
 import { TaskMetaStrip } from './detail/TaskMetaStrip'
 import { toVNDatetimeLocalInput } from '@/components/task-auto/helpers'
 import { ContentSection } from './detail/ContentSection'
+import { VideoResultSection } from './detail/VideoResultSection'
 import { SourcesSection } from './detail/SourcesSection'
 import { ProductSection } from './detail/ProductSection'
 import { VideoPreviewOverlay } from './detail/VideoPreviewOverlay'
@@ -612,8 +613,50 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
 
   const isDriveUrl   = task?.result_url?.includes('drive.google.com')
   const isLegacyPath = task?.result_url?.startsWith('/task-auto/tasks/')
+  // Task đã nộp (có video Drive) — chiếm chỗ cột phải (360px, vốn là ProductSection) để video hiện
+  // đủ lớn thay vì chỉ 280px như trước; ProductSection khi đó dời xuống dưới cùng cột trái.
+  const hasSubmittedVideo = !!task?.result_url && isDriveUrl
   // Lên lịch được từ khi SUBMITTED (chỉ cần video đã lên Drive); REJECTED bị loại vì video đã bị xoá.
   const canSchedulePost = (task?.status === 'SUBMITTED' || task?.status === 'APPROVED') && !!isDriveUrl && (isAssignee || canApproveReject)
+
+  // Dùng ở cả 2 vị trí: cột phải bình thường, hoặc dời xuống cuối cột trái khi video chiếm cột phải.
+  const productSectionEl = (
+    <ProductSection
+      editMode={editMode}
+      edit={{
+        productId: editForm.product_id,
+        onChange: handleProductChange,
+        items: allProductItems,
+        searchValue: productSearch,
+        onSearchChange: setProductSearch,
+        loading: loadingAllProducts,
+        currentProductId: currentProductPrefixedId || undefined,
+        currentProductName: productName,
+        filterSlot: (
+          <ScopeSwitch
+            value={productScope}
+            onChange={s => { setProductScope(s); setEditForm(f => ({ ...f, product_id: '' })); setOmsSelection(null) }}
+            hasTeam={!!task?.team_id}
+          />
+        ),
+      }}
+      view={{
+        hasProduct: !!(
+          task?.product ||
+          task?.editor_product ||
+          task?.team_product ||
+          task?.product_id ||
+          task?.editor_product_id ||
+          task?.team_product_id
+        ),
+        fullProduct: mergedProduct,
+        productName,
+        productSku,
+        primaryImage,
+        extraImages,
+      }}
+    />
+  )
 
   return (
     <>
@@ -697,7 +740,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4">
 
-                    {/* LEFT: Content + Sources */}
+                    {/* LEFT: Content + Sources (+ Product dời xuống đây khi video chiếm cột phải) */}
                     <div className="flex flex-col gap-4">
                       <ContentSection
                         editMode={editMode}
@@ -776,44 +819,17 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                           )
                         }}
                       />
+
+                      {hasSubmittedVideo && productSectionEl}
                     </div>
 
-                    {/* RIGHT: Product */}
-                    <ProductSection
-                      editMode={editMode}
-                      edit={{
-                        productId: editForm.product_id,
-                        onChange: handleProductChange,
-                        items: allProductItems,
-                        searchValue: productSearch,
-                        onSearchChange: setProductSearch,
-                        loading: loadingAllProducts,
-                        currentProductId: currentProductPrefixedId || undefined,
-                        currentProductName: productName,
-                        filterSlot: (
-                          <ScopeSwitch
-                            value={productScope}
-                            onChange={s => { setProductScope(s); setEditForm(f => ({ ...f, product_id: '' })); setOmsSelection(null) }}
-                            hasTeam={!!task?.team_id}
-                          />
-                        ),
-                      }}
-                      view={{
-                        hasProduct: !!(
-                          task?.product ||
-                          task?.editor_product ||
-                          task?.team_product ||
-                          task?.product_id ||
-                          task?.editor_product_id ||
-                          task?.team_product_id
-                        ),
-                        fullProduct: mergedProduct,
-                        productName,
-                        productSku,
-                        primaryImage,
-                        extraImages,
-                      }}
-                    />
+                    {/* RIGHT: Video (khi đã nộp) — chiếm chỗ Product để hiện lớn hơn; ngược lại giữ Product ở đây như cũ */}
+                    {hasSubmittedVideo ? (
+                      <VideoResultSection
+                        resultUrl={task.result_url!}
+                        onExpand={() => setShowVideoPreview(true)}
+                      />
+                    ) : productSectionEl}
                   </div>
 
                   <TaskMetaStrip

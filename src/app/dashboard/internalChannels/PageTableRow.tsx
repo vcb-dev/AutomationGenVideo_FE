@@ -8,8 +8,8 @@ interface PageTableRowProps {
   page: FacebookPage;
   channelInfo?: ChannelInfo;
   onViewVideos: (page: FacebookPage) => void;
-  onTriggerScrape: (page: FacebookPage) => void;
-  onBackfill: (page: FacebookPage) => void;
+  onTriggerScrape?: (page: FacebookPage) => void;
+  onBackfill?: (page: FacebookPage) => void;
   loadingVideos: boolean;
   selectedPageId?: string;
 }
@@ -127,7 +127,7 @@ export default function PageTableRow({
           </button>
         )}
 
-        {needsBackfill ? (
+        {onBackfill && needsBackfill && (
           <button
             onClick={() => onBackfill(page)}
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
@@ -135,7 +135,9 @@ export default function PageTableRow({
             <Download size={13} />
             Cào lượt đầu
           </button>
-        ) : (
+        )}
+
+        {onTriggerScrape && !needsBackfill && (
           <button
             onClick={() => onTriggerScrape(page)}
             disabled={page.is_scraping}

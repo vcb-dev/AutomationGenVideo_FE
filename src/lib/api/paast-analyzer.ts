@@ -118,12 +118,21 @@ export interface PaastAnalysisHistory {
   created_at: string
 }
 
-export const analyzePaastContent = (content: string) =>
-  apiClient.post<PaastAnalysisHistory>('/ai/paast/analyze', { content }).then(r => r.data)
+/**
+ * Nội dung cần chấm: chuỗi text dán thẳng, hoặc `{ fileUrl }` khi content nằm trong file
+ * (thường là link Google Docs của content dài) — BE tự trích text rồi chấm như bình thường.
+ */
+export type PaastScoreInput = string | { content?: string; fileUrl?: string }
+
+const toPaastBody = (input: PaastScoreInput) =>
+  typeof input === 'string' ? { content: input } : input
+
+export const analyzePaastContent = (input: PaastScoreInput) =>
+  apiClient.post<PaastAnalysisHistory>('/ai/paast/analyze', toPaastBody(input)).then(r => r.data)
 
 /** Tìm bản phân tích PAAST gần nhất khớp đúng nội dung này — null nếu content chưa từng được chấm. */
-export const findPaastAnalysisByContent = (content: string) =>
-  apiClient.post<PaastAnalysisHistory | null>('/ai/paast/find-by-content', { content }).then(r => r.data)
+export const findPaastAnalysisByContent = (input: PaastScoreInput) =>
+  apiClient.post<PaastAnalysisHistory | null>('/ai/paast/find-by-content', toPaastBody(input)).then(r => r.data)
 
 // BE chờ tới 420s cho /upgrade (2 lệnh LLM nối tiếp); apiClient mặc định 180s nên override ở đây.
 export const upgradePaastAnalysis = (analysisId: string) =>

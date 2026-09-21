@@ -106,9 +106,10 @@ export const platformColor = (platform: string): string => PLATFORM_COLORS[platf
 
 export const platformName = (platform: string): string => platformStyle(platform).label;
 
-/** Hai màu dữ liệu trung tính, dùng cho các thanh chia hai phần (VN / Global…). */
+/** Ba màu dữ liệu chính: Việt Nam (indigo), Global (slate), Đồ Da (amber / leather). */
 export const COLOR_PRIMARY = '#5b5bd6';
 export const COLOR_SECONDARY = '#aab1c4';
+export const COLOR_LEATHER = '#d97706';
 
 /** Ba màu cho cơ cấu tương tác — thích / bình luận / chia sẻ. */
 export const COLOR_ENGAGEMENT = ['#5b5bd6', '#2f9e8f', '#dd8a3e'];
