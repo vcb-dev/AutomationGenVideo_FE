@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { Film, CheckCircle2, Loader2, Link, ChevronDown, Upload, X } from 'lucide-react'
@@ -19,6 +19,17 @@ interface Props {
 }
 
 const CHUNK_SIZE = 8 * 1024 * 1024 // 8 MB
+const MAX_VIDEO_SIZE = 2 * 1024 * 1024 * 1024 // 2 GB — khớp giới hạn BE ở initChunkUpload
+const VIDEO_EXT_RE = /\.(mp4|mov|m4v|avi|mkv|webm|flv|wmv|mpe?g|3gp)$/i
+
+// Một vài file kéo từ Finder/Explorer không có MIME type → fallback theo đuôi file
+function isVideoFile(f: File) {
+  return f.type ? f.type.startsWith('video/') : VIDEO_EXT_RE.test(f.name)
+}
+
+function dragHasFiles(e: React.DragEvent) {
+  return Array.from(e.dataTransfer?.types ?? []).includes('Files')
+}
 
 async function uploadVideoToServer(
   taskId: string,
@@ -134,10 +145,10 @@ export function SubmitModal({ task, isResubmit = false, onClose, onSuccess }: Pr
   const [uploadedVideo, setUploadedVideo] = useState<{ url: string; filename: string; originalname: string; mimetype: string; size: number; storage: string } | null>(null)
   const [showManual, setShowManual] = useState(false)
   const [manualUrl, setManualUrl]   = useState(task.result_url?.startsWith('/task-auto/') ? '' : (task.result_url || ''))
+  const [dragActive, setDragActive] = useState(false)
+  const dragDepth = useRef(0)
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0]
-    if (!f) return
+  const startUpload = async (f: File) => {
     setFile(f)
     setUploadedVideo(null)
     setManualUrl('')
@@ -155,6 +166,83 @@ export function SubmitModal({ task, isResubmit = false, onClose, onSuccess }: Pr
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
+
+  // Cửa vào chung cho cả chọn file lẫn kéo-thả: chặn sai định dạng / quá 2GB trước khi gọi BE
+  const acceptFile = (f: File | undefined, ignoredCount = 0) => {
+    if (!f) return
+    if (!isVideoFile(f)) {
+      toast.error('Chỉ nhận file video (MP4, MOV, MKV...)')
+      return
+    }
+    if (f.size > MAX_VIDEO_SIZE) {
+      toast.error(`File ${(f.size / 1024 / 1024 / 1024).toFixed(2)}GB vượt giới hạn 2GB`)
+      return
+    }
+    if (ignoredCount > 0) toast('Mỗi task chỉ nộp 1 video — đã lấy file đầu tiên')
+    void startUpload(f)
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]
+    e.target.value = '' // cho phép chọn lại đúng file vừa bị từ chối
+    acceptFile(f)
+  }
+
+  // ── Kéo-thả ───────────────────────────────────────────────────────────────
+  // Đếm depth vì dragenter/dragleave bắn cả khi con trỏ đi qua các phần tử con
+  const handleDragEnter = (e: React.DragEvent) => {
+    if (!dragHasFiles(e)) return
+    e.preventDefault()
+    dragDepth.current += 1
+    setDragActive(true)
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!dragHasFiles(e)) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = uploading ? 'none' : 'copy'
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (!dragHasFiles(e)) return
+    dragDepth.current = Math.max(0, dragDepth.current - 1)
+    if (dragDepth.current === 0) setDragActive(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    if (!dragHasFiles(e)) return
+    e.preventDefault()
+    dragDepth.current = 0
+    setDragActive(false)
+    if (uploading) {
+      toast('Đang upload video khác, vui lòng đợi')
+      return
+    }
+    const files = Array.from(e.dataTransfer.files ?? [])
+    acceptFile(files[0], files.length - 1)
+  }
+
+  // Thả trượt ra ngoài vùng nhận → chặn trình duyệt mở thẳng file video và mất modal
+  useEffect(() => {
+    const block = (e: DragEvent) => {
+      if (Array.from(e.dataTransfer?.types ?? []).includes('Files')) e.preventDefault()
+    }
+    // Thả/huỷ ở bất kỳ đâu cũng phải tắt lớp phủ, tránh kẹt khi dragleave không bắn
+    const reset = () => {
+      dragDepth.current = 0
+      setDragActive(false)
+    }
+    window.addEventListener('dragover', block)
+    window.addEventListener('drop', block)
+    window.addEventListener('drop', reset)
+    window.addEventListener('dragend', reset)
+    return () => {
+      window.removeEventListener('dragover', block)
+      window.removeEventListener('drop', block)
+      window.removeEventListener('drop', reset)
+      window.removeEventListener('dragend', reset)
+    }
+  }, [])
 
   const submitMut = useMutation({
     mutationFn: async () => {
@@ -214,7 +302,14 @@ export function SubmitModal({ task, isResubmit = false, onClose, onSuccess }: Pr
         </div>
       }
     >
-      <div className="space-y-5">
+      <div
+        data-testid="video-dropzone"
+        className="relative space-y-5"
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
         {/* Reject reason */}
         {isResubmit && task.reject_reason && (
           <div className="bg-red-50 border border-red-200 rounded-2xl px-4 py-3.5">
@@ -247,7 +342,10 @@ export function SubmitModal({ task, isResubmit = false, onClose, onSuccess }: Pr
           {!file && !uploading && !uploadedVideo && (
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="w-full group relative overflow-hidden flex flex-col items-center justify-center gap-4 py-10 border-2 border-dashed border-gray-200 rounded-2xl hover:border-indigo-400 transition-all duration-300"
+              className={cn(
+                'w-full group relative overflow-hidden flex flex-col items-center justify-center gap-4 py-10 border-2 border-dashed rounded-2xl transition-all duration-300',
+                dragActive ? 'border-indigo-400 bg-indigo-50/40' : 'border-gray-200 hover:border-indigo-400',
+              )}
             >
               <div className="absolute inset-0 bg-gradient-to-br from-indigo-50/0 to-violet-50/0 group-hover:from-indigo-50/80 group-hover:to-violet-50/50 transition-all duration-300" />
               <div className="relative w-14 h-14 rounded-2xl bg-gray-100 group-hover:bg-white group-hover:shadow-lg group-hover:shadow-indigo-100 flex items-center justify-center transition-all duration-300">
@@ -255,9 +353,10 @@ export function SubmitModal({ task, isResubmit = false, onClose, onSuccess }: Pr
               </div>
               <div className="relative text-center space-y-1">
                 <p className="text-sm font-semibold text-slate-700 group-hover:text-indigo-700 transition-colors">
-                  Nhấn để chọn video
+                  Kéo thả video vào đây
                 </p>
-                <p className="text-xs text-slate-400">MP4 &bull; Tối đa 2GB</p>
+                <p className="text-xs text-slate-500">hoặc <span className="font-semibold text-indigo-600">nhấn để chọn</span> từ máy</p>
+                <p className="text-xs text-slate-400 pt-0.5">MP4 &bull; Tối đa 2GB</p>
               </div>
             </button>
           )}
@@ -315,6 +414,7 @@ export function SubmitModal({ task, isResubmit = false, onClose, onSuccess }: Pr
                   <X className="w-4 h-4" />
                 </button>
               </div>
+              <p className="text-xs text-slate-400 mt-2.5 pl-12">Kéo video khác vào đây để thay thế</p>
             </div>
           )}
         </div>
@@ -342,6 +442,35 @@ export function SubmitModal({ task, isResubmit = false, onClose, onSuccess }: Pr
             </div>
           )}
         </div>
+
+        {/* Lớp phủ khi đang kéo file — phủ cả thân modal nên không cần thả trúng ô nhỏ */}
+        {dragActive && (
+          <div
+            style={{ marginTop: 0 }} // thoát margin của space-y-5 ở wrapper
+            className={cn(
+              'absolute -inset-3 z-10 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-3 pointer-events-none transition-colors',
+              uploading ? 'border-amber-300 bg-amber-50/95' : 'border-indigo-400 bg-indigo-50/95',
+            )}
+          >
+            <div className={cn(
+              'w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm',
+              uploading ? 'bg-amber-100' : 'bg-white',
+            )}>
+              {uploading
+                ? <Loader2 className="w-6 h-6 text-amber-600 animate-spin" />
+                : <Upload className="w-6 h-6 text-indigo-600" />
+              }
+            </div>
+            <div className="text-center space-y-1 px-6">
+              <p className={cn('text-sm font-bold', uploading ? 'text-amber-700' : 'text-indigo-700')}>
+                {uploading ? 'Đang tải video lên...' : 'Thả video để tải lên'}
+              </p>
+              <p className={cn('text-xs', uploading ? 'text-amber-600' : 'text-indigo-500')}>
+                {uploading ? 'Chờ upload hiện tại xong rồi thả file mới' : 'MP4 • Tối đa 2GB • Chỉ nhận 1 video'}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </DarkModal>
   )
