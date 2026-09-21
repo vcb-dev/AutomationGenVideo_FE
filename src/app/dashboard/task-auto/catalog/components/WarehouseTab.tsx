@@ -24,6 +24,7 @@ import {
 } from '@/lib/api/task-auto'
 import type { BrandType, Product, Content, Source } from '@/types/task-auto'
 import { SOURCE_TYPE_LABELS } from '@/types/task-auto'
+import { useBackdropClose } from '@/hooks/useBackdropClose'
 
 type SubTab = 'products' | 'contents' | 'sources'
 
@@ -123,6 +124,8 @@ function PickItemsModal({
   const toggle = (id: string) =>
     setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
 
+  const backdrop = useBackdropClose(onClose)
+
   if (!open) return null
   const labelOf = (item: any) => {
     const tp = item.source_team_product; const tp_ep = tp?.source_editor_product
@@ -138,7 +141,7 @@ function PickItemsModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" {...backdrop}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[80vh]">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <h2 className="text-lg font-bold text-slate-800">Thêm vào kho {month}</h2>

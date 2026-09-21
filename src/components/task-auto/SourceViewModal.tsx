@@ -4,6 +4,7 @@ import { useScrollLock } from '@/hooks/useScrollLock'
 import { X, Trash2, Edit2, ExternalLink, Link2, Globe, User, Calendar, Package } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SOURCE_TYPE_LABELS, SourceType } from '@/types/task-auto'
+import { useBackdropClose } from '@/hooks/useBackdropClose'
 
 const SOURCE_TYPE_COLORS: Record<string, string> = {
   PRODUCT_STOCK: 'bg-indigo-100 text-indigo-700',
@@ -90,13 +91,14 @@ export function SourceViewModal({
 
   const linkedProduct = item.team_product ?? item.editor_product ?? item.product
 
+  const backdrop = useBackdropClose(onClose)
+
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-[1002] flex items-center justify-center p-4 sm:p-6" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden ring-1 ring-black/8"
-        onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[1002] flex items-center justify-center p-4 sm:p-6">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" {...backdrop} />
+      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden ring-1 ring-black/8">
 
         {/* Header */}
         <div className="px-5 sm:px-8 pt-7 pb-5 border-b border-gray-100 shrink-0">

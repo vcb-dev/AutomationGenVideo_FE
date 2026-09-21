@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useScrollLock } from '@/hooks/useScrollLock'
+import { useBackdropClose } from '@/hooks/useBackdropClose'
 
 interface Props {
   open: boolean
@@ -25,6 +26,7 @@ const SIZE = {
 
 function DarkModalInner({ open, onClose, title, subtitle, children, size = 'md', footer }: Props) {
   useScrollLock()
+  const backdrop = useBackdropClose(onClose)
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -36,7 +38,7 @@ function DarkModalInner({ open, onClose, title, subtitle, children, size = 'md',
 
   return (
     <div className="fixed inset-0 z-[1003] flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" {...backdrop} />
       <div className={cn(
         'relative bg-white border border-gray-100 shadow-2xl w-full flex flex-col',
         'rounded-t-2xl sm:rounded-2xl max-h-[95vh] sm:max-h-[92vh]',

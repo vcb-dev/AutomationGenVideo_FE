@@ -18,6 +18,7 @@ import {
   ScoreBandBadge, VideoRealismPanel, PreferInsightsBlock,
   renderHighlighted, stripAddTags, extractErrorMessage,
 } from './paast-score-display'
+import { useBackdropClose } from '@/hooks/useBackdropClose'
 
 interface Props {
   open: boolean
@@ -143,6 +144,8 @@ export function PaastScoreModal({ open, content, fileUrl, onClose, cachedResult,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, content, fileUrl, cachedResult])
 
+  const backdrop = useBackdropClose(onClose)
+
   if (!open) return null
 
   const analysis = result?.analysis_result
@@ -150,7 +153,7 @@ export function PaastScoreModal({ open, content, fileUrl, onClose, cachedResult,
 
   return (
     <div className="fixed inset-0 z-[1005] flex items-center justify-center p-4 sm:p-6">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" {...backdrop} />
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
