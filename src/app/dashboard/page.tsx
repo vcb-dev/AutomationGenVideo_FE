@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
 import { Facebook, Construction } from 'lucide-react';
 import { UserRole } from '@/types/auth';
+import { getDashboardPathForRoles } from '@/lib/post-login-redirect';
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
@@ -12,11 +13,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (user) {
-      if (user.roles?.some(r => r === UserRole.MANAGER || r === UserRole.ADMIN)) {
-        router.push('/dashboard/manager');
-      } else {
-        router.push('/dashboard/manager/user-activity?tab=performance');
-      }
+      router.push(getDashboardPathForRoles(user.roles));
     }
   }, [user, router]);
 

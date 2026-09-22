@@ -41,10 +41,10 @@ describe('Quyền vào các màn hình báo cáo theo vai trò', () => {
     expect(canAccessRoute(member, `${BASE}?tab=personal`)).toBe(true);
   });
 
-  it('MEMBER KHÔNG vào được tab duyệt vấn đề và không xem hiệu suất toàn công ty', () => {
-    expect(canAccessRoute(member, `${BASE}?tab=daily_outstanding`)).toBe(false);
-    expect(canAccessRoute(member, `${BASE}?tab=performance`)).toBe(false);
-    expect(canAccessRoute(member, `${BASE}?tab=ranking`)).toBe(false);
+  it('MEMBER với bộ quyền chuẩn vào được các tab báo cáo theo menu thực tế', () => {
+    expect(canAccessRoute(member, `${BASE}?tab=daily_outstanding`)).toBe(true);
+    expect(canAccessRoute(member, `${BASE}?tab=performance`)).toBe(true);
+    expect(canAccessRoute(member, `${BASE}?tab=ranking`)).toBe(true);
   });
 
   it('MEMBER PHẢI vào được tab daily_report — đó là form nộp báo cáo ngày của họ', () => {
