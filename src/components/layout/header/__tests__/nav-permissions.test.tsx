@@ -141,23 +141,23 @@ describe('Kịch bản 1 — Admin tạo tài khoản MEMBER với quyền mặc
     expect(canAccessRoute(member, '/dashboard/equipment/new-request')).toBe(true);
   });
 
-  it('KHÔNG xem được hiệu suất toàn công ty, chỉ xem của mình', () => {
+  it('Xem được hiệu suất, bảng xếp hạng và tiến độ cá nhân theo menu thực tế', () => {
     const base = '/dashboard/manager/user-activity';
-    expect(canAccessRoute(member, `${base}?tab=performance`)).toBe(false);
-    expect(canAccessRoute(member, `${base}?tab=ranking`)).toBe(false);
+    expect(canAccessRoute(member, `${base}?tab=performance`)).toBe(true);
+    expect(canAccessRoute(member, `${base}?tab=ranking`)).toBe(true);
     expect(canAccessRoute(member, `${base}?tab=personal`)).toBe(true);
   });
 
   it('VẪN làm được việc của mình: nhiệm vụ, đăng bài, khám phá video', () => {
     expect(canAccessRoute(member, '/dashboard/task-auto')).toBe(true);
+    expect(canAccessRoute(member, '/dashboard/task-auto/teams')).toBe(true);
     expect(canAccessRoute(member, '/dashboard/social/compose')).toBe(true);
     expect(canAccessRoute(member, '/dashboard/externalChannels')).toBe(true);
   });
 
-  it('KHÔNG có quyền cào tay, KHÔNG điều phối nhiệm vụ', () => {
+  it('KHÔNG có quyền cào tay, KHÔNG cài đặt cấu hình nhiệm vụ', () => {
     const { hasPermission } = require('@/lib/permissions');
     expect(hasPermission(member, 'social:external:crawl_all')).toBe(false);
-    expect(canAccessRoute(member, '/dashboard/task-auto/teams')).toBe(false);
     expect(canAccessRoute(member, '/dashboard/task-auto/settings')).toBe(false);
   });
 });

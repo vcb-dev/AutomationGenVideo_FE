@@ -40,6 +40,7 @@ import Button from '@/components/ui/button';
 import Input from '@/components/ui/input';
 import { fetchWithAuth } from '@/lib/api-client';
 import PermissionTreePicker from '@/components/common/PermissionTreePicker';
+import { getDefaultPermissionsForRole } from '@/config/permission-tree';
 
 interface User {
     id: string;
@@ -111,7 +112,7 @@ export default function AccountManagement() {
         password: '',
         full_name: '',
         roles: [UserRole.MEMBER],
-        permissions: [],
+        permissions: getDefaultPermissionsForRole(UserRole.MEMBER),
         team: '',
         is_active: true,
     });
@@ -144,10 +145,13 @@ export default function AccountManagement() {
 
     const handleEditClick = (user: User) => {
         setSelectedUser(user);
+        const primaryRole = user.roles?.[0] || UserRole.MEMBER;
         setEditForm({
             full_name: user.full_name,
             roles: [...user.roles],
-            permissions: user.permissions ? [...user.permissions] : [],
+            permissions: (user.permissions && user.permissions.length > 0)
+                ? [...user.permissions]
+                : getDefaultPermissionsForRole(primaryRole),
             is_active: user.is_active,
             team: user.team || ''
         });
@@ -156,21 +160,29 @@ export default function AccountManagement() {
 
     const handleRoleToggle = (role: UserRole) => {
         setEditForm(prev => {
-            if (prev.roles.includes(role)) {
-                return { ...prev, roles: prev.roles.filter(r => r !== role) };
-            } else {
-                return { ...prev, roles: [...prev.roles, role] };
-            }
+            const nextRoles = prev.roles.includes(role)
+                ? (prev.roles.length > 1 ? prev.roles.filter(r => r !== role) : prev.roles)
+                : [...prev.roles, role];
+            const primaryRole = nextRoles[nextRoles.length - 1] || UserRole.MEMBER;
+            return {
+                ...prev,
+                roles: nextRoles,
+                permissions: getDefaultPermissionsForRole(primaryRole),
+            };
         });
     };
 
     const handleCreateRoleToggle = (role: UserRole) => {
         setCreateForm(prev => {
-            if (prev.roles.includes(role)) {
-                return { ...prev, roles: prev.roles.filter(r => r !== role) };
-            } else {
-                return { ...prev, roles: [...prev.roles, role] };
-            }
+            const nextRoles = prev.roles.includes(role)
+                ? (prev.roles.length > 1 ? prev.roles.filter(r => r !== role) : prev.roles)
+                : [...prev.roles, role];
+            const primaryRole = nextRoles[nextRoles.length - 1] || UserRole.MEMBER;
+            return {
+                ...prev,
+                roles: nextRoles,
+                permissions: getDefaultPermissionsForRole(primaryRole),
+            };
         });
     };
 
@@ -219,7 +231,7 @@ export default function AccountManagement() {
                 password: '',
                 full_name: '',
                 roles: [UserRole.MEMBER],
-                permissions: [],
+                permissions: getDefaultPermissionsForRole(UserRole.MEMBER),
                 team: '',
                 is_active: true,
             });
@@ -508,10 +520,23 @@ export default function AccountManagement() {
 
                         {/* 3. Phân quyền chi tiết (Cây quyền từ to đến nhỏ) */}
                         <div className="space-y-2">
-                            <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                                <ShieldCheck className="w-4 h-4 text-blue-400" />
-                                <span>Phân quyền chi tiết (Granular Permissions)</span>
-                            </label>
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                                    <ShieldCheck className="w-4 h-4 text-blue-400" />
+                                    <span>Phân quyền chi tiết (Granular Permissions)</span>
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const role = createForm.roles[createForm.roles.length - 1] || UserRole.MEMBER;
+                                        setCreateForm(prev => ({ ...prev, permissions: getDefaultPermissionsForRole(role) }));
+                                        toast.success(`Đã nạp bộ quyền chuẩn của vai trò ${role}`);
+                                    }}
+                                    className="text-[11px] text-blue-400 hover:text-blue-300 underline font-medium cursor-pointer"
+                                >
+                                    Nạp chuẩn ({createForm.roles[createForm.roles.length - 1] || 'MEMBER'})
+                                </button>
+                            </div>
                             <PermissionTreePicker
                                 theme="dark"
                                 selectedPermissions={createForm.permissions}
@@ -604,10 +629,23 @@ export default function AccountManagement() {
 
                         {/* Phân quyền chi tiết */}
                         <div className="space-y-2">
-                            <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                                <ShieldCheck className="w-4 h-4 text-blue-400" />
-                                <span>Phân quyền chi tiết (Granular Permissions)</span>
-                            </label>
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                                    <ShieldCheck className="w-4 h-4 text-blue-400" />
+                                    <span>Phân quyền chi tiết (Granular Permissions)</span>
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const role = editForm.roles[editForm.roles.length - 1] || UserRole.MEMBER;
+                                        setEditForm(prev => ({ ...prev, permissions: getDefaultPermissionsForRole(role) }));
+                                        toast.success(`Đã nạp bộ quyền chuẩn của vai trò ${role}`);
+                                    }}
+                                    className="text-[11px] text-blue-400 hover:text-blue-300 underline font-medium cursor-pointer"
+                                >
+                                    Nạp chuẩn ({editForm.roles[editForm.roles.length - 1] || 'MEMBER'})
+                                </button>
+                            </div>
                             <PermissionTreePicker
                                 theme="dark"
                                 selectedPermissions={editForm.permissions}

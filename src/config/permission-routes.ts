@@ -52,7 +52,7 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   { prefix: '/dashboard/task-auto/kpi', permission: 'tasks:kpi' },
   { prefix: '/dashboard/task-auto/content', permission: 'tasks:content' },
   { prefix: '/dashboard/task-auto/tasks', permission: 'tasks:list' },
-  { prefix: '/dashboard/task-auto', permission: 'tasks:list' },
+  { prefix: '/dashboard/task-auto', permission: 'tasks:list', anyOfPrefix: 'tasks:' },
 
   // ─── VCB Portal ─────────────────────────────────────────────────────────────
   { prefix: '/dashboard/admin', permission: 'portal:admin:panel' },
@@ -72,6 +72,7 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   // (isAdminUser/isLeaderUser) cho phần xem tổng hợp.
   { prefix: '/dashboard/manager/user-activity', tab: 'daily_report', permission: 'portal:checklist:fill' },
   { prefix: '/dashboard/manager', permission: 'portal:performance:view_team' },
+  { prefix: '/dashboard/channel-team/my', permission: 'portal:channel:my' },
   { prefix: '/dashboard/channel-team', permission: 'portal:team:assign' },
   { prefix: '/dashboard/editor-management', permission: 'portal:editor:manage' },
 

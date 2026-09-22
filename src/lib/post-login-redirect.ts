@@ -6,5 +6,5 @@ export function getDashboardPathForRoles(roles: string[] | undefined | null): st
   if (r.includes(UserRole.ADMIN)) return "/dashboard/admin";
   if (r.includes(UserRole.LEADER)) return "/dashboard/leader";
   if (r.includes(UserRole.MANAGER)) return "/dashboard/admin";
-  return "/dashboard/manager/user-activity?tab=performance";
+  return "/dashboard/manager/user-activity?tab=personal";
 }

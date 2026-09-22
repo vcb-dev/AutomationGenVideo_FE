@@ -158,4 +158,58 @@ describe('Cây phân quyền — thao tác của Admin', () => {
     expect(labels).toContain('Nền tảng TikTok');
     expect(labels).not.toContain('Nền tảng Facebook');
   });
+
+  it('click header nhóm thì thu gọn hoặc mở rộng phân hệ đó', () => {
+    render([]);
+    // Kiểm tra lúc đầu đang có "Khám phá kênh ngoài (externalChannels)"
+    expect(labelsOnScreen()).toContain('Khám phá kênh ngoài (externalChannels)');
+
+    // Click vào Header của nhóm "Khám phá Video & Mạng xã hội"
+    const groupHeader = Array.from(container.querySelectorAll('div')).find((el) =>
+      el.textContent?.includes('Khám phá Video & Mạng xã hội') && el.classList.contains('sticky')
+    );
+    expect(groupHeader).toBeDefined();
+    click(groupHeader!);
+
+    // Sau khi click thu gọn, các node bên trong nhóm bị ẩn
+    expect(labelsOnScreen()).not.toContain('Khám phá kênh ngoài (externalChannels)');
+
+    // Click lại để mở rộng
+    click(groupHeader!);
+    expect(labelsOnScreen()).toContain('Khám phá kênh ngoài (externalChannels)');
+  });
+
+  it('tìm kiếm từ khóa không tồn tại thì hiển thị thông báo rỗng', () => {
+    render([]);
+    const searchBox = container.querySelector('input[type="text"]') as HTMLInputElement;
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype, 'value',
+      )!.set!;
+      setter.call(searchBox, 'tu_khoa_khong_he_ton_tai_xyz');
+      searchBox.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain('Không tìm thấy quyền nào khớp với từ khóa');
+    expect(container.textContent).toContain('tu_khoa_khong_he_ton_tai_xyz');
+  });
+
+  it('thứ tự 7 phân hệ lớn trong cây phân quyền khớp chính xác với thứ tự Navbar menu', () => {
+    render([]);
+    const groupNames = Array.from(container.querySelectorAll('.sticky'))
+      .map((el) => el.querySelector('span.font-semibold')?.textContent?.trim())
+      .filter(Boolean);
+
+    expect(groupNames).toEqual([
+      'VCB Portal (Hoạt động & Nhân sự)',
+      'Đăng bài MXH (Bảng bài Mạng xã hội)',
+      'Khám phá Video & Mạng xã hội',
+      'Nhiệm vụ',
+      'Quản lý thiết bị (MEMS)',
+      'Tiện ích & AI Tools',
+      'Hướng dẫn sử dụng',
+    ]);
+  });
 });
+
+
