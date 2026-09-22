@@ -35,6 +35,7 @@ const PLATFORM_NAMES: Record<DeletableChannelPlatform | 'all', string> = {
   tiktok: 'TikTok',
   facebook: 'Facebook',
   instagram: 'Instagram',
+  threads: 'Threads',
   youtube: 'YouTube',
   douyin: 'Douyin',
   xiaohongshu: 'XiaoHongShu',

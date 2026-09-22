@@ -71,6 +71,7 @@ describe('buildDeleteChannelPath', () => {
   it.each([
     ['tiktok', '/scraper/tiktok/profiles/9'],
     ['instagram', '/scraper/instagram/profiles/9'],
+    ['threads', '/scraper/threads/profiles/9'],
     ['youtube', '/scraper/youtube/profiles/9'],
     ['douyin', '/scraper/douyin/profiles/9'],
     ['xiaohongshu', '/scraper/xiaohongshu/profiles/9'],
@@ -80,8 +81,8 @@ describe('buildDeleteChannelPath', () => {
     expect(buildDeleteChannelPath(platform as DeletableChannelPlatform, 9)).toBe(expected);
   });
 
-  it('phủ hết 8 nền tảng — thiếu một cái là quên nối nút xoá cho nó', () => {
-    expect(DELETABLE_CHANNEL_PLATFORMS).toHaveLength(8);
+  it('phủ hết 9 nền tảng — thiếu một cái là quên nối nút xoá cho nó', () => {
+    expect(DELETABLE_CHANNEL_PLATFORMS).toHaveLength(9);
   });
 });
 
@@ -98,6 +99,7 @@ describe('buildSyncAllChannelsPath', () => {
   it.each([
     ['tiktok', '/scraper/tiktok/profiles/sync-all'],
     ['instagram', '/scraper/instagram/profiles/sync-all'],
+    ['threads', '/scraper/threads/profiles/sync-all'],
     ['youtube', '/scraper/youtube/profiles/sync-all'],
     ['douyin', '/scraper/douyin/profiles/sync-all'],
     ['xiaohongshu', '/scraper/xiaohongshu/profiles/sync-all'],

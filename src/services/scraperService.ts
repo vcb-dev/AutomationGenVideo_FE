@@ -402,6 +402,56 @@ export interface PaginatedInstagramReels {
   reels: InstagramReel[];
 }
 
+export type ThreadsToggleField = 'is_bookmarked' | 'is_tracked' | 'is_owned';
+
+export interface ThreadsProfile {
+  id: string | number;
+  threads_user_id?: string;
+  username: string;
+  name?: string;
+  url: string;
+  avatar_url?: string;
+  biography?: string;
+  followers_count: number | string;
+  is_verified: boolean;
+  is_tracked: boolean;
+  is_bookmarked: boolean;
+  is_owned: boolean;
+  scraping_status: 'idle' | 'processing' | 'completed' | 'failed';
+  scrape_error?: string | null;
+  last_scraped_at?: string | null;
+  created_at: string;
+  posts_count?: number;
+}
+
+export interface ThreadsPost {
+  id: string | number;
+  post_id: string;
+  shortcode?: string;
+  url: string;
+  text: string;
+  media_type?: string;
+  thumbnail_url?: string;
+  video_url?: string;
+  author_username?: string;
+  author_name?: string;
+  author_avatar?: string;
+  views_count: number | string;
+  likes_count: number | string;
+  replies_count: number | string;
+  reposts_count: number | string;
+  quotes_count?: number | string;
+  date_posted: string;
+  is_vietnamese?: boolean;
+  profile?: {
+    id?: string | number;
+    username: string;
+    name?: string;
+    avatar_url?: string;
+    is_tracked?: boolean;
+  };
+}
+
 export interface YoutubeProfile {
   id: number;
   channel_id: string;
@@ -1896,7 +1946,7 @@ export const scraperService = {
     });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
-      throw new Error(body?.error || 'Không thể cào profile Douyin');
+      throw new Error(body?.error || body?.message || 'Không thể cào profile Douyin');
     }
     return res.json();
   },
@@ -1992,7 +2042,7 @@ export const scraperService = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Thêm profile thất bại');
+      throw new Error(err.error || err.message || 'Thêm profile thất bại');
     }
     return res.json();
   },
@@ -2112,6 +2162,7 @@ export const scraperService = {
         'tiktok',
         'facebook',
         'instagram',
+        'threads',
         'youtube',
         'douyin',
         'xiaohongshu',
@@ -2173,4 +2224,173 @@ export const scraperService = {
     }
     return res.json();
   },
+
+  // Threads Scraper (Khám phá kênh ngoài)
+  scrapeThreadsProfile: async (
+    token: string,
+    username: string,
+    target_count?: number,
+    options?: { mode?: 'count' | 'days'; days?: number },
+  ): Promise<any> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/threads/profiles/scrape`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        username,
+        target_count,
+        mode: options?.mode || 'count',
+        days: options?.days,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Cào kênh Threads thất bại');
+    }
+    return res.json();
+  },
+
+  getThreadsProfiles: async (
+    token: string,
+    params?: { search?: string; is_tracked?: boolean; is_bookmarked?: boolean; page?: number; limit?: number },
+  ): Promise<{ items: ThreadsProfile[]; total: number; page: number; limit: number; total_pages: number }> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/threads/profiles${buildParams(params || {})}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Không thể tải danh sách kênh Threads');
+    return res.json();
+  },
+
+  getThreadsProfileDetail: async (token: string, id: string | number): Promise<ThreadsProfile> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/threads/profiles/${id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Không thể tải thông tin kênh Threads');
+    return res.json();
+  },
+
+  getThreadsPosts: async (
+    token: string,
+    params?: { search?: string; media_type?: string; sort_by?: string; page?: number; limit?: number },
+  ): Promise<{ items: ThreadsPost[]; total: number; page: number; limit: number; total_pages: number }> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/threads/posts${buildParams(params || {})}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Không thể tải kho bài viết và video Threads');
+    return res.json();
+  },
+
+  getThreadsProfilePosts: async (
+    token: string,
+    profileId: string | number,
+    params?: { search?: string; media_type?: string; sort_by?: string; page?: number; limit?: number },
+  ): Promise<{ items: ThreadsPost[]; total: number; page: number; limit: number; total_pages: number }> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/threads/profiles/${profileId}/posts${buildParams(params || {})}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Không thể tải bài viết Threads');
+    return res.json();
+  },
+
+  toggleThreadsProfile: async (token: string, id: string | number, field: ThreadsToggleField, value: boolean): Promise<any> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/threads/profiles/${id}/toggle`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ field, value }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Không thể cập nhật trạng thái kênh');
+    }
+    return res.json();
+  },
+
+  deleteThreadsProfile: async (token: string, id: string | number): Promise<{ deleted: boolean; id: number; name: string; videos_deleted: number }> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/threads/profiles/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Xoá kênh Threads thất bại');
+    }
+    return res.json();
+  },
+
+  searchThreadsHotPosts: async (
+    token: string,
+    query: string,
+    count: number = 50,
+    options?: { mode?: 'count' | 'days'; days?: number },
+  ): Promise<{ query: string; posts: ThreadsPost[] }> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/threads/search/top`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query,
+        count,
+        mode: options?.mode || 'count',
+        days: options?.days,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Tìm kiếm nội dung Threads thất bại');
+    }
+    return res.json();
+  },
+
+  ingestThreadsHotPosts: async (
+    token: string,
+    posts: ThreadsPost[],
+  ): Promise<{ saved_count: number }> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/threads/posts/ingest-hot`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ posts }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Lưu bài viết Threads thất bại');
+    }
+    return res.json();
+  },
+
+  batchScrapeThreadsProfiles: async (
+    token: string,
+    usernames: string[],
+    count?: number,
+    options?: { mode?: 'count' | 'days'; days?: number },
+  ): Promise<{ results: any[]; total: number; succeeded: number; failed: number }> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/threads/profiles/batch-scrape`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        usernames,
+        count,
+        mode: options?.mode || 'count',
+        days: options?.days,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Cào danh sách kênh thất bại');
+    }
+    return res.json();
+  },
 };
+
