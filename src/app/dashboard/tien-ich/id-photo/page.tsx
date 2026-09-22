@@ -13,7 +13,7 @@ import { MergeOutfitStep, MergeStatus } from './components/MergeOutfitStep';
 import { InfoStep } from './components/InfoStep';
 import { ExportStep } from './components/ExportStep';
 import { EmployeeInfoValues } from './components/EmployeeInfoFields';
-import { IdPhotoPosition } from './components/constants';
+import { IdPhotoOutfitType, IdPhotoPosition } from './components/constants';
 import { CROP_DEFAULT, CropTransform } from './components/crop-math';
 import { HistoryTab } from './components/HistoryTab';
 import { StatsTab } from './components/StatsTab';
@@ -39,6 +39,7 @@ function moduleTabFromSearchParam(tab: string | null): ModuleTab | null {
 }
 
 const INITIAL_POSITION: IdPhotoPosition = 'NEW_STAFF_1_3M';
+const INITIAL_OUTFIT_TYPE: IdPhotoOutfitType = 'office';
 
 /**
  * Đổi lỗi kỹ thuật của bước ghép áo thành câu người dùng đọc được — tuyệt đối không để lọt mã
@@ -117,7 +118,10 @@ function IdPhotoPageContent() {
   const objectUrlRef = useRef<string | null>(null);
 
   // ── Bước 2: ghép áo ──
-  const [mergeStatus, setMergeStatus] = useState<MergeStatus>('processing');
+  // Loại đồng phục — ĐỘC LẬP với `position` (cấp bậc, chọn ở bước 3): người dùng chọn ở đây
+  // TRƯỚC khi bấm "Ghép áo", mặc định "office" để giữ đúng hành vi cũ nếu không đổi lựa chọn.
+  const [outfitType, setOutfitType] = useState<IdPhotoOutfitType>(INITIAL_OUTFIT_TYPE);
+  const [mergeStatus, setMergeStatus] = useState<MergeStatus>('idle');
   const [mergedImageData, setMergedImageData] = useState<string | null>(null);
   const [mergeError, setMergeError] = useState<string | null>(null);
   const mergeAbortRef = useRef<AbortController | null>(null);
@@ -211,8 +215,12 @@ function IdPhotoPageContent() {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setUploadId(res.data.uploadId);
+      // Không tự chạy merge-outfit ngay — người dùng chọn đồng phục (office/workshop) ở màn
+      // hình 'idle' của MergeOutfitStep rồi mới bấm "Ghép áo" (xem handleStartMerge).
+      setMergeStatus('idle');
+      setMergedImageData(null);
+      setMergeError(null);
       setStep(2);
-      runMergeOutfit(res.data.uploadId);
     } catch (err: any) {
       const msg = err.response?.data?.message || 'Tải ảnh lên thất bại, vui lòng thử lại.';
       toast.error(msg);
@@ -227,7 +235,7 @@ function IdPhotoPageContent() {
    * cancelActiveTranscribe ở trang content-transform (dashboard/ai/content-transform/page.tsx)
    * — cho phép nút "Huỷ" ngắt request đang chạy mà không để response cũ về sau ghi đè state.
    */
-  const runMergeOutfit = async (id: string) => {
+  const runMergeOutfit = async (id: string, outfitTypeArg: IdPhotoOutfitType) => {
     mergeAbortRef.current?.abort();
     const controller = new AbortController();
     mergeAbortRef.current = controller;
@@ -238,7 +246,7 @@ function IdPhotoPageContent() {
     try {
       const res = await apiClient.post(
         '/id-photo/merge-outfit',
-        { uploadId: id },
+        { uploadId: id, outfitType: outfitTypeArg },
         { signal: controller.signal },
       );
       if (requestId !== mergeRequestId.current) return; // đã bị Huỷ/lượt sau ghi đè
@@ -252,6 +260,12 @@ function IdPhotoPageContent() {
       setMergeError(toFriendlyMergeError(err));
       setMergeStatus('error');
     }
+  };
+
+  /** Bấm "Ghép áo" ở màn hình chọn đồng phục ('idle') — bắt đầu gọi AI với outfitType đã chọn. */
+  const handleStartMerge = () => {
+    if (!uploadId) return;
+    runMergeOutfit(uploadId, outfitType);
   };
 
   const cancelMerge = () => {
@@ -442,7 +456,8 @@ function IdPhotoPageContent() {
     setFile(null);
     setPreviewUrl(null);
     setUploadId(null);
-    setMergeStatus('processing');
+    setOutfitType(INITIAL_OUTFIT_TYPE);
+    setMergeStatus('idle');
     setMergedImageData(null);
     setMergeError(null);
     setEmployeeName('');
@@ -573,10 +588,14 @@ function IdPhotoPageContent() {
           {step === 2 && (
             <MergeOutfitStep
               status={mergeStatus}
+              previewUrl={previewUrl}
               mergedPreviewUrl={mergedImageData}
               errorMessage={mergeError}
+              outfitType={outfitType}
+              onChangeOutfitType={setOutfitType}
+              onStartMerge={handleStartMerge}
               onCancel={cancelMerge}
-              onRetry={() => uploadId && runMergeOutfit(uploadId)}
+              onRetry={() => uploadId && runMergeOutfit(uploadId, outfitType)}
               onBack={() => {
                 mergeAbortRef.current?.abort();
                 setStep(1);
