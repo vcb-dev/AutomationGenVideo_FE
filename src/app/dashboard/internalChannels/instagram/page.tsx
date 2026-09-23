@@ -225,10 +225,14 @@ export default function InstagramChannelsPage() {
       return scraperService.syncOwnedInstagram(token);
     },
     onSuccess: (r) => {
-      toast.success(
-        `Đồng bộ xong ${r.accounts} kênh (+${r.createdProfiles} mới), ${r.syncedMedia} bài` +
-          (r.failed ? ` — ${r.failed} kênh lỗi` : ''),
-      );
+      if (r.status === 'processing' || r.status === 'already_running') {
+        toast.success(r.message || 'Đã bắt đầu đồng bộ các kênh Instagram trong nền...', { icon: '⏳' });
+      } else {
+        toast.success(
+          `Đồng bộ xong ${r.accounts ?? 0} kênh (+${r.createdProfiles ?? 0} mới), ${r.syncedMedia ?? 0} bài` +
+            (r.failed ? ` — ${r.failed} kênh lỗi` : ''),
+        );
+      }
       queryClient.invalidateQueries({ queryKey: ['owned-instagram-profiles'] });
       queryClient.invalidateQueries({ queryKey: ['owned-stats'] });
       queryClient.invalidateQueries({ queryKey: ['owned-dup'] });

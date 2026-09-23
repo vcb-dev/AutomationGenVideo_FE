@@ -2052,12 +2052,20 @@ export const scraperService = {
    */
   syncOwnedInstagram: async (
     token: string,
-  ): Promise<{ accounts: number; createdProfiles: number; updatedProfiles: number; syncedMedia: number; failed: number }> => {
+  ): Promise<{ status?: string; message?: string; accounts?: number; createdProfiles?: number; updatedProfiles?: number; syncedMedia?: number; failed?: number }> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/instagram/owned/sync`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Đồng bộ kênh Instagram thất bại');
+    return res.json();
+  },
+
+  getInstagramSyncStatus: async (token: string): Promise<{ is_syncing: boolean; progress: { current: number; total: number }; started_at?: string; last_result?: any }> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/instagram/owned/sync/status`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return { is_syncing: false, progress: { current: 0, total: 0 } };
     return res.json();
   },
 
@@ -2069,12 +2077,20 @@ export const scraperService = {
     return res.json();
   },
 
-  syncOwnedThreads: async (token: string): Promise<{ accounts: number; createdProfiles: number; updatedProfiles: number; syncedPosts: number; failed: number }> => {
+  syncOwnedThreads: async (token: string): Promise<{ status?: string; message?: string; accounts?: number; createdProfiles?: number; updatedProfiles?: number; syncedPosts?: number; failed?: number }> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/threads/owned/sync`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Đồng bộ kênh Threads thất bại');
+    return res.json();
+  },
+
+  getThreadsSyncStatus: async (token: string): Promise<{ is_syncing: boolean; progress: { current: number; total: number }; started_at?: string; last_result?: any }> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/threads/owned/sync/status`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return { is_syncing: false, progress: { current: 0, total: 0 } };
     return res.json();
   },
 

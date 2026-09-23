@@ -74,8 +74,6 @@ describe('Internal Channels RBAC Platform Filtering', () => {
     { id: 'instagram', label: 'Instagram' },
     { id: 'threads', label: 'Threads' },
     { id: 'youtube', label: 'YouTube' },
-    { id: 'douyin', label: 'Douyin' },
-    { id: 'xiaohongshu', label: 'XiaoHongShu' },
   ];
 
   describe('canAccessInternalPlatform()', () => {
@@ -84,8 +82,8 @@ describe('Internal Channels RBAC Platform Filtering', () => {
       expect(canAccessInternalPlatform(mockAdmin, 'facebook')).toBe(true);
       expect(canAccessInternalPlatform(mockAdmin, 'tiktok')).toBe(true);
       expect(canAccessInternalPlatform(mockAdmin, 'threads')).toBe(true);
-      expect(canAccessInternalPlatform(mockAdmin, 'douyin')).toBe(true);
-      expect(canAccessInternalPlatform(mockAdmin, 'xiaohongshu')).toBe(true);
+      expect(canAccessInternalPlatform(mockAdmin, 'instagram')).toBe(true);
+      expect(canAccessInternalPlatform(mockAdmin, 'youtube')).toBe(true);
     });
 
     it('User chỉ có quyền social:internal:facebook thì CHỈ vào được Facebook', () => {
@@ -134,10 +132,10 @@ describe('Internal Channels RBAC Platform Filtering', () => {
   });
 
   describe('filterAllowedInternalPlatforms()', () => {
-    it('Admin thấy đầy đủ toàn bộ 8 tabs', () => {
+    it('Admin thấy đầy đủ toàn bộ 6 tabs', () => {
       const visible = filterAllowedInternalPlatforms(mockAdmin, sampleInternalTabs);
       expect(visible.map(t => t.id)).toEqual([
-        'all', 'facebook', 'tiktok', 'instagram', 'threads', 'youtube', 'douyin', 'xiaohongshu'
+        'all', 'facebook', 'tiktok', 'instagram', 'threads', 'youtube'
       ]);
     });
 

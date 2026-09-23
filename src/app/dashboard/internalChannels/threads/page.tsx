@@ -175,10 +175,14 @@ export default function ThreadsChannelsPage() {
       return scraperService.syncOwnedThreads(token);
     },
     onSuccess: (data) => {
-      toast.success(
-        `Đã đồng bộ ${data.accounts} tài khoản Threads, ${data.syncedPosts} bài viết!`,
-        { icon: '🧵' },
-      );
+      if (data.status === 'processing' || data.status === 'already_running') {
+        toast.success(data.message || 'Đã bắt đầu đồng bộ các kênh Threads trong nền...', { icon: '🧵' });
+      } else {
+        toast.success(
+          `Đã đồng bộ ${data.accounts ?? 0} tài khoản Threads, ${data.syncedPosts ?? 0} bài viết!`,
+          { icon: '🧵' },
+        );
+      }
       queryClient.invalidateQueries({ queryKey: ['owned-threads-profiles'] });
       queryClient.invalidateQueries({ queryKey: ['owned-threads-posts'] });
       queryClient.invalidateQueries({ queryKey: ['owned-stats'] });
