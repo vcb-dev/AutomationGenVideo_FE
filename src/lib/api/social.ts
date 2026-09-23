@@ -1,7 +1,7 @@
 import apiClient from '../api-client';
 import { withUploadQueue } from '../upload-queue';
 
-export type SocialPlatform = 'FACEBOOK' | 'INSTAGRAM' | 'THREADS' | 'YOUTUBE';
+export type SocialPlatform = 'FACEBOOK' | 'INSTAGRAM' | 'THREADS' | 'YOUTUBE' | 'TIKTOK';
 
 export interface SocialAccount {
   id: string;
@@ -347,4 +347,5 @@ export const PLATFORM_META: Record<SocialPlatform, { label: string; color: strin
   INSTAGRAM: { label: 'Instagram',  color: 'bg-pink-500',   emoji: '📷' },
   THREADS:   { label: 'Threads',    color: 'bg-gray-800',   emoji: '🧵' },
   YOUTUBE:   { label: 'YouTube',    color: 'bg-red-600',    emoji: '▶️' },
+  TIKTOK:    { label: 'TikTok',     color: 'bg-slate-900',  emoji: '🎵' },
 };

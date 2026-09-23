@@ -29,6 +29,7 @@ import { VideoPreviewOverlay } from './detail/VideoPreviewOverlay'
 import { TaskSchedulePostModal } from './detail/TaskSchedulePostModal'
 import { PublishedLinksSection } from './detail/PublishedLinksSection'
 import type { Source, TeamSource, OmsProductSummary } from '@/types/task-auto'
+import { useBackdropClose } from '@/hooks/useBackdropClose'
 
 type CatalogScope = 'personal' | 'global' | 'team'
 type SourceScope = CatalogScope | 'all'
@@ -137,6 +138,10 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
     if (contentDirty) { setShowCloseConfirm(true); return }
     onClose()
   }
+
+  // Bấm vùng tối quanh panel = đóng. Handler phải nằm ở lớp z-[1002] bên dưới chứ không phải
+  // ở backdrop z-[1001], vì lớp z-[1002] cũng inset-0 nên đã phủ kín backdrop, nuốt hết click.
+  const backdrop = useBackdropClose(requestClose)
 
   const { data: task, isLoading } = useQuery({
     queryKey: ['task-auto', 'task', taskId],
@@ -660,9 +665,9 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
 
   return (
     <>
-      <div className="fixed inset-0 z-[1001] bg-black/50 backdrop-blur-sm" onClick={requestClose} />
+      <div className="fixed inset-0 z-[1001] bg-black/50 backdrop-blur-sm" />
 
-      <div className="fixed inset-0 z-[1002] flex items-center justify-center p-4 sm:p-6">
+      <div className="fixed inset-0 z-[1002] flex items-center justify-center p-4 sm:p-6" {...backdrop}>
         <div className="relative w-full max-w-6xl max-h-[95vh] bg-gray-50 rounded-2xl shadow-2xl flex flex-col overflow-hidden ring-1 ring-black/8">
 
           <TaskPanelHeader

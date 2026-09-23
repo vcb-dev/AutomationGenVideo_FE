@@ -267,7 +267,8 @@ describe('Frontend RBAC Permissions Helper', () => {
     });
 
     it('getNodeAndDescendantIds() lấy đúng id node và tất cả id con', () => {
-      const externalNode = PERMISSION_TREE[0].nodes.find((n: any) => n.id === 'social:external');
+      const socialGroup = PERMISSION_TREE.find((g: any) => g.id === 'social')!;
+      const externalNode = socialGroup.nodes.find((n: any) => n.id === 'social:external')!;
       const allIds = getNodeAndDescendantIds(externalNode);
       expect(allIds).toContain('social:external');
       expect(allIds).toContain('social:external:all');

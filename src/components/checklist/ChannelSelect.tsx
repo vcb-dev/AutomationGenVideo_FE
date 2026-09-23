@@ -37,6 +37,10 @@ function removeVietnameseTones(str: string): string {
         .trim();
 }
 
+export function shouldOpenUpward(spaceBelow: number, spaceAbove: number, threshold = 340): boolean {
+    return spaceBelow < threshold && spaceAbove > spaceBelow;
+}
+
 export function safeString(val: any): string {
     if (val === null || val === undefined) return '';
     if (typeof val === 'string') return val;
@@ -175,7 +179,7 @@ export const ChannelSelect = forwardRef<ChannelSelectRef, ChannelSelectProps>(({
     const isCurrentValueInOptions = options.some(o => safeString(o.name).toLowerCase() === displayValue.toLowerCase());
 
     return (
-        <div ref={containerRef} className={`relative w-full ${className}`} onKeyDown={handleKeyDown}>
+        <div ref={containerRef} className={`relative w-full ${isOpen ? 'z-50' : ''} ${className}`} onKeyDown={handleKeyDown}>
             {/* Main Trigger Button */}
             <div
                 role="button"
@@ -231,7 +235,9 @@ export const ChannelSelect = forwardRef<ChannelSelectRef, ChannelSelectProps>(({
 
             {/* Dropdown Popover */}
             {isOpen && isInteractive && (
-                <div className="absolute left-1/2 -translate-x-1/2 top-[calc(100%+6px)] z-50 min-w-[320px] w-[340px] sm:w-[360px] max-w-[calc(100vw-32px)] bg-white rounded-2xl border border-slate-200/90 shadow-2xl shadow-slate-900/25 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150 flex flex-col">
+                <div
+                    className="absolute left-1/2 -translate-x-1/2 top-[calc(100%+6px)] origin-top z-[100] min-w-[320px] w-[340px] sm:w-[360px] max-w-[calc(100vw-32px)] bg-white rounded-2xl border border-slate-200 shadow-2xl shadow-slate-900/30 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150 flex flex-col"
+                >
                     {/* Header: Search Box */}
                     {!isAddingCustom && (
                         <div className="p-2.5 border-b border-slate-100 bg-slate-50/70 flex items-center gap-2">

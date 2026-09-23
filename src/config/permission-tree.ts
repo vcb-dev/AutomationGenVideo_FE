@@ -13,10 +13,121 @@ export interface PermissionGroup {
 }
 
 export const PERMISSION_TREE: PermissionGroup[] = [
+  // 1. VCB Portal (Hoạt động & Nhân sự)
+  {
+    id: 'portal',
+    name: 'VCB Portal (Hoạt động & Nhân sự)',
+    nodes: [
+      {
+        id: 'portal:performance',
+        label: 'Tổng quan (Hiệu suất & Bảng điều khiển)',
+        children: [
+          { id: 'portal:admin:panel', label: 'Dashboard Admin (Trang quản trị hệ thống)' },
+          { id: 'portal:leader:panel', label: 'Trang điều hành Trưởng nhóm' },
+          { id: 'portal:manager:main', label: 'Bảng điều khiển chính (Manager)' },
+          { id: 'portal:performance:view_team', label: 'Hiệu suất (Xem toàn team / công ty)' },
+          { id: 'portal:performance:ranking', label: 'Bảng xếp hạng (Xếp hạng thành viên)' },
+          { id: 'portal:performance:view_self', label: 'Tiến độ cá nhân (Lịch sử & biểu đồ)' },
+        ],
+      },
+      {
+        id: 'portal:checklist',
+        label: 'Báo cáo hàng ngày & Checklist',
+        children: [
+          { id: 'portal:reports:traffic', label: 'Báo cáo Traffic ngày' },
+          { id: 'portal:reports:tasks', label: 'Báo cáo Đầu việc ngày' },
+          { id: 'portal:reports:monthly', label: 'Báo cáo tổng hợp tháng' },
+          { id: 'portal:checklist:fill', label: 'Điền & Xem checklist hàng ngày' },
+          { id: 'portal:checklist:approve', label: 'Duyệt vấn đề & win (Tồn đọng / phát sinh)' },
+        ],
+      },
+      {
+        id: 'portal:channel',
+        label: 'Kênh (Quản lý Kênh đội nhóm)',
+        children: [
+          { id: 'portal:channel:my', label: 'Kênh của tôi' },
+          { id: 'portal:channel:team', label: 'Quản lý kênh nhóm (Kênh của team)' },
+          { id: 'portal:team:assign', label: 'Phân công kênh cho nhân sự' },
+        ],
+      },
+      {
+        id: 'portal:hr',
+        label: 'Quản lý (Quản lý Nhân sự)',
+        children: [
+          { id: 'portal:hr:view', label: 'Xem danh sách nhân sự' },
+          { id: 'portal:hr:manage', label: 'Thêm nhân sự & Cấp tài khoản mới' },
+          { id: 'portal:hr:edit', label: 'Sửa thông tin & Tinh chỉnh phân quyền' },
+          { id: 'portal:hr:status', label: 'Bật / Tắt kích hoạt tài khoản' },
+          { id: 'portal:hr:delete', label: 'Xóa nhân sự (Soft delete)' },
+          { id: 'portal:hr:unassigned', label: 'Xem nhân sự chưa phân team' },
+          { id: 'portal:editor:manage', label: 'Quản lý Editor' },
+        ],
+      },
+    ],
+  },
+
+  // 2. Đăng bài MXH
+  {
+    id: 'publishing',
+    name: 'Đăng bài MXH (Bảng bài Mạng xã hội)',
+    nodes: [
+      {
+        id: 'publishing:manage',
+        label: 'Tài khoản (Kết nối tài khoản)',
+        children: [
+          { id: 'publishing:channels', label: 'Kết nối tài khoản (Quản lý tài khoản kết nối)' },
+          { id: 'publishing:channels:connect', label: 'Nút "Liên kết tài khoản mới"' },
+        ],
+      },
+      {
+        id: 'publishing:post',
+        label: 'Đăng bài (Soạn & Lên lịch đăng bài)',
+        children: [
+          { id: 'publishing:compose', label: 'Soạn & đăng bài (Đơn lẻ)' },
+          { id: 'publishing:bulk', label: 'Soạn bài đăng hàng loạt' },
+          { id: 'publishing:schedule', label: 'Lịch đăng & Hàng chờ' },
+          { id: 'publishing:calendar', label: 'Lịch tháng (Lịch nội dung trực quan)' },
+        ],
+      },
+      {
+        id: 'publishing:stats_group',
+        label: 'Thống kê (Lịch sử & Thống kê đăng bài)',
+        children: [
+          { id: 'publishing:history', label: 'Lịch sử đăng bài' },
+          { id: 'publishing:stats', label: 'Thống kê hiệu quả đăng bài' },
+        ],
+      },
+    ],
+  },
+
+  // 3. Khám phá Video
   {
     id: 'social',
     name: 'Khám phá Video & Mạng xã hội',
     nodes: [
+      {
+        id: 'social:internal',
+        label: 'Kênh nội bộ & Phân tích (Tổng quan & Kênh nội bộ)',
+        description: 'Quản lý, phân tích và đồng bộ các kênh mạng xã hội thuộc sở hữu',
+        children: [
+          { id: 'social:internal:overview', label: 'Tổng quan nội bộ' },
+          {
+            id: 'social:internal:view',
+            label: 'Tab "Tất cả" kênh nội bộ',
+            description: 'CHỈ mở tab tổng hợp kênh nội bộ. Muốn thấy từng nền tảng thì tick riêng bên dưới',
+          },
+          { id: 'social:internal:facebook', label: 'Kênh nội bộ Facebook' },
+          { id: 'social:internal:tiktok', label: 'Kênh nội bộ TikTok' },
+          { id: 'social:internal:instagram', label: 'Kênh nội bộ Instagram' },
+          { id: 'social:internal:youtube', label: 'Kênh nội bộ YouTube' },
+          { id: 'social:internal:threads', label: 'Kênh nội bộ Threads' },
+          { id: 'social:internal:douyin', label: 'Kênh nội bộ Douyin' },
+          { id: 'social:internal:xiaohongshu', label: 'Kênh nội bộ XiaoHongShu' },
+          { id: 'social:internal:sync', label: 'Nút "Đồng bộ / Cào dữ liệu kênh nội bộ"' },
+          { id: 'social:internal:add_channel', label: 'Nút "Thêm kênh nội bộ mới"' },
+          { id: 'social:internal:delete_channel', label: 'Nút "Xóa kênh nội bộ"' },
+        ],
+      },
       {
         id: 'social:external',
         label: 'Khám phá kênh ngoài (externalChannels)',
@@ -51,34 +162,11 @@ export const PERMISSION_TREE: PermissionGroup[] = [
         ],
       },
       {
-        id: 'social:internal',
-        label: 'Kênh nội bộ & Phân tích',
-        description: 'Quản lý, phân tích và đồng bộ các kênh mạng xã hội thuộc sở hữu',
-        children: [
-          { id: 'social:internal:overview', label: 'Tổng quan kênh nội bộ' },
-          {
-            id: 'social:internal:view',
-            label: 'Tab "Tất cả" kênh nội bộ',
-            description: 'CHỈ mở tab tổng hợp kênh nội bộ. Muốn thấy từng nền tảng thì tick riêng bên dưới',
-          },
-          { id: 'social:internal:facebook', label: 'Kênh nội bộ Facebook' },
-          { id: 'social:internal:tiktok', label: 'Kênh nội bộ TikTok' },
-          { id: 'social:internal:instagram', label: 'Kênh nội bộ Instagram' },
-          { id: 'social:internal:youtube', label: 'Kênh nội bộ YouTube' },
-          { id: 'social:internal:threads', label: 'Kênh nội bộ Threads' },
-          { id: 'social:internal:douyin', label: 'Kênh nội bộ Douyin' },
-          { id: 'social:internal:xiaohongshu', label: 'Kênh nội bộ XiaoHongShu' },
-          { id: 'social:internal:sync', label: 'Nút "Đồng bộ / Cào dữ liệu kênh nội bộ"' },
-          { id: 'social:internal:add_channel', label: 'Nút "Thêm kênh nội bộ mới"' },
-          { id: 'social:internal:delete_channel', label: 'Nút "Xóa kênh nội bộ"' },
-        ],
-      },
-      {
         id: 'social:tools',
-        label: 'Công cụ Video & Kịch bản',
+        label: 'Bộ sưu tập & Công cụ Video (Khám phá & Bộ sưu tập)',
         children: [
-          { id: 'social:hub:search', label: 'Tìm kiếm Video Hub' },
-          { id: 'social:library:view', label: 'Bộ sưu tập Video (Video Library)' },
+          { id: 'social:hub:search', label: 'Tìm kiếm Video (Hub)' },
+          { id: 'social:library:view', label: 'Bộ sưu tập (Video Library)' },
           { id: 'social:collections:view', label: 'Bộ sưu tập đã lưu (Collections)' },
           { id: 'social:content:translate', label: 'Dịch Content & Tạo kịch bản' },
           { id: 'social:content:product', label: 'Chọn sản phẩm cho nội dung' },
@@ -91,127 +179,60 @@ export const PERMISSION_TREE: PermissionGroup[] = [
       },
     ],
   },
-  {
-    id: 'publishing',
-    name: 'Bảng bài Mạng xã hội',
-    nodes: [
-      {
-        id: 'publishing:post',
-        label: 'Soạn & Lên lịch đăng bài',
-        children: [
-          { id: 'publishing:compose', label: 'Soạn bài đăng đơn lẻ' },
-          { id: 'publishing:bulk', label: 'Soạn bài đăng hàng loạt' },
-          { id: 'publishing:schedule', label: 'Lịch đăng & Hàng chờ' },
-          { id: 'publishing:calendar', label: 'Lịch nội dung trực quan' },
-          { id: 'publishing:history', label: 'Lịch sử đăng bài' },
-        ],
-      },
-      {
-        id: 'publishing:manage',
-        label: 'Kênh & Thống kê đăng bài',
-        children: [
-          { id: 'publishing:channels', label: 'Quản lý tài khoản kết nối' },
-          { id: 'publishing:channels:connect', label: 'Nút "Liên kết tài khoản mới"' },
-          { id: 'publishing:stats', label: 'Thống kê hiệu quả đăng bài' },
-        ],
-      },
-    ],
-  },
+
+  // 4. Nhiệm vụ
   {
     id: 'tasks',
-    name: 'Nhiệm vụ & KPI',
+    name: 'Nhiệm vụ',
     nodes: [
       {
         id: 'tasks:work',
-        label: 'Công việc cá nhân & KPI',
+        label: 'Nhiệm vụ (Tổng quan & Danh sách)',
         children: [
           { id: 'tasks:overview', label: 'Tổng quan nhiệm vụ' },
           { id: 'tasks:list', label: 'Danh sách nhiệm vụ' },
           { id: 'tasks:create', label: 'Tạo nhiệm vụ mới' },
-          { id: 'tasks:my_catalog', label: 'Đầu việc của tôi' },
-          { id: 'tasks:kpi', label: 'Xem bảng KPI' },
-          { id: 'tasks:content', label: 'Bảng nội dung thắng (Content Win)' },
         ],
       },
       {
         id: 'tasks:admin',
-        label: 'Điều phối quản lý (Trưởng nhóm / Quản lý)',
+        label: 'Đội nhóm & Danh mục',
         children: [
-          { id: 'tasks:catalog', label: 'Danh mục đầu việc' },
-          { id: 'tasks:teams', label: 'Quản lý đội nhóm nhiệm vụ' },
-          { id: 'tasks:settings', label: 'Cấu hình nhiệm vụ' },
+          { id: 'tasks:teams', label: 'Đội nhóm (Quản lý đội nhóm nhiệm vụ)' },
+          { id: 'tasks:catalog', label: 'Danh mục tổng (Danh mục đầu việc)' },
+        ],
+      },
+      {
+        id: 'tasks:personal',
+        label: 'Cá nhân (Kho cá nhân, KPI & Cài đặt)',
+        children: [
+          { id: 'tasks:my_catalog', label: 'Kho cá nhân (Đầu việc của tôi)' },
+          { id: 'tasks:kpi', label: 'KPI (Xem bảng KPI)' },
+          { id: 'tasks:content', label: 'Bảng nội dung thắng (Content Win)' },
+          { id: 'tasks:settings', label: 'Cài đặt (Cấu hình nhiệm vụ)' },
         ],
       },
     ],
   },
-  {
-    id: 'portal',
-    name: 'VCB Portal (Hoạt động & Nhân sự)',
-    nodes: [
-      {
-        id: 'portal:performance',
-        label: 'Hiệu suất & Bảng điều khiển',
-        children: [
-          { id: 'portal:admin:panel', label: 'Trang quản trị hệ thống (Admin)' },
-          { id: 'portal:leader:panel', label: 'Trang điều hành Trưởng nhóm' },
-          { id: 'portal:manager:main', label: 'Bảng điều khiển chính (Manager)' },
-          { id: 'portal:performance:view_team', label: 'Xem hiệu suất toàn team / công ty' },
-          { id: 'portal:performance:ranking', label: 'Xem bảng xếp hạng' },
-          { id: 'portal:performance:view_self', label: 'Xem tiến độ cá nhân' },
-        ],
-      },
-      {
-        id: 'portal:checklist',
-        label: 'Báo cáo & Checklist',
-        children: [
-          { id: 'portal:checklist:fill', label: 'Điền & Xem checklist hàng ngày' },
-          { id: 'portal:checklist:approve', label: 'Duyệt vấn đề tồn đọng / phát sinh' },
-          { id: 'portal:reports:traffic', label: 'Xem & Nộp báo cáo Traffic ngày' },
-          { id: 'portal:reports:tasks', label: 'Xem & Nộp báo cáo Đầu việc ngày' },
-          { id: 'portal:reports:monthly', label: 'Xem báo cáo tổng hợp tháng' },
-        ],
-      },
-      {
-        id: 'portal:channel',
-        label: 'Quản lý Kênh đội nhóm',
-        children: [
-          { id: 'portal:channel:my', label: 'Kênh của tôi' },
-          { id: 'portal:channel:team', label: 'Kênh của team' },
-          { id: 'portal:team:assign', label: 'Phân công kênh cho nhân sự' },
-        ],
-      },
-      {
-        id: 'portal:hr',
-        label: 'Quản lý Nhân sự',
-        children: [
-          { id: 'portal:hr:view', label: 'Xem danh sách nhân sự' },
-          { id: 'portal:hr:manage', label: 'Thêm nhân sự & Cấp tài khoản mới' },
-          { id: 'portal:hr:edit', label: 'Sửa thông tin & Tinh chỉnh phân quyền' },
-          { id: 'portal:hr:status', label: 'Bật / Tắt kích hoạt tài khoản' },
-          { id: 'portal:hr:delete', label: 'Xóa nhân sự (Soft delete)' },
-          { id: 'portal:hr:unassigned', label: 'Xem nhân sự chưa phân team' },
-          { id: 'portal:editor:manage', label: 'Quản lý Editor' },
-        ],
-      },
-    ],
-  },
+
+  // 5. Quản lý thiết bị (MEMS)
   {
     id: 'equipment',
-    name: 'Thiết bị Media (MEMS)',
+    name: 'Quản lý thiết bị (MEMS)',
     nodes: [
       {
         id: 'equipment:inventory',
-        label: 'Kho & Danh mục thiết bị',
+        label: 'Kho thiết bị (Bảng điều khiển & Danh sách kho)',
         children: [
-          { id: 'equipment:overview', label: 'Tổng quan thiết bị Media' },
-          { id: 'equipment:stock:view', label: 'Xem danh mục & Tình trạng thiết bị' },
+          { id: 'equipment:overview', label: 'Bảng điều khiển (Tổng quan thiết bị)' },
+          { id: 'equipment:stock:view', label: 'Danh sách kho & Tình trạng thiết bị' },
           { id: 'equipment:asset:detail', label: 'Xem chi tiết hồ sơ tài sản' },
           { id: 'equipment:borrow_history', label: 'Nhật ký mượn thiết bị' },
         ],
       },
       {
         id: 'equipment:flow',
-        label: 'Quy trình mượn trả thiết bị',
+        label: 'Mượn thiết bị, Duyệt và bàn giao',
         children: [
           { id: 'equipment:request:create', label: 'Tạo phiếu mượn thiết bị' },
           { id: 'equipment:approval:manage', label: 'Phê duyệt & Quản lý kho (Duyệt/Giao/Trả/Kiểm tra)' },
@@ -219,6 +240,8 @@ export const PERMISSION_TREE: PermissionGroup[] = [
       },
     ],
   },
+
+  // 6. Tiện ích & AI Tools
   {
     id: 'tools',
     name: 'Tiện ích & AI Tools',
@@ -236,7 +259,7 @@ export const PERMISSION_TREE: PermissionGroup[] = [
       },
       {
         id: 'tools:utilities',
-        label: 'Tiện ích mở rộng',
+        label: 'Tiện ích mở rộng & Sự kiện',
         children: [
           { id: 'tools:video:download', label: 'Tải video không logo (Downloader)' },
           { id: 'tools:lucky_spin:play', label: 'Vòng quay may mắn (Lucky Spin)' },
@@ -247,6 +270,8 @@ export const PERMISSION_TREE: PermissionGroup[] = [
       },
     ],
   },
+
+  // 7. Hướng dẫn sử dụng
   {
     id: 'guide',
     name: 'Hướng dẫn sử dụng',
@@ -255,12 +280,12 @@ export const PERMISSION_TREE: PermissionGroup[] = [
         id: 'guide:topics',
         label: 'Chuyên đề hướng dẫn',
         children: [
-          { id: 'guide:tasks', label: 'Hướng dẫn Nhiệm vụ & KPI' },
+          { id: 'guide:portal', label: 'Hướng dẫn VCB Portal' },
           { id: 'guide:social', label: 'Hướng dẫn Đăng bài MXH' },
           { id: 'guide:discovery', label: 'Hướng dẫn Khám phá video' },
+          { id: 'guide:tasks', label: 'Hướng dẫn Nhiệm vụ & KPI' },
           { id: 'guide:equipment', label: 'Hướng dẫn Thiết bị Media' },
           { id: 'guide:tools', label: 'Hướng dẫn Tiện ích & AI' },
-          { id: 'guide:portal', label: 'Hướng dẫn VCB Portal' },
         ],
       },
     ],
@@ -429,27 +454,37 @@ export const DEFAULT_PERMISSIONS_BY_ROLE: Record<string, string[]> = {
     'social:content:translate',
     'social:videos:manage',
     'social:videos:filter',
+    'publishing:channels',
     'publishing:compose',
     'publishing:schedule',
     'publishing:calendar',
     'publishing:history',
+    'publishing:stats',
     'tasks:overview',
     'tasks:list',
+    'tasks:teams',
+    'tasks:catalog',
     'tasks:my_catalog',
     'tasks:kpi',
     'tasks:content',
     'portal:performance:view_self',
+    'portal:performance:view_team',
+    'portal:performance:ranking',
     'portal:checklist:fill',
+    'portal:checklist:approve',
     'portal:reports:traffic',
     'portal:reports:tasks',
+    'portal:reports:monthly',
     'portal:channel:my',
+    'equipment:overview',
     'equipment:stock:view',
     'equipment:request:create',
+    'equipment:borrow_history',
     'tools:ai:overview',
+    'tools:ai:voice',
     'tools:ai:transform',
     'tools:video:download',
     'tools:lucky_spin:play',
-    'tools:id_photo:create',
     'guide:tasks',
     'guide:social',
     'guide:discovery',

@@ -7,6 +7,26 @@ export type IdPhotoPosition = 'NEW_STAFF_1_3M' | 'STAFF_OVER_3M' | 'LEADER' | 'M
 
 export type IdPhotoStatus = 'PENDING' | 'PROCESSING' | 'SUCCESS' | 'FAILED';
 
+/**
+ * Loại đồng phục ghép vào ảnh ở bước 2 (Ghép áo) — ĐỘC LẬP với `position` (cấp bậc, quyết
+ * định màu khung ở bước 3). Khớp đúng 2 giá trị `outfit_type` mà AI service nhận, xem
+ * MERGE_OUTFIT_PROMPT / MERGE_OUTFIT_PROMPT_WORKSHOP ở
+ * AutomationGenVideo_AI/video_management/views/id_photo_views.py.
+ */
+export type IdPhotoOutfitType = 'office' | 'workshop';
+
+export interface OutfitTypeOption {
+  value: IdPhotoOutfitType;
+  label: string;
+  description: string;
+}
+
+/** Mặc định "office" đứng đầu — giữ đúng hành vi cũ khi người dùng không đổi lựa chọn. */
+export const OUTFIT_TYPE_OPTIONS: OutfitTypeOption[] = [
+  { value: 'office', label: 'Nhân viên văn phòng', description: 'Áo vest cổ tim đen, sơ mi trắng, cà vạt' },
+  { value: 'workshop', label: 'Thợ chế tác', description: 'Áo polo đen có logo công ty thêu ngực trái' },
+];
+
 export interface PositionOption {
   value: IdPhotoPosition;
   label: string;

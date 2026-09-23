@@ -243,8 +243,8 @@ const ChecklistContainer = ({
                 const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
                 const base = apiBase.replace(/\/$/, '');
                 const url = base.endsWith('/api')
-                    ? `${base}/lark/user-permission?email=${encodeURIComponent(user.email)}`
-                    : `${base}/api/lark/user-permission?email=${encodeURIComponent(user.email)}`;
+                    ? `${base}/work-report/user-permission?email=${encodeURIComponent(user.email)}`
+                    : `${base}/api/work-report/user-permission?email=${encodeURIComponent(user.email)}`;
 
                 const response = await fetchWithAuth(url);
                 if (response.ok) {
@@ -287,7 +287,7 @@ const ChecklistContainer = ({
 
             try {
                 const beBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
-                const url = `${beBaseUrl}/lark/user-report-details?email=${encodeURIComponent(user.email)}&date=${reportDate}&_t=${Date.now()}`;
+                const url = `${beBaseUrl}/work-report/user-report-details?email=${encodeURIComponent(user.email)}&date=${reportDate}&_t=${Date.now()}`;
 
                 const response = await fetchWithAuth(url, { cache: 'no-store' });
                 if (response.ok) {
@@ -823,7 +823,7 @@ const ChecklistContainer = ({
                 // Checklist API được chuyển sang NestJS BE (NEXT_PUBLIC_API_URL) thay vì Django AI
                 // NestJS ghi thẳng vào lüc_reports qua Prisma → đúng DB server luôn
                 const beBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
-                const url = `${beBaseUrl}/lark/checklist-report`;
+                const url = `${beBaseUrl}/work-report/checklist-report`;
                 const response = await fetchWithAuth(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -838,6 +838,9 @@ const ChecklistContainer = ({
                     return;
                 }
                 toast.success(data.message || 'Báo cáo thành công');
+                if (data.warning) {
+                    toast(data.warning, { icon: '⚠️', duration: 8000 });
+                }
 
                 setIsReadOnly(true); // Khóa form ngay lập tức sau khi gửi thành công
 
@@ -847,7 +850,7 @@ const ChecklistContainer = ({
             const hasTrafficData = Object.values(traffic).some(val => val !== '');
             if (hasTrafficData && !showOnlyWork) {
                 const beBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
-                const trafficRes = await fetchWithAuth(`${beBaseUrl}/lark/traffic-report`, {
+                const trafficRes = await fetchWithAuth(`${beBaseUrl}/work-report/traffic-report`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -884,12 +887,26 @@ const ChecklistContainer = ({
                     setLoading(false);
                     return;
                 }
+                // Backend cảnh báo khi tài khoản chưa thuộc team nào: báo cáo lưu đúng nhưng mọi
+                // bảng điều khiển gom số theo team nên số này sẽ không hiện ở đâu cả.
+                const trafficData = await trafficRes.json().catch(() => ({} as any));
+
+                // BE trả HTTP 200 nhưng KHÔNG lưu được dòng nào (mọi ô trống hoặc không phải số).
+                // Không được báo thành công ở đây: người nộp sẽ đóng form và yên tâm, hôm sau mới
+                // biết mình bị tính là chưa báo cáo. Dừng luôn để họ nhập lại ngay.
+                if (trafficData?.savedNothing) {
+                    toast.error(trafficData.message || 'Chưa lưu được số liệu traffic nào. Vui lòng nhập lại.');
+                    setLoading(false);
+                    return;
+                }
+
+                let teamlessWarning: string | undefined = trafficData?.warning;
 
                 // Gửi báo cáo doanh thu cùng lúc — nộp chung 1 form với traffic
                 const hasRevenueData = Object.values(revenue).some(val => val !== '');
                 let revenueRes: Response | null = null;
                 if (hasRevenueData) {
-                    revenueRes = await fetchWithAuth(`${beBaseUrl}/lark/revenue-report`, {
+                    revenueRes = await fetchWithAuth(`${beBaseUrl}/work-report/revenue-report`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -915,6 +932,13 @@ const ChecklistContainer = ({
                         setLoading(false);
                         return;
                     }
+                    const revenueData = await revenueRes.json().catch(() => ({} as any));
+                    teamlessWarning = teamlessWarning || revenueData?.warning;
+                }
+
+                // Một cảnh báo duy nhất dù nộp cả traffic lẫn doanh thu — cùng một nguyên nhân.
+                if (teamlessWarning) {
+                    toast(teamlessWarning, { icon: '⚠️', duration: 8000 });
                 }
 
                 if (showOnlyTraffic) {
@@ -1066,7 +1090,7 @@ const ChecklistContainer = ({
 
                     {/* Traffic Section - Show for both Member and Leader if needed - Hide if only work */}
                     {(showForm12 || showForm3) && !showOnlyWork && (
-                        <div className="bg-slate-50/50 backdrop-blur-sm rounded-2xl p-3 shadow-lg shadow-blue-500/5 lg:col-span-2 border-2 border-blue-500/30">
+                        <div className="relative z-30 bg-slate-50/50 backdrop-blur-sm rounded-2xl p-3 shadow-lg shadow-blue-500/5 lg:col-span-2 border-2 border-blue-500/30">
                             {userTeams.length > 1 && (
                                 <div className="flex flex-wrap items-center gap-3 mb-5 px-1 py-3 bg-blue-50/60 rounded-xl border border-blue-100">
                                     <div className="flex items-center gap-2 px-2">
@@ -1109,7 +1133,7 @@ const ChecklistContainer = ({
 
                     {/* Revenue Section - nộp chung form với Traffic, cùng team đang chọn */}
                     {(showForm12 || showForm3) && !showOnlyWork && (
-                        <div className="bg-slate-50/50 backdrop-blur-sm rounded-2xl p-3 shadow-lg shadow-emerald-500/5 lg:col-span-2 border-2 border-emerald-500/30">
+                        <div className="relative z-20 bg-slate-50/50 backdrop-blur-sm rounded-2xl p-3 shadow-lg shadow-emerald-500/5 lg:col-span-2 border-2 border-emerald-500/30">
                             <RevenueReportSection
                                 key={`${submitCount}-${reportDate}-${selectedTeam}`}
                                 values={revenue}
@@ -1130,7 +1154,7 @@ const ChecklistContainer = ({
 
             {/* Nút submit — Luôn hiện */}
             {!(showOnlyTraffic && availableChannels.length === 0) && (
-                <div className="flex justify-center items-center gap-3 pt-8 border-t border-gray-100">
+                <div className="relative z-10 flex justify-center items-center gap-3 pt-8 border-t border-gray-100">
                     <button
                         type="button"
                         onClick={handleSubmit}

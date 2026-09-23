@@ -13,6 +13,7 @@ import { cn, driveImageUrl } from '@/lib/utils'
 import { getSources, getTeamSources, getEditorSources } from '@/lib/api/task-auto'
 import { SOURCE_TYPE_COLORS } from '@/app/dashboard/task-auto/catalog/components/ProductsTab/product-utils'
 import { SOURCE_TYPE_LABELS } from '@/types/task-auto'
+import { useBackdropClose } from '@/hooks/useBackdropClose'
 
 export interface ProductViewItem {
   id: string
@@ -173,6 +174,8 @@ export function ProductViewModal({
     }
   }
 
+  const backdrop = useBackdropClose(onClose)
+
   if (!open) return null
 
   return (
@@ -210,7 +213,7 @@ export function ProductViewModal({
       )}
 
       <div className="fixed inset-0 z-[1003] flex items-end sm:items-center justify-center p-0 sm:p-6">
-        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" {...backdrop} />
 
         <div className="relative bg-white w-full max-w-4xl max-h-[94vh] sm:max-h-[92vh] rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden">
 

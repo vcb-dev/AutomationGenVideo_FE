@@ -39,6 +39,7 @@ export interface LeaderTaskDashboard {
   team: { id: string; name: string; member_count: number } | null;
   tasks: Record<string, number>;
   members: LeaderDashboardMember[];
+  total_orders?: number;
   kpi: {
     month: string;
     total_target: number;

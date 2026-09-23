@@ -12,6 +12,7 @@ import { TTS_LANGUAGES, TTS_LANGUAGE_TO_MINIMAX } from '@/lib/voice/tts-language
 import {
   listVoices, generateVoiceTts, buildTtsPlayUrl, buildTtsDownloadUrl, type TtsResult,
 } from '@/lib/api/voice-tts'
+import { useBackdropClose } from '@/hooks/useBackdropClose'
 
 const MAX_CHARS = 5000
 
@@ -106,6 +107,8 @@ export function TtsVoiceModal({ open, content, onClose }: Props) {
     }
   }
 
+  const backdrop = useBackdropClose(onClose)
+
   if (!open) return null
 
   const playUrl = result ? buildTtsPlayUrl(result) : null
@@ -113,7 +116,7 @@ export function TtsVoiceModal({ open, content, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-[1005] flex items-center justify-center p-4 sm:p-6">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" {...backdrop} />
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">

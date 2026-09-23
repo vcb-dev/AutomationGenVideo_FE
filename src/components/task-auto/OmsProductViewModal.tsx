@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { X, ImageIcon, Loader2, Store, Tag, ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getOmsProductDetail } from '@/lib/api/task-auto'
+import { useBackdropClose } from '@/hooks/useBackdropClose'
 
 interface Props {
   open: boolean
@@ -110,11 +111,13 @@ export function OmsProductViewModal({ open, omsProductId, onClose }: Props) {
     return min === max ? formatPrice(min) : `${formatPrice(min)} – ${formatPrice(max)}`
   }, [product])
 
+  const backdrop = useBackdropClose(onClose)
+
   if (!open) return null
 
   return (
     <div className="fixed inset-0 z-[1003] flex items-end sm:items-center justify-center p-0 sm:p-6">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" {...backdrop} />
 
       <div className="relative bg-white w-full max-w-3xl max-h-[94vh] sm:max-h-[92vh] rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden">
         {/* Header */}
