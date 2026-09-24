@@ -1,16 +1,16 @@
 /**
  * Chuyển động của bánh xe:
  *
- * Diễn hoạt 30 giây với 5 kịch bản độc bản (mỗi kịch bản có 1 đường cong chuyển động riêng biệt 100%):
+ * Diễn hoạt 8 giây với 5 kịch bản độc bản (mỗi kịch bản có 1 đường cong chuyển động riêng biệt 100%):
  * 1. 🏓 "Quán tính bật ngược rõ rệt" (High-Bounce Recoil - 20%): Vọt sang ô sau +6°..+8° rồi nảy giật ngược lại ô người trúng.
  * 2. 🎭 "Giả chết khựng lại 4s rồi rướn thêm 1 nhịp chót" (False-Stop Stutter - 20%): Tưởng dừng hẳn ở ô trước rồi rướn qua vạch.
- * 3. ⚖️ "Cân não trên đỉnh sợi chỉ / Soi VAR" (Ultra Razor-Edge - 20%): Bò siêu sâu 15 giây và đỗ chính xác đè lên vạch phân cách.
+ * 3. ⚖️ "Cân não trên đỉnh sợi chỉ / Soi VAR" (Ultra Razor-Edge - 20%): Bò sâu và đỗ chính xác đè lên vạch phân cách.
  * 4. 🎯 "Hồng tâm định mệnh thẳng thừng" (Center Bullseye Cruise - 20%): Lướt êm ái, thanh thoát vào đúng tim giữa ô.
  * 5. ⏳ "Lao nhanh đến sát vách rồi phanh cứng" (Tail Wall Slam - 20%): Lao nhanh qua cả ô rồi phanh gấp sát mép vạch cuối.
  */
 
-/** Tổng thời gian bánh xe chuyển động (30 giây). Server đồng bộ theo con số này. */
-export const SPIN_DURATION_MS = 30000;
+/** Tổng thời gian bánh xe chuyển động (8 giây). Server đồng bộ theo con số này. */
+export const SPIN_DURATION_MS = 8000;
 
 /** Kịch bản 1: Đường cong bật ngược vọt sang ô sau rồi hồi ngược lại */
 export const SPIN_EASING_BOUNCE = 'cubic-bezier(0, 0.985, 0.003, 1.025)';
