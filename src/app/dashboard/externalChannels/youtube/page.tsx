@@ -315,7 +315,7 @@ export default function YoutubeExternalPage() {
                 value={channelId}
                 onChange={e => setChannelId(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && channelId.trim()) scrapeMutation.mutate(channelId.trim()); }}
-                placeholder="Channel ID (UCxxxx...) hoặc link youtube.com/channel/UCxxxx"
+                placeholder="Nhập link YouTube (kênh, video, @handle) hoặc Channel ID (UC...)"
                 className="w-full pl-3 pr-3 py-2.5 text-sm border border-border rounded-md bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary"
               />
             </div>
@@ -328,7 +328,9 @@ export default function YoutubeExternalPage() {
               {scrapeMutation.isPending ? 'Đang gửi...' : 'Cào Channel'}
             </button>
           </div>
-          <p className="text-xs text-slate-400 mt-2">Chưa hỗ trợ resolve từ @handle — cần channel ID dạng UCxxxx...</p>
+          <p className="text-xs text-muted-foreground mt-2">
+            Hỗ trợ: Link kênh (youtube.com/@handle, /channel/UC...), link video (watch?v=, youtu.be, shorts), @handle hoặc Channel ID.
+          </p>
         </div>
       )}
 

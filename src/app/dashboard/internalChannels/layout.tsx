@@ -20,8 +20,6 @@ const TABS = [
   { id: 'instagram', label: 'Instagram', icon: InstagramLogo, color: 'text-pink-500' },
   { id: 'threads', label: 'Threads', icon: (props: any) => <SiThreads {...props} />, color: 'text-slate-900 dark:text-white' },
   { id: 'youtube', label: 'YouTube', icon: YoutubeLogo, color: 'text-red-600' },
-  { id: 'douyin', label: 'Douyin', icon: TiktokLogo, color: 'text-cyan-500' },
-  { id: 'xiaohongshu', label: 'XiaoHongShu', icon: null, emoji: '📕' },
 ];
 
 export default function ChannelsLayout({ children }: { children: React.ReactNode }) {
