@@ -1992,7 +1992,7 @@ export const scraperService = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Thêm profile thất bại');
+      throw new Error(err.error || err.message || 'Thêm profile thất bại');
     }
     return res.json();
   },
