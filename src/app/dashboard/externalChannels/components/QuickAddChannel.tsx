@@ -28,6 +28,7 @@ type DetectedPlatform =
   | 'kuaishou'
   | 'bilibili'
   | 'facebook'
+  | 'threads'
   | null;
 
 // Nhận diện cả domain đầy đủ lẫn domain rút gọn (link copy từ app điện thoại).
@@ -42,6 +43,7 @@ function detectPlatform(url: string): DetectedPlatform {
   if (u.includes('kuaishou.com')) return 'kuaishou'; // gồm cả v.kuaishou.com
   if (u.includes('bilibili.com') || u.includes('b23.tv')) return 'bilibili';
   if (u.includes('facebook.com') || u.includes('fb.watch')) return 'facebook';
+  if (u.includes('threads.net')) return 'threads';
   return null;
 }
 
@@ -54,6 +56,7 @@ const PLATFORM_LABEL: Record<string, { label: string; badgeClass: string }> = {
   kuaishou: { label: 'Kuaishou', badgeClass: 'bg-orange-500 text-white' },
   bilibili: { label: 'Bilibili', badgeClass: 'bg-sky-500 text-white' },
   facebook: { label: 'Facebook', badgeClass: 'bg-blue-600 text-white' },
+  threads: { label: 'Threads', badgeClass: 'bg-black text-white border border-slate-700' },
 };
 
 const DEFAULT_FALLBACK_TAGS: { name: string; slug: string }[] = [
@@ -122,6 +125,7 @@ export default function QuickAddChannel() {
           case 'douyin': await scraperService.toggleDouyinProfile(authToken, channelId, 'is_bookmarked'); break;
           case 'kuaishou': await scraperService.toggleKuaishouProfile(authToken, channelId, 'is_bookmarked'); break;
           case 'bilibili': await scraperService.toggleBilibiliProfile(authToken, channelId, 'is_bookmarked'); break;
+          case 'threads': await scraperService.toggleThreadsProfile(authToken, channelId, 'is_bookmarked', true); break;
         }
       } else {
         // Kênh đã tồn tại: kiểm tra xem đã bookmarked chưa, nếu chưa thì mới toggle
@@ -167,6 +171,10 @@ export default function QuickAddChannel() {
             const d = await scraperService.getBilibiliProfileDetail(authToken, channelId);
             currentBookmarked = !!d?.is_bookmarked;
             if (!currentBookmarked) await scraperService.toggleBilibiliProfile(authToken, channelId, 'is_bookmarked');
+            break;
+          }
+          case 'threads': {
+            await scraperService.toggleThreadsProfile(authToken, channelId, 'is_bookmarked', true);
             break;
           }
         }
@@ -217,22 +225,29 @@ export default function QuickAddChannel() {
         case 'facebook':
           result = await scraperService.fanpageScrapeByUrl(token, trimmed, n, classificationPayload);
           break;
+        case 'threads': {
+          const cleanUname = trimmed.replace(/^https?:\/\/(www\.)?threads\.net\//i, '').split('?')[0].split('/')[0].replace(/^@/, '');
+          result = await scraperService.scrapeThreadsProfile(token, cleanUname, n);
+          break;
+        }
       }
 
       // Lấy id kênh từ kết quả trả về
       const channelId: number | undefined =
         platform === 'facebook'
           ? result?.fanpage_id
-          : platform === 'xiaohongshu'
+          : platform === 'xiaohongshu' || platform === 'threads'
           ? result?.profile?.id
           : result?.profile_id;
 
       if (channelId) {
         // Cập nhật phân loại thẻ cho kênh (với facebook API scrapeByUrl đã tự lưu, nhưng cập nhật thêm để đồng bộ 100%)
-        try {
-          await scraperService.updateChannelClassification(token, platform, channelId, classificationPayload);
-        } catch (err) {
-          console.error('Lỗi khi lưu phân loại thẻ:', err);
+        if (platform !== 'threads') {
+          try {
+            await scraperService.updateChannelClassification(token, platform, channelId, classificationPayload);
+          } catch (err) {
+            console.error('Lỗi khi lưu phân loại thẻ:', err);
+          }
         }
 
         // Nếu người dùng chọn lưu vào kênh yêu thích
@@ -255,6 +270,8 @@ export default function QuickAddChannel() {
       queryClient.invalidateQueries({ queryKey: ['scraper-channel-tags'] });
       if (data.platform === 'facebook') {
         queryClient.invalidateQueries({ queryKey: ['scraper-fanpages'] });
+      } else if (data.platform === 'threads') {
+        queryClient.invalidateQueries({ queryKey: ['threads-profiles'] });
       } else {
         queryClient.invalidateQueries({ queryKey: [`scraper-${data.platform}-profiles`] });
       }
