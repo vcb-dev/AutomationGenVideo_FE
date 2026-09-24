@@ -6,6 +6,7 @@ import { useMutation } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 
 import { useAuthStore } from '@/store/auth-store';
+import { UserRole } from '@/types/auth';
 import { scraperService } from '@/services/scraperService';
 import { type DeletableChannelPlatform } from '@/lib/scrape/delete-channel';
 import { hasPermission } from '@/lib/permissions';
@@ -18,6 +19,7 @@ interface Props {
   onStarted?: () => void;
   className?: string;
   label?: string;
+  isOwned?: boolean;
 }
 
 /**
@@ -33,6 +35,7 @@ export default function SyncAllChannelsButton({
   onStarted,
   className,
   label,
+  isOwned = false,
 }: Props) {
   const { token, user } = useAuthStore();
   const [showModal, setShowModal] = useState(false);
@@ -45,6 +48,7 @@ export default function SyncAllChannelsButton({
         mode: config.mode,
         count: config.count,
         days: config.days,
+        is_owned: isOwned,
       });
     },
     onSuccess: (data) => {
@@ -60,8 +64,10 @@ export default function SyncAllChannelsButton({
   // rehydrate, nên nếu return sớm ở trên useMutation thì lần render thứ hai gọi nhiều hook hơn
   // lần đầu và React ném "Rendered more hooks than during the previous render" — trắng trang.
 
-  // Chỉ hiển thị nút nếu user có quyền cào tay (social:external:crawl_all hoặc Admin)
-  if (!hasPermission(user, 'social:external:crawl_all')) {
+  // Chỉ hiển thị nút nếu user có quyền cào tay
+  const isLeaderOrAdmin = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r as any)) ?? false;
+  const hasExternalPerm = hasPermission(user, 'social:external:crawl_all');
+  if (isOwned ? (!isLeaderOrAdmin && !hasExternalPerm) : !hasExternalPerm) {
     return null;
   }
 
@@ -88,7 +94,7 @@ export default function SyncAllChannelsButton({
         onClick={() => setShowModal(true)}
         disabled={mutation.isPending}
         className={className || defaultButtonClass}
-        title="Mở menu cào tay dữ liệu kênh (chọn kênh chú ý, kênh đã lưu hoặc tất cả)"
+        title={isOwned ? 'Mở menu cào tất cả video kênh nội bộ' : 'Mở menu cào tay dữ liệu kênh (chọn kênh chú ý, kênh đã lưu hoặc tất cả)'}
       >
         {mutation.isPending ? (
           <CircleNotch size={14} weight="bold" className="animate-spin" />
@@ -105,6 +111,7 @@ export default function SyncAllChannelsButton({
         platform={platform}
         channelCount={channelCount}
         isLoading={mutation.isPending}
+        isOwned={isOwned}
       />
     </>
   );

@@ -39,17 +39,22 @@ function relativeTime(dateStr: string): string {
   return `${Math.floor(diffD / 365)} năm trước`;
 }
 
-function proxyImg(url: string): string {
+function proxyImg(url: string, w?: number, h?: number): string {
   if (!url) return '';
-  if (url.includes('cdninstagram.com') || url.includes('fbcdn.net')) {
-    return `https://wsrv.nl/?url=${encodeURIComponent(url)}`;
+  const isMeta = url.includes('cdninstagram.com') || url.includes('fbcdn.net');
+  const isGoogle = url.includes('googleusercontent.com') || url.includes('drive.google.com');
+  if (isMeta || isGoogle) {
+    const sizeParams = w && h ? `&w=${w}&h=${h}&fit=cover` : '';
+    return `https://wsrv.nl/?url=${encodeURIComponent(url)}${sizeParams}`;
   }
   return url;
 }
 
 function PostCard({ post: v }: { post: ExternalVideo }) {
-  const thumb = proxyImg(v.thumbnail_url || '');
-  const avatar = proxyImg(v.author_avatar || '');
+  const [thumbSrc, setThumbSrc] = useState<string>(() => proxyImg(v.thumbnail_url || '', 400, 711));
+  const [thumbError, setThumbError] = useState<boolean>(false);
+  const avatar = proxyImg(v.author_avatar || '', 64, 64);
+  const hasZeroMetrics = v.play_count === 0 && v.likes_count === 0 && v.comments_count === 0;
 
   return (
     <a
@@ -59,15 +64,21 @@ function PostCard({ post: v }: { post: ExternalVideo }) {
       className="group bg-card border border-border rounded-xl overflow-hidden hover:shadow-md transition-all duration-200 flex flex-col hover:border-slate-400 dark:hover:border-slate-600"
     >
       <div className="relative aspect-[9/16] bg-slate-100 dark:bg-slate-800 overflow-hidden flex items-center justify-center">
-        {thumb ? (
+        {thumbSrc && !thumbError ? (
           <img
-            src={thumb}
+            src={thumbSrc}
             alt=""
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
             loading="lazy"
+            decoding="async"
             referrerPolicy="no-referrer"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none';
+            onError={() => {
+              // Nếu proxy wsrv lỗi (vd 404), thử tải trực tiếp link gốc
+              if (v.thumbnail_url && thumbSrc !== v.thumbnail_url) {
+                setThumbSrc(v.thumbnail_url);
+              } else {
+                setThumbError(true);
+              }
             }}
           />
         ) : (
@@ -76,7 +87,10 @@ function PostCard({ post: v }: { post: ExternalVideo }) {
             <p className="text-xs line-clamp-3 text-slate-500">{v.description || 'Bài viết Threads'}</p>
           </div>
         )}
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-2.5 pb-2 pt-6">
+        <div
+          className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-2.5 pb-2 pt-6"
+          title={hasZeroMetrics ? 'Chỉ số tương tác cần cấp quyền threads_manage_insights trong ứng dụng Meta Developer' : undefined}
+        >
           <div className="flex items-center gap-3 text-white text-xs">
             <span className="flex items-center gap-1 font-medium">
               <Eye size={13} weight="fill" />
@@ -348,9 +362,11 @@ export default function ThreadsChannelsPage() {
                     <div className="flex items-center gap-3 min-w-0">
                       {p.avatar_url ? (
                         <img
-                          src={proxyImg(p.avatar_url)}
+                          src={proxyImg(p.avatar_url, 80, 80)}
                           alt=""
                           className="w-10 h-10 rounded-full object-cover border border-border flex-shrink-0"
+                          loading="lazy"
+                          decoding="async"
                           referrerPolicy="no-referrer"
                           onError={(e) => {
                             (e.target as HTMLImageElement).style.display = 'none';

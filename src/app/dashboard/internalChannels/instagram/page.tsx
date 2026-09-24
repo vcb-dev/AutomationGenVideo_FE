@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 
 import InstagramProfileCard from '../../externalChannels/components/InstagramProfileCard';
+import SyncAllChannelsButton from '../../externalChannels/components/SyncAllChannelsButton';
 import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
 import { scraperService, ExternalVideo, InstagramToggleField } from '@/services/scraperService';
@@ -33,17 +34,20 @@ function relativeTime(dateStr: string): string {
   return `${Math.floor(diffD / 365)} năm trước`;
 }
 
-function proxyImg(url: string): string {
+function proxyImg(url: string, w?: number, h?: number): string {
   if (!url) return '';
-  if (url.includes('cdninstagram.com') || url.includes('fbcdn.net')) {
-    return `https://wsrv.nl/?url=${encodeURIComponent(url)}`;
+  const isMeta = url.includes('cdninstagram.com') || url.includes('fbcdn.net');
+  const isGoogle = url.includes('googleusercontent.com') || url.includes('drive.google.com');
+  if (isMeta || isGoogle) {
+    const sizeParams = w && h ? `&w=${w}&h=${h}&fit=cover` : '';
+    return `https://wsrv.nl/?url=${encodeURIComponent(url)}${sizeParams}`;
   }
   return url;
 }
 
 function VideoCard({ video: v }: { video: ExternalVideo }) {
-  const thumb = proxyImg(v.thumbnail_url || '');
-  const avatar = proxyImg(v.author_avatar || '');
+  const thumb = proxyImg(v.thumbnail_url || '', 400, 711);
+  const avatar = proxyImg(v.author_avatar || '', 64, 64);
 
   return (
     <a
@@ -316,17 +320,31 @@ export default function InstagramChannelsPage() {
             {scrapeMutation.isPending ? 'Đang gửi...' : 'Thêm kênh'}
           </button>
           {canManageChannels && (
-            <button
-              onClick={() => syncOwnedMutation.mutate()}
-              disabled={syncOwnedMutation.isPending}
-              title="Lấy toàn bộ tài khoản Instagram đã kết nối ở trang đăng bài MXH và đánh dấu là kênh nội bộ"
-              className="flex items-center gap-2 px-4 py-2.5 border border-border text-sm font-semibold rounded-md hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 whitespace-nowrap transition-colors"
-            >
-              {syncOwnedMutation.isPending
-                ? <CircleNotch size={16} weight="bold" className="animate-spin" />
-                : <ArrowsClockwise size={16} weight="bold" />}
-              {syncOwnedMutation.isPending ? 'Đang đồng bộ...' : 'Đồng bộ từ tài khoản đã kết nối'}
-            </button>
+            <>
+              <button
+                onClick={() => syncOwnedMutation.mutate()}
+                disabled={syncOwnedMutation.isPending}
+                title="Lấy toàn bộ tài khoản Instagram đã kết nối ở trang đăng bài MXH và đánh dấu là kênh nội bộ"
+                className="flex items-center gap-2 px-4 py-2.5 border border-border text-sm font-semibold rounded-md hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 whitespace-nowrap transition-colors"
+              >
+                {syncOwnedMutation.isPending
+                  ? <CircleNotch size={16} weight="bold" className="animate-spin" />
+                  : <ArrowsClockwise size={16} weight="bold" />}
+                {syncOwnedMutation.isPending ? 'Đang đồng bộ...' : 'Đồng bộ từ tài khoản đã kết nối'}
+              </button>
+
+              <SyncAllChannelsButton
+                platform="instagram"
+                isOwned={true}
+                channelCount={total}
+                label="Cào tất cả video"
+                className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white text-sm font-semibold rounded-md disabled:opacity-50 whitespace-nowrap shadow-xs hover:shadow-md transition-all cursor-pointer"
+                onStarted={() => {
+                  queryClient.invalidateQueries({ queryKey: ['owned-instagram-profiles'] });
+                  queryClient.invalidateQueries({ queryKey: ['owned-instagram-videos'] });
+                }}
+              />
+            </>
           )}
         </div>
       </div>

@@ -1896,7 +1896,7 @@ export const scraperService = {
     });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
-      throw new Error(body?.error || 'Không thể cào profile Douyin');
+      throw new Error(body?.error || body?.message || 'Không thể cào profile Douyin');
     }
     return res.json();
   },
@@ -2105,6 +2105,7 @@ export const scraperService = {
       mode?: 'count' | 'days';
       count?: number;
       days?: number;
+      is_owned?: boolean;
     },
   ): Promise<{ status: string; message: string; already_running?: boolean }> => {
     if (platform === 'all') {

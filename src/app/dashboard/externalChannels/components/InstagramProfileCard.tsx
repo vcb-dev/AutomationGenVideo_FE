@@ -6,10 +6,12 @@ import { ChannelInfo } from '@/services/channelsService';
 import DeleteChannelButton from './DeleteChannelButton';
 import ChannelClassificationBadges from './ChannelClassificationBadges';
 
-function proxyImg(url: string): string {
+function proxyImg(url: string, size = 120): string {
   if (!url) return '';
-  if (url.includes('cdninstagram.com') || url.includes('fbcdn.net')) {
-    return `https://wsrv.nl/?url=${encodeURIComponent(url)}`;
+  const isMeta = url.includes('cdninstagram.com') || url.includes('fbcdn.net');
+  const isGoogle = url.includes('googleusercontent.com') || url.includes('drive.google.com');
+  if (isMeta || isGoogle) {
+    return `https://wsrv.nl/?url=${encodeURIComponent(url)}&w=${size}&h=${size}&fit=cover`;
   }
   return url;
 }
@@ -90,7 +92,22 @@ export default function InstagramProfileCard({ profile: p, channelInfo, onScrape
       <div className="flex items-center gap-3 p-3.5 pb-2">
         <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden flex-shrink-0 ring-2 ring-slate-200 dark:ring-slate-600">
           {p.avatar_url ? (
-            <img src={proxyImg(p.avatar_url)} alt={p.username} className="w-full h-full object-cover" />
+            <img
+              src={proxyImg(p.avatar_url, 120)}
+              alt={p.username}
+              className="w-full h-full object-cover"
+              loading="lazy"
+              decoding="async"
+              referrerPolicy="no-referrer"
+              onError={(e) => {
+                const img = e.target as HTMLImageElement;
+                if (p.avatar_url && img.src !== p.avatar_url) {
+                  img.src = p.avatar_url;
+                } else {
+                  img.style.display = 'none';
+                }
+              }}
+            />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/30 dark:to-pink-900/30 text-pink-400">
               <Users size={22} />

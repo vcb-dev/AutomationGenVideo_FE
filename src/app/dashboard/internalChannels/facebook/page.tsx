@@ -41,6 +41,42 @@ function relativeTime(dateStr: string): string {
   return `${Math.floor(diffD / 365)} năm trước`;
 }
 
+function isTransientError(msg?: string | null): boolean {
+  if (!msg) return false;
+  const lower = msg.toLowerCase();
+  return (
+    lower.includes('status code 502') ||
+    lower.includes('status code 503') ||
+    lower.includes('status code 504') ||
+    lower.includes('status code 429') ||
+    lower.includes('too many requests') ||
+    lower.includes('econnrefused') ||
+    lower.includes('etimedout') ||
+    lower.includes('timedout') ||
+    lower.includes('timeout') ||
+    lower.includes('econnreset') ||
+    lower.includes('enotfound') ||
+    lower.includes('network error') ||
+    lower.includes('nameresolutionerror') ||
+    lower.includes('connectionpool') ||
+    lower.includes('max retries exceeded') ||
+    lower.includes('temporary failure in name resolution') ||
+    lower.includes('getaddrinfo') ||
+    lower.includes('socket hang up') ||
+    lower.includes('aborted')
+  );
+}
+
+function proxyImg(url: string, w = 120, h = 120): string {
+  if (!url) return '';
+  const isGoogle = url.includes('googleusercontent.com') || url.includes('drive.google.com');
+  const isMeta = url.includes('cdninstagram.com') || url.includes('fbcdn.net');
+  if (isGoogle || isMeta) {
+    return `https://wsrv.nl/?url=${encodeURIComponent(url)}&w=${w}&h=${h}&fit=cover`;
+  }
+  return url;
+}
+
 // ─── FacebookPageCard ────────────────────────────────────────────────────────
 
 function FacebookPageCard({
@@ -56,22 +92,22 @@ function FacebookPageCard({
   onScrape?: () => void;
   onBackfill?: () => void;
 }) {
+  const hasRealError = !p.is_scraping && p.scrape_error && !isTransientError(p.scrape_error);
+
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden hover:shadow-md transition-shadow">
       {/* Status badges */}
-      {(p.is_scraping || !p.is_active || p.scrape_error) && (
+      {(p.is_scraping || !p.is_active || hasRealError) && (
         <div className="flex items-center gap-1.5 px-3.5 pt-2.5 pb-0">
           {p.is_scraping && (
             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded text-xs font-medium">
               <CircleNotch size={10} weight="bold" className="animate-spin" /> Đang cào
             </span>
           )}
-          {/* Chế độ thẻ là mặc định nhưng trước đây chỉ chế độ bảng mới hiện lỗi cào — nên
-              93/95 kênh hỏng ngày 06/08/2026 nằm im không ai thấy. */}
-          {!p.is_scraping && p.scrape_error && (
+          {hasRealError && (
             <span
               className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded text-xs font-medium max-w-full"
-              title={p.scrape_error}
+              title={p.scrape_error!}
             >
               <Warning size={10} weight="bold" /> <span className="truncate">Cào lỗi</span>
             </span>
@@ -91,10 +127,15 @@ function FacebookPageCard({
             src={`https://graph.facebook.com/${p.page_id}/picture?type=large`}
             alt={p.name}
             className="w-full h-full object-cover"
+            loading="lazy"
+            decoding="async"
             referrerPolicy="no-referrer"
             onError={e => {
               const t = e.target as HTMLImageElement;
-              if (p.avatar_url && t.src !== p.avatar_url) t.src = p.avatar_url;
+              const fallbackUrl = p.avatar_url ? proxyImg(p.avatar_url) : '';
+              if (fallbackUrl && t.src !== fallbackUrl) {
+                t.src = fallbackUrl;
+              }
             }}
           />
         </div>
