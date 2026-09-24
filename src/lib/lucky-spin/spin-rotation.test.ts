@@ -87,8 +87,8 @@ describe('nextSpinTarget & nextRotation — diễn hoạt 30s siêu kịch tính
     expect(segmentUnderPointer(rotation, 1)).toBe(0);
   });
 
-  it('thời gian quay 30 giây và có đầy đủ đường cong easing', () => {
-    expect(SPIN_DURATION_MS).toBe(30000);
+  it('thời gian quay 8 giây và có đầy đủ đường cong easing', () => {
+    expect(SPIN_DURATION_MS).toBe(8000);
     expect(SPIN_EASING).toBe(SPIN_EASING_RAZOR);
     expect(REVEAL_DELAY_MS).toBeGreaterThan(0);
   });
