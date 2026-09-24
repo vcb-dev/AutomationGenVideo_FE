@@ -203,17 +203,16 @@ export interface EditorKpi {
   month: string
   // ── Video production (Số video sản xuất đạt tiêu chuẩn) ──
   total_target: number    // Tổng video sản xuất (drives auto-assign)
-  video_win: number
-  video_fail: number
   // ── Content ──
   kpi_extra: number       // KPI sáng tạo (chỉ thông báo)
   content_new: number
-  content_collected: number
+  content_paast_analyzed: number
   content_win_cover: number
-  // ── Product ── (product_planned = SP GMV, product_win_collect = SP Traffic, product_profit = SP Profit)
-  product_planned: number
-  product_win_collect: number
+  // ── Product ──
+  product_gmv: number
+  product_traffic: number
   product_profit: number
+  product_collect_test_win: number
   set_by_id: string
   created_at: string
   updated_at: string
@@ -221,6 +220,16 @@ export interface EditorKpi {
   set_by?: UserBasic
   team?: { id: string; name: string }
   allocations?: EditorKpiAllocation[]
+  // ── Số thực đạt (BE tự tính, chỉ có ở GET /kpi/editors). undefined = response cũ chưa có field.
+  total_actual?: number
+  content_new_actual?: number
+  paast_analyzed_actual?: number
+  content_win_cover_actual?: number
+  /** Đếm sản phẩm riêng biệt, không đếm video. */
+  product_gmv_actual?: number
+  product_traffic_actual?: number
+  product_profit_actual?: number
+  product_collect_test_win_actual?: number
 }
 
 export interface EditorKpiAllocation {
@@ -232,6 +241,91 @@ export interface EditorKpiAllocation {
   quantity: number
   content_line?: ContentLine | null
   product_line?: ProductLine | null
+}
+
+// ── KPI/OKR tùy chỉnh theo nhân sự ──────────────────────────────────────────
+
+export type PerformanceGoalType = 'KPI' | 'OKR'
+export type PerformanceGoalMetricType = 'NUMBER' | 'PERCENT' | 'BOOLEAN'
+export type PerformanceGoalDirection = 'AT_LEAST' | 'AT_MOST'
+export type PerformanceGoalStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED'
+
+export interface PerformanceKpiGroup {
+  id: string
+  team_id: string | null
+  code: string
+  name: string
+  description: string | null
+  color: 'ORANGE' | 'GREEN' | 'PURPLE' | 'BLUE' | 'SLATE' | 'AMBER' | 'ROSE'
+  icon: 'VIDEO' | 'FILE_TEXT' | 'PACKAGE' | 'TARGET'
+  sort_order: number
+  is_system: boolean
+  is_active: boolean
+  archived_at?: string | null
+  created_at?: string
+  updated_at?: string
+  team?: Pick<Team, 'id' | 'name'> | null
+  created_by?: Pick<UserBasic, 'id' | 'full_name'> | null
+  _count?: { goals: number }
+}
+
+export interface PerformanceGoal {
+  id: string
+  user_id: string
+  team_id: string
+  month: string
+  type: PerformanceGoalType
+  kpi_group_id: string | null
+  kpi_group: PerformanceKpiGroup | null
+  title: string
+  description: string | null
+  metric_type: PerformanceGoalMetricType
+  unit: string | null
+  direction: PerformanceGoalDirection
+  target_value: number
+  actual_system: number | null
+  actual_manual: number | null
+  actual_final: number | null
+  pass_threshold_pct: number
+  progress_pct: number | null
+  progress_pct_for_overall: number
+  passed: boolean
+  status: PerformanceGoalStatus
+  revision: number
+  set_by_id: string
+  archived_at: string | null
+  created_at: string
+  updated_at: string
+  user: UserBasic & { employee_id?: string | null }
+  team: Pick<Team, 'id' | 'name' | 'leader_id'>
+  set_by: Pick<UserBasic, 'id' | 'full_name'>
+}
+
+export interface PerformanceGoalListResponse {
+  month: string
+  records: PerformanceGoal[]
+  summary: {
+    total_items: number
+    passed_items: number
+    missing_actual_items: number
+    overall_progress_pct: number | null
+    overall_passed: boolean
+  }
+  summaries?: Record<PerformanceGoalType, PerformanceGoalListResponse['summary']>
+  kpi_groups?: Array<{ group: PerformanceKpiGroup } & PerformanceGoalListResponse['summary']>
+}
+
+export interface PerformanceGoalHistory {
+  id: string
+  goal_id: string
+  revision: number
+  action: 'CREATE' | 'UPDATE' | 'ARCHIVE'
+  change_reason: string | null
+  previous_data: Record<string, unknown> | null
+  next_data: Record<string, unknown>
+  changed_by_id: string | null
+  changed_by: Pick<UserBasic, 'id' | 'full_name'> | null
+  created_at: string
 }
 
 // ── Editor Daily KPI (KPI ngày set tay, từng ngày một con số) ──
@@ -325,7 +419,7 @@ export interface ContentWinFailVideo {
 
 /** 1 dòng win/fail theo người — MỘT cơ chế duy nhất cho mọi thành viên team (không phân biệt
  * content creator/editor): "content được gắn task trong kỳ". Trả về từ GET /kpi/content-win-fail.
- * Chỉ số MỚI, tự tính, tách biệt EditorKpi.video_win/fail (nhập tay). */
+ * Chỉ số tự tính từ view thực tế của link bài đăng, không phải chỉ tiêu KPI nhập tay. */
 export interface ContentWinFailPersonRow {
   user_id: string
   user: Pick<UserBasic, 'id' | 'full_name'> | null
@@ -1052,6 +1146,8 @@ export interface TaskAutoDashboard {
     kpi_day?: number
     kpi_weekend?: number
     kpi_extra?: number
+    content_paast_analyzed?: number
+    content_paast_analyzed_actual?: number
   } | null
 }
 

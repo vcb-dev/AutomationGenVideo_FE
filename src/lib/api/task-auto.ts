@@ -44,6 +44,14 @@ import type {
   ContentApprovalsQuery,
   Notification,
   PublishedLink,
+  PerformanceGoal,
+  PerformanceGoalHistory,
+  PerformanceGoalListResponse,
+  PerformanceGoalDirection,
+  PerformanceGoalMetricType,
+  PerformanceGoalStatus,
+  PerformanceGoalType,
+  PerformanceKpiGroup,
 } from '@/types/task-auto'
 
 function qs(params: Record<string, string | number | boolean | undefined | null>): string {
@@ -59,6 +67,35 @@ function qs(params: Record<string, string | number | boolean | undefined | null>
 
 export const getTasks = (q: TasksQuery = {}) =>
   apiClient.get<PaginatedResult<Task>>(`/task-auto/tasks${qs(q as any)}`).then(r => r.data)
+
+// Blob.text() chưa có ở trình duyệt cũ / jsdom → fallback FileReader.
+async function blobToText(blob: Blob): Promise<string> {
+  if (typeof blob.text === 'function') return blob.text()
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result ?? ''))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsText(blob)
+  })
+}
+
+/** Tên file lấy từ Content-Disposition (cần `exposedHeaders` ở BE), không đọc được thì dùng tên mặc định. */
+export async function exportApprovedTasksExcel(q: TasksQuery = {}): Promise<{ blob: Blob; filename: string }> {
+  const res = await apiClient.get(`/task-auto/tasks/export${qs(q as any)}`, { responseType: 'blob' })
+  const blob = res.data as Blob
+
+  // responseType='blob' nên lỗi cũng về dạng Blob — đọc lại JSON để hiện đúng thông báo của BE.
+  if (blob.type.includes('json')) {
+    const text = await blobToText(blob)
+    let message = 'Xuất Excel thất bại'
+    try { message = JSON.parse(text)?.message || message } catch { /* body không phải JSON hợp lệ */ }
+    throw new Error(message)
+  }
+
+  const cd = String(res.headers['content-disposition'] ?? '')
+  const m = /filename\*=UTF-8''([^;]+)/i.exec(cd) ?? /filename="([^"]+)"/i.exec(cd)
+  return { blob, filename: m ? decodeURIComponent(m[1]) : 'task-da-hoan-thanh.xlsx' }
+}
 
 // Gộp 3 lượt đếm limit:1 (header "N task" + badge "Video chờ duyệt"/"Content chờ duyệt") thành
 // 1 request count()-thuần ở BE — xem tasks/page.tsx (headerCounts) và tasks.controller.ts.
@@ -321,21 +358,31 @@ export type TaskAutoDashboard = {
   editors?: { total: number; approved: number; pending_approval: number }
   /** Số video (task đã duyệt) trong kỳ, gộp theo tuyến nội dung A1-A5. */
   video_by_line?: { line: string; count: number }[]
+  /** (scope personal) Traffic tự báo cáo, quy về ngày báo cáo gần nhất trong kỳ. */
+  traffic_month?: number
   team?: { id: string; name: string; member_count: number } | null
   members?: Array<{
     user_id: string; full_name: string; email: string
     pending: number; in_progress: number; submitted: number; approved: number
     kpi_completed: number
-    kpi_target: number; kpi_video_win: number; kpi_content_new: number; kpi_product_planned: number
+    kpi_target: number; kpi_content_new: number; kpi_product_gmv: number
   }>
   kpi?: {
     month: string; total_target: number; completed: number
-    // Video
-    video_win?: number; video_fail?: number
     // Content
-    kpi_extra?: number; content_new?: number; content_collected?: number; content_win_cover?: number
+    kpi_extra?: number; content_new?: number; content_paast_analyzed?: number; content_win_cover?: number
     // Product
-    product_planned?: number; product_win_collect?: number
+    product_gmv?: number; product_traffic?: number; product_profit?: number
+    product_collect_test_win?: number
+    /** Số thực đạt, BE tự tính. */
+    total_actual?: number
+    content_new_actual?: number
+    content_paast_analyzed_actual?: number
+    content_win_cover_actual?: number
+    product_gmv_actual?: number
+    product_traffic_actual?: number
+    product_profit_actual?: number
+    product_collect_test_win_actual?: number
     content_allocations?: { id: string; name: string; weight: number }[]
     product_allocations?: { id: string; name: string; weight: number }[]
   } | null
@@ -417,6 +464,74 @@ export const updateEditorKpi = (_id: string, body: Partial<EditorKpi>) =>
 export const deleteEditorKpi = (id: string) =>
   apiClient.delete(`/task-auto/kpi/editors/${id}`).then(r => r.data)
 
+// ── KPI/OKR tùy chỉnh theo nhân sự ──────────────────────────────────────────
+
+export interface PerformanceGoalPayload {
+  user_id: string
+  team_id: string
+  month: string
+  type: PerformanceGoalType
+  kpi_group_id?: string | null
+  title: string
+  description?: string
+  metric_type?: PerformanceGoalMetricType
+  unit?: string
+  direction?: PerformanceGoalDirection
+  target_value: number
+  actual_manual?: number | null
+  status?: PerformanceGoalStatus
+}
+
+export const getPerformanceGoals = (params: {
+  month: string
+  team_id?: string
+  user_id?: string
+  type?: PerformanceGoalType
+  kpi_group_id?: string
+  include_archived?: boolean
+}) => apiClient
+  .get<PerformanceGoalListResponse>(`/task-auto/performance-goals${qs(params)}`)
+  .then(r => r.data)
+
+export const createPerformanceGoal = (body: PerformanceGoalPayload) =>
+  apiClient.post<PerformanceGoal>('/task-auto/performance-goals', body).then(r => r.data)
+
+export const updatePerformanceGoal = (
+  id: string,
+  body: Partial<Omit<PerformanceGoalPayload, 'user_id' | 'team_id' | 'month'>> & {
+    expected_revision: number
+    change_reason?: string
+  },
+) => apiClient.patch<PerformanceGoal>(`/task-auto/performance-goals/${id}`, body).then(r => r.data)
+
+export const archivePerformanceGoal = (id: string, revision: number, reason: string) =>
+  apiClient.delete<{ id: string; archived: true }>(
+    `/task-auto/performance-goals/${id}${qs({ revision, reason })}`,
+  ).then(r => r.data)
+
+export const getPerformanceGoalHistory = (id: string) =>
+  apiClient.get<PerformanceGoalHistory[]>(`/task-auto/performance-goals/${id}/history`).then(r => r.data)
+
+export const getPerformanceKpiGroups = (params: { team_id?: string; include_archived?: boolean } = {}) =>
+  apiClient.get<PerformanceKpiGroup[]>(`/task-auto/performance-kpi-groups${qs(params)}`).then(r => r.data)
+
+export const createPerformanceKpiGroup = (body: {
+  team_id: string
+  name: string
+  description?: string
+  color?: PerformanceKpiGroup['color']
+  icon?: PerformanceKpiGroup['icon']
+  sort_order?: number
+}) => apiClient.post<PerformanceKpiGroup>('/task-auto/performance-kpi-groups', body).then(r => r.data)
+
+export const updatePerformanceKpiGroup = (
+  id: string,
+  body: Partial<Pick<PerformanceKpiGroup, 'name' | 'description' | 'color' | 'icon' | 'sort_order'>>,
+) => apiClient.patch<PerformanceKpiGroup>(`/task-auto/performance-kpi-groups/${id}`, body).then(r => r.data)
+
+export const archivePerformanceKpiGroup = (id: string) =>
+  apiClient.delete<{ id: string; archived: true }>(`/task-auto/performance-kpi-groups/${id}`).then(r => r.data)
+
 // ── Editor Daily KPI (KPI ngày set tay) ───────────────────────────────────────
 
 export const getEditorDailyKpis = (params: {
@@ -483,7 +598,7 @@ export const getContentCreatorKpiReport = (params: { user_id?: string; team_id?:
   apiClient.get<ContentCreatorReportRow[]>(`/task-auto/kpi/content-creators/report${qs(params)}`).then(r => r.data)
 
 /** Chỉ số MỚI, tự tính win/fail (1 link bài đăng bất kỳ >10.000 view = win) theo content creator
- * lẫn editor — tách biệt EditorKpi.video_win/fail (nhập tay). Cần truyền user_id hoặc team_id. */
+ * lẫn editor — tách biệt chỉ tiêu KPI nhập tay của editor. Cần truyền user_id hoặc team_id. */
 export const getContentWinFailStats = (params: { user_id?: string; team_id?: string; from?: string; to?: string }) =>
   apiClient.get<ContentWinFailStats>(`/task-auto/kpi/content-win-fail${qs(params)}`).then(r => r.data)
 

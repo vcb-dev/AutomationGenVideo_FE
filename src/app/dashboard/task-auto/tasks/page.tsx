@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import toast from 'react-hot-toast'
 import { useQuery } from '@tanstack/react-query'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Users, User, LayoutGrid, Kanban, FileClock, Rows3, Gauge, CheckCircle2 } from 'lucide-react'
@@ -17,7 +18,7 @@ import { ContentApprovalList } from './components/ContentApprovalList'
 import { ContentScoringTab } from './components/ContentScoringTab'
 import { TaskDetailPanel } from './components/TaskDetailPanel'
 import { CreateTaskModal } from './components/TaskModals'
-import { getApprovals, getTaskHeaderCounts, getTasks, getTeams } from '@/lib/api/task-auto'
+import { exportApprovedTasksExcel, getApprovals, getTaskHeaderCounts, getTasks, getTeams } from '@/lib/api/task-auto'
 import { TaskStatus } from '@/types/task-auto'
 import { UserRole } from '@/types/auth'
 
@@ -98,6 +99,7 @@ export default function TasksPage() {
 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(() => searchParams?.get('taskId') ?? null)
   const [showCreate, setShowCreate]   = useState(false)
+  const [exporting, setExporting]     = useState(false)
 
   // Cho phép mở thẳng task khi truy cập từ thông báo (?taskId=...)
   const taskIdParam = searchParams?.get('taskId') ?? null
@@ -230,6 +232,34 @@ export default function TasksPage() {
   function handleTaskTypeChange(v: 'auto' | 'manual' | '')           { setTaskType(v);     setTablePage(1) }
   function handleAssigneeChange(v: string)                           { setAssigneeId(v);  setSubmittedPage(1); setApprovedPage(1); setContentApprovalPage(1); setTablePage(1) }
   function handleOverdueChange(v: boolean)                           { setOverdueOnly(v);  setTablePage(1) }
+
+  // "Video đã nộp" lọc theo ngày duyệt (reviewed_at), các tab khác theo deadline_from/to.
+  // Không truyền "Quá hạn": task đã duyệt không bao giờ quá hạn.
+  async function handleExportExcel() {
+    if (exporting) return
+    setExporting(true)
+    try {
+      const { blob, filename } = await exportApprovedTasksExcel({
+        team_id:   effectiveTeamId,
+        search:    search || undefined,
+        task_type: taskType || undefined,
+        assignee_id: effectiveAssigneeId,
+        ...(activeTab === 'approved'
+          ? { reviewed_from: approvedFrom || undefined, reviewed_to: approvedTo || undefined }
+          : { deadline_from: deadlineFrom || undefined, deadline_to: deadlineTo || undefined }),
+      })
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = filename
+      a.click()
+      URL.revokeObjectURL(a.href)
+      toast.success('Đã xuất file Excel')
+    } catch (e: any) {
+      toast.error(e?.message || 'Xuất Excel thất bại')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const pageTitle = isMember || (isLeaderEditor && viewMode === 'mine')
     ? 'Nhiệm vụ của tôi'
@@ -389,6 +419,9 @@ export default function TasksPage() {
           onAssigneeChange={handleAssigneeChange}
           onOverdueChange={handleOverdueChange}
           onCreateClick={() => setShowCreate(true)}
+          showExport={activeTab === 'table' || activeTab === 'approved'}
+          exporting={exporting}
+          onExportClick={handleExportExcel}
         />
         )}
       </div>

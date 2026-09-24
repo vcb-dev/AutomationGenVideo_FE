@@ -5,13 +5,15 @@ import { EditorKpi } from '@/types/task-auto'
 
 interface Props {
   kpi: EditorKpi
+  /** Số đầu mục KPI/OKR bổ sung của nhân sự trong nhóm + tháng này */
+  goalCount: number
   canEdit: boolean
   onEdit: (k: EditorKpi) => void
   onDelete: (id: string) => void
   onViewDetail: (k: EditorKpi) => void
 }
 
-export function EditorKpiTableRow({ kpi, canEdit, onEdit, onDelete, onViewDetail }: Props) {
+export function EditorKpiTableRow({ kpi, goalCount, canEdit, onEdit, onDelete, onViewDetail }: Props) {
   const monthLabel = kpi.month.replace(/(\d{4})-(\d{2})/, 'T$2/$1')
 
   return (
@@ -36,16 +38,19 @@ export function EditorKpiTableRow({ kpi, canEdit, onEdit, onDelete, onViewDetail
         <span className="text-xs text-slate-400 ml-1">video</span>
       </td>
       <td className="px-5 py-4 text-right whitespace-nowrap">
-        <span className="font-semibold text-emerald-600">{kpi.video_win}</span>
-        <span className="text-xs text-slate-400 ml-1">win</span>
-      </td>
-      <td className="px-5 py-4 text-right whitespace-nowrap">
         <span className="font-semibold text-sky-600">{kpi.content_new}</span>
         <span className="text-xs text-slate-400 ml-1">content</span>
       </td>
       <td className="px-5 py-4 text-right whitespace-nowrap">
-        <span className="font-semibold text-violet-600">{kpi.product_planned}</span>
+        <span className="font-semibold text-violet-600">{kpi.product_gmv}</span>
         <span className="text-xs text-slate-400 ml-1">SP</span>
+      </td>
+      <td className="px-5 py-4 whitespace-nowrap">
+        {goalCount > 0 ? (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-50 text-violet-700">
+            {goalCount} đầu mục
+          </span>
+        ) : <span className="text-slate-300 text-xs">—</span>}
       </td>
       <td className="px-5 py-4 text-sm text-slate-500 whitespace-nowrap">{kpi.set_by?.full_name ?? '-'}</td>
       <td className="px-4 py-4 whitespace-nowrap" onClick={e => e.stopPropagation()}>
