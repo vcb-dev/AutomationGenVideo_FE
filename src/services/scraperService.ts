@@ -1896,7 +1896,7 @@ export const scraperService = {
     });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
-      throw new Error(body?.error || 'Không thể cào profile Douyin');
+      throw new Error(body?.error || body?.message || 'Không thể cào profile Douyin');
     }
     return res.json();
   },
@@ -1992,7 +1992,7 @@ export const scraperService = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Thêm profile thất bại');
+      throw new Error(err.error || err.message || 'Thêm profile thất bại');
     }
     return res.json();
   },
@@ -2052,12 +2052,20 @@ export const scraperService = {
    */
   syncOwnedInstagram: async (
     token: string,
-  ): Promise<{ accounts: number; createdProfiles: number; updatedProfiles: number; syncedMedia: number; failed: number }> => {
+  ): Promise<{ status?: string; message?: string; accounts?: number; createdProfiles?: number; updatedProfiles?: number; syncedMedia?: number; failed?: number }> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/instagram/owned/sync`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Đồng bộ kênh Instagram thất bại');
+    return res.json();
+  },
+
+  getInstagramSyncStatus: async (token: string): Promise<{ is_syncing: boolean; progress: { current: number; total: number }; started_at?: string; last_result?: any }> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/instagram/owned/sync/status`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return { is_syncing: false, progress: { current: 0, total: 0 } };
     return res.json();
   },
 
@@ -2069,12 +2077,20 @@ export const scraperService = {
     return res.json();
   },
 
-  syncOwnedThreads: async (token: string): Promise<{ accounts: number; createdProfiles: number; updatedProfiles: number; syncedPosts: number; failed: number }> => {
+  syncOwnedThreads: async (token: string): Promise<{ status?: string; message?: string; accounts?: number; createdProfiles?: number; updatedProfiles?: number; syncedPosts?: number; failed?: number }> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/threads/owned/sync`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Đồng bộ kênh Threads thất bại');
+    return res.json();
+  },
+
+  getThreadsSyncStatus: async (token: string): Promise<{ is_syncing: boolean; progress: { current: number; total: number }; started_at?: string; last_result?: any }> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/threads/owned/sync/status`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return { is_syncing: false, progress: { current: 0, total: 0 } };
     return res.json();
   },
 
@@ -2105,6 +2121,7 @@ export const scraperService = {
       mode?: 'count' | 'days';
       count?: number;
       days?: number;
+      is_owned?: boolean;
     },
   ): Promise<{ status: string; message: string; already_running?: boolean }> => {
     if (platform === 'all') {

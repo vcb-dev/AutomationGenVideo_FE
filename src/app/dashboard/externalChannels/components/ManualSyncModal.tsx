@@ -29,6 +29,7 @@ interface Props {
   platform: DeletableChannelPlatform | 'all';
   channelCount?: number;
   isLoading?: boolean;
+  isOwned?: boolean;
 }
 
 const PLATFORM_NAMES: Record<DeletableChannelPlatform | 'all', string> = {
@@ -53,8 +54,9 @@ export default function ManualSyncModal({
   platform,
   channelCount,
   isLoading = false,
+  isOwned = false,
 }: Props) {
-  const [scope, setScope] = useState<'tracked' | 'bookmarked' | 'all'>('tracked');
+  const [scope, setScope] = useState<'tracked' | 'bookmarked' | 'all'>(isOwned ? 'all' : 'tracked');
   const [mode, setMode] = useState<'count' | 'days'>('count');
   const [count, setCount] = useState<number>(20);
   const [days, setDays] = useState<number>(7);
@@ -123,10 +125,10 @@ export default function ManualSyncModal({
             </div>
             <div>
               <h3 className="text-base font-bold text-foreground leading-snug">
-                Cào Dữ Liệu {platformTitle}
+                Cào Dữ Liệu {isOwned ? 'Kênh Nội Bộ ' : ''}{platformTitle}
               </h3>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Tùy chọn phạm vi kênh và hình thức lấy video mới
+                {isOwned ? 'Tùy chọn phạm vi kênh và hình thức lấy video mới cho các kênh nội bộ' : 'Tùy chọn phạm vi kênh và hình thức lấy video mới'}
               </p>
             </div>
           </div>
@@ -213,7 +215,7 @@ export default function ManualSyncModal({
                 </div>
                 <span className="font-semibold text-xs text-foreground">Tất cả kênh</span>
                 <span className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">
-                  Toàn bộ kênh khám phá của nền tảng
+                  {isOwned ? 'Toàn bộ kênh nội bộ của nền tảng' : 'Toàn bộ kênh khám phá của nền tảng'}
                 </span>
               </div>
             </div>
