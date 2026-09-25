@@ -202,10 +202,9 @@ export function TeamDashboard({ d, periodLabel, productStats }: {
             </div>
 
             {/* KPI targets breakdown */}
-            <div className="grid grid-cols-3 gap-3">
-              <KpiTargetTile icon={Video} label="Video win" value={kpi.video_win ?? 0} category="video" />
+            <div className="grid grid-cols-2 gap-3">
               <KpiTargetTile icon={FileText} label="Content" value={kpi.content_new ?? 0} category="content" />
-              <KpiTargetTile icon={Package} label="Sản phẩm" value={kpi.product_planned ?? 0} category="product" />
+              <KpiTargetTile icon={Package} label="Sản phẩm" value={kpi.product_gmv ?? 0} category="product" />
             </div>
           </div>
         </DashboardCard>

@@ -7,19 +7,22 @@ import { Plus, Loader2, Users, Video, FileText, Package } from 'lucide-react'
 import { DarkModal, DarkInput, EmptyState, CustomSelect, ServerSearchSelect, ConfirmDialog } from '@/components/task-auto'
 import {
   getEditorKpis, createEditorKpi, updateEditorKpi, deleteEditorKpi,
-  getApprovals, getTeams,
+  getApprovals, getTeams, getPerformanceGoals, archivePerformanceGoal, getContentLines,
 } from '@/lib/api/task-auto'
 import { EditorKpi } from '@/types/task-auto'
 import { cn } from '@/lib/utils'
 import { EditorKpiDetailModal, VIDEO_ROWS, CONTENT_ROWS, PRODUCT_ROWS, KpiFormState } from './EditorKpiDetailModal'
 import { EditorKpiTableRow, EditorKpiLoadingRows } from './EditorKpiTableRow'
-import { TeamKpiAllocationForm, AllocationDraft } from './TeamKpiAllocationForm'
+import type { AllocationDraft } from './TeamKpiAllocationForm'
+import {
+  PerformanceGoalsEditor, GoalDraft, goalToDraft, saveGoalDrafts, firstInvalidGoalField, assigneeGoalsQueryKey,
+} from './PerformanceGoalsEditor'
 
 const defaultForm = (): KpiFormState => ({
   user_id: '', team_id: '', month: '',
-  total_target: 0, video_win: 0, video_fail: 0,
-  kpi_extra: 0, content_new: 0, content_collected: 0, content_win_cover: 0,
-  product_planned: 0, product_win_collect: 0, product_profit: 0,
+  total_target: 0,
+  kpi_extra: 0, content_new: 0, content_paast_analyzed: 0, content_win_cover: 0,
+  product_gmv: 0, product_traffic: 0, product_profit: 0, product_collect_test_win: 0,
 })
 
 interface Props {
@@ -40,6 +43,11 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
   const [allocations, setAllocations] = useState<AllocationDraft[]>([])
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [editorSearch, setEditorSearch] = useState('')
+  const [goalDrafts, setGoalDrafts] = useState<GoalDraft[]>([])
+  const [goalReason, setGoalReason] = useState('')
+  const [showGoalErrors, setShowGoalErrors] = useState(false)
+  const [focusGoalKey, setFocusGoalKey] = useState<string | null>(null)
+  const [loadedGoalsKey, setLoadedGoalsKey] = useState<string | null>(null)
 
   const isManagerOrAdmin = canEdit && !isLeader
 
@@ -66,6 +74,12 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
     queryFn: getTeams,
   })
 
+  const { data: contentLines = [] } = useQuery({
+    queryKey: ['task-auto', 'content-lines'],
+    queryFn: getContentLines,
+    enabled: modal !== null,
+  })
+
   // Tất cả team user thuộc (leader hoặc member) — cho non-admin
   const myTeams = !isManagerOrAdmin && userId
     ? (teams?.filter(t => t.leader_id === userId || t.members?.some(m => m.user_id === userId)) ?? [])
@@ -78,33 +92,105 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
 
   // Editor selectable trong modal luôn khoanh theo nhóm đang chọn NGAY TRONG MODAL (form.team_id),
   // không phải theo bộ lọc ngoài toolbar — vì admin/leader nhiều team có thể đổi nhóm bên trong modal.
-  const formTeamMemberIds = new Set(
-    teams?.find(t => t.id === form.team_id)?.members?.map(m => m.user_id) ?? [],
-  )
+  const formTeam = teams?.find(t => t.id === form.team_id)
+  const formTeamMemberIds = new Set(formTeam?.members?.map(m => m.user_id) ?? [])
 
   const allApproved = approvedEditors ?? []
   const selectableEditors = form.team_id
     ? allApproved.filter(a => formTeamMemberIds.has(a.user_id))
     : []
+  const selectablePeople = [
+    ...selectableEditors.map(editor => ({
+      value: editor.user_id,
+      label: editor.user?.full_name ?? editor.user_id,
+      sublabel: editor.user?.email ?? '',
+    })),
+    ...(formTeam?.leader && !selectableEditors.some(editor => editor.user_id === formTeam.leader!.id)
+      ? [{
+          value: formTeam.leader.id,
+          label: `${formTeam.leader.full_name} (Leader)`,
+          sublabel: formTeam.leader.email ?? '',
+        }]
+      : []),
+  ]
+
+  const { data: monthGoals } = useQuery({
+    queryKey: ['task-auto', 'performance-goals', 'month', month],
+    queryFn: () => getPerformanceGoals({ month, type: 'KPI' }),
+  })
+  const goalCountByKpi = new Map<string, number>()
+  for (const g of monthGoals?.records ?? []) {
+    const key = `${g.user_id}|${g.team_id}`
+    goalCountByKpi.set(key, (goalCountByKpi.get(key) ?? 0) + 1)
+  }
+
+  const formTeamId = form.team_id ?? ''
+  const goalsAssigneeReady = modal !== null && !!form.user_id && !!formTeamId && /^\d{4}-\d{2}$/.test(form.month)
+  const goalsKey = goalsAssigneeReady ? `${form.user_id}|${formTeamId}|${form.month}` : null
+  const assigneeGoals = useQuery({
+    queryKey: assigneeGoalsQueryKey(form.month, formTeamId, form.user_id),
+    queryFn: () => getPerformanceGoals({ month: form.month, team_id: formTeamId, user_id: form.user_id, type: 'KPI' }),
+    enabled: goalsAssigneeReady,
+    refetchOnWindowFocus: false,
+  })
+
+  useEffect(() => {
+    setGoalDrafts(prev => prev.filter(d => !d.id))
+    setLoadedGoalsKey(null)
+  }, [goalsKey])
+
+  useEffect(() => {
+    if (!goalsKey || loadedGoalsKey === goalsKey) return
+    if (!assigneeGoals.isSuccess || assigneeGoals.isFetching) return
+    const saved = assigneeGoals.data.records.filter(goal => goal.type === 'KPI').map(goalToDraft)
+    setGoalDrafts(prev => [...saved, ...prev.filter(d => !d.id)])
+    setLoadedGoalsKey(goalsKey)
+  }, [goalsKey, loadedGoalsKey, assigneeGoals.isSuccess, assigneeGoals.isFetching, assigneeGoals.data])
+
+  const goalsLoading = !!goalsKey && loadedGoalsKey !== goalsKey && !assigneeGoals.isError
 
   const upsertMut = useMutation({
-    mutationFn: (body: KpiFormState & { allocations: any[] }) =>
-      editing
-        ? updateEditorKpi(editing.id, body as any)
-        : createEditorKpi(body as any),
-    onSuccess: () => {
+    mutationFn: async ({ body, goals, reason }: {
+      body: KpiFormState & { allocations: any[] }
+      goals: GoalDraft[]
+      reason: string
+    }) => {
+      await (editing ? updateEditorKpi(editing.id, body as any) : createEditorKpi(body as any))
+      return saveGoalDrafts(goals, { user_id: body.user_id, team_id: body.team_id!, month: body.month, reason })
+    },
+    onSuccess: result => {
       qc.invalidateQueries({ queryKey: ['task-auto', 'editor-kpis'] })
-      toast.success(editing ? 'Đã cập nhật KPI' : 'Đã thêm KPI editor')
-      setModal(null)
+      qc.invalidateQueries({ queryKey: ['task-auto', 'performance-goals'] })
+      if (result.failed === 0) {
+        toast.success('Đã lưu KPI/OKR')
+        setModal(null)
+        return
+      }
+      setGoalDrafts(result.drafts)
+      toast.error(`Đã lưu KPI cố định, còn ${result.failed} đầu mục KPI/OKR chưa lưu được`)
     },
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Không thể lưu KPI'),
   })
 
   const deleteMut = useMutation({
-    mutationFn: deleteEditorKpi,
-    onSuccess: () => {
+    mutationFn: async (kpi: EditorKpi) => {
+      await deleteEditorKpi(kpi.id)
+      if (!kpi.team_id) return 0
+      try {
+        const { records } = await getPerformanceGoals({ month: kpi.month, team_id: kpi.team_id, user_id: kpi.user_id, type: 'KPI' })
+        const results = await Promise.allSettled(
+          records.map(g => archivePerformanceGoal(g.id, g.revision, 'Xóa KPI/OKR của nhân sự trong tháng')),
+        )
+        return results.filter(r => r.status === 'rejected').length
+      } catch {
+        return -1
+      }
+    },
+    onSuccess: failed => {
       qc.invalidateQueries({ queryKey: ['task-auto', 'editor-kpis'] })
-      toast.success('Đã xóa KPI')
+      qc.invalidateQueries({ queryKey: ['task-auto', 'performance-goals'] })
+      if (failed === 0) toast.success('Đã xóa KPI/OKR')
+      else toast.error('Đã xóa KPI cố định, nhưng chưa lưu trữ được hết các đầu mục KPI/OKR bổ sung')
       setDeletingId(null)
     },
     onError: () => {
@@ -113,7 +199,17 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
     },
   })
 
+  const resetGoalEditor = () => {
+    qc.removeQueries({ queryKey: ['task-auto', 'performance-goals', 'assignee'] })
+    setGoalDrafts([])
+    setGoalReason('')
+    setShowGoalErrors(false)
+    setFocusGoalKey(null)
+    setLoadedGoalsKey(null)
+  }
+
   const openCreate = () => {
+    resetGoalEditor()
     setForm({ ...defaultForm(), month, team_id: teamFilter || myTeams[0]?.id || '' })
     setAllocations([])
     setEditing(null)
@@ -121,14 +217,16 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
   }
 
   const openEdit = (kpi: EditorKpi) => {
+    resetGoalEditor()
     setEditing(kpi)
     setForm({
       user_id: kpi.user_id, team_id: kpi.team_id ?? '', month: kpi.month,
-      total_target: kpi.total_target, video_win: kpi.video_win, video_fail: kpi.video_fail,
+      total_target: kpi.total_target,
       kpi_extra: kpi.kpi_extra, content_new: kpi.content_new,
-      content_collected: kpi.content_collected, content_win_cover: kpi.content_win_cover,
-      product_planned: kpi.product_planned, product_win_collect: kpi.product_win_collect,
+      content_paast_analyzed: kpi.content_paast_analyzed, content_win_cover: kpi.content_win_cover,
+      product_gmv: kpi.product_gmv, product_traffic: kpi.product_traffic,
       product_profit: kpi.product_profit,
+      product_collect_test_win: kpi.product_collect_test_win,
     })
     setAllocations((kpi.allocations ?? [])
       .filter(a => a.type === 'CONTENT_LINE')
@@ -144,6 +242,17 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
   const setField = (key: keyof KpiFormState, val: number) =>
     setForm(f => ({ ...f, [key]: val }))
 
+  const lineQty = (lineId: string) =>
+    allocations.find(a => a.type === 'CONTENT_LINE' && a.content_line_id === lineId)?.value ?? 0
+  const setLineQty = (lineId: string, value: number) =>
+    setAllocations(prev => prev.some(a => a.type === 'CONTENT_LINE' && a.content_line_id === lineId)
+      ? prev.map(a => (a.type === 'CONTENT_LINE' && a.content_line_id === lineId) ? { ...a, value } : a)
+      : [...prev, { type: 'CONTENT_LINE', content_line_id: lineId, product_line_id: '', value }])
+  const lineTotal = allocations
+    .filter(a => a.type === 'CONTENT_LINE')
+    .reduce((s, a) => s + (Number(a.value) || 0), 0)
+  const lineDiff = form.total_target - lineTotal
+
   const handleSubmit = () => {
     if (!form.user_id)  return toast.error('Chọn editor')
     if (!form.team_id)  return toast.error('Chọn nhóm để đặt KPI')
@@ -152,16 +261,27 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
     const contentTotal  = contentAllocs.reduce((s, a) => s + (Number(a.value) || 0), 0)
     if (contentAllocs.length > 0 && contentTotal !== form.total_target)
       return toast.error(`Tuyến nội dung tổng phải bằng tổng video sản xuất (${form.total_target}), hiện ${contentTotal}`)
+    const invalidGoalField = firstInvalidGoalField(goalDrafts, goalReason)
+    if (invalidGoalField) {
+      setShowGoalErrors(true)
+      toast.error('Kiểm tra lại các đầu mục KPI/OKR bổ sung')
+      requestAnimationFrame(() => document.getElementById(invalidGoalField)?.focus())
+      return
+    }
     upsertMut.mutate({
-      ...form,
-      allocations: allocations
-        .filter(a => Number(a.value) > 0)
-        .map(a => ({
-          type: a.type,
-          content_line_id: a.content_line_id || null,
-          product_line_id: null,
-          quantity: Number(a.value),
-        })),
+      body: {
+        ...form,
+        allocations: allocations
+          .filter(a => Number(a.value) > 0)
+          .map(a => ({
+            type: a.type,
+            content_line_id: a.content_line_id || null,
+            product_line_id: null,
+            quantity: Number(a.value),
+          })),
+      },
+      goals: goalDrafts,
+      reason: goalReason,
     })
   }
 
@@ -233,14 +353,17 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
             />
           </div>
         )}
-        {canEdit && (
-          <button
-            onClick={openCreate}
-            className="ml-auto flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors"
-          >
-            <Plus className="w-5 h-5" /> Thêm KPI Editor
-          </button>
-        )}
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {canEdit && (
+            <button
+              type="button"
+              onClick={openCreate}
+              className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+            >
+              <Plus className="h-5 w-5" aria-hidden="true" /> Đặt KPI
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Table */}
@@ -253,9 +376,9 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
                 <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Nhóm</th>
                 <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Tháng</th>
                 <th className="text-right px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Tổng video</th>
-                <th className="text-right px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Video win</th>
                 <th className="text-right px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Content mới</th>
-                <th className="text-right px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">SP kế hoạch</th>
+                <th className="text-right px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">SP GMV</th>
+                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">KPI/OKR bổ sung</th>
                 <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Người đặt</th>
                 <th className="w-24" />
               </tr>
@@ -273,6 +396,7 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
                 <EditorKpiTableRow
                   key={kpi.id}
                   kpi={kpi}
+                  goalCount={kpi.team_id ? goalCountByKpi.get(`${kpi.user_id}|${kpi.team_id}`) ?? 0 : 0}
                   canEdit={canEdit}
                   onEdit={openEdit}
                   onDelete={setDeletingId}
@@ -288,7 +412,7 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
       <DarkModal
         open={modal !== null}
         onClose={() => setModal(null)}
-        title={modal === 'create' ? 'Thêm KPI Editor' : `Sửa KPI — ${editing?.user?.full_name ?? ''}`}
+        title={modal === 'create' ? 'Đặt KPI' : `Đặt KPI — ${editing?.user?.full_name ?? ''}`}
         size="2xl"
         footer={
           <>
@@ -304,7 +428,7 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
               className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-2.5 text-base font-semibold flex items-center gap-2 transition-colors disabled:opacity-60"
             >
               {upsertMut.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-              {modal === 'create' ? 'Thêm mới' : 'Lưu thay đổi'}
+              Lưu
             </button>
           </>
         }
@@ -315,19 +439,15 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
               label="Editor *"
               value={form.user_id}
               onChange={v => setForm(f => ({ ...f, user_id: v }))}
-              items={selectableEditors.map(a => ({
-                value: a.user_id,
-                label: a.user?.full_name ?? a.user_id,
-                sublabel: a.user?.email ?? '',
-              }))}
+              items={selectablePeople}
               searchValue={editorSearch}
               onSearchChange={setEditorSearch}
               placeholder={
                 !form.team_id
                   ? 'Chọn nhóm trước'
-                  : selectableEditors.length === 0
-                    ? 'Chưa có editor trong nhóm này'
-                    : '-- Chọn editor --'
+                  : selectablePeople.length === 0
+                    ? 'Chưa có editor hoặc leader trong nhóm này'
+                    : '-- Chọn nhân sự hoặc leader --'
               }
               searchPlaceholder="Tìm tên hoặc email..."
               clearLabel="-- Bỏ chọn --"
@@ -395,6 +515,40 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
                     />
                   </div>
                 ))}
+                {contentLines.length > 0 && (
+                  <div className="px-4 py-2.5 bg-white">
+
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      <span className="text-xs mr-3 font-semibold uppercase tracking-wide text-slate-400">Phân bổ theo tuyến nội dung</span>
+                      <strong className={cn(
+                        'tabular-nums',
+                        lineTotal === 0 ? 'text-slate-700' : lineDiff === 0 ? 'text-emerald-600' : 'text-red-500',
+                      )}>
+                        {lineTotal}
+                      </strong>
+                      {' / '}
+                      <strong className="tabular-nums text-slate-700">{form.total_target || 0}</strong>
+                      {lineTotal > 0 && lineDiff !== 0 && (
+                        <span className="text-red-500">{lineDiff > 0 ? ` · còn thiếu ${lineDiff}` : ` · thừa ${-lineDiff}`}</span>
+                      )}
+                    </p>
+                  </div>
+                )}
+                {contentLines.map(line => (
+                  <div key={line.id} className="flex items-center justify-between gap-3 px-4 py-2.5 bg-white">
+                    <label htmlFor={`kpi-line-${line.id}`} className="text-sm text-slate-600 flex-1 leading-snug min-w-0 truncate">
+                      {line.name}
+                    </label>
+                    <input
+                      id={`kpi-line-${line.id}`}
+                      type="number" min={0}
+                      value={lineQty(line.id) || ''}
+                      onChange={e => setLineQty(line.id, e.target.value === '' ? 0 : Math.max(0, Number(e.target.value)))}
+                      placeholder="0"
+                      className="w-20 shrink-0 border border-gray-200 rounded-lg px-2 py-1 text-right font-bold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-300 transition-colors"
+                    />
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -446,34 +600,39 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
             </div>
           </div>
 
+          <PerformanceGoalsEditor
+            drafts={goalDrafts}
+            onChange={setGoalDrafts}
+            reason={goalReason}
+            onReasonChange={setGoalReason}
+            showErrors={showGoalErrors}
+            assigneeReady={goalsAssigneeReady}
+            loading={goalsLoading}
+            loadError={assigneeGoals.isError}
+            onRetryLoad={() => assigneeGoals.refetch()}
+            focusKey={focusGoalKey}
+            onAdded={setFocusGoalKey}
+            teamId={formTeamId}
+          />
+
           <p className="text-xs text-slate-400 bg-slate-50 rounded-lg px-4 py-2.5 border border-slate-100">
             <strong>Tổng video sản xuất</strong> được dùng làm chỉ tiêu auto-assign task hàng ngày.
             KPI sáng tạo chỉ thông báo, không tạo task tự động.
           </p>
-
-          <div className="space-y-3">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
-              Phân bổ số lượng video theo tuyến nội dung
-            </p>
-            <TeamKpiAllocationForm
-              allocations={allocations}
-              onChange={setAllocations}
-              mode="count"
-              contentTarget={form.total_target}
-              showProductLine={false}
-            />
-          </div>
         </div>
       </DarkModal>
 
       {/* Xác nhận xóa */}
       <ConfirmDialog
         open={!!deletingId}
-        title="Xóa KPI Editor"
-        message="KPI này sẽ bị xóa vĩnh viễn. Bạn có chắc không?"
+        title="Xóa KPI"
+        message="KPI cố định sẽ bị xóa vĩnh viễn; các đầu mục KPI linh hoạt của nhân sự trong tháng được lưu trữ (vẫn giữ lịch sử). OKR không bị ảnh hưởng. Bạn có chắc không?"
         confirmLabel="Xóa"
         isLoading={deleteMut.isPending}
-        onConfirm={() => deletingId && deleteMut.mutate(deletingId)}
+        onConfirm={() => {
+          const kpi = editorKpis?.find(k => k.id === deletingId)
+          if (kpi) deleteMut.mutate(kpi)
+        }}
         onCancel={() => setDeletingId(null)}
         danger
       />

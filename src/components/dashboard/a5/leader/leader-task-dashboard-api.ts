@@ -13,9 +13,8 @@ export interface LeaderDashboardMember {
   approved: number;
   kpi_completed: number;
   kpi_target: number;
-  kpi_video_win: number;
   kpi_content_new: number;
-  kpi_product_planned: number;
+  kpi_product_gmv: number;
   /** Số task có deadline hôm nay (hoặc tạo hôm nay nếu chưa có deadline) — "mục tiêu" của KPI ngày. */
   kpi_day_target: number;
   /** Số task đã duyệt hôm nay — "hiện tại" của KPI ngày. */
@@ -44,9 +43,8 @@ export interface LeaderTaskDashboard {
     month: string;
     total_target: number;
     completed: number;
-    video_win: number;
     content_new: number;
-    product_planned: number;
+    product_gmv: number;
   } | null;
   /** Số video (task đã duyệt) trong tháng của cả team, gộp theo tuyến nội dung A1-A5. */
   video_by_line: { line: string; count: number }[];
