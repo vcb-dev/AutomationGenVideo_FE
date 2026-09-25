@@ -304,7 +304,6 @@ function DailyProgress({ userId, dailyKpiTarget = 0 }: { userId: string; dailyKp
 
 const formatCount = (n: number) => n.toLocaleString('vi-VN')
 
-/** Chưa đặt mục tiêu (target = 0) thì không vẽ tiến độ, không tô "chưa đạt" — 0/0 không phải thất bại. */
 function KpiMetricRow({ label, actual, target, category }: {
   label: string; actual: number; target: number; category: Category
 }) {
@@ -341,7 +340,6 @@ function KpiMetricRow({ label, actual, target, category }: {
   )
 }
 
-/** Dòng chưa có cả số đạt lẫn mục tiêu thì ẩn. */
 function KpiMetricsCard({ kpi }: { kpi: any }) {
   const rows = [
     { label: 'Tổng video sản xuất', actual: kpi.total_actual ?? kpi.completed ?? 0, target: kpi.total_target ?? 0, category: 'video' },
@@ -371,7 +369,6 @@ function KpiMetricsCard({ kpi }: { kpi: any }) {
   )
 }
 
-/** Traffic tự báo cáo, chưa có mục tiêu nên không vẽ tiến độ. */
 function MyTrafficCard({ traffic, periodLabel }: { traffic: number; periodLabel: string }) {
   return (
     <DashboardCard title="Traffic đã báo cáo" subtitle={periodLabel} className="h-full">
@@ -464,7 +461,6 @@ export function PersonalDashboard({ d, periodLabel, productStats }: {
         />
       </div>
 
-      {/* ── Chỉ tiêu KPI tháng (đạt/mục tiêu) | Traffic tự báo cáo ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
         {kpi && <div className="lg:col-span-2"><KpiMetricsCard kpi={kpi} /></div>}
         <div className={cn(!kpi && 'lg:col-span-3')}>

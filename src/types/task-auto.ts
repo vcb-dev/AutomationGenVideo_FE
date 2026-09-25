@@ -208,7 +208,7 @@ export interface EditorKpi {
   content_new: number
   content_paast_analyzed: number
   content_win_cover: number
-  // ── Product ──
+  // ── Product ── (product_planned = SP GMV, product_win_collect = SP Traffic, product_profit = SP Profit)
   product_gmv: number
   product_traffic: number
   product_profit: number
@@ -220,12 +220,10 @@ export interface EditorKpi {
   set_by?: UserBasic
   team?: { id: string; name: string }
   allocations?: EditorKpiAllocation[]
-  // ── Số thực đạt (BE tự tính, chỉ có ở GET /kpi/editors). undefined = response cũ chưa có field.
   total_actual?: number
   content_new_actual?: number
   paast_analyzed_actual?: number
   content_win_cover_actual?: number
-  /** Đếm sản phẩm riêng biệt, không đếm video. */
   product_gmv_actual?: number
   product_traffic_actual?: number
   product_profit_actual?: number
@@ -242,8 +240,6 @@ export interface EditorKpiAllocation {
   content_line?: ContentLine | null
   product_line?: ProductLine | null
 }
-
-// ── KPI/OKR tùy chỉnh theo nhân sự ──────────────────────────────────────────
 
 export type PerformanceGoalType = 'KPI' | 'OKR'
 export type PerformanceGoalMetricType = 'NUMBER' | 'PERCENT' | 'BOOLEAN'
@@ -419,7 +415,7 @@ export interface ContentWinFailVideo {
 
 /** 1 dòng win/fail theo người — MỘT cơ chế duy nhất cho mọi thành viên team (không phân biệt
  * content creator/editor): "content được gắn task trong kỳ". Trả về từ GET /kpi/content-win-fail.
- * Chỉ số tự tính từ view thực tế của link bài đăng, không phải chỉ tiêu KPI nhập tay. */
+ * Chỉ số MỚI, tự tính, tách biệt EditorKpi.video_win/fail (nhập tay). */
 export interface ContentWinFailPersonRow {
   user_id: string
   user: Pick<UserBasic, 'id' | 'full_name'> | null

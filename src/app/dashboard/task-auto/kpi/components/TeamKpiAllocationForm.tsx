@@ -123,7 +123,7 @@ interface Props {
   mode?: 'percent' | 'count'
   /** Tổng số video sản xuất — mục tiêu cho tuyến nội dung khi mode='count' */
   contentTarget?: number
-  /** Tổng số sản phẩm GMV — mục tiêu cho dòng sản phẩm khi mode='count' */
+  /** Tổng số SP đẩy video theo kế hoạch — mục tiêu cho dòng sản phẩm khi mode='count' */
   productTarget?: number
   /** Hiện cột phân bổ theo dòng sản phẩm — mặc định có (TeamKpi); EditorKpi tắt vì đã có số SP GMV/Traffic/Profit riêng trong card Product */
   showProductLine?: boolean

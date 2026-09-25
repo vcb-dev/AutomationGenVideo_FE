@@ -7,7 +7,6 @@ import { EditorKpi } from '@/types/task-auto'
 import { AllocCardSection } from './KpiAllocationCard'
 import { PerformanceGoalsReadonly } from './PerformanceGoalsEditor'
 
-/** Các field số THỰC ĐẠT do BE tự tính — không nằm trong form nhập target. */
 type KpiActualKey =
   | 'total_actual'
   | 'content_new_actual'
@@ -23,7 +22,6 @@ export type KpiFormState = Omit<
   'id' | 'set_by_id' | 'created_at' | 'updated_at' | 'user' | 'set_by' | 'team' | 'allocations' | KpiActualKey
 >
 
-/** Mỗi dòng chỉ tiêu: `key` = cột target nhập tay, `actualKey` = cột số thực đạt BE tính kèm. */
 interface KpiRow {
   key: keyof KpiFormState
   actualKey: KpiActualKey
@@ -48,7 +46,6 @@ export const PRODUCT_ROWS: KpiRow[] = [
   { key: 'product_collect_test_win', actualKey: 'product_collect_test_win_actual', label: 'Số sản phẩm sưu tầm và test win' },
 ]
 
-/** `actual` undefined = response cũ chưa có field → chỉ hiện mục tiêu, không hiện "0 /". */
 function KpiProgress({
   actual,
   target,

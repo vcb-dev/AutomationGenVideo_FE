@@ -5,7 +5,6 @@ import { EditorKpi } from '@/types/task-auto'
 
 interface Props {
   kpi: EditorKpi
-  /** Số đầu mục KPI/OKR bổ sung của nhân sự trong nhóm + tháng này */
   goalCount: number
   canEdit: boolean
   onEdit: (k: EditorKpi) => void

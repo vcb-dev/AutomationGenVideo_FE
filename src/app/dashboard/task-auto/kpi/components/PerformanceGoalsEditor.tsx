@@ -20,20 +20,14 @@ import {
 } from '@/types/task-auto'
 import { cn } from '@/lib/utils'
 
-/**
- * KPI linh hoạt (bảng performance_goals) gắn theo khóa (nhân sự, team, tháng) và nhóm KPI.
- * OKR được quản lý ở tab riêng để không trộn với các card KPI cố định.
- */
 export const assigneeGoalsQueryKey = (month: string, teamId: string, userId: string) =>
   ['task-auto', 'performance-goals', 'assignee', month, teamId, userId] as const
 
-/** Một đầu mục đang soạn trong modal. Số giữ dạng chuỗi để ô nhập để trống được. */
 export interface GoalDraft {
   key: string
   id?: string
   revision?: number
   status?: PerformanceGoalStatus
-  /** Giá trị lúc tải về — dùng để chỉ gửi field thật sự đổi. Không có = đầu mục mới. */
   original?: GoalFields
   type: PerformanceGoalType
   kpi_group_id: string
@@ -43,9 +37,7 @@ export interface GoalDraft {
   direction: PerformanceGoalDirection
   target_value: string
   actual_manual: string
-  /** Đầu mục đã lưu bị bấm xóa: chỉ lưu trữ thật khi bấm Lưu, trước đó còn hoàn tác được. */
   removed: boolean
-  /** Lỗi server của lần lưu gần nhất. */
   error?: string
 }
 
@@ -91,7 +83,6 @@ function newGoalDraft(groupId = ''): GoalDraft {
   }
 }
 
-/** Chỉ các field đã đổi — BE bắt nhập lý do hễ body CÓ key target/actual/direction, kể cả khi giá trị không đổi. */
 function changedFields(draft: GoalDraft): GoalUpdateBody {
   const original = draft.original
   if (!original) return {}
@@ -108,7 +99,6 @@ function changedFields(draft: GoalDraft): GoalUpdateBody {
   return changes
 }
 
-/** Thay đổi ảnh hưởng số liệu lương (mục tiêu, thực đạt, chiều đánh giá, lưu trữ) phải kèm lý do. */
 function goalNeedsReason(draft: GoalDraft) {
   if (!draft.id) return false
   if (draft.removed) return true
@@ -140,7 +130,6 @@ function goalDraftErrors(draft: GoalDraft): GoalDraftErrors {
 const REASON_FIELD_ID = 'goal-change-reason'
 const fieldId = (draft: GoalDraft, field: string) => `goal-${draft.key}-${field}`
 
-/** id ô nhập lỗi đầu tiên (để chuyển focus tới đó khi bấm Lưu), null nếu mọi đầu mục hợp lệ. */
 export function firstInvalidGoalField(drafts: GoalDraft[], reason: string): string | null {
   for (const draft of drafts) {
     const errors = goalDraftErrors(draft)
@@ -159,10 +148,6 @@ function apiErrorMessage(error: any) {
   return message ?? 'Không thể lưu đầu mục này'
 }
 
-/**
- * Ghi các đầu mục đã soạn. Chạy tuần tự để mỗi đầu mục có kết quả riêng: cái nào lỗi được giữ lại
- * trong modal kèm thông báo, bấm Lưu lần nữa chỉ gửi lại phần chưa lưu.
- */
 export async function saveGoalDrafts(
   drafts: GoalDraft[],
   ctx: { user_id: string; team_id: string; month: string; reason: string },
@@ -215,16 +200,12 @@ export async function saveGoalDrafts(
   return { drafts: next, failed }
 }
 
-// ── Soạn đầu mục trong modal "Đặt KPI/OKR" ──────────────────────────────────
-
 interface EditorProps {
   drafts: GoalDraft[]
   onChange: (drafts: GoalDraft[]) => void
   reason: string
   onReasonChange: (reason: string) => void
-  /** Hiện lỗi từng ô — bật sau lần bấm Lưu đầu tiên. */
   showErrors: boolean
-  /** Chưa đủ editor/nhóm/tháng thì chưa biết tải đầu mục của ai. */
   assigneeReady: boolean
   loading: boolean
   loadError: boolean
@@ -633,8 +614,6 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   if (!message) return null
   return <p id={id} role="alert" className="mt-1 text-xs font-medium text-rose-600">{message}</p>
 }
-
-// ── Xem (chỉ đọc) trong modal chi tiết KPI ──────────────────────────────────
 
 export function PerformanceGoalsReadonly({ userId, teamId, month }: { userId: string; teamId: string; month: string }) {
   const { data, isLoading, isError } = useQuery({

@@ -43,7 +43,6 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
   const [allocations, setAllocations] = useState<AllocationDraft[]>([])
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [editorSearch, setEditorSearch] = useState('')
-  // KPI linh hoạt được soạn trong KPI Editor; OKR có tab riêng.
   const [goalDrafts, setGoalDrafts] = useState<GoalDraft[]>([])
   const [goalReason, setGoalReason] = useState('')
   const [showGoalErrors, setShowGoalErrors] = useState(false)
@@ -115,7 +114,6 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
       : []),
   ]
 
-  // Số đầu mục KPI/OKR bổ sung của từng dòng (nhân sự + nhóm) trong tháng, hiện ở cột bảng
   const { data: monthGoals } = useQuery({
     queryKey: ['task-auto', 'performance-goals', 'month', month],
     queryFn: () => getPerformanceGoals({ month, type: 'KPI' }),
@@ -126,7 +124,6 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
     goalCountByKpi.set(key, (goalCountByKpi.get(key) ?? 0) + 1)
   }
 
-  // Đầu mục đã giao cho (editor, nhóm, tháng) đang chọn trong modal
   const formTeamId = form.team_id ?? ''
   const goalsAssigneeReady = modal !== null && !!form.user_id && !!formTeamId && /^\d{4}-\d{2}$/.test(form.month)
   const goalsKey = goalsAssigneeReady ? `${form.user_id}|${formTeamId}|${form.month}` : null
@@ -138,13 +135,11 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
   })
 
   useEffect(() => {
-    // Đổi editor/nhóm/tháng: bỏ đầu mục đã lưu của lựa chọn cũ, giữ đầu mục mới đang soạn dở
     setGoalDrafts(prev => prev.filter(d => !d.id))
     setLoadedGoalsKey(null)
   }, [goalsKey])
 
   useEffect(() => {
-    // Chỉ nạp một lần cho mỗi lựa chọn, và chỉ từ dữ liệu vừa fetch xong — refetch nền không được đè lên chỗ đang sửa
     if (!goalsKey || loadedGoalsKey === goalsKey) return
     if (!assigneeGoals.isSuccess || assigneeGoals.isFetching) return
     const saved = assigneeGoals.data.records.filter(goal => goal.type === 'KPI').map(goalToDraft)
@@ -160,7 +155,6 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
       goals: GoalDraft[]
       reason: string
     }) => {
-      // POST /kpi/editors là upsert theo (editor, nhóm, tháng) nên bấm Lưu lại sau lỗi không tạo trùng
       await (editing ? updateEditorKpi(editing.id, body as any) : createEditorKpi(body as any))
       return saveGoalDrafts(goals, { user_id: body.user_id, team_id: body.team_id!, month: body.month, reason })
     },
@@ -172,7 +166,6 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
         setModal(null)
         return
       }
-      // Giữ modal mở: đầu mục lỗi còn nguyên kèm thông báo, đầu mục đã lưu cập nhật revision mới
       setGoalDrafts(result.drafts)
       toast.error(`Đã lưu KPI cố định, còn ${result.failed} đầu mục KPI/OKR chưa lưu được`)
     },
@@ -182,8 +175,6 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
   const deleteMut = useMutation({
     mutationFn: async (kpi: EditorKpi) => {
       await deleteEditorKpi(kpi.id)
-      // Đầu mục KPI/OKR bổ sung chỉ hiển thị qua dòng KPI này — xóa KPI thì lưu trữ luôn, tránh đầu mục
-      // "mồ côi" vẫn đi vào payroll-sync mà không còn chỗ nào xem/sửa. Trả số đầu mục chưa lưu trữ được.
       if (!kpi.team_id) return 0
       try {
         const { records } = await getPerformanceGoals({ month: kpi.month, team_id: kpi.team_id, user_id: kpi.user_id, type: 'KPI' })
@@ -209,7 +200,6 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
   })
 
   const resetGoalEditor = () => {
-    // Bỏ cache cũ để mỗi lần mở modal đều nạp đầu mục mới nhất từ server
     qc.removeQueries({ queryKey: ['task-auto', 'performance-goals', 'assignee'] })
     setGoalDrafts([])
     setGoalReason('')
@@ -252,7 +242,6 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
   const setField = (key: keyof KpiFormState, val: number) =>
     setForm(f => ({ ...f, [key]: val }))
 
-  // Phân bổ Tổng video sản xuất theo tuyến nội dung — nhập ngay trong card Video, mỗi tuyến một dòng
   const lineQty = (lineId: string) =>
     allocations.find(a => a.type === 'CONTENT_LINE' && a.content_line_id === lineId)?.value ?? 0
   const setLineQty = (lineId: string, value: number) =>
@@ -276,7 +265,6 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
     if (invalidGoalField) {
       setShowGoalErrors(true)
       toast.error('Kiểm tra lại các đầu mục KPI/OKR bổ sung')
-      // Đợi render lỗi xong rồi mới chuyển focus tới ô đầu tiên cần sửa
       requestAnimationFrame(() => document.getElementById(invalidGoalField)?.focus())
       return
     }
@@ -527,7 +515,6 @@ export function EditorKpiTab({ month, canEdit, isLeader, userId, selectedTeamId,
                     />
                   </div>
                 ))}
-                {/* Phân bổ theo tuyến nội dung — tổng các tuyến phải bằng Tổng video sản xuất (hoặc để trống hết) */}
                 {contentLines.length > 0 && (
                   <div className="px-4 py-2.5 bg-white">
 

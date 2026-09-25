@@ -233,8 +233,6 @@ export default function TasksPage() {
   function handleAssigneeChange(v: string)                           { setAssigneeId(v);  setSubmittedPage(1); setApprovedPage(1); setContentApprovalPage(1); setTablePage(1) }
   function handleOverdueChange(v: boolean)                           { setOverdueOnly(v);  setTablePage(1) }
 
-  // "Video đã nộp" lọc theo ngày duyệt (reviewed_at), các tab khác theo deadline_from/to.
-  // Không truyền "Quá hạn": task đã duyệt không bao giờ quá hạn.
   async function handleExportExcel() {
     if (exporting) return
     setExporting(true)
