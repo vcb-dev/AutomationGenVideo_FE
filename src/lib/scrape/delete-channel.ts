@@ -15,6 +15,7 @@ export const DELETABLE_CHANNEL_PLATFORMS = [
   'facebook',
   'tiktok',
   'instagram',
+  'threads',
   'youtube',
   'douyin',
   'xiaohongshu',

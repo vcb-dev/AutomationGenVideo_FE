@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { CalendarDays, Plus, Search, RotateCcw, ChevronDown, AlertTriangle } from 'lucide-react'
+import { CalendarDays, Plus, Search, RotateCcw, ChevronDown, AlertTriangle, FileSpreadsheet, Loader2 } from 'lucide-react'
 import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { cn } from '@/lib/utils'
 import { TaskStatus, Team } from '@/types/task-auto'
@@ -91,6 +91,9 @@ interface Props {
   onAssigneeChange: (v: string) => void
   onOverdueChange?: (v: boolean) => void
   onCreateClick: () => void
+  showExport?: boolean
+  exporting?: boolean
+  onExportClick?: () => void
 }
 
 export function TaskFilters({
@@ -122,6 +125,9 @@ export function TaskFilters({
   onAssigneeChange,
   onOverdueChange,
   onCreateClick,
+  showExport = false,
+  exporting = false,
+  onExportClick,
 }: Props) {
   const isToday = dateFromFilter === todayString() && dateToFilter === todayString()
   const isSingleDay = !!dateFromFilter && dateFromFilter === dateToFilter
@@ -385,13 +391,33 @@ export function TaskFilters({
         </button>
       )}
 
+      {showExport && (
+        <button
+          type="button"
+          onClick={onExportClick}
+          disabled={exporting}
+          aria-busy={exporting}
+          title="Xuất Excel task đã hoàn thành (đã duyệt) theo bộ lọc đang chọn — mỗi người 1 tab, kèm bảng KPI tháng"
+          className={cn(
+            'border border-emerald-200 bg-white hover:bg-emerald-50 text-emerald-700 rounded-xl px-4 py-3 text-sm font-semibold flex items-center gap-2 transition-colors flex-shrink-0 shadow-sm',
+            'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white',
+            activeFilterCount === 0 && 'ml-auto'
+          )}
+        >
+          {exporting
+            ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+            : <FileSpreadsheet className="w-4 h-4" aria-hidden="true" />}
+          {exporting ? 'Đang xuất...' : 'Xuất Excel'}
+        </button>
+      )}
+
       {/* Create button */}
       {canCreate && (
         <button
           onClick={onCreateClick}
           className={cn(
             'bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-5 py-3 text-sm font-semibold flex items-center gap-2 transition-colors flex-shrink-0 shadow-sm',
-            activeFilterCount === 0 && 'ml-auto'
+            activeFilterCount === 0 && !showExport && 'ml-auto'
           )}
         >
           <Plus className="w-4 h-4" />

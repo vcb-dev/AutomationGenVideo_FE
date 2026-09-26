@@ -14,16 +14,20 @@ import { EditorKpiTab } from './components/EditorKpiTab'
 import { DailyKpiTab } from './components/DailyKpiTab'
 import { ContentCreatorKpiTab } from './components/ContentCreatorKpiTab'
 import { ContentCreatorDailyKpiTab } from './components/ContentCreatorDailyKpiTab'
+import { PerformanceGoalsTab } from './components/PerformanceGoalsTab'
 
-type KpiTab = 'team' | 'editor' | 'daily' | 'content-creator' | 'content-creator-daily'
+type KpiTab = 'team' | 'editor' | 'okr' | 'daily' | 'content-creator' | 'content-creator-daily'
 
 const TAB_LABELS: Record<KpiTab, string> = {
-  team: 'KPI Team',
   editor: 'KPI Editor',
+  okr: 'OKR',
   daily: 'KPI Ngày',
   'content-creator': 'KPI Content',
   'content-creator-daily': 'KPI Ngày Content',
+  team: 'KPI Team',
 }
+
+const TAB_ORDER = Object.keys(TAB_LABELS) as KpiTab[]
 
 export default function KpiPage() {
   const { user } = useAuthStore()
@@ -56,22 +60,23 @@ export default function KpiPage() {
   const isContentCreatorUser = !isPlainMember || roleCheckLoading
     || (teamsForRoleCheck?.some(t => t.members?.some(m => m.user_id === user?.id && m.is_content_creator)) ?? false)
 
-  const visibleTabs = (['team', 'editor', 'daily', 'content-creator', 'content-creator-daily'] as KpiTab[])
+  const visibleTabs = TAB_ORDER
     .filter(tab => {
       if (!isPlainMember) return true
       if (tab === 'editor' || tab === 'daily') return isEditorUser
+      if (tab === 'okr') return true
       if (tab === 'content-creator' || tab === 'content-creator-daily') return isContentCreatorUser
       return true
     })
 
-  const [activeTab, setActiveTab] = useState<KpiTab>('team')
+  const [activeTab, setActiveTab] = useState<KpiTab>('editor')
   const [month, setMonth] = useState(currentMonth)
   // Shared team selection between KPI Team and KPI Editor tabs
   const [selectedTeamId, setSelectedTeamId] = useState('')
 
   useEffect(() => {
     if (!roleCheckLoading && !visibleTabs.includes(activeTab)) {
-      setActiveTab(visibleTabs[0] ?? 'team')
+      setActiveTab(visibleTabs[0] ?? 'editor')
     }
   }, [roleCheckLoading, visibleTabs, activeTab])
 
@@ -80,7 +85,7 @@ export default function KpiPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black text-slate-900">KPI</h1>
-          <p className="text-slate-500 text-base mt-1">Quản lý KPI theo team và editor</p>
+          <p className="text-slate-500 text-base mt-1">KPI được tổ chức theo nhóm; OKR được quản lý riêng theo từng nhân sự</p>
         </div>
         <MonthPicker value={month} onChange={setMonth} />
       </div>
@@ -89,7 +94,7 @@ export default function KpiPage() {
         <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl px-5 py-3.5 text-sm text-blue-700">
           <Info className="w-4 h-4 shrink-0" />
           <span>
-            Là <strong>Leader</strong>: bạn có thể xem KPI team (chỉ đọc) và đặt KPI editor cho thành viên trong team của mình.
+            Là <strong>Leader</strong>: bạn có thể xem KPI team (chỉ đọc), đặt KPI cố định và giao KPI/OKR linh hoạt cho thành viên hoặc chính mình trong team đang lead.
           </span>
         </div>
       )}
@@ -130,6 +135,17 @@ export default function KpiPage() {
           userId={user?.id}
           selectedTeamId={selectedTeamId}
           onTeamChange={setSelectedTeamId}
+        />
+      )}
+      {activeTab === 'okr' && (
+        <PerformanceGoalsTab
+          month={month}
+          canEdit={canEditEditorKpi}
+          isLeader={isLeader && !isAdminOrManager}
+          userId={user?.id}
+          selectedTeamId={selectedTeamId}
+          onTeamChange={setSelectedTeamId}
+          fixedType="OKR"
         />
       )}
       {activeTab === 'daily' && (

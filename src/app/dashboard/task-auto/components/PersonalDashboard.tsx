@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   CheckCircle2, Target, ArrowRight, Video,
   CalendarClock, Flame, Send, Zap,
-  AlertTriangle, Clock, Award,
+  AlertTriangle, Clock, Award, TrendingUp,
 } from 'lucide-react'
 import Link from 'next/link'
 import type { ElementType } from 'react'
@@ -17,7 +17,7 @@ import { DashboardCard } from './DashboardUI'
 import { VideoByLineCard } from './VideoByLineCard'
 import { ContentByClassificationCard } from './ContentByClassificationCard'
 import { ProductVideoBreakdownCard } from './ProductVideoBreakdownCard'
-import { TONE, CATEGORY, STATUS, TASK_STATUS_TO_KEY, kpiTone, type Tone } from './tokens'
+import { TONE, CATEGORY, STATUS, TASK_STATUS_TO_KEY, kpiTone, type Tone, type Category } from './tokens'
 
 function formatMonth(yyyymm: string) {
   const [y, m] = yyyymm.split('-')
@@ -302,6 +302,93 @@ function DailyProgress({ userId, dailyKpiTarget = 0 }: { userId: string; dailyKp
   )
 }
 
+const formatCount = (n: number) => n.toLocaleString('vi-VN')
+
+function KpiMetricRow({ label, actual, target, category }: {
+  label: string; actual: number; target: number; category: Category
+}) {
+  const c = CATEGORY[category]
+  const hasTarget = target > 0
+  const pct = hasTarget ? Math.min(100, Math.round((actual / target) * 100)) : 0
+  const reached = hasTarget && actual >= target
+
+  return (
+    <div className="px-5 py-3 border-b border-slate-100 last:border-b-0">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-sm text-slate-600 min-w-0 truncate">{label}</span>
+        <span className="flex items-baseline gap-1 whitespace-nowrap shrink-0">
+          <span className={cn('text-base font-extrabold tabular-nums', reached ? 'text-emerald-600' : 'text-slate-900')}>
+            {formatCount(actual)}
+          </span>
+          <span className="text-xs font-semibold text-slate-400 tabular-nums">
+            / {hasTarget ? formatCount(target) : '—'}
+          </span>
+          {hasTarget && (
+            <span className="sr-only">{reached ? 'đã đạt mục tiêu' : `mới đạt ${pct} phần trăm mục tiêu`}</span>
+          )}
+        </span>
+      </div>
+      {hasTarget && (
+        <div className="mt-2 h-1.5 rounded-full bg-slate-100 overflow-hidden" aria-hidden>
+          <div
+            className={cn('h-full rounded-full transition-[width] duration-500', reached ? 'bg-emerald-500' : c.bar)}
+            style={{ width: `${Math.max(pct, actual > 0 ? 4 : 0)}%` }}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function KpiMetricsCard({ kpi }: { kpi: any }) {
+  const rows = [
+    { label: 'Tổng video sản xuất', actual: kpi.total_actual ?? kpi.completed ?? 0, target: kpi.total_target ?? 0, category: 'video' },
+    { label: 'Content mới làm được', actual: kpi.content_new_actual ?? 0, target: kpi.content_new ?? 0, category: 'content' },
+    { label: 'Content phân tích theo PAAST', actual: kpi.content_paast_analyzed_actual ?? 0, target: kpi.content_paast_analyzed ?? 0, category: 'content' },
+    { label: 'Content win được team cover lại', actual: kpi.content_win_cover_actual ?? 0, target: kpi.content_win_cover ?? 0, category: 'content' },
+    { label: 'Số sản phẩm GMV', actual: kpi.product_gmv_actual ?? 0, target: kpi.product_gmv ?? 0, category: 'product' },
+    { label: 'Số sản phẩm Traffic', actual: kpi.product_traffic_actual ?? 0, target: kpi.product_traffic ?? 0, category: 'product' },
+    { label: 'Số sản phẩm Profit', actual: kpi.product_profit_actual ?? 0, target: kpi.product_profit ?? 0, category: 'product' },
+    { label: 'Số sản phẩm sưu tầm và test win', actual: kpi.product_collect_test_win_actual ?? 0, target: kpi.product_collect_test_win ?? 0, category: 'product' },
+  ] satisfies { label: string; actual: number; target: number; category: Category }[]
+
+  const visible = rows.filter(r => r.actual > 0 || r.target > 0)
+
+  if (visible.length === 0) return null
+
+  return (
+    <DashboardCard
+      title="Chỉ tiêu KPI tháng"
+      subtitle={`${formatMonth(kpi.month)} · số đạt / mục tiêu`}
+      className="h-full"
+    >
+      <div>
+        {visible.map(r => <KpiMetricRow key={r.label} {...r} />)}
+      </div>
+    </DashboardCard>
+  )
+}
+
+function MyTrafficCard({ traffic, periodLabel }: { traffic: number; periodLabel: string }) {
+  return (
+    <DashboardCard title="Traffic đã báo cáo" subtitle={periodLabel} className="h-full">
+      <div className="px-5 py-6 flex items-center gap-4">
+        <div className={cn('w-12 h-12 rounded-2xl flex items-center justify-center shrink-0', CATEGORY.views.bg)}>
+          <TrendingUp className={cn('w-6 h-6', CATEGORY.views.text)} aria-hidden />
+        </div>
+        <div className="min-w-0">
+          <p className="text-3xl font-black text-slate-900 tabular-nums leading-none">{formatCount(traffic)}</p>
+          <p className="text-xs text-slate-400 mt-1.5">
+            {traffic > 0
+              ? 'Tổng traffic của lần báo cáo gần nhất trong kỳ'
+              : 'Bạn chưa nộp báo cáo traffic nào trong kỳ này'}
+          </p>
+        </div>
+      </div>
+    </DashboardCard>
+  )
+}
+
 // ─── PersonalDashboard ──────────────────────────────────────────────────────
 
 export function PersonalDashboard({ d, periodLabel, productStats }: {
@@ -340,10 +427,12 @@ export function PersonalDashboard({ d, periodLabel, productStats }: {
           </div>
         </div>
         {kpi && (
-          <div className="flex items-center gap-2 shrink-0 bg-white/90 border border-indigo-100 rounded-xl px-4 py-2.5 shadow-sm">
-            <Target className="w-4 h-4 text-indigo-500" />
-            <span className="text-sm text-slate-500">KPI tháng {formatMonth(kpi.month)}:</span>
-            <span className={cn('text-sm font-extrabold', kpiTint.text)}>{kpiPct}%</span>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 whitespace-nowrap bg-white/90 border border-indigo-100 rounded-xl px-4 py-2.5 shadow-sm">
+              <Target className="w-4 h-4 text-indigo-500" />
+              <span className="text-sm text-slate-500">KPI tháng {formatMonth(kpi.month)}:</span>
+              <span className={cn('text-sm font-extrabold', kpiTint.text)}>{kpiPct}%</span>
+            </div>
           </div>
         )}
       </div>
@@ -370,6 +459,13 @@ export function PersonalDashboard({ d, periodLabel, productStats }: {
           tone="violet" active={(tasks.submitted ?? 0) > 0}
           sub="Đang chờ Leader duyệt"
         />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
+        {kpi && <div className="lg:col-span-2"><KpiMetricsCard kpi={kpi} /></div>}
+        <div className={cn(!kpi && 'lg:col-span-3')}>
+          <MyTrafficCard traffic={d.traffic_month ?? 0} periodLabel={periodLabel} />
+        </div>
       </div>
 
       {/* ── Main 2-col: Tiến độ hôm nay | Video theo tuyến nội dung (2 card cao bằng nhau — items-stretch) ── */}
