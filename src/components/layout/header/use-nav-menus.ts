@@ -34,6 +34,7 @@ import {
     Truck,
     Undo2,
     ImagePlus,
+    Images,
 } from "lucide-react";
 import { useSocialLang } from "@/contexts/SocialLanguageContext";
 import { NavMenu } from "./types";
@@ -528,6 +529,7 @@ export function useNavMenus(
                     "/dashboard/tools/video-downloader",
                     "/dashboard/tools/lucky-spin",
                     "/dashboard/tien-ich/id-photo",
+                    "/dashboard/tien-ich/product-image",
                 ] as string[],
                 sections: [
                     {
@@ -557,6 +559,14 @@ export function useNavMenus(
                                 href: "/dashboard/ai/content-transform",
                                 icon: Wand2,
                                 description: n.contentTransformDesc,
+                            },
+                            // Mọi vai trò đều có quyền tools:product_image:use mặc định (người dùng
+                            // chốt 2026-09-29) — BE chỉ gắn JwtAuthGuard, không @Roles.
+                            {
+                                label: n.productImage,
+                                href: "/dashboard/tien-ich/product-image",
+                                icon: Images,
+                                description: n.productImageDesc,
                             },
                         ],
                     },
