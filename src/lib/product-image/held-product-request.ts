@@ -7,16 +7,21 @@
 /** Khớp HELD_PRODUCT_NOTE_MAX_LENGTH ở BE (dto/held-product.dto.ts) và AI service. */
 export const HELD_PRODUCT_NOTE_MAX_LENGTH = 500;
 
+/** Khớp PRODUCT_NAME_MAX_LENGTH ở BE — bắt buộc để tab Chi phí đếm lượt/tiền theo từng sản phẩm. */
+export const PRODUCT_NAME_MAX_LENGTH = 200;
+
 /** Tên field multipart — phải khớp FileFieldsInterceptor ở ProductImageController. */
 export const HELD_PRODUCT_FIELDS = {
   person: 'personImage',
   product: 'productImage',
+  productName: 'productName',
   note: 'note',
 } as const;
 
 export interface HeldProductInput {
   personImage: File | null;
   productImage: File | null;
+  productName: string;
   note: string;
 }
 
@@ -24,6 +29,9 @@ export interface HeldProductInput {
 export function validateHeldProductInput(input: HeldProductInput): string | null {
   if (!input.personImage) return 'Chưa chọn ảnh chị Nhạm đang cầm sản phẩm.';
   if (!input.productImage) return 'Chưa chọn ảnh sản phẩm mới.';
+  const productName = input.productName.trim();
+  if (!productName) return 'Nhập tên sản phẩm — dùng để thống kê chi phí theo từng sản phẩm.';
+  if (productName.length > PRODUCT_NAME_MAX_LENGTH) return `Tên sản phẩm tối đa ${PRODUCT_NAME_MAX_LENGTH} ký tự.`;
   if (input.note.trim().length > HELD_PRODUCT_NOTE_MAX_LENGTH) {
     return `Ghi chú tối đa ${HELD_PRODUCT_NOTE_MAX_LENGTH} ký tự.`;
   }
@@ -40,6 +48,7 @@ export function buildHeldProductFormData(input: HeldProductInput): FormData {
   const form = new FormData();
   form.append(HELD_PRODUCT_FIELDS.person, input.personImage as File);
   form.append(HELD_PRODUCT_FIELDS.product, input.productImage as File);
+  form.append(HELD_PRODUCT_FIELDS.productName, input.productName.trim());
   const note = input.note.trim();
   if (note) form.append(HELD_PRODUCT_FIELDS.note, note);
   return form;
