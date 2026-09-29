@@ -17,8 +17,10 @@ import {
   type Placement,
   type Size,
 } from '@/lib/product-image/background-placement';
+import { DEFAULT_SHADOW_HEIGHT, DEFAULT_SHADOW_STRENGTH, estimateWarmth } from '@/lib/product-image/realism';
 import { CHECKERBOARD_STYLE, ImageDropzone } from './ImageDropzone';
 import { downloadUrl, loadImage } from './download';
+import { averageColor, useRealismLayers, type RealismSettings } from './useRealismLayers';
 
 interface LoadedImage extends Size {
   src: string;
@@ -31,6 +33,9 @@ const PREVIEW_MAX_HEIGHT_PX = 560;
  * Chế độ "Ghép background" — 0đ. Ảnh SP được BE/AI tách nền bằng rembg; việc dán lên ảnh phòng
  * làm ngay ở trình duyệt: xem trước bằng CSS, xuất bằng canvas, cả hai cùng đọc
  * `computeDrawRect` nên ảnh tải về khớp đúng cái đang thấy.
+ *
+ * "Cho giống ảnh chụp thật" (bật sẵn): bóng dưới chân theo đường cong đo từ ảnh chụp thật, ánh sáng
+ * sản phẩm kéo về ánh sáng của nền — xem lib/product-image/realism.ts.
  */
 export function BackgroundComposer() {
   const [productFile, setProductFile] = useState<File | null>(null);
@@ -43,6 +48,19 @@ export function BackgroundComposer() {
 
   const [placement, setPlacement] = useState<Placement>(DEFAULT_PLACEMENT);
   const [isExporting, setIsExporting] = useState(false);
+
+  // Mặc định người dùng chốt (2026-09-29): bóng đậm 100% (đúng ảnh thật), cao 1,8 lần.
+  const [realism, setRealism] = useState<RealismSettings>({
+    shadow: true,
+    shadowStrength: DEFAULT_SHADOW_STRENGTH,
+    shadowHeight: DEFAULT_SHADOW_HEIGHT,
+    look: true,
+    warmth: 0,
+  });
+  // Mức ánh vàng ấm tự suy từ ảnh nền; người dùng kéo tay rồi thì không tự đè lên nữa.
+  const [autoWarmth, setAutoWarmth] = useState<number | null>(null);
+  const warmthTouchedRef = useRef(false);
+  const { layers, busy: realismBusy } = useRealismLayers(cutout?.src ?? null, realism);
 
   const cutoutAbortRef = useRef<AbortController | null>(null);
   const cutoutRequestIdRef = useRef(0);
@@ -71,6 +89,36 @@ export function BackgroundComposer() {
       URL.revokeObjectURL(url);
     };
   }, [backgroundFile]);
+
+  useEffect(() => {
+    if (!background) {
+      setAutoWarmth(null);
+      return;
+    }
+    let cancelled = false;
+    averageColor(background.src)
+      .then(([r, g, b]) => {
+        if (cancelled) return;
+        const warmth = estimateWarmth(r, g, b);
+        setAutoWarmth(warmth);
+        if (!warmthTouchedRef.current) setRealism((prev) => ({ ...prev, warmth }));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [background]);
+
+  const resetRealism = () => {
+    warmthTouchedRef.current = false;
+    setRealism({
+      shadow: true,
+      shadowStrength: DEFAULT_SHADOW_STRENGTH,
+      shadowHeight: DEFAULT_SHADOW_HEIGHT,
+      look: true,
+      warmth: autoWarmth ?? 0,
+    });
+  };
 
   const runCutout = async (file: File) => {
     cutoutAbortRef.current?.abort();
@@ -121,10 +169,12 @@ export function BackgroundComposer() {
   };
 
   const handleExport = async () => {
-    if (!background || !cutout || isExporting) return;
+    if (!background || !cutout || isExporting || realismBusy) return;
     setIsExporting(true);
     try {
-      const [bgImage, productImage] = await Promise.all([loadImage(background.src), loadImage(cutout.src)]);
+      const bgImage = await loadImage(background.src);
+      // Vẽ đúng 2 lớp đang xem trước (bóng + sản phẩm đã chỉnh) để ảnh tải về khớp màn hình.
+      const productImage = layers?.product ?? (await loadImage(cutout.src));
       const canvas = document.createElement('canvas');
       canvas.width = background.width;
       canvas.height = background.height;
@@ -136,6 +186,9 @@ export function BackgroundComposer() {
       ctx.drawImage(bgImage, 0, 0, background.width, background.height);
       const rect = computeDrawRect(background, cutout, placement);
       ctx.imageSmoothingQuality = 'high';
+      if (layers?.shadow) {
+        ctx.drawImage(layers.shadow, rect.x, rect.y, rect.width, rect.height * layers.shadowHeightRatio);
+      }
       ctx.drawImage(productImage, rect.x, rect.y, rect.width, rect.height);
       const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
       if (!blob) throw new Error('Không dựng được file ảnh');
@@ -202,7 +255,7 @@ export function BackgroundComposer() {
           <button
             type="button"
             onClick={handleExport}
-            disabled={!percentRect || isExporting}
+            disabled={!percentRect || isExporting || realismBusy}
             className="px-4 py-2 rounded-xl font-semibold text-sm text-white bg-[#4441cc] hover:bg-[#4441cc]/90 disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-2"
           >
             {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
@@ -222,9 +275,26 @@ export function BackgroundComposer() {
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={background.src} alt="Ảnh background" draggable={false} className="absolute inset-0 w-full h-full" />
+              {layers?.shadowUrl && (
+                // Lớp bóng kéo dài xuống dưới chân: cùng vị trí/chiều rộng với sản phẩm, cao hơn theo tỉ lệ.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={layers.shadowUrl}
+                  alt=""
+                  aria-hidden
+                  draggable={false}
+                  className="absolute pointer-events-none"
+                  style={{
+                    left: `${percentRect.x}%`,
+                    top: `${percentRect.y}%`,
+                    width: `${percentRect.width}%`,
+                    height: `${percentRect.height * layers.shadowHeightRatio}%`,
+                  }}
+                />
+              )}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={cutout.src}
+                src={layers?.productUrl ?? cutout.src}
                 alt="Sản phẩm"
                 draggable={false}
                 onPointerDown={handlePointerDown}
@@ -271,6 +341,80 @@ export function BackgroundComposer() {
                 Đặt lại
               </button>
             </div>
+
+            <div className="mt-4 rounded-xl border border-[#e2e0ea] bg-[#fcfbff] p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h4 className="text-sm font-bold text-[#1b1b1d]">Cho giống ảnh chụp thật</h4>
+                <div className="flex items-center gap-3">
+                  {realismBusy && (
+                    <span className="inline-flex items-center gap-1 text-xs text-[#9c9aa8]">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Đang xử lý…
+                    </span>
+                  )}
+                  <button type="button" onClick={resetRealism} className="text-xs font-semibold text-[#4441cc] hover:underline">
+                    Về mặc định
+                  </button>
+                </div>
+              </div>
+
+              <label className="flex items-center gap-2 text-sm font-semibold text-[#1b1b1d]">
+                <input
+                  type="checkbox"
+                  checked={realism.shadow}
+                  onChange={(e) => setRealism((prev) => ({ ...prev, shadow: e.target.checked }))}
+                  className="accent-[#4441cc]"
+                />
+                Bóng dưới chân sản phẩm
+              </label>
+              <RangeRow
+                label="Độ đậm"
+                min={0}
+                max={150}
+                step={5}
+                value={Math.round(realism.shadowStrength * 100)}
+                display={`${Math.round(realism.shadowStrength * 100)}%`}
+                disabled={!realism.shadow}
+                onChange={(v) => setRealism((prev) => ({ ...prev, shadowStrength: v / 100 }))}
+              />
+              <RangeRow
+                label="Độ cao"
+                min={5}
+                max={25}
+                step={1}
+                value={Math.round(realism.shadowHeight * 10)}
+                display={`${realism.shadowHeight.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}×`}
+                disabled={!realism.shadow}
+                onChange={(v) => setRealism((prev) => ({ ...prev, shadowHeight: v / 10 }))}
+              />
+
+              <label className="flex items-center gap-2 text-sm font-semibold text-[#1b1b1d] pt-1">
+                <input
+                  type="checkbox"
+                  checked={realism.look}
+                  onChange={(e) => setRealism((prev) => ({ ...prev, look: e.target.checked }))}
+                  className="accent-[#4441cc]"
+                />
+                Khớp ánh sáng với nền
+              </label>
+              <RangeRow
+                label="Ánh vàng ấm"
+                min={0}
+                max={100}
+                step={5}
+                value={Math.round(realism.warmth * 100)}
+                display={`${Math.round(realism.warmth * 100)}%`}
+                disabled={!realism.look}
+                onChange={(v) => {
+                  warmthTouchedRef.current = true;
+                  setRealism((prev) => ({ ...prev, warmth: v / 100 }));
+                }}
+              />
+              <p className="text-[11px] text-[#9c9aa8]">
+                Độ đậm 100% = tối đúng như bóng trong ảnh chụp thật của media. Ánh vàng ấm tự đặt theo màu ảnh nền
+                {autoWarmth !== null ? ` (${Math.round(autoWarmth * 100)}%)` : ''}; nền trắng thì để 0%.
+              </p>
+            </div>
           </>
         ) : (
           <div
@@ -290,5 +434,42 @@ export function BackgroundComposer() {
         )}
       </div>
     </div>
+  );
+}
+
+function RangeRow({
+  label,
+  min,
+  max,
+  step,
+  value,
+  display,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  value: number;
+  display: string;
+  disabled?: boolean;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <label className={`flex items-center gap-3 text-sm text-[#464554] pl-6 ${disabled ? 'opacity-40' : ''}`}>
+      <span className="w-24 shrink-0">{label}</span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="flex-1 accent-[#4441cc]"
+      />
+      <span className="w-12 text-right tabular-nums">{display}</span>
+    </label>
   );
 }
