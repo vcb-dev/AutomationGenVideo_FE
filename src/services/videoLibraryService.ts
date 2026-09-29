@@ -1,5 +1,5 @@
 import { fetchWithAuth } from '@/lib/api-client';
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
+import { apiBaseUrl } from '@/lib/api-base-url';
 
 export interface ProposeVideoPayload {
   /**
@@ -69,7 +69,7 @@ function authHeaders(token?: string | null): Record<string, string> {
 export const videoLibraryService = {
   // ─── Đề xuất video (member) ─────────────────────────────
   proposeVideo: async (token: string | null | undefined, payload: ProposeVideoPayload): Promise<{ status: string; message: string; proposal: ScraperVideoProposal }> => {
-    const res = await fetchWithAuth(`${API_URL}/video-proposals`, {
+    const res = await fetchWithAuth(`${apiBaseUrl()}/video-proposals`, {
       method: 'POST',
       headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -83,7 +83,7 @@ export const videoLibraryService = {
 
   getMyProposals: async (token?: string | null, status?: string): Promise<ScraperVideoProposal[]> => {
     const qs = status ? `?status=${status}` : '';
-    const res = await fetchWithAuth(`${API_URL}/video-proposals/my${qs}`, {
+    const res = await fetchWithAuth(`${apiBaseUrl()}/video-proposals/my${qs}`, {
       headers: authHeaders(token),
     });
     if (!res.ok) return [];
@@ -93,7 +93,7 @@ export const videoLibraryService = {
   // ─── Duyệt (leader/admin) ────────────────────────────────
   getPendingProposals: async (token?: string | null, status?: string): Promise<ScraperVideoProposal[]> => {
     const qs = status ? `?status=${status}` : '';
-    const res = await fetchWithAuth(`${API_URL}/video-proposals/pending${qs}`, {
+    const res = await fetchWithAuth(`${apiBaseUrl()}/video-proposals/pending${qs}`, {
       headers: authHeaders(token),
     });
     if (!res.ok) return [];
@@ -106,7 +106,7 @@ export const videoLibraryService = {
     action: 'APPROVED' | 'REJECTED',
     note?: string,
   ): Promise<{ status: string; proposal: ScraperVideoProposal }> => {
-    const res = await fetchWithAuth(`${API_URL}/video-proposals/${id}/review`, {
+    const res = await fetchWithAuth(`${apiBaseUrl()}/video-proposals/${id}/review`, {
       method: 'PATCH',
       headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
       body: JSON.stringify({ action, note }),
@@ -120,7 +120,7 @@ export const videoLibraryService = {
 
   // ─── Leader/admin thêm thẳng (tự duyệt) ──────────────────
   addVideoDirectly: async (token: string | null | undefined, payload: ProposeVideoPayload): Promise<{ status: string; message: string; videoLibraryId: string; approvedContentId: string | null }> => {
-    const res = await fetchWithAuth(`${API_URL}/video-library/direct`, {
+    const res = await fetchWithAuth(`${apiBaseUrl()}/video-library/direct`, {
       method: 'POST',
       headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

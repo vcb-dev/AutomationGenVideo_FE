@@ -44,6 +44,7 @@ import { UserRole } from '@/types/auth';
 import { videoLibraryService, ScraperVideoProposal, ProposeVideoPayload, VideoLibraryApiError } from '@/services/videoLibraryService';
 import { useSubmitVideoToLibrary } from '@/hooks/useProposeVideo';
 import { fetchWithAuth } from '@/lib/api-client';
+import { apiBaseUrl } from '@/lib/api-base-url';
 import FilterSelect from '@/app/dashboard/externalChannels/components/FilterSelect';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import CostPanel from './CostPanel';
@@ -1122,7 +1123,7 @@ function VideoLibraryInner() {
     const fetchVideos = useCallback(async (type: 'TEAM' | 'SHARED', setter: (v: LibraryVideo[]) => void, setLoading: (b: boolean) => void) => {
         setLoading(true);
         try {
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+            const apiUrl = apiBaseUrl();
             const res = await fetchWithAuth(`${apiUrl}/video-library?type=${type}`);
             if (res.ok) {
                 const data = await res.json();
@@ -1140,7 +1141,7 @@ function VideoLibraryInner() {
     const fetchContent = useCallback(async (silent = false) => {
         if (!silent) setLoadingContent(true);
         try {
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+            const apiUrl = apiBaseUrl();
             const res = await fetchWithAuth(`${apiUrl}/approved-content`);
             if (res.ok) {
                 const data = await res.json();
@@ -1227,7 +1228,7 @@ function VideoLibraryInner() {
 
     const handleDelete = async (id: string) => {
         try {
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+            const apiUrl = apiBaseUrl();
             const res = await fetchWithAuth(`${apiUrl}/video-library/${id}`, {
                 method: 'DELETE',
             });
@@ -1243,7 +1244,7 @@ function VideoLibraryInner() {
 
     const handleDeleteContent = async (id: string) => {
         try {
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+            const apiUrl = apiBaseUrl();
             const res = await fetchWithAuth(`${apiUrl}/approved-content/${id}`, {
                 method: 'DELETE',
             });
@@ -1260,8 +1261,7 @@ function VideoLibraryInner() {
 
     const handleRetryContent = async (id: string) => {
         try {
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
-            const res = await fetchWithAuth(`${apiUrl}/approved-content/${id}/regenerate`, { method: 'POST' });
+            const res = await fetchWithAuth(`${apiBaseUrl()}/approved-content/${id}/regenerate`, { method: 'POST' });
             const body = await res.json().catch(() => null);
             if (!res.ok) {
                 toast.error(body?.message || 'Không tạo lại được kịch bản');

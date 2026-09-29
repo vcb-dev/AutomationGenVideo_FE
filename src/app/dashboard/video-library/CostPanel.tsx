@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { AlertTriangle, Coins, Cpu, Database, Info, Loader2, RefreshCw, Wallet } from 'lucide-react';
 import { fetchWithAuth } from '@/lib/api-client';
+import { apiBaseUrl } from '@/lib/api-base-url';
 import { DatePicker } from '@/components/ui/DatePicker';
 import {
     RANGE_PRESETS,
@@ -75,7 +76,6 @@ function Tile({ icon, label, value, sub }: { icon: React.ReactNode; label: strin
  * ở trang nào, cho bước nào, nền tảng nào, ai bấm — cộng số dư tài khoản TikHub để kiểm soát chi phí.
  */
 export default function CostPanel() {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
     const [range, setRange] = useState<DateRange>(() => resolvePreset('this_month'));
     const [stats, setStats] = useState<CostStats | null>(null);
     const [account, setAccount] = useState<TikhubAccount | null>(null);
@@ -87,19 +87,22 @@ export default function CostPanel() {
         setLoading(true);
         setError('');
         try {
+            const apiUrl = apiBaseUrl();
             const [statsRes, accountRes] = await Promise.all([
                 fetchWithAuth(`${apiUrl}/video-library/costs?date_from=${r.from}&date_to=${r.to}`),
                 fetchWithAuth(`${apiUrl}/video-library/costs/tikhub-account`),
             ]);
             if (!statsRes.ok) throw new Error((await statsRes.json().catch(() => null))?.message || `HTTP ${statsRes.status}`);
             setStats(await statsRes.json());
-            setAccount(accountRes.ok ? await accountRes.json() : { error: `HTTP ${accountRes.status}` });
+            setAccount(accountRes.ok
+                ? await accountRes.json()
+                : { error: (await accountRes.json().catch(() => null))?.message || `HTTP ${accountRes.status}` });
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Không tải được thống kê chi phí');
         } finally {
             setLoading(false);
         }
-    }, [apiUrl, range]);
+    }, [range]);
 
     useEffect(() => { void load(); }, [load]);
 
