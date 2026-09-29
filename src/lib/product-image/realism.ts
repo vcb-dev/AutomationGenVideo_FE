@@ -240,6 +240,60 @@ export function applySelfOcclusion(
 
 // ─── Khử viền ──────────────────────────────────────────────────────────────
 
+/** Độ đặc dưới mức này mà nằm xa mọi phần rõ nét của sản phẩm thì là cặn nền rembg để sót. */
+export const RESIDUE_MAX_ALPHA = 48;
+
+/**
+ * Khoảng giữ lại quanh phần rõ nét: dải khử răng cưa ở mép rộng theo độ phóng mặt nạ của rembg
+ * (mô hình chạy ở 1024px) — ảnh SP 426px còn ~1px, ảnh 2000px rộng tới 4–5px.
+ */
+export function residueReach(width: number, height: number): number {
+  return Math.max(2, Math.ceil((3 * Math.max(width, height)) / 1024));
+}
+
+/**
+ * rembg hay để sót một lớp nền rất mờ trong khoảng hở kín như lỗ quai túi — đo trên ảnh túi nhà
+ * cung cấp người dùng gửi (2026-09-29): gần hết lỗ quai có độ đặc 6–20/255 chứ không phải 0. Lớp này
+ * mang màu nền trắng của ảnh gốc; sau khi `unpremultiplyEdges` chia lại màu nó thành mảng mờ sáng như
+ * kính trên nền tối (người dùng thấy "cái gì bóng bóng" giữa quai).
+ *
+ * Điểm có độ đặc < RESIDUE_MAX_ALPHA mà cách mọi điểm ≥ RESIDUE_MAX_ALPHA quá `reach` px thì xoá
+ * hẳn. Điểm sát phần rõ nét giữ nguyên: dải khử răng cưa ở mép, rìa mờ của dây chuyền mảnh (lõi dây
+ * đặc hơn 48 nên chính nó cũng được giữ). Sửa tại chỗ.
+ */
+export function clearMatteResidue(
+  rgba: Uint8ClampedArray,
+  width: number,
+  height: number,
+  reach = residueReach(width, height),
+) {
+  const count = width * height;
+  const clear = new Uint8Array(count);
+  for (let i = 0; i < count; i += 1) clear[i] = rgba[i * 4 + 3] >= RESIDUE_MAX_ALPHA ? 1 : 0;
+  // Dãn vùng rõ nét ra `reach` px (ô vuông) bằng tổng cộng dồn: theo hàng rồi theo cột.
+  const near = new Uint8Array(count);
+  const prefix = new Int32Array(Math.max(width, height) + 1);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) prefix[x + 1] = prefix[x] + clear[y * width + x];
+    for (let x = 0; x < width; x += 1) {
+      near[y * width + x] = prefix[Math.min(width, x + reach + 1)] - prefix[Math.max(0, x - reach)] > 0 ? 1 : 0;
+    }
+  }
+  for (let x = 0; x < width; x += 1) {
+    for (let y = 0; y < height; y += 1) prefix[y + 1] = prefix[y] + near[y * width + x];
+    for (let y = 0; y < height; y += 1) {
+      const i = y * width + x;
+      const a = rgba[i * 4 + 3];
+      if (a === 0 || a >= RESIDUE_MAX_ALPHA) continue;
+      if (prefix[Math.min(height, y + reach + 1)] - prefix[Math.max(0, y - reach)] > 0) continue;
+      rgba[i * 4] = 0;
+      rgba[i * 4 + 1] = 0;
+      rgba[i * 4 + 2] = 0;
+      rgba[i * 4 + 3] = 0;
+    }
+  }
+}
+
 /**
  * rembg (naive_cutout: Image.composite(ảnh, nền trong suốt, mặt nạ)) trả màu điểm mép ĐÃ NHÂN độ
  * đặc: đo trên ảnh thử, (30,28,28) ở độ đặc 40 thực ra là (191,178,178) — khớp điểm ảnh gốc. Vẽ

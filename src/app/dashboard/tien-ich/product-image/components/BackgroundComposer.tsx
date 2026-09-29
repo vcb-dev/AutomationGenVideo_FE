@@ -212,12 +212,13 @@ export function BackgroundComposer() {
   };
 
   const handleExport = async () => {
-    if (!background || !cutout || isExporting || realismBusy) return;
+    if (!background || !cutout || !layers || isExporting || realismBusy) return;
     setIsExporting(true);
     try {
       const bgImage = await loadImage(background.src);
-      // Vẽ đúng 2 lớp đang xem trước (bóng + sản phẩm đã chỉnh) để ảnh tải về khớp màn hình.
-      const productImage = layers?.product ?? (await loadImage(cutout.src));
+      // Vẽ đúng 2 lớp đang xem trước (bóng + sản phẩm đã dọn cặn nền, đã chỉnh) để ảnh tải về khớp
+      // màn hình — không bao giờ vẽ ảnh tách nền thô.
+      const productImage = layers.product;
       const canvas = document.createElement('canvas');
       canvas.width = background.width;
       canvas.height = background.height;
@@ -229,7 +230,7 @@ export function BackgroundComposer() {
       ctx.drawImage(bgImage, 0, 0, background.width, background.height);
       const rect = computeDrawRect(background, cutout, placement);
       ctx.imageSmoothingQuality = 'high';
-      if (layers?.shadow) {
+      if (layers.shadow) {
         ctx.drawImage(layers.shadow, rect.x, rect.y, rect.width, rect.height * layers.shadowHeightRatio);
       }
       ctx.drawImage(productImage, rect.x, rect.y, rect.width, rect.height);
@@ -298,7 +299,7 @@ export function BackgroundComposer() {
           <button
             type="button"
             onClick={handleExport}
-            disabled={!percentRect || isExporting || realismBusy}
+            disabled={!percentRect || !layers || isExporting || realismBusy}
             className="px-4 py-2 rounded-xl font-semibold text-sm text-white bg-[#4441cc] hover:bg-[#4441cc]/90 disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-2"
           >
             {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}

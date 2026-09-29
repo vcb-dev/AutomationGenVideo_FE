@@ -5,6 +5,7 @@ import {
   applyLook,
   applySelfOcclusion,
   buildShadowLayer,
+  clearMatteResidue,
   defringeEdges,
   unpremultiplyEdges,
 } from '@/lib/product-image/realism';
@@ -69,7 +70,8 @@ export function useRealismLayers(cutoutSrc: string | null, settings: RealismSett
   };
   useEffect(() => revokeUrls, []);
 
-  // Điểm ảnh gốc của ảnh đã tách nền — đọc một lần mỗi khi đổi ảnh sản phẩm.
+  // Điểm ảnh gốc của ảnh đã tách nền — đọc một lần mỗi khi đổi ảnh sản phẩm, dọn luôn lớp nền mờ
+  // rembg để sót (lỗ quai túi) để mọi lớp dựng sau, kể cả khi tắt hết tuỳ chọn, đều sạch.
   useEffect(() => {
     setBase(null);
     setLayers(null);
@@ -87,6 +89,7 @@ export function useRealismLayers(cutoutSrc: string | null, settings: RealismSett
         if (!ctx) return;
         ctx.drawImage(image, 0, 0);
         const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        clearMatteResidue(data, canvas.width, canvas.height);
         setBase({ width: canvas.width, height: canvas.height, data });
       })
       .catch(() => undefined);

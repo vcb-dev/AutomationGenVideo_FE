@@ -7,12 +7,15 @@ import {
   DEFAULT_SHADOW_HEIGHT,
   DEFAULT_SHADOW_STRENGTH,
   REAL_SHADOW_PROFILE,
+  RESIDUE_MAX_ALPHA,
   applyLook,
   applySelfOcclusion,
   bottomEdges,
   buildShadowLayer,
+  clearMatteResidue,
   defringeEdges,
   estimateWarmth,
+  residueReach,
   unpremultiplyEdges,
   shadowProfileAt,
   shadowSizeReference,
@@ -139,6 +142,69 @@ describe('unpremultiplyEdges', () => {
     const data = new Uint8ClampedArray([30, 28, 28, 40, 46, 42, 41, 83, 80, 49, 50, 255, 0, 0, 0, 0]);
     unpremultiplyEdges(data);
     expect(Array.from(data)).toEqual([191, 179, 179, 40, 141, 129, 126, 83, 80, 49, 50, 255, 0, 0, 0, 0]);
+  });
+});
+
+describe('clearMatteResidue', () => {
+  const alphaAt = (data: Uint8ClampedArray, width: number, x: number, y: number) => data[(y * width + x) * 4 + 3];
+
+  it('lớp nền mờ trong lỗ quai (độ đặc 12, màu trắng đã nhân) bị xoá hẳn — không thành mảng sáng sau khi chia lại màu', () => {
+    // Quai = khung đặc dày 8px; lòng khung phủ cặn độ đặc 12 như ảnh túi thật (6–20).
+    const width = 60;
+    const height = 60;
+    const inFrame = (x: number, y: number) => x >= 4 && x < 56 && y >= 4 && y < 56;
+    const inHole = (x: number, y: number) => x >= 12 && x < 48 && y >= 12 && y < 48;
+    const data = makeImage(width, height, (x, y) => inFrame(x, y) && !inHole(x, y), [80, 49, 50]);
+    for (let y = 12; y < 48; y += 1) for (let x = 12; x < 48; x += 1) data.set([12, 12, 12, 12], (y * width + x) * 4);
+
+    clearMatteResidue(data, width, height, 2);
+    unpremultiplyEdges(data);
+
+    expect(Array.from(data.slice((30 * width + 30) * 4, (30 * width + 30) * 4 + 4))).toEqual([0, 0, 0, 0]);
+    expect(alphaAt(data, width, 14, 30)).toBe(0); // cách mép quai 3px > reach
+    expect(alphaAt(data, width, 13, 30)).toBe(12); // trong phạm vi reach: giữ, khỏi gặm mép
+    expect(alphaAt(data, width, 8, 30)).toBe(255); // thân quai không đổi
+  });
+
+  it('dải khử răng cưa quanh mép sản phẩm giữ nguyên', () => {
+    const width = 30;
+    const height = 30;
+    const data = makeImage(width, height, (x, y) => x >= 10 && x < 20 && y >= 10 && y < 20);
+    for (let y = 9; y <= 20; y += 1) {
+      for (let x = 9; x <= 20; x += 1) if (alphaAt(data, width, x, y) === 0) data.set([6, 6, 6, 30], (y * width + x) * 4);
+    }
+    const before = Array.from(data);
+    clearMatteResidue(data, width, height, 2);
+    expect(Array.from(data)).toEqual(before);
+  });
+
+  it('dây chuyền mảnh nằm xa thân (lõi độ đặc 90, rìa 20) giữ nguyên cả lõi lẫn rìa', () => {
+    const width = 80;
+    const height = 20;
+    const data = makeImage(width, height, (x, y) => x < 8 && y < 8); // mặt dây ở góc
+    for (let x = 20; x < 76; x += 1) {
+      data.set([35, 32, 30, 90], (10 * width + x) * 4);
+      data.set([8, 7, 7, 20], (9 * width + x) * 4);
+      data.set([8, 7, 7, 20], (11 * width + x) * 4);
+    }
+    clearMatteResidue(data, width, height, 2);
+    expect(alphaAt(data, width, 50, 10)).toBe(90);
+    expect(alphaAt(data, width, 50, 9)).toBe(20);
+    expect(alphaAt(data, width, 50, 11)).toBe(20);
+  });
+
+  it('phần bán trong suốt từ độ đặc 48 trở lên nằm xa thân vẫn giữ (không đục lỗ vật trong)', () => {
+    const width = 40;
+    const height = 40;
+    const data = makeImage(width, height, (x, y) => x < 5 && y < 5);
+    for (let y = 20; y < 30; y += 1) for (let x = 20; x < 30; x += 1) data.set([40, 40, 40, RESIDUE_MAX_ALPHA], (y * width + x) * 4);
+    clearMatteResidue(data, width, height, 2);
+    expect(alphaAt(data, width, 25, 25)).toBe(RESIDUE_MAX_ALPHA);
+  });
+
+  it('khoảng giữ lại theo cỡ ảnh: ảnh SP 426px → 2px, ảnh 2000px → 6px', () => {
+    expect(residueReach(426, 407)).toBe(2);
+    expect(residueReach(2000, 1500)).toBe(6);
   });
 });
 
