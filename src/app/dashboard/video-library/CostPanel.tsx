@@ -14,6 +14,7 @@ import {
     type DateRange,
     type RangePresetId,
 } from '@/lib/ai-usage/usage-range';
+import { formatCount as num, formatUsd as usd, formatVnd as vnd, shortEndpoint } from '@/lib/video-library/cost-format';
 
 // ─── Kiểu dữ liệu trả về từ BE (GET /video-library/costs, /costs/tikhub-account) ──────────────
 
@@ -53,13 +54,6 @@ interface TikhubAccount {
     };
 }
 
-const vnd = (n: number | null | undefined) => `${Math.round(n ?? 0).toLocaleString('vi-VN')}đ`;
-const usd = (n: number | null | undefined) => {
-    const v = n ?? 0;
-    return `$${v.toFixed(v > 0 && v < 1 ? 4 : 2)}`;
-};
-const num = (n: number | null | undefined) => (n ?? 0).toLocaleString('vi-VN');
-const shortEndpoint = (e: string) => e.replace('/api/v1/', '');
 
 const card = 'bg-white border border-slate-200 shadow-sm dark:bg-white/[0.03] dark:border-white/[0.07] dark:shadow-none rounded-2xl';
 

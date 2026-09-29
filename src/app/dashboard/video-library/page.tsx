@@ -47,6 +47,9 @@ import { fetchWithAuth } from '@/lib/api-client';
 import FilterSelect from '@/app/dashboard/externalChannels/components/FilterSelect';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import CostPanel from './CostPanel';
+import { buildTeamFilterOptions, matchesTeamFilter } from '@/lib/video-library/team-filter';
+import { canRetryScript as canRetryScriptFor, hasProcessingScript, scriptStatusOf } from '@/lib/video-library/script-status';
+import { canViewCosts } from '@/lib/video-library/cost-format';
 import {
     PROPOSAL_PLATFORMS,
     MAX_LINKS_PER_BATCH,
@@ -372,7 +375,7 @@ function ContentCard({
     const [showTranscript, setShowTranscript] = useState(false);
     const [showConfirmRegenerate, setShowConfirmRegenerate] = useState(false);
     const [retrying, setRetrying] = useState(false);
-    const status = item.script_status ?? 'DONE';
+    const status = scriptStatusOf(item);
 
     const retry = async () => {
         setRetrying(true);
@@ -1111,9 +1114,7 @@ function VideoLibraryInner() {
     const isManagement = user?.roles?.some((r) =>
         [UserRole.ADMIN, UserRole.MANAGER, UserRole.LEADER].includes(r),
     ) ?? false;
-    const isAdminOrManager = user?.roles?.some((r) =>
-        [UserRole.ADMIN, UserRole.MANAGER].includes(r),
-    ) ?? false;
+    const isAdminOrManager = canViewCosts(user?.roles);
     const canReview = user?.roles?.some((r) =>
         [UserRole.ADMIN, UserRole.LEADER].includes(r),
     ) ?? false;
@@ -1255,9 +1256,7 @@ function VideoLibraryInner() {
     };
 
     // Leader/manager/admin được sinh lại kịch bản (khớp @Roles ở BE).
-    const canRetryScript = user?.roles?.some((r) =>
-        [UserRole.ADMIN, UserRole.LEADER, UserRole.MANAGER].includes(r),
-    ) ?? false;
+    const canRetryScript = canRetryScriptFor(user?.roles);
 
     const handleRetryContent = async (id: string) => {
         try {
@@ -1278,7 +1277,7 @@ function VideoLibraryInner() {
     };
 
     // Còn content đang tạo kịch bản chạy nền → tự làm mới mỗi 5s cho tới khi xong.
-    const hasProcessingContent = contentItems.some((c) => c.script_status === 'PROCESSING');
+    const hasProcessingContent = hasProcessingScript(contentItems);
     useEffect(() => {
         if (!hasProcessingContent) return;
         const timer = setInterval(() => { void fetchContent(true); }, 5000);
@@ -1308,14 +1307,10 @@ function VideoLibraryInner() {
             v.author_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             v.author_username.toLowerCase().includes(searchQuery.toLowerCase());
         const matchPlatform = filterPlatform === 'all' || platformKey(v.platform) === filterPlatform;
-        const matchTeam = activeTab !== 'team' || filterTeam === 'all' || (v.teams ?? []).some((t) => t.id === filterTeam);
+        const matchTeam = matchesTeamFilter(v, activeTab, filterTeam);
         return matchSearch && matchPlatform && matchTeam;
     });
-    const teamFilterOptions = Array.from(
-        new Map(teamVideos.flatMap((v) => v.teams ?? []).map((t) => [t.id, t.name])).entries(),
-    )
-        .map(([value, label]) => ({ value, label }))
-        .sort((a, b) => a.label.localeCompare(b.label, 'vi'));
+    const teamFilterOptions = buildTeamFilterOptions(teamVideos);
 
     const filteredContent = contentItems.filter((c) => {
         if (!searchQuery) return true;
