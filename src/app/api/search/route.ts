@@ -41,6 +41,8 @@ export async function POST(request: Request) {
     const target = `${NESTJS_BASE}/ai/search`;
     const authHeader = request.headers.get('Authorization') || '';
     const cookieHeader = request.headers.get('cookie') || '';
+    // Trang đang mở — BE ghi chi phí TikHub của lượt tìm kiếm vào đúng trang (xem api-client)
+    const clientPage = request.headers.get('x-client-page') || '';
 
     return proxyToNestJS(target, {
         method: 'POST',
@@ -48,6 +50,7 @@ export async function POST(request: Request) {
             'Content-Type': 'application/json',
             ...(authHeader ? { Authorization: authHeader } : {}),
             ...(cookieHeader ? { cookie: cookieHeader } : {}),
+            ...(clientPage ? { 'x-client-page': clientPage } : {}),
         },
         body: JSON.stringify(body),
     });
