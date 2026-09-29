@@ -17,7 +17,14 @@ import {
   type Placement,
   type Size,
 } from '@/lib/product-image/background-placement';
+import {
+  DEFAULT_BACKGROUND_PRESET_ID,
+  findBackgroundPreset,
+  placementForPreset,
+  type BackgroundPreset,
+} from '@/lib/product-image/background-presets';
 import { DEFAULT_SHADOW_HEIGHT, DEFAULT_SHADOW_STRENGTH, estimateWarmth } from '@/lib/product-image/realism';
+import { BackgroundPicker, UPLOADED_BACKGROUND } from './BackgroundPicker';
 import { CHECKERBOARD_STYLE, ImageDropzone } from './ImageDropzone';
 import { downloadUrl, loadImage } from './download';
 import { averageColor, useRealismLayers, type RealismSettings } from './useRealismLayers';
@@ -26,13 +33,27 @@ interface LoadedImage extends Size {
   src: string;
 }
 
+interface LoadedBackground extends LoadedImage {
+  /** Nền có sẵn đang dùng; null = ảnh người dùng tự tải lên. */
+  preset: BackgroundPreset | null;
+}
+
 /** Chiều cao tối đa khung xem trước — ảnh phòng dọc 9:16 vẫn nằm gọn trong màn hình laptop. */
 const PREVIEW_MAX_HEIGHT_PX = 560;
+
+/** Khung xem trước theo đúng tỉ lệ ảnh nền, không cao quá PREVIEW_MAX_HEIGHT_PX. */
+const previewFrameStyle = (background: Size) => ({
+  aspectRatio: `${background.width} / ${background.height}`,
+  width: `min(100%, ${(PREVIEW_MAX_HEIGHT_PX * background.width) / background.height}px)`,
+});
 
 /**
  * Chế độ "Ghép background" — 0đ. Ảnh SP được BE/AI tách nền bằng rembg; việc dán lên ảnh phòng
  * làm ngay ở trình duyệt: xem trước bằng CSS, xuất bằng canvas, cả hai cùng đọc
  * `computeDrawRect` nên ảnh tải về khớp đúng cái đang thấy.
+ *
+ * Mở trang là có sẵn nền hộp gỗ của phòng media; trên nền có sẵn, SP tự đứng lên mặt hộp mỗi khi
+ * đổi nền hoặc đổi ảnh SP — xem lib/product-image/background-presets.ts.
  *
  * "Cho giống ảnh chụp thật" (bật sẵn): bóng dưới chân theo đường cong đo từ ảnh chụp thật, ánh sáng
  * sản phẩm kéo về ánh sáng của nền — xem lib/product-image/realism.ts.
@@ -43,8 +64,10 @@ export function BackgroundComposer() {
   const [cutoutStatus, setCutoutStatus] = useState<'idle' | 'processing' | 'error'>('idle');
   const [cutoutError, setCutoutError] = useState<string | null>(null);
 
+  /** id nền có sẵn, hoặc UPLOADED_BACKGROUND khi dùng ảnh tự tải lên. */
+  const [backgroundChoice, setBackgroundChoice] = useState<string>(DEFAULT_BACKGROUND_PRESET_ID);
   const [backgroundFile, setBackgroundFile] = useState<File | null>(null);
-  const [background, setBackground] = useState<LoadedImage | null>(null);
+  const [background, setBackground] = useState<LoadedBackground | null>(null);
 
   const [placement, setPlacement] = useState<Placement>(DEFAULT_PLACEMENT);
   const [isExporting, setIsExporting] = useState(false);
@@ -69,26 +92,36 @@ export function BackgroundComposer() {
 
   useEffect(() => () => cutoutAbortRef.current?.abort(), []);
 
-  // Ảnh phòng: đọc kích thước thật để xuất đúng độ phân giải gốc.
+  // Ảnh phòng (có sẵn hoặc tự tải): đọc kích thước thật để xuất đúng độ phân giải gốc.
   useEffect(() => {
-    if (!backgroundFile) {
+    const preset = findBackgroundPreset(backgroundChoice) ?? null;
+    const file = preset ? null : backgroundFile;
+    if (!preset && !file) {
       setBackground(null);
       return;
     }
-    const url = URL.createObjectURL(backgroundFile);
+    const url = preset ? preset.src : URL.createObjectURL(file as File);
     let cancelled = false;
     loadImage(url)
       .then((image) => {
-        if (!cancelled) setBackground({ src: url, width: image.naturalWidth, height: image.naturalHeight });
+        if (!cancelled) setBackground({ src: url, width: image.naturalWidth, height: image.naturalHeight, preset });
       })
       .catch(() => {
-        if (!cancelled) toast.error('Không đọc được ảnh background, thử ảnh khác.');
+        if (!cancelled) {
+          toast.error(preset ? 'Không tải được nền có sẵn, tải lại trang thử lại.' : 'Không đọc được ảnh background, thử ảnh khác.');
+        }
       });
     return () => {
       cancelled = true;
-      URL.revokeObjectURL(url);
+      if (!preset) URL.revokeObjectURL(url);
     };
-  }, [backgroundFile]);
+  }, [backgroundChoice, backgroundFile]);
+
+  // Nền có sẵn: SP tự đứng lên mặt hộp mỗi khi đổi nền hoặc có ảnh SP mới. Kéo/chỉnh tay không đổi
+  // hai giá trị này nên không bị đặt lại. Ảnh tự tải lên thì giữ nguyên vị trí đang có.
+  useEffect(() => {
+    if (background?.preset && cutout) setPlacement(placementForPreset(background.preset, background, cutout));
+  }, [background, cutout]);
 
   useEffect(() => {
     if (!background) {
@@ -149,6 +182,16 @@ export function BackgroundComposer() {
   const handleProductFile = (file: File) => {
     setProductFile(file);
     runCutout(file);
+  };
+
+  const handleBackgroundUpload = (file: File) => {
+    setBackgroundFile(file);
+    setBackgroundChoice(UPLOADED_BACKGROUND);
+  };
+
+  // "Đặt lại": nền có sẵn → SP về đứng trên mặt hộp; ảnh tự tải → vị trí mặc định giữa ảnh.
+  const resetPlacement = () => {
+    setPlacement(background?.preset && cutout ? placementForPreset(background.preset, background, cutout) : DEFAULT_PLACEMENT);
   };
 
   const handlePointerDown = (e: ReactPointerEvent<HTMLImageElement>) => {
@@ -238,11 +281,11 @@ export function BackgroundComposer() {
             </div>
           </div>
         )}
-        <ImageDropzone
-          title="2. Ảnh background phòng"
-          hint="Ảnh phòng media đã chụp sẵn."
-          file={backgroundFile}
-          onFile={setBackgroundFile}
+        <BackgroundPicker
+          selected={backgroundChoice}
+          uploadFile={backgroundFile}
+          onSelect={setBackgroundChoice}
+          onUploadFile={handleBackgroundUpload}
         />
       </div>
 
@@ -268,10 +311,7 @@ export function BackgroundComposer() {
             <div
               ref={previewRef}
               className="relative mx-auto overflow-hidden rounded-xl border border-[#e2e0ea] select-none"
-              style={{
-                aspectRatio: `${background.width} / ${background.height}`,
-                width: `min(100%, ${(PREVIEW_MAX_HEIGHT_PX * background.width) / background.height}px)`,
-              }}
+              style={previewFrameStyle(background)}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={background.src} alt="Ảnh background" draggable={false} className="absolute inset-0 w-full h-full" />
@@ -334,7 +374,7 @@ export function BackgroundComposer() {
               </button>
               <button
                 type="button"
-                onClick={() => setPlacement(DEFAULT_PLACEMENT)}
+                onClick={resetPlacement}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#e2e0ea] text-sm font-semibold text-[#464554] hover:border-[#4441cc] hover:text-[#4441cc]"
               >
                 <RotateCcw className="w-4 h-4" />
@@ -416,12 +456,30 @@ export function BackgroundComposer() {
               </p>
             </div>
           </>
+        ) : background ? (
+          // Đã có nền (nền có sẵn chọn sẵn khi mở trang), chưa có SP: cho thấy nền sẽ ghép lên.
+          <div className="relative mx-auto overflow-hidden rounded-xl border border-[#e2e0ea]" style={previewFrameStyle(background)}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={background.src} alt="Ảnh background" draggable={false} className="absolute inset-0 w-full h-full" />
+            <div className="absolute inset-0 flex items-center justify-center bg-black/30 p-6">
+              <span className="inline-flex items-center gap-2 rounded-xl bg-white/90 px-4 py-2 text-center text-sm font-semibold text-[#464554]">
+                {cutoutStatus === 'processing' ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-[#4441cc]" />
+                    Đang tách nền sản phẩm...
+                  </>
+                ) : (
+                  'Chọn ảnh sản phẩm để ghép lên nền này.'
+                )}
+              </span>
+            </div>
+          </div>
         ) : (
           <div
             className="h-[420px] rounded-xl border border-[#e2e0ea] flex flex-col items-center justify-center text-center px-6"
-            style={cutout && !background ? CHECKERBOARD_STYLE : { background: '#fafafb' }}
+            style={cutout ? CHECKERBOARD_STYLE : { background: '#fafafb' }}
           >
-            {cutout && !background ? (
+            {cutout ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={cutout.src} alt="Sản phẩm đã tách nền" className="max-h-full max-w-full object-contain" />
             ) : (
