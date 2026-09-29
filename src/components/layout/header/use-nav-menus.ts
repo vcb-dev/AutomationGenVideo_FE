@@ -32,6 +32,7 @@ import {
     Truck,
     Undo2,
     ImagePlus,
+    Images,
 } from "lucide-react";
 import { useSocialLang } from "@/contexts/SocialLanguageContext";
 import { NavMenu } from "./types";
@@ -529,6 +530,7 @@ export function useNavMenus(
                     "/dashboard/tools/video-downloader",
                     "/dashboard/tools/lucky-spin",
                     "/dashboard/tien-ich/id-photo",
+                    "/dashboard/tien-ich/product-image",
                 ] as string[],
                 sections: [
                     {
@@ -549,20 +551,28 @@ export function useNavMenus(
                             },
                         ],
                     },
-                    // Ẩn mục Chuyển đổi content với mọi vai trò theo yêu cầu. Section Nội dung AI
-                    // chỉ có mục này nên ẩn cả section:
-                    // {
-                    //     section: n.secAiContent,
-                    //     color: "indigo" as const,
-                    //     items: [
-                    //         {
-                    //             label: n.contentTransform,
-                    //             href: "/dashboard/ai/content-transform",
-                    //             icon: Wand2,
-                    //             description: n.contentTransformDesc,
-                    //         },
-                    //     ],
-                    // },
+                    {
+                        section: n.secAiContent,
+                        color: "indigo" as const,
+                        items: [
+                            // Ẩn mục Chuyển đổi content với mọi vai trò theo yêu cầu (PR #173). Section
+                            // Nội dung AI vẫn giữ vì còn mục Tạo ảnh sản phẩm:
+                            // {
+                            //     label: n.contentTransform,
+                            //     href: "/dashboard/ai/content-transform",
+                            //     icon: Wand2,
+                            //     description: n.contentTransformDesc,
+                            // },
+                            // Mọi vai trò đều có quyền tools:product_image:use mặc định (người dùng
+                            // chốt 2026-09-29) — BE chỉ gắn JwtAuthGuard, không @Roles.
+                            {
+                                label: n.productImage,
+                                href: "/dashboard/tien-ich/product-image",
+                                icon: Images,
+                                description: n.productImageDesc,
+                            },
+                        ],
+                    },
                     {
                         section: n.secDownloadTools,
                         color: "violet" as const,
