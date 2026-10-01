@@ -4,13 +4,12 @@ import { toast } from 'react-hot-toast';
 import { fetchWithAuth } from '@/lib/api-client';
 import { digitsOnly, sumEntryValues, formatThousands } from './report-total';
 import { ChannelSelect, ChannelOptionItem } from './ChannelSelect';
+import { isSapoTrackedPlatform, hasSelectedSapoTrackedChannel } from '@/lib/sapo/revenue-platforms';
 import {
-    isSapoTrackedPlatform,
-    hasSelectedSapoTrackedChannel,
     pickOwnSapoRows,
     normalizeChannelName as normalizeExact,
     extractNumericChannelId as extractNumericId,
-} from '@/lib/sapo/revenue-platforms';
+} from '@/lib/sapo/own-revenue-rows';
 
 export const REVENUE_PLATFORMS = [
     { id: 'fb', label: 'Doanh thu FB' },
