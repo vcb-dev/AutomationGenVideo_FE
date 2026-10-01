@@ -21,6 +21,7 @@ import {
   BookOpen,
   Plus,
   Database,
+  Hash,
 } from '@phosphor-icons/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -33,6 +34,7 @@ import SyncAllChannelsButton from '../components/SyncAllChannelsButton';
 import ConfirmModal from '../components/ConfirmModal';
 import BulkAddThreadsModal from '../components/BulkAddThreadsModal';
 import { useAuthStore } from '@/store/auth-store';
+import { UserRole } from '@/types/auth';
 import {
   scraperService,
   ThreadsProfile,
@@ -45,6 +47,8 @@ import {
   countWords,
   isStoryPost,
   parseMultipleUsernames,
+  filterByTopicTag,
+  normalizeTopicTag,
 } from '@/lib/scrape/threads-helpers';
 
 const PAGE_SIZE_PROFILES = 12;
@@ -61,8 +65,10 @@ const QUICK_TOPICS = [
 ];
 
 export default function ThreadsExternalPage() {
-  const { token } = useAuthStore();
+  const { token, user } = useAuthStore();
   const router = useRouter();
+  // Tìm theo tag tính phí theo bài (Apify) — BE chỉ cho ADMIN/LEADER.
+  const canSearchByTag = user?.roles?.some((r) => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
   const queryClient = useQueryClient();
 
   // Active top-level Tab: 'radar' (Khám phá bài HOT) hoặc 'channels' (Kênh theo dõi)
@@ -78,6 +84,11 @@ export default function ThreadsExternalPage() {
   const [storyFilter, setStoryFilter] = useState<'ALL' | 'STORY_ONLY'>('ALL');
   const [likeRange, setLikeRange] = useState<'ALL' | 'HIDDEN_GEM' | 'MEDIUM' | 'VIRAL'>('ALL');
   const [sortBy, setSortBy] = useState<'likes' | 'views' | 'replies' | 'date' | 'length'>('likes');
+  // Tìm theo từ khoá (có sẵn) hoặc theo tag chủ đề ("người đăng › trang sức") — tag là phần làm thêm.
+  const [searchKind, setSearchKind] = useState<'keyword' | 'tag'>('keyword');
+  const [lastSearchKind, setLastSearchKind] = useState<'keyword' | 'tag'>('keyword');
+  // Lọc theo tag khi bấm "› tag" trên bài — áp cho cả kết quả quét lẫn kho đã lưu.
+  const [tagFilter, setTagFilter] = useState('');
 
   // Chế độ xem trong Tab 1: 'saved_repo' (Kho video & bài viết tổng hợp đã lưu) hoặc 'search_results' (Kết quả quét mới)
   const [radarViewMode, setRadarViewMode] = useState<'saved_repo' | 'search_results'>('saved_repo');
@@ -99,11 +110,12 @@ export default function ThreadsExternalPage() {
     data: savedPostsData,
     isLoading: isLoadingSavedPosts,
   } = useQuery({
-    queryKey: ['threads-saved-posts', debouncedSavedSearch, mediaFilter, sortBy, savedPostsPage],
+    queryKey: ['threads-saved-posts', debouncedSavedSearch, tagFilter, mediaFilter, sortBy, savedPostsPage],
     queryFn: () => {
       if (!token) throw new Error('No token');
       return scraperService.getThreadsPosts(token, {
         search: debouncedSavedSearch || undefined,
+        topic_tag: tagFilter || undefined,
         media_type: mediaFilter !== 'ALL' ? mediaFilter : undefined,
         sort_by: sortBy === 'length' ? 'likes' : (sortBy as any),
         page: savedPostsPage,
@@ -129,6 +141,7 @@ export default function ThreadsExternalPage() {
       });
     },
     onSuccess: (data) => {
+      setLastSearchKind('keyword');
       setRadarViewMode('search_results');
       queryClient.invalidateQueries({ queryKey: ['threads-saved-posts'] });
       const count = data?.posts?.length || 0;
@@ -150,6 +163,30 @@ export default function ThreadsExternalPage() {
       toast.error(err.message || 'Quét bài viết hot Threads thất bại');
     },
   });
+
+  // Bảng tin của tag chủ đề — lấy cả bài gắn tag mà nội dung không nhắc chữ đó. Chỉ theo số bài
+  // (không theo ngày): nguồn tính phí theo bài, lọc ngày sau khi đã trả tiền là mua rồi vứt.
+  const searchTagMutation = useMutation({
+    mutationFn: (tag: string) => {
+      if (!token) throw new Error('No token');
+      return scraperService.searchThreadsByTag(token, tag, parseInt(hotCount, 10) || 50);
+    },
+    onSuccess: (data) => {
+      setLastSearchKind('tag');
+      setRadarViewMode('search_results');
+      queryClient.invalidateQueries({ queryKey: ['threads-saved-posts'] });
+      const count = data?.posts?.length || 0;
+      if (count > 0) {
+        toast.success(`Đã lấy ${count} bài của tag "${data.tag}" và tự động lưu vào kho!`);
+      } else {
+        toast.error(`Không có bài nào trong tag "${data?.tag || ''}"`);
+      }
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || 'Tìm bài Threads theo tag thất bại');
+    },
+  });
+  const isSearching = searchHotMutation.isPending || searchTagMutation.isPending;
 
   // Ingest/Save Single Hot Post Mutation
   const savePostMutation = useMutation({
@@ -182,6 +219,15 @@ export default function ThreadsExternalPage() {
   const handleSearchHotSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const clean = searchQuery.trim();
+    if (searchKind === 'tag') {
+      const tag = normalizeTopicTag(clean);
+      if (!tag) {
+        toast.error('Vui lòng nhập tag chủ đề cần tìm (vd: trang sức)');
+        return;
+      }
+      searchTagMutation.mutate(tag);
+      return;
+    }
     if (!clean) {
       toast.error('Vui lòng nhập từ khoá hoặc chọn chủ đề cần tìm');
       return;
@@ -189,16 +235,22 @@ export default function ThreadsExternalPage() {
     searchHotMutation.mutate(clean);
   };
 
+  const handleTagClick = (tag: string) => {
+    setTagFilter(tag);
+    setSavedPostsPage(1);
+  };
+
   const handleSelectTopic = (topic: string) => {
     setSearchQuery(topic);
     searchHotMutation.mutate(topic);
   };
 
-  const rawDiscoveredPosts = searchHotMutation.data?.posts || [];
+  const rawDiscoveredPosts =
+    (lastSearchKind === 'tag' ? searchTagMutation.data?.posts : searchHotMutation.data?.posts) || [];
 
   // Filter & Sort discovered posts
   const displayedHotPosts = useMemo(() => {
-    let list = [...rawDiscoveredPosts];
+    let list = filterByTopicTag([...rawDiscoveredPosts], tagFilter);
 
     // Lọc theo ngôn ngữ (Mặc định: Chỉ hiển thị bài Tiếng Việt)
     if (langFilter === 'VI') {
@@ -257,7 +309,7 @@ export default function ThreadsExternalPage() {
     });
 
     return list;
-  }, [rawDiscoveredPosts, langFilter, mediaFilter, storyFilter, likeRange, sortBy]);
+  }, [rawDiscoveredPosts, tagFilter, langFilter, mediaFilter, storyFilter, likeRange, sortBy]);
 
   // Filter & Sort saved posts from database
   const displayedSavedPosts = useMemo(() => {
@@ -532,8 +584,41 @@ export default function ThreadsExternalPage() {
             <div className="flex items-center gap-2 mb-3">
               <TrendUp size={20} className="text-primary font-bold" />
               <h2 className="text-sm font-semibold text-foreground">
-                Khám phá nội dung viral trên Threads theo từ khoá
+                Khám phá nội dung viral trên Threads theo từ khoá hoặc tag chủ đề
               </h2>
+            </div>
+
+            {/* Tìm theo từ khoá (có sẵn) hoặc tag chủ đề — tag tính phí theo bài nên chỉ Admin/Leader */}
+            <div className="flex flex-wrap items-center gap-2 mb-2.5">
+              <div className="flex p-0.5 bg-slate-100 dark:bg-slate-800/80 rounded-lg border border-border">
+                <button
+                  type="button"
+                  onClick={() => setSearchKind('keyword')}
+                  className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                    searchKind === 'keyword' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <MagnifyingGlass size={14} weight={searchKind === 'keyword' ? 'bold' : 'regular'} />
+                  <span>Từ khoá</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSearchKind('tag')}
+                  disabled={!canSearchByTag}
+                  title={canSearchByTag ? undefined : 'Tìm theo tag tính phí theo bài — chỉ Admin/Leader'}
+                  className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                    searchKind === 'tag' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Hash size={14} weight={searchKind === 'tag' ? 'bold' : 'regular'} />
+                  <span>Tag chủ đề</span>
+                </button>
+              </div>
+              {searchKind === 'tag' && (
+                <span className="text-[11px] text-slate-500">
+                  Lấy bảng tin của tag như khi bấm "› trang sức" trên Threads — gồm cả bài gắn tag mà nội dung không nhắc chữ đó. Tính phí theo số bài.
+                </span>
+              )}
             </div>
 
             <form onSubmit={handleSearchHotSubmit} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 mb-4">
@@ -542,7 +627,11 @@ export default function ThreadsExternalPage() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Tìm theo từ khoá (vd: chuyện mua vàng, tâm sự nhẫn cưới, review...) hoặc link Threads..."
+                  placeholder={
+                    searchKind === 'tag'
+                      ? 'Nhập tag chủ đề (vd: trang sức, vàng, nhẫn cưới)...'
+                      : 'Tìm theo từ khoá (vd: chuyện mua vàng, tâm sự nhẫn cưới, review...) hoặc link Threads...'
+                  }
                   className="w-full pl-3 pr-8 py-2.5 text-sm bg-background border border-border rounded-lg text-foreground placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 />
                 {searchQuery && (
@@ -558,6 +647,7 @@ export default function ThreadsExternalPage() {
 
               {/* Mode Toggle & Value Input */}
               <div className="flex items-center gap-1.5 shrink-0">
+                {searchKind === 'keyword' && (
                 <div className="flex p-0.5 bg-slate-100 dark:bg-slate-800/80 rounded-lg border border-border">
                   <button
                     type="button"
@@ -584,9 +674,10 @@ export default function ThreadsExternalPage() {
                     <span>Số bài</span>
                   </button>
                 </div>
+                )}
 
                 <div className="relative w-28 sm:w-32 flex items-center">
-                  {hotMode === 'days' ? (
+                  {searchKind === 'keyword' && hotMode === 'days' ? (
                     <>
                       <input
                         type="number"
@@ -624,13 +715,18 @@ export default function ThreadsExternalPage() {
 
               <button
                 type="submit"
-                disabled={searchHotMutation.isPending || !searchQuery.trim()}
+                disabled={isSearching || !searchQuery.trim()}
                 className="flex items-center justify-center gap-1.5 px-5 py-2.5 bg-primary text-primary-foreground font-semibold text-sm rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shrink-0"
               >
-                {searchHotMutation.isPending ? (
+                {isSearching ? (
                   <>
                     <CircleNotch size={16} className="animate-spin" />
                     <span>Đang quét...</span>
+                  </>
+                ) : searchKind === 'tag' ? (
+                  <>
+                    <Hash size={16} weight="bold" />
+                    <span>Quét theo tag</span>
                   </>
                 ) : (
                   <>
@@ -707,15 +803,31 @@ export default function ThreadsExternalPage() {
               <span>
                 {radarViewMode === 'saved_repo'
                   ? 'Kho tổng hợp: Bao gồm toàn bộ video & bài viết cào từ các kênh và tìm kiếm từ khoá'
-                  : `Kết quả quét mới theo từ khoá "${searchQuery}" (đã tự động lưu vào kho)`}
+                  : `Kết quả quét mới theo ${lastSearchKind === 'tag' ? 'tag' : 'từ khoá'} "${searchQuery}" (đã tự động lưu vào kho)`}
               </span>
             </div>
           </div>
 
           {/* Results Toolbar */}
-          {(rawDiscoveredPosts.length > 0 || savedTotalPosts > 0) && (
+          {/* Đang lọc theo tag thì luôn hiện thanh công cụ — kho rỗng vẫn phải bỏ lọc được */}
+          {(rawDiscoveredPosts.length > 0 || savedTotalPosts > 0 || tagFilter) && (
             <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 bg-card border border-border rounded-xl p-3.5 shadow-sm">
               <div className="flex flex-wrap items-center gap-2">
+                {tagFilter && (
+                  <span className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1 text-xs font-semibold rounded-lg bg-primary/10 text-primary border border-primary/20">
+                    <Hash size={12} weight="bold" />
+                    Tag: {tagFilter}
+                    <button
+                      type="button"
+                      onClick={() => handleTagClick('')}
+                      title="Bỏ lọc theo tag"
+                      className="ml-0.5 p-0.5 rounded hover:bg-primary/20"
+                    >
+                      <X size={12} />
+                    </button>
+                  </span>
+                )}
+
                 {/* Search in saved repo if in saved mode */}
                 {radarViewMode === 'saved_repo' && (
                   <div className="relative w-48 sm:w-56">
@@ -914,6 +1026,7 @@ export default function ThreadsExternalPage() {
                     onSavePost={(p) => savePostMutation.mutate(p)}
                     isSaving={savePostMutation.isPending}
                     onExploreAuthor={handleExploreAuthor}
+                    onTagClick={handleTagClick}
                   />
                 ))}
               </div>

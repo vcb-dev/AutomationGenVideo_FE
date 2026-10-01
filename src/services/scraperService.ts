@@ -443,6 +443,8 @@ export interface ThreadsPost {
   quotes_count?: number | string;
   date_posted: string;
   is_vietnamese?: boolean;
+  /** Tag chủ đề của bài ("người đăng > trang sức"), '' nếu không gắn tag. */
+  topic_tag?: string;
   profile?: {
     id?: string | number;
     username: string;
@@ -2289,7 +2291,7 @@ export const scraperService = {
 
   getThreadsPosts: async (
     token: string,
-    params?: { search?: string; media_type?: string; sort_by?: string; page?: number; limit?: number },
+    params?: { search?: string; topic_tag?: string; media_type?: string; sort_by?: string; page?: number; limit?: number },
   ): Promise<{ items: ThreadsPost[]; total: number; page: number; limit: number; total_pages: number }> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/threads/posts${buildParams(params || {})}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -2360,6 +2362,27 @@ export const scraperService = {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.message || 'Tìm kiếm nội dung Threads thất bại');
+    }
+    return res.json();
+  },
+
+  // Bảng tin của tag chủ đề — BE gọi Apify tính phí theo bài, chỉ ADMIN/LEADER.
+  searchThreadsByTag: async (
+    token: string,
+    tag: string,
+    count: number,
+  ): Promise<{ tag: string; posts: ThreadsPost[] }> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/threads/search/tag`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ tag, count }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Tìm bài Threads theo tag thất bại');
     }
     return res.json();
   },

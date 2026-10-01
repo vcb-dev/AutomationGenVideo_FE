@@ -98,3 +98,15 @@ export function isVietnamese(post: { text?: string; is_vietnamese?: boolean }): 
   }
   return false;
 }
+
+/** Chuẩn hoá tag chủ đề như BE/AI: bỏ #, gộp khoảng trắng, chữ thường. */
+export function normalizeTopicTag(tag: string): string {
+  return (tag || '').trim().replace(/^#+/, '').split(/\s+/).filter(Boolean).join(' ').toLowerCase();
+}
+
+/** Lọc bài theo tag chủ đề ("người đăng › trang sức"); tag rỗng = không lọc. */
+export function filterByTopicTag<T extends { topic_tag?: string }>(posts: T[], tag: string): T[] {
+  const wanted = normalizeTopicTag(tag);
+  if (!wanted) return posts;
+  return posts.filter((p) => normalizeTopicTag(p.topic_tag || '') === wanted);
+}
