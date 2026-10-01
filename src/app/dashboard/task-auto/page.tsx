@@ -29,8 +29,10 @@ const PRESETS: { key: DatePreset; label: string }[] = [
   { key: 'custom',     label: 'Tùy chọn' },
 ]
 
+// Ngày lịch theo giờ máy (VN), KHÔNG dùng toISOString(): nó đổi sang UTC nên mốc 00:00 ngày 1 bị
+// lùi về ngày cuối tháng trước ("Tháng này" kéo theo ngày 30, "Tháng trước" mất ngày cuối tháng).
 function fmt(d: Date) {
-  return d.toISOString().split('T')[0]
+  return d.toLocaleDateString('en-CA')
 }
 
 function formatVNDate(iso: string) {
