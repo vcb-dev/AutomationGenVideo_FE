@@ -1,8 +1,9 @@
 export function normalizeThreadsUsername(input: string): string {
   if (!input) return '';
   let cleaned = input.trim();
-  // Remove URL prefixes
-  cleaned = cleaned.replace(/^https?:\/\/(www\.)?threads\.net\//i, '');
+  // Bỏ phần đầu URL — Threads đã chuyển sang threads.com (threads.net redirect sang), link
+  // copy bây giờ là threads.com; người dùng cũng hay dán thiếu https://.
+  cleaned = cleaned.replace(/^(https?:\/\/)?(www\.)?threads\.(net|com)\//i, '');
   // Remove query params or trailing slash
   cleaned = cleaned.split('?')[0].split('/')[0];
   // Remove leading @

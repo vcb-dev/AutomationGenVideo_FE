@@ -967,7 +967,7 @@ export default function ThreadsExternalPage() {
               </button>
             </div>
             <p className="text-xs text-slate-500 mb-4">
-              Nhập username tác giả Threads (ví dụ: <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">lilbieber</code> hoặc đường dẫn <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">threads.net/@lilbieber</code>) để cào thông tin kênh và các bài viết mới nhất. Hỗ trợ nhập nhiều kênh cùng lúc (cách nhau bởi dấu phẩy hoặc xuống dòng).
+              Nhập username tác giả Threads (ví dụ: <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">lilbieber</code> hoặc đường dẫn <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">threads.com/@lilbieber</code>) để cào thông tin kênh và các bài viết mới nhất. Hỗ trợ nhập nhiều kênh cùng lúc (cách nhau bởi dấu phẩy hoặc xuống dòng).
             </p>
 
             <form onSubmit={handleScrapeSubmit} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">

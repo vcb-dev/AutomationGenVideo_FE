@@ -34,6 +34,7 @@ import {
     Truck,
     Undo2,
     ImagePlus,
+    Compass,
 } from "lucide-react";
 import { useSocialLang } from "@/contexts/SocialLanguageContext";
 import { NavMenu } from "./types";
@@ -324,7 +325,7 @@ export function useNavMenus(
                             {
                                 label: n.externalChannels,
                                 href: "/dashboard/externalChannels",
-                                icon: BookOpen,
+                                icon: Compass,
                                 description: n.externalChannelsDesc,
                             },
                         ],

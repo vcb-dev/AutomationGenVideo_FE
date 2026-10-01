@@ -18,6 +18,7 @@ import { scraperService } from '@/services/scraperService';
 import { useScrapingStore } from '@/store/scraping-store';
 import { UserRole } from '@/types/auth';
 import { dedupeById } from '@/lib/dedupe-pages';
+import { fanpageAvatarSrc } from '@/lib/scrape/fanpage-avatar';
 
 function formatNum(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -174,9 +175,9 @@ export default function FanpageDetailPage() {
           <div className="flex items-start gap-4">
             <div className="w-20 h-20 rounded-full border-4 border-card bg-gradient-to-br from-blue-500 to-indigo-600 text-white overflow-hidden flex-shrink-0 relative flex items-center justify-center font-bold text-2xl shadow-sm select-none">
               {fp.name ? fp.name.trim().charAt(0).toUpperCase() : <Users size={28} />}
-              {(fp.avatar_url && fp.avatar_url !== 'FAILED') || fp.profile_id ? (
+              {fanpageAvatarSrc(fp) ? (
                 <img
-                  src={fp.avatar_url || `https://graph.facebook.com/${fp.profile_id}/picture?type=large`}
+                  src={fanpageAvatarSrc(fp)!}
                   alt={fp.name}
                   referrerPolicy="no-referrer"
                   className="absolute inset-0 w-full h-full object-cover"
