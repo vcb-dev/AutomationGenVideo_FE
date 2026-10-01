@@ -10,7 +10,6 @@ interface TrafficToday {
     tiktok: number;
     yt: number;
     thread: number;
-    zalo: number;
     total: number;
     details?: {
         id: string;
@@ -36,7 +35,6 @@ interface EmployeeReport {
         captionHashtag: boolean;
         tiktok: boolean;
         youtube: boolean;
-        zalo: boolean;
         lark: boolean;
         reportLink: boolean;
     };

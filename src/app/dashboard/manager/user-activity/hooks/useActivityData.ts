@@ -67,7 +67,7 @@ const getAvatarUrl = (url: string | null, name: string) => {
     return url;
 };
 
-const mapReportItem = (item: any) => {
+export const mapReportItem = (item: any) => {
     const pos = (item.position || "").toLowerCase();
     const role = (item.role || "").toLowerCase();
     const isLeaderReport =
@@ -107,7 +107,6 @@ const mapReportItem = (item: any) => {
             ig: item.checklist?.ig || false,
             tiktok: item.checklist?.tiktok || false,
             youtube: item.checklist?.youtube || false,
-            zalo: item.checklist?.zalo || false,
             lark: item.checklist?.lark || false,
             captionHashtag: item.checklist?.caption || false,
             reportLink: item.answers?.["Báo cáo Lark - Bạn đã gửi link báo cáo video chưa?"] || false,

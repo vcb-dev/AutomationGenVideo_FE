@@ -15,7 +15,6 @@ const PLATFORMS = [
   { id: 'tt', label: 'TikTok', symbol: 'T', color: '#000000' },
   { id: 'ig', label: 'Instagram', symbol: 'I', color: '#E1306C' },
   { id: 'yt', label: 'YouTube', symbol: '▶', color: '#FF0000' },
-  { id: 'zl', label: 'Zalo', symbol: 'Z', color: '#0068FF' },
   { id: 'th', label: 'Threads', symbol: 'Th', color: '#000000' },
 ];
 

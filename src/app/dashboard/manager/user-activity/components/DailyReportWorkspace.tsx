@@ -10,7 +10,6 @@ const PLATFORMS = [
   { id: 'tt', label: 'TikTok', symbol: 'T' },
   { id: 'ig', label: 'Instagram', symbol: 'I' },
   { id: 'yt', label: 'YouTube', symbol: '▶' },
-  { id: 'zl', label: 'Zalo', symbol: 'Z' },
   { id: 'th', label: 'Threads', symbol: 'Th' },
 ];
 
