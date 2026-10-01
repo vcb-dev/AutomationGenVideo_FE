@@ -20,6 +20,7 @@ const PLATFORM_ALIASES: Record<string, string[]> = {
     tiktok: ['tiktok', 'tt', 'tiktokshop'],
     yt: ['yt', 'youtube'],
     thread: ['thread', 'threads'],
+    zalo: ['zalo', 'zalo oa', 'zalo video'],
 };
 
 /** Kênh (platform ghi theo nhiều kiểu: 'facebook', 'FACEBOOK', 'Fanpage'…) có thuộc nền tảng form `platformId` không. */

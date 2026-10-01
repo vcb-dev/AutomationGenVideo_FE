@@ -351,7 +351,7 @@ const ChecklistContainer = ({
                             const newChannels = initialTrafficChannels();
                             const newEvidences: Record<string, { url: string; name: string; token: string }[]> = {};
 
-                            const platforms = ['fb', 'ig', 'tiktok', 'yt', 'thread'];
+                            const platforms = ['fb', 'ig', 'tiktok', 'yt', 'thread', 'zalo'];
 
                             // Check for evidence_files fallback for older/synced records
                             let sharedEvidences: any[] = [];
@@ -440,7 +440,7 @@ const ChecklistContainer = ({
                         if (data.revenue) {
                             const newRevenue = initialRevenueData();
                             const newRevenueChannels = initialRevenueChannels();
-                            const platforms = ['fb', 'ig', 'tiktok', 'yt', 'thread'];
+                            const platforms = ['fb', 'ig', 'tiktok', 'yt', 'thread', 'zalo'];
 
                             platforms.forEach(p => {
                                 const revenueKey = `revenue_${p}` as keyof any;
@@ -494,7 +494,7 @@ const ChecklistContainer = ({
             const newEvidences: Record<string, { url: string; name: string; token: string }[]> = {};
             const newEntries: Record<string, any[]> = {};
 
-            const platforms = ['fb', 'ig', 'tiktok', 'yt', 'thread'];
+            const platforms = ['fb', 'ig', 'tiktok', 'yt', 'thread', 'zalo'];
 
             teamRecords.forEach(rec => {
                 platforms.forEach(p => {
@@ -561,7 +561,7 @@ const ChecklistContainer = ({
             const newChannels = initialRevenueChannels();
             const newEntries: Record<string, any[]> = {};
 
-            const platforms = ['fb', 'ig', 'tiktok', 'yt', 'thread'];
+            const platforms = ['fb', 'ig', 'tiktok', 'yt', 'thread', 'zalo'];
 
             teamRecords.forEach(rec => {
                 platforms.forEach(p => {
@@ -728,7 +728,7 @@ const ChecklistContainer = ({
 
             // #region agent log
             if (typeof window !== 'undefined') {
-                const platforms = ['fb', 'ig', 'tiktok', 'yt', 'thread'];
+                const platforms = ['fb', 'ig', 'tiktok', 'yt', 'thread', 'zalo'];
                 const evidenceCounts = platforms.reduce((acc: any, k) => {
                     acc[k] = (platformEvidences?.[k] || []).length;
                     return acc;
@@ -770,6 +770,7 @@ const ChecklistContainer = ({
                 { id: 'yt', label: 'YT' },
                 { id: 'thread', label: 'Thread' },
                 { id: 'lemon8', label: 'Lemon 8' },
+                { id: 'zalo', label: 'Zalo' },
                 { id: 'twitter', label: 'Twitter' },
             ];
 
