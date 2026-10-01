@@ -4,6 +4,7 @@ import { toast } from 'react-hot-toast';
 import { fetchWithAuth } from '@/lib/api-client';
 import { digitsOnly, sumEntryValues, formatThousands } from './report-total';
 import { ChannelSelect, ChannelOptionItem } from './ChannelSelect';
+import { isSapoTrackedPlatform, hasSelectedSapoTrackedChannel } from '@/lib/sapo/revenue-platforms';
 
 export const REVENUE_PLATFORMS = [
     { id: 'fb', label: 'Doanh thu FB' },
@@ -293,9 +294,7 @@ const RevenueReportSection: React.FC<RevenueReportSectionProps> = ({
 
             if (data.breakdown && Object.keys(data.breakdown).length > 0) {
                 // Kiểm tra xem người dùng hiện tại ĐÃ CHỌN kênh cụ thể nào trên form chưa
-                const hasSelectedAnyChannel = Object.values(entries).some(list =>
-                    list.some(e => Boolean(e.channel && e.channel.trim()))
-                );
+                const hasSelectedAnyChannel = hasSelectedSapoTrackedChannel(entries);
 
                 // Helper để tìm doanh thu từ Sapo cho 1 kênh với đối chiếu chặt chẽ ID + Tên
                 const findSapoEntryForChannel = (platformId: string, channelName: string, channelId?: string) => {
@@ -342,6 +341,11 @@ const RevenueReportSection: React.FC<RevenueReportSectionProps> = ({
 
                     REVENUE_PLATFORMS.forEach(p => {
                         const currentPlatformEntries = entries[p.id] || [];
+                        // Sapo không có số liệu nền tảng này — giữ nguyên số người dùng tự nhập.
+                        if (!isSapoTrackedPlatform(p.id)) {
+                            nextEntries[p.id] = currentPlatformEntries;
+                            return;
+                        }
                         const updatedList: RevenueEntry[] = currentPlatformEntries.map(entry => {
                             if (!entry.channel || !entry.channel.trim()) {
                                 return entry;
@@ -405,6 +409,10 @@ const RevenueReportSection: React.FC<RevenueReportSectionProps> = ({
                     ];
 
                     REVENUE_PLATFORMS.forEach(p => {
+                        if (!isSapoTrackedPlatform(p.id)) {
+                            filteredBreakdown[p.id] = entries[p.id] || [{ id: Math.random().toString(36).slice(2, 9), value: '', channel: '' }];
+                            return;
+                        }
                         const sapoList: any[] = data.breakdown[p.id] || [];
                         let targetList = sapoList;
                         // Nếu user có danh mục kênh phân quyền hoặc kênh OAuth
