@@ -12,7 +12,6 @@ export const TRAFFIC_PLATFORMS = [
     { id: 'tiktok', label: 'Traffic Tiktok', platform: 'TIKTOK' },
     { id: 'yt', label: 'Traffic YT', platform: 'YOUTUBE' },
     { id: 'thread', label: 'Traffic Thread', platform: 'THREADS' },
-    { id: 'zalo', label: 'Traffic Zalo', platform: 'ZALO' },
 ];
 
 export interface TrafficData {
@@ -21,7 +20,6 @@ export interface TrafficData {
     tiktok: string;
     yt: string;
     thread: string;
-    zalo: string;
 }
 
 export const initialTrafficData = (): TrafficData => ({
@@ -30,7 +28,6 @@ export const initialTrafficData = (): TrafficData => ({
     tiktok: '',
     yt: '',
     thread: '',
-    zalo: '',
 });
 
 export const initialTrafficChannels = (): TrafficData => ({
@@ -39,7 +36,6 @@ export const initialTrafficChannels = (): TrafficData => ({
     tiktok: '',
     yt: '',
     thread: '',
-    zalo: '',
 });
 
 export interface TrafficEntry {
@@ -206,7 +202,6 @@ const TrafficReportSection: React.FC<TrafficReportSectionProps> = ({
             'tiktok': ['tiktok', 'tt'],
             'yt': ['yt', 'youtube'],
             'thread': ['thread', 'threads'],
-            'zalo': ['zalo', 'zalo oa', 'zalo video'],
         };
         const targets = platformMap[platformId] || [platformId.toLowerCase()];
         return targets.some(target => {

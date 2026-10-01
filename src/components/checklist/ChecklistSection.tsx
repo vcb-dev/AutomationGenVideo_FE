@@ -10,7 +10,6 @@ export const CHECKLIST_ITEMS = [
     "Bạn đã đăng video lên Tiktok chưa?",
     "Bạn đã đăng video lên IG chưa?",
     "Bạn đã đăng video lên Youtube chưa?",
-    "Bạn đã đăng video lên Zalovideo chưa?",
     "Bạn đã đăng video lên Twitter chưa?",
     "Bạn đã đăng video lên Threads chưa?",
     "Bạn đã đăng video lên Lemon8 chưa?",
