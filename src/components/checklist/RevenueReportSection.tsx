@@ -7,6 +7,7 @@ import { ChannelSelect, ChannelOptionItem } from './ChannelSelect';
 import { isSapoTrackedPlatform, hasSelectedSapoTrackedChannel } from '@/lib/sapo/revenue-platforms';
 import {
     pickOwnSapoRows,
+    isChannelOnPlatform,
     normalizeChannelName as normalizeExact,
     extractNumericChannelId as extractNumericId,
 } from '@/lib/sapo/own-revenue-rows';
@@ -168,25 +169,7 @@ const RevenueReportSection: React.FC<RevenueReportSectionProps> = ({
         updateParent(platformId, newRows, nextEntries);
     };
 
-    const isPlatformMatch = (platformId: string, channelPlatform: string | null | undefined): boolean => {
-        if (!channelPlatform) return false;
-        const p = channelPlatform.toLowerCase().trim();
-        const platformMap: Record<string, string[]> = {
-            'fb': ['fb', 'facebook', 'fanpage'],
-            'ig': ['ig', 'instagram', 'ins'],
-            'tiktok': ['tiktok', 'tt', 'tiktokshop'],
-            'yt': ['yt', 'youtube'],
-            'thread': ['thread', 'threads'],
-            'zalo': ['zalo', 'zalo oa', 'zalo video'],
-        };
-        const targets = platformMap[platformId] || [platformId.toLowerCase()];
-        return targets.some(target => {
-            if (p === target) return true;
-            if (target.length > 3 && p.includes(target)) return true;
-            const regex = new RegExp(`\\b${target}\\b`, 'i');
-            return regex.test(p);
-        });
-    };
+    const isPlatformMatch = isChannelOnPlatform;
 
     // Tổng hợp danh sách kênh cho ChannelSelect gồm cả kênh phân quyền và kênh OAuth
     const channelOptionsByPlatform = useMemo(() => {
@@ -399,7 +382,7 @@ const RevenueReportSection: React.FC<RevenueReportSectionProps> = ({
                         }
                         const sapoList: any[] = data.breakdown[p.id] || [];
                         // Chỉ điền kênh của chính người dùng — Sapo trả doanh thu cả công ty.
-                        const targetList = pickOwnSapoRows(sapoList, allConfigured);
+                        const targetList = pickOwnSapoRows(p.id, sapoList, allConfigured);
 
                         if (targetList.length === 0) {
                             filteredBreakdown[p.id] = [{ id: Math.random().toString(36).slice(2, 9), value: '', channel: '' }];

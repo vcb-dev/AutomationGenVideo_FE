@@ -1,4 +1,4 @@
-import { pickOwnSapoRows, normalizeChannelName, extractNumericChannelId } from '../own-revenue-rows';
+import { pickOwnSapoRows, isChannelOnPlatform, normalizeChannelName, extractNumericChannelId } from '../own-revenue-rows';
 
 describe('normalizeChannelName / extractNumericChannelId', () => {
     it('chuẩn hoá tên: chữ thường, gộp khoảng trắng', () => {
@@ -23,24 +23,53 @@ describe('pickOwnSapoRows', () => {
     ];
 
     it('chỉ giữ dòng khớp ID kênh của người dùng', () => {
-        const rows = pickOwnSapoRows(companyRows, [{ name: 'Tên khác hẳn', channel_id: '148888379055195' }]);
+        const rows = pickOwnSapoRows('fb', companyRows, [{ name: 'Tên khác hẳn', platform: 'FACEBOOK', channel_id: '148888379055195' }]);
         expect(rows.map((r) => r.channel)).toEqual(['HuyK - Kim Hoàn & Đá Quý']);
     });
 
     it('khớp đúng tên 100%, không nhầm page cùng tiền tố', () => {
-        const rows = pickOwnSapoRows(companyRows, [{ name: 'huyk - kim hoàn' }]);
+        const rows = pickOwnSapoRows('fb', companyRows, [{ name: 'huyk - kim hoàn', platform: 'facebook' }]);
         expect(rows.map((r) => r.channel)).toEqual(['HuyK - Kim Hoàn']);
     });
 
     it('người dùng không có kênh nào → không điền gì (không lấy doanh thu cả công ty)', () => {
-        expect(pickOwnSapoRows(companyRows, [])).toEqual([]);
+        expect(pickOwnSapoRows('fb', companyRows, [])).toEqual([]);
     });
 
     it('kênh của người dùng không có đơn trong ngày → không điền gì', () => {
-        expect(pickOwnSapoRows(companyRows, [{ name: 'HuyK Silver', channel_id: '2119298598397029' }])).toEqual([]);
+        expect(pickOwnSapoRows('fb', companyRows, [{ name: 'HuyK Silver', platform: 'facebook', channel_id: '2119298598397029' }])).toEqual([]);
     });
 
     it('bỏ dòng Sapo không có tên lẫn ID kênh', () => {
-        expect(pickOwnSapoRows([{ channel: '', channelId: '', value: '1' }], [{ name: '' }])).toEqual([]);
+        expect(pickOwnSapoRows('fb', [{ channel: '', channelId: '', value: '1' }], [{ name: '', platform: 'facebook' }])).toEqual([]);
+    });
+
+    it('kênh cùng tên ở nền tảng KHÁC không kéo doanh thu page Facebook về', () => {
+        // Dữ liệu thật: page FB "HuyK - Kim Hoàn & Đá Quý" từng bị khớp với kênh YouTube cùng tên.
+        const ownedElsewhere = [
+            { name: 'HuyK - Kim Hoàn & Đá Quý', platform: 'youtube' },
+            { name: 'Chị Nhạn - Đồ Da Thủ Công', platform: 'INSTAGRAM' },
+        ];
+        expect(pickOwnSapoRows('fb', companyRows, ownedElsewhere)).toEqual([]);
+    });
+
+    it('kênh không ghi nền tảng thì không dùng để khớp', () => {
+        expect(pickOwnSapoRows('fb', companyRows, [{ name: 'HuyK - Kim Hoàn' }])).toEqual([]);
+    });
+});
+
+describe('isChannelOnPlatform', () => {
+    it('nhận các cách ghi nền tảng khác nhau', () => {
+        expect(isChannelOnPlatform('fb', 'FACEBOOK')).toBe(true);
+        expect(isChannelOnPlatform('fb', 'Fanpage')).toBe(true);
+        expect(isChannelOnPlatform('ig', 'instagram')).toBe(true);
+        expect(isChannelOnPlatform('tiktok', 'tiktokshop')).toBe(true);
+        expect(isChannelOnPlatform('thread', 'THREADS')).toBe(true);
+    });
+
+    it('không nhận nhầm nền tảng khác hoặc giá trị rỗng', () => {
+        expect(isChannelOnPlatform('fb', 'instagram')).toBe(false);
+        expect(isChannelOnPlatform('fb', 'youtube')).toBe(false);
+        expect(isChannelOnPlatform('yt', null)).toBe(false);
     });
 });
