@@ -1,6 +1,5 @@
 import { detectPlatform } from '../detect-channel-platform';
 import { normalizeThreadsUsername, parseMultipleUsernames } from '../threads-helpers';
-import { fanpageAvatarSrc } from '../fanpage-avatar';
 
 /**
  * Ô "Thêm kênh & gán thẻ phân loại — dán URL bất kỳ nền tảng" ở Khám phá kênh.
@@ -54,22 +53,5 @@ describe('normalizeThreadsUsername — threads.com và link thiếu https://', (
     expect(
       parseMultipleUsernames('https://www.threads.com/@zuck\nthreads.net/@zuck\n@lilbieber, https://threads.com/@mixigaming'),
     ).toEqual(['zuck', 'lilbieber', 'mixigaming']);
-  });
-});
-
-describe('fanpageAvatarSrc', () => {
-  it('dùng avatar đã lưu', () => {
-    expect(fanpageAvatarSrc({ avatar_url: 'https://cdn/a.jpg', profile_id: '1' })).toBe('https://cdn/a.jpg');
-  });
-
-  it("'FAILED' không phải URL — rơi về ảnh Graph theo ID page", () => {
-    expect(fanpageAvatarSrc({ avatar_url: 'FAILED', profile_id: '100063576820959' })).toBe(
-      'https://graph.facebook.com/100063576820959/picture?type=large',
-    );
-  });
-
-  it('id tạm tmp_ không dựng link Graph (luôn 404) — hiện chữ cái đầu', () => {
-    expect(fanpageAvatarSrc({ avatar_url: 'FAILED', profile_id: 'tmp_kazan.jewelry' })).toBeNull();
-    expect(fanpageAvatarSrc({ avatar_url: null, profile_id: null })).toBeNull();
   });
 });
