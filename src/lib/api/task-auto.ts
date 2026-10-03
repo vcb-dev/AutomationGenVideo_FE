@@ -363,6 +363,10 @@ export type TaskAutoDashboard = {
     kpi_completed: number
     kpi_target: number; kpi_content_new: number; kpi_product_gmv: number
   }>
+  /** LEADER: lựa chọn cho dropdown "Thành viên" — luôn đủ cả team, không co lại khi đang lọc 1 người. */
+  member_options?: { user_id: string; full_name: string }[]
+  /** LEADER: thành viên BE đã áp bộ lọc (null = đang xem cả team, kể cả khi assignee_id không hợp lệ). */
+  focus_member?: { user_id: string; full_name: string } | null
   kpi?: {
     month: string; total_target: number; completed: number
     // Content
@@ -385,7 +389,8 @@ export type TaskAutoDashboard = {
 
 export const getDashboard = (params?: {
   date_from?: string; date_to?: string
-  /** Chỉ có tác dụng khi user là ADMIN/MANAGER (scope global) — khoan sâu về 1 team/1 thành viên. */
+  /** Khoan sâu về 1 team/1 thành viên. ADMIN/MANAGER: cả 2; LEADER: chỉ assignee_id (thành viên
+   * team mình lead); MEMBER: BE bỏ qua. */
   team_id?: string; assignee_id?: string
 }) =>
   apiClient.get<TaskAutoDashboard>(`/task-auto/dashboard${qs(params ?? {})}`).then(r => r.data)
