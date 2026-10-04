@@ -1,8 +1,9 @@
 export function normalizeThreadsUsername(input: string): string {
   if (!input) return '';
   let cleaned = input.trim();
-  // Remove URL prefixes
-  cleaned = cleaned.replace(/^https?:\/\/(www\.)?threads\.net\//i, '');
+  // Bỏ phần đầu URL — Threads đã chuyển sang threads.com (threads.net redirect sang), link
+  // copy bây giờ là threads.com; người dùng cũng hay dán thiếu https://.
+  cleaned = cleaned.replace(/^(https?:\/\/)?(www\.)?threads\.(net|com)\//i, '');
   // Remove query params or trailing slash
   cleaned = cleaned.split('?')[0].split('/')[0];
   // Remove leading @
@@ -96,4 +97,16 @@ export function isVietnamese(post: { text?: string; is_vietnamese?: boolean }): 
     }
   }
   return false;
+}
+
+/** Chuẩn hoá tag chủ đề như BE/AI: bỏ #, gộp khoảng trắng, chữ thường. */
+export function normalizeTopicTag(tag: string): string {
+  return (tag || '').trim().replace(/^#+/, '').split(/\s+/).filter(Boolean).join(' ').toLowerCase();
+}
+
+/** Lọc bài theo tag chủ đề ("người đăng › trang sức"); tag rỗng = không lọc. */
+export function filterByTopicTag<T extends { topic_tag?: string }>(posts: T[], tag: string): T[] {
+  const wanted = normalizeTopicTag(tag);
+  if (!wanted) return posts;
+  return posts.filter((p) => normalizeTopicTag(p.topic_tag || '') === wanted);
 }
