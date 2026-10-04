@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Bell, BellOff, BellRing, CheckCircle, XCircle, Clock, X, RotateCcw, ExternalLink,
-  ClipboardList, Upload, Inbox, PackageX, AlertTriangle,
+  ClipboardList, Upload, Inbox, PackageX, AlertTriangle, Bookmark,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { socialApi, PLATFORM_META, SocialPlatform } from '@/lib/api/social';
@@ -15,6 +15,7 @@ import {
   markAllTaskNotificationsRead,
 } from '@/lib/api/task-auto';
 import type { Notification as TaskNotification } from '@/types/task-auto';
+import { notificationLink } from '@/lib/notification-link';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { useSocialLang } from '@/contexts/SocialLanguageContext';
@@ -46,6 +47,9 @@ const TASK_NOTIF_META: Record<string, { icon: typeof ClipboardList; color: strin
   CONTENT_APPROVAL_REQUESTED: { icon: Inbox, color: 'bg-violet-500' },
   CONTENT_APPROVED: { icon: CheckCircle, color: 'bg-emerald-500' },
   CONTENT_REJECTED: { icon: XCircle, color: 'bg-red-500' },
+  // Bộ sưu tập: có đề xuất video mới (leader/admin) / kết quả duyệt (member)
+  VIDEO_PROPOSAL_NEW: { icon: Bookmark, color: 'bg-violet-500' },
+  VIDEO_PROPOSAL_REVIEWED: { icon: Bookmark, color: 'bg-emerald-500' },
 };
 
 export default function NotificationBell() {
@@ -163,7 +167,8 @@ export default function NotificationBell() {
   const handleTaskClick = (n: TaskNotification) => {
     markTaskRead(n);
     setOpen(false);
-    if (n.task_id) router.push(`/dashboard/task-auto/tasks?taskId=${n.task_id}`);
+    const link = notificationLink(n);
+    if (link) router.push(link);
   };
 
   const handleTogglePush = async () => {
