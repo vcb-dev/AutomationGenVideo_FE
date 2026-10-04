@@ -424,6 +424,63 @@ export interface ThreadsProfile {
   posts_count?: number;
 }
 
+// ─── Reddit (Khám phá kênh) ─────────────────────────────────────────────────
+
+export type RedditSort = 'RELEVANCE' | 'HOT' | 'TOP' | 'NEW' | 'COMMENTS';
+export type RedditTimeRange = 'all' | 'year' | 'month' | 'week' | 'day' | 'hour';
+export type RedditMediaType = 'TEXT' | 'IMAGE' | 'GALLERY' | 'VIDEO' | 'LINK';
+
+export interface RedditPost {
+  id: number;
+  post_id: string;
+  subreddit_id: number | null;
+  subreddit_name: string;
+  title: string;
+  text: string;
+  url: string;
+  link_url: string | null;
+  author: string;
+  author_avatar: string | null;
+  media_type: RedditMediaType;
+  thumbnail_url: string | null;
+  video_url: string | null;
+  score: number;
+  comments_count: number;
+  upvote_ratio: number | null;
+  is_nsfw: boolean;
+  search_keyword: string;
+  date_posted: string;
+  created_at: string;
+}
+
+export interface RedditSubreddit {
+  id: number;
+  name: string;
+  display_name: string;
+  title: string;
+  description: string;
+  icon_url: string | null;
+  subscribers_count: number;
+  is_nsfw: boolean;
+  posts_count: number;
+  last_scraped_at: string | null;
+  created_at: string;
+}
+
+export interface RedditScrapeOptions {
+  sort: RedditSort;
+  time_range: RedditTimeRange;
+  count: number;
+}
+
+export interface Paginated<T> {
+  items: T[];
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+}
+
 export interface ThreadsPost {
   id: string | number;
   post_id: string;
@@ -2361,6 +2418,80 @@ export const scraperService = {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.message || 'Tìm kiếm nội dung Threads thất bại');
     }
+    return res.json();
+  },
+
+  // ─── Reddit ───────────────────────────────────────────────────────────────
+  // BE trả lỗi dạng { error } (thiếu biến TikHub, cộng đồng không tồn tại...) — hiện nguyên câu.
+
+  searchRedditPosts: async (
+    token: string,
+    query: string,
+    options: RedditScrapeOptions,
+  ): Promise<{ query: string; posts: RedditPost[] }> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/reddit/search`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, ...options }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.error || body?.message || 'Tìm bài Reddit thất bại');
+    }
+    return res.json();
+  },
+
+  scrapeRedditSubreddit: async (
+    token: string,
+    subreddit: string,
+    options: RedditScrapeOptions,
+  ): Promise<{ subreddit: RedditSubreddit; posts: RedditPost[] }> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/reddit/subreddits/scrape`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subreddit, ...options }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.error || body?.message || 'Cào cộng đồng Reddit thất bại');
+    }
+    return res.json();
+  },
+
+  getRedditSubreddits: async (
+    token: string,
+    params?: { search?: string; page?: number; limit?: number },
+  ): Promise<Paginated<RedditSubreddit>> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/reddit/subreddits${buildParams(params || {})}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Không thể tải danh sách cộng đồng Reddit');
+    return res.json();
+  },
+
+  deleteRedditSubreddit: async (
+    token: string,
+    id: number,
+  ): Promise<{ deleted: boolean; id: number; name: string; videos_deleted: number }> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/reddit/subreddits/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.error || body?.message || 'Xoá cộng đồng Reddit thất bại');
+    }
+    return res.json();
+  },
+
+  getRedditPosts: async (
+    token: string,
+    params?: { search?: string; subreddit?: string; media_type?: string; sort_by?: string; page?: number; limit?: number },
+  ): Promise<Paginated<RedditPost>> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/reddit/posts${buildParams(params || {})}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Không thể tải kho bài Reddit');
     return res.json();
   },
 
