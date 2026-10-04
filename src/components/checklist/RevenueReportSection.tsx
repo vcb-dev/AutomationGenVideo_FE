@@ -4,6 +4,13 @@ import { toast } from 'react-hot-toast';
 import { fetchWithAuth } from '@/lib/api-client';
 import { digitsOnly, sumEntryValues, formatThousands } from './report-total';
 import { ChannelSelect, ChannelOptionItem } from './ChannelSelect';
+import { isSapoTrackedPlatform, hasSelectedSapoTrackedChannel } from '@/lib/sapo/revenue-platforms';
+import {
+    pickOwnSapoRows,
+    isChannelOnPlatform,
+    normalizeChannelName as normalizeExact,
+    extractNumericChannelId as extractNumericId,
+} from '@/lib/sapo/own-revenue-rows';
 
 export const REVENUE_PLATFORMS = [
     { id: 'fb', label: 'Doanh thu FB' },
@@ -162,46 +169,7 @@ const RevenueReportSection: React.FC<RevenueReportSectionProps> = ({
         updateParent(platformId, newRows, nextEntries);
     };
 
-    const isPlatformMatch = (platformId: string, channelPlatform: string | null | undefined): boolean => {
-        if (!channelPlatform) return false;
-        const p = channelPlatform.toLowerCase().trim();
-        const platformMap: Record<string, string[]> = {
-            'fb': ['fb', 'facebook', 'fanpage'],
-            'ig': ['ig', 'instagram', 'ins'],
-            'tiktok': ['tiktok', 'tt', 'tiktokshop'],
-            'yt': ['yt', 'youtube'],
-            'thread': ['thread', 'threads'],
-            'zalo': ['zalo', 'zalo oa', 'zalo video'],
-        };
-        const targets = platformMap[platformId] || [platformId.toLowerCase()];
-        return targets.some(target => {
-            if (p === target) return true;
-            if (target.length > 3 && p.includes(target)) return true;
-            const regex = new RegExp(`\\b${target}\\b`, 'i');
-            return regex.test(p);
-        });
-    };
-
-    const extractNumericId = (input?: string | null): string => {
-        if (!input) return '';
-        const trimmed = String(input).trim();
-        if (/^\d{5,}$/.test(trimmed)) {
-            return trimmed;
-        }
-        const idInUrlMatch = trimmed.match(/(?:id=|profile\.php\?id=|\/|page_id_)(\d{5,})/i);
-        if (idInUrlMatch && idInUrlMatch[1]) {
-            return idInUrlMatch[1];
-        }
-        return trimmed;
-    };
-
-    const normalizeExact = (name?: string | null): string => {
-        if (!name) return '';
-        return name
-            .toLowerCase()
-            .replace(/\s+/g, ' ')
-            .trim();
-    };
+    const isPlatformMatch = isChannelOnPlatform;
 
     // Tổng hợp danh sách kênh cho ChannelSelect gồm cả kênh phân quyền và kênh OAuth
     const channelOptionsByPlatform = useMemo(() => {
@@ -293,9 +261,7 @@ const RevenueReportSection: React.FC<RevenueReportSectionProps> = ({
 
             if (data.breakdown && Object.keys(data.breakdown).length > 0) {
                 // Kiểm tra xem người dùng hiện tại ĐÃ CHỌN kênh cụ thể nào trên form chưa
-                const hasSelectedAnyChannel = Object.values(entries).some(list =>
-                    list.some(e => Boolean(e.channel && e.channel.trim()))
-                );
+                const hasSelectedAnyChannel = hasSelectedSapoTrackedChannel(entries);
 
                 // Helper để tìm doanh thu từ Sapo cho 1 kênh với đối chiếu chặt chẽ ID + Tên
                 const findSapoEntryForChannel = (platformId: string, channelName: string, channelId?: string) => {
@@ -342,6 +308,11 @@ const RevenueReportSection: React.FC<RevenueReportSectionProps> = ({
 
                     REVENUE_PLATFORMS.forEach(p => {
                         const currentPlatformEntries = entries[p.id] || [];
+                        // Sapo không có số liệu nền tảng này — giữ nguyên số người dùng tự nhập.
+                        if (!isSapoTrackedPlatform(p.id)) {
+                            nextEntries[p.id] = currentPlatformEntries;
+                            return;
+                        }
                         const updatedList: RevenueEntry[] = currentPlatformEntries.map(entry => {
                             if (!entry.channel || !entry.channel.trim()) {
                                 return entry;
@@ -405,24 +376,13 @@ const RevenueReportSection: React.FC<RevenueReportSectionProps> = ({
                     ];
 
                     REVENUE_PLATFORMS.forEach(p => {
-                        const sapoList: any[] = data.breakdown[p.id] || [];
-                        let targetList = sapoList;
-                        // Nếu user có danh mục kênh phân quyền hoặc kênh OAuth
-                        if (allConfigured.length > 0) {
-                            const userHasThisPlatform = allConfigured.some(c => isPlatformMatch(p.id, c.platform));
-                            if (userHasThisPlatform) {
-                                targetList = sapoList.filter(s => {
-                                    if (!s.channel && !s.channelId) return false;
-                                    const sNorm = normalizeExact(s.channel);
-                                    const sId = extractNumericId(s.channelId);
-                                    return allConfigured.some(c => {
-                                        const cNorm = normalizeExact(c.name || '');
-                                        const cId = extractNumericId(c.channel_id || c.link_channel || c.id);
-                                        return (sId && cId && sId === cId) || (sNorm && cNorm && sNorm === cNorm);
-                                    });
-                                });
-                            }
+                        if (!isSapoTrackedPlatform(p.id)) {
+                            filteredBreakdown[p.id] = entries[p.id] || [{ id: Math.random().toString(36).slice(2, 9), value: '', channel: '' }];
+                            return;
                         }
+                        const sapoList: any[] = data.breakdown[p.id] || [];
+                        // Chỉ điền kênh của chính người dùng — Sapo trả doanh thu cả công ty.
+                        const targetList = pickOwnSapoRows(p.id, sapoList, allConfigured);
 
                         if (targetList.length === 0) {
                             filteredBreakdown[p.id] = [{ id: Math.random().toString(36).slice(2, 9), value: '', channel: '' }];
@@ -453,11 +413,16 @@ const RevenueReportSection: React.FC<RevenueReportSectionProps> = ({
 
                     onEntriesChange?.(filteredBreakdown);
 
-                    if (data.orderCount > 0) {
-                        const formattedTotal = Number(data.totalRevenue || 0).toLocaleString('vi-VN');
-                        toast.success(`Đã kéo thành công ${data.orderCount} đơn hàng Sapo ngày ${targetDisplayDate} (Tổng: ${formattedTotal} đ)`);
+                    // Báo đúng số đơn/tiền đã điền vào form, không phải tổng của cả công ty.
+                    const filledRows = REVENUE_PLATFORMS
+                        .filter(p => isSapoTrackedPlatform(p.id))
+                        .flatMap(p => filteredBreakdown[p.id] || []);
+                    const filledOrders = filledRows.reduce((acc, e) => acc + (e.orderCount || 0), 0);
+                    if (filledOrders > 0) {
+                        const formattedTotal = Number(sumEntryValues(filledRows.map(e => e.value)) || 0).toLocaleString('vi-VN');
+                        toast.success(`Đã kéo ${filledOrders} đơn Sapo ngày ${targetDisplayDate} thuộc kênh của bạn (Tổng: ${formattedTotal} đ)`);
                     } else {
-                        toast(data.message || `Không tìm thấy đơn hàng Sapo trong ngày ${targetDisplayDate}.`, { icon: 'ℹ️' });
+                        toast(`Không có đơn Sapo ngày ${targetDisplayDate} thuộc kênh của bạn.`, { icon: 'ℹ️' });
                     }
                 }
             }
