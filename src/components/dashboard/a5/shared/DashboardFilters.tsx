@@ -1,10 +1,11 @@
 "use client";
 
-import { CalendarDays, CalendarRange, Filter, ChevronDown } from "lucide-react";
+import { CalendarDays, CalendarRange, Filter, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { PlatformId } from "../admin/admin-platform-channel-data";
 import type { AdminTeamRegionId } from "../admin/admin-team-perf-data";
+import { addDays, addMonths, lastWeekRange, thisWeekRange, weeksOfMonth, ymd } from "./date-range-presets";
 
 type Accent = "indigo" | "amber";
 
@@ -41,6 +42,12 @@ export interface DashboardSingleDatePicker {
   max?: string;
 }
 
+/** Khoảng ngày có kiểm soát + nút chọn nhanh (Hôm nay/Hôm qua/Tuần này/Tuần trước/Tuần N của tháng). */
+export interface DashboardDayRangePicker {
+  value: DashboardDateRange;
+  onChange: (range: DashboardDateRange) => void;
+}
+
 interface DashboardFiltersProps {
   accent?: Accent;
   className?: string;
@@ -50,6 +57,7 @@ interface DashboardFiltersProps {
   onDateRangeChange?: (range: DashboardDateRange) => void;
   monthPicker?: DashboardMonthPicker;
   singleDate?: DashboardSingleDatePicker;
+  dayRange?: DashboardDayRangePicker;
   adminTeamRegion?: AdminTeamRegionFilters;
   adminPlatformChannel?: AdminPlatformChannelFilters;
   showPlatformChannelFallback?: boolean;
@@ -106,6 +114,144 @@ function Divider() {
   return <span className="hidden h-6 w-px shrink-0 bg-gray-200 sm:block" aria-hidden />;
 }
 
+function quickBtnClass(accent: Accent, active: boolean) {
+  return cn(
+    "rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+    active
+      ? accent === "amber"
+        ? "border-amber-300 bg-amber-100 text-amber-800"
+        : "border-indigo-300 bg-indigo-100 text-indigo-800"
+      : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:hover:bg-white",
+  );
+}
+
+function DayRangeControls({ accent, value, onChange }: { accent: Accent } & DashboardDayRangePicker) {
+  const { ring } = accentStyles[accent];
+  const { from, to } = value;
+  const today = ymd(new Date());
+  const currentMonth = today.slice(0, 7);
+
+  // Tháng của hàng "Tuần trong tháng" — tự nhảy theo ngày cuối khi khoảng đổi từ chỗ khác (ô ngày,
+  // nút Tuần này...), còn mũi tên ‹ › chỉ đổi tháng để chọn tuần, chưa đổi khoảng.
+  const [weekMonth, setWeekMonth] = useState(to.slice(0, 7));
+  const [syncedTo, setSyncedTo] = useState(to);
+  if (to !== syncedTo) {
+    setSyncedTo(to);
+    setWeekMonth(to.slice(0, 7));
+  }
+
+  const yesterday = addDays(today, -1);
+  const isRange = (r: DashboardDateRange) => r.from === from && r.to === to;
+  const presets: { label: string; range: DashboardDateRange }[] = [
+    { label: "Hôm nay", range: { from: today, to: today } },
+    { label: "Hôm qua", range: { from: yesterday, to: yesterday } },
+    { label: "Tuần này", range: thisWeekRange(today) },
+    { label: "Tuần trước", range: lastWeekRange(today) },
+  ];
+  const [, wm] = weekMonth.split("-");
+
+  return (
+    <>
+      <Divider />
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="flex items-center gap-1.5 text-xs font-medium text-gray-400">
+          <CalendarRange className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          Khoảng ngày
+        </span>
+        <label className="flex items-center gap-1.5">
+          <span className="text-xs text-gray-400">Từ</span>
+          <input
+            type="date"
+            value={from}
+            max={today}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v) onChange({ from: v, to: v > to ? v : to });
+            }}
+            className={cn(inputBase, ring)}
+          />
+        </label>
+        <label className="flex items-center gap-1.5">
+          <span className="text-xs text-gray-400">Đến</span>
+          <input
+            type="date"
+            value={to}
+            max={today}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v) onChange({ from: v < from ? v : from, to: v });
+            }}
+            className={cn(inputBase, ring)}
+          />
+        </label>
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Chọn nhanh khoảng ngày">
+        {presets.map((p) => (
+          <button
+            key={p.label}
+            type="button"
+            aria-pressed={isRange(p.range)}
+            onClick={() => onChange(p.range)}
+            className={quickBtnClass(accent, isRange(p.range))}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+      <div
+        className="flex basis-full flex-wrap items-center justify-center gap-1.5"
+        role="group"
+        aria-label={`Chọn tuần trong tháng ${Number(wm)}`}
+      >
+        <span className="text-xs font-medium text-gray-400">Tuần trong tháng</span>
+        <button
+          type="button"
+          onClick={() => setWeekMonth(addMonths(weekMonth, -1))}
+          aria-label="Tháng trước"
+          className="rounded-md p-1 text-gray-500 transition-colors hover:bg-gray-100"
+        >
+          <ChevronLeft className="h-4 w-4" aria-hidden />
+        </button>
+        <span className="min-w-[4.5rem] text-center text-xs font-semibold text-gray-700">
+          Tháng {Number(wm)}/{weekMonth.slice(0, 4)}
+        </span>
+        <button
+          type="button"
+          onClick={() => setWeekMonth(addMonths(weekMonth, 1))}
+          disabled={weekMonth >= currentMonth}
+          aria-label="Tháng sau"
+          className="rounded-md p-1 text-gray-500 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
+        >
+          <ChevronRight className="h-4 w-4" aria-hidden />
+        </button>
+        {weeksOfMonth(weekMonth).map((w) => {
+          // Tuần đang chạy chỉ tính tới hôm nay; tuần chưa tới thì khoá.
+          const range = { from: w.from, to: w.to > today ? today : w.to };
+          const active = isRange(range);
+          const days =
+            range.from === range.to
+              ? `${Number(range.from.slice(8))}`
+              : `${Number(range.from.slice(8))}–${Number(range.to.slice(8))}`;
+          return (
+            <button
+              key={w.index}
+              type="button"
+              disabled={w.from > today}
+              aria-pressed={active}
+              aria-label={`Tuần ${w.index}, ngày ${days} tháng ${Number(wm)}`}
+              onClick={() => onChange(range)}
+              className={quickBtnClass(accent, active)}
+            >
+              Tuần {w.index}
+              <span className={cn("ml-1 font-normal", active ? "text-current" : "text-gray-400")}>{days}</span>
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
 export function DashboardFilters({
   accent = "indigo",
   className,
@@ -115,6 +261,7 @@ export function DashboardFilters({
   onDateRangeChange,
   monthPicker,
   singleDate,
+  dayRange,
   adminTeamRegion,
   adminPlatformChannel,
   showPlatformChannelFallback = true,
@@ -124,15 +271,7 @@ export function DashboardFilters({
 
   const today = isoDay(0);
   const yesterday = isoDay(-1);
-  const quickBtn = (active: boolean) =>
-    cn(
-      "rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors",
-      active
-        ? accent === "amber"
-          ? "border-amber-300 bg-amber-100 text-amber-800"
-          : "border-indigo-300 bg-indigo-100 text-indigo-800"
-        : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50",
-    );
+  const quickBtn = (active: boolean) => quickBtnClass(accent, active);
 
   const monthRange = getCurrentMonthRange();
   const [from, setFrom] = useState(defaultDateFrom ?? monthRange.from);
@@ -306,6 +445,8 @@ export function DashboardFilters({
           </button>
         </>
       ) : null}
+
+      {dayRange ? <DayRangeControls accent={accent} {...dayRange} /> : null}
 
       {/* Date range */}
       {showDateRange ? (
