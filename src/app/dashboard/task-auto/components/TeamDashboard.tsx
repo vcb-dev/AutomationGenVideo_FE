@@ -1,136 +1,224 @@
 'use client'
 
 import {
-  Users, Target, Video, FileText, Package,
-  BarChart3, XCircle, CheckCircle2, Send, Activity,
+  Users, XCircle, CheckCircle2, Send, Activity, FileText, Package,
 } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import type { ProductVideoStats } from '@/lib/api/task-auto'
-import { StatusBar } from './StatusBar'
 import { KpiProgress } from './KpiProgress'
-import { DashboardCard, MetricStat, PeriodBadge, MonthPacingHint } from './DashboardUI'
+import { DashboardCard, KpiTile, SectionHeader, StatusDonut, MonthPacingHint } from './DashboardUI'
 import { VideoByLineCard } from './VideoByLineCard'
+import { ContentByClassificationCard } from './ContentByClassificationCard'
 import { ProductVideoBreakdownCard } from './ProductVideoBreakdownCard'
-import { TONE, CATEGORY, rateTone } from './tokens'
+import { TONE, CATEGORY, rateTone, type Tone } from './tokens'
+
+const TASKS_HREF = '/dashboard/task-auto/tasks'
 
 function formatMonth(yyyymm: string) {
   const [y, m] = yyyymm.split('-')
-  return `Tháng ${m}/${y}`
+  return `tháng ${m}/${y}`
 }
 
-// ─── Team Performance Summary ────────────────────────────────────────────────
+// ─── Hiệu suất trong kỳ ──────────────────────────────────────────────────────
 
-function TeamPerformanceSummary({ tasks, members, periodLabel, focusName }: {
-  tasks: any; members: any[]; periodLabel: string
+function TeamPerformanceTiles({ tasks, members, focusName }: {
+  tasks: any; members: any[]
   /** Đang lọc 1 thành viên — "Đang hoạt động x/1" vô nghĩa nên đổi sang số task đang làm. */
   focusName?: string
 }) {
-  const total    = tasks.total ?? 0
-  const approved = tasks.approved ?? 0
-  const rejected = tasks.rejected ?? 0
+  const total     = tasks.total ?? 0
+  const approved  = tasks.approved ?? 0
+  const rejected  = tasks.rejected ?? 0
   const submitted = tasks.submitted ?? 0
   const completionRate = total > 0 ? Math.round((approved / total) * 100) : 0
   const activeMembers  = members.filter(m => (m.in_progress + m.submitted + (m.pending ?? 0)) > 0).length
 
   return (
-    <DashboardCard
-      icon={BarChart3} iconColor="text-blue-600" iconBg="bg-blue-50"
-      title={focusName ? `Hiệu suất — ${focusName}` : 'Hiệu suất Team'}
-      right={<PeriodBadge label={periodLabel} />}
-    >
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-4">
-        <MetricStat
-          icon={CheckCircle2} label="Tỷ lệ hoàn thành" value={`${completionRate}%`}
-          sub={`${approved}/${total} task`}
-          tone={rateTone(completionRate)}
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <KpiTile
+        label="Tỷ lệ hoàn thành" value={`${completionRate}%`} icon={CheckCircle2} tone="success"
+        hint={`${approved}/${total} task đã duyệt`}
+        progress={completionRate} progressTone={rateTone(completionRate)}
+      />
+      <KpiTile
+        label="Chờ bạn duyệt" value={submitted} icon={Send} tone="violet"
+        alert={submitted > 0}
+        hint={submitted > 0 ? 'Mở danh sách để duyệt' : 'Không có task chờ duyệt'}
+        href={TASKS_HREF}
+      />
+      <KpiTile
+        label="Bị từ chối" value={rejected} icon={XCircle} tone="danger"
+        alert={rejected > 0}
+        hint={rejected > 0 ? (focusName ? `Nhắc ${focusName} sửa và nộp lại` : 'Nhắc thành viên sửa và nộp lại') : 'Không có task bị từ chối'}
+      />
+      {focusName ? (
+        <KpiTile
+          label="Đang làm" value={tasks.in_progress ?? 0} icon={Activity} tone="warning"
+          hint="Task đang thực hiện"
         />
-        <MetricStat
-          icon={Send} label="Chờ duyệt" value={submitted} sub="task đã nộp"
-          tone="violet" active={submitted > 0}
+      ) : (
+        <KpiTile
+          label="Thành viên đang làm" value={`${activeMembers}/${members.length}`} icon={Activity} tone="brand"
+          hint="Có task chờ, đang làm hoặc đã nộp"
         />
-        <MetricStat
-          icon={XCircle} label="Bị từ chối" value={rejected} sub="cần xử lý lại"
-          tone="danger" active={rejected > 0}
-        />
-        {focusName ? (
-          <MetricStat
-            icon={Activity} label="Đang làm" value={tasks.in_progress ?? 0} sub="task đang thực hiện"
-            tone="warning" active={(tasks.in_progress ?? 0) > 0}
-          />
-        ) : (
-          <MetricStat
-            icon={Activity} label="Đang hoạt động" value={activeMembers} sub={`/ ${members.length} thành viên`}
-            tone="brand"
-          />
-        )}
-      </div>
+      )}
+    </div>
+  )
+}
 
-      <div className="px-5 pb-4 pt-1">
-        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-          <div
-            className={cn('h-full rounded-full transition-all duration-700', TONE[rateTone(completionRate)].bar)}
-            style={{ width: `${completionRate}%` }}
-          />
+// ─── KPI tháng ───────────────────────────────────────────────────────────────
+
+function KpiTargetRow({ icon: Icon, label, value, category }: {
+  icon: any; label: string; value: number; category: keyof typeof CATEGORY
+}) {
+  const c = CATEGORY[category]
+  return (
+    <div className="flex items-center gap-3 py-2.5">
+      <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', c.bg, c.text)}>
+        <Icon className="h-4 w-4" aria-hidden />
+      </span>
+      <span className="flex-1 text-sm text-slate-600">{label}</span>
+      <span className="text-sm text-slate-500">
+        <span className="text-base font-bold tabular-nums text-slate-900">{value ?? 0}</span> mục tiêu
+      </span>
+    </div>
+  )
+}
+
+function TeamKpiCard({ kpi, focusName }: { kpi: any; focusName?: string }) {
+  return (
+    <DashboardCard
+      title={focusName ? `KPI của ${focusName}` : 'KPI cả team'}
+      subtitle={`Tính theo ${formatMonth(kpi.month)}, không theo bộ lọc ngày`}
+      action={{ href: '/dashboard/task-auto/kpi', label: 'Xem KPI' }}
+      className="flex flex-col"
+    >
+      <div className="flex flex-1 flex-col gap-4 px-5 py-5">
+        <KpiProgress completed={kpi.completed} total_target={kpi.total_target} />
+        <MonthPacingHint
+          completed={kpi.completed} target={kpi.total_target}
+          achievedLabel={focusName ? `${focusName} đã đạt KPI tháng này!` : 'Team đã đạt KPI tháng này!'}
+        />
+        <div className="mt-auto divide-y divide-slate-100 border-t border-slate-100">
+          <KpiTargetRow icon={FileText} label="Content mới" value={kpi.content_new ?? 0} category="content" />
+          <KpiTargetRow icon={Package} label="Sản phẩm GMV" value={kpi.product_gmv ?? 0} category="product" />
         </div>
       </div>
     </DashboardCard>
   )
 }
 
-// ─── Member KPI cell ─────────────────────────────────────────────────────────
+// ─── Bảng thành viên ─────────────────────────────────────────────────────────
+
+const KPI_LEVEL: { min: number; tone: Tone; label: string }[] = [
+  { min: 70, tone: 'success', label: 'Tốt' },
+  { min: 40, tone: 'warning', label: 'Cần cố gắng' },
+  { min: 0,  tone: 'danger',  label: 'Chậm' },
+]
 
 function MemberKpiCell({ approved, kpiTarget }: { approved: number; kpiTarget: number }) {
-  if (!kpiTarget) return <span className="text-xs text-slate-300 pr-2">Chưa có KPI</span>
+  if (!kpiTarget) return <span className="text-xs text-slate-400">Chưa đặt KPI</span>
   const pct = Math.min(100, Math.round((approved / kpiTarget) * 100))
-  const t   = TONE[rateTone(pct)]
+  const level = KPI_LEVEL.find(l => pct >= l.min) ?? KPI_LEVEL[KPI_LEVEL.length - 1]
+  const t = TONE[level.tone]
 
   return (
-    <div className="flex items-center gap-2 pr-2 min-w-[100px]">
-      <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-        <div className={cn('h-full rounded-full transition-all duration-500', t.bar)} style={{ width: `${pct}%` }} />
+    <div className="min-w-[180px]">
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="tabular-nums text-slate-500">
+          <span className="font-bold text-slate-900">{approved}</span>/{kpiTarget}
+          <span className="ml-1 text-slate-400">· {pct}%</span>
+        </span>
+        <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-semibold', t.bg, t.text)}>{level.label}</span>
       </div>
-      <span className={cn('text-xs font-bold tabular-nums whitespace-nowrap', t.text)}>
-        {approved}/{kpiTarget}
-      </span>
+      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100" aria-hidden>
+        <div className={cn('h-full rounded-full transition-[width] duration-500', t.bar)} style={{ width: `${pct}%` }} />
+      </div>
     </div>
   )
 }
 
-// ─── Count badge ─────────────────────────────────────────────────────────────
-
-function CountBadge({ value, color, bg }: { value: number; color: string; bg: string }) {
-  if (value <= 0) return <span className="block text-right text-slate-200 text-sm font-bold pr-1">—</span>
-  return (
-    <span className={cn('inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold', bg, color)}>
-      {value}
-    </span>
-  )
+function CountCell({ value, tone }: { value: number; tone?: Tone }) {
+  if (value <= 0) return <span className="text-slate-300" aria-label="0">–</span>
+  if (tone) {
+    const t = TONE[tone]
+    return <span className={cn('inline-flex min-w-7 justify-center rounded-full px-2 py-0.5 text-xs font-bold tabular-nums', t.bg, t.text)}>{value}</span>
+  }
+  return <span className="text-sm font-semibold tabular-nums text-slate-800">{value}</span>
 }
 
-// ─── KPI target tile ─────────────────────────────────────────────────────────
+const MEMBER_COLS: { key: string; label: string; tone?: Tone }[] = [
+  { key: 'pending',     label: 'Chờ xử lý' },
+  { key: 'in_progress', label: 'Đang làm' },
+  { key: 'submitted',   label: 'Đã nộp', tone: 'violet' },
+  { key: 'approved',    label: 'Đã duyệt' },
+  { key: 'rejected',    label: 'Từ chối', tone: 'danger' },
+]
 
-function KpiTargetTile({ icon: Icon, label, value, category }: {
-  icon: any; label: string; value: number; category: keyof typeof CATEGORY
-}) {
-  const c = CATEGORY[category]
+function MembersTable({ members, className }: { members: any[]; className?: string }) {
   return (
-    <div className={cn('rounded-xl border px-3 py-3.5 text-center', c.bg, c.border)}>
-      <div className={cn('flex items-center justify-center gap-1 mb-2', c.text)}>
-        <Icon className="w-3.5 h-3.5" />
-        <p className="text-[10px] font-bold uppercase tracking-wide">{label}</p>
+    <DashboardCard
+      title={`Thành viên (${members.length})`}
+      subtitle="Số task trong kỳ đã chọn · KPI tính theo tháng"
+      action={{ href: '/dashboard/task-auto/teams', label: 'Quản lý' }}
+      className={className}
+    >
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-100 bg-slate-50">
+              {/* Cột tên dính trái — trên màn hẹp bảng cuộn ngang mà vẫn biết đang xem dòng của ai */}
+              <th scope="col" className="sticky left-0 z-10 bg-slate-50 px-5 py-2.5 text-left text-xs font-semibold text-slate-500">Thành viên</th>
+              {MEMBER_COLS.map(c => (
+                <th key={c.key} scope="col" className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-semibold text-slate-500">{c.label}</th>
+              ))}
+              <th scope="col" className="px-5 py-2.5 text-left text-xs font-semibold text-slate-500">KPI tháng</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {members.length === 0 ? (
+              <tr>
+                <td colSpan={MEMBER_COLS.length + 2} className="py-12 text-center text-sm text-slate-500">
+                  <Users className="mx-auto mb-2 h-8 w-8 text-slate-300" aria-hidden />
+                  Chưa có thành viên
+                </td>
+              </tr>
+            ) : members.map((m: any) => (
+              <tr key={m.user_id} className="group transition-colors hover:bg-slate-50">
+                <td className="sticky left-0 z-10 bg-white px-5 py-3 transition-colors group-hover:bg-slate-50">
+                  <div className="flex items-center gap-3" title={m.email}>
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-xs font-bold text-indigo-700" aria-hidden>
+                      {m.full_name?.trim().split(/\s+/).pop()?.[0]?.toUpperCase() ?? '?'}
+                    </div>
+                    <p className="max-w-[180px] truncate font-semibold text-slate-800">{m.full_name}</p>
+                  </div>
+                </td>
+                {MEMBER_COLS.map(c => (
+                  <td key={c.key} className="px-3 py-3 text-center">
+                    <CountCell value={m[c.key] ?? 0} tone={c.tone} />
+                  </td>
+                ))}
+                <td className="px-5 py-3">
+                  <MemberKpiCell approved={m.kpi_completed} kpiTarget={m.kpi_target} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-      <p className={cn('text-2xl font-extrabold', c.text)}>{value ?? 0}</p>
-      <p className="text-[10px] text-slate-400 mt-1">mục tiêu tháng</p>
-    </div>
+    </DashboardCard>
   )
 }
 
 // ─── TeamDashboard ────────────────────────────────────────────────────────────
 
-export function TeamDashboard({ d, periodLabel, productStats }: {
-  d: any; periodLabel: string
+export function TeamDashboard({ d, productStats, trafficCard }: {
+  d: any
   /** Tải riêng qua GET /task-auto/product-video-stats (xem page.tsx) — undefined khi đang tải lần đầu. */
   productStats?: ProductVideoStats
+  /** Biểu đồ "Traffic theo ngày" (TrafficTrendCard) — page.tsx dựng sẵn theo bộ lọc ngày/thành viên. */
+  trafficCard?: ReactNode
 }) {
   const tasks: any    = d.tasks ?? { total: 0 }
   const members: any[] = d.members ?? []
@@ -140,186 +228,74 @@ export function TeamDashboard({ d, periodLabel, productStats }: {
   const scopeName: string | undefined = focusName ?? d.team?.name
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-8">
 
-      {/* ── Team Performance ── */}
-      <TeamPerformanceSummary tasks={tasks} members={members} periodLabel={periodLabel} focusName={focusName} />
+      {/* ── Hiệu suất trong kỳ ── */}
+      <section aria-label="Hiệu suất trong kỳ">
+        <SectionHeader title="Hiệu suất trong kỳ" description={`${scopeName ?? 'Team'} · task có hạn chót trong kỳ đã chọn`} />
+        <TeamPerformanceTiles tasks={tasks} members={members} focusName={focusName} />
+      </section>
 
-      {/* ── Phân bố trạng thái | Video theo tuyến nội dung ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-        {/* Donut chart phân bố */}
-        <DashboardCard
-          icon={BarChart3} iconColor="text-slate-500" iconBg="bg-slate-100"
-          title="Phân bố trạng thái"
-          action={{ href: '/dashboard/task-auto/tasks', label: 'Xem tất cả' }}
-          className="flex flex-col"
-        >
-          <div className="px-5 py-4 flex-1">
-            <StatusBar tasks={tasks} />
-          </div>
-          {/* Rejected warning */}
-          {(tasks.rejected ?? 0) > 0 && (
-            <div className="mx-4 mb-4 flex items-center gap-2 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
-              <XCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />
-              <span className="text-xs text-red-600 font-semibold">
-                {tasks.rejected} task bị từ chối — {focusName ? `nhắc ${focusName} xử lý lại` : 'nhắc thành viên xử lý lại'}
-              </span>
-            </div>
-          )}
-        </DashboardCard>
-
-        {/* Video theo tuyến nội dung — theo đúng bộ lọc ngày ở trên, không khoá cứng theo tháng KPI */}
-        <VideoByLineCard
-          data={d.video_by_line}
-          periodLabel={periodLabel}
-          subtitle={scopeName}
-        />
-
-      </div>
-
-      {/* ── Video theo dòng sản phẩm | Sản phẩm được làm video — như màn Admin, thu hẹp về đúng team này ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-        <VideoByLineCard
-          data={(productStats?.video_by_product_line ?? []).map(p => ({ line: p.category, count: p.count }))}
-          periodLabel={periodLabel}
-          title="Video theo dòng sản phẩm"
-          subtitle={scopeName}
-          icon={Video} iconColor={CATEGORY.video.text} iconBg={CATEGORY.video.bg}
-          itemLabel="Dòng" unitLabel="video đã duyệt"
-          emptyLabel="Chưa có video nào được duyệt theo dòng sản phẩm"
-        />
-
-        <ProductVideoBreakdownCard
-          byProduct={productStats?.products_with_video_list ?? []}
-          byLine={productStats?.products_with_video_by_line ?? []}
-          total={productStats?.products_with_video ?? 0}
-          periodLabel={periodLabel}
-          scopeLabel={scopeName ?? 'Team'}
-        />
-
-      </div>
-
-      {/* ── KPI Team ── */}
-      {kpi && (
-        <DashboardCard
-          icon={Target} iconColor="text-indigo-600" iconBg="bg-indigo-50"
-          title={`${focusName ? `KPI — ${focusName}` : 'KPI Team'} — ${formatMonth(kpi.month)}`}
-          action={{ href: '/dashboard/task-auto/kpi', label: 'Xem KPI' }}
-        >
-          <div className="px-5 py-4 space-y-4">
-            {/* Progress circle */}
-            <div className="p-4 bg-gradient-to-br from-indigo-50 to-slate-50 rounded-xl border border-indigo-100/60 space-y-3">
-              <KpiProgress completed={kpi.completed} total_target={kpi.total_target} />
-              <MonthPacingHint
-                completed={kpi.completed} target={kpi.total_target}
-                achievedLabel={focusName ? `${focusName} đã đạt KPI tháng này!` : 'Team đã đạt KPI tháng này!'}
-              />
-            </div>
-
-            {/* KPI targets breakdown */}
-            <div className="grid grid-cols-2 gap-3">
-              <KpiTargetTile icon={FileText} label="Content" value={kpi.content_new ?? 0} category="content" />
-              <KpiTargetTile icon={Package} label="Sản phẩm" value={kpi.product_gmv ?? 0} category="product" />
-            </div>
-          </div>
-        </DashboardCard>
+      {/* ── Traffic theo ngày ── */}
+      {trafficCard && (
+        <section aria-label="Traffic theo ngày">
+          <SectionHeader title="Traffic" description={`${scopeName ?? 'Team'} · theo báo cáo traffic hằng ngày`} />
+          {trafficCard}
+        </section>
       )}
 
-      {/* ── Member table ── */}
-      <DashboardCard
-        icon={Users} iconColor="text-indigo-600" iconBg="bg-indigo-50"
-        title={`Thành viên (${members.length})`}
-        action={{ href: '/dashboard/task-auto/teams', label: 'Quản lý' }}
-      >
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-slate-50/80 border-b border-slate-100">
-                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Thành viên</th>
-                <th className="text-center px-3 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Chờ</th>
-                <th className="text-center px-3 py-3 text-xs font-semibold text-amber-500 uppercase tracking-wide">Đang làm</th>
-                <th className="text-center px-3 py-3 text-xs font-semibold text-violet-500 uppercase tracking-wide">Đã nộp</th>
-                <th className="text-center px-3 py-3 text-xs font-semibold text-emerald-600 uppercase tracking-wide">Đã duyệt</th>
-                <th className="text-center px-3 py-3 text-xs font-semibold text-red-400 uppercase tracking-wide">Từ chối</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-indigo-500 uppercase tracking-wide min-w-[140px]">KPI tháng</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {members.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="text-center py-12 text-slate-400 text-sm">
-                    <Users className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                    Chưa có thành viên
-                  </td>
-                </tr>
-              ) : members.map((m: any) => {
-                const kpiPct    = m.kpi_target > 0 ? (m.kpi_completed / m.kpi_target) * 100 : 100
-                const isBehind  = m.kpi_target > 0 && kpiPct < 40
-                const isWarning = m.kpi_target > 0 && kpiPct >= 40 && kpiPct < 70
-                const rejected  = m.rejected ?? 0
-
-                return (
-                  <tr key={m.user_id}
-                    className={cn(
-                      'hover:bg-slate-50/60 transition-colors',
-                      isBehind  ? 'bg-red-50/30'   : '',
-                      isWarning ? 'bg-amber-50/30'  : '',
-                    )}
-                  >
-                    {/* Name */}
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-sm ring-2 ring-white">
-                          {m.full_name?.[0]?.toUpperCase() ?? '?'}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-semibold text-slate-800 text-sm leading-none truncate">{m.full_name}</p>
-                          <p className="text-xs text-slate-400 mt-1 truncate">{m.email}</p>
-                        </div>
-                      </div>
-                    </td>
-                    {/* Pending */}
-                    <td className="px-3 py-3.5 text-center">
-                      <CountBadge value={m.pending ?? 0} color="text-slate-600" bg="bg-slate-100" />
-                    </td>
-                    {/* In progress */}
-                    <td className="px-3 py-3.5 text-center">
-                      <CountBadge value={m.in_progress} color="text-amber-700" bg="bg-amber-100" />
-                    </td>
-                    {/* Submitted */}
-                    <td className="px-3 py-3.5 text-center">
-                      <CountBadge value={m.submitted} color="text-violet-700" bg="bg-violet-100" />
-                    </td>
-                    {/* Approved */}
-                    <td className="px-3 py-3.5 text-center">
-                      <CountBadge value={m.approved} color="text-emerald-700" bg="bg-emerald-100" />
-                    </td>
-                    {/* Rejected */}
-                    <td className="px-3 py-3.5 text-center">
-                      <CountBadge value={rejected} color="text-red-600" bg="bg-red-100" />
-                    </td>
-                    {/* KPI progress */}
-                    <td className="px-4 py-3.5">
-                      <MemberKpiCell approved={m.kpi_completed} kpiTarget={m.kpi_target} />
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+      {/* ── KPI & thành viên ── */}
+      <section aria-label="KPI và thành viên">
+        <SectionHeader title={focusName ? 'KPI & tiến độ cá nhân' : 'KPI & thành viên'} description="Ai đang chậm KPI, ai có task cần xử lý" />
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+          {kpi && <TeamKpiCard kpi={kpi} focusName={focusName} />}
+          <MembersTable members={members} className={kpi ? 'xl:col-span-2' : 'xl:col-span-3'} />
         </div>
+      </section>
 
-        {/* Legend */}
-        {members.length > 0 && (
-          <div className="px-5 py-3 border-t border-slate-50 flex flex-wrap items-center gap-4 gap-y-2 text-xs text-slate-400">
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-red-100 inline-block" /> Chậm KPI (&lt;40%)</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-amber-100 inline-block" /> Cần cố gắng (40–70%)</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-white border border-slate-100 inline-block" /> Đang tốt (≥70%)</span>
-          </div>
-        )}
-      </DashboardCard>
+      {/* ── Nhiệm vụ & video ── */}
+      <section aria-label="Nhiệm vụ và video">
+        <SectionHeader title="Nhiệm vụ & video" description={scopeName} />
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+          <DashboardCard
+            title="Phân bố trạng thái"
+            subtitle="Theo hạn chót trong kỳ"
+            action={{ href: TASKS_HREF, label: 'Xem task' }}
+            className="flex flex-col lg:col-span-2"
+          >
+            <div className="p-5 flex-1 flex flex-col justify-center">
+              <StatusDonut tasks={tasks} size="md" layout="row" />
+            </div>
+          </DashboardCard>
+          {/* Theo đúng bộ lọc ngày, không khoá cứng theo tháng KPI; cột mờ = mục tiêu KPI theo tuyến */}
+          <VideoByLineCard
+            data={d.video_by_line}
+            subtitle="Video đã duyệt so với mục tiêu KPI theo tuyến"
+            className="lg:col-span-3"
+          />
+        </div>
+      </section>
+
+      {/* ── Sản phẩm & content — như màn Admin, thu hẹp về đúng team/thành viên này ── */}
+      <section aria-label="Sản phẩm và content">
+        <SectionHeader title="Sản phẩm & content" description="Video đã duyệt, phân loại content và sản phẩm được làm video trong kỳ" />
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 items-stretch">
+          <VideoByLineCard
+            data={(productStats?.video_by_product_line ?? []).map(p => ({ line: p.category, count: p.count }))}
+            title="Video theo dòng sản phẩm"
+            subtitle="GMV · Traffic · Profit"
+            itemLabel="Dòng" unitLabel="video đã duyệt"
+            emptyLabel="Chưa có video nào được duyệt theo dòng sản phẩm"
+          />
+          <ContentByClassificationCard data={d.content_by_classification} subtitle={scopeName ?? 'Team'} />
+          <ProductVideoBreakdownCard
+            byProduct={productStats?.products_with_video_list ?? []}
+            byLine={productStats?.products_with_video_by_line ?? []}
+            total={productStats?.products_with_video ?? 0}
+            scopeLabel={scopeName ?? 'Team'}
+          />
+        </div>
+      </section>
 
     </div>
   )

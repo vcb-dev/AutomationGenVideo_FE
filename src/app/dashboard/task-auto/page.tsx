@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import { ListTodo, Users, User, Loader2, Sparkles, X, ChevronDown } from 'lucide-react'
+import { ListTodo, Users, User, Sparkles, X, ChevronDown, CalendarDays } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { getDashboard, getProductVideoStats, getTeams, isContentTeamMember } from '@/lib/api/task-auto'
@@ -14,7 +14,7 @@ import { PersonalDashboard } from './components/PersonalDashboard'
 import { ContentCreatorDashboard } from './components/ContentCreatorDashboard'
 import { ContentTeamLeaderDashboard } from './components/ContentTeamLeaderDashboard'
 import { ContentWinFailSection } from './components/ContentWinFailSection'
-import { DailyVideoPlanCard } from './components/DailyVideoPlanCard'
+import { SectionHeader, SegmentedControl } from './components/DashboardUI'
 
 // ── Date filter ───────────────────────────────────────────────────────────────
 
@@ -87,44 +87,45 @@ interface DateFilterProps {
   onCustomToChange: (v: string) => void
 }
 
-function DateFilter({ preset, customFrom, customTo, onPresetChange, onCustomFromChange, onCustomToChange }: DateFilterProps) {
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      {PRESETS.map(p => (
-        <button
-          key={p.key}
-          onClick={() => onPresetChange(p.key)}
-          className={cn(
-            'px-4 py-2 rounded-lg text-sm font-semibold border transition-colors whitespace-nowrap',
-            preset === p.key
-              ? 'bg-indigo-600 border-indigo-600 text-white'
-              : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50',
-          )}
-        >
-          {p.label}
-        </button>
-      ))}
+const DATE_INPUT_CLS = 'h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300'
 
-      {/* Custom date range inputs */}
-      {preset === 'custom' && (
+function DateFilter({ preset, customFrom, customTo, onPresetChange, onCustomFromChange, onCustomToChange, from, to }: DateFilterProps & { from: string; to: string }) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <SegmentedControl
+        ariaLabel="Khoảng thời gian"
+        value={preset}
+        onChange={onPresetChange}
+        options={PRESETS.map(p => ({ value: p.key, label: p.label }))}
+      />
+
+      {preset === 'custom' ? (
         <div className="flex items-center gap-2">
           <input
             type="date"
+            aria-label="Từ ngày"
             value={customFrom}
             max={customTo || undefined}
             onChange={e => onCustomFromChange(e.target.value)}
-            className="text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            className={DATE_INPUT_CLS}
           />
-          <span className="text-sm text-slate-400">→</span>
+          <span className="text-sm text-slate-400" aria-hidden>–</span>
           <input
             type="date"
+            aria-label="Đến ngày"
             value={customTo}
             min={customFrom || undefined}
             onChange={e => onCustomToChange(e.target.value)}
-            className="text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            className={DATE_INPUT_CLS}
           />
         </div>
-      )}
+      ) : from && to ? (
+        // Đổi preset ("Tháng này", "7 ngày qua"…) ra ngày cụ thể để người xem biết chắc số liệu tính từ đâu tới đâu.
+        <span className="inline-flex items-center gap-1.5 text-sm text-slate-500">
+          <CalendarDays className="h-4 w-4 text-slate-400" aria-hidden />
+          <span className="tabular-nums">{from === to ? formatVNDate(from) : `${formatVNDate(from)} – ${formatVNDate(to)}`}</span>
+        </span>
+      ) : null}
     </div>
   )
 }
@@ -158,7 +159,11 @@ function ScopeSelect({ value, placeholder, ariaLabel, options, onChange }: Scope
         value={value}
         aria-label={ariaLabel}
         onChange={e => onChange(e.target.value)}
-        className="appearance-none text-sm font-semibold border border-slate-200 rounded-lg pl-3.5 pr-8 py-2 text-slate-600 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-300 max-w-[180px] truncate cursor-pointer"
+        className={cn(
+          'h-9 appearance-none rounded-lg border pl-3 pr-8 text-sm font-semibold max-w-[200px] truncate cursor-pointer',
+          'focus:outline-none focus:ring-2 focus:ring-indigo-300',
+          value ? 'border-indigo-200 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
+        )}
       >
         <option value="">{placeholder}</option>
         {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -199,10 +204,11 @@ function ScopeFilter({ teams, teamId, memberId, onTeamChange, onMemberChange }: 
       />
       {hasFilter && (
         <button
+          type="button"
           onClick={() => { onTeamChange(''); onMemberChange('') }}
-          className="flex items-center gap-1 text-sm font-semibold text-slate-400 hover:text-slate-600"
+          className="flex h-9 items-center gap-1 rounded-lg px-2 text-sm font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
         >
-          <X className="w-3.5 h-3.5" /> Xoá lọc
+          <X className="w-3.5 h-3.5" aria-hidden /> Xoá lọc
         </button>
       )}
     </div>
@@ -230,10 +236,11 @@ function TeamMemberFilter({ options, memberId, onChange }: TeamMemberFilterProps
       />
       {memberId && (
         <button
+          type="button"
           onClick={() => onChange('')}
-          className="flex items-center gap-1 text-sm font-semibold text-slate-400 hover:text-slate-600"
+          className="flex h-9 items-center gap-1 rounded-lg px-2 text-sm font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
         >
-          <X className="w-3.5 h-3.5" /> Xoá lọc
+          <X className="w-3.5 h-3.5" aria-hidden /> Xoá lọc
         </button>
       )}
     </div>
@@ -314,48 +321,56 @@ export default function TaskAutoDashboard() {
     : 'Cá nhân'
 
   const scopeIcon = isContentLeader || isContentMember
-    ? <Sparkles className="w-4 h-4" />
+    ? <Sparkles className="w-3.5 h-3.5" aria-hidden />
     : data?.scope === 'personal' || (data?.scope === 'team' && data.focus_member)
-    ? <User className="w-4 h-4" />
-    : <Users className="w-4 h-4" />
+    ? <User className="w-3.5 h-3.5" aria-hidden />
+    : <Users className="w-3.5 h-3.5" aria-hidden />
 
   const showDateFilter = isContentLeader || isContentMember || data?.scope === 'global' || data?.scope === 'team' || data?.scope === 'personal'
-  const showEditorDailyPlan = !isContentLeader && !isContentMember && data?.scope === 'personal'
+  const loading = isLoading || teamsLoading
+
+  const pageSubtitle = isContentLeader || isContentMember
+    ? 'Content sưu tầm, bản dịch và video được làm từ content'
+    : data?.scope === 'personal'
+    ? 'Traffic theo ngày, tiến độ KPI và kết quả video của bạn'
+    : 'Tiến độ nhiệm vụ, KPI và kết quả video — chọn khoảng thời gian để xem số liệu'
 
   return (
     <div className="space-y-6">
 
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900">Task Auto</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Hệ thống phân công và quản lý task tự động</p>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Tổng quan</h1>
+            {data && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600">
+                {scopeIcon}
+                {scopeLabel}
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-sm text-slate-500">{pageSubtitle}</p>
         </div>
-        <div className="flex items-center gap-3">
-          {data && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-xl text-xs font-semibold text-slate-600">
-              {scopeIcon}
-              {scopeLabel}
-            </div>
-          )}
-          <Link
-            href="/dashboard/task-auto/tasks"
-            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition-colors"
-          >
-            <ListTodo className="w-4 h-4" />
-            Xem tất cả task
-          </Link>
-        </div>
+        <Link
+          href="/dashboard/task-auto/tasks"
+          className="inline-flex h-10 items-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white shadow-sm shadow-indigo-600/20 transition-colors hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2"
+        >
+          <ListTodo className="w-4 h-4" aria-hidden />
+          Danh sách nhiệm vụ
+        </Link>
       </div>
 
-      {/* Bộ lọc — chỉ hiện cho Global & Team scope. Không bọc card riêng, đặt trực tiếp trên nền trang
-          như 1 thanh công cụ — ngày bên trái, team/thành viên (chỉ scope global) bên phải cùng hàng. */}
+      {/* Thanh lọc — 1 dải duy nhất: khoảng thời gian (+ ngày cụ thể) bên trái, phạm vi team/thành viên
+          bên phải. Kỳ chỉ hiện 1 lần ở đây thay vì lặp nhãn "Tháng này" trên từng card. */}
       {(showDateFilter || isLoading) && (
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white px-3 py-2.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
           <DateFilter
             preset={preset}
             customFrom={customFrom}
             customTo={customTo}
+            from={from}
+            to={to}
             onPresetChange={p => {
               setPreset(p)
               if (p === 'custom') {
@@ -388,10 +403,8 @@ export default function TaskAutoDashboard() {
       )}
 
       {/* Content */}
-      {(isLoading || teamsLoading) ? (
-        <div className="flex items-center justify-center py-32">
-          <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
-        </div>
+      {loading ? (
+        <DashboardSkeleton />
       ) : isContentLeader ? (
         <ContentTeamLeaderDashboard teams={contentTeamsLed} from={from} to={to} periodLabel={periodLabel} />
       ) : isContentMember && user?.id ? (
@@ -406,47 +419,58 @@ export default function TaskAutoDashboard() {
           aria-busy={isPlaceholderData}
           className={cn('transition-opacity duration-200', isPlaceholderData && 'opacity-60')}
         >
-          {data.scope === 'global' ? <GlobalDashboard d={buildGlobal(data)} periodLabel={periodLabel} scopeLabel={globalScopeLabel} productStats={productStats} />
-            : data.scope === 'team'   ? <TeamDashboard d={data} periodLabel={periodLabel} productStats={productStats} />
-            : <PersonalDashboard d={data} periodLabel={periodLabel} productStats={productStats} />}
+          {data.scope === 'global' ? <GlobalDashboard d={buildGlobal(data)} scopeLabel={globalScopeLabel} productStats={productStats} />
+            : data.scope === 'team'   ? <TeamDashboard d={data} productStats={productStats} />
+            : <PersonalDashboard d={data} productStats={productStats} />}
         </div>
       )}
 
       {/* Content Win/Fail — chỉ số MỚI, tự tính từ view link bài đăng (1 link bất kỳ >10.000 view = win), tách biệt các số KPI nhập tay ở trên */}
-      {!(isLoading || teamsLoading) && showEditorDailyPlan ? (
-        <div className="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-2">
-          <DailyVideoPlanCard
-            month={data?.kpi?.month}
-            monthlyTarget={data?.kpi?.total_target ?? 0}
-            completed={data?.kpi?.completed ?? 0}
-            contentAllocations={data?.kpi?.content_allocations}
-          />
+      {!loading && (
+        <section aria-label="Content Win/Fail" className="pt-2">
+          <SectionHeader title="Content Win/Fail" description="Tự tính từ lượt xem thật của link bài đăng" />
           <ContentWinFailSection
             from={from}
             to={to}
-            fixedUserId={user?.id}
+            teamId={
+              isContentLeader ? contentTeamsLed[0]?.id
+                : data?.scope === 'team' ? data.team?.id
+                : data?.scope === 'global' ? (teamFilter || undefined)
+                : undefined
+            }
+            fixedUserId={
+              isContentMember || data?.scope === 'personal' ? user?.id
+                : data?.scope === 'global' ? (memberFilter || undefined)
+                : data?.scope === 'team' ? data.focus_member?.user_id
+                : undefined
+            }
+            showGlobalTop={data?.scope === 'global'}
           />
-        </div>
-      ) : !(isLoading || teamsLoading) ? (
-        <ContentWinFailSection
-          from={from}
-          to={to}
-          teamId={
-            isContentLeader ? contentTeamsLed[0]?.id
-              : data?.scope === 'team' ? data.team?.id
-              : data?.scope === 'global' ? (teamFilter || undefined)
-              : undefined
-          }
-          fixedUserId={
-            isContentMember || data?.scope === 'personal' ? user?.id
-              : data?.scope === 'global' ? (memberFilter || undefined)
-              : data?.scope === 'team' ? data.focus_member?.user_id
-              : undefined
-          }
-          showGlobalTop={data?.scope === 'global'}
-        />
-      ) : null}
+        </section>
+      )}
 
+    </div>
+  )
+}
+
+// ── Skeleton lúc tải lần đầu — giữ chỗ đúng bố cục (ô số liệu + 2 card) để trang không nhảy ──────
+
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-8" aria-busy="true" aria-label="Đang tải số liệu">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[0, 1, 2, 3].map(i => (
+          <div key={i} className="h-[124px] rounded-2xl border border-slate-200/80 bg-white p-4">
+            <div className="h-3.5 w-24 rounded-full bg-slate-100 animate-pulse motion-reduce:animate-none" />
+            <div className="mt-4 h-7 w-16 rounded-lg bg-slate-100 animate-pulse motion-reduce:animate-none" />
+            <div className="mt-3 h-3 w-32 rounded-full bg-slate-50 animate-pulse motion-reduce:animate-none" />
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+        <div className="h-80 rounded-2xl border border-slate-200/80 bg-white lg:col-span-2 animate-pulse motion-reduce:animate-none" />
+        <div className="h-80 rounded-2xl border border-slate-200/80 bg-white lg:col-span-3 animate-pulse motion-reduce:animate-none" />
+      </div>
     </div>
   )
 }
