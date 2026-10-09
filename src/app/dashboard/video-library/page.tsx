@@ -51,6 +51,7 @@ import CostPanel from './CostPanel';
 import { buildTeamFilterOptions, matchesTeamFilter } from '@/lib/video-library/team-filter';
 import { canRetryScript as canRetryScriptFor, hasProcessingScript, scriptStatusOf } from '@/lib/video-library/script-status';
 import { canViewCosts } from '@/lib/video-library/cost-format';
+import { VIDEO_LIBRARY_PAGE_THEME_CSS } from '@/lib/video-library/page-theme-css';
 import {
     PROPOSAL_PLATFORMS,
     MAX_LINKS_PER_BATCH,
@@ -1351,24 +1352,8 @@ function VideoLibraryInner() {
 
     return (
         <div className="min-h-[calc(100vh-73px)] bg-slate-50 text-slate-900 dark:bg-[#07090F] dark:text-white p-6 md:p-10 -m-6 selection:bg-blue-500/30">
-            {/* Trang này có nền riêng (rất sáng / rất tối) nên phải ép cả khung dashboard đổi theo,
-                nếu không header và main giữ màu mặc định sẽ lệch hẳn với thân trang.
-                Bọc trong .dark / html:not(.dark) để nút đổi giao diện vẫn có tác dụng — trước đây
-                khối này ép cứng màu tối nên trang luôn đen bất kể người dùng chọn gì. */}
-            <style dangerouslySetInnerHTML={{
-                __html: `
-                    html:not(.dark) header { background-color: #f8fafc !important; border-bottom-color: #e2e8f0 !important; }
-                    html:not(.dark) body { background-color: #f8fafc !important; }
-                    html:not(.dark) main { background-color: #f8fafc !important; }
-                    html:not(.dark) .bg-gray-50 { background-color: #f8fafc !important; }
-
-                    .dark header { background-color: #07090F !important; border-bottom-color: #151820 !important; }
-                    .dark header p { color: #f8fafc !important; }
-                    .dark body { background-color: #07090F !important; }
-                    .dark main { background-color: #07090F !important; }
-                    .dark .bg-gray-50 { background-color: #07090F !important; }
-                `,
-            }} />
+            {/* Ép khung dashboard đổi theo nền riêng của trang — xem ghi chú ở page-theme-css.ts. */}
+            <style dangerouslySetInnerHTML={{ __html: VIDEO_LIBRARY_PAGE_THEME_CSS }} />
 
             <div className="hidden dark:block fixed inset-0 pointer-events-none -z-10 overflow-hidden">
                 <div className="absolute top-1/4 -left-1/4 w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-[120px]" />
