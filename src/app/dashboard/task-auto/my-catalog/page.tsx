@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { Package, FileText, Radio, BookUser, Archive, Eye } from 'lucide-react'
+import { Package, FileText, Radio, BookUser, Eye } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth-store'
@@ -11,10 +11,9 @@ import { UserRole } from '@/types/auth'
 import { MyProductsTab } from './components/MyProductsTab'
 import { MyContentsTab } from './components/MyContentsTab'
 import { MySourcesTab } from './components/MySourcesTab'
-import { MyWarehouseTab } from './components/MyWarehouseTab'
 import type { BrandType, TeamMarket } from '@/types/task-auto'
 
-type TabId = 'products' | 'contents' | 'sources' | 'warehouse'
+type TabId = 'products' | 'contents' | 'sources'
 
 const BRANDS: { key: BrandType; label: string; color: string }[] = [
   { key: 'DO_DA',     label: 'Đồ da',     color: 'amber' },
@@ -25,7 +24,6 @@ const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'products',  label: 'Sản phẩm',  icon: Package },
   { id: 'contents',  label: 'Content',   icon: FileText },
   { id: 'sources',   label: 'Source',    icon: Radio },
-  { id: 'warehouse', label: 'Kho tháng', icon: Archive },
 ]
 
 export default function MyCatalogPage() {
@@ -198,7 +196,6 @@ export default function MyCatalogPage() {
         {activeTab === 'products'  && <MyProductsTab  key={`${brand}-${targetUserId}`} userId={targetUserId} brandType={brand} readOnly={readOnly} />}
         {activeTab === 'contents'  && <MyContentsTab  key={`${brand}-${targetUserId}`} userId={targetUserId} brandType={brand} teamMarket={teamMarket} readOnly={readOnly} />}
         {activeTab === 'sources'   && <MySourcesTab   key={`${brand}-${targetUserId}`} userId={targetUserId} brandType={brand} readOnly={readOnly} />}
-        {activeTab === 'warehouse' && <MyWarehouseTab key={`${brand}-${targetUserId}`} userId={targetUserId} brandType={brand} teamMarket={teamMarket} readOnly={readOnly} />}
       </div>
     </div>
   )
