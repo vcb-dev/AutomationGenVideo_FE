@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Bell, BellOff, BellRing, CheckCircle, XCircle, Clock, X, RotateCcw, ExternalLink,
-  ClipboardList, Upload, Inbox, PackageX, AlertTriangle, Bookmark,
+  ClipboardList, Upload, Inbox, PackageX, AlertTriangle, Bookmark, CalendarCheck,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { socialApi, PLATFORM_META, SocialPlatform } from '@/lib/api/social';
@@ -44,6 +44,8 @@ const TASK_NOTIF_META: Record<string, { icon: typeof ClipboardList; color: strin
   TASK_MISSING_PUBLISHED_LINK: { icon: AlertTriangle, color: 'bg-red-500' },
   TEAM_PUSH_REQUEST: { icon: Inbox, color: 'bg-amber-500' },
   AUTO_ASSIGN_EMPTY_WAREHOUSE: { icon: PackageX, color: 'bg-amber-500' },
+  DAILY_PLAN: { icon: CalendarCheck, color: 'bg-indigo-500' },
+  DAILY_TASK_SHORTFALL: { icon: AlertTriangle, color: 'bg-red-500' },
   CONTENT_APPROVAL_REQUESTED: { icon: Inbox, color: 'bg-violet-500' },
   CONTENT_APPROVED: { icon: CheckCircle, color: 'bg-emerald-500' },
   CONTENT_REJECTED: { icon: XCircle, color: 'bg-red-500' },
@@ -169,6 +171,12 @@ export default function NotificationBell() {
     setOpen(false);
     const link = notificationLink(n);
     if (link) router.push(link);
+    else if (n.type === 'DAILY_PLAN') router.push('/dashboard/task-auto/tasks');
+    else if (n.type === 'DAILY_TASK_SHORTFALL') {
+      // meta.work_date do TaskComplianceService ghi — mở thẳng đúng ngày bị thiếu
+      const workDate = (n.meta as { work_date?: string } | null | undefined)?.work_date;
+      router.push(workDate ? `/dashboard/task-auto/compliance?date=${workDate}` : '/dashboard/task-auto/compliance');
+    }
   };
 
   const handleTogglePush = async () => {

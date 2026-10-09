@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ListTodo, Users, Package, FileText, Target, Settings, LayoutDashboard, Zap, BookUser } from 'lucide-react'
+import { ListTodo, Users, Package, FileText, Target, Settings, LayoutDashboard, Zap, BookUser, ShieldAlert } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth-store'
 import { UserRole } from '@/types/auth'
@@ -50,6 +50,11 @@ const NAV_ITEMS = [
     href: '/dashboard/task-auto/kpi',
     label: 'KPI',
     icon: Target,
+  },
+  {
+    href: '/dashboard/task-auto/compliance',
+    label: 'Nhiệm vụ còn thiếu',
+    icon: ShieldAlert,
   },
   {
     // Cài đặt hệ thống — chỉ Admin/Manager

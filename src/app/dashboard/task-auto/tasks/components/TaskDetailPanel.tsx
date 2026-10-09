@@ -28,7 +28,7 @@ import { ProductSection } from './detail/ProductSection'
 import { VideoPreviewOverlay } from './detail/VideoPreviewOverlay'
 import { TaskSchedulePostModal } from './detail/TaskSchedulePostModal'
 import { PublishedLinksSection } from './detail/PublishedLinksSection'
-import type { Source, TeamSource, OmsProductSummary } from '@/types/task-auto'
+import type { Source, Task, TeamSource, OmsProductSummary } from '@/types/task-auto'
 import { useBackdropClose } from '@/hooks/useBackdropClose'
 
 type CatalogScope = 'personal' | 'global' | 'team'
@@ -82,9 +82,11 @@ interface Props {
   onClose: () => void
   userRoles: string[]
   currentUserId?: string
+  /** Nút "Nhân bản" ở header — trang cha đóng panel rồi mở modal tạo task điền sẵn từ task này */
+  onDuplicate?: (task: Task) => void
 }
 
-export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: Props) {
+export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId, onDuplicate }: Props) {
   useScrollLock()
   const qc = useQueryClient()
   const [showSubmit, setShowSubmit]         = useState(false)
@@ -149,6 +151,9 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
     enabled: !!taskId,
     refetchOnWindowFocus: true,
   })
+  // Task Auto = hệ thống chia theo KPI tuyến A4: tạo ra chỉ gắn SP kho team, editor tự chọn content.
+  // Ở chế độ sửa chỉ đổi được content — SP/nguồn giữ nguyên (BE chặn).
+  const isAutoTask = task?.task_type === 'AUTO'
 
   // ✅ Chỉ query full content khi có content_id toàn cục (endpoint /task-auto/contents/:id
   // chỉ tìm trong bảng content global). editor_content/team_content đã được include sẵn trong
@@ -382,6 +387,21 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
       const [contentSource, rawContentId] = editForm.content_id.includes(':')
         ? editForm.content_id.split(':', 2)
         : ['', editForm.content_id]
+      const contentFields = {
+        content_id:        contentSource === 'global' ? rawContentId || null : null,
+        editor_content_id: contentSource === 'editor' ? rawContentId || null : null,
+        team_content_id:   contentSource === 'team'   ? rawContentId || null : null,
+      }
+      // Task Auto: BE chỉ cho đổi content — không được gửi field SP/nguồn (kể cả null cũng bị chặn).
+      if (isAutoTask) {
+        return updateTask(taskId, {
+          ...contentFields,
+          deadline: editForm.deadline || undefined,
+          ...(canAssign && task?.status === 'PENDING' && {
+            assignee_id: editForm.assignee_id || null,
+          }),
+        } as any)
+      }
       return updateTask(taskId, {
         // "oms" (kho tổng/OMS): không có Product local — gửi oms_product_id/oms_variant_id,
         // BE tự materialize vào kho cá nhân editor được giao (đã resolve lúc chọn, xem onChange
@@ -393,9 +413,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
           oms_product_id: omsSelection.oms_product_id,
           oms_variant_id: omsSelection.oms_variant_id,
         } : {}),
-        content_id:        contentSource === 'global' ? rawContentId || null : null,
-        editor_content_id: contentSource === 'editor' ? rawContentId || null : null,
-        team_content_id:   contentSource === 'team'   ? rawContentId || null : null,
+        ...contentFields,
         source_outro_id:    editForm.source_outro_id    || null,
         source_extra_id:    editForm.source_collected_id || null,
         source_workshop_id: editForm.source_workshop_id || null,
@@ -627,7 +645,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
   // Dùng ở cả 2 vị trí: cột phải bình thường, hoặc dời xuống cuối cột trái khi video chiếm cột phải.
   const productSectionEl = (
     <ProductSection
-      editMode={editMode}
+      editMode={editMode && !isAutoTask}
       edit={{
         productId: editForm.product_id,
         onChange: handleProductChange,
@@ -678,6 +696,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
             productName={productName}
             productSku={productSku}
             onToggleEdit={() => setEditMode(v => !v)}
+            onDuplicate={task && onDuplicate ? () => onDuplicate(task) : undefined}
             onClose={requestClose}
           />
 
@@ -765,8 +784,14 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                               hasTeam={!!task?.team_id}
                             />
                           ),
+                          hint: isAutoTask
+                            ? 'Task tự động chỉ đổi được content — sản phẩm và nguồn do hệ thống gắn theo kho team.'
+                            : undefined,
                         }}
                         view={{
+                          emptyTitle: isAutoTask ? (
+                            <span className="text-gray-400 font-normal italic">Chưa chọn content — bấm “Sửa” để chọn</span>
+                          ) : undefined,
                           contentTitle,
                           contentMarket,
                           contentLine,
@@ -790,7 +815,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                       />
 
                       <SourcesSection
-                        editMode={editMode}
+                        editMode={editMode && !isAutoTask}
                         task={task}
                         //productSources={productSources}
                         edit={{

@@ -81,6 +81,8 @@ interface EditContentProps {
   currentContentTitle?: string | null
   currentContentId?: string | null
   filterSlot?: React.ReactNode
+  /** Ghi chú dưới ô chọn — vd task Auto chỉ đổi được content, SP/nguồn bị khoá */
+  hint?: React.ReactNode
 }
 
 interface ViewContentProps {
@@ -90,6 +92,8 @@ interface ViewContentProps {
   scriptText?: string | null
   fileUrl?: string | null
   voiceUrl?: string | null
+  /** Thay chữ "Chưa có tiêu đề" khi task chưa gắn content (vd task Auto chờ editor chọn content) */
+  emptyTitle?: React.ReactNode
 }
 
 interface Props {
@@ -443,12 +447,13 @@ export function ContentSection({
               Hiện tại: <span className="font-medium text-slate-600">{edit.currentContentTitle}</span>
             </p>
           )}
+          {edit.hint && <p className="mt-2 text-xs text-slate-500 pl-1">{edit.hint}</p>}
         </div>
       ) : (
         <div className="p-5 space-y-4">
           <div>
             <p className="text-base font-bold text-gray-900 leading-snug">
-              {view.contentTitle || <span className="text-gray-400 font-normal italic">Chưa có tiêu đề</span>}
+              {view.contentTitle || view.emptyTitle || <span className="text-gray-400 font-normal italic">Chưa có tiêu đề</span>}
             </p>
             <div className="flex flex-wrap gap-2 mt-2">
               {view.contentMarket && (
