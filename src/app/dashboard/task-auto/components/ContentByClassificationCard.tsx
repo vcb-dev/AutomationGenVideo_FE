@@ -7,8 +7,7 @@ import {
   UNCLASSIFIED_COLOR,
   UNCLASSIFIED_LABEL,
 } from '@/components/dashboard/a5/shared/classification-colors'
-import { DashboardCard, PeriodBadge } from './DashboardUI'
-import { CATEGORY } from './tokens'
+import { DashboardCard } from './DashboardUI'
 
 interface ClassificationDatum { classification: string; count: number }
 
@@ -40,10 +39,9 @@ function ClsTooltip({ active, payload, total }: any) {
  * đặt, dài ngắn tuỳ ý). Song song với biểu đồ cùng tên ở dashboard admin/leader, chỉ khác `where` ở BE.
  */
 export function ContentByClassificationCard({
-  data, periodLabel, subtitle = 'Của tôi',
+  data, subtitle = 'Của tôi',
 }: {
   data?: ClassificationDatum[]
-  periodLabel?: string
   subtitle?: string
 }) {
   const rows = (data ?? []).filter(d => d.count > 0)
@@ -78,16 +76,14 @@ export function ContentByClassificationCard({
 
   return (
     <DashboardCard
-      icon={FileText} iconColor={CATEGORY.content.text} iconBg={CATEGORY.content.bg}
       title="Content theo phân loại"
       subtitle={subtitle}
-      right={periodLabel ? <PeriodBadge label={periodLabel} /> : undefined}
       className="flex flex-col"
     >
       {total === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center text-slate-400 py-12">
-          <FileText className="w-8 h-8 mb-2 opacity-20" aria-hidden />
-          <p className="text-sm">Chưa có task nào trong kỳ này</p>
+          <FileText className="w-8 h-8 mb-2 opacity-40" aria-hidden />
+          <p className="text-sm text-slate-500">Chưa có task nào trong kỳ này</p>
         </div>
       ) : (
         <div className="px-5 pt-4 pb-5 flex-1 flex flex-col">
@@ -114,18 +110,18 @@ export function ContentByClassificationCard({
               </PieChart>
             </ResponsiveContainer>
             <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-2xl font-extrabold leading-none text-slate-900 tabular-nums">{total}</span>
-              <span className="text-[11px] text-slate-400">task</span>
+              <span className="text-2xl font-bold leading-none text-slate-900 tabular-nums">{total}</span>
+              <span className="mt-1 text-xs text-slate-500">task</span>
             </div>
           </div>
 
-          <ul className="mt-4 flex-1 flex flex-col gap-1.5 overflow-y-auto custom-scrollbar">
+          <ul className="mt-4 flex-1 flex flex-col overflow-y-auto custom-scrollbar">
             {chartData.map(d => (
-              <li key={d.name} className="flex items-center gap-2.5 text-sm">
-                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: d.color }} />
-                <span className="flex-1 min-w-0 truncate text-slate-600">{d.name}</span>
-                <span className="shrink-0 font-bold tabular-nums text-slate-700">{d.value}</span>
-                <span className="shrink-0 text-xs tabular-nums text-slate-500">{pct(d.value, total)}%</span>
+              <li key={d.name} className="flex items-center gap-2.5 py-1.5 text-sm border-b border-slate-100 last:border-0">
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: d.color }} aria-hidden />
+                <span className="flex-1 min-w-0 truncate text-slate-700" title={d.name}>{d.name}</span>
+                <span className="shrink-0 font-semibold tabular-nums text-slate-900">{d.value}</span>
+                <span className="w-11 shrink-0 text-right text-xs tabular-nums text-slate-500">{pct(d.value, total)}%</span>
               </li>
             ))}
           </ul>

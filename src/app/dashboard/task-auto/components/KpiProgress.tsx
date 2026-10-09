@@ -1,19 +1,19 @@
 'use client'
 
 import { RadialBarChart, RadialBar, ResponsiveContainer } from 'recharts'
-import { CheckCircle2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { TONE, kpiTone, type Tone } from './tokens'
 
 const STATUS_LABEL: Record<Tone, string> = {
-  success: 'Đạt mục tiêu!',
-  brand: 'Gần đạt',
-  warning: 'Đang tiến hành',
-  danger: 'Cần cố gắng',
+  success: 'Đã đạt mục tiêu',
+  brand: 'Đúng tiến độ',
+  warning: 'Cần tăng tốc',
+  danger: 'Đang chậm',
   info: '', neutral: '', violet: '',
 }
 
-export function KpiProgress({ completed, total_target }: { completed: number; total_target: number }) {
+/** Vòng tiến độ KPI tháng + số đạt/mục tiêu + nhãn trạng thái bằng chữ (không chỉ dựa vào màu). */
+export function KpiProgress({ completed, total_target, unit = 'video' }: { completed: number; total_target: number; unit?: string }) {
   const pct = total_target > 0 ? Math.min(100, Math.round((completed / total_target) * 100)) : 0
   const tone = kpiTone(pct)
   const t = TONE[tone]
@@ -21,42 +21,33 @@ export function KpiProgress({ completed, total_target }: { completed: number; to
 
   return (
     <div className="flex items-center gap-5">
-      {/* Radial chart */}
-      <div className="relative w-24 h-24 shrink-0">
+      <div className="relative w-28 h-28 shrink-0" role="img" aria-label={`Đạt ${pct}% KPI tháng`}>
         <ResponsiveContainer width="100%" height="100%">
           <RadialBarChart
-            cx="50%"
-            cy="50%"
-            innerRadius="68%"
-            outerRadius="100%"
-            startAngle={90}
-            endAngle={-270}
-            data={data}
-            barSize={10}
+            cx="50%" cy="50%"
+            innerRadius="74%" outerRadius="100%"
+            startAngle={90} endAngle={-270}
+            data={data} barSize={10}
           >
-            <RadialBar
-              background={{ fill: '#f1f5f9' }}
-              dataKey="value"
-              cornerRadius={6}
-            />
+            <RadialBar background={{ fill: '#f1f5f9' }} dataKey="value" cornerRadius={6} />
           </RadialBarChart>
         </ResponsiveContainer>
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <span className={cn('text-lg font-extrabold leading-none', t.text)}>{pct}%</span>
+          <span className="text-2xl font-bold leading-none tabular-nums text-slate-900">{pct}%</span>
+          <span className="mt-1 text-[11px] text-slate-500">hoàn thành</span>
         </div>
       </div>
 
-      {/* Info */}
-      <div>
-        <p className="text-xs text-slate-400 mb-0.5">Tiến độ KPI</p>
-        <div className="flex items-baseline gap-1.5">
-          <span className="text-3xl font-extrabold text-slate-900 leading-none">{completed}</span>
-          <span className="text-sm text-slate-400">/ {total_target} task</span>
-        </div>
-        <p className={cn('flex items-center gap-1 text-xs font-semibold mt-1.5', t.text)}>
-          {pct >= 100 && <CheckCircle2 className="w-3.5 h-3.5" />}
-          {STATUS_LABEL[tone]}
+      <div className="min-w-0">
+        <p className="text-xs font-medium text-slate-500">Đã duyệt / mục tiêu</p>
+        <p className="mt-1 flex items-baseline gap-1.5">
+          <span className="text-3xl font-bold leading-none tabular-nums text-slate-900">{completed.toLocaleString('vi-VN')}</span>
+          <span className="text-sm text-slate-500 tabular-nums">/ {total_target.toLocaleString('vi-VN')} {unit}</span>
         </p>
+        <span className={cn('mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold', t.bg, t.text)}>
+          <span className={cn('h-1.5 w-1.5 rounded-full', t.dot)} aria-hidden />
+          {STATUS_LABEL[tone]}
+        </span>
       </div>
     </div>
   )
