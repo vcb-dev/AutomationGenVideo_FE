@@ -42,6 +42,19 @@ describe('fetchWithAuth', () => {
         }) as any;
     }
 
+    it('gửi kèm trang đang mở (X-Client-Page) để BE ghi chi phí TikHub/Gemini đúng trang, không đè header bên gọi', async () => {
+        window.history.pushState({}, '', '/dashboard/internalChannels');
+        let headers: Record<string, string> = {};
+        global.fetch = jest.fn(async (_input: any, init: any) => {
+            headers = init.headers;
+            return response(200);
+        }) as any;
+
+        await fetchWithAuth('/api/scraper/tiktok/profiles/9/scrape', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+
+        expect(headers).toMatchObject({ 'X-Client-Page': '/dashboard/internalChannels', 'Content-Type': 'application/json' });
+    });
+
     it('tự động gắn credentials: include để gửi HttpOnly cookie', async () => {
         stubFetch(200);
 

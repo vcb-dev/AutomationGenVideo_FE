@@ -144,7 +144,7 @@ function TaskRow({ task }: { task: Task }) {
 const TASK_LIST_MAX_H = 'max-h-80'
 
 function DailyProgress({ userId, dailyKpiTarget = 0 }: { userId: string; dailyKpiTarget?: number }) {
-  const today = new Date().toISOString().split('T')[0]
+  const today = new Date().toLocaleDateString('en-CA')
   const rawDateLabel = new Date().toLocaleDateString('vi-VN', {
     weekday: 'long', day: 'numeric', month: 'numeric',
   })

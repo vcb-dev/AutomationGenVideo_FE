@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { ListTodo, Users, User, Loader2, Sparkles, X, ChevronDown } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
@@ -29,8 +29,10 @@ const PRESETS: { key: DatePreset; label: string }[] = [
   { key: 'custom',     label: 'Tùy chọn' },
 ]
 
+// Ngày lịch theo giờ máy (VN), KHÔNG dùng toISOString(): nó đổi sang UTC nên mốc 00:00 ngày 1 bị
+// lùi về ngày cuối tháng trước ("Tháng này" kéo theo ngày 30, "Tháng trước" mất ngày cuối tháng).
 function fmt(d: Date) {
-  return d.toISOString().split('T')[0]
+  return d.toLocaleDateString('en-CA')
 }
 
 function formatVNDate(iso: string) {
@@ -143,15 +145,18 @@ function dedupeMembers(members: TeamMember[]): TeamMember[] {
 interface ScopeSelectProps {
   value: string
   placeholder: string
+  /** Không có nhãn hiển thị (placeholder chỉ là lựa chọn "tất cả") nên cần nhãn cho trình đọc màn hình. */
+  ariaLabel: string
   options: { value: string; label: string }[]
   onChange: (v: string) => void
 }
 
-function ScopeSelect({ value, placeholder, options, onChange }: ScopeSelectProps) {
+function ScopeSelect({ value, placeholder, ariaLabel, options, onChange }: ScopeSelectProps) {
   return (
     <div className="relative">
       <select
         value={value}
+        aria-label={ariaLabel}
         onChange={e => onChange(e.target.value)}
         className="appearance-none text-sm font-semibold border border-slate-200 rounded-lg pl-3.5 pr-8 py-2 text-slate-600 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-300 max-w-[180px] truncate cursor-pointer"
       >
@@ -181,18 +186,51 @@ function ScopeFilter({ teams, teamId, memberId, onTeamChange, onMemberChange }: 
       <ScopeSelect
         value={teamId}
         placeholder="Tất cả team"
+        ariaLabel="Lọc theo team"
         options={teams.map(t => ({ value: t.id, label: t.name }))}
         onChange={onTeamChange}
       />
       <ScopeSelect
         value={memberId}
         placeholder="Tất cả thành viên"
+        ariaLabel="Lọc theo thành viên"
         options={memberOptions.map(m => ({ value: m.user_id, label: m.user?.full_name ?? m.user_id }))}
         onChange={onMemberChange}
       />
       {hasFilter && (
         <button
           onClick={() => { onTeamChange(''); onMemberChange('') }}
+          className="flex items-center gap-1 text-sm font-semibold text-slate-400 hover:text-slate-600"
+        >
+          <X className="w-3.5 h-3.5" /> Xoá lọc
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ── Lọc thành viên trong team — LEADER (scope team) ───────────────────────────────────────────
+
+interface TeamMemberFilterProps {
+  /** `member_options` từ BE — đã lọc đúng quy tắc ẩn/hiện như bảng "Thành viên". */
+  options: { user_id: string; full_name: string }[]
+  memberId: string
+  onChange: (id: string) => void
+}
+
+function TeamMemberFilter({ options, memberId, onChange }: TeamMemberFilterProps) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <ScopeSelect
+        value={memberId}
+        placeholder="Cả team"
+        ariaLabel="Xem số liệu của thành viên"
+        options={options.map(m => ({ value: m.user_id, label: m.full_name || m.user_id }))}
+        onChange={onChange}
+      />
+      {memberId && (
+        <button
+          onClick={() => onChange('')}
           className="flex items-center gap-1 text-sm font-semibold text-slate-400 hover:text-slate-600"
         >
           <X className="w-3.5 h-3.5" /> Xoá lọc
@@ -212,7 +250,8 @@ export default function TaskAutoDashboard() {
   const [customFrom, setCustomFrom]   = useState(firstOfMonth)
   const [customTo, setCustomTo]       = useState(today)
 
-  // Chỉ có tác dụng ở scope global (ADMIN/MANAGER) — BE bỏ qua 2 tham số này ở nhánh LEADER/MEMBER.
+  // teamFilter chỉ dùng ở scope global (ADMIN/MANAGER). memberFilter dùng cho cả global lẫn LEADER
+  // (BE chỉ nhận thành viên team leader đang lead); MEMBER thì BE bỏ qua cả 2.
   const [teamFilter, setTeamFilter]     = useState('')
   const [memberFilter, setMemberFilter] = useState('')
 
@@ -222,11 +261,14 @@ export default function TaskAutoDashboard() {
 
   const periodLabel = getPeriodLabel(preset, from, to)
 
-  const { data, isLoading } = useQuery({
+  // keepPreviousData: đổi ngày/thành viên thì giữ số liệu cũ (làm mờ) tới khi có số mới, thay vì
+  // nháy về spinner — tránh luôn việc thanh lọc (phụ thuộc data.scope) biến mất giữa chừng.
+  const { data, isLoading, isPlaceholderData } = useQuery({
     queryKey: ['task-auto', 'dashboard', from, to, teamFilter, memberFilter],
     queryFn:  () => getDashboard({ date_from: from, date_to: to, team_id: teamFilter || undefined, assignee_id: memberFilter || undefined }),
     refetchInterval: 30_000,
     enabled: !!(from && to),
+    placeholderData: keepPreviousData,
   })
 
   // Tải riêng khỏi getDashboard() — cùng bộ lọc ngày/team/thành viên, nhưng độc lập với payload
@@ -236,6 +278,7 @@ export default function TaskAutoDashboard() {
     queryFn:  () => getProductVideoStats({ date_from: from, date_to: to, team_id: teamFilter || undefined, assignee_id: memberFilter || undefined }),
     refetchInterval: 30_000,
     enabled: !!(from && to),
+    placeholderData: keepPreviousData,
   })
 
   // Content Team (team_kind=CONTENT) có Tổng quan riêng — không dùng dashboard theo task/KPI video
@@ -264,12 +307,15 @@ export default function TaskAutoDashboard() {
   const scopeLabel = isContentLeader ? (contentTeamsLed.length === 1 ? `Content Team: ${contentTeamsLed[0].name}` : 'Content Team')
     : isContentMember ? 'Content Creator'
     : data?.scope === 'global' ? globalScopeLabel
-    : data?.scope === 'team' ? (data.team ? `Team: ${data.team.name}` : 'Team của tôi')
+    : data?.scope === 'team' ? (
+        data.focus_member ? `Thành viên: ${data.focus_member.full_name}`
+        : data.team ? `Team: ${data.team.name}` : 'Team của tôi'
+      )
     : 'Cá nhân'
 
   const scopeIcon = isContentLeader || isContentMember
     ? <Sparkles className="w-4 h-4" />
-    : data?.scope === 'personal'
+    : data?.scope === 'personal' || (data?.scope === 'team' && data.focus_member)
     ? <User className="w-4 h-4" />
     : <Users className="w-4 h-4" />
 
@@ -330,6 +376,14 @@ export default function TaskAutoDashboard() {
               onMemberChange={setMemberFilter}
             />
           )}
+
+          {data?.scope === 'team' && !isContentLeader && (data.member_options?.length ?? 0) > 0 && (
+            <TeamMemberFilter
+              options={data.member_options ?? []}
+              memberId={memberFilter}
+              onChange={setMemberFilter}
+            />
+          )}
         </div>
       )}
 
@@ -347,11 +401,16 @@ export default function TaskAutoDashboard() {
           to={to}
           teamName={teams?.find(t => t.team_kind === 'CONTENT' && t.members?.some(m => m.user_id === user.id))?.name}
         />
-      ) : !data ? null
-        : data.scope === 'global' ? <GlobalDashboard d={buildGlobal(data)} periodLabel={periodLabel} scopeLabel={globalScopeLabel} productStats={productStats} />
-        : data.scope === 'team'   ? <TeamDashboard d={data} periodLabel={periodLabel} productStats={productStats} />
-        : <PersonalDashboard d={data} periodLabel={periodLabel} productStats={productStats} />
-      }
+      ) : !data ? null : (
+        <div
+          aria-busy={isPlaceholderData}
+          className={cn('transition-opacity duration-200', isPlaceholderData && 'opacity-60')}
+        >
+          {data.scope === 'global' ? <GlobalDashboard d={buildGlobal(data)} periodLabel={periodLabel} scopeLabel={globalScopeLabel} productStats={productStats} />
+            : data.scope === 'team'   ? <TeamDashboard d={data} periodLabel={periodLabel} productStats={productStats} />
+            : <PersonalDashboard d={data} periodLabel={periodLabel} productStats={productStats} />}
+        </div>
+      )}
 
       {/* Content Win/Fail — chỉ số MỚI, tự tính từ view link bài đăng (1 link bất kỳ >10.000 view = win), tách biệt các số KPI nhập tay ở trên */}
       {!(isLoading || teamsLoading) && showEditorDailyPlan ? (
@@ -381,6 +440,7 @@ export default function TaskAutoDashboard() {
           fixedUserId={
             isContentMember || data?.scope === 'personal' ? user?.id
               : data?.scope === 'global' ? (memberFilter || undefined)
+              : data?.scope === 'team' ? data.focus_member?.user_id
               : undefined
           }
           showGlobalTop={data?.scope === 'global'}

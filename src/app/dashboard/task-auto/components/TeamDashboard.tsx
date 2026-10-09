@@ -20,7 +20,11 @@ function formatMonth(yyyymm: string) {
 
 // ─── Team Performance Summary ────────────────────────────────────────────────
 
-function TeamPerformanceSummary({ tasks, members, periodLabel }: { tasks: any; members: any[]; periodLabel: string }) {
+function TeamPerformanceSummary({ tasks, members, periodLabel, focusName }: {
+  tasks: any; members: any[]; periodLabel: string
+  /** Đang lọc 1 thành viên — "Đang hoạt động x/1" vô nghĩa nên đổi sang số task đang làm. */
+  focusName?: string
+}) {
   const total    = tasks.total ?? 0
   const approved = tasks.approved ?? 0
   const rejected = tasks.rejected ?? 0
@@ -31,7 +35,7 @@ function TeamPerformanceSummary({ tasks, members, periodLabel }: { tasks: any; m
   return (
     <DashboardCard
       icon={BarChart3} iconColor="text-blue-600" iconBg="bg-blue-50"
-      title="Hiệu suất Team"
+      title={focusName ? `Hiệu suất — ${focusName}` : 'Hiệu suất Team'}
       right={<PeriodBadge label={periodLabel} />}
     >
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-4">
@@ -48,10 +52,17 @@ function TeamPerformanceSummary({ tasks, members, periodLabel }: { tasks: any; m
           icon={XCircle} label="Bị từ chối" value={rejected} sub="cần xử lý lại"
           tone="danger" active={rejected > 0}
         />
-        <MetricStat
-          icon={Activity} label="Đang hoạt động" value={activeMembers} sub={`/ ${members.length} thành viên`}
-          tone="brand"
-        />
+        {focusName ? (
+          <MetricStat
+            icon={Activity} label="Đang làm" value={tasks.in_progress ?? 0} sub="task đang thực hiện"
+            tone="warning" active={(tasks.in_progress ?? 0) > 0}
+          />
+        ) : (
+          <MetricStat
+            icon={Activity} label="Đang hoạt động" value={activeMembers} sub={`/ ${members.length} thành viên`}
+            tone="brand"
+          />
+        )}
       </div>
 
       <div className="px-5 pb-4 pt-1">
@@ -124,12 +135,15 @@ export function TeamDashboard({ d, periodLabel, productStats }: {
   const tasks: any    = d.tasks ?? { total: 0 }
   const members: any[] = d.members ?? []
   const kpi = d.kpi
+  // Dropdown "Thành viên" ở page.tsx — BE đã thu hẹp mọi số liệu về người này, chỉ cần đổi nhãn.
+  const focusName: string | undefined = d.focus_member?.full_name || undefined
+  const scopeName: string | undefined = focusName ?? d.team?.name
 
   return (
     <div className="space-y-5">
 
       {/* ── Team Performance ── */}
-      <TeamPerformanceSummary tasks={tasks} members={members} periodLabel={periodLabel} />
+      <TeamPerformanceSummary tasks={tasks} members={members} periodLabel={periodLabel} focusName={focusName} />
 
       {/* ── Phân bố trạng thái | Video theo tuyến nội dung ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -149,7 +163,7 @@ export function TeamDashboard({ d, periodLabel, productStats }: {
             <div className="mx-4 mb-4 flex items-center gap-2 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
               <XCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />
               <span className="text-xs text-red-600 font-semibold">
-                {tasks.rejected} task bị từ chối — nhắc thành viên xử lý lại
+                {tasks.rejected} task bị từ chối — {focusName ? `nhắc ${focusName} xử lý lại` : 'nhắc thành viên xử lý lại'}
               </span>
             </div>
           )}
@@ -159,7 +173,7 @@ export function TeamDashboard({ d, periodLabel, productStats }: {
         <VideoByLineCard
           data={d.video_by_line}
           periodLabel={periodLabel}
-          subtitle={d.team?.name}
+          subtitle={scopeName}
         />
 
       </div>
@@ -171,7 +185,7 @@ export function TeamDashboard({ d, periodLabel, productStats }: {
           data={(productStats?.video_by_product_line ?? []).map(p => ({ line: p.category, count: p.count }))}
           periodLabel={periodLabel}
           title="Video theo dòng sản phẩm"
-          subtitle={d.team?.name}
+          subtitle={scopeName}
           icon={Video} iconColor={CATEGORY.video.text} iconBg={CATEGORY.video.bg}
           itemLabel="Dòng" unitLabel="video đã duyệt"
           emptyLabel="Chưa có video nào được duyệt theo dòng sản phẩm"
@@ -182,7 +196,7 @@ export function TeamDashboard({ d, periodLabel, productStats }: {
           byLine={productStats?.products_with_video_by_line ?? []}
           total={productStats?.products_with_video ?? 0}
           periodLabel={periodLabel}
-          scopeLabel={d.team?.name ?? 'Team'}
+          scopeLabel={scopeName ?? 'Team'}
         />
 
       </div>
@@ -191,14 +205,17 @@ export function TeamDashboard({ d, periodLabel, productStats }: {
       {kpi && (
         <DashboardCard
           icon={Target} iconColor="text-indigo-600" iconBg="bg-indigo-50"
-          title={`KPI Team — ${formatMonth(kpi.month)}`}
+          title={`${focusName ? `KPI — ${focusName}` : 'KPI Team'} — ${formatMonth(kpi.month)}`}
           action={{ href: '/dashboard/task-auto/kpi', label: 'Xem KPI' }}
         >
           <div className="px-5 py-4 space-y-4">
             {/* Progress circle */}
             <div className="p-4 bg-gradient-to-br from-indigo-50 to-slate-50 rounded-xl border border-indigo-100/60 space-y-3">
               <KpiProgress completed={kpi.completed} total_target={kpi.total_target} />
-              <MonthPacingHint completed={kpi.completed} target={kpi.total_target} achievedLabel="Team đã đạt KPI tháng này!" />
+              <MonthPacingHint
+                completed={kpi.completed} target={kpi.total_target}
+                achievedLabel={focusName ? `${focusName} đã đạt KPI tháng này!` : 'Team đã đạt KPI tháng này!'}
+              />
             </div>
 
             {/* KPI targets breakdown */}
