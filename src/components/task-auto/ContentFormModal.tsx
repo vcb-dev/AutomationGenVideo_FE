@@ -343,9 +343,12 @@ interface ContentFormModalProps {
   initialMarket?: string
   /** Preset tuyến khi mở form tạo mới từ 1 cột cụ thể của board — bỏ qua khi đang sửa content có sẵn */
   initialContentLineId?: string
+  /** Giá trị điền sẵn khi tạo mới (vd. content đang viết dở trong modal tạo nhiệm vụ) — phải là object
+   *  ổn định (state/memo), đổi identity sẽ reset form. Bỏ qua khi đang sửa content có sẵn. */
+  initialValues?: Partial<Pick<Content, 'title' | 'code' | 'body' | 'content_line_id' | 'classification_id'>>
 }
 
-export function ContentFormModal({ open, editing, onClose, onSuccess, userId, teamId, brandType, initialMarket, initialContentLineId }: ContentFormModalProps) {
+export function ContentFormModal({ open, editing, onClose, onSuccess, userId, teamId, brandType, initialMarket, initialContentLineId, initialValues }: ContentFormModalProps) {
   const qc = useQueryClient()
   const isEdit = !!editing
 
@@ -368,12 +371,12 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
         setForm({ ...editing })
         setMarket(editing.market ?? initialMarket ?? 'VIETNAM')
       } else {
-        setForm({ code: '', title: '', body: '', script: '', file_content_url: '', voice_url: '', content_line_id: initialContentLineId ?? '', classification_id: '' })
+        setForm({ code: '', title: '', body: '', script: '', file_content_url: '', voice_url: '', content_line_id: initialContentLineId ?? '', classification_id: '', ...initialValues })
         setMarket(initialMarket ?? 'VIETNAM')
       }
       setScoreCache(null)
     }
-  }, [open, editing, initialMarket, initialContentLineId])
+  }, [open, editing, initialMarket, initialContentLineId, initialValues])
 
   const { data: contentLines, isLoading: loadingContentLines } = useQuery({
     queryKey: ['task-auto', 'content-lines'],
@@ -547,7 +550,7 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
                     : 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed',
                 )}
               >
-                <Gauge className="w-3.5 h-3.5" /> Chấm điểm content
+                <Gauge className="w-3.5 h-3.5" /> Chấm điểm nội dung
               </button>
             </div>
             <DarkTextarea

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useId, useLayoutEffect, forwardRef } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronDown, Search, X, Plus, Loader2, Check, ImageIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -24,14 +24,14 @@ interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
 const baseInput = 'w-full bg-white border border-gray-200 rounded-xl px-4 py-3.5 text-base text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors disabled:opacity-50 disabled:bg-gray-50'
 const labelClass = 'block text-base font-semibold text-slate-700 mb-2'
 
-export function DarkInput({ label, className, ...props }: InputProps) {
+export const DarkInput = forwardRef<HTMLInputElement, InputProps>(function DarkInput({ label, className, ...props }, ref) {
   return (
     <div>
       {label && <label className={labelClass}>{label}</label>}
-      <input className={cn(baseInput, className)} {...props} />
+      <input ref={ref} className={cn(baseInput, className)} {...props} />
     </div>
   )
-}
+})
 
 export function DarkSelect({ label, className, children, ...props }: SelectProps) {
   return (
@@ -245,6 +245,18 @@ interface ServerSearchSelectProps {
   createLabel?: string
   onCreateClick?: () => void
   filterSlot?: React.ReactNode
+  /** Hiện trên ô chọn khi `value` không nằm trong `items` (giá trị điền sẵn, hoặc danh sách đang lọc/tìm thứ khác) */
+  selectedItem?: SearchItem | null
+  /** Đánh dấu `data-autofocus` để DarkModal focus ô này đầu tiên khi mở */
+  autoFocus?: boolean
+  /** Chọn nhiều: các giá trị đang chọn (đánh dấu ✓ trong danh sách) — đi kèm `keepOpenOnSelect` */
+  selectedValues?: string[]
+  /** Không đóng danh sách sau mỗi lần chọn (chọn nhiều liên tiếp) */
+  keepOpenOnSelect?: boolean
+  /** Ô chọn nhỏ gọn — đặt trong từng dòng của 1 danh sách */
+  compact?: boolean
+  /** Tên truy cập khi không có `label` hiển thị (vd. "Sản phẩm cho content X") */
+  ariaLabel?: string
 }
 
 export function ServerSearchSelect({
@@ -262,11 +274,25 @@ export function ServerSearchSelect({
   createLabel,
   onCreateClick,
   filterSlot,
+  selectedItem,
+  autoFocus,
+  selectedValues,
+  keepOpenOnSelect,
+  compact,
+  ariaLabel,
 }: ServerSearchSelectProps) {
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLUListElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0, openUp: false })
+  // Dòng đang trỏ bằng phím ↑/↓ — Enter chọn dòng này. Về đầu danh sách mỗi lần gõ/mở lại.
+  const [activeIndex, setActiveIndex] = useState(0)
+  const baseId = useId()
+  const triggerId = `${baseId}-trigger`
+  const listId = `${baseId}-list`
+  const optionId = (i: number) => `${baseId}-opt-${i}`
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -277,39 +303,97 @@ export function ServerSearchSelect({
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
+  useEffect(() => { setActiveIndex(0) }, [searchValue, open])
+  useEffect(() => {
+    if (open) listRef.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' })
+  }, [activeIndex, open])
+
   const selected = items.find(i => i.value === value)
+    ?? (value && selectedItem?.value === value ? selectedItem : undefined)
+  const active = Math.min(activeIndex, items.length - 1)
+
+  function calcPos() {
+    if (!triggerRef.current) return
+    const r = triggerRef.current.getBoundingClientRect()
+    const DROPDOWN_H = 320
+    const spaceBelow = window.innerHeight - r.bottom
+    const openUp = spaceBelow < DROPDOWN_H && r.top > DROPDOWN_H
+    setPos({ top: openUp ? r.top - DROPDOWN_H - 4 : r.bottom + 4, left: r.left, width: r.width, openUp })
+  }
+
+  // Chọn nhiều: form cha mọc thêm chip sau mỗi lần chọn → modal cao lên, tự căn giữa lại, ô chọn
+  // dịch chỗ — bám lại theo ô chọn để danh sách không lệch/đè lên nội dung bên dưới.
+  const selectedCount = selectedValues?.length
+  useLayoutEffect(() => {
+    if (open && selectedCount !== undefined) calcPos()
+  }, [open, selectedCount])
 
   function handleOpen() {
-    if (triggerRef.current) {
-      const r = triggerRef.current.getBoundingClientRect()
-      const DROPDOWN_H = 320
-      const spaceBelow = window.innerHeight - r.bottom
-      const openUp = spaceBelow < DROPDOWN_H && r.top > DROPDOWN_H
-      setPos({ top: openUp ? r.top - DROPDOWN_H - 4 : r.bottom + 4, left: r.left, width: r.width, openUp })
-    }
+    calcPos()
     setOpen(o => !o)
   }
 
   function select(v: string) {
     onChange(v)
+    if (keepOpenOnSelect) return
     setOpen(false)
+    // Ô tìm kiếm trong portal biến mất — trả focus về ô chọn để Tab đi tiếp trong form/modal
+    triggerRef.current?.focus()
+  }
+
+  function closeToTrigger() {
+    setOpen(false)
+    triggerRef.current?.focus()
+  }
+
+  function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setActiveIndex(i => Math.min(i + 1, items.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActiveIndex(i => Math.max(i - 1, 0))
+    } else if (e.key === 'Enter') {
+      // ⌘/Ctrl+Enter để form cha xử lý (vd. tạo nhanh), không coi là chọn dòng. Enter lúc bộ gõ
+      // (Telex/VNI) đang ghép chữ là để chốt chữ, cũng bỏ qua.
+      if (e.metaKey || e.ctrlKey || e.nativeEvent.isComposing) return
+      e.preventDefault()
+      if (!loading && items[active]) select(items[active].value)
+    } else if (e.key === 'Escape') {
+      // Chỉ đóng danh sách — không để DarkModal (nghe keydown ở document) đóng luôn cả modal
+      e.preventDefault()
+      e.nativeEvent.stopImmediatePropagation()
+      closeToTrigger()
+    } else if (e.key === 'Tab') {
+      // Danh sách nằm trong portal ngoài modal — Tab tiếp sẽ rơi khỏi modal, nên quay về ô chọn
+      e.preventDefault()
+      closeToTrigger()
+    }
   }
 
   return (
     <div>
       {label && (
-        <label className={labelClass}>
+        <label htmlFor={triggerId} className={labelClass}>
           {label}{required && <span className="text-red-500 ml-0.5">*</span>}
         </label>
       )}
 
       <button
         ref={triggerRef}
+        id={triggerId}
         type="button"
         onClick={handleOpen}
+        // ↓ mở danh sách — form cha có thể dành Enter cho việc khác (vd. Enter = tạo nhiệm vụ)
+        onKeyDown={e => { if (e.key === 'ArrowDown' && !open) { e.preventDefault(); handleOpen() } }}
+        data-autofocus={autoFocus || undefined}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={ariaLabel ? `${ariaLabel}: ${selected ? selected.label : placeholder}` : undefined}
         className={cn(
           baseInput,
           'flex items-center justify-between gap-2 text-left cursor-pointer',
+          compact && 'px-3 py-2 text-sm rounded-lg',
           open && 'ring-2 ring-indigo-500 border-indigo-500'
         )}
       >
@@ -338,14 +422,25 @@ export function ServerSearchSelect({
             'min-w-[240px] bg-white border border-gray-200 shadow-xl overflow-hidden',
             pos.openUp ? 'rounded-t-xl' : 'rounded-xl'
           )}
+          // Bấm dòng/tab kho trong danh sách không cướp focus khỏi ô tìm kiếm — giữ được ↑/↓/Enter/Esc
+          // (nhất là khi chọn nhiều, danh sách vẫn mở sau mỗi lần bấm). Click vẫn chạy bình thường.
+          onMouseDown={e => { if (e.target !== searchInputRef.current) e.preventDefault() }}
         >
           <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100">
-            <Search className="w-4 h-4 text-slate-400 shrink-0" />
+            <Search className="w-4 h-4 text-slate-400 shrink-0" aria-hidden="true" />
             <input
+              ref={searchInputRef}
               autoFocus
               value={searchValue}
               onChange={e => onSearchChange(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
               placeholder={searchPlaceholder}
+              role="combobox"
+              aria-label={searchPlaceholder}
+              aria-expanded="true"
+              aria-controls={listId}
+              aria-autocomplete="list"
+              aria-activedescendant={!loading && items.length ? optionId(active) : undefined}
               className="flex-1 text-sm text-slate-800 placeholder-slate-400 outline-none bg-transparent"
             />
             {searchValue && (
@@ -359,10 +454,11 @@ export function ServerSearchSelect({
               {filterSlot}
             </div>
           )}
-          <ul className="max-h-48 overflow-y-auto py-1">
+          <ul ref={listRef} id={listId} role="listbox" aria-multiselectable={selectedValues ? true : undefined}
+            className="max-h-48 overflow-y-auto py-1">
             {clearLabel && (
-              <li>
-                <button type="button" onClick={() => select('')}
+              <li role="none">
+                <button type="button" role="option" aria-selected={!value} onClick={() => select('')}
                   className={cn('w-full text-left px-4 py-2.5 text-sm transition-colors',
                     !value ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-slate-500 hover:bg-gray-50')}>
                   {clearLabel}
@@ -370,32 +466,50 @@ export function ServerSearchSelect({
               </li>
             )}
             {loading ? (
-              <li className="px-4 py-3 text-sm text-slate-400">Đang tải...</li>
+              <li role="none" className="px-4 py-3 text-sm text-slate-400">Đang tải...</li>
             ) : items.length === 0 ? (
-              <li className="px-4 py-3 text-sm text-slate-400 italic">
+              <li role="none" className="px-4 py-3 text-sm text-slate-400 italic">
                 {searchValue ? 'Không tìm thấy kết quả' : 'Nhập từ khoá để tìm kiếm'}
               </li>
             ) : (
-              items.map(item => (
-                <li key={item.value}>
-                  <button type="button" onClick={() => select(item.value)}
-                    className={cn('w-full flex items-center gap-2.5 text-left px-4 py-2.5 text-sm transition-colors',
-                      value === item.value
-                        ? 'bg-indigo-50 text-indigo-700 font-semibold'
-                        : 'text-slate-700 hover:bg-gray-50')}>
-                    {item.image !== undefined && <SearchItemThumb src={item.image} size="md" />}
-                    <span className="flex-1 min-w-0">
-                      <span className="block leading-tight truncate">{item.label}</span>
-                      {item.sublabel && <span className="block text-xs text-slate-400 mt-0.5 truncate">{item.sublabel}</span>}
-                    </span>
-                    {item.meta != null && (
-                      <span className="shrink-0 text-[11px] font-semibold whitespace-nowrap text-slate-400">
-                        {item.meta}
+              items.map((item, i) => {
+                const isSelected = selectedValues ? selectedValues.includes(item.value) : value === item.value
+                return (
+                  <li key={item.value} role="none">
+                    <button type="button" role="option" id={optionId(i)} aria-selected={isSelected}
+                      data-active={i === active || undefined}
+                      tabIndex={-1}
+                      onClick={() => select(item.value)}
+                      onMouseEnter={() => setActiveIndex(i)}
+                      className={cn('w-full flex items-center gap-2.5 text-left px-4 py-2.5 text-sm transition-colors',
+                        isSelected
+                          ? 'bg-indigo-50 text-indigo-700 font-semibold'
+                          : 'text-slate-700 hover:bg-gray-50',
+                        // Dòng đang trỏ bằng bàn phím — viền trái thay vì đổi nền để không lẫn với dòng đã chọn
+                        i === active && 'shadow-[inset_3px_0_0_0_theme(colors.indigo.500)]',
+                        i === active && !isSelected && 'bg-gray-50')}>
+                      {selectedValues && (
+                        <span aria-hidden="true" className={cn(
+                          'w-4 h-4 shrink-0 rounded border flex items-center justify-center',
+                          isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-300 bg-white',
+                        )}>
+                          {isSelected && <Check className="w-3 h-3" />}
+                        </span>
+                      )}
+                      {item.image !== undefined && <SearchItemThumb src={item.image} size="md" />}
+                      <span className="flex-1 min-w-0">
+                        <span className="block leading-tight truncate">{item.label}</span>
+                        {item.sublabel && <span className="block text-xs text-slate-400 mt-0.5 truncate">{item.sublabel}</span>}
                       </span>
-                    )}
-                  </button>
-                </li>
-              ))
+                      {item.meta != null && (
+                        <span className="shrink-0 text-[11px] font-semibold whitespace-nowrap text-slate-400">
+                          {item.meta}
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                )
+              })
             )}
           </ul>
           {createLabel && onCreateClick && (

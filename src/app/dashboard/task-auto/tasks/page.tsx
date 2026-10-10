@@ -8,7 +8,8 @@ import { Users, User, LayoutGrid, Kanban, FileClock, Rows3, Gauge, CheckCircle2 
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth-store'
 
-import { WarehouseEmptyBanner } from './components/WarehouseEmptyBanner'
+import { useWarehouseEmptyNotice } from './components/WarehouseEmptyBanner'
+import { DailyPlanPanel } from './components/DailyPlanPanel'
 import { TaskFilters } from './components/TaskFilters'
 import { TasksKanbanBoard } from './components/TasksKanbanBoard'
 import { TasksTable } from './components/TasksTable'
@@ -18,6 +19,7 @@ import { ContentApprovalList } from './components/ContentApprovalList'
 import { ContentScoringTab } from './components/ContentScoringTab'
 import { TaskDetailPanel } from './components/TaskDetailPanel'
 import { CreateTaskModal } from './components/TaskModals'
+import { prefillFromDailyPlan, prefillFromTask, type CreateTaskPrefill } from './components/CreateTaskModal'
 import { exportApprovedTasksExcel, getApprovals, getTaskHeaderCounts, getTasks, getTeams } from '@/lib/api/task-auto'
 import { TaskStatus } from '@/types/task-auto'
 import { UserRole } from '@/types/auth'
@@ -99,6 +101,8 @@ export default function TasksPage() {
 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(() => searchParams?.get('taskId') ?? null)
   const [showCreate, setShowCreate]   = useState(false)
+  // Điền sẵn modal tạo task: nhân bản từ panel chi tiết, hoặc mở từ 1 tuyến của Kế hoạch ngày
+  const [createPrefill, setCreatePrefill] = useState<CreateTaskPrefill | undefined>()
   const [exporting, setExporting]     = useState(false)
 
   // Cho phép mở thẳng task khi truy cập từ thông báo (?taskId=...)
@@ -106,6 +110,11 @@ export default function TasksPage() {
   useEffect(() => {
     if (taskIdParam) setSelectedTaskId(taskIdParam)
   }, [taskIdParam])
+
+  function openCreate(prefill?: CreateTaskPrefill) {
+    setCreatePrefill(prefill)
+    setShowCreate(true)
+  }
 
   function closeTaskDetail() {
     setSelectedTaskId(null)
@@ -132,6 +141,7 @@ export default function TasksPage() {
   const selectedLeaderTeam = isLeader ? leaderTeams.find(t => t.id === teamId) ?? null : null
 
   const isMineView = isMember || (isLeaderEditor && viewMode === 'mine')
+  const warehouse = useWarehouseEmptyNotice(isMineView)
 
   // team_id thực sự dùng cho query — với LEADER quản lý nhiều team mà chưa chọn lọc 1 team cụ
   // thể, gộp tất cả id team của họ (phân cách dấu phẩy, BE parse ở parseTeamIdFilter) để không
@@ -416,7 +426,7 @@ export default function TasksPage() {
           onTaskTypeChange={handleTaskTypeChange}
           onAssigneeChange={handleAssigneeChange}
           onOverdueChange={handleOverdueChange}
-          onCreateClick={() => setShowCreate(true)}
+          onCreateClick={() => openCreate()}
           showExport={activeTab === 'table' || activeTab === 'approved'}
           exporting={exporting}
           onExportClick={handleExportExcel}
@@ -424,7 +434,19 @@ export default function TasksPage() {
         )}
       </div>
 
-      {isMineView && activeTab !== 'content-scoring' && <WarehouseEmptyBanner enabled={isMineView} />}
+      {/* Kế hoạch ngày (kèm cảnh báo kho SP trống) — chỉ ở tab Danh sách task của view cá nhân: đây là
+          việc cần làm trong ngày đang lọc, các tab chờ duyệt/kết quả không cần */}
+      {isMineView && activeTab === 'table' && (
+        <DailyPlanPanel
+          enabled={isMineView}
+          dateFrom={deadlineFrom}
+          dateTo={deadlineTo}
+          onOpenTask={setSelectedTaskId}
+          onCreateManual={plan => openCreate(plan ? prefillFromDailyPlan(plan, user?.id) : undefined)}
+          warehouseNotice={warehouse.notice}
+          onDismissWarehouseNotice={warehouse.dismiss}
+        />
+      )}
 
       {activeTab === 'table' ? (
         taskLayout === 'kanban' ? (
@@ -495,6 +517,10 @@ export default function TasksPage() {
           onClose={closeTaskDetail}
           userRoles={userRoles}
           currentUserId={user?.id}
+          onDuplicate={task => {
+            closeTaskDetail()
+            openCreate(prefillFromTask(task))
+          }}
         />
       )}
 
@@ -505,6 +531,7 @@ export default function TasksPage() {
           isLeader={isLeader}
           isAdminOrManager={isAdmin || isManager}
           isMember={isMember}
+          prefill={createPrefill}
           onClose={() => setShowCreate(false)}
           onSuccess={() => setShowCreate(false)}
         />

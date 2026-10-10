@@ -1,6 +1,6 @@
 'use client'
 
-import { X, Edit2, Zap, Target, ShoppingBag } from 'lucide-react'
+import { X, Edit2, Zap, Target, ShoppingBag, Copy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { TaskStatusBadge } from '@/components/task-auto/StatusBadge'
 import type { Task } from '@/types/task-auto'
@@ -13,12 +13,14 @@ interface Props {
   productName?: string | null
   productSku?: string | null
   onToggleEdit: () => void
+  /** Mở modal tạo task điền sẵn từ task này (không có thì ẩn nút) */
+  onDuplicate?: () => void
   onClose: () => void
 }
 
 export function TaskPanelHeader({
   task, editMode, contentTitle, contentCode, productName, productSku,
-  onToggleEdit, onClose,
+  onToggleEdit, onDuplicate, onClose,
 }: Props) {
   return (
     <div className="flex items-start gap-4 px-6 py-4 bg-white border-b border-gray-100 shrink-0">
@@ -50,7 +52,19 @@ export function TaskPanelHeader({
         )}
       </div>
       <div className="flex items-center gap-1 shrink-0">
-        {task && task.task_type === 'EXTRA' && (
+        {task && onDuplicate && (
+          <button
+            type="button"
+            onClick={onDuplicate}
+            title="Tạo nhiệm vụ mới cùng team, người được giao, sản phẩm, nguồn — chỉ chọn content mới"
+            className="px-3 py-1.5 rounded-lg transition-colors text-xs font-semibold flex items-center gap-1.5 hover:bg-gray-100 text-gray-500 hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+          >
+            <Copy className="w-3.5 h-3.5" aria-hidden="true" />
+            Nhân bản
+          </button>
+        )}
+        {/* Task Auto cũng sửa được — nhưng chỉ đổi content (xem TaskDetailPanel), SP/nguồn khoá */}
+        {task && (
           <button
             onClick={onToggleEdit}
             title={editMode ? 'Thoát chỉnh sửa' : 'Chỉnh sửa task'}

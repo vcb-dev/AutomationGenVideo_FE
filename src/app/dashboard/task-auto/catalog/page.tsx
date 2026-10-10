@@ -9,17 +9,15 @@ import { getTeams, isPrivilegedSourceTeamMember } from '@/lib/api/task-auto'
 import { UserRole } from '@/types/auth'
 import { ProductsTab } from './components/ProductsTab/ProductsTab'
 import { SourcesTab } from './components/SourcesTab'
-import { WarehouseTab } from './components/WarehouseTab'
 import type { BrandType } from '@/types/task-auto'
 
-type CatalogTab = 'products' | 'sources' | 'warehouse'
+type CatalogTab = 'products' | 'sources'
 
 const BRANDS: { key: BrandType; label: string; color: string }[] = [
   { key: 'DO_DA',     label: 'Đồ da',     color: 'amber' },
   { key: 'TRANG_SUC', label: 'Trang sức', color: 'violet' },
 ]
 
-// Tab "Kho tháng" ẩn tạm theo yêu cầu — thêm lại entry vào TABS để khôi phục.
 const TABS: { key: CatalogTab; label: string; icon: React.ElementType }[] = [
   { key: 'products',  label: 'Sản phẩm', icon: Package },
   { key: 'sources',   label: 'Sources',  icon: Radio },
@@ -116,7 +114,6 @@ export default function CatalogPage() {
       {/* Tab content — key={brand} reset state khi đổi nhóm */}
       {activeTab === 'products'  && <ProductsTab  key={brand} brandType={brand} month={month} onMonthChange={setMonth} />}
       {activeTab === 'sources'   && <SourcesTab   key={brand} brandType={brand} isScaleData={isScaleData || isAdminOrManager} month={month} onMonthChange={setMonth} />}
-      {activeTab === 'warehouse' && <WarehouseTab key={brand} brandType={brand} isAdminOrManager={isAdminOrManager} isScaleData={isScaleData} />}
     </div>
   )
 }

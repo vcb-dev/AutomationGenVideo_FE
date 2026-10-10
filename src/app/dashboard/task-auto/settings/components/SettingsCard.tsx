@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Settings, Zap, Clock, Globe, Calendar, Power, Loader2, Timer } from 'lucide-react'
+import { Settings, Zap, Clock, Globe, Calendar, Power, Loader2, Timer, CalendarCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ConfirmDialog } from '@/components/task-auto'
 import { formatDateTime } from '@/components/task-auto/helpers'
@@ -36,6 +36,7 @@ export function SettingsCard({ canEdit }: { canEdit: boolean }) {
 
   const [form, setForm] = useState<Partial<AutoAssignSetting>>({
     schedule_time: '08:00', timezone: 'Asia/Ho_Chi_Minh', weekend_enabled: false, is_active: false, default_cooldown_days: 5,
+    daily_plan_enabled: true,
   })
 
   useEffect(() => {
@@ -45,6 +46,7 @@ export function SettingsCard({ canEdit }: { canEdit: boolean }) {
       weekend_enabled: settings.weekend_enabled,
       is_active: settings.is_active,
       default_cooldown_days: settings.default_cooldown_days,
+      daily_plan_enabled: settings.daily_plan_enabled,
     })
   }, [settings])
 
@@ -62,7 +64,7 @@ export function SettingsCard({ canEdit }: { canEdit: boolean }) {
       if (res.assigned > 0) {
         toast.success(`Đã phân công ${res.assigned} task thành công`)
       } else {
-        toast('Không có task nào được tạo (đủ KPI hoặc không đủ content/sản phẩm)', { icon: 'ℹ️' })
+        toast('Không có task A4 nào được tạo (hệ thống đang tắt, đã đủ KPI A4 hoặc kho sản phẩm team trống)', { icon: 'ℹ️' })
       }
     },
     onError: () => { toast.error('Không thể kích hoạt phân công — hãy kiểm tra BE server'); setShowConfirm(false) },
@@ -136,10 +138,22 @@ export function SettingsCard({ canEdit }: { canEdit: boolean }) {
               <Calendar className="w-4 h-4 text-slate-400" />
               <div>
                 <p className="text-sm font-semibold text-slate-800">Chạy vào cuối tuần</p>
-                <p className="text-sm text-slate-500">Bật để phân công tự động vào Thứ 7 và Chủ nhật (KPI các ngày đều như nhau).</p>
+                <p className="text-sm text-slate-500">Bật để có task/kế hoạch cho Thứ 7 và Chủ nhật (lượt tối Thứ 6 và Thứ 7). Tắt thì lượt tối Chủ nhật vẫn chạy để chia việc cho Thứ 2.</p>
               </div>
             </div>
             <ToggleSwitch checked={form.weekend_enabled ?? false} onChange={v => setForm(f => ({ ...f, weekend_enabled: v }))} disabled={!canEdit} />
+          </div>
+
+          {/* Kế hoạch ngày các tuyến không tự tạo task */}
+          <div className="flex items-center justify-between py-1">
+            <div className="flex items-center gap-3">
+              <CalendarCheck className="w-4 h-4 text-slate-400" aria-hidden="true" />
+              <div>
+                <p className="text-sm font-semibold text-slate-800">Kế hoạch ngày {(settings?.daily_plan_line_names ?? ['A1', 'A2', 'A3', 'A5']).join(', ')}</p>
+                <p className="text-sm text-slate-500">Cùng lượt chạy: chia chỉ tiêu theo KPI tuyến kèm gợi ý content kho / video win, không tạo task — editor tạo nhanh từ gợi ý ở trang Nhiệm vụ.</p>
+              </div>
+            </div>
+            <ToggleSwitch checked={form.daily_plan_enabled ?? true} onChange={v => setForm(f => ({ ...f, daily_plan_enabled: v }))} disabled={!canEdit} />
           </div>
         </div>
 

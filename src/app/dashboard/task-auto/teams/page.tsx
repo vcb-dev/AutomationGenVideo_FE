@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Package, User, BookOpen, Radio, Archive, BarChart2, Inbox, Plus } from 'lucide-react'
+import { Package, User, BookOpen, Radio, BarChart2, Inbox, Plus } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth-store'
@@ -10,21 +10,19 @@ import { CreateTeamModal } from './components/CreateTeamModal'
 import { TeamProductsTab } from './components/TeamProductsTab'
 import { TeamContentsTab } from './components/TeamContentsTab'
 import { TeamSourcesTab } from './components/TeamSourcesTab'
-import { TeamWarehouseTab } from './components/TeamWarehouseTab'
 import { TeamStatsTab } from './components/TeamStatsTab'
 import { TeamPushRequestsTab } from './components/TeamPushRequestsTab'
 import { UserRole } from '@/types/auth'
 import { getTeams, isPrivilegedSourceTeamMember } from '@/lib/api/task-auto'
 import type { BrandType } from '@/types/task-auto'
 
-type TabId = 'members' | 'products' | 'contents' | 'sources' | 'warehouse' | 'stats' | 'push-requests'
+type TabId = 'members' | 'products' | 'contents' | 'sources' | 'stats' | 'push-requests'
 
 const BASE_TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'members',   label: 'Nhóm của tôi', icon: User },
   { id: 'products',  label: 'Kho sản phẩm', icon: Package },
   { id: 'contents',  label: 'Kho content',  icon: BookOpen },
   { id: 'sources',   label: 'Kho source',   icon: Radio },
-  { id: 'warehouse', label: 'Kho tháng',    icon: Archive },
 ]
 
 const STATS_TAB = { id: 'stats' as TabId, label: 'Thống kê', icon: BarChart2 }
@@ -176,16 +174,6 @@ export default function TeamsPage() {
           setSelectedTeamId={canManageAnyTeamSources && !isAdminOrManager ? setSourceTeamId : setSelectedTeamId}
           month={month}
           setMonth={setMonth}
-        />
-      )}
-
-      {activeTab === 'warehouse' && (
-        <TeamWarehouseTab
-          isAdminOrManager={isAdminOrManager}
-          userId={user?.id}
-          brandType={brand}
-          selectedTeamId={selectedTeamId}
-          setSelectedTeamId={setSelectedTeamId}
         />
       )}
 
