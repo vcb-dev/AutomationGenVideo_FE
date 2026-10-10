@@ -19,12 +19,12 @@ import { PerformanceGoalsTab } from './components/PerformanceGoalsTab'
 type KpiTab = 'team' | 'editor' | 'okr' | 'daily' | 'content-creator' | 'content-creator-daily'
 
 const TAB_LABELS: Record<KpiTab, string> = {
-  editor: 'KPI Editor',
-  okr: 'OKR',
-  daily: 'KPI Ngày',
-  'content-creator': 'KPI Content',
-  'content-creator-daily': 'KPI Ngày Content',
-  team: 'KPI Team',
+  editor: 'KPI tháng của Editor',
+  okr: 'OKR theo nhân sự',
+  daily: 'KPI ngày của Editor',
+  'content-creator': 'KPI tháng của Content Creator',
+  'content-creator-daily': 'KPI ngày của Content Creator',
+  team: 'KPI tháng của team',
 }
 
 const TAB_ORDER = Object.keys(TAB_LABELS) as KpiTab[]
@@ -84,7 +84,7 @@ export default function KpiPage() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-slate-900">KPI</h1>
+          <h1 className="text-3xl font-black text-slate-900">KPI và OKR</h1>
           <p className="text-slate-500 text-base mt-1">KPI được tổ chức theo nhóm; OKR được quản lý riêng theo từng nhân sự</p>
         </div>
         <MonthPicker value={month} onChange={setMonth} />

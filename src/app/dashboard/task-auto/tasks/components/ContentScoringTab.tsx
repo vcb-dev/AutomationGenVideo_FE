@@ -18,7 +18,8 @@ import {
 
 // Công cụ chấm điểm PAAST độc lập, không gắn với task cụ thể — dán/gõ content bất kỳ để chấm,
 // tách ra khỏi ContentSection (chi tiết task) theo yêu cầu người dùng để dùng nhanh mà không cần mở task.
-export function ContentScoringTab() {
+// `bare`: bỏ khung thẻ + tiêu đề khi nằm trong ContentScoringDialog (cửa sổ đã có tiêu đề riêng).
+export function ContentScoringTab({ bare = false }: { bare?: boolean } = {}) {
   const [content, setContent] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -163,18 +164,20 @@ export function ContentScoringTab() {
   const upgradedAnalysis = upgradeResult?.analysis_result
 
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-6 space-y-5">
+    <div className={bare ? 'space-y-5' : 'bg-white border border-gray-100 rounded-2xl shadow-sm p-6 space-y-5'}>
+      {!bare && (
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
           <Gauge className="w-5 h-5 text-violet-600" />
         </div>
         <div>
-          <h2 className="text-base font-bold text-slate-900">Chấm điểm content (PAAST)</h2>
+          <h2 className="text-base font-bold text-slate-900">Chấm điểm nội dung (PAAST)</h2>
           <p className="text-sm text-slate-400">
             Dán hoặc gõ nội dung bất kỳ để chấm theo 5 lăng kính Prefer · Action · Acknowledge · Stick · Trust — không cần gắn với task cụ thể.
           </p>
         </div>
       </div>
+      )}
 
       {/* Ô nhập content */}
       <div>

@@ -10,8 +10,9 @@ import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { Pagination, PAGE_SIZE } from '@/components/task-auto/Pagination'
 import { ContentViewModal } from '@/components/task-auto/ContentViewModal'
-import { getTeams, getTeamPushRequests, reviewPushRequest } from '@/lib/api/task-auto'
+import { getTeams, getTeamPushRequests, reviewPushRequest, ALL_TEAMS_ID } from '@/lib/api/task-auto'
 import type { TeamPushRequest } from '@/types/task-auto'
+import { TeamTag } from './TeamTag'
 
 const STATUS_BADGE: Record<TeamPushRequest['status'], { label: string; cls: string }> = {
   PENDING:  { label: 'Chờ duyệt', cls: 'bg-amber-100 text-amber-700' },
@@ -84,9 +85,14 @@ export function TeamPushRequestsTab({ isAdminOrManager, userId, selectedTeamId, 
   const selectableTeams = isAdminOrManager
     ? (teams ?? [])
     : (teams ?? []).filter(t => t.leader_id === userId)
-  const effectiveTeamId = selectableTeams.some(t => t.id === selectedTeamId)
-    ? selectedTeamId
-    : (selectableTeams[0]?.id ?? '')
+  // Admin/Manager chọn "Tất cả đội nhóm" → yêu cầu của mọi team; leader rơi về team đầu tiên mình lead
+  const isAllTeams = isAdminOrManager && !selectedTeamId
+  const effectiveTeamId = isAllTeams
+    ? ALL_TEAMS_ID
+    : selectableTeams.some(t => t.id === selectedTeamId)
+      ? selectedTeamId
+      : (selectableTeams[0]?.id ?? '')
+  const teamNameById = new Map((teams ?? []).map(t => [t.id, t.name]))
 
   const { data: requests, isLoading } = useQuery({
     queryKey: ['task-auto', 'team-push-requests', effectiveTeamId, statusFilter],
@@ -96,6 +102,7 @@ export function TeamPushRequestsTab({ isAdminOrManager, userId, selectedTeamId, 
 
   useEffect(() => { setPage(1) }, [effectiveTeamId, statusFilter])
   const paginated = (requests ?? []).slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const columnCount = isAllTeams ? 8 : 7
 
   const approve = useMutation({
     mutationFn: (id: string) => reviewPushRequest(id, 'APPROVED'),
@@ -111,13 +118,16 @@ export function TeamPushRequestsTab({ isAdminOrManager, userId, selectedTeamId, 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-3">
-        {selectableTeams.length > 1 ? (
+        {isAdminOrManager || selectableTeams.length > 1 ? (
           <div className="flex items-center gap-2">
-            <Users className="w-5 h-5 text-slate-400 shrink-0" />
+            <Users className="w-5 h-5 text-slate-400 shrink-0" aria-hidden="true" />
             <CustomSelect
-              value={effectiveTeamId}
+              value={isAllTeams ? '' : effectiveTeamId}
               onChange={setSelectedTeamId}
-              options={selectableTeams.map(t => ({ value: t.id, label: t.name }))}
+              options={[
+                ...(isAdminOrManager ? [{ value: '', label: 'Tất cả đội nhóm' }] : []),
+                ...selectableTeams.map(t => ({ value: t.id, label: t.name })),
+              ]}
               className="min-w-[220px]"
               searchable={isAdminOrManager}
             />
@@ -150,6 +160,7 @@ export function TeamPushRequestsTab({ isAdminOrManager, userId, selectedTeamId, 
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Loại</th>
                 <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide w-[35%]">Tên</th>
+                {isAllTeams && <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Team</th>}
                 <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Tuyến / Dòng</th>
                 <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Người gửi</th>
                 <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Ngày gửi</th>
@@ -159,10 +170,10 @@ export function TeamPushRequestsTab({ isAdminOrManager, userId, selectedTeamId, 
             </thead>
             <tbody className="divide-y divide-gray-100">
               {isLoading && (
-                <tr><td colSpan={7} className="py-10 text-center"><Loader2 className="w-6 h-6 text-indigo-500 animate-spin inline" /></td></tr>
+                <tr><td colSpan={columnCount} className="py-10 text-center"><Loader2 className="w-6 h-6 text-indigo-500 animate-spin inline" /></td></tr>
               )}
               {!isLoading && !requests?.length && (
-                <tr><td colSpan={7}><EmptyState icon={Inbox} title="Không có yêu cầu nào" /></td></tr>
+                <tr><td colSpan={columnCount}><EmptyState icon={Inbox} title="Không có yêu cầu nào" /></td></tr>
               )}
               {paginated.map(r => {
                 const isProduct = r.type === 'PRODUCT'
@@ -190,6 +201,11 @@ export function TeamPushRequestsTab({ isAdminOrManager, userId, selectedTeamId, 
                         <span className="text-xs text-red-500 truncate block" title={r.note}>Lý do: {r.note}</span>
                       )}
                     </td>
+                    {isAllTeams && (
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        <TeamTag name={teamNameById.get(r.team_id)} className="max-w-[160px]" />
+                      </td>
+                    )}
                     <td className="px-5 py-4 whitespace-nowrap">
                       <span className="text-sm text-slate-600">{lineName ?? <span className="text-slate-300">—</span>}</span>
                     </td>

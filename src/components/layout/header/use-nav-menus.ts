@@ -390,16 +390,28 @@ export function useNavMenus(
                         color: "blue",
                         items: [
                             {
-                                label: n.teams,
+                                label: isManagerOrAdmin ? n.teamsManage : n.teams,
                                 href: "/dashboard/task-auto/teams",
                                 icon: Users,
-                                description: n.teamsDesc,
+                                description: isManagerOrAdmin ? n.teamsManageDesc : n.teamsDesc,
                             },
                             {
-                                label: n.catalog,
-                                href: "/dashboard/task-auto/catalog",
+                                label: n.productCatalog,
+                                href: "/dashboard/task-auto/catalog/products",
                                 icon: FolderOpen,
-                                description: n.catalogDesc,
+                                description: n.productCatalogDesc,
+                            },
+                            {
+                                label: n.sourceCatalog,
+                                href: "/dashboard/task-auto/catalog/sources",
+                                icon: Radio,
+                                description: n.sourceCatalogDesc,
+                            },
+                            {
+                                label: n.contentCatalog,
+                                href: "/dashboard/task-auto/content",
+                                icon: FileText,
+                                description: n.contentCatalogDesc,
                             },
                         ],
                     },

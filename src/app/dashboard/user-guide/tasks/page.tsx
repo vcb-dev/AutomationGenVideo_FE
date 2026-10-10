@@ -18,7 +18,7 @@ const TOC: { id: string; label: string }[] = [
   { id: 'quy-trinh', label: 'Quy trình xử lý 1 nhiệm vụ' },
   { id: 'bo-loc', label: 'Bộ lọc & tìm kiếm' },
   { id: 'chi-tiet-task', label: 'Xem chi tiết nhiệm vụ' },
-  { id: 'tab-khac', label: 'Các tab khác' },
+  { id: 'tab-khac', label: 'Chờ duyệt, Kết quả & Công cụ' },
   { id: 'tong-quan', label: 'Trang Tổng quan' },
   { id: 'doi-nhom', label: 'Đội nhóm' },
   { id: 'danh-muc-kho', label: 'Danh mục & Kho cá nhân' },
@@ -148,15 +148,16 @@ export default function NhiemVuGuidePage() {
             </p>
             <ul className="list-disc pl-5 space-y-1">
               <li>
-                <strong>Auto</strong> — hệ thống tự động tạo hàng ngày dựa trên KPI và kho tháng của từng người (chạy vào
-                một giờ cố định, cấu hình ở mục <a href="#cai-dat" className="text-blue-500 hover:underline">Cài đặt</a>).
+                <strong>Auto</strong> — hệ thống tự động tạo hàng ngày theo KPI tuyến A4 của từng người: mỗi task gắn sẵn 1
+                sản phẩm lấy từ Kho sản phẩm của team, chưa gắn content — bạn mở task, bấm <Tag>Sửa</Tag> để chọn content
+                (chạy vào một giờ cố định, cấu hình ở mục <a href="#cai-dat" className="text-blue-500 hover:underline">Cài đặt</a>).
               </li>
               <li>
                 <strong>Sáng tạo</strong> (còn gọi task thủ công) — do người dùng tự tạo bằng nút{' '}
-                <Tag>Tạo task</Tag>, không giới hạn vai trò.
+                <Tag>Tạo nhiệm vụ</Tag>, không giới hạn vai trò.
               </li>
             </ul>
-            <p>Menu "Nhiệm vụ" nằm trong đội nhóm sản xuất, gồm 8 khu vực con — xem chi tiết ở mục tiếp theo.</p>
+            <p>Module công việc của đội nhóm sản xuất gồm 10 khu vực — xem chi tiết ở mục tiếp theo.</p>
           </Section>
 
           <Section id="cac-khu-vuc" title="2. Các khu vực chính">
@@ -173,12 +174,14 @@ export default function NhiemVuGuidePage() {
                 <tbody className="divide-y divide-border">
                   {[
                     ['Tổng quan', 'Trang chủ, xem số liệu tổng hợp theo vai trò', 'Tất cả'],
-                    ['Nhiệm vụ', 'Danh sách, tạo, xử lý và duyệt nhiệm vụ', 'Tất cả'],
-                    ['Đội nhóm', 'Quản lý thành viên, kho của team', 'Tất cả'],
-                    ['Danh mục', 'Kho sản phẩm/nguồn dùng chung toàn team/hệ thống', 'Tất cả'],
-                    ['Content', 'Kho kịch bản (content) dùng chung', 'Tất cả'],
+                    ['Công việc hôm nay', 'Danh sách, tạo, xử lý và duyệt nhiệm vụ', 'Tất cả'],
+                    ['Team của tôi / Quản lý team', 'Quản lý thành viên và kho của team', 'Tất cả'],
+                    ['Kho sản phẩm', 'Sản phẩm dùng chung toàn hệ thống', 'Tất cả'],
+                    ['Kho tư liệu dựng video', 'Video nguồn, outro và tư liệu sản phẩm dùng chung', 'Tất cả'],
+                    ['Video nổi bật', 'Video Facebook nội bộ đạt từ 10K lượt xem', 'Tất cả'],
                     ['Kho cá nhân', 'Kho sản phẩm/content/nguồn của riêng bạn', 'Leader, Member, Editor, Content'],
-                    ['KPI', 'Đặt và theo dõi chỉ tiêu công việc', 'Tất cả (chỉnh sửa tùy vai trò)'],
+                    ['KPI và OKR', 'Đặt và theo dõi chỉ tiêu công việc', 'Tất cả (chỉnh sửa tùy vai trò)'],
+                    ['Nhiệm vụ còn thiếu', 'Theo dõi số nhiệm vụ còn thiếu theo ngày', 'Tất cả (phạm vi tùy vai trò)'],
                     ['Cài đặt', 'Cấu hình hệ thống giao việc tự động', 'Admin, Manager'],
                   ].map((row) => (
                     <tr key={row[0]}>
@@ -222,7 +225,7 @@ export default function NhiemVuGuidePage() {
 
           <Section id="xem-danh-sach" title="4. Xem danh sách nhiệm vụ">
             <p>
-              Vào tab <strong>Danh sách task</strong> (tab mặc định của trang Nhiệm vụ). Góc trên bên phải có nút chuyển
+              Vào tab <strong>Nhiệm vụ</strong> (tab mặc định của trang Công việc hôm nay). Bên phải hàng tab có nút chuyển
               chế độ xem:
             </p>
             <div className="grid sm:grid-cols-2 gap-3">
@@ -263,7 +266,7 @@ export default function NhiemVuGuidePage() {
 
           <Section id="tao-task" title="5. Tạo nhiệm vụ mới">
             <p>
-              Bấm nút <Tag>Tạo task</Tag> (góc trên trang Nhiệm vụ). Mọi vai trò đều tạo được task thủ công (loại{' '}
+              Bấm nút <Tag>Tạo nhiệm vụ</Tag> (góc trên trang Nhiệm vụ). Mọi vai trò đều tạo được task thủ công (loại{' '}
               <em>Sáng tạo</em>). Điền các mục sau:
             </p>
             <ol className="list-decimal pl-5 space-y-2">
@@ -290,7 +293,7 @@ export default function NhiemVuGuidePage() {
                 <em>Outro, Sưu tầm, Chế tác, Huy-K</em>.
               </li>
             </ol>
-            <p>Chỉ cần điền xong <strong>Content</strong> và <strong>Đội nhóm</strong> là nút <Tag>Tạo task</Tag> sẽ bật lên, các mục còn lại là tuỳ chọn.</p>
+            <p>Chỉ cần điền xong <strong>Content</strong> và <strong>Đội nhóm</strong> là nút <Tag>Tạo nhiệm vụ</Tag> sẽ bật lên, các mục còn lại là tuỳ chọn.</p>
           </Section>
 
           <Section id="quy-trinh" title="6. Quy trình xử lý 1 nhiệm vụ">
@@ -328,22 +331,33 @@ export default function NhiemVuGuidePage() {
           </Section>
 
           <Section id="bo-loc" title="7. Bộ lọc & tìm kiếm">
-            <p>Ở tab "Danh sách task" (và "Video chờ duyệt"), bạn có các bộ lọc sau:</p>
+            <p>Thanh lọc nằm ngay dưới hàng tab, chia làm 2 phần. Luôn hiện sẵn:</p>
             <ul className="list-disc pl-5 space-y-1.5">
-              <li><strong>Tìm kiếm</strong> — gõ theo tiêu đề nhiệm vụ.</li>
-              <li><strong>Trạng thái</strong> — chỉ có ở chế độ "Danh sách" (bảng); Kanban đã tách sẵn theo cột nên không cần lọc thêm.</li>
+              <li><strong>Tìm kiếm</strong> — gõ theo tiêu đề nhiệm vụ (ở "Bài đăng Facebook" là chú thích, hashtag).</li>
               <li><strong>Team</strong> — ẩn với Member và Leader vì họ mặc định chỉ thấy team của mình.</li>
               <li><strong>Người làm</strong> — ẩn khi bạn đang xem chế độ "Của tôi".</li>
               <li>
-                <strong>Khoảng ngày</strong> — có sẵn: <Tag>Hôm nay</Tag> <Tag>7 ngày qua</Tag> <Tag>30 ngày qua</Tag>{' '}
-                <Tag>Tháng này</Tag>, hoặc tự chọn Từ ngày/Đến ngày, hoặc bấm <Tag>Tất cả ngày</Tag> để bỏ lọc.
+                <strong>Khoảng ngày</strong> — có sẵn: <Tag>Hôm nay</Tag> <Tag>Hôm qua</Tag> <Tag>Tuần này</Tag>{' '}
+                <Tag>Tuần trước</Tag> <Tag>Tháng này</Tag> <Tag>Tháng trước</Tag> (tuần tính từ Thứ 2 đến Chủ nhật), hoặc tự
+                chọn Từ ngày/Đến ngày, hoặc bấm <Tag>Tất cả ngày</Tag> để bỏ lọc.
               </li>
             </ul>
+            <p>Bấm nút <Tag>Bộ lọc</Tag> để mở thêm:</p>
+            <ul className="list-disc pl-5 space-y-1.5">
+              <li><strong>Trạng thái</strong> và <strong>Chỉ task quá hạn</strong> — chỉ có ở chế độ "Danh sách" (bảng); Kanban đã tách sẵn theo cột nên không cần lọc thêm.</li>
+              <li><strong>Tuyến nội dung</strong> (A1–A5) và <strong>Dòng sản phẩm</strong>.</li>
+            </ul>
+            <p>
+              Bộ lọc nào trong nút <Tag>Bộ lọc</Tag> đang bật sẽ hiện thành chip ngay dưới thanh lọc (bấm ✕ trên chip để
+              bỏ), và số bộ lọc đang bật hiện trên nút.
+            </p>
             <InfoBox variant="warning" title="Bộ lọc ngày lọc theo cái gì?">
-              Trên tab "Danh sách task" / "Video chờ duyệt", bộ lọc ngày lọc theo <strong>hạn chót (deadline)</strong> của
-              nhiệm vụ — nếu nhiệm vụ chưa đặt deadline, hệ thống sẽ lọc theo <strong>ngày tạo</strong> thay thế. Riêng ở
-              tab "Video đã nộp", cùng bộ lọc này lại lọc theo <strong>ngày được duyệt</strong> (mặc định không giới hạn
-              ngày). Tab "Content chờ duyệt" thì không có bộ lọc ngày.
+              Mọi tab của màn Nhiệm vụ dùng <strong>chung một thanh lọc</strong> (từ khoá, team, người làm, tuyến nội
+              dung, dòng sản phẩm, khoảng ngày) và giữ nguyên khi chuyển qua lại giữa các tab. Khoảng ngày được hiểu theo
+              từng màn: "Nhiệm vụ" và "Chờ duyệt › Video" lọc theo <strong>hạn chót (deadline)</strong> — nhiệm vụ chưa
+              đặt deadline thì theo <strong>ngày tạo</strong>; "Kết quả › Video đã duyệt" theo <strong>ngày duyệt</strong>;
+              "Kết quả › Bài đăng Facebook" theo <strong>ngày đăng</strong>; "Chờ duyệt › Nội dung" theo{' '}
+              <strong>ngày gửi duyệt</strong>. Nhãn trên nút chọn ngày luôn ghi rõ đang lọc theo ngày nào.
             </InfoBox>
             <p>Khi có bộ lọc đang bật, nút <Tag>Xoá lọc</Tag> sẽ hiện kèm số lượng bộ lọc đang áp dụng.</p>
           </Section>
@@ -355,30 +369,56 @@ export default function NhiemVuGuidePage() {
               <li><strong>Sources</strong> — các nguồn tư liệu đính kèm (Outro/Sưu tầm/Chế tác/Huy-K) và nguồn đi theo sản phẩm.</li>
               <li><strong>Sản phẩm</strong> — ảnh sản phẩm, giá, chất liệu, phân khúc (nếu có gắn sản phẩm).</li>
               <li><strong>Người thực hiện / Deadline / Đội nhóm</strong> — dải thông tin tóm tắt (deadline trễ hạn sẽ hiện màu đỏ cảnh báo).</li>
-              <li><strong>Link bài đăng</strong> — chỉ hiện khi nhiệm vụ đã <StatusPill label="Đã duyệt" color="green" />, dùng để gắn link bài đã đăng lên Facebook/TikTok/Instagram/YouTube… và xem số liệu tương tác.</li>
+              <li>
+                <strong>Link bài đăng</strong> — chỉ hiện khi nhiệm vụ đã <StatusPill label="Đã duyệt" color="green" />.
+                Bấm <Tag>Chọn từ kho bài đã đăng</Tag> để tìm các bài hệ thống đã đồng bộ theo caption, kênh, nền tảng
+                và khoảng ngày; chọn một hoặc nhiều bài rồi gắn vào task. Hệ thống mặc định ưu tiên khoảng ±2 ngày
+                quanh ngày nộp/duyệt task và đánh dấu các bài đã gắn để tránh chọn lặp. Nếu bài chưa có trong kho, dùng
+                <Tag>Dán link thủ công</Tag>. Sau khi gắn có thể xem hoặc làm mới số liệu tương tác.
+              </li>
             </ul>
             <p>Nếu là task loại <em>Sáng tạo</em> (task thủ công), sẽ có thêm nút <Tag>Sửa</Tag> để chỉnh sửa lại thông tin nhiệm vụ.</p>
           </Section>
 
-          <Section id="tab-khac" title="9. Các tab khác trong trang Nhiệm vụ">
+          <Section id="tab-khac" title="9. Tab Chờ duyệt, Kết quả và menu Công cụ">
+            <p>
+              Trang Nhiệm vụ có 3 tab: <strong>Nhiệm vụ</strong> · <strong>Chờ duyệt</strong> · <strong>Kết quả</strong>.
+              Tab Chờ duyệt và Kết quả mỗi tab có 2 màn, chọn bằng nút ở bên phải hàng tab (số trên nút là số việc đang chờ):
+            </p>
             <ul className="list-disc pl-5 space-y-2">
               <li>
-                <strong>Video chờ duyệt</strong> — dạng lưới ảnh/video cho các nhiệm vụ đã nộp, có nút Duyệt/Từ chối ngay
+                <strong>Chờ duyệt › Video</strong> — dạng lưới ảnh/video cho các nhiệm vụ đã nộp, có nút Duyệt/Từ chối ngay
                 trên từng ô, không cần mở chi tiết.
               </li>
               <li>
-                <strong>Video đã nộp</strong> — lịch sử các nhiệm vụ đã được duyệt, lọc theo ngày duyệt.
-              </li>
-              <li>
-                <strong>Content chờ duyệt</strong> — đây là luồng duyệt <em>nội dung kịch bản</em> (khác với duyệt video
+                <strong>Chờ duyệt › Nội dung</strong> — đây là luồng duyệt <em>nội dung kịch bản</em> (khác với duyệt video
                 ở trên). Khi người viết content bấm "Gửi yêu cầu duyệt content" trong chi tiết nhiệm vụ, yêu cầu sẽ xuất
                 hiện ở đây để Leader/Quản lý Duyệt hoặc Từ chối kèm lý do — việc này <strong>không</strong> làm đổi trạng
                 thái chính của nhiệm vụ.
               </li>
               <li>
-                <strong>Chấm điểm content</strong> — công cụ độc lập, dán bất kỳ đoạn content nào vào và bấm "Chấm điểm"
-                để AI (mô hình PAAST — 5 tiêu chí: Prefer · Action · Acknowledge · Stick · Trust) chấm điểm 0–100 và gợi
-                ý "Nâng cấp content". Không cần gắn với nhiệm vụ nào.
+                <strong>Kết quả › Video đã duyệt</strong> — lịch sử các nhiệm vụ đã được duyệt, lọc theo ngày duyệt. Video
+                nào chưa có link bài đăng sẽ hiện nút <Tag>Thêm link bài đăng</Tag> để chọn bài từ kho bài đã đăng.
+              </li>
+              <li>
+                <strong>Kết quả › Bài đăng Facebook</strong> — các video đã đăng trên trang Facebook nội bộ; dùng để xem
+                hiệu quả bài đăng và gắn bài đăng vào đúng nhiệm vụ đã duyệt.
+              </li>
+            </ul>
+            <p>Nút <Tag>Công cụ</Tag> cạnh nút <Tag>Tạo nhiệm vụ</Tag> (góc trên bên phải) gom các thao tác phụ:</p>
+            <ul className="list-disc pl-5 space-y-2">
+              <li>
+                <strong>Xuất Excel</strong> — xuất task đã hoàn thành theo bộ lọc đang chọn (mỗi người 1 tab, kèm bảng KPI
+                tháng). Dùng được ở tab Nhiệm vụ và Kết quả › Video đã duyệt.
+              </li>
+              <li>
+                <strong>Gắn link video</strong> — tìm video Facebook đã đăng trên kênh và tự gắn link vào đúng task. Khi đang
+                chạy, nút Công cụ hiện vòng quay; mở lại mục này để xem tiến trình.
+              </li>
+              <li>
+                <strong>Chấm điểm nội dung</strong> — mở cửa sổ chấm điểm: dán bất kỳ đoạn nội dung nào vào và bấm "Chấm
+                điểm" để AI (mô hình PAAST — 5 tiêu chí: Prefer · Action · Acknowledge · Stick · Trust) chấm điểm 0–100 và
+                gợi ý "Nâng cấp content". Không cần gắn với nhiệm vụ nào; lỡ đóng cửa sổ thì mở lại vẫn còn nội dung đang chấm.
               </li>
             </ul>
           </Section>
@@ -399,13 +439,12 @@ export default function NhiemVuGuidePage() {
           </Section>
 
           <Section id="doi-nhom" title="11. Đội nhóm">
-            <p>Trang Đội nhóm có các tab:</p>
+            <p>Trang Team có các tab:</p>
             <ul className="list-disc pl-5 space-y-1.5">
-              <li><strong>Nhóm của tôi</strong> — danh sách thành viên, vai trò (Leader/Editor/Content Creator).</li>
-              <li><strong>Kho sản phẩm / Kho content / Kho source</strong> — kho dùng chung cho cả team.</li>
-              <li><strong>Kho tháng</strong> — tập hợp sản phẩm/content/nguồn dành riêng cho một tháng, dùng để hệ thống tự động giao việc (Auto).</li>
-              <li><strong>Chờ duyệt</strong> (Leader/Quản lý) — duyệt các yêu cầu đẩy sản phẩm/content từ kho cá nhân thành viên lên kho team.</li>
-              <li><strong>Thống kê</strong> — số liệu đóng góp nguồn/content theo từng thành viên trong tháng.</li>
+              <li><strong>Thành viên</strong> — danh sách thành viên, vai trò (Leader/Editor/Content Creator).</li>
+              <li><strong>Kho sản phẩm / Kho nội dung / Kho tư liệu dựng video</strong> — kho dùng chung cho cả team.</li>
+              <li><strong>Yêu cầu thêm vào kho</strong> (Leader/Quản lý) — duyệt yêu cầu đưa sản phẩm/nội dung từ kho cá nhân lên kho team.</li>
+              <li><strong>Thống kê đóng góp</strong> — số liệu đóng góp tư liệu/nội dung theo từng thành viên trong tháng.</li>
             </ul>
             <p>Admin/Manager có thể bấm <Tag>Tạo đội mới</Tag> để lập team mới, chọn Leader và thêm thành viên.</p>
           </Section>
@@ -418,18 +457,18 @@ export default function NhiemVuGuidePage() {
             <ul className="list-disc pl-5 space-y-1.5">
               <li><strong>Kho cá nhân</strong> — chỉ mình bạn quản lý, có nút "Đẩy sang kho team" trên từng mục.</li>
               <li><strong>Danh mục</strong> / <strong>Content</strong> — kho chung, ai cũng chọn được khi tạo nhiệm vụ.</li>
-              <li><strong>Kho tháng</strong> (xuất hiện ở cả Danh mục lẫn Kho cá nhân) — không phải kho tổng, mà là phần trích riêng cho một tháng cụ thể để hệ thống tự động giao việc dùng.</li>
             </ul>
-            <InfoBox variant="note" title="Sản phẩm / Nguồn / Kho tháng là gì?">
+            <InfoBox variant="note" title="Sản phẩm / Nguồn là gì?">
               <strong>Sản phẩm</strong>: món hàng thật sẽ lên hình trong video. <strong>Nguồn (Source)</strong>: tư liệu hỗ
               trợ dựng video, gồm 5 loại — Source sản phẩm, Source sản phẩm sưu tầm, Source Outro, Source chế tác,
-              Source Huy-K. <strong>Kho tháng</strong>: danh sách sản phẩm/content/nguồn đã "đăng ký" cho một tháng cụ
-              thể — nếu kho tháng trống, hệ thống tự động giao việc sẽ không tạo được task cho tháng đó.
+              Source Huy-K. Hệ thống tự động giao việc lấy sản phẩm từ <strong>Kho sản phẩm</strong> của team — mỗi sản
+              phẩm đã giao cho một người phải cách ít nhất 5 ngày mới giao lại cho người đó (sản phẩm có thể đặt số ngày
+              riêng). Nếu kho sản phẩm team trống, sẽ không tạo được task Auto.
             </InfoBox>
           </Section>
 
           <Section id="kpi" title="13. KPI">
-            <p>Trang KPI có 5 tab, chọn tháng ở góc trên:</p>
+            <p>Trang KPI và OKR có 6 tab, chọn tháng ở góc trên:</p>
             <div className="overflow-x-auto rounded-xl border border-border">
               <table className="w-full text-sm">
                 <thead className="bg-muted text-xs uppercase text-muted-foreground">
@@ -441,11 +480,12 @@ export default function NhiemVuGuidePage() {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {[
-                    ['KPI Team', 'Đặt chỉ tiêu tháng cho cả team, phân bổ % theo tuyến nội dung/dòng sản phẩm', 'Admin, Manager'],
-                    ['KPI Editor', 'Đặt chỉ tiêu tháng cho từng editor: tổng video, video win, content, sản phẩm', 'Admin, Manager, Leader (team mình)'],
-                    ['KPI Ngày', 'Ghi đè chỉ tiêu của MỘT ngày cụ thể cho từng người', 'Admin, Manager, Leader (team mình)'],
-                    ['KPI Content', 'Đặt chỉ tiêu tháng cho Content Creator (content sưu tầm, bản dịch)', 'Admin, Manager, Leader (team mình)'],
-                    ['KPI Ngày Content', 'Giống KPI Ngày nhưng dành cho Content Creator', 'Admin, Manager, Leader (team mình)'],
+                    ['KPI tháng của team', 'Đặt chỉ tiêu tháng cho cả team, phân bổ % theo tuyến nội dung/dòng sản phẩm', 'Admin, Manager'],
+                    ['KPI tháng của Editor', 'Đặt chỉ tiêu tháng cho từng editor: tổng video, video nổi bật, nội dung, sản phẩm', 'Admin, Manager, Leader (team mình)'],
+                    ['KPI ngày của Editor', 'Ghi đè chỉ tiêu của MỘT ngày cụ thể cho từng editor', 'Admin, Manager, Leader (team mình)'],
+                    ['KPI tháng của Content Creator', 'Đặt chỉ tiêu tháng cho Content Creator (nội dung sưu tầm, bản dịch)', 'Admin, Manager, Leader (team mình)'],
+                    ['KPI ngày của Content Creator', 'Ghi đè chỉ tiêu của MỘT ngày cụ thể cho Content Creator', 'Admin, Manager, Leader (team mình)'],
+                    ['OKR theo nhân sự', 'Đặt và theo dõi OKR riêng cho từng nhân sự', 'Admin, Manager, Leader (team mình)'],
                   ].map((r) => (
                     <tr key={r[0]}>
                       <td className="px-4 py-2.5 font-semibold whitespace-nowrap">{r[0]}</td>
@@ -497,7 +537,7 @@ export default function NhiemVuGuidePage() {
               </div>
               <div>
                 <p className="font-semibold flex items-center gap-1.5"><ListChecks size={15} className="text-blue-500" /> Duyệt content và Duyệt video khác nhau thế nào?</p>
-                <p className="text-muted-foreground pl-6">Duyệt content (tab "Content chờ duyệt") chỉ duyệt phần kịch bản/nội dung chữ, không đổi trạng thái nhiệm vụ. Duyệt video (tab "Video chờ duyệt" hoặc trong chi tiết nhiệm vụ) mới là bước làm nhiệm vụ chuyển sang "Đã duyệt".</p>
+                <p className="text-muted-foreground pl-6">Duyệt nội dung (tab "Chờ duyệt › Nội dung") chỉ duyệt phần kịch bản/nội dung chữ, không đổi trạng thái nhiệm vụ. Duyệt video (tab "Chờ duyệt › Video", cột "Đã nộp" trên Kanban hoặc trong chi tiết nhiệm vụ) mới là bước làm nhiệm vụ chuyển sang "Đã duyệt".</p>
               </div>
             </div>
           </Section>

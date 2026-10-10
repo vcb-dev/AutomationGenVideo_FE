@@ -24,6 +24,8 @@ interface Props {
   // Lọc người nộp giờ dùng chung dropdown "Người làm" ở thanh lọc chính (TaskFilters) —
   // trước đây tab này có dropdown riêng, trùng chức năng và gây hiểu nhầm bộ lọc chính không tác dụng.
   assigneeId?: string
+  contentLineId?: string
+  productLineId?: string
   page: number
   onPageChange: (page: number) => void
   onViewTask: (id: string) => void
@@ -72,13 +74,13 @@ function VideoThumbnail({ resultUrl, productImage, alt }: { resultUrl: string | 
   )
 }
 
-export function SubmittedVideosGrid({ teamId, search, deadlineFrom, deadlineTo, assigneeId, page, onPageChange, onViewTask, canApproveReject }: Props) {
+export function SubmittedVideosGrid({ teamId, search, deadlineFrom, deadlineTo, assigneeId, contentLineId, productLineId, page, onPageChange, onViewTask, canApproveReject }: Props) {
   const qc = useQueryClient()
   const [rejectingTask, setRejectingTask] = useState<Task | null>(null)
   const [previewIndex, setPreviewIndex] = useState<number | null>(null)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'tasks', 'submitted', { teamId, search, deadlineFrom, deadlineTo, assigneeId, page }],
+    queryKey: ['task-auto', 'tasks', 'submitted', { teamId, search, deadlineFrom, deadlineTo, assigneeId, contentLineId, productLineId, page }],
     queryFn: () => getTasks({
       status: 'SUBMITTED',
       team_id: teamId,
@@ -86,6 +88,8 @@ export function SubmittedVideosGrid({ teamId, search, deadlineFrom, deadlineTo, 
       deadline_from: deadlineFrom || undefined,
       deadline_to: deadlineTo || undefined,
       assignee_id: assigneeId,
+      content_line_id: contentLineId,
+      product_line_id: productLineId,
       page,
       limit: LIMIT,
     }),

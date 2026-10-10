@@ -1,13 +1,14 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { CalendarDays, Plus, Search, RotateCcw, ChevronDown, AlertTriangle, FileSpreadsheet, Loader2 } from 'lucide-react'
+import { Search, RotateCcw, AlertTriangle, SlidersHorizontal, X } from 'lucide-react'
 import { CustomSelect } from '@/components/task-auto/DarkInput'
+import { DateRangeFilter, todayString } from '@/components/task-auto/DateRangeFilter'
 import { cn } from '@/lib/utils'
 import { TaskStatus, Team } from '@/types/task-auto'
 
 const STATUS_OPTIONS: { value: TaskStatus | ''; label: string }[] = [
-  { value: '', label: 'Tất cả trạng thái' },
+  { value: '', label: 'Tất cả' },
   { value: 'ASSIGNED', label: 'Đã giao' },
   { value: 'IN_PROGRESS', label: 'Đang làm' },
   { value: 'SUBMITTED', label: 'Đã nộp' },
@@ -19,40 +20,13 @@ const STATUS_OPTIONS: { value: TaskStatus | ''; label: string }[] = [
 //   { value: 'auto', label: 'Auto' },
 // ]
 
-function todayString() {
-  return dateString(new Date())
-}
-
-function dateString(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-function addDays(dateStr: string, days: number) {
-  const d = new Date(`${dateStr}T00:00:00`)
-  d.setDate(d.getDate() + days)
-  return dateString(d)
-}
-
-function monthStart(d = new Date()) {
-  return dateString(new Date(d.getFullYear(), d.getMonth(), 1))
-}
-
-interface DatePreset {
-  label: string
-  range: () => [string, string]
-}
-
-const DATE_PRESETS: DatePreset[] = [
-  { label: 'Hôm nay', range: () => [todayString(), todayString()] },
-  { label: 'Hôm qua', range: () => [addDays(todayString(), -1), addDays(todayString(), -1)] },
-  { label: '7 ngày qua', range: () => [addDays(todayString(), -6), todayString()] },
-  { label: '30 ngày qua', range: () => [addDays(todayString(), -29), todayString()] },
-  { label: 'Tháng này', range: () => [monthStart(), todayString()] },
-]
-
 type TaskTypeFilter = 'auto' | 'manual' | ''
 
 interface AssigneeOption { id: string; name: string }
+interface LineOption { id: string; name: string }
+
+// Bảng chọn "Bộ lọc" — rộng cố định, co lại theo màn hình hẹp
+const MORE_PANEL_WIDTH = 340
 
 interface Props {
   statusFilter: TaskStatus | ''
@@ -64,7 +38,6 @@ interface Props {
   assigneeFilter: string
   assigneeOptions: AssigneeOption[]
   teams: Team[]
-  canCreate: boolean
   isMember?: boolean
   hideTeamFilter?: boolean
   hideStatusFilter?: boolean
@@ -90,23 +63,35 @@ interface Props {
   onTaskTypeChange: (v: TaskTypeFilter) => void
   onAssigneeChange: (v: string) => void
   onOverdueChange?: (v: boolean) => void
-  onCreateClick: () => void
-  showExport?: boolean
-  exporting?: boolean
-  onExportClick?: () => void
+  /** Lọc theo tuyến nội dung / dòng sản phẩm của task — không truyền onContentLineChange/
+   * onProductLineChange thì nhóm tương ứng trong bảng "Bộ lọc" ẩn. */
+  contentLineFilter?: string
+  productLineFilter?: string
+  contentLineOptions?: LineOption[]
+  productLineOptions?: LineOption[]
+  onContentLineChange?: (v: string) => void
+  onProductLineChange?: (v: string) => void
+  /** Ô tìm kiếm tìm trong gì — đổi theo tab (tiêu đề task / caption bài đăng) */
+  searchPlaceholder?: string
+  /** Có giá trị = bộ lọc dòng SP không áp dụng ở tab đang xem (vẫn giữ giá trị, chỉ làm mờ + giải thích) */
+  productLineDisabledReason?: string
 }
 
+/**
+ * Thanh lọc chung của màn Nhiệm vụ, chia 2 tầng:
+ * - Luôn hiện: Tìm kiếm · Team · Người làm · Ngày.
+ * - Gom vào nút "Bộ lọc": Trạng thái, Quá hạn, Tuyến, Dòng SP — đang lọc theo nhóm này thì hiện chip
+ * dưới thanh để không bị "lọc ngầm".
+ */
 export function TaskFilters({
   statusFilter,
   teamFilter,
   searchFilter,
   dateFromFilter,
   dateToFilter,
-  taskTypeFilter,
   assigneeFilter,
   assigneeOptions,
   teams,
-  canCreate,
   isMember = false,
   hideTeamFilter = false,
   hideStatusFilter = false,
@@ -121,65 +106,25 @@ export function TaskFilters({
   onSearchChange,
   onDateFromChange,
   onDateToChange,
-  onTaskTypeChange,
   onAssigneeChange,
   onOverdueChange,
-  onCreateClick,
-  showExport = false,
-  exporting = false,
-  onExportClick,
+  contentLineFilter = '',
+  productLineFilter = '',
+  contentLineOptions = [],
+  productLineOptions = [],
+  onContentLineChange,
+  onProductLineChange,
+  searchPlaceholder = 'Tìm kiếm theo tiêu đề...',
+  productLineDisabledReason,
 }: Props) {
   const isToday = dateFromFilter === todayString() && dateToFilter === todayString()
-  const isSingleDay = !!dateFromFilter && dateFromFilter === dateToFilter
-  const isYesterday = isSingleDay && dateFromFilter === addDays(todayString(), -1)
   const isAtDefault = dateFilterDefaultPreset === 'today' ? isToday : (!dateFromFilter && !dateToFilter)
-  const [datePickerOpen, setDatePickerOpen] = useState(false)
-  const datePickerRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!datePickerOpen) return
-    function onClickOutside(e: MouseEvent) {
-      if (datePickerRef.current && !datePickerRef.current.contains(e.target as Node)) setDatePickerOpen(false)
-    }
-    document.addEventListener('mousedown', onClickOutside)
-    return () => document.removeEventListener('mousedown', onClickOutside)
-  }, [datePickerOpen])
-
-  function applyPreset(preset: DatePreset) {
-    const [from, to] = preset.range()
-    onDateFromChange(from)
-    onDateToChange(to)
-    setDatePickerOpen(false)
-  }
-
-  function clearDateFilter() {
-    onDateFromChange('')
-    onDateToChange('')
-  }
 
   function resetDateToDefault() {
-    if (dateFilterDefaultPreset === 'today') applyPreset(DATE_PRESETS[0])
-    else clearDateFilter()
+    const v = dateFilterDefaultPreset === 'today' ? todayString() : ''
+    onDateFromChange(v)
+    onDateToChange(v)
   }
-
-  // Hiển thị dd/MM thay vì yyyy-mm-dd thô, kèm nhãn (vd "Ngày:") để người dùng hiểu ngay đây là
-  // bộ lọc thời gian — mặc định trang lọc "Hôm nay" nên nếu không nói rõ, người dùng dễ
-  // tưởng mất task trong khi chỉ là bị bộ lọc ngày che. Nhãn phải trung tính (không ghi "Hạn:")
-  // vì với bộ lọc hạn chót, BE lọc theo hạn chót NHƯNG task chưa đặt hạn thì tính theo ngày tạo
-  // thay thế (tasks.service.ts findAll).
-  const formatShortDate = (s: string) => {
-    const [, m, d] = s.split('-')
-    return m && d ? `${d}/${m}` : s
-  }
-  const dateFilterText = !dateFromFilter && !dateToFilter
-    ? `${dateFilterLabel}: Tất cả`
-    : isToday
-      ? `${dateFilterLabel}: Hôm nay`
-      : isYesterday
-        ? `${dateFilterLabel}: Hôm qua`
-        : isSingleDay
-          ? `${dateFilterLabel}: ${formatShortDate(dateFromFilter)}`
-          : `${dateFilterLabel}: ${dateFromFilter ? formatShortDate(dateFromFilter) : '…'} → ${dateToFilter ? formatShortDate(dateToFilter) : '…'}`
 
   // Gõ tìm kiếm phản hồi tức thì trên input, nhưng chỉ bắn query lên cha sau khi
   // ngừng gõ ~300ms — tránh gọi lại getTasks mỗi phím gõ (giật/nháy danh sách).
@@ -200,7 +145,12 @@ export function TaskFilters({
   const hasAssignee  = !isMember && assigneeOptions.length > 0 && !!assigneeFilter
   const hasSearch    = !!searchFilter
   const hasCustomDate = !hideDateFilter && !hasOverdue && !isAtDefault
-  const activeFilterCount = [hasStatus, hasTeam, hasAssignee, hasSearch, hasCustomDate, hasOverdue].filter(Boolean).length
+  const hasContentLine = !!onContentLineChange && !!contentLineFilter
+  const hasProductLine = !!onProductLineChange && !!productLineFilter
+  const activeFilterCount = [hasStatus, hasTeam, hasAssignee, hasSearch, hasCustomDate, hasOverdue, hasContentLine, hasProductLine].filter(Boolean).length
+  // Số bộ lọc đang bật trong bảng "Bộ lọc" — hiện trên nút để biết đang lọc ngầm bao nhiêu thứ
+  const moreFilterCount = [hasStatus, hasOverdue, hasContentLine, hasProductLine].filter(Boolean).length
+  const hasMoreFilters = !hideStatusFilter || showOverdueFilter || !!onContentLineChange || !!onProductLineChange
 
   function resetAllFilters() {
     if (hasOverdue) onOverdueChange?.(false)
@@ -209,221 +159,332 @@ export function TaskFilters({
     if (hasAssignee) onAssigneeChange('')
     if (hasSearch) { setLocalSearch(''); onSearchChange('') }
     if (hasCustomDate) resetDateToDefault()
+    if (hasContentLine) onContentLineChange?.('')
+    if (hasProductLine) onProductLineChange?.('')
+  }
+
+  const contentLineName = contentLineOptions.find(l => l.id === contentLineFilter)?.name ?? '…'
+  const productLineName = productLineOptions.find(l => l.id === productLineFilter)?.name ?? '…'
+  const statusName = STATUS_OPTIONS.find(o => o.value === statusFilter)?.label ?? statusFilter
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2.5 items-center">
+        {/* Search */}
+        <div className="relative flex-1 min-w-[220px]">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" aria-hidden="true" />
+          <input
+            type="text"
+            aria-label={searchPlaceholder}
+            className="w-full pl-10 pr-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-colors"
+            placeholder={searchPlaceholder}
+            value={localSearch}
+            onChange={e => setLocalSearch(e.target.value)}
+          />
+        </div>
+
+        {/* Team — hidden for MEMBER and LEADER */}
+        {!isMember && !hideTeamFilter && (
+          <CustomSelect
+            value={teamFilter}
+            onChange={onTeamChange}
+            options={[
+              { value: '', label: 'Tất cả team' },
+              ...teams.map(t => ({ value: t.id, label: t.name })),
+            ]}
+            className="min-w-[155px]"
+            searchable
+            compact
+          />
+        )}
+
+        {/* Người làm — ẩn ở view "của tôi" vì assignee đã khóa cứng về chính user đó */}
+        {!isMember && assigneeOptions.length > 0 && (
+          <CustomSelect
+            value={assigneeFilter}
+            onChange={onAssigneeChange}
+            options={[
+              { value: '', label: 'Tất cả người làm' },
+              ...assigneeOptions.map(a => ({ value: a.id, label: a.name })),
+            ]}
+            className="min-w-[165px]"
+            searchable
+            compact
+          />
+        )}
+
+        {/* Date range picker — bộ lọc ngày dùng chung, ý nghĩa cột đổi theo tab (xem dateFilterLabel/dateFilterTooltip)
+            — disable khi đang lọc "Quá hạn" vì BE bỏ qua deadline_from/to trong trường hợp đó */}
+        {!hideDateFilter && (
+        <div
+          className={cn(hasOverdue && 'opacity-40 pointer-events-none')}
+          title={hasOverdue ? 'Không áp dụng khi đang lọc Quá hạn' : undefined}
+        >
+          <DateRangeFilter
+            from={dateFromFilter}
+            to={dateToFilter}
+            onFromChange={onDateFromChange}
+            onToChange={onDateToChange}
+            label={dateFilterLabel}
+            tooltip={dateFilterTooltip}
+          />
+        </div>
+        )}
+
+        {hasMoreFilters && (
+          <MoreFiltersButton count={moreFilterCount}>
+            {!hideStatusFilter && (
+              <PillGroup
+                label="Trạng thái"
+                value={statusFilter}
+                options={STATUS_OPTIONS}
+                onChange={v => onStatusChange(v as TaskStatus | '')}
+                disabledReason={hasOverdue ? 'Không áp dụng khi đang lọc Quá hạn' : undefined}
+              />
+            )}
+
+            {/* Quá hạn — bộ lọc ảo (không phải 1 status thật): task đang xử lý (chưa duyệt/huỷ) có
+                deadline đã qua thời điểm hiện tại. Bật lên thì bỏ qua Trạng thái + bộ lọc ngày. */}
+            {showOverdueFilter && (
+              <button
+                type="button"
+                aria-pressed={overdueFilter}
+                onClick={() => onOverdueChange?.(!overdueFilter)}
+                className={cn(
+                  'w-full flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500',
+                  overdueFilter
+                    ? 'bg-red-50 border-red-300 text-red-700'
+                    : 'bg-white border-gray-200 text-slate-600 hover:border-red-200 hover:bg-red-50/60',
+                )}
+              >
+                <AlertTriangle className={cn('w-4 h-4 shrink-0', overdueFilter ? 'text-red-500' : 'text-slate-400')} aria-hidden="true" />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold">Chỉ task quá hạn</span>
+                  <span className="block text-xs text-slate-500">Task đang xử lý đã qua hạn chót — bỏ qua Trạng thái và Ngày</span>
+                </span>
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    'relative w-9 h-5 rounded-full shrink-0 transition-colors',
+                    overdueFilter ? 'bg-red-500' : 'bg-gray-300',
+                  )}
+                >
+                  <span className={cn(
+                    'absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform motion-reduce:transition-none',
+                    overdueFilter && 'translate-x-4',
+                  )} />
+                </span>
+              </button>
+            )}
+
+            {onContentLineChange && (
+              <PillGroup
+                label="Tuyến nội dung"
+                value={contentLineFilter}
+                options={[{ value: '', label: 'Tất cả' }, ...contentLineOptions.map(l => ({ value: l.id, label: l.name }))]}
+                onChange={onContentLineChange}
+              />
+            )}
+
+            {onProductLineChange && (
+              <PillGroup
+                label="Dòng sản phẩm"
+                value={productLineFilter}
+                options={[{ value: '', label: 'Tất cả' }, ...productLineOptions.map(l => ({ value: l.id, label: l.name }))]}
+                onChange={onProductLineChange}
+                disabledReason={productLineDisabledReason}
+              />
+            )}
+          </MoreFiltersButton>
+        )}
+
+        {/* Xoá lọc — chỉ hiện khi có filter khác mặc định đang bật */}
+        {activeFilterCount > 0 && (
+          <button
+            type="button"
+            onClick={resetAllFilters}
+            className="flex items-center gap-1.5 px-3 py-3 rounded-xl text-sm font-semibold text-slate-500 hover:text-slate-700 hover:bg-gray-100 transition-colors flex-shrink-0"
+          >
+            <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
+            Xoá lọc
+            <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-slate-200 text-[10px] font-bold text-slate-600">
+              {activeFilterCount}
+            </span>
+          </button>
+        )}
+      </div>
+
+      {/* Chip các bộ lọc đang bật trong bảng "Bộ lọc" — các ô luôn hiện ở trên đã tự hiện giá trị */}
+      {moreFilterCount > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5" aria-label="Bộ lọc đang bật">
+          {hasOverdue && (
+            <FilterChip tone="danger" label="Quá hạn" onRemove={() => onOverdueChange?.(false)} />
+          )}
+          {hasStatus && (
+            <FilterChip label={`Trạng thái: ${statusName}`} onRemove={() => onStatusChange('')} />
+          )}
+          {hasContentLine && (
+            <FilterChip label={`Tuyến ${contentLineName}`} onRemove={() => onContentLineChange?.('')} />
+          )}
+          {hasProductLine && (
+            <FilterChip
+              label={`Dòng SP: ${productLineName}`}
+              muted={!!productLineDisabledReason}
+              title={productLineDisabledReason}
+              onRemove={() => onProductLineChange?.('')}
+            />
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Nút "Bộ lọc" + bảng chọn thả xuống chứa các nhóm lọc phụ. Bảng neo theo mép phải nút, tự dịch
+ * vào trong khi nút nằm sát mép trái màn hình hẹp (thanh lọc xuống dòng trên mobile). */
+function MoreFiltersButton({ count, children }: { count: number; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false)
+  const [offsetLeft, setOffsetLeft] = useState(0)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function onClickOutside(e: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    function onEscape(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return
+      e.stopPropagation()
+      setOpen(false)
+      triggerRef.current?.focus()
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    window.addEventListener('keydown', onEscape, true)
+    return () => {
+      document.removeEventListener('mousedown', onClickOutside)
+      window.removeEventListener('keydown', onEscape, true)
+    }
+  }, [open])
+
+  function toggle() {
+    const r = triggerRef.current?.getBoundingClientRect()
+    if (r) {
+      const width = Math.min(MORE_PANEL_WIDTH, window.innerWidth - 16)
+      const left = Math.min(Math.max(8, r.right - width), window.innerWidth - width - 8)
+      setOffsetLeft(left - r.left)
+    }
+    setOpen(o => !o)
   }
 
   return (
-    <div className="flex flex-wrap gap-2.5 items-center flex-1">
-      {/* Search */}
-      <div className="relative flex-1 min-w-[200px]">
-        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-        <input
-          type="text"
-          className="w-full pl-10 pr-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-colors"
-          placeholder="Tìm kiếm theo tiêu đề..."
-          value={localSearch}
-          onChange={e => setLocalSearch(e.target.value)}
-        />
-      </div>
+    <div className="relative" ref={rootRef}>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={toggle}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        className={cn(
+          'flex items-center gap-2 px-3.5 py-3 rounded-xl text-sm font-semibold border transition-colors whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500',
+          count > 0
+            ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
+            : 'bg-gray-50 border-gray-200 text-slate-600 hover:bg-gray-100',
+        )}
+      >
+        <SlidersHorizontal className="w-4 h-4" aria-hidden="true" />
+        Bộ lọc
+        {count > 0 && (
+          <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-600 text-[10px] font-bold text-white">
+            {count}
+          </span>
+        )}
+      </button>
 
-      {/* Status — disable khi đang lọc "Quá hạn" vì BE bỏ qua status trong trường hợp đó */}
-      {!hideStatusFilter && (
-        <div className={cn(hasOverdue && 'opacity-40 pointer-events-none')} title={hasOverdue ? 'Không áp dụng khi đang lọc Quá hạn' : undefined}>
-          <CustomSelect
-            value={statusFilter}
-            onChange={v => onStatusChange(v as TaskStatus | '')}
-            options={STATUS_OPTIONS}
-            className="min-w-[165px]"
-            compact
-          />
+      {open && (
+        <div
+          role="dialog"
+          aria-label="Bộ lọc thêm"
+          style={{ left: offsetLeft, width: `min(${MORE_PANEL_WIDTH}px, calc(100vw - 16px))` }}
+          className="absolute z-30 top-full mt-1.5 bg-white border border-gray-200 rounded-xl shadow-lg p-4 space-y-4"
+        >
+          {children}
         </div>
       )}
-
-      {/* Quá hạn — bộ lọc ảo (không phải 1 status thật): task đang xử lý (chưa duyệt/huỷ) có
-          deadline đã qua thời điểm hiện tại. Bật lên thì bỏ qua Status + bộ lọc ngày bên dưới. */}
-      {showOverdueFilter && (
-        <button
-          type="button"
-          onClick={() => onOverdueChange?.(!overdueFilter)}
-          title="Chỉ hiện task đang xử lý đã quá hạn — bỏ qua Trạng thái và bộ lọc ngày"
-          className={cn(
-            'flex items-center gap-1.5 px-3.5 py-3 rounded-xl text-sm font-semibold transition-colors border whitespace-nowrap',
-            overdueFilter
-              ? 'bg-red-500 border-red-500 text-white shadow-sm'
-              : 'bg-gray-50 border-gray-200 text-slate-500 hover:text-red-600 hover:border-red-200 hover:bg-red-50/60',
-          )}
-        >
-          <AlertTriangle className="w-4 h-4" />
-          Quá hạn
-        </button>
-      )}
-
-      {/* Task type */}
-      {/* <CustomSelect
-        value={taskTypeFilter}
-        onChange={v => onTaskTypeChange(v as TaskTypeFilter)}
-        options={TASK_TYPE_OPTIONS}
-        className="min-w-[135px]"
-        compact
-      /> */}
-
-      {/* Team — hidden for MEMBER and LEADER */}
-      {!isMember && !hideTeamFilter && (
-        <CustomSelect
-          value={teamFilter}
-          onChange={onTeamChange}
-          options={[
-            { value: '', label: 'Tất cả team' },
-            ...teams.map(t => ({ value: t.id, label: t.name })),
-          ]}
-          className="min-w-[155px]"
-          searchable
-          compact
-        />
-      )}
-
-      {/* Người làm — ẩn ở view "của tôi" vì assignee đã khóa cứng về chính user đó */}
-      {!isMember && assigneeOptions.length > 0 && (
-        <CustomSelect
-          value={assigneeFilter}
-          onChange={onAssigneeChange}
-          options={[
-            { value: '', label: 'Tất cả người làm' },
-            ...assigneeOptions.map(a => ({ value: a.id, label: a.name })),
-          ]}
-          className="min-w-[165px]"
-          searchable
-          compact
-        />
-      )}
-
-      {/* Date range picker — bộ lọc ngày dùng chung, ý nghĩa cột đổi theo tab (xem dateFilterLabel/dateFilterTooltip)
-          — disable khi đang lọc "Quá hạn" vì BE bỏ qua deadline_from/to trong trường hợp đó */}
-      {!hideDateFilter && (
-      <div
-        className={cn('relative', hasOverdue && 'opacity-40 pointer-events-none')}
-        ref={datePickerRef}
-        title={hasOverdue ? 'Không áp dụng khi đang lọc Quá hạn' : undefined}
-      >
-        <button
-          type="button"
-          onClick={() => setDatePickerOpen(o => !o)}
-          title={dateFilterTooltip}
-          className={cn(
-            'flex items-center gap-2 pl-3.5 pr-2.5 py-3 bg-gray-50 border rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-colors',
-            isToday
-              ? 'border-amber-300 ring-1 ring-amber-100 text-amber-700'
-              : dateFromFilter || dateToFilter
-                ? 'border-indigo-400 ring-1 ring-indigo-100 text-indigo-700'
-                : 'border-gray-200 text-slate-500'
-          )}
-        >
-          <CalendarDays className={cn(
-            'w-4 h-4 flex-shrink-0',
-            isToday ? 'text-amber-500' : (dateFromFilter || dateToFilter) ? 'text-indigo-500' : 'text-slate-400'
-          )} />
-          <span className="whitespace-nowrap">{dateFilterText}</span>
-          <ChevronDown className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-        </button>
-
-        {datePickerOpen && (
-          <div className="absolute z-20 top-full mt-1.5 left-0 w-[290px] bg-white border border-gray-200 rounded-xl shadow-lg p-3 space-y-3">
-            <div className="flex flex-wrap gap-1.5">
-              {DATE_PRESETS.map(preset => (
-                <button
-                  key={preset.label}
-                  type="button"
-                  onClick={() => applyPreset(preset)}
-                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 hover:bg-indigo-500 hover:text-white text-slate-600 transition-colors"
-                >
-                  {preset.label}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => { clearDateFilter(); setDatePickerOpen(false) }}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 hover:bg-slate-500 hover:text-white text-slate-600 transition-colors"
-              >
-                Tất cả ngày
-              </button>
-            </div>
-
-            <div className="h-px bg-gray-100" />
-
-            <div className="flex items-center gap-2">
-              <div className="flex-1 min-w-0">
-                <label className="block text-[11px] font-semibold text-slate-400 mb-1">Từ ngày</label>
-                <input
-                  type="date"
-                  value={dateFromFilter}
-                  max={dateToFilter || undefined}
-                  onChange={e => onDateFromChange(e.target.value)}
-                  className="w-full px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <label className="block text-[11px] font-semibold text-slate-400 mb-1">Đến ngày</label>
-                <input
-                  type="date"
-                  value={dateToFilter}
-                  min={dateFromFilter || undefined}
-                  onChange={e => onDateToChange(e.target.value)}
-                  className="w-full px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                />
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-      )}
-
-      {/* Xoá lọc — chỉ hiện khi có filter khác mặc định đang bật */}
-      {activeFilterCount > 0 && (
-        <button
-          type="button"
-          onClick={resetAllFilters}
-          className="flex items-center gap-1.5 px-3 py-3 rounded-xl text-sm font-semibold text-slate-500 hover:text-slate-700 hover:bg-gray-100 transition-colors flex-shrink-0 ml-auto"
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-          Xoá lọc
-          <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-slate-200 text-[10px] font-bold text-slate-600">
-            {activeFilterCount}
-          </span>
-        </button>
-      )}
-
-      {showExport && (
-        <button
-          type="button"
-          onClick={onExportClick}
-          disabled={exporting}
-          aria-busy={exporting}
-          title="Xuất Excel task đã hoàn thành (đã duyệt) theo bộ lọc đang chọn — mỗi người 1 tab, kèm bảng KPI tháng"
-          className={cn(
-            'border border-emerald-200 bg-white hover:bg-emerald-50 text-emerald-700 rounded-xl px-4 py-3 text-sm font-semibold flex items-center gap-2 transition-colors flex-shrink-0 shadow-sm',
-            'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white',
-            activeFilterCount === 0 && 'ml-auto'
-          )}
-        >
-          {exporting
-            ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-            : <FileSpreadsheet className="w-4 h-4" aria-hidden="true" />}
-          {exporting ? 'Đang xuất...' : 'Xuất Excel'}
-        </button>
-      )}
-
-      {/* Create button */}
-      {canCreate && (
-        <button
-          onClick={onCreateClick}
-          className={cn(
-            'bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-5 py-3 text-sm font-semibold flex items-center gap-2 transition-colors flex-shrink-0 shadow-sm',
-            activeFilterCount === 0 && !showExport && 'ml-auto'
-          )}
-        >
-          <Plus className="w-4 h-4" />
-          Tạo task
-        </button>
-      )}
     </div>
+  )
+}
+
+/** Một nhóm lựa chọn dạng nút bấm (ít lựa chọn nên bấm 1 lần là xong, không cần mở thêm dropdown). */
+function PillGroup({
+  label, value, options, onChange, disabledReason,
+}: {
+  label: string
+  value: string
+  options: { value: string; label: string }[]
+  onChange: (v: string) => void
+  disabledReason?: string
+}) {
+  return (
+    <div role="group" aria-label={label}>
+      <p className="text-xs font-semibold text-slate-500 mb-1.5">{label}</p>
+      <div className={cn('flex flex-wrap gap-1.5', disabledReason && 'opacity-40')}>
+        {options.map(o => {
+          const active = value === o.value
+          return (
+            <button
+              key={o.value || '__all'}
+              type="button"
+              aria-pressed={active}
+              disabled={!!disabledReason}
+              onClick={() => onChange(o.value)}
+              className={cn(
+                'h-9 px-3 rounded-lg border text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:cursor-not-allowed',
+                active
+                  ? 'bg-indigo-600 border-indigo-600 text-white'
+                  : 'bg-white border-gray-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-700',
+              )}
+            >
+              {o.label}
+            </button>
+          )
+        })}
+      </div>
+      {disabledReason && <p className="mt-1.5 text-xs text-slate-500">{disabledReason}</p>}
+    </div>
+  )
+}
+
+function FilterChip({
+  label, onRemove, tone = 'default', muted = false, title,
+}: {
+  label: string
+  onRemove: () => void
+  tone?: 'default' | 'danger'
+  muted?: boolean
+  title?: string
+}) {
+  return (
+    <span
+      title={title}
+      className={cn(
+        'inline-flex items-center gap-1 h-7 pl-2.5 pr-1 rounded-full text-xs font-semibold',
+        tone === 'danger' ? 'bg-red-50 text-red-700' : 'bg-indigo-50 text-indigo-700',
+        muted && 'opacity-50',
+      )}
+    >
+      {label}
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={`Bỏ lọc ${label}`}
+        className={cn(
+          'w-5 h-5 rounded-full flex items-center justify-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500',
+          tone === 'danger' ? 'hover:bg-red-100' : 'hover:bg-indigo-100',
+        )}
+      >
+        <X className="w-3 h-3" aria-hidden="true" />
+      </button>
+    </span>
   )
 }

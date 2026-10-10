@@ -18,6 +18,7 @@ import { getContentLines, getTeamContents, updateTeamContent } from '@/lib/api/t
 import { useLoadMoreScroll } from '@/hooks/useLoadMoreScroll'
 import type { ContentLine, TeamContent } from '@/types/task-auto'
 import { MARKET_LABELS, MARKET_COLORS } from './constants'
+import { TeamTag } from '../TeamTag'
 
 const PAGE_SIZE = 10
 // Sentinel dùng làm "id cột" cho content chưa gán tuyến — BE lọc where content_line_id IS NULL
@@ -61,11 +62,11 @@ interface ColumnDef {
 
 interface Filters {
   teamId: string
-  brandType: 'DO_DA' | 'TRANG_SUC'
+  brandType?: 'DO_DA' | 'TRANG_SUC'
   month: string
   search: string
   classificationId: string
-  market: string
+  market?: string
 }
 
 interface CardActions {
@@ -75,6 +76,8 @@ interface CardActions {
   onEdit: (tc: TeamContent) => void
   onRemove: (tc: TeamContent) => void
   onPush: (tc: TeamContent) => void
+  /** Có khi xem "Tất cả đội nhóm" — hiện tên team trên từng thẻ */
+  teamNameOf?: (teamId: string) => string | undefined
 }
 
 function currentColumnKey(tc: TeamContent): string {
@@ -166,6 +169,7 @@ function ContentCard({ tc, actions, cardAccent }: { tc: TeamContent; actions: Ca
       )}
     >
       <GripVertical className="absolute top-2.5 right-2.5 w-3.5 h-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+      {actions.teamNameOf && <TeamTag name={actions.teamNameOf(tc.team_id)} className="mb-2" />}
       <ContentCardBody tc={tc} />
 
       {(actions.canManage || actions.canPush) && (
@@ -226,7 +230,7 @@ function ContentColumn({
   isDropDisabled: boolean
   isValidTarget: boolean
   actions: CardActions
-  onAdd: (contentLineId: string | undefined) => void
+  onAdd?: (contentLineId: string | undefined) => void
   onTotalChange: (key: string, total: number) => void
 }) {
   const [limit, setLimit] = useState(PAGE_SIZE)
@@ -313,7 +317,7 @@ function ContentColumn({
         )}
       </div>
 
-      {actions.canManage && (
+      {actions.canManage && onAdd && (
         <button
           type="button"
           onClick={() => onAdd(column.isUnassigned ? undefined : column.key)}
@@ -327,24 +331,27 @@ function ContentColumn({
 }
 
 interface TeamContentsBoardProps {
+  /** id 1 team, hoặc ALL_TEAMS_ID để xem gộp mọi team */
   teamId: string
-  brandType: 'DO_DA' | 'TRANG_SUC'
+  brandType?: 'DO_DA' | 'TRANG_SUC'
   month: string
   search: string
   classificationId: string
-  market: string
+  market?: string
   canManage: boolean
   canPush: boolean
   onSelect: (tc: TeamContent) => void
   onEdit: (tc: TeamContent) => void
   onRemove: (tc: TeamContent) => void
   onPush: (tc: TeamContent) => void
-  onAdd: (contentLineId: string | undefined) => void
+  /** Bỏ trống → ẩn nút "Thêm content" ở từng cột (vd khi xem tất cả đội nhóm) */
+  onAdd?: (contentLineId: string | undefined) => void
+  teamNameOf?: (teamId: string) => string | undefined
 }
 
 export function TeamContentsBoard({
   teamId, brandType, month, search, classificationId, market, canManage, canPush,
-  onSelect, onEdit, onRemove, onPush, onAdd,
+  onSelect, onEdit, onRemove, onPush, onAdd, teamNameOf,
 }: TeamContentsBoardProps) {
   const qc = useQueryClient()
   const [draggingContent, setDraggingContent] = useState<TeamContent | null>(null)
@@ -381,8 +388,8 @@ export function TeamContentsBoard({
   const columns: ColumnDef[] = (unassignedTotal > 0 || !!draggingContent) ? [...lineColumns, unassignedColumn] : lineColumns
 
   const moveMutation = useMutation({
-    mutationFn: ({ id, content_line_id }: { id: string; content_line_id: string | null }) =>
-      updateTeamContent(teamId, id, { content_line_id }),
+    mutationFn: ({ tc, content_line_id }: { tc: TeamContent; content_line_id: string | null }) =>
+      updateTeamContent(tc.team_id, tc.id, { content_line_id }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['task-auto', 'team-contents'] })
       toast.success('Đã chuyển tuyến')
@@ -406,13 +413,13 @@ export function TeamContentsBoard({
     if (!tc) return
     const toKey = over.id as string
     if (currentColumnKey(tc) === toKey) return
-    moveMutation.mutate({ id: tc.id, content_line_id: toKey === UNASSIGNED_KEY ? null : toKey })
+    moveMutation.mutate({ tc, content_line_id: toKey === UNASSIGNED_KEY ? null : toKey })
   }
 
   const filters: Filters = { teamId, brandType, month, search, classificationId, market }
   const draggingKey = draggingContent ? currentColumnKey(draggingContent) : null
 
-  const cardActions: CardActions = { canManage, canPush, onSelect, onEdit, onRemove, onPush }
+  const cardActions: CardActions = { canManage, canPush, onSelect, onEdit, onRemove, onPush, teamNameOf }
   // Cộng riêng unassignedTotal (từ probe, luôn có) thay vì đọc columnTotals[UNASSIGNED_KEY] — cột
   // đó có thể đang bị ẩn (không mount) nên không kịp báo total qua onTotalChange.
   const totalAll = lineColumns.reduce((s, c) => s + (columnTotals[c.key] ?? 0), 0) + unassignedTotal
