@@ -11,7 +11,7 @@ import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
 import { ContentFormModal } from '@/components/task-auto/ContentFormModal'
 import {
   getTeams, getTeamContents, getTeamContent, addTeamContent, removeTeamContent,
-  pushTeamContentToGlobal, getContentClassifications,
+  pushTeamContentToGlobal, getContentClassifications, ALL_TEAMS_ID,
 } from '@/lib/api/task-auto'
 import type { Content, TeamContent, ContentOrigin } from '@/types/task-auto'
 import { AddContentModal } from './contents/AddContentModal'
@@ -60,6 +60,12 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
     ? [{ value: '', label: 'Tất cả đội nhóm' }, ...(teams ?? []).map(t => ({ value: t.id, label: t.name }))]
     : myTeams.map(t => ({ value: t.id, label: t.name }))
 
+  // Admin/Manager chọn "Tất cả đội nhóm" → board gộp content của mọi team, không lọc loại/thị trường
+  // theo 1 team; tạo/thêm content vẫn phải chọn 1 team cụ thể.
+  const isAllTeams = isAdminOrManager && !selectedTeamId
+  const listTeamId = isAllTeams ? ALL_TEAMS_ID : selectedTeamId
+  const teamNameById = new Map((teams ?? []).map(t => [t.id, t.name]))
+
   // Danh sách đầy đủ (không phân trang) — chỉ dùng để loại content đã có ra khỏi danh sách
   // "chọn từ kho tổng" trong AddContentModal, không dùng để hiển thị board.
   const { data: allTeamContents } = useQuery({
@@ -74,7 +80,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
   const classificationOptions = (allClassifications ?? []).map(c => ({ value: c.id, label: c.name })).sort((a, b) => a.label.localeCompare(b.label, 'vi'))
 
   const removeMut = useMutation({
-    mutationFn: (contentId: string) => removeTeamContent(selectedTeamId, contentId),
+    mutationFn: (tc: TeamContent) => removeTeamContent(tc.team_id, tc.id),
     onSuccess: () => {
       toast.success('Đã xóa content khỏi kho team')
       qc.invalidateQueries({ queryKey: ['task-auto', 'team-contents'] })
@@ -84,7 +90,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
   })
 
   const pushMut = useMutation({
-    mutationFn: (contentId: string) => pushTeamContentToGlobal(selectedTeamId, contentId),
+    mutationFn: (tc: TeamContent) => pushTeamContentToGlobal(tc.team_id, tc.id),
     onSuccess: () => {
       toast.success('Đã đẩy content ra kho tổng')
       qc.invalidateQueries({ queryKey: ['task-auto', 'team-contents'] })
@@ -105,11 +111,11 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
   // lấy lại bản đầy đủ, không thì modal/form hiện trống dù content đã có nội dung.
   const openDetail = (tc: TeamContent) => {
     setSelectedContent(tc)
-    getTeamContent(selectedTeamId, tc.id).then(setSelectedContent).catch(() => toast.error('Không thể tải nội dung content'))
+    getTeamContent(tc.team_id, tc.id).then(setSelectedContent).catch(() => toast.error('Không thể tải nội dung content'))
   }
   const openEdit = (tc: TeamContent) => {
     setEditingContent(tc)
-    getTeamContent(selectedTeamId, tc.id).then(setEditingContent).catch(() => toast.error('Không thể tải nội dung content'))
+    getTeamContent(tc.team_id, tc.id).then(setEditingContent).catch(() => toast.error('Không thể tải nội dung content'))
   }
 
   return (
@@ -156,7 +162,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
             className="px-3 py-3.5 border border-gray-200 rounded-xl text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
           />
 
-          {selectedTeamId && (
+          {listTeamId && (
             <CustomSelect
               value={classificationFilter}
               onChange={setClassificationFilter}
@@ -204,23 +210,24 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
       </div>
 
       {/* Board theo tuyến */}
-      {!selectedTeamId ? (
+      {!listTeamId ? (
         <EmptyState icon={BookOpen} title="Chọn đội nhóm để xem kho content" />
       ) : (
         <TeamContentsBoard
-          teamId={selectedTeamId}
-          brandType={brandType}
+          teamId={listTeamId}
+          brandType={isAllTeams ? undefined : brandType}
           month={month}
           search={search}
           classificationId={classificationFilter}
-          market={teamMarket}
+          market={isAllTeams ? undefined : teamMarket}
           canManage={canManageSelected}
           canPush={canPushToGlobal}
           onSelect={openDetail}
           onEdit={openEdit}
           onRemove={setRemovingContent}
           onPush={setPushingContent}
-          onAdd={contentLineId => { setPresetLineId(contentLineId); setShowCreate(true) }}
+          onAdd={isAllTeams ? undefined : contentLineId => { setPresetLineId(contentLineId); setShowCreate(true) }}
+          teamNameOf={isAllTeams ? id => teamNameById.get(id) : undefined}
         />
       )}
 
@@ -234,8 +241,8 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
           canPushToGlobal={canPushToGlobal}
           onClose={() => setSelectedContent(null)}
           onEdit={() => { openEdit(selectedContent); setSelectedContent(null) }}
-          onDelete={() => { removeMut.mutate(selectedContent.id); setSelectedContent(null) }}
-          onPushToGlobal={() => { pushMut.mutate(selectedContent.id); setSelectedContent(null) }}
+          onDelete={() => { removeMut.mutate(selectedContent); setSelectedContent(null) }}
+          onPushToGlobal={() => { pushMut.mutate(selectedContent); setSelectedContent(null) }}
         />
       )}
 
@@ -246,7 +253,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
         confirmLabel="Xóa content"
         danger
         isLoading={removeMut.isPending}
-        onConfirm={() => removingContent && removeMut.mutate(removingContent.id)}
+        onConfirm={() => removingContent && removeMut.mutate(removingContent)}
         onCancel={() => setRemovingContent(null)}
       />
 
@@ -256,7 +263,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
         message={`Đẩy "${pushingContent?.title ?? pushingContent?.source_editor_content?.title ?? 'content này'}" ra kho tổng? Content sẽ xuất hiện cho toàn bộ hệ thống.`}
         confirmLabel="Đẩy ra kho tổng"
         isLoading={pushMut.isPending}
-        onConfirm={() => pushingContent && pushMut.mutate(pushingContent.id)}
+        onConfirm={() => pushingContent && pushMut.mutate(pushingContent)}
         onCancel={() => setPushingContent(null)}
       />
 
@@ -264,7 +271,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
         open={showCreate || !!editingContent}
         editing={editingContent as unknown as Content}
         userId={userId}
-        teamId={selectedTeamId}
+        teamId={editingContent?.team_id ?? selectedTeamId}
         brandType={brandType}
         initialMarket={teamMarket}
         initialContentLineId={presetLineId}

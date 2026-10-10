@@ -9,24 +9,27 @@ import { MembersTab } from './components/MembersTab'
 import { CreateTeamModal } from './components/CreateTeamModal'
 import { TeamProductsTab } from './components/TeamProductsTab'
 import { TeamContentsTab } from './components/TeamContentsTab'
+import { WinVideosGrid } from '@/components/task-auto/WinVideosGrid'
+import { ContentViewTabs, type ContentView } from '@/components/task-auto/ContentViewTabs'
 import { TeamSourcesTab } from './components/TeamSourcesTab'
 import { TeamStatsTab } from './components/TeamStatsTab'
 import { TeamPushRequestsTab } from './components/TeamPushRequestsTab'
 import { UserRole } from '@/types/auth'
 import { getTeams, isPrivilegedSourceTeamMember } from '@/lib/api/task-auto'
+import { formatTeamName } from '@/lib/task-auto/team-label'
 import type { BrandType } from '@/types/task-auto'
 
 type TabId = 'members' | 'products' | 'contents' | 'sources' | 'stats' | 'push-requests'
 
 const BASE_TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
-  { id: 'members',   label: 'Nhóm của tôi', icon: User },
+  { id: 'members',   label: 'Thành viên',   icon: User },
   { id: 'products',  label: 'Kho sản phẩm', icon: Package },
-  { id: 'contents',  label: 'Kho content',  icon: BookOpen },
-  { id: 'sources',   label: 'Kho source',   icon: Radio },
+  { id: 'contents',  label: 'Kho nội dung', icon: BookOpen },
+  { id: 'sources',   label: 'Kho tư liệu dựng video', icon: Radio },
 ]
 
-const STATS_TAB = { id: 'stats' as TabId, label: 'Thống kê', icon: BarChart2 }
-const PUSH_REQUESTS_TAB = { id: 'push-requests' as TabId, label: 'Chờ duyệt', icon: Inbox }
+const STATS_TAB = { id: 'stats' as TabId, label: 'Thống kê đóng góp', icon: BarChart2 }
+const PUSH_REQUESTS_TAB = { id: 'push-requests' as TabId, label: 'Yêu cầu thêm vào kho', icon: Inbox }
 
 export default function TeamsPage() {
   const { user } = useAuthStore()
@@ -45,6 +48,7 @@ export default function TeamsPage() {
   // State lọc theo tháng dùng chung giữa các tab products/contents/sources
   const [month, setMonth]                   = useState('')
   const [createTeamOpen, setCreateTeamOpen] = useState(false)
+  const [contentView, setContentView]       = useState<ContentView>('win')
 
   const { data: teams } = useQuery({
     queryKey: ['task-auto', 'teams'],
@@ -63,6 +67,10 @@ export default function TeamsPage() {
 
   const selectedTeam = teams?.find(t => t.id === selectedTeamId)
   const brand: BrandType = selectedTeam?.brand_type ?? 'TRANG_SUC'
+  // Khớp nhãn tab trên thanh nav (getTeamsPageLabel); user nhiều team thấy tên team đang chọn
+  const pageTitle = isAdminOrManager
+    ? 'Quản lý team'
+    : selectedTeam ? formatTeamName(selectedTeam.name) : 'Team của tôi'
 
   // Scale Data membership: ADMIN/MANAGER hoặc là thành viên team "Scale Data"
   const scaleDataTeam = teams?.find(t => t.name === 'Scale Data')
@@ -92,8 +100,12 @@ export default function TeamsPage() {
       {/* Page header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-black text-slate-900">Đội nhóm</h1>
-          <p className="text-slate-500 text-base mt-1">Quản lý đội nhóm và thành viên</p>
+          <h1 className="text-3xl font-black text-slate-900">{pageTitle}</h1>
+          <p className="text-slate-500 text-base mt-1">
+            {isAdminOrManager
+              ? 'Tạo team, quản lý thành viên và kho của từng team'
+              : 'Thành viên, sản phẩm, nội dung và tư liệu dựng video của team bạn'}
+          </p>
         </div>
         {isAdminOrManager && (
           <button
@@ -149,17 +161,25 @@ export default function TeamsPage() {
         />
       )}
 
+      {/* Kho content team: video win (lọc sẵn theo team đang chọn) + content nhập tay như cũ */}
       {activeTab === 'contents' && (
-        <TeamContentsTab
-          canManage={canManage}
-          isAdminOrManager={isAdminOrManager}
-          userId={user?.id}
-          brandType={brand}
-          selectedTeamId={selectedTeamId}
-          setSelectedTeamId={setSelectedTeamId}
-          month={month}
-          setMonth={setMonth}
-        />
+        <div className="space-y-5">
+          <ContentViewTabs value={contentView} onChange={setContentView} />
+          {contentView === 'win' ? (
+            <WinVideosGrid key={selectedTeamId} defaultTeamId={selectedTeamId} />
+          ) : (
+            <TeamContentsTab
+              canManage={canManage}
+              isAdminOrManager={isAdminOrManager}
+              userId={user?.id}
+              brandType={brand}
+              selectedTeamId={selectedTeamId}
+              setSelectedTeamId={setSelectedTeamId}
+              month={month}
+              setMonth={setMonth}
+            />
+          )}
+        </div>
       )}
 
       {activeTab === 'sources' && (

@@ -230,7 +230,7 @@ function ImportModal({
               autoFocus
               value={search}
               onChange={e => { setSearch(e.target.value); setSelectedIds(new Set()) }}
-              placeholder="Tìm tên, code source..."
+              placeholder="Tìm tên, code source, tên sản phẩm..."
               className="w-full pl-9 pr-9 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
             {search && (
@@ -489,7 +489,7 @@ export function MySourcesTab({ userId, brandType, readOnly = false }: Props) {
             <input
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1) }}
-              placeholder="Tìm tên, code source..."
+              placeholder="Tìm tên, code source, tên sản phẩm..."
               className="w-full pl-12 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-base text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
             />
           </div>

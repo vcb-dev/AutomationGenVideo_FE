@@ -22,7 +22,7 @@ export default function PageVideosPage() {
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [minViews, setMinViews] = useState('10000');
+  const [minViews, setMinViews] = useState('');
   const [minLikes, setMinLikes] = useState('');
   const [hashtagCat, setHashtagCat] = useState<'' | 'a1' | 'a2' | 'a3' | 'a4' | 'a5'>('');
   const [dateFrom, setDateFrom] = useState('');
@@ -36,9 +36,9 @@ export default function PageVideosPage() {
     return () => clearTimeout(searchTimerRef.current);
   }, [search]);
 
-  const hasFilters = !!search || minViews !== '10000' || !!minLikes || !!hashtagCat || !!dateFrom || !!dateTo;
+  const hasFilters = !!search || !!minViews || !!minLikes || !!hashtagCat || !!dateFrom || !!dateTo;
   const clearFilters = () => {
-    setSearch(''); setMinViews('10000'); setMinLikes(''); setHashtagCat(''); setDateFrom(''); setDateTo(''); setPage(1);
+    setSearch(''); setMinViews(''); setMinLikes(''); setHashtagCat(''); setDateFrom(''); setDateTo(''); setPage(1);
   };
 
   const fetchVideos = useCallback(async () => {

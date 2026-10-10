@@ -3,37 +3,87 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Crown, Users, PenLine, Pencil, Check, X, Loader2, Trash2, Sparkles, Link2, Lock } from 'lucide-react'
+import { Crown, Users, PenLine, Pencil, Check, X, Loader2, Trash2, Sparkles, Link2, Lock, ChevronDown, Settings2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
-import { formatDateTime } from '@/components/task-auto/helpers'
+import { formatDate } from '@/components/task-auto/helpers'
 import { getTeams, getApprovals, setMemberEditorRole, setMemberContentCreatorRole, updateTeam, deleteTeam } from '@/lib/api/task-auto'
-import type { BrandType, TeamMarket, TeamKind, TeamMember } from '@/types/task-auto'
+import type { BrandType, Team, TeamMarket, TeamKind, TeamMember } from '@/types/task-auto'
 
 const BRANDS: { key: BrandType; label: string; color: string }[] = [
   { key: 'DO_DA',     label: 'Đồ da',     color: 'amber' },
   { key: 'TRANG_SUC', label: 'Trang sức', color: 'violet' },
 ]
 
-const MARKETS: { key: TeamMarket; label: string; color: string }[] = [
+type MarketColor = 'blue' | 'emerald' | 'amber' | 'rose' | 'sky' | 'slate'
+
+const MARKET_BADGE_CLASS: Record<MarketColor, string> = {
+  blue:    'bg-blue-600 border-blue-600 text-white shadow-sm',
+  emerald: 'bg-emerald-500 border-emerald-500 text-white shadow-sm',
+  amber:   'bg-amber-500 border-amber-500 text-white shadow-sm',
+  rose:    'bg-rose-500 border-rose-500 text-white shadow-sm',
+  sky:     'bg-sky-500 border-sky-500 text-white shadow-sm',
+  slate:   'bg-slate-500 border-slate-500 text-white shadow-sm',
+}
+
+const MARKETS: { key: TeamMarket; label: string; color: MarketColor }[] = [
+  { key: 'GLOBAL',    label: 'Global',    color: 'blue' },
   { key: 'VIETNAM',   label: 'Việt Nam',  color: 'emerald' },
   { key: 'INDONESIA', label: 'Indonesia', color: 'amber' },
-  { key: 'JAPAN',     label: 'Nhật Bản', color: 'rose' },
+  { key: 'JAPAN',     label: 'Nhật Bản',  color: 'rose' },
   { key: 'THAILAND',  label: 'Thái Lan',  color: 'sky' },
 ]
 
-const marketBtnClass = (color: string, active: boolean) => cn(
+const getMarketDisplay = (market: string): { label: string; color: MarketColor } =>
+  MARKETS.find(m => m.key === market) ?? {
+    label: market || 'Chưa xác định',
+    color: 'slate',
+  }
+
+const marketBtnClass = (color: MarketColor, active: boolean) => cn(
   'px-3 py-2 rounded-full text-xs font-semibold border-2 transition-all',
-  active ? {
-    emerald: 'bg-emerald-500 border-emerald-500 text-white shadow-sm',
-    amber:   'bg-amber-500 border-amber-500 text-white shadow-sm',
-    rose:    'bg-rose-500 border-rose-500 text-white shadow-sm',
-    sky:     'bg-sky-500 border-sky-500 text-white shadow-sm',
-  }[color] : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'
+  active ? MARKET_BADGE_CLASS[color] : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'
 )
+
+const NEUTRAL_BADGE_CLASS = 'px-3 py-1 rounded-full text-xs font-semibold border-2 bg-slate-100 border-slate-200 text-slate-500'
+
+// Huy hiệu loại · thị trường · nhóm của 1 team — dùng chung cho team đang chọn và danh sách tất cả đội nhóm
+function TeamBadges({ team }: { team: Team }) {
+  // Scale Data quản lý nguồn/sản phẩm xuyên suốt mọi loại & thị trường
+  if (team.name === 'Scale Data') {
+    return <span className={NEUTRAL_BADGE_CLASS}>Mọi loại · Mọi thị trường</span>
+  }
+  const isContentTeam = team.team_kind === 'CONTENT'
+  const brand = BRANDS.find(b => b.key === (team.brand_type ?? 'TRANG_SUC'))!
+  const market = getMarketDisplay(team.market ?? 'VIETNAM')
+  return (
+    <>
+      {isContentTeam ? (
+        <span className={NEUTRAL_BADGE_CLASS}>Cả 2 thương hiệu</span>
+      ) : (
+        <span className={cn(
+          'px-3 py-1 rounded-full text-xs font-semibold border-2',
+          brand.color === 'amber'
+            ? 'bg-amber-500 border-amber-500 text-white'
+            : 'bg-violet-600 border-violet-600 text-white'
+        )}>
+          {brand.label}
+        </span>
+      )}
+      <span className={cn('px-3 py-1 rounded-full text-xs font-semibold border-2', MARKET_BADGE_CLASS[market.color])}>
+        {market.label}
+      </span>
+      {isContentTeam && (
+        <span className="px-3 py-1 rounded-full text-xs font-semibold border-2 bg-indigo-600 border-indigo-600 text-white">
+          Content Team
+        </span>
+      )}
+    </>
+  )
+}
 
 interface MembersTabProps {
   canManage: boolean
@@ -54,6 +104,7 @@ export function MembersTab({ canManage, isAdmin, isAdminOrManager, userId, selec
   const [editingWebhook, setEditingWebhook] = useState(false)
   const [pendingWebhookUrl, setPendingWebhookUrl] = useState('')
   const [pendingWebhookSecret, setPendingWebhookSecret] = useState('')
+  const [collapsedTeamIds, setCollapsedTeamIds] = useState<Set<string>>(() => new Set())
 
   const { data: teams } = useQuery({
     queryKey: ['task-auto', 'teams'],
@@ -87,9 +138,30 @@ export function MembersTab({ canManage, isAdmin, isAdminOrManager, userId, selec
     ? [{ value: '', label: 'Tất cả đội nhóm' }, ...(teams ?? []).map(t => ({ value: t.id, label: t.name }))]
     : myTeams.map(t => ({ value: t.id, label: t.name }))
 
+  // Admin/Manager chọn "Tất cả đội nhóm" → hiện thành viên của mọi team thay vì bắt chọn 1 team
+  const showAllTeams = isAdminOrManager && !selectedTeamId
+  const allTeamsMemberCount = new Set((teams ?? []).flatMap(t => (t.members ?? []).map(m => m.user_id))).size
+
+  const selectTeam = (id: string) => {
+    setSelectedTeamId(id)
+    setEditingTeam(false)
+    setPendingBrand(null)
+    setPendingMarket(null)
+    setPendingTeamKind(null)
+    setEditingWebhook(false)
+    setPendingWebhookSecret('')
+  }
+
+  const toggleTeamCollapsed = (id: string) => setCollapsedTeamIds(prev => {
+    const next = new Set(prev)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    return next
+  })
+
   const editorMut = useMutation({
-    mutationFn: ({ memberId, isEditor }: { memberId: string; isEditor: boolean }) =>
-      setMemberEditorRole(selectedTeamId, memberId, isEditor),
+    mutationFn: ({ teamId, memberId, isEditor }: { teamId: string; memberId: string; isEditor: boolean }) =>
+      setMemberEditorRole(teamId, memberId, isEditor),
     onSuccess: (_, vars) => {
       toast.success(vars.isEditor ? 'Đã đặt làm Editor' : 'Đã thu hồi quyền Editor')
       qc.invalidateQueries({ queryKey: ['task-auto', 'approvals'] })
@@ -98,8 +170,8 @@ export function MembersTab({ canManage, isAdmin, isAdminOrManager, userId, selec
   })
 
   const contentCreatorMut = useMutation({
-    mutationFn: ({ memberId, isContentCreator }: { memberId: string; isContentCreator: boolean }) =>
-      setMemberContentCreatorRole(selectedTeamId, memberId, isContentCreator),
+    mutationFn: ({ teamId, memberId, isContentCreator }: { teamId: string; memberId: string; isContentCreator: boolean }) =>
+      setMemberContentCreatorRole(teamId, memberId, isContentCreator),
     onSuccess: (_, vars) => {
       toast.success(vars.isContentCreator ? 'Đã đặt làm Content Creator' : 'Đã thu hồi quyền Content Creator')
       qc.invalidateQueries({ queryKey: ['task-auto', 'teams'] })
@@ -108,7 +180,6 @@ export function MembersTab({ canManage, isAdmin, isAdminOrManager, userId, selec
   })
 
   const market: TeamMarket = selectedTeam?.market ?? 'VIETNAM'
-  const currentMarket = MARKETS.find(m => m.key === market)!
   const teamKind: TeamKind = selectedTeam?.team_kind ?? 'PRODUCTION'
 
   const teamMut = useMutation({
@@ -181,7 +252,97 @@ export function MembersTab({ canManage, isAdmin, isAdminOrManager, userId, selec
     webhookMut.mutate({ url: selectedTeam?.lark_webhook_url ?? null, secret: null })
   }
 
-  const currentBrand = BRANDS.find(b => b.key === brand)!
+  const renderMemberRow = (team: Team, member: TeamMember) => {
+    const isLeader = member.user_id === team.leader_id
+    const isEditor = approvedEditorIds.has(member.user_id)
+    const isContentCreator = !!member.is_content_creator
+    const isTogglingThis = editorMut.isPending && editorMut.variables?.memberId === member.user_id
+    const isTogglingContentCreator = contentCreatorMut.isPending
+      && contentCreatorMut.variables?.teamId === team.id
+      && contentCreatorMut.variables?.memberId === member.user_id
+
+    return (
+      <div key={member.id} className="flex items-center gap-4 flex-wrap gap-y-2 px-5 py-4 hover:bg-gray-50 transition-colors">
+        <AvatarInitials name={member.user?.full_name} size="md" />
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-semibold text-slate-800 text-sm">
+              {member.user?.full_name || member.user_id}
+            </p>
+            {isLeader && (
+              <span className="bg-amber-50 text-amber-600 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
+                <Crown className="w-2.5 h-2.5" /> Leader
+              </span>
+            )}
+            {isEditor && (
+              <span className="bg-indigo-50 text-indigo-600 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
+                <PenLine className="w-2.5 h-2.5" /> Editor
+              </span>
+            )}
+            {isContentCreator && (
+              <span className="bg-emerald-50 text-emerald-600 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
+                <Sparkles className="w-2.5 h-2.5" /> Content Creator
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-slate-500 mt-0.5">{member.user?.email}</p>
+        </div>
+
+        {/* Trailing group — cho phép xuống dòng riêng trên màn hình hẹp, không phá vỡ cụm avatar+tên */}
+        <div className="flex items-center gap-4 ml-auto shrink-0">
+          <div className="text-right shrink-0">
+            <p className="text-xs text-slate-500">Tham gia</p>
+            <p className="text-xs text-slate-400 font-medium">
+              {formatDate(member.joined_at)}
+            </p>
+          </div>
+
+          {/* Editor toggle */}
+          {canManage && (
+            <button
+              onClick={() => editorMut.mutate({ teamId: team.id, memberId: member.user_id, isEditor: !isEditor })}
+              disabled={editorMut.isPending}
+              title={isEditor ? 'Thu hồi quyền Editor' : 'Gán làm Editor'}
+              className={cn(
+                'p-1.5 rounded-lg transition-colors flex-shrink-0 text-xs font-semibold flex items-center gap-1 disabled:opacity-60',
+                isEditor
+                  ? 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
+                  : 'bg-gray-100 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600'
+              )}
+            >
+              {isTogglingThis
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                : <PenLine className="w-3.5 h-3.5" />
+              }
+              {isEditor ? 'Editor' : 'Gán Editor'}
+            </button>
+          )}
+
+          {/* Content Creator toggle */}
+          {canManage && (
+            <button
+              onClick={() => contentCreatorMut.mutate({ teamId: team.id, memberId: member.user_id, isContentCreator: !isContentCreator })}
+              disabled={contentCreatorMut.isPending}
+              title={isContentCreator ? 'Thu hồi quyền Content Creator' : 'Gán làm Content Creator'}
+              className={cn(
+                'p-1.5 rounded-lg transition-colors flex-shrink-0 text-xs font-semibold flex items-center gap-1 disabled:opacity-60',
+                isContentCreator
+                  ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                  : 'bg-gray-100 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600'
+              )}
+            >
+              {isTogglingContentCreator
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                : <Sparkles className="w-3.5 h-3.5" />
+              }
+              {isContentCreator ? 'Content Creator' : 'Gán Content Creator'}
+            </button>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-5">
@@ -191,7 +352,7 @@ export function MembersTab({ canManage, isAdmin, isAdminOrManager, userId, selec
           {showTeamPicker ? (
             <CustomSelect
               value={selectedTeamId}
-              onChange={v => { setSelectedTeamId(v); setEditingTeam(false); setPendingBrand(null); setPendingMarket(null); setPendingTeamKind(null); setEditingWebhook(false); setPendingWebhookSecret('') }}
+              onChange={selectTeam}
               options={teamPickerOptions}
               className="min-w-[220px]"
               searchable
@@ -211,14 +372,16 @@ export function MembersTab({ canManage, isAdmin, isAdminOrManager, userId, selec
             </span>
           )}
 
+          {showAllTeams && teams && (
+            <span className="text-sm text-slate-400 font-medium whitespace-nowrap">
+              {teams.length} đội nhóm · {allTeamsMemberCount} thành viên
+            </span>
+          )}
+
           {/* Brand + Market editor */}
           {selectedTeam && (
             <div className="flex items-center gap-2 flex-wrap ml-auto">
-              {isScaleDataTeam ? (
-                <span className="px-3 py-1 rounded-full text-xs font-semibold border-2 bg-slate-100 border-slate-200 text-slate-500">
-                  Mọi loại · Mọi thị trường
-                </span>
-              ) : editingTeam ? (
+              {editingTeam && !isScaleDataTeam ? (
                 <>
                   {/* Brand buttons — Content Team làm cho cả 2 thương hiệu, không cần chọn */}
                   {!isContentTeam && (
@@ -288,33 +451,7 @@ export function MembersTab({ canManage, isAdmin, isAdminOrManager, userId, selec
                 </>
               ) : (
                 <>
-                  {isContentTeam ? (
-                    <span className="px-3 py-1 rounded-full text-xs font-semibold border-2 bg-slate-100 border-slate-200 text-slate-500">
-                      Cả 2 thương hiệu
-                    </span>
-                  ) : (
-                    <span className={cn(
-                      'px-3 py-1 rounded-full text-xs font-semibold border-2',
-                      currentBrand.color === 'amber'
-                        ? 'bg-amber-500 border-amber-500 text-white'
-                        : 'bg-violet-600 border-violet-600 text-white'
-                    )}>
-                      {currentBrand.label}
-                    </span>
-                  )}
-                  <span className={cn('px-3 py-1 rounded-full text-xs font-semibold border-2', {
-                    emerald: 'bg-emerald-500 border-emerald-500 text-white',
-                    amber:   'bg-amber-500 border-amber-500 text-white',
-                    rose:    'bg-rose-500 border-rose-500 text-white',
-                    sky:     'bg-sky-500 border-sky-500 text-white',
-                  }[currentMarket.color])}>
-                    {currentMarket.label}
-                  </span>
-                  {teamKind === 'CONTENT' && (
-                    <span className="px-3 py-1 rounded-full text-xs font-semibold border-2 bg-indigo-600 border-indigo-600 text-white">
-                      Content Team
-                    </span>
-                  )}
+                  <TeamBadges team={selectedTeam} />
                   {canEditBrand && (
                     <button
                       onClick={() => { setEditingTeam(true); setPendingBrand(brand); setPendingMarket(market); setPendingTeamKind(teamKind) }}
@@ -438,102 +575,86 @@ export function MembersTab({ canManage, isAdmin, isAdminOrManager, userId, selec
       </div>
 
       {/* Content */}
-      {!selectedTeamId ? (
+      {showAllTeams ? (
+        !teams ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="w-6 h-6 text-indigo-500 animate-spin" aria-hidden="true" />
+          </div>
+        ) : teams.length === 0 ? (
+          <EmptyState icon={Users} title="Chưa có đội nhóm nào" />
+        ) : (
+          <div className="space-y-4">
+            {teams.map(team => {
+              const teamMembers = team.members ?? []
+              const collapsed = collapsedTeamIds.has(team.id)
+              const listId = `team-members-${team.id}`
+              return (
+                <section key={team.id} className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+                  <div className={cn(
+                    'flex items-center gap-3 flex-wrap px-5 py-3 bg-gray-50/70',
+                    !collapsed && 'border-b border-gray-100'
+                  )}>
+                    <button
+                      type="button"
+                      onClick={() => toggleTeamCollapsed(team.id)}
+                      aria-expanded={!collapsed}
+                      aria-controls={listId}
+                      className="flex items-center gap-2 min-w-0 py-1.5 -ml-1 pl-1 pr-2 rounded-lg text-left hover:bg-gray-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                    >
+                      <ChevronDown
+                        aria-hidden="true"
+                        className={cn('w-4 h-4 text-slate-400 shrink-0 transition-transform', collapsed && '-rotate-90')}
+                      />
+                      <span className="text-base font-bold text-slate-800 truncate">{team.name}</span>
+                      <span className="text-sm text-slate-400 font-medium whitespace-nowrap">
+                        {teamMembers.length} thành viên
+                      </span>
+                    </button>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <TeamBadges team={team} />
+                    </div>
+
+                    {team.leader && (
+                      <div className="flex items-center gap-1.5 text-sm">
+                        <Crown className="w-4 h-4 text-amber-600" aria-hidden="true" />
+                        <span className="text-slate-700 font-medium">{team.leader.full_name}</span>
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => selectTeam(team.id)}
+                      title="Mở team để sửa loại, thị trường, webhook"
+                      className="ml-auto flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-indigo-600 hover:bg-indigo-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                    >
+                      <Settings2 className="w-3.5 h-3.5" aria-hidden="true" />
+                      Quản lý
+                    </button>
+                  </div>
+
+                  {!collapsed && (
+                    <div id={listId} className="divide-y divide-gray-100">
+                      {teamMembers.length === 0 ? (
+                        <p className="px-5 py-4 text-sm text-slate-400 italic">Team chưa có thành viên</p>
+                      ) : (
+                        teamMembers.map(member => renderMemberRow(team, member))
+                      )}
+                    </div>
+                  )}
+                </section>
+              )
+            })}
+          </div>
+        )
+      ) : !selectedTeam ? (
         <EmptyState icon={Users} title="Chọn đội nhóm để xem thành viên" />
       ) : members.length === 0 ? (
         <EmptyState icon={Users} title="Team chưa có thành viên" />
       ) : (
         <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
           <div className="divide-y divide-gray-100">
-            {members.map(member => {
-              const isLeader = member.user_id === selectedTeam?.leader_id
-              const isEditor = approvedEditorIds.has(member.user_id)
-              const isContentCreator = !!member.is_content_creator
-              const isTogglingThis = editorMut.isPending && editorMut.variables?.memberId === member.user_id
-              const isTogglingContentCreator = contentCreatorMut.isPending && contentCreatorMut.variables?.memberId === member.user_id
-
-              return (
-                <div key={member.id} className="flex items-center gap-4 flex-wrap gap-y-2 px-5 py-4 hover:bg-gray-50 transition-colors">
-                  <AvatarInitials name={member.user?.full_name} size="md" />
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold text-slate-800 text-sm">
-                        {member.user?.full_name || member.user_id}
-                      </p>
-                      {isLeader && (
-                        <span className="bg-amber-50 text-amber-600 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
-                          <Crown className="w-2.5 h-2.5" /> Leader
-                        </span>
-                      )}
-                      {isEditor && (
-                        <span className="bg-indigo-50 text-indigo-600 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
-                          <PenLine className="w-2.5 h-2.5" /> Editor
-                        </span>
-                      )}
-                      {isContentCreator && (
-                        <span className="bg-emerald-50 text-emerald-600 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
-                          <Sparkles className="w-2.5 h-2.5" /> Content Creator
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-slate-500 mt-0.5">{member.user?.email}</p>
-                  </div>
-
-                  {/* Trailing group — cho phép xuống dòng riêng trên màn hình hẹp, không phá vỡ cụm avatar+tên */}
-                  <div className="flex items-center gap-4 ml-auto shrink-0">
-                    <div className="text-right shrink-0">
-                      <p className="text-xs text-slate-500">Tham gia</p>
-                      <p className="text-xs text-slate-400 font-medium">
-                        {formatDateTime(member.joined_at).split(' ')[0]}
-                      </p>
-                    </div>
-
-                    {/* Editor toggle */}
-                    {canManage && (
-                      <button
-                        onClick={() => editorMut.mutate({ memberId: member.user_id, isEditor: !isEditor })}
-                        disabled={editorMut.isPending}
-                        title={isEditor ? 'Thu hồi quyền Editor' : 'Gán làm Editor'}
-                        className={cn(
-                          'p-1.5 rounded-lg transition-colors flex-shrink-0 text-xs font-semibold flex items-center gap-1 disabled:opacity-60',
-                          isEditor
-                            ? 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
-                            : 'bg-gray-100 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600'
-                        )}
-                      >
-                        {isTogglingThis
-                          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          : <PenLine className="w-3.5 h-3.5" />
-                        }
-                        {isEditor ? 'Editor' : 'Gán Editor'}
-                      </button>
-                    )}
-
-                    {/* Content Creator toggle */}
-                    {canManage && (
-                      <button
-                        onClick={() => contentCreatorMut.mutate({ memberId: member.user_id, isContentCreator: !isContentCreator })}
-                        disabled={contentCreatorMut.isPending}
-                        title={isContentCreator ? 'Thu hồi quyền Content Creator' : 'Gán làm Content Creator'}
-                        className={cn(
-                          'p-1.5 rounded-lg transition-colors flex-shrink-0 text-xs font-semibold flex items-center gap-1 disabled:opacity-60',
-                          isContentCreator
-                            ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
-                            : 'bg-gray-100 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600'
-                        )}
-                      >
-                        {isTogglingContentCreator
-                          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          : <Sparkles className="w-3.5 h-3.5" />
-                        }
-                        {isContentCreator ? 'Content Creator' : 'Gán Content Creator'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
+            {members.map(member => renderMemberRow(selectedTeam, member))}
           </div>
         </div>
       )}

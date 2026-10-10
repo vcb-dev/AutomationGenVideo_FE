@@ -1,16 +1,20 @@
 'use client'
 
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Play, Info, CheckCircle2 } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import toast from 'react-hot-toast'
+import { Play, Info, CheckCircle2, Link2, Plus } from 'lucide-react'
 import { driveImageUrl } from '@/lib/utils'
 import { TaskStatusBadge } from '@/components/task-auto/StatusBadge'
 import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { NumberedPagination } from '@/components/task-auto/NumberedPagination'
 import { formatDateTime } from '@/components/task-auto/helpers'
-import { getTasks } from '@/lib/api/task-auto'
+import { getTasks, updateTaskPublishedLinks } from '@/lib/api/task-auto'
+import type { Task } from '@/types/task-auto'
 import { VideoPreviewOverlay } from './detail/VideoPreviewOverlay'
+import { PublishedPostPicker, contentLineCode } from './detail/PublishedPostPicker'
+import { appendPublishedLinks } from './detail/PublishedLinksSection'
 import { resolveContentTitle, resolveProductName, resolveProductImage } from './TasksTable'
 
 interface Props {
@@ -19,9 +23,14 @@ interface Props {
   reviewedFrom?: string
   reviewedTo?: string
   assigneeId?: string
+  contentLineId?: string
+  productLineId?: string
   page: number
   onPageChange: (page: number) => void
   onViewTask: (id: string) => void
+  currentUserId?: string
+  /** Admin/Manager/Leader — gắn link cho task của người khác được (khớp quyền BE published-links) */
+  canApproveReject: boolean
 }
 
 const LIMIT = 24
@@ -66,11 +75,12 @@ function VideoThumbnail({ resultUrl, productImage, alt }: { resultUrl: string | 
   )
 }
 
-export function ApprovedVideosGrid({ teamId, search, reviewedFrom, reviewedTo, assigneeId, page, onPageChange, onViewTask }: Props) {
+export function ApprovedVideosGrid({ teamId, search, reviewedFrom, reviewedTo, assigneeId, contentLineId, productLineId, page, onPageChange, onViewTask, currentUserId, canApproveReject }: Props) {
   const [previewIndex, setPreviewIndex] = useState<number | null>(null)
+  const [linkTask, setLinkTask] = useState<Task | null>(null)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'tasks', 'approved', { teamId, search, reviewedFrom, reviewedTo, assigneeId, page }],
+    queryKey: ['task-auto', 'tasks', 'approved', { teamId, search, reviewedFrom, reviewedTo, assigneeId, contentLineId, productLineId, page }],
     queryFn: () => getTasks({
       status: 'APPROVED',
       team_id: teamId,
@@ -78,6 +88,8 @@ export function ApprovedVideosGrid({ teamId, search, reviewedFrom, reviewedTo, a
       reviewed_from: reviewedFrom || undefined,
       reviewed_to: reviewedTo || undefined,
       assignee_id: assigneeId,
+      content_line_id: contentLineId,
+      product_line_id: productLineId,
       page,
       limit: LIMIT,
     }),
@@ -101,6 +113,8 @@ export function ApprovedVideosGrid({ teamId, search, reviewedFrom, reviewedTo, a
           const title = resolveContentTitle(task)
           const productName = resolveProductName(task)
           const productImage = resolveProductImage(task)
+          const linkCount = task.published_links?.length ?? 0
+          const canEditLinks = canApproveReject || (!!currentUserId && task.assignee_id === currentUserId)
 
           return (
             <div
@@ -140,6 +154,24 @@ export function ApprovedVideosGrid({ teamId, search, reviewedFrom, reviewedTo, a
                   )}
                 </div>
                 <p className="text-[11px] text-slate-400 mt-1">Duyệt lúc {formatDateTime(task.reviewed_at)}</p>
+
+                {linkCount > 0 ? (
+                  <p className="mt-2 flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
+                    <Link2 className="w-3.5 h-3.5" aria-hidden="true" />
+                    {linkCount} link bài đăng
+                  </p>
+                ) : canEditLinks ? (
+                  <button
+                    type="button"
+                    onClick={e => { e.stopPropagation(); setLinkTask(task) }}
+                    className="mt-2 w-full min-h-9 flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-indigo-300 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                  >
+                    <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+                    Thêm link bài đăng
+                  </button>
+                ) : (
+                  <p className="mt-2 text-[11px] text-slate-400 italic">Chưa có link bài đăng</p>
+                )}
               </div>
             </div>
           )
@@ -165,6 +197,47 @@ export function ApprovedVideosGrid({ teamId, search, reviewedFrom, reviewedTo, a
           hasNext={previewIndex < tasks.length - 1}
         />
       )}
+
+      {linkTask && <AddPostLinkPicker task={linkTask} onClose={() => setLinkTask(null)} />}
     </div>
+  )
+}
+
+/** Picker "Chọn bài đã đăng" mở thẳng từ thẻ video — cùng bộ lọc mặc định với chi tiết task. */
+function AddPostLinkPicker({ task, onClose }: { task: Task; onClose: () => void }) {
+  const qc = useQueryClient()
+  const links = task.published_links ?? []
+  const mutation = useMutation({
+    mutationFn: (next: NonNullable<Task['published_links']>) => updateTaskPublishedLinks(task.id, next),
+    onSuccess: () => {
+      toast.success('Đã gắn link bài đăng')
+      qc.invalidateQueries({ queryKey: ['task-auto', 'tasks'] })
+      qc.invalidateQueries({ queryKey: ['task-auto', 'task', task.id] })
+      qc.invalidateQueries({ queryKey: ['facebook', 'published-videos'] })
+      onClose()
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Gắn link thất bại'),
+  })
+
+  return (
+    <PublishedPostPicker
+      open
+      onOpenChange={open => { if (!open) onClose() }}
+      existingUrls={links.map(link => link.url)}
+      taskTitle={resolveContentTitle(task)}
+      anchorDate={task.submitted_at ?? task.reviewed_at ?? task.deadline}
+      owner={task.assignee ? { id: task.assignee.id, name: task.assignee.full_name } : null}
+      team={task.team ? { id: task.team.id, name: task.team.name } : null}
+      contentLine={contentLineCode(task.content_line)}
+      onAttach={async videos => {
+        const next = appendPublishedLinks(links, videos)
+        if (!next) {
+          toast('Các bài đã chọn đều đang được gắn với task')
+          return
+        }
+        await mutation.mutateAsync(next)
+      }}
+      isSaving={mutation.isPending}
+    />
   )
 }
