@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
@@ -29,6 +29,8 @@ interface Filters {
   deadlineTo?: string
   taskType?: 'auto' | 'manual' | ''
   assigneeId?: string
+  contentLineId?: string
+  productLineId?: string
 }
 
 interface Props extends Filters {
@@ -38,9 +40,6 @@ interface Props extends Filters {
   // Cho empty state cột gợi ý bỏ lọc ngày — mặc định trang lọc "Hôm nay" nên cột trống
   // rất hay do bộ lọc ngày che khuất chứ không phải thật sự hết task.
   onClearDateFilter?: () => void
-  // Bấm số "Quá hạn" trên KanbanStatsBar → chuyển sang layout Danh sách (bảng phẳng) đã lọc sẵn
-  // overdue=true, vì Kanban gom theo 4 cột trạng thái nên không có 1 view liệt kê phẳng tại đây.
-  onShowOverdueList?: () => void
 }
 
 // Thao tác nhanh ngay trên thẻ — cùng điều kiện quyền với TaskDetailPanel.tsx (canStart/canApproveReject)
@@ -82,8 +81,8 @@ interface ColumnDef {
 // riêng (xem isRejected trong TaskCard/TaskCardBody) để vẫn phân biệt được với task chờ duyệt.
 // Task trễ hạn KHÔNG có cột riêng: nó vẫn nằm đúng cột trạng thái hiện tại của nó (Kanban phản
 // ánh giai đoạn xử lý, không phải mức độ khẩn cấp), chỉ được đánh dấu bằng badge + viền trái đỏ/
-// cam/vàng ngay trên thẻ (xem isTaskOverdue/overdueBorderClass) và gộp vào ô đếm "Quá hạn" ở
-// KanbanStatsBar — bấm vào đó để xem đầy đủ (chuyển sang layout Danh sách đã lọc overdue=true).
+// cam/vàng ngay trên thẻ (xem isTaskOverdue/overdueBorderClass); danh sách đầy đủ task quá hạn xem ở
+// layout Danh sách với bộ lọc "Quá hạn".
 const COLUMNS: ColumnDef[] = [
   { key: 'ASSIGNED',    status: 'ASSIGNED',    variant: 'assigned',    label: 'Đã giao',  accent: 'border-t-blue-400',    countBadge: 'bg-blue-50 text-blue-700',    iconBg: 'bg-blue-100 text-blue-600',    cardBar: 'border-l-blue-400',    icon: Send },
   { key: 'IN_PROGRESS', status: 'IN_PROGRESS', variant: 'in_progress', label: 'Đang làm', accent: 'border-t-amber-400',   countBadge: 'bg-amber-50 text-amber-700',  iconBg: 'bg-amber-100 text-amber-600',  cardBar: 'border-l-amber-400',   icon: Play },
@@ -252,7 +251,7 @@ function TaskCardBody({ task, variant, onOpenPreview }: { task: Task; variant: C
     return (
       <>
         <p className="text-sm font-semibold text-gray-800 group-hover:text-indigo-700 line-clamp-2 leading-snug transition-colors">
-          {title ?? <span className="text-gray-400 italic font-normal">Không có tiêu đề</span>}
+          {title ?? <span className="text-gray-400 italic font-normal">{task.task_type === 'AUTO' ? 'Chưa chọn content' : 'Không có tiêu đề'}</span>}
         </p>
 
         <div className="mt-3">{assigneeRow}</div>
@@ -288,7 +287,7 @@ function TaskCardBody({ task, variant, onOpenPreview }: { task: Task; variant: C
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <p className="text-sm font-semibold text-gray-800 group-hover:text-indigo-700 line-clamp-2 leading-snug transition-colors">
-              {title ?? <span className="text-gray-400 italic font-normal">Không có tiêu đề</span>}
+              {title ?? <span className="text-gray-400 italic font-normal">{task.task_type === 'AUTO' ? 'Chưa chọn content' : 'Không có tiêu đề'}</span>}
             </p>
             <span className={cn(
               'shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold',
@@ -470,6 +469,8 @@ async function fetchCombinedStatusTasks(statuses: TaskStatus[], filters: Filters
     deadline_to: filters.deadlineTo,
     task_type: filters.taskType || undefined,
     assignee_id: filters.assigneeId,
+    content_line_id: filters.contentLineId,
+    product_line_id: filters.productLineId,
     page: 1,
     limit,
     sort: 'updated_at' as const,
@@ -484,7 +485,7 @@ async function fetchCombinedStatusTasks(statuses: TaskStatus[], filters: Filters
 }
 
 function KanbanColumn({
-  column, filters, isDropDisabled, isValidTarget, actions, hasDateFilter, overdueTasks, onClearDateFilter, onViewTask, onTotalChange,
+  column, filters, isDropDisabled, isValidTarget, actions, hasDateFilter, overdueTasks, onClearDateFilter, onViewTask,
 }: {
   column: ColumnDef
   filters: Filters
@@ -497,7 +498,6 @@ function KanbanColumn({
   overdueTasks: Task[]
   onClearDateFilter?: () => void
   onViewTask: (id: string) => void
-  onTotalChange: (key: ColumnKey, total: number) => void
 }) {
   const [limit, setLimit] = useState(PAGE_SIZE)
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: column.key, disabled: isDropDisabled })
@@ -514,6 +514,8 @@ function KanbanColumn({
         deadline_to: filters.deadlineTo,
         task_type: filters.taskType || undefined,
         assignee_id: filters.assigneeId,
+        content_line_id: filters.contentLineId,
+        product_line_id: filters.productLineId,
         page: 1,
         limit,
         // Cột "Đã duyệt" sắp theo ngày tạo; các cột khác theo updated_at.
@@ -555,10 +557,6 @@ function KanbanColumn({
   const Icon = column.icon
 
   const { listRef, markLoadMore } = useLoadMoreScroll(tasks.map(t => t.id), isFetching)
-
-  useEffect(() => {
-    if (!isLoading) onTotalChange(column.key, total)
-  }, [column.key, total, isLoading, onTotalChange])
 
   return (
     <div
@@ -636,82 +634,19 @@ function KanbanColumn({
   )
 }
 
-function StatItem({ label, value, valueClass }: { label: string; value: number; valueClass: string }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <span className="text-xs font-medium text-slate-400">{label}</span>
-      <span className={cn('text-2xl font-black', valueClass)}>{value}</span>
-    </div>
-  )
-}
-
-// Ô "Quá hạn" là nút bấm (không phải StatItem tĩnh): số liệu này gộp task quá hạn từ CẢ 4 cột
-// trạng thái (không có cột riêng nữa), nên cần lối đi nhanh để xem đầy đủ danh sách đó — chuyển
-// sang layout Danh sách đã lọc sẵn overdue=true (xem onShowOverdueList ở TasksKanbanBoard).
-function OverdueStatButton({ value, onClick }: { value: number; onClick?: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={!onClick}
-      title={onClick ? 'Xem danh sách đầy đủ task quá hạn' : undefined}
-      className={cn(
-        'flex flex-col gap-1 text-left rounded-lg -mx-1.5 -my-1 px-1.5 py-1 transition-colors',
-        onClick && 'hover:bg-red-50 cursor-pointer',
-      )}
-    >
-      <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-400">
-        <AlertTriangle className="w-3 h-3 text-red-500 shrink-0" /> Quá hạn
-      </span>
-      <span className="text-2xl font-black text-red-600">{value}</span>
-    </button>
-  )
-}
-
-function KanbanStatsBar({ totals, overdueTotal, onShowOverdueList }: {
-  totals: Partial<Record<ColumnKey, number>>
-  overdueTotal: number
-  onShowOverdueList?: () => void
-}) {
-  const grandTotal = COLUMNS.reduce((sum, c) => sum + (totals[c.key] ?? 0), 0)
-  const approvedTotal = totals.APPROVED ?? 0
-  const progressPct = grandTotal > 0 ? Math.round((approvedTotal / grandTotal) * 100) : 0
-
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4 bg-white border border-gray-100 rounded-2xl shadow-sm px-6 py-3.5">
-      <StatItem label="Tổng công việc" value={grandTotal} valueClass="text-slate-900" />
-      <StatItem label="Đã giao" value={totals.ASSIGNED ?? 0} valueClass="text-blue-600" />
-      <StatItem label="Đang làm" value={totals.IN_PROGRESS ?? 0} valueClass="text-amber-600" />
-      <StatItem label="Đã nộp" value={totals.SUBMITTED ?? 0} valueClass="text-purple-600" />
-      <StatItem label="Đã duyệt" value={totals.APPROVED ?? 0} valueClass="text-emerald-600" />
-      <OverdueStatButton value={overdueTotal} onClick={onShowOverdueList} />
-      <div className="col-span-2 sm:col-span-4 lg:col-span-1 flex flex-col gap-1 lg:border-l lg:border-gray-100 lg:pl-5">
-        <span className="text-xs font-medium text-slate-400">Tiến độ chung</span>
-        <div className="flex items-center gap-2.5">
-          <span className="text-2xl font-black text-emerald-600 shrink-0">{progressPct}%</span>
-          <div className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-            <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${progressPct}%` }} />
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 export function TasksKanbanBoard({
-  teamId, search, deadlineFrom, deadlineTo, taskType, assigneeId,
-  currentUserId, canApproveReject, onViewTask, onClearDateFilter, onShowOverdueList,
+  teamId, search, deadlineFrom, deadlineTo, taskType, assigneeId, contentLineId, productLineId,
+  currentUserId, canApproveReject, onViewTask, onClearDateFilter,
 }: Props) {
-  const filters: Filters = { teamId, search, deadlineFrom, deadlineTo, taskType, assigneeId }
+  const filters: Filters = { teamId, search, deadlineFrom, deadlineTo, taskType, assigneeId, contentLineId, productLineId }
   const queryClient = useQueryClient()
   const [draggingTask, setDraggingTask] = useState<Task | null>(null)
   const [rejectingTask, setRejectingTask] = useState<Task | null>(null)
-  const [columnTotals, setColumnTotals] = useState<Partial<Record<ColumnKey, number>>>({})
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
-  // Toàn bộ task quá hạn khớp team/search/loại/người làm hiện tại — dùng cho cả tổng số ở
-  // KanbanStatsBar lẫn bù vào từng cột khi bộ lọc ngày (vd mặc định "Hôm nay") đang loại chúng ra
+  // Toàn bộ task quá hạn khớp team/search/loại/người làm hiện tại — bù vào từng cột khi bộ lọc
+  // ngày (vd mặc định "Hôm nay") đang loại chúng ra
   // (xem missingOverdue trong KanbanColumn). BE bỏ qua status/deadline_from/to khi overdue=true
   // (tasks.service.ts findAll q.overdue) nên 1 query duy nhất là đủ cho mọi cột.
   const { data: overdueData } = useQuery({
@@ -722,22 +657,19 @@ export function TasksKanbanBoard({
       search: filters.search,
       task_type: filters.taskType || undefined,
       assignee_id: filters.assigneeId,
+      content_line_id: filters.contentLineId,
+      product_line_id: filters.productLineId,
       page: 1,
       limit: OVERDUE_FETCH_LIMIT,
       sort: 'updated_at',
     }),
     refetchOnWindowFocus: true,
   })
-  const overdueTotal = overdueData?.total ?? 0
   const overdueTasks = overdueData?.data ?? []
 
   function invalidateTasks() {
     queryClient.invalidateQueries({ queryKey: ['task-auto', 'tasks'] })
   }
-
-  const handleTotalChange = useCallback((key: ColumnKey, total: number) => {
-    setColumnTotals(prev => (prev[key] === total ? prev : { ...prev, [key]: total }))
-  }, [])
 
   // Dùng chung cho nút "Bắt đầu làm" lẫn kéo-thả (cả 2 chiều ASSIGNED ⇄ IN_PROGRESS) — cùng
   // gọi update() thường, chỉ khác trạng thái đích nên gộp 1 mutation nhận kèm { id, to }.
@@ -795,8 +727,6 @@ export function TasksKanbanBoard({
       onDragCancel={() => setDraggingTask(null)}
     >
       <div className="space-y-3">
-        <KanbanStatsBar totals={columnTotals} overdueTotal={overdueTotal} onShowOverdueList={onShowOverdueList} />
-
         <div className="space-y-2">
           {/* Gợi ý thao tác — kéo-thả vốn khó tự phát hiện nếu không nói ra */}
           <p className="flex items-center gap-1.5 text-xs text-slate-400">
@@ -821,7 +751,6 @@ export function TasksKanbanBoard({
                   overdueTasks={overdueTasks}
                   onClearDateFilter={onClearDateFilter}
                   onViewTask={onViewTask}
-                  onTotalChange={handleTotalChange}
                 />
               )
             })}

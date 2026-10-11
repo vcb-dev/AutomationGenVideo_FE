@@ -785,6 +785,13 @@ export interface ExternalVideo {
   author_name: string;
   author_avatar: string;
   author_username: string;
+  /** Chỉ endpoint kênh nội bộ trả — link phát trực tiếp (hiện chỉ Facebook có, CDN hết hạn sau vài tuần). */
+  video_url?: string | null;
+  /**
+   * Chỉ có khi gọi kèm `with_classification=1`: phân loại của content gắn task đã nối với video
+   * (Facebook). null = video chưa gắn task nào / content chưa phân loại.
+   */
+  content_classification?: { id: string; name: string } | null;
 }
 
 export interface OwnedChannel {
@@ -1111,6 +1118,8 @@ export interface PaginatedExternalVideos {
   page_size: number;
   total_pages: number;
   videos: ExternalVideo[];
+  /** Chỉ có khi lọc owner_id/team_id — các kênh nội bộ nằm trong phạm vi lọc. */
+  scope_channels?: { platform: string; name: string }[];
 }
 
 export const scraperService = {
@@ -1132,6 +1141,14 @@ export const scraperService = {
     content_line?: string;
     channel?: string;
     hashtag?: string;
+    /** Chỉ video từ kênh người này cầm (ghép qua Quản lý kênh). */
+    owner_id?: string;
+    /** Chỉ video từ kênh của team này. */
+    team_id?: string;
+    /** Phân loại nội dung (id, hoặc 'none' = chưa phân loại) — chỉ video Facebook đã gắn task. */
+    classification_id?: string;
+    /** 1 → mỗi video kèm `content_classification`. */
+    with_classification?: 0 | 1;
   }): Promise<PaginatedExternalVideos> => {
     const res = await fetchWithAuth(`${API_URL}/scraper/owned/videos${buildParams(params)}`, {
       headers: { Authorization: `Bearer ${token}` },

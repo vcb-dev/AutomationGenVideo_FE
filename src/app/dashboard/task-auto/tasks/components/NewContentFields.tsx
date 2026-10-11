@@ -18,6 +18,8 @@ interface Props {
   onCreateClassification: (name: string) => Promise<{ id: string; label: string }>
   /** Tên tuyến của kế hoạch đang lọc — để ghi rõ tuyến được tự chọn theo đâu */
   planLineName?: string
+  planLineHint?: string
+  ownerName?: string
   marketLabel: string
   /** Content trùng tiêu đề đã có trong kho cá nhân */
   duplicate: { title: string; code?: string } | null
@@ -28,6 +30,7 @@ interface Props {
   adding?: boolean
   /** Chọn nhiều: ô chọn sản phẩm đi kèm riêng content này */
   productSlot?: React.ReactNode
+  submitSlot?: React.ReactNode
 }
 
 function AutoHint({ id, children }: { id: string; children: React.ReactNode }) {
@@ -43,7 +46,7 @@ function AutoHint({ id, children }: { id: string; children: React.ReactNode }) {
 export const NewContentFields = forwardRef<HTMLInputElement, Props>(function NewContentFields({
   draft, hints, onChange, onBodyPaste,
   lines, loadingLines, classifications, loadingClassifications, onCreateClassification,
-  planLineName, marketLabel, duplicate, onUseDuplicate, onOpenFullForm, onAddToList, adding, productSlot,
+  planLineName, planLineHint, ownerName, marketLabel, duplicate, onUseDuplicate, onOpenFullForm, onAddToList, adding, productSlot, submitSlot,
 }, titleRef) {
   const id = useId()
   const titleHintId = `${id}-title-hint`
@@ -51,7 +54,7 @@ export const NewContentFields = forwardRef<HTMLInputElement, Props>(function New
   const dupId = `${id}-dup`
 
   const lineHint = hints.line === 'search' ? 'Tự chọn theo từ khoá đang tìm'
-    : hints.line === 'plan' ? `Tự chọn theo kế hoạch ${planLineName ?? ''}`.trim()
+    : hints.line === 'plan' ? planLineHint ?? `Tự chọn theo kế hoạch ${planLineName ?? ''}`.trim()
     : hints.line === 'last' ? 'Giống lần viết content trước'
     : null
 
@@ -61,6 +64,39 @@ export const NewContentFields = forwardRef<HTMLInputElement, Props>(function New
     e.preventDefault()
     if (draft.title.trim() && !adding) onAddToList()
   }
+
+  const saveNote = (
+    <p className="text-xs text-slate-500">
+      Lưu vào <span className="font-semibold text-slate-700">kho cá nhân</span> của {ownerName ?? 'bạn'} · thị trường {marketLabel}
+    </p>
+  )
+
+  const actions = (
+    <>
+      <button
+        type="button"
+        onClick={onOpenFullForm}
+        className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold text-indigo-700 hover:bg-indigo-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+      >
+        <Maximize2 className="w-3.5 h-3.5" aria-hidden="true" />
+        Form đầy đủ (file, voice, chấm điểm)
+      </button>
+      {onAddToList && (
+        <button
+          type="button"
+          onClick={onAddToList}
+          disabled={!draft.title.trim() || adding}
+          aria-busy={adding}
+          aria-keyshortcuts="Enter"
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-indigo-200 bg-white text-xs font-semibold text-indigo-700 hover:bg-indigo-50 disabled:opacity-60 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+        >
+          {adding ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <Plus className="w-3.5 h-3.5" aria-hidden="true" />}
+          Lưu & viết tiếp
+        </button>
+      )}
+      {submitSlot}
+    </>
+  )
 
   return (
     <div className="rounded-xl border border-indigo-100 bg-indigo-50/30 p-4 space-y-4">
@@ -154,34 +190,19 @@ export const NewContentFields = forwardRef<HTMLInputElement, Props>(function New
         />
       </div>
 
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <p className="text-xs text-slate-500">
-          Lưu vào <span className="font-semibold text-slate-700">kho cá nhân</span> của bạn · thị trường {marketLabel}
-        </p>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onOpenFullForm}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold text-indigo-700 hover:bg-indigo-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-          >
-            <Maximize2 className="w-3.5 h-3.5" aria-hidden="true" />
-            Form đầy đủ (file, voice, chấm điểm)
-          </button>
-          {onAddToList && (
-            <button
-              type="button"
-              onClick={onAddToList}
-              disabled={!draft.title.trim() || adding}
-              aria-busy={adding}
-              aria-keyshortcuts="Enter"
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-indigo-200 bg-white text-xs font-semibold text-indigo-700 hover:bg-indigo-50 disabled:opacity-60 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-            >
-              {adding ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <Plus className="w-3.5 h-3.5" aria-hidden="true" />}
-              Lưu & viết tiếp
-            </button>
-          )}
+      {submitSlot ? (
+        <>
+          {saveNote}
+          <div className="sticky bottom-0 z-10 -mx-4 -mb-4 px-4 py-3 flex items-center justify-end gap-2 flex-wrap rounded-b-xl border-t border-indigo-100 bg-white/95 backdrop-blur-sm">
+            {actions}
+          </div>
+        </>
+      ) : (
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          {saveNote}
+          <div className="flex items-center gap-2">{actions}</div>
         </div>
-      </div>
+      )}
     </div>
   )
 })
