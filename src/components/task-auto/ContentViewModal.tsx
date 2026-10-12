@@ -143,7 +143,7 @@ function ContentLanguagePanel({
                 : 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed',
             )}
           >
-            <Gauge className="w-3.5 h-3.5" /> Chấm điểm content
+            <Gauge className="w-3.5 h-3.5" /> Chấm điểm nội dung
           </button>
 
           {!isOriginal && canEdit && (
@@ -443,7 +443,7 @@ export function ContentViewModal({
                             : 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed',
                         )}
                       >
-                        <Gauge className="w-3.5 h-3.5" /> Chấm điểm content
+                        <Gauge className="w-3.5 h-3.5" /> Chấm điểm nội dung
                       </button>
                     </div>
                     <div className="bg-gray-50 rounded-2xl px-5 py-4 text-base text-slate-700 whitespace-pre-wrap leading-relaxed border border-gray-100">

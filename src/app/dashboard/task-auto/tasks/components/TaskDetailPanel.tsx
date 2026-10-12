@@ -22,12 +22,14 @@ import { TaskPanelFooter } from './detail/TaskPanelFooter'
 import { TaskMetaStrip } from './detail/TaskMetaStrip'
 import { toVNDatetimeLocalInput } from '@/components/task-auto/helpers'
 import { ContentSection } from './detail/ContentSection'
+import { TaskContentPicker } from './detail/TaskContentPicker'
 import { VideoResultSection } from './detail/VideoResultSection'
 import { SourcesSection } from './detail/SourcesSection'
 import { ProductSection } from './detail/ProductSection'
 import { VideoPreviewOverlay } from './detail/VideoPreviewOverlay'
 import { TaskSchedulePostModal } from './detail/TaskSchedulePostModal'
 import { PublishedLinksSection } from './detail/PublishedLinksSection'
+import { contentLineCode } from './detail/PublishedPostPicker'
 import type { Source, Task, TeamSource, OmsProductSummary } from '@/types/task-auto'
 import { useBackdropClose } from '@/hooks/useBackdropClose'
 
@@ -100,6 +102,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId, onD
   // (backdrop, Esc, nút Đóng) mất trắng thay đổi mà không hỏi lại.
   const [contentDirty, setContentDirty]     = useState(false)
   const [showCloseConfirm, setShowCloseConfirm] = useState(false)
+  const [changingContent, setChangingContent] = useState(false)
   const [editForm, setEditForm] = useState({
     product_id: '',
     content_id: '',
@@ -127,13 +130,17 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId, onD
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key !== 'Escape' || hasChildOverlay) return
+      if (e.defaultPrevented || document.querySelector('[data-dark-modal]')) return
       if (editMode) { setEditMode(false); setProductSearch(''); setContentSearch(''); return }
+      if (changingContent) { setChangingContent(false); return }
       requestClose()
     }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasChildOverlay, editMode, contentDirty, onClose])
+  }, [hasChildOverlay, editMode, changingContent, contentDirty, onClose])
+
+  useEffect(() => { setChangingContent(false) }, [taskId])
 
   // Nội dung content sửa tay chưa lưu (dirty) sẽ mất nếu đóng panel — hỏi lại thay vì đóng thẳng.
   function requestClose() {
@@ -470,6 +477,15 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId, onD
   const canAssign         = isPrivilegedRole
   const canStart         = task?.status === 'ASSIGNED' && isAssignee
 
+  const hasContent = !!(task?.content_id || task?.editor_content_id || task?.team_content_id)
+  const canPickContent = isAssignee || isPrivilegedRole
+  const showContentPicker = !!task && canPickContent && !editMode && ((isAutoTask && !hasContent) || changingContent)
+  const canChangeContent = canPickContent && !editMode && (hasContent || !isAutoTask)
+    && task?.status !== 'SUBMITTED' && task?.status !== 'APPROVED'
+  const isAdminOrManager = userRoles.some(r => r === 'ADMIN' || r === 'MANAGER')
+  const contentOwnerId = isAssignee || !isAdminOrManager || !task?.assignee_id ? currentUserId : task.assignee_id
+  const contentOwnerName = contentOwnerId && contentOwnerId !== currentUserId ? task?.assignee?.full_name : undefined
+
   const assignEnabled = editMode && canAssign && task?.status === 'PENDING'
   const { data: taskTeam, isLoading: loadingTaskTeam } = useQuery({
     queryKey: ['task-auto', 'team', task?.team_id],
@@ -695,7 +711,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId, onD
             contentCode={contentCode}
             productName={productName}
             productSku={productSku}
-            onToggleEdit={() => setEditMode(v => !v)}
+            onToggleEdit={() => { setChangingContent(false); setEditMode(v => !v) }}
             onDuplicate={task && onDuplicate ? () => onDuplicate(task) : undefined}
             onClose={requestClose}
           />
@@ -766,6 +782,17 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId, onD
 
                     {/* LEFT: Content + Sources (+ Product dời xuống đây khi video chiếm cột phải) */}
                     <div className="flex flex-col gap-4">
+                      {showContentPicker && contentOwnerId ? (
+                        <TaskContentPicker
+                          task={task}
+                          ownerId={contentOwnerId}
+                          ownerName={contentOwnerName}
+                          currentKey={hasContent ? currentContentPrefixedId : undefined}
+                          onCancel={changingContent ? () => setChangingContent(false) : undefined}
+                          onAssigned={() => setChangingContent(false)}
+                          onDirtyChange={setContentDirty}
+                        />
+                      ) : (
                       <ContentSection
                         editMode={editMode}
                         edit={{
@@ -790,7 +817,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId, onD
                         }}
                         view={{
                           emptyTitle: isAutoTask ? (
-                            <span className="text-gray-400 font-normal italic">Chưa chọn content — bấm “Sửa” để chọn</span>
+                            <span className="text-gray-400 font-normal italic">Chưa chọn content — người được giao sẽ chọn</span>
                           ) : undefined,
                           contentTitle,
                           contentMarket,
@@ -812,7 +839,9 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId, onD
                         editorMarket={task.team?.market ?? null}
                         sourceTranslations={fullContent?.translations}
                         onDirtyChange={setContentDirty}
+                        onChangeContent={canChangeContent ? () => setChangingContent(true) : undefined}
                       />
+                      )}
 
                       <SourcesSection
                         editMode={editMode && !isAutoTask}
@@ -881,6 +910,22 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId, onD
                       taskId={task.id}
                       publishedLinks={task.published_links}
                       canEdit={isAssignee || canApproveReject}
+                      taskTitle={
+                        task.content?.title ??
+                        task.team_content?.title ??
+                        task.editor_content?.title ??
+                        task.content?.source_team_content?.title ??
+                        null
+                      }
+                      anchorDate={task.submitted_at ?? task.reviewed_at ?? task.deadline}
+                      owner={task.assignee ? { id: task.assignee.id, name: task.assignee.full_name } : null}
+                      team={task.team ? { id: task.team.id, name: task.team.name } : null}
+                      contentLine={contentLineCode(
+                        task.content_line,
+                        task.content?.content_line,
+                        task.team_content?.content_line,
+                        task.editor_content?.content_line,
+                      )}
                     />
                   )}
                 </div>

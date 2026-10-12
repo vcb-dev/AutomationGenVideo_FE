@@ -153,7 +153,7 @@ function acceptsPlainEnter(target: EventTarget | null): boolean {
   return target instanceof HTMLButtonElement && !!target.closest('[data-enter-submit]')
 }
 
-function Kbd({ children }: { children: React.ReactNode }) {
+export function Kbd({ children }: { children: React.ReactNode }) {
   return (
     <kbd className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded border border-gray-200 bg-white font-sans text-[11px] font-semibold text-slate-600">
       {children}
@@ -196,7 +196,7 @@ function getProductImage(p: any): string | null {
   return driveImageUrl(raw)
 }
 
-function getContentTitle(c: any): string {
+export function getContentTitle(c: any): string {
   return c.title
     || c.source_editor_content?.title     // TeamContent FK → EditorContent
     || c.source_team_content?.title       // Content FK → TeamContent
@@ -204,7 +204,7 @@ function getContentTitle(c: any): string {
     || 'Unknown'
 }
 
-function getContentCode(c: any): string | undefined {
+export function getContentCode(c: any): string | undefined {
   return c.code
     || c.source_editor_content?.code
     || c.source_team_content?.code
@@ -212,7 +212,7 @@ function getContentCode(c: any): string | undefined {
     || undefined
 }
 
-function getContentLine(c: any): string | undefined {
+export function getContentLine(c: any): string | undefined {
   if (!c) return undefined
   return c.content_line?.name
     || c.source_editor_content?.content_line?.name

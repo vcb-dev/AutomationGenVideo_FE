@@ -14,6 +14,7 @@ import { PersonalDashboard } from './components/PersonalDashboard'
 import { ContentCreatorDashboard } from './components/ContentCreatorDashboard'
 import { ContentTeamLeaderDashboard } from './components/ContentTeamLeaderDashboard'
 import { ContentWinFailSection } from './components/ContentWinFailSection'
+import { TrafficTrendCard } from './components/TrafficTrendCard'
 import { SectionHeader, SegmentedControl } from './components/DashboardUI'
 
 // ── Date filter ───────────────────────────────────────────────────────────────
@@ -329,6 +330,21 @@ export default function TaskAutoDashboard() {
   const showDateFilter = isContentLeader || isContentMember || data?.scope === 'global' || data?.scope === 'team' || data?.scope === 'personal'
   const loading = isLoading || teamsLoading
 
+  // Biểu đồ traffic theo ngày — cùng bộ lọc ngày/team/thành viên với phần còn lại của trang; BE tự
+  // khoá phạm vi theo role nên LEADER/MEMBER truyền thừa cũng không lộ dữ liệu team khác.
+  const trafficCard = data && (
+    <TrafficTrendCard
+      from={from}
+      to={to}
+      teamId={data.scope === 'global' ? teamFilter || undefined : undefined}
+      assigneeId={data.scope === 'personal' ? undefined : memberFilter || undefined}
+      onDrill={data.scope === 'personal' ? undefined : ({ kind, id }) => {
+        if (kind === 'team') { setTeamFilter(id); setMemberFilter('') }
+        else setMemberFilter(id)
+      }}
+    />
+  )
+
   const pageSubtitle = isContentLeader || isContentMember
     ? 'Content sưu tầm, bản dịch và video được làm từ content'
     : data?.scope === 'personal'
@@ -419,9 +435,9 @@ export default function TaskAutoDashboard() {
           aria-busy={isPlaceholderData}
           className={cn('transition-opacity duration-200', isPlaceholderData && 'opacity-60')}
         >
-          {data.scope === 'global' ? <GlobalDashboard d={buildGlobal(data)} scopeLabel={globalScopeLabel} productStats={productStats} />
-            : data.scope === 'team'   ? <TeamDashboard d={data} productStats={productStats} />
-            : <PersonalDashboard d={data} productStats={productStats} />}
+          {data.scope === 'global' ? <GlobalDashboard d={buildGlobal(data)} scopeLabel={globalScopeLabel} productStats={productStats} trafficCard={trafficCard} />
+            : data.scope === 'team'   ? <TeamDashboard d={data} productStats={productStats} trafficCard={trafficCard} />
+            : <PersonalDashboard d={data} productStats={productStats} trafficCard={trafficCard} />}
         </div>
       )}
 

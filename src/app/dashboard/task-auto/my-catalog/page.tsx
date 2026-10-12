@@ -11,6 +11,8 @@ import { UserRole } from '@/types/auth'
 import { MyProductsTab } from './components/MyProductsTab'
 import { MyContentsTab } from './components/MyContentsTab'
 import { MySourcesTab } from './components/MySourcesTab'
+import { WinVideosGrid } from '@/components/task-auto/WinVideosGrid'
+import { ContentViewTabs, type ContentView } from '@/components/task-auto/ContentViewTabs'
 import type { BrandType, TeamMarket } from '@/types/task-auto'
 
 type TabId = 'products' | 'contents' | 'sources'
@@ -21,9 +23,9 @@ const BRANDS: { key: BrandType; label: string; color: string }[] = [
 ]
 
 const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
-  { id: 'products',  label: 'Sản phẩm',  icon: Package },
-  { id: 'contents',  label: 'Content',   icon: FileText },
-  { id: 'sources',   label: 'Source',    icon: Radio },
+  { id: 'products',  label: 'Sản phẩm', icon: Package },
+  { id: 'contents',  label: 'Nội dung', icon: FileText },
+  { id: 'sources',   label: 'Tư liệu dựng video', icon: Radio },
 ]
 
 export default function MyCatalogPage() {
@@ -36,6 +38,7 @@ export default function MyCatalogPage() {
   const [teamMarket, setTeamMarket] = useState<TeamMarket>('VIETNAM')
   const [activeTab, setActiveTab]   = useState<TabId>('products')
   const [viewUserId, setViewUserId] = useState('') // '' = xem kho của chính mình
+  const [contentView, setContentView] = useState<ContentView>('win')
 
   const { data: teams } = useQuery({
     queryKey: ['task-auto', 'teams'],
@@ -103,7 +106,7 @@ export default function MyCatalogPage() {
             <p className="text-slate-500 text-base mt-0.5">
               {readOnly
                 ? 'Bạn đang xem ở chế độ chỉ đọc — không thể thêm/sửa/xóa mục trong kho này'
-                : 'Danh mục riêng của bạn — sản phẩm, content và source bạn tự thêm'}
+                : 'Kho riêng của bạn — gồm sản phẩm, nội dung và tư liệu dựng video do bạn tự thêm'}
             </p>
           </div>
         </div>
@@ -194,7 +197,21 @@ export default function MyCatalogPage() {
       {/* Tab content — key resets state khi đổi nhóm hoặc đổi người đang xem */}
       <div>
         {activeTab === 'products'  && <MyProductsTab  key={`${brand}-${targetUserId}`} userId={targetUserId} brandType={brand} readOnly={readOnly} />}
-        {activeTab === 'contents'  && <MyContentsTab  key={`${brand}-${targetUserId}`} userId={targetUserId} brandType={brand} teamMarket={teamMarket} readOnly={readOnly} />}
+        {/* Content: video win trên page người này cầm + content nhập tay như cũ */}
+        {activeTab === 'contents' && (
+          <div className="space-y-5">
+            <ContentViewTabs value={contentView} onChange={setContentView} />
+            {contentView === 'win' ? (
+              <WinVideosGrid
+                key={targetUserId}
+                defaultOwnerId={targetUserId}
+                defaultOwnerName={readOnly ? selectedMember?.full_name : user.full_name}
+              />
+            ) : (
+              <MyContentsTab key={`${brand}-${targetUserId}`} userId={targetUserId} brandType={brand} teamMarket={teamMarket} readOnly={readOnly} />
+            )}
+          </div>
+        )}
         {activeTab === 'sources'   && <MySourcesTab   key={`${brand}-${targetUserId}`} userId={targetUserId} brandType={brand} readOnly={readOnly} />}
       </div>
     </div>

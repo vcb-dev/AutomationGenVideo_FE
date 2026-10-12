@@ -3,11 +3,13 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Link2, Plus, Pencil, Trash2, Check, X, Loader2, Eye, Heart, MessageCircle, Share2, RefreshCw } from 'lucide-react'
+import { Link2, Plus, Pencil, Trash2, Check, X, Loader2, Eye, Heart, MessageCircle, Share2, RefreshCw, Library } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { updateTaskPublishedLinks, refreshPublishedLinkStats } from '@/lib/api/task-auto'
 import type { PublishedLink } from '@/types/task-auto'
+import type { ExternalVideo } from '@/services/scraperService'
 import { Section } from './Section'
+import { PublishedPostPicker } from './PublishedPostPicker'
 
 function formatCount(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M'
@@ -63,13 +65,41 @@ function normalizeUrl(raw: string): string {
   return /^https?:\/\//i.test(v) ? v : `https://${v}`
 }
 
+/**
+ * Nối link bài đăng chọn từ kho (picker trong chi tiết task, nút "Thêm link" ở tab Video đã làm,
+ * nút "Gắn vào video đã làm" ở tab Video đã đăng) vào danh sách link của task, bỏ link đã có.
+ * Trả null khi không có gì mới để gắn.
+ */
+export function appendPublishedLinks(
+  links: PublishedLink[],
+  posts: { platform: string; url: string }[],
+): PublishedLink[] | null {
+  const key = (url: string) => normalizeUrl(url).replace(/\/$/, '').toLowerCase()
+  const existing = new Set(links.map(link => key(link.url)))
+  const additions: PublishedLink[] = posts
+    .filter(post => post.url && !existing.has(key(post.url)))
+    .map(post => ({
+      id: crypto.randomUUID(),
+      platform: getPlatformMeta(post.platform).label,
+      url: normalizeUrl(post.url),
+    }))
+  return additions.length ? [...links, ...additions] : null
+}
+
 interface Props {
   taskId: string
   publishedLinks?: PublishedLink[] | null
   canEdit: boolean
+  taskTitle?: string | null
+  anchorDate?: string | null
+  /** Người nhận task — mặc định chỉ hiện bài trên kênh người này cầm */
+  owner?: { id: string; name: string } | null
+  team?: { id: string; name: string } | null
+  /** Mã tuyến A1–A5 của task — mặc định chỉ hiện bài gắn #A1…#A5 tương ứng */
+  contentLine?: string | null
 }
 
-export function PublishedLinksSection({ taskId, publishedLinks, canEdit }: Props) {
+export function PublishedLinksSection({ taskId, publishedLinks, canEdit, taskTitle, anchorDate, owner, team, contentLine }: Props) {
   const qc = useQueryClient()
   const links = publishedLinks ?? []
 
@@ -79,6 +109,7 @@ export function PublishedLinksSection({ taskId, publishedLinks, canEdit }: Props
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editPlatform, setEditPlatform] = useState('')
   const [editUrl, setEditUrl] = useState('')
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   const mutation = useMutation({
     mutationFn: (next: PublishedLink[]) => updateTaskPublishedLinks(taskId, next),
@@ -122,6 +153,17 @@ export function PublishedLinksSection({ taskId, publishedLinks, canEdit }: Props
 
   const handleDelete = (id: string) => {
     mutation.mutate(links.filter(l => l.id !== id))
+  }
+
+  const handleAttachFromLibrary = async (videos: ExternalVideo[]) => {
+    const next = appendPublishedLinks(links, videos)
+    if (!next) {
+      toast('Các bài đã chọn đều đang được gắn với task')
+      return
+    }
+
+    await mutation.mutateAsync(next)
+    setPickerOpen(false)
   }
 
   return (
@@ -237,6 +279,28 @@ export function PublishedLinksSection({ taskId, publishedLinks, canEdit }: Props
         })}
 
         {canEdit && (
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-3 text-sm font-semibold text-white transition-colors hover:bg-indigo-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+            >
+              <Library className="w-4 h-4" aria-hidden="true" />
+              Chọn từ kho bài đã đăng
+            </button>
+            {!formOpen && (
+              <button
+                type="button"
+                onClick={() => setFormOpen(true)}
+                className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-dashed border-indigo-300 px-3 text-sm font-semibold text-indigo-600 transition-colors hover:bg-indigo-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              >
+                <Plus className="w-4 h-4" aria-hidden="true" /> Dán link thủ công
+              </button>
+            )}
+          </div>
+        )}
+
+        {canEdit && (
           formOpen ? (
             <div className="border border-indigo-200 rounded-xl bg-indigo-50/30 p-3 space-y-2.5">
               <div className="flex flex-wrap gap-1.5">
@@ -287,16 +351,22 @@ export function PublishedLinksSection({ taskId, publishedLinks, canEdit }: Props
                 </button>
               </div>
             </div>
-          ) : (
-            <button
-              onClick={() => setFormOpen(true)}
-              className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-semibold text-indigo-600 border border-dashed border-indigo-300 rounded-xl hover:bg-indigo-50 transition-colors"
-            >
-              <Plus className="w-4 h-4" /> Nộp link bài đăng
-            </button>
-          )
+          ) : null
         )}
       </div>
+
+      <PublishedPostPicker
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        existingUrls={links.map(link => link.url)}
+        taskTitle={taskTitle}
+        anchorDate={anchorDate}
+        owner={owner}
+        team={team}
+        contentLine={contentLine}
+        onAttach={handleAttachFromLibrary}
+        isSaving={mutation.isPending}
+      />
     </Section>
   )
 }
