@@ -7,6 +7,7 @@ import { Check, FileText, Library, Loader2, PenLine, Plus, RotateCw, Search, Tar
 import { cn } from '@/lib/utils'
 import { useDebounced } from '@/hooks/useDebounced'
 import { ContentFormModal, MARKET_LABEL } from '@/components/task-auto/ContentFormModal'
+import { REQUIRED_TOAST, contentRequiredErrors, contentSourceFields, focusFirstInvalid } from '@/components/task-auto/ContentSourcePicker'
 import {
   updateTask, getContents, getEditorContents, getTeamContents, getTeam,
   createEditorContent, getContentLines, getContentClassifications, createContentClassification,
@@ -127,9 +128,9 @@ export function TaskContentPicker({ task, ownerId, ownerName, currentKey, onCanc
   const teamQuery = useQuery({
     queryKey: ['task-auto', 'team', task.team_id],
     queryFn: () => getTeam(task.team_id),
-    enabled: !!task.team_id,
+    enabled: !!task.team_id && !task.team?.brand_type,
   })
-  const brandType = teamQuery.data?.brand_type
+  const brandType = task.team?.brand_type ?? teamQuery.data?.brand_type
   const market = task.team?.market ?? teamQuery.data?.market ?? 'VIETNAM'
 
   const listQuery = useQuery({
@@ -225,6 +226,8 @@ export function TaskContentPicker({ task, ownerId, ownerName, currentKey, onCanc
   const [draft, setDraft] = useState<ContentDraft>(initialDraft.draft)
   const [hints, setHints] = useState<DraftHints>(initialDraft.hints)
   const [fullFormInit, setFullFormInit] = useState<ContentDraft | null>(null)
+  const [showDraftErrors, setShowDraftErrors] = useState(false)
+  const draftFormRef = useRef<HTMLDivElement>(null)
 
   const { data: contentLines, isLoading: loadingLines } = useQuery({
     queryKey: ['task-auto', 'content-lines'],
@@ -244,7 +247,7 @@ export function TaskContentPicker({ task, ownerId, ownerName, currentKey, onCanc
     }
   }, [contentLines, draft.content_line_id])
 
-  const draftDirty = mode === 'new' && !!(draft.title.trim() || draft.body.trim() || draft.code.trim())
+  const draftDirty = mode === 'new' && !!(draft.title.trim() || draft.body.trim() || draft.code.trim() || draft.source.video.trim() || draft.source.link.trim() || draft.source.file)
   useEffect(() => { onDirtyChange?.(draftDirty) }, [draftDirty, onDirtyChange])
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange])
 
@@ -284,15 +287,19 @@ export function TaskContentPicker({ task, ownerId, ownerName, currentKey, onCanc
     setHints(h => ({ ...h, title: 'body' }))
   }
 
-  const draftBody = (d: ContentDraft) => ({
-    title: d.title.normalize('NFC').replace(/\s+/g, ' ').trim(),
-    code: d.code.trim() || undefined,
-    body: d.body.trim() ? d.body : undefined,
-    content_line_id: d.content_line_id || undefined,
-    classification_id: d.classification_id || undefined,
-    market,
-    brand_type: brandType,
-  }) as Partial<Content>
+  const draftBody = (d: ContentDraft) => {
+    const { body, file_content_url } = contentSourceFields(d.source, d.body)
+    return {
+      title: d.title.normalize('NFC').replace(/\s+/g, ' ').trim(),
+      code: d.code.trim() || undefined,
+      body: body.trim() ? body : undefined,
+      file_content_url: file_content_url || undefined,
+      content_line_id: d.content_line_id || undefined,
+      classification_id: d.classification_id || undefined,
+      market,
+      brand_type: brandType,
+    } as Partial<Content>
+  }
 
   const saveNewMut = useMutation({
     mutationFn: async (d: ContentDraft) => {
@@ -317,6 +324,7 @@ export function TaskContentPicker({ task, ownerId, ownerName, currentKey, onCanc
       invalidateCatalog()
       setDraft({ ...EMPTY_DRAFT, content_line_id: draft.content_line_id })
       setHints({})
+      setShowDraftErrors(false)
       showSavedContent(getContentTitle(err.created))
       toast.error(`Đã lưu content vào kho cá nhân nhưng chưa gắn được vào task: ${err.message}. Bấm vào content trong danh sách để gắn lại.`)
     },
@@ -327,7 +335,14 @@ export function TaskContentPicker({ task, ownerId, ownerName, currentKey, onCanc
   const canSaveNew = !!draft.title.trim() && brandReady && !busy
 
   function saveNew() {
-    if (canSaveNew) saveNewMut.mutate(draft)
+    if (!canSaveNew) return
+    if (Object.keys(contentRequiredErrors(draft)).length) {
+      setShowDraftErrors(true)
+      focusFirstInvalid(draftFormRef.current)
+      toast.error(REQUIRED_TOAST)
+      return
+    }
+    saveNewMut.mutate(draft)
   }
 
   function handleNewKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
@@ -597,11 +612,12 @@ export function TaskContentPicker({ task, ownerId, ownerName, currentKey, onCanc
             )}
           </div>
         ) : (
-          <div className="space-y-3" onKeyDown={handleNewKeyDown}>
+          <div ref={draftFormRef} className="space-y-3" onKeyDown={handleNewKeyDown}>
             <NewContentFields
               ref={titleRef}
               draft={draft}
               hints={hints}
+              errors={showDraftErrors ? contentRequiredErrors(draft) : undefined}
               onChange={updateDraft}
               onBodyPaste={handleBodyPaste}
               lines={contentLines}
@@ -652,6 +668,7 @@ export function TaskContentPicker({ task, ownerId, ownerName, currentKey, onCanc
             setFullFormInit(null)
             setDraft({ ...EMPTY_DRAFT, content_line_id: draft.content_line_id })
             setHints({})
+            setShowDraftErrors(false)
             invalidateCatalog()
             const item = toItem(content, 'personal')
             assignMut.mutate(item, { onError: () => showSavedContent(item.title) })

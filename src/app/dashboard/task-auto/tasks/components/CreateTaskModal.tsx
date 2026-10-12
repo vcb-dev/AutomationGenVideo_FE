@@ -9,6 +9,9 @@ import { DarkModal } from '@/components/task-auto/DarkModal'
 import { toVNDatetimeLocalInput, vnDate } from '@/components/task-auto/helpers'
 import { DarkInput, CustomSelect, ServerSearchSelect, type SearchItem } from '@/components/task-auto/DarkInput'
 import { ContentFormModal, MARKET_LABEL } from '@/components/task-auto/ContentFormModal'
+import {
+  EMPTY_CONTENT_SOURCE, REQUIRED_TOAST, contentRequiredErrors, contentSourceFields, focusFirstInvalid, type ContentSource,
+} from '@/components/task-auto/ContentSourcePicker'
 import { ProductFormModal } from '@/components/task-auto/ProductFormModal'
 import { NewContentFields } from './NewContentFields'
 import {
@@ -373,9 +376,10 @@ export interface ContentDraft {
   body: string
   content_line_id: string
   classification_id: string
+  source: ContentSource
 }
 
-export const EMPTY_DRAFT: ContentDraft = { title: '', code: '', body: '', content_line_id: '', classification_id: '' }
+export const EMPTY_DRAFT: ContentDraft = { title: '', code: '', body: '', content_line_id: '', classification_id: '', source: EMPTY_CONTENT_SOURCE }
 
 /** Ô nào được tự điền và lấy từ đâu — hiện dưới ô để người dùng biết mà kiểm tra lại. */
 export interface DraftHints {
@@ -576,6 +580,8 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
   const [draftHints, setDraftHints] = useState<DraftHints>(initialDraft.hints)
   // Ảnh chụp bản nháp lúc mở "Form đầy đủ" — object ổn định, ContentFormModal reset form khi identity đổi
   const [fullFormInit, setFullFormInit] = useState<ContentDraft | null>(null)
+  const [showDraftErrors, setShowDraftErrors] = useState(false)
+  const draftFormRef = useRef<HTMLDivElement>(null)
   const titleInputRef = useRef<HTMLInputElement>(null)
   const [debouncedTitle, setDebouncedTitle] = useState('')
   const deadlineId = useId()
@@ -1059,15 +1065,27 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
     setDraftHints(h => ({ ...h, title: 'body' }))
   }
 
-  const draftBody = (d: ContentDraft) => ({
-    title: d.title.normalize('NFC').replace(/\s+/g, ' ').trim(),
-    code: d.code.trim() || undefined,
-    body: d.body.trim() ? d.body : undefined,
-    content_line_id: d.content_line_id || undefined,
-    classification_id: d.classification_id || undefined,
-    market: creatorMarket,
-    brand_type: brandType,
-  }) as Partial<Content>
+  const draftBody = (d: ContentDraft) => {
+    const { body, file_content_url } = contentSourceFields(d.source, d.body)
+    return {
+      title: d.title.normalize('NFC').replace(/\s+/g, ' ').trim(),
+      code: d.code.trim() || undefined,
+      body: body.trim() ? body : undefined,
+      file_content_url: file_content_url || undefined,
+      content_line_id: d.content_line_id || undefined,
+      classification_id: d.classification_id || undefined,
+      market: creatorMarket,
+      brand_type: brandType,
+    } as Partial<Content>
+  }
+
+  function validateDraft() {
+    if (!Object.keys(contentRequiredErrors(draft)).length) return true
+    setShowDraftErrors(true)
+    focusFirstInvalid(draftFormRef.current)
+    toast.error(REQUIRED_TOAST)
+    return false
+  }
 
   /**
    * Content viết mới đã LƯU vào kho cá nhân → thành 1 lựa chọn bình thường (task lỗi thì bấm tạo lại
@@ -1082,6 +1100,7 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
     if (multiMode) setDraftProduct(null)
     setPicked(prev => (multiMode ? [...prev.filter(p => p.id !== next.id), next] : [next]))
     setDraft({ ...EMPTY_DRAFT, content_line_id: lineId })
+    setShowDraftErrors(false)
     setDraftHints(lineId ? { line: 'last' } : {})
     setContentSearch('')
     if (lineId) savePrefs({ ...loadPrefs(), new_content_line_id: lineId })
@@ -1106,6 +1125,7 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
   function addDraftToList() {
     if (!draft.title.trim() || saveDraftMut.isPending) return
     if (picked.length >= MAX_BATCH) { toast.error(`Tối đa ${MAX_BATCH} nhiệm vụ mỗi lần tạo`); return }
+    if (!validateDraft()) return
     saveDraftMut.mutate({ d: draft, product: draftProduct })
   }
 
@@ -1131,6 +1151,7 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
     }
     setDraft(d => ({ ...EMPTY_DRAFT, content_line_id: d.content_line_id }))
     setDraftHints(h => (h.line ? { line: h.line } : {}))
+    setShowDraftErrors(false)
   }
 
   const draftReady = contentMode === 'new' && !!userId && !!draft.title.trim()
@@ -1223,7 +1244,8 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
     && !mutation.isPending && !resolvingOmsVariant && !saveDraftMut.isPending
 
   function submit(andContinue: boolean) {
-    if (canSubmit) mutation.mutate({ andContinue })
+    if (!canSubmit || (draftReady && !validateDraft())) return
+    mutation.mutate({ andContinue })
   }
 
   // Enter = Tạo nhiệm vụ, Shift+Enter = Tạo & tạo tiếp — chỉ khi form đã đủ và đang ở ô nhập 1 dòng / ô chọn
@@ -1431,10 +1453,12 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
           )}
           </>
           ) : (
+            <div ref={draftFormRef}>
             <NewContentFields
               ref={titleInputRef}
               draft={draft}
               hints={draftHints}
+              errors={showDraftErrors ? contentRequiredErrors(draft) : undefined}
               onChange={updateDraft}
               onBodyPaste={handleBodyPaste}
               lines={contentLines}
@@ -1460,6 +1484,7 @@ export function CreateTaskModal({ teams, userId, isLeader, isAdminOrManager, isM
                 placeholder: 'Không bắt buộc — tìm sản phẩm...',
               }) : undefined}
             />
+            </div>
           )}
           {multiMode && picked.length > 0 && (
             <div className="space-y-2">

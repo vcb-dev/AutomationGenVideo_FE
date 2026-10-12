@@ -69,7 +69,7 @@ export default function NavDropdown({
                         }}
                     >
                         {/* Left: menu list */}
-                        <div style={{ minWidth: "300px" }}>
+                        <div style={{ minWidth: "300px" }} className="max-h-[calc(100vh-5rem)] overflow-y-auto overscroll-contain">
                             {menu.sections.map((section) => {
                                 const { badgeClass, activeIconClass, activeDotClass, activeRowClass } =
                                     getSectionClasses(section.color ?? "blue");

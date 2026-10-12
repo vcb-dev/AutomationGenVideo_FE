@@ -8,6 +8,7 @@ import type { Task } from '@/types/task-auto'
 interface Props {
   task: Task | undefined
   editMode: boolean
+  loading?: boolean
   contentTitle?: string | null
   contentCode?: string | null
   productName?: string | null
@@ -19,7 +20,7 @@ interface Props {
 }
 
 export function TaskPanelHeader({
-  task, editMode, contentTitle, contentCode, productName, productSku,
+  task, editMode, loading = false, contentTitle, contentCode, productName, productSku,
   onToggleEdit, onDuplicate, onClose,
 }: Props) {
   return (
@@ -56,8 +57,9 @@ export function TaskPanelHeader({
           <button
             type="button"
             onClick={onDuplicate}
+            disabled={loading}
             title="Tạo nhiệm vụ mới cùng team, người được giao, sản phẩm, nguồn — chỉ chọn content mới"
-            className="px-3 py-1.5 rounded-lg transition-colors text-xs font-semibold flex items-center gap-1.5 hover:bg-gray-100 text-gray-500 hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+            className="px-3 py-1.5 rounded-lg transition-colors text-xs font-semibold flex items-center gap-1.5 hover:bg-gray-100 text-gray-500 hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Copy className="w-3.5 h-3.5" aria-hidden="true" />
             Nhân bản
@@ -67,9 +69,10 @@ export function TaskPanelHeader({
         {task && (
           <button
             onClick={onToggleEdit}
+            disabled={loading}
             title={editMode ? 'Thoát chỉnh sửa' : 'Chỉnh sửa task'}
             className={cn(
-              'px-3 py-1.5 rounded-lg transition-colors text-xs font-semibold flex items-center gap-1.5',
+              'px-3 py-1.5 rounded-lg transition-colors text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed',
               editMode
                 ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
                 : 'hover:bg-gray-100 text-gray-400 hover:text-gray-600'

@@ -116,15 +116,15 @@ export function DateRangeFilter({
   // Hiển thị dd/MM thay vì yyyy-mm-dd thô, kèm nhãn (vd "Ngày:") để người dùng hiểu ngay đây là
   // bộ lọc thời gian — mặc định trang lọc "Hôm nay" nên nếu không nói rõ, người dùng dễ
   // tưởng mất task trong khi chỉ là bị bộ lọc ngày che.
-  const text = !hasRange
-    ? `${label}: Tất cả`
+  const value = !hasRange
+    ? 'Tất cả'
     : isToday
-      ? `${label}: Hôm nay`
+      ? 'Hôm nay'
       : isYesterday
-        ? `${label}: Hôm qua`
+        ? 'Hôm qua'
         : isSingleDay
-          ? `${label}: ${formatShortDate(from)}`
-          : `${label}: ${from ? formatShortDate(from) : '…'} → ${to ? formatShortDate(to) : '…'}`
+          ? formatShortDate(from)
+          : `${from ? formatShortDate(from) : '…'} → ${to ? formatShortDate(to) : '…'}`
 
   function applyPreset(preset: DatePreset) {
     const [f, t] = preset.range()
@@ -142,26 +142,27 @@ export function DateRangeFilter({
         aria-expanded={open}
         aria-haspopup="dialog"
         className={cn(
-          'flex items-center gap-2 border font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500',
+          'flex items-center gap-2 border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500',
           compact
-            ? 'min-h-9 rounded-lg bg-white px-3 text-xs'
-            : 'pl-3.5 pr-2.5 py-3 bg-gray-50 rounded-xl text-sm focus:bg-white',
-          isToday
-            ? 'border-amber-300 ring-1 ring-amber-100 text-amber-700'
-            : hasRange
-              ? 'border-indigo-400 ring-1 ring-indigo-100 text-indigo-700'
-              : compact ? 'border-slate-200 text-slate-700' : 'border-gray-200 text-slate-500',
+            ? 'min-h-9 rounded-lg px-3 text-xs'
+            : 'h-10 pl-3.5 pr-2.5 rounded-xl text-sm',
+          hasRange
+            ? 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:border-indigo-300'
+            : compact ? 'bg-white border-slate-200 text-slate-700' : 'bg-gray-50 border-gray-200 text-slate-600 hover:bg-gray-100',
         )}
       >
         <CalendarDays
           className={cn(
             'flex-shrink-0',
             compact ? 'w-3.5 h-3.5' : 'w-4 h-4',
-            isToday ? 'text-amber-500' : hasRange ? 'text-indigo-500' : 'text-slate-400',
+            hasRange ? 'text-indigo-500' : 'text-slate-400',
           )}
           aria-hidden="true"
         />
-        <span className="whitespace-nowrap">{text}</span>
+        <span className="whitespace-nowrap">
+          <span className={hasRange ? 'text-indigo-500' : 'text-slate-500'}>{label}:</span>{' '}
+          <span className="font-semibold">{value}</span>
+        </span>
         <ChevronDown className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" aria-hidden="true" />
       </button>
 

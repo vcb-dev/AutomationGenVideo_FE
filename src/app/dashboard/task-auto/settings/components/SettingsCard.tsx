@@ -64,7 +64,7 @@ export function SettingsCard({ canEdit }: { canEdit: boolean }) {
       if (res.assigned > 0) {
         toast.success(`Đã phân công ${res.assigned} task thành công`)
       } else {
-        toast('Không có task A4 nào được tạo (hệ thống đang tắt, đã đủ KPI A4 hoặc kho sản phẩm team trống)', { icon: 'ℹ️' })
+        toast('Không có task A4 nào được tạo (hệ thống đang tắt, đã đủ KPI A4 hoặc kho sản phẩm team không có SP dòng GMV)', { icon: 'ℹ️' })
       }
     },
     onError: () => { toast.error('Không thể kích hoạt phân công — hãy kiểm tra BE server'); setShowConfirm(false) },

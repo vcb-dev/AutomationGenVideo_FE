@@ -6,6 +6,7 @@ import type { Task } from '@/types/task-auto'
 interface Props {
   task: Task
   editMode: boolean
+  loading?: boolean
   isAssignee: boolean
   canApproveReject: boolean
   canDelete: boolean
@@ -28,7 +29,7 @@ interface Props {
 }
 
 export function TaskPanelFooter({
-  task, editMode,
+  task, editMode, loading = false,
   isAssignee, canApproveReject, canDelete, canStart, canSchedulePost,
   isPendingStart, isPendingApprove, isPendingDelete, isPendingUpdate,
   onClose, onCancelEdit, onSaveEdit,
@@ -61,7 +62,7 @@ export function TaskPanelFooter({
           >
             Đóng
           </button>
-          <div className="flex flex-wrap justify-end gap-2">
+          <fieldset disabled={loading} className="min-w-0 flex flex-wrap justify-end gap-2 [&>button:disabled]:opacity-60 [&>button:disabled]:cursor-not-allowed">
             {canStart && (
               <button onClick={onStart} disabled={isPendingStart}
                 className="bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors">
@@ -109,7 +110,7 @@ export function TaskPanelFooter({
                 Xoá task
               </button>
             )}
-          </div>
+          </fieldset>
         </>
       )}
     </div>

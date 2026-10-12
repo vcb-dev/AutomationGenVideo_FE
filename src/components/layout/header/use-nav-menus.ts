@@ -23,7 +23,6 @@ import {
     BookOpen,
     Zap,
     Radio,
-    FolderOpen,
     AudioLines,
     DownloadCloud,
     Sparkles,
@@ -390,16 +389,10 @@ export function useNavMenus(
                         color: "blue",
                         items: [
                             {
-                                label: isManagerOrAdmin ? n.teamsManage : n.teams,
+                                label: n.teams,
                                 href: "/dashboard/task-auto/teams",
                                 icon: Users,
                                 description: isManagerOrAdmin ? n.teamsManageDesc : n.teamsDesc,
-                            },
-                            {
-                                label: n.productCatalog,
-                                href: "/dashboard/task-auto/catalog/products",
-                                icon: FolderOpen,
-                                description: n.productCatalogDesc,
                             },
                             {
                                 label: n.sourceCatalog,
@@ -407,24 +400,12 @@ export function useNavMenus(
                                 icon: Radio,
                                 description: n.sourceCatalogDesc,
                             },
-                            {
-                                label: n.contentCatalog,
-                                href: "/dashboard/task-auto/content",
-                                icon: FileText,
-                                description: n.contentCatalogDesc,
-                            },
                         ],
                     },
                     {
                         section: n.secPersonal,
                         color: "violet",
                         items: [
-                            {
-                                label: n.myCatalog,
-                                href: "/dashboard/task-auto/my-catalog",
-                                icon: User,
-                                description: n.myCatalogDesc,
-                            },
                             {
                                 label: n.kpi,
                                 href: "/dashboard/task-auto/kpi",

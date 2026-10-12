@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, type ReactNode } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import toast from 'react-hot-toast'
 import { Loader2, XCircle, CheckCircle2, Play, ExternalLink } from 'lucide-react'
@@ -43,6 +43,16 @@ function contentTaskMeta(c: any): ReactNode {
   return n === 0
     ? <span className="text-emerald-600">Chưa làm</span>
     : <>Đã làm {n} lần</>
+}
+
+// Dòng task đã có trong cache các danh sách (bảng, kanban, lưới video…) — đủ cho header trong lúc
+// chờ GET /tasks/:id, nhưng thiếu content/SP/nguồn đầy đủ nên phần thân vẫn phải chờ.
+function findTaskInLists(qc: QueryClient, taskId: string): Task | undefined {
+  for (const [, page] of qc.getQueriesData<{ data?: Task[] }>({ queryKey: ['task-auto', 'tasks'] })) {
+    const hit = Array.isArray(page?.data) ? page.data.find(t => t.id === taskId) : undefined
+    if (hit) return hit
+  }
+  return undefined
 }
 
 function ScopeSwitch({ value, onChange, hasTeam, includeAll = false }: {
@@ -152,12 +162,14 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId, onD
   // ở backdrop z-[1001], vì lớp z-[1002] cũng inset-0 nên đã phủ kín backdrop, nuốt hết click.
   const backdrop = useBackdropClose(requestClose)
 
-  const { data: task, isLoading } = useQuery({
+  const { data: task, isLoading, isPlaceholderData } = useQuery({
     queryKey: ['task-auto', 'task', taskId],
     queryFn: () => getTask(taskId),
     enabled: !!taskId,
     refetchOnWindowFocus: true,
+    placeholderData: () => findTaskInLists(qc, taskId),
   })
+  const loadingDetail = isLoading || isPlaceholderData
   // Task Auto = hệ thống chia theo KPI tuyến A4: tạo ra chỉ gắn SP kho team, editor tự chọn content.
   // Ở chế độ sửa chỉ đổi được content — SP/nguồn giữ nguyên (BE chặn).
   const isAutoTask = task?.task_type === 'AUTO'
@@ -707,6 +719,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId, onD
           <TaskPanelHeader
             task={task}
             editMode={editMode}
+            loading={isPlaceholderData}
             contentTitle={contentTitle}
             contentCode={contentCode}
             productName={productName}
@@ -755,7 +768,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId, onD
           )}
 
           <div className="flex-1 overflow-y-auto">
-            {isLoading ? (
+            {loadingDetail ? (
               <div className="flex items-center justify-center h-64">
                 <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
               </div>
@@ -937,6 +950,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId, onD
             <TaskPanelFooter
               task={task}
               editMode={editMode}
+              loading={isPlaceholderData}
               isAssignee={isAssignee}
               canApproveReject={canApproveReject}
               canDelete={canDelete}

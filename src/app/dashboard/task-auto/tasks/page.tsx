@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Users, User, Kanban, Rows3, Gauge, CheckCircle2, Facebook, ListTodo, Hourglass, Film, FileText,
-  FileSpreadsheet, Link2, Plus,
+  FileSpreadsheet, Link2, Plus, ShieldAlert,
 } from 'lucide-react'
 import { todayString } from '@/components/task-auto/DateRangeFilter'
 import { cn } from '@/lib/utils'
@@ -21,6 +21,7 @@ import { TasksTable } from './components/TasksTable'
 import { SubmittedVideosGrid } from './components/SubmittedVideosGrid'
 import { ApprovedVideosGrid } from './components/ApprovedVideosGrid'
 import { ContentApprovalList } from './components/ContentApprovalList'
+import { ComplianceHistoryTab } from './components/ComplianceHistoryTab'
 import { ContentScoringDialog } from './components/ContentScoringDialog'
 import { DEFAULT_PUBLISHED_VIEW, PublishedVideosTab, type PublishedViewState } from './components/PublishedVideosTab'
 import { TaskDetailPanel } from './components/TaskDetailPanel'
@@ -36,12 +37,13 @@ type ViewMode = 'team' | 'mine'
 // được duyệt (status APPROVED) — 2 tab tách biệt vì trước đây gộp chung "Video đã nộp" khiến
 // người dùng không phân biệt được việc gì còn cần xử lý.
 // 'published-videos' = video đã lên page Facebook nội bộ (không phải task) — có bộ lọc riêng.
-type PageTab = 'table' | 'pending' | 'approved' | 'published-videos' | 'content-approval'
+// 'missing' = lịch sử nhiệm vụ còn thiếu theo người × ngày — có bộ lọc riêng, không dùng thanh lọc chung.
+type PageTab = 'table' | 'pending' | 'approved' | 'published-videos' | 'content-approval' | 'missing'
 type TaskLayout = 'kanban' | 'list'
 
-// 5 màn hình trên gom thành 3 tab theo việc người dùng vào trang để làm: làm/giao task · xử lý thứ
-// đang chờ duyệt · xem kết quả. Tab có nhiều màn thì chọn màn bằng nút con ở bên phải hàng tab.
-type TabGroup = 'tasks' | 'review' | 'results'
+// Các màn hình trên gom thành tab theo việc người dùng vào trang để làm: làm/giao task · xử lý thứ
+// đang chờ duyệt · xem kết quả · xem nhiệm vụ còn thiếu. Tab có nhiều màn thì chọn màn bằng nút con ở bên phải hàng tab.
+type TabGroup = 'tasks' | 'review' | 'results' | 'missing'
 interface TabView { key: PageTab; label: string; icon: ElementType }
 const TAB_GROUPS: { key: TabGroup; label: string; icon: ElementType; views: TabView[] }[] = [
   { key: 'tasks', label: 'Nhiệm vụ', icon: ListTodo, views: [{ key: 'table', label: 'Nhiệm vụ', icon: ListTodo }] },
@@ -57,12 +59,18 @@ const TAB_GROUPS: { key: TabGroup; label: string; icon: ElementType; views: TabV
       { key: 'published-videos', label: 'Bài đăng Facebook', icon: Facebook },
     ],
   },
+  { key: 'missing', label: 'Còn thiếu', icon: ShieldAlert, views: [{ key: 'missing', label: 'Còn thiếu', icon: ShieldAlert }] },
 ]
 const GROUP_OF = Object.fromEntries(
   TAB_GROUPS.flatMap(g => g.views.map(v => [v.key, g.key])),
 ) as Record<PageTab, TabGroup>
 
 const TABLE_LIMIT = 20
+
+const SEGMENT_GROUP = 'flex p-0.5 gap-0.5 rounded-lg bg-gray-100 flex-shrink-0 ml-auto mb-2'
+const SEGMENT_BUTTON = 'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500'
+const SEGMENT_ACTIVE = 'bg-white text-indigo-700 shadow-sm'
+const SEGMENT_IDLE = 'text-slate-500 hover:text-slate-800'
 
 // Bộ lọc ngày chung — mỗi tab lọc theo cột ngày có nghĩa với nó; nhãn nói rõ đang lọc theo gì.
 const DATE_FILTER_BY_TAB: Record<PageTab, { label: string; tooltip: string }> = {
@@ -71,6 +79,7 @@ const DATE_FILTER_BY_TAB: Record<PageTab, { label: string; tooltip: string }> = 
   approved: { label: 'Ngày duyệt', tooltip: 'Lọc theo thời điểm video được duyệt' },
   'published-videos': { label: 'Ngày đăng', tooltip: 'Lọc theo ngày bài được đăng lên page' },
   'content-approval': { label: 'Ngày gửi duyệt', tooltip: 'Lọc theo ngày gửi yêu cầu duyệt content' },
+  missing: { label: 'Ngày', tooltip: 'Lọc theo ngày làm việc bị thiếu nhiệm vụ' },
 }
 
 export default function TasksPage() {
@@ -102,10 +111,12 @@ export default function TasksPage() {
 
   const isLeaderEditor = isLeader && isApprovedEditor
   const [viewMode, setViewMode] = useState<ViewMode>('team')
-  const [activeTab, setActiveTab] = useState<PageTab>('table')
+  // ?tab=missing: mở thẳng tab Còn thiếu (link từ thông báo thiếu nhiệm vụ)
+  const tabParam = searchParams?.get('tab')
+  const [activeTab, setActiveTab] = useState<PageTab>(() => tabParam === 'missing' ? 'missing' : 'table')
   // Màn con xem gần nhất của từng tab — quay lại tab thì mở đúng màn đang xem dở
   const [lastViewOfGroup, setLastViewOfGroup] = useState<Record<TabGroup, PageTab>>({
-    tasks: 'table', review: 'pending', results: 'approved',
+    tasks: 'table', review: 'pending', results: 'approved', missing: 'missing',
   })
   function openView(view: PageTab) {
     setActiveTab(view)
@@ -153,6 +164,11 @@ export default function TasksPage() {
   useEffect(() => {
     if (taskIdParam) setSelectedTaskId(taskIdParam)
   }, [taskIdParam])
+
+  const missingDateParam = searchParams?.get('date') ?? ''
+  useEffect(() => {
+    if (tabParam === 'missing') setActiveTab('missing')
+  }, [tabParam, missingDateParam])
 
   function openCreate(prefill?: CreateTaskPrefill) {
     setCreatePrefill(prefill)
@@ -467,15 +483,12 @@ export default function TasksPage() {
           <div className="flex items-center gap-2 flex-wrap">
             {/* View mode toggle (LeaderEditor) — kiểu pill để phân biệt với tab nội dung bên dưới */}
             {isLeaderEditor && (
-              <div className="flex h-10 rounded-xl overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0">
+              <div className="flex h-10 p-1 gap-0.5 rounded-xl bg-gray-100 flex-shrink-0">
                 <button
                   type="button"
                   aria-pressed={viewMode === 'team'}
                   onClick={() => switchView('team')}
-                  className={cn(
-                    'flex items-center gap-2 px-3.5 text-sm font-semibold transition-colors',
-                    viewMode === 'team' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-gray-100'
-                  )}
+                  className={cn(SEGMENT_BUTTON, 'rounded-lg', viewMode === 'team' ? SEGMENT_ACTIVE : SEGMENT_IDLE)}
                 >
                   <Users className="w-4 h-4" aria-hidden="true" />
                   Quản lý team
@@ -484,10 +497,7 @@ export default function TasksPage() {
                   type="button"
                   aria-pressed={viewMode === 'mine'}
                   onClick={() => switchView('mine')}
-                  className={cn(
-                    'flex items-center gap-2 px-3.5 text-sm font-semibold transition-colors border-l border-gray-200',
-                    viewMode === 'mine' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-gray-100'
-                  )}
+                  className={cn(SEGMENT_BUTTON, 'rounded-lg', viewMode === 'mine' ? SEGMENT_ACTIVE : SEGMENT_IDLE)}
                 >
                   <User className="w-4 h-4" aria-hidden="true" />
                   Của tôi
@@ -549,9 +559,9 @@ export default function TasksPage() {
             <div
               role="group"
               aria-label={`Chọn màn trong tab ${activeGroup.label}`}
-              className="flex rounded-lg overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0 ml-auto mb-2"
+              className={SEGMENT_GROUP}
             >
-              {activeGroup.views.map((view, i) => {
+              {activeGroup.views.map(view => {
                 const Icon = view.icon
                 const active = activeTab === view.key
                 const count = viewCount(view.key)
@@ -561,18 +571,14 @@ export default function TasksPage() {
                     type="button"
                     aria-pressed={active}
                     onClick={() => openView(view.key)}
-                    className={cn(
-                      'flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold transition-colors',
-                      i > 0 && 'border-l border-gray-200',
-                      active ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-gray-100'
-                    )}
+                    className={cn(SEGMENT_BUTTON, active ? SEGMENT_ACTIVE : SEGMENT_IDLE)}
                   >
                     <Icon className="w-4 h-4" aria-hidden="true" />
                     {view.label}
                     {count > 0 && (
                       <span className={cn(
                         'inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold',
-                        active ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'
+                        active ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700'
                       )}>
                         {count > 99 ? '99+' : count}
                       </span>
@@ -581,18 +587,15 @@ export default function TasksPage() {
                 )
               })}
             </div>
-          ) : (
+          ) : activeTab === 'table' && (
             // Toggle bố cục Kanban / List — chỉ có ở tab "Nhiệm vụ"
-            <div className="flex rounded-lg overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0 ml-auto mb-2">
+            <div className={SEGMENT_GROUP}>
               <button
                 type="button"
                 aria-pressed={taskLayout === 'kanban'}
                 onClick={() => setTaskLayout('kanban')}
                 title="Xem dạng Kanban"
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold transition-colors',
-                  taskLayout === 'kanban' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-gray-100'
-                )}
+                className={cn(SEGMENT_BUTTON, taskLayout === 'kanban' ? SEGMENT_ACTIVE : SEGMENT_IDLE)}
               >
                 <Kanban className="w-4 h-4" aria-hidden="true" />
                 <span className="hidden md:inline">Kanban</span>
@@ -602,10 +605,7 @@ export default function TasksPage() {
                 aria-pressed={taskLayout === 'list'}
                 onClick={() => setTaskLayout('list')}
                 title="Xem dạng danh sách"
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold transition-colors border-l border-gray-200',
-                  taskLayout === 'list' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-gray-100'
-                )}
+                className={cn(SEGMENT_BUTTON, taskLayout === 'list' ? SEGMENT_ACTIVE : SEGMENT_IDLE)}
               >
                 <Rows3 className="w-4 h-4" aria-hidden="true" />
                 <span className="hidden md:inline">Danh sách</span>
@@ -615,7 +615,7 @@ export default function TasksPage() {
         </div>
 
         {/* Hàng 3: BỘ LỌC CHUNG — một thanh duy nhất cho mọi tab, giữ nguyên khi đổi tab */}
-        <TaskFilters
+        {activeTab !== 'missing' && <TaskFilters
           statusFilter={status}
           teamFilter={teamId}
           searchFilter={search}
@@ -657,7 +657,7 @@ export default function TasksPage() {
           productLineDisabledReason={activeTab === 'published-videos'
             ? 'Bài đăng không gắn dòng sản phẩm — bộ lọc này không áp dụng ở Bài đăng Facebook (vẫn giữ khi quay lại tab khác)'
             : undefined}
-        />
+        />}
       </div>
 
       {/* Kế hoạch ngày (kèm cảnh báo kho SP trống) — chỉ ở tab Nhiệm vụ của view cá nhân: đây là
@@ -747,6 +747,8 @@ export default function TasksPage() {
           canAttachAnyTask={canApproveReject}
           onViewTask={setSelectedTaskId}
         />
+      ) : activeTab === 'missing' ? (
+        <ComplianceHistoryTab key={missingDateParam} />
       ) : (
         <ContentApprovalList
           teamId={effectiveTeamId}
