@@ -126,7 +126,7 @@ export function TtsVoiceModal({ open, content, onClose }: Props) {
             </div>
             <div>
               <h3 className="font-bold text-slate-900 text-base">Tạo voice từ content</h3>
-              <p className="text-xs text-slate-400">Minimax AI · dùng giọng đã clone ở Tiện ích</p>
+              <p className="text-xs text-slate-400">GPU · dùng giọng đã clone ở Tiện ích</p>
             </div>
           </div>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">

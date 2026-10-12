@@ -531,7 +531,7 @@ export function VoiceHistoryTab({ isAdmin = true }: VoiceHistoryTabProps) {
                                                         </p>
                                                         {item.details?.minimax_deleted !== undefined && (
                                                             <p className="text-[10px] text-gray-400">
-                                                                MiniMax: {item.details.minimax_deleted ? 'Đã xoá trên server' : 'Vốn không tồn tại'}
+                                                                {item.details.minimax_deleted ? 'Đã xoá trên GPU' : 'Vốn không còn trên GPU'}
                                                             </p>
                                                         )}
                                                     </div>
