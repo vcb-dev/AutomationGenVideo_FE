@@ -25,7 +25,11 @@ const voice = (over: Partial<Voice> & { voice_id: string }): Voice => ({
 });
 
 describe('isUsableVoice', () => {
-    it('cho phép giọng clone của Minimax', () => {
+    it('cho phép giọng clone GPU (local)', () => {
+        expect(isUsableVoice(voice({ voice_id: 'v1', provider: 'local' }))).toBe(true);
+    });
+
+    it('cho phép giọng clone MiniMax cũ — hiện trong danh sách để clone lại', () => {
         expect(isUsableVoice(voice({ voice_id: 'v1' }))).toBe(true);
     });
 
@@ -37,7 +41,7 @@ describe('isUsableVoice', () => {
         expect(isUsableVoice(voice({ voice_id: 'huyk', is_system: true }))).toBe(false);
     });
 
-    it('loại giọng của provider khác (HeyGen) — endpoint TTS ở đây chỉ nói chuyện với Minimax', () => {
+    it('loại giọng của provider khác (HeyGen)', () => {
         expect(isUsableVoice(voice({ voice_id: 'hg1', provider: 'heygen' }))).toBe(false);
     });
 
@@ -67,7 +71,7 @@ describe('pickDefaultVoice', () => {
         expect(pickDefaultVoice(list, 'huyk')).toBe('a');
     });
 
-    it('trả chuỗi rỗng khi không còn giọng nào dùng được — thà chặn còn hơn gửi voice_id đã chết sang MiniMax', () => {
+    it('trả chuỗi rỗng khi không còn giọng nào dùng được — thà chặn còn hơn gửi voice_id đã chết', () => {
         expect(pickDefaultVoice([], 'b')).toBe('');
         expect(pickDefaultVoice([voice({ voice_id: 'huyk', is_system: true })], 'b')).toBe('');
     });

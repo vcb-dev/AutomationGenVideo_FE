@@ -4,7 +4,6 @@ import type { Voice } from '@/lib/voice/voice-selection'
 export interface VoiceListResponse {
   success: boolean
   voices: Voice[]
-  pricing?: { vnd_per_1k_chars: number }
 }
 
 export interface TtsPayload {
