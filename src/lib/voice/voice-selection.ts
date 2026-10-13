@@ -16,22 +16,20 @@ export interface Voice {
 }
 
 /**
- * Giọng dùng được ở trang này: clone local (GPU) hoặc MiniMax cũ (cần clone lại).
- * HeyGen / hệ thống vẫn loại.
+ * Giọng dùng được ở trang này: phải là giọng ĐÃ CLONE của Minimax.
+ *
+ * - Giọng provider khác (HeyGen…) gửi sang endpoint TTS Minimax là lỗi 400.
+ * - Giọng hệ thống bị loại vì thư mục bên phải không hiển thị nó: cho phép chọn
+ *   ngầm một giọng không nhìn thấy thì người dùng không biết mình đang đọc bằng
+ *   giọng gì. Bản ghi cũ trong DB không ghi cột provider nên thiếu = Minimax.
+ *
+ * Cùng luật này quyết định giọng nào được xoá — thư mục hiện giọng nào thì nút
+ * xoá nằm ở đó, mà giọng hệ thống thì AI service từ chối xoá (xem delete_voice_api).
  */
 export function isUsableVoice(voice: Voice | undefined | null): boolean {
     if (!voice) return false;
     if (voice.is_system) return false;
-    if (!voice.is_cloned) return false;
-    const provider = (voice.provider ?? 'minimax').toLowerCase();
-    return provider === 'local' || provider === 'minimax';
-}
-
-export function voiceProviderLabel(voice: Voice): string {
-    const provider = (voice.provider ?? 'minimax').toLowerCase();
-    if (provider === 'local') return 'GPU';
-    if (provider === 'minimax') return 'MiniMax (cần clone lại)';
-    return voice.provider || '—';
+    return Boolean(voice.is_cloned) && (voice.provider ?? 'minimax') === 'minimax';
 }
 
 /**
@@ -39,7 +37,7 @@ export function voiceProviderLabel(voice: Voice): string {
  *
  * Giữ nguyên lựa chọn cũ nếu nó vẫn dùng được, không thì lấy giọng đầu tiên còn
  * dùng được. Hết sạch thì trả chuỗi rỗng để handleGenerate chặn sớm, thay vì gửi
- * một voice_id đã chết rồi nhận lỗi khó hiểu.
+ * một voice_id đã chết sang MiniMax rồi nhận lỗi khó hiểu.
  */
 export function pickDefaultVoice(voices: Voice[], selectedVoiceId: string): string {
     const usable = voices.filter(isUsableVoice);

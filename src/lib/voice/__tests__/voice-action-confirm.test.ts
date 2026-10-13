@@ -1,8 +1,9 @@
 /**
  * Chức năng: hộp xác nhận trước khi thêm (clone) và trước khi xoá giọng.
  *
- * Clone/xoá chạy GPU, không tính phí MiniMax. Hộp thoại vẫn phải nêu hậu quả
- * (kiểm tra file mẫu / không hoàn tác) — test khoá lại đúng điểm đó.
+ * Cả hai thao tác đều tốn tiền thật (MiniMax tính phí mỗi lần clone) và không hoàn
+ * tác được, nên hộp thoại BẮT BUỘC phải nói ra hậu quả — test khoá lại đúng điểm đó,
+ * để lần sau ai rút gọn câu chữ là biết ngay.
  */
 
 import { buildConfirmContent } from '../voice-action-confirm';
@@ -16,7 +17,7 @@ describe('buildConfirmContent — thêm giọng mới', () => {
         gender: 'female' as const,
     };
 
-    it('nêu đủ tên giọng, giới tính và file mẫu để người dùng soát lại', () => {
+    it('nêu đủ tên giọng, giới tính và file mẫu để người dùng soát lại trước khi mất phí', () => {
         const { description } = buildConfirmContent(action);
         expect(description).toContain('KOC Lan');
         expect(description).toContain('Nữ (Female)');
@@ -28,10 +29,8 @@ describe('buildConfirmContent — thêm giọng mới', () => {
         expect(buildConfirmContent({ ...action, sizeBytes: 1_572_864 }).description).toContain('1.50 MB');
     });
 
-    it('cảnh báo kiểm tra tên và file mẫu, không nhắc phí MiniMax', () => {
-        const { warning } = buildConfirmContent(action);
-        expect(warning).toMatch(/file mẫu/i);
-        expect(warning).not.toMatch(/MiniMax tính phí/i);
+    it('cảnh báo nói rõ MỖI LẦN clone đều bị tính phí', () => {
+        expect(buildConfirmContent(action).warning).toMatch(/tính phí/i);
     });
 
     it('dùng nút thường (không phải nút đỏ) — thêm giọng không phải thao tác phá huỷ', () => {
@@ -52,15 +51,14 @@ describe('buildConfirmContent — xoá giọng', () => {
         expect(buildConfirmContent(action).description).toContain('KOC Lan');
     });
 
-    it('nêu rõ giọng bị xoá khỏi thư mục', () => {
-        expect(buildConfirmContent(action).description).toMatch(/thư mục/i);
-        expect(buildConfirmContent(action).description).not.toMatch(/MiniMax/);
+    it('nói rõ xoá luôn trên MiniMax, không chỉ ẩn khỏi danh sách', () => {
+        expect(buildConfirmContent(action).description).toMatch(/MiniMax/);
     });
 
-    it('cảnh báo không hoàn tác được', () => {
+    it('cảnh báo không hoàn tác được và clone lại sẽ mất phí thêm', () => {
         const { warning } = buildConfirmContent(action);
         expect(warning).toMatch(/không hoàn tác/i);
-        expect(warning).not.toMatch(/phí/i);
+        expect(warning).toMatch(/phí/i);
     });
 
     it('dùng nút đỏ (danger) để phân biệt với nút xác nhận thường', () => {
