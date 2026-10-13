@@ -1,7 +1,7 @@
 /**
  * Chức năng: gọi BE xoá giọng đã clone ở trang Tiện ích → Clone Voice.
  *
- * Xoá là thao tác KHÔNG hoàn tác được, nên phần đáng
+ * Xoá là thao tác KHÔNG hoàn tác được (BE xoá luôn trên MiniMax), nên phần đáng
  * khoá lại là: gọi đúng đường dẫn, và lỗi từ BE/AI phải nổi lên đúng câu chữ thay
  * vì nuốt mất. Luật giọng nào được xoá và danh sách cập nhật ra sao nằm ở
  * __tests__/voice-selection.test.ts.
@@ -37,7 +37,7 @@ describe('deleteClonedVoice', () => {
         });
     });
 
-    it('mã hoá voice_id trong URL — voice_id có thể chứa ký tự cần escape', async () => {
+    it('mã hoá voice_id trong URL — voice_id do MiniMax sinh có thể chứa ký tự cần escape', async () => {
         const fetchImpl = jest.fn(async () => reply({ success: true }));
 
         await deleteClonedVoice('KOC A/1', {
