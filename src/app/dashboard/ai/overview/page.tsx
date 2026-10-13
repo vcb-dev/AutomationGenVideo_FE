@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
+    DollarSign,
     Coins,
     Mic,
     Plus,
@@ -55,7 +56,8 @@ interface TeamApi {
 }
 
 interface UsageStats {
-    total: { characters: number; tts_count: number; clone_count: number };
+    pricing?: { vnd_per_1k_chars: number };
+    total: { characters: number; tts_count: number; clone_count: number; cost_vnd?: number };
     by_user: UsageByUser[];
 }
 
@@ -106,6 +108,7 @@ export default function OverviewPage() {
 
     const rankedUsage = rankUsage(usageStats?.by_user ?? []);
     const usageByUserId = new Map(rankedUsage.map(u => [u.user_id, u]));
+    const vndPer1kChars = usageStats?.pricing?.vnd_per_1k_chars ?? 0;
 
     // Fetch real voices count from backend
     useEffect(() => {
@@ -258,7 +261,7 @@ export default function OverviewPage() {
                 <div className="bg-white border border-gray-200 rounded-2xl px-6 py-4 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                     <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                         <CalendarRange className="w-4 h-4 text-gray-400" />
-                        Thống kê dùng giọng theo ngày
+                        Doanh thu &amp; tiêu dùng theo ngày
                         <span className="text-xs font-medium text-gray-400">({rangeLabel})</span>
                     </div>
 
@@ -299,7 +302,60 @@ export default function OverviewPage() {
                 </div>
 
                 {/* ─────────────────────────── STATS CARDS ─────────────────────────── */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {/* Điểm âm thanh đã tiêu (usage_characters MiniMax tính phí) */}
+                    <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm font-semibold text-gray-500">Điểm âm thanh đã tiêu</span>
+                            <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center">
+                                <DollarSign className="w-5 h-5 text-green-600" />
+                            </div>
+                        </div>
+                        <div className="mt-4">
+                            {!usageLoaded ? (
+                                <h3 className="text-lg font-semibold text-gray-400 italic">Đang tải...</h3>
+                            ) : (
+                                <>
+                                    <div className="flex items-baseline gap-1">
+                                        <h3 className="text-2xl font-bold text-gray-900">{(usageStats?.total.characters ?? 0).toLocaleString('vi-VN')}</h3>
+                                        <span className="text-xs text-gray-400">điểm ({rangeLabel})</span>
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-2">= số ký tự MiniMax tính phí khi tạo giọng nói</p>
+                                </>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Tiền đã tiêu (quy đổi từ điểm theo đơn giá gói MiniMax) */}
+                    <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm font-semibold text-gray-500">Đã tiêu hết</span>
+                            <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
+                                <Coins className="w-5 h-5 text-amber-600" />
+                            </div>
+                        </div>
+                        <div className="mt-4">
+                            {!usageLoaded ? (
+                                <h3 className="text-lg font-semibold text-gray-400 italic">Đang tải...</h3>
+                            ) : vndPer1kChars > 0 ? (
+                                <>
+                                    <div className="flex items-baseline gap-1">
+                                        <h3 className="text-2xl font-bold text-gray-900">{(usageStats?.total.cost_vnd ?? 0).toLocaleString('vi-VN')}đ</h3>
+                                        <span className="text-xs text-gray-400">({rangeLabel})</span>
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-2">
+                                        Đơn giá {vndPer1kChars.toLocaleString('vi-VN')}đ / 1.000 ký tự
+                                    </p>
+                                </>
+                            ) : (
+                                <>
+                                    <h3 className="text-lg font-semibold text-gray-400">Chưa cấu hình giá</h3>
+                                    <p className="text-xs text-gray-400 mt-2">Set MINIMAX_VND_PER_1K_CHARS ở BE để hiển thị tiền</p>
+                                </>
+                            )}
+                        </div>
+                    </div>
+
                     {/* Lượt sử dụng */}
                     <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
                         <div className="flex items-center justify-between">
@@ -337,7 +393,7 @@ export default function OverviewPage() {
                                 <span className="text-xs text-gray-400">giọng (toàn hệ thống)</span>
                             </div>
                             <div className="flex items-center gap-1.5 mt-3 text-xs text-cyan-600 font-medium">
-                                <span>Thư viện giọng GPU</span>
+                                <span>Thư viện MiniMax Audio</span>
                                 <ChevronRight className="w-3 h-3" />
                             </div>
                         </div>
@@ -378,10 +434,11 @@ export default function OverviewPage() {
                                             <th className="pl-6 py-3">#</th>
                                             <th className="py-3">Người dùng</th>
                                             <th className="py-3">Team</th>
-                                            <th className="py-3 text-right">Ký tự TTS</th>
+                                            <th className="py-3 text-right">Điểm đã tiêu</th>
                                             <th className="py-3">Tỉ trọng</th>
                                             <th className="py-3 text-right">Lượt TTS</th>
                                             <th className="py-3 text-right">Giọng clone</th>
+                                            {vndPer1kChars > 0 && <th className="py-3 text-right">Tiền</th>}
                                             <th className="py-3 text-right">Dùng lần cuối</th>
                                             {isAdmin && <th className="pr-6 py-3 text-right">Thao tác</th>}
                                         </tr>
@@ -437,6 +494,11 @@ export default function OverviewPage() {
                                                     </td>
                                                     <td className="py-4 text-right text-xs font-semibold text-violet-700">{row.tts_count}</td>
                                                     <td className="py-4 text-right text-xs font-semibold text-cyan-700">{row.clone_count}</td>
+                                                    {vndPer1kChars > 0 && (
+                                                        <td className="py-4 text-right text-xs font-semibold text-amber-700">
+                                                            {(row.cost_vnd ?? 0).toLocaleString('vi-VN')}đ
+                                                        </td>
+                                                    )}
                                                     <td className={`py-4 text-right text-xs text-gray-500 ${!isAdmin ? 'pr-6' : ''}`}>
                                                         {new Date(row.last_used_at).toLocaleDateString('vi-VN')}
                                                     </td>

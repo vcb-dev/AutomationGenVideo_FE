@@ -14,6 +14,8 @@ import {
     RefreshCw,
     FolderOpen,
     Check,
+    CreditCard,
+    ExternalLink,
     AlertTriangle,
     X,
     Zap,
@@ -27,7 +29,6 @@ import {
     isUsableVoice,
     removeVoiceFromList,
     pickDefaultVoice,
-    voiceProviderLabel,
     type Voice,
 } from '@/lib/voice/voice-selection';
 import { deleteClonedVoice } from '@/lib/voice/delete-voice';
@@ -38,12 +39,23 @@ import { downloadSrtFile, checkDuplicateVoice, type DuplicateCheckResult } from 
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import { VoiceHistoryTab } from './components/VoiceHistoryTab';
 
-// Giới hạn file mẫu để clone. Khớp FileInterceptor của BE
-// (ai-integration.controller.ts) — chặn sớm tại đây để người dùng không chờ upload xong mới nhận lỗi.
+// Trang nạp tiền / gia hạn gói của MiniMax (mở tab mới, cần đăng nhập tài khoản MiniMax công ty)
+const MINIMAX_RECHARGE_URL = 'https://www.minimax.io/platform/user-center/payment/recharge';
+
+
+// Đơn giá mặc định khi BE chưa cấu hình env MINIMAX_VND_PER_1K_CHARS:
+// gói 250.000đ / 500.000 ký tự → 500đ mỗi 1.000 ký tự. BE trả giá khác 0 thì dùng giá BE.
+const DEFAULT_VND_PER_1K_CHARS = 500;
+
+// Giới hạn file mẫu để clone. Khớp cả ba tầng: FileInterceptor của BE
+// (ai-integration.controller.ts) và upload_audio của MiniMax đều chặn ở 20MB —
+// chặn sớm tại đây để người dùng không chờ upload xong mới nhận lỗi.
 const MAX_CLONE_FILE_MB = 20;
 const MAX_CLONE_FILE_SIZE = MAX_CLONE_FILE_MB * 1024 * 1024;
 
-// Khớp cột name của bảng Voice. Chặn sớm ở ô nhập — AI service cũng chặn lại.
+// Khớp cột name của bảng Voice. Chặn ngay ở ô nhập vì tên quá dài chỉ bị DB từ
+// chối SAU khi MiniMax đã clone xong và đã tính phí — AI service cũng chặn lại
+// một lần nữa (xem _validate_clone_input), đây chỉ là để người dùng biết sớm.
 const MAX_VOICE_NAME_LEN = 255;
 
 // Helper to get API URL
@@ -115,7 +127,7 @@ function SelectDropdown({
     );
 }
 
-/* ── Hộp xác nhận cho thao tác clone mới / xoá giọng ── */
+/* ── Hộp xác nhận cho thao tác tốn tiền / không hoàn tác (clone mới, xoá giọng) ── */
 function ConfirmDialog({
     action,
     onCancel,
@@ -285,7 +297,7 @@ function VoiceContextPanel({
                                             <Mic className={`w-3.5 h-3.5 flex-shrink-0 ${isSelected ? 'text-cyan-600' : 'text-gray-400'}`} />
                                             <div className="truncate">
                                                 <p className="text-xs font-semibold leading-tight truncate">{voice.name}</p>
-                                                <p className="text-[10px] text-gray-400 mt-0.5 capitalize leading-none">{voice.gender ?? '—'} · {voiceProviderLabel(voice)}</p>
+                                                <p className="text-[10px] text-gray-400 mt-0.5 capitalize leading-none">{voice.gender ?? '—'} · {voice.provider ?? '—'}</p>
                                             </div>
                                         </div>
                                         {isSelected && <Check className="w-3.5 h-3.5 text-cyan-600 flex-shrink-0" />}
@@ -453,7 +465,7 @@ function VoiceContextPanel({
                             ) : (
                                 <>
                                     <AudioLines className="w-4 h-4" />
-                                    Clone Giọng GPU
+                                    Clone Giọng Minimax
                                 </>
                             )}
                         </button>
@@ -484,6 +496,9 @@ export default function CloneVoicePage() {
     // File phụ đề .SRT đồng bộ với file audio
     const [generatedSrtContent, setGeneratedSrtContent] = useState<string | null>(null);
     const [srtDownloadName, setSrtDownloadName] = useState<string | null>(null);
+    // Đơn giá VND / 1000 ký tự (BE trả kèm trong /ai/voice/list; 0 = chưa cấu hình → ẩn phần tiền)
+    const [vndPer1kChars, setVndPer1kChars] = useState(0);
+
     const [isTranslating, setIsTranslating] = useState(false);
 
     // Cloning states
@@ -522,6 +537,10 @@ export default function CloneVoicePage() {
     });
 
     const maxChars = 5000;
+    // MiniMax tính phí theo ký tự ("điểm âm thanh") — ước tính tiền cho đoạn text hiện tại.
+    // BE chưa cấu hình giá thì dùng giá mặc định để ô tiền luôn hiển thị.
+    const effectiveVndPer1k = vndPer1kChars > 0 ? vndPer1kChars : DEFAULT_VND_PER_1K_CHARS;
+    const estimatedCostVnd = Math.round((text.length / 1000) * effectiveVndPer1k);
 
     // Fetch daily quota
     const fetchQuota = async () => {
@@ -545,6 +564,7 @@ export default function CloneVoicePage() {
             const data = await res.json();
             if (data.success && data.voices) {
                 setVoices(data.voices);
+                setVndPer1kChars(Number(data.pricing?.vnd_per_1k_chars) || 0);
                 if (data.quota) {
                     setQuota(data.quota);
                 }
@@ -588,7 +608,8 @@ export default function CloneVoicePage() {
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
-    // Bước 1 của clone: kiểm tra đầu vào rồi MỞ HỘP XÁC NHẬN — không chạy ngay khi bấm.
+    // Bước 1 của clone: kiểm tra đầu vào rồi MỞ HỘP XÁC NHẬN. Clone bị MiniMax tính
+    // phí ngay từ lần bấm đầu tiên nên không cho bấm nhầm là chạy luôn.
     const requestClone = () => {
         if (quota && quota.remaining <= 0) {
             toast.error('Bạn đã sử dụng hết hạn mức tạo voice hôm nay (8 lượt). Vui lòng liên hệ Admin để được cấp thêm lượt.');
@@ -600,12 +621,13 @@ export default function CloneVoicePage() {
             return;
         }
 
-        // Chặn sớm clone trùng tên (server cũng chặn) — trùng tên gần như luôn là thao tác nhầm.
+        // Chặn sớm clone trùng tên (server cũng chặn) — mỗi lần clone đều tính phí
+        // MiniMax và tạo voice_id mới, trùng tên gần như luôn là thao tác nhầm.
         const dupe = voices.find(
             (v) => v.is_cloned && (v.name || '').trim().toLowerCase() === cloneVoiceName.trim().toLowerCase(),
         );
         if (dupe) {
-            toast.error(`Đã có giọng clone tên "${dupe.name}". Đặt tên khác hoặc xoá giọng cũ trước khi clone lại.`);
+            toast.error(`Đã có giọng clone tên "${dupe.name}". Đặt tên khác hoặc xoá giọng cũ trước khi clone lại (mỗi lần clone đều tính phí).`);
             return;
         }
 
@@ -623,12 +645,13 @@ export default function CloneVoicePage() {
         setPendingAction({ kind: 'delete', voiceName: voice.name, voiceId: voice.voice_id });
     };
 
+    // Xoá giọng: BE gọi MiniMax xoá trước rồi mới xoá bản ghi, nên xoá xong là mất hẳn.
     const performDelete = async (voiceId: string, voiceName: string) => {
         setDeletingVoiceId(voiceId);
         const deletingToast = toast.loading(`Đang xoá giọng "${voiceName}"...`);
 
         try {
-            await deleteClonedVoice(voiceId, {
+            const result = await deleteClonedVoice(voiceId, {
                 apiUrl: getApiUrl(),
                 authHeaders: getAuthHeaders(),
                 fetchImpl: fetchWithAuth,
@@ -638,7 +661,12 @@ export default function CloneVoicePage() {
             setVoices(remaining);
             setSelectedVoiceId((current) => pickDefaultVoice(remaining, current));
 
-            toast.success(`Đã xoá giọng "${voiceName}".`, { id: deletingToast });
+            toast.success(
+                result.minimax_deleted === false
+                    ? `Đã xoá giọng "${voiceName}" khỏi danh sách (giọng này vốn không còn trên MiniMax).`
+                    : `Đã xoá giọng "${voiceName}".`,
+                { id: deletingToast },
+            );
         } catch (error: any) {
             console.error('Delete voice error:', error);
             toast.error(error.message || 'Lỗi khi xoá giọng', { id: deletingToast });
@@ -647,7 +675,9 @@ export default function CloneVoicePage() {
         }
     };
 
-    // Bước 2 của clone. Chạy nền + poll trạng thái thay vì 1 request chờ trực tiếp.
+    // Bước 2 của clone. Chạy nền + poll trạng thái thay vì 1 request chờ trực
+    // tiếp — mạng tới Minimax có thể chập chờn vài phút, request đồng bộ dễ bị
+    // BE/trình duyệt tự timeout dù cuối cùng Minimax vẫn xử lý xong.
     const performClone = async () => {
         if (!cloneFile || !cloneVoiceName.trim()) return;
 
@@ -711,7 +741,7 @@ export default function CloneVoicePage() {
                     throw new Error(statusData.message || 'Clone thất bại');
                 }
                 if (Date.now() - startedAt > MAX_POLL_MS) {
-                    throw new Error('Clone đang mất nhiều thời gian hơn dự kiến. Vui lòng thử lại sau.');
+                    throw new Error('Clone đang mất nhiều thời gian hơn dự kiến — mạng tới Minimax có thể đang chập chờn. Vui lòng thử lại sau.');
                 }
                 toast.loading(statusData.message || 'Đang xử lý...', { id: loadingToast });
             }
@@ -776,11 +806,11 @@ export default function CloneVoicePage() {
 
         const usable = isUsableVoice(voices.find((v) => v.voice_id === selectedVoiceId));
         if (!usable) {
-            toast.error('Vui lòng chọn một giọng đã clone trong danh sách, hoặc clone giọng mới trước.');
+            toast.error('Vui lòng chọn một giọng đã clone (Minimax) trong danh sách, hoặc clone giọng mới trước.');
             return;
         }
 
-        // Kiểm tra kịch bản trùng lặp để tránh tạo lại cùng một đoạn
+        // Kiểm tra kịch bản trùng lặp để tránh người dùng tạo nhiều lần gây tốn tiền
         if (!skipDuplicateCheck) {
             try {
                 const dupCheck = await checkDuplicateVoice(text, selectedVoiceId);
@@ -978,9 +1008,21 @@ export default function CloneVoicePage() {
                                     <Mic className="w-5 h-5 text-violet-600" />
                                 </div>
                                 <div className="min-w-0">
-                                    <h2 className="font-semibold text-gray-800">Text to Speech</h2>
-                                    <p className="text-xs text-gray-500">Nhập văn bản, chọn ngôn ngữ — tạo giọng trên GPU</p>
+                                    <h2 className="font-semibold text-gray-800">Text to Speech (Minimax AI)</h2>
+                                    <p className="text-xs text-gray-500">Nhập văn bản, chọn ngôn ngữ và tạo giọng nói tự nhiên</p>
                                 </div>
+                                {/* Hết token / hết hạn gói MiniMax → nạp tiền hoặc gia hạn ngay tại đây */}
+                                <a
+                                    href={MINIMAX_RECHARGE_URL}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    title="Mở trang nạp tiền / gia hạn gói MiniMax (cần đăng nhập tài khoản MiniMax của công ty)"
+                                    className="ml-auto flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold hover:bg-amber-100 transition-colors whitespace-nowrap flex-shrink-0"
+                                >
+                                    <CreditCard className="w-3.5 h-3.5" />
+                                    Nạp tiền / Gia hạn MiniMax
+                                    <ExternalLink className="w-3 h-3 opacity-60" />
+                                </a>
                             </div>
 
                             {/* Textarea */}
@@ -996,6 +1038,12 @@ export default function CloneVoicePage() {
                                         focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 transition-all duration-200"
                                 />
                                 <div className="absolute bottom-3 right-3 flex items-center gap-2 text-xs">
+                                    <span
+                                        className="px-2 py-0.5 rounded-md bg-green-50 border border-green-200 text-green-700 font-semibold cursor-help"
+                                        title={`Đơn giá ${effectiveVndPer1k.toLocaleString('vi-VN')}đ / 1.000 ký tự${vndPer1kChars > 0 ? '' : ' (giá mặc định gói 250.000đ/500.000 ký tự — chỉnh qua env MINIMAX_VND_PER_1K_CHARS của BE)'}`}
+                                    >
+                                        💰 ≈ {estimatedCostVnd.toLocaleString('vi-VN')}đ
+                                    </span>
                                     <span className="text-gray-400">{text.length} / {maxChars} ký tự</span>
                                 </div>
                             </div>
@@ -1082,7 +1130,7 @@ export default function CloneVoicePage() {
                                             </div>
                                             <div>
                                                 <p className="text-xs font-semibold text-gray-800">Giọng nói đã tạo</p>
-                                                <p className="text-[11px] text-gray-500">{downloadName ?? 'voice.mp3'}</p>
+                                                <p className="text-[11px] text-gray-500">{downloadName ?? 'minimax_voice.mp3'}</p>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
@@ -1098,7 +1146,7 @@ export default function CloneVoicePage() {
                                             )}
                                             <a
                                                 href={downloadUrl ?? generatedUrl}
-                                                download={downloadName ?? 'voice.mp3'}
+                                                download={downloadName ?? 'minimax_voice.mp3'}
                                                 rel="noreferrer"
                                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-100 hover:bg-violet-200 text-violet-700 text-xs font-medium transition-colors"
                                                 title="Tải âm thanh MP3"
