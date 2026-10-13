@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Crown, Users, PenLine, Pencil, Check, X, Loader2, Trash2, Sparkles, Link2, Lock, ChevronDown, Settings2 } from 'lucide-react'
+import { Crown, Users, PenLine, Pencil, Check, X, Loader2, Trash2, Sparkles, Link2, Lock, ChevronDown, Settings2, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
 import { EmptyState } from '@/components/task-auto/EmptyState'
@@ -92,9 +92,10 @@ interface MembersTabProps {
   userId?: string
   selectedTeamId: string
   setSelectedTeamId: (id: string) => void
+  onCreateTeam?: () => void
 }
 
-export function MembersTab({ canManage, isAdmin, isAdminOrManager, userId, selectedTeamId, setSelectedTeamId }: MembersTabProps) {
+export function MembersTab({ canManage, isAdmin, isAdminOrManager, userId, selectedTeamId, setSelectedTeamId, onCreateTeam }: MembersTabProps) {
   const qc = useQueryClient()
   const [editingTeam, setEditingTeam] = useState(false)
   const [pendingBrand, setPendingBrand] = useState<BrandType | null>(null)
@@ -464,6 +465,20 @@ export function MembersTab({ canManage, isAdmin, isAdminOrManager, userId, selec
                 </>
               )}
             </div>
+          )}
+
+          {onCreateTeam && (
+            <button
+              type="button"
+              onClick={onCreateTeam}
+              className={cn(
+                'flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white border border-transparent rounded-xl px-4 py-3.5 text-base font-semibold whitespace-nowrap transition-colors shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2',
+                !selectedTeam && 'ml-auto',
+              )}
+            >
+              <Plus className="w-4 h-4" aria-hidden="true" />
+              Tạo đội mới
+            </button>
           )}
 
           {/* Webhook Lark — thông báo "task/content cần duyệt" của team này */}

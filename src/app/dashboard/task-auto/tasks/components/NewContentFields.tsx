@@ -2,13 +2,15 @@
 
 import { forwardRef, useId } from 'react'
 import { AlertTriangle, Loader2, Maximize2, Plus, Wand2 } from 'lucide-react'
-import { DarkInput, DarkTextarea, CustomSelect, CreatableSelect } from '@/components/task-auto/DarkInput'
+import { DarkInput, CustomSelect, CreatableSelect } from '@/components/task-auto/DarkInput'
+import { ContentSourcePicker, type ContentRequiredErrors } from '@/components/task-auto/ContentSourcePicker'
 import type { ContentLine } from '@/types/task-auto'
 import type { ContentDraft, DraftHints } from './CreateTaskModal'
 
 interface Props {
   draft: ContentDraft
   hints: DraftHints
+  errors?: ContentRequiredErrors
   onChange: (patch: Partial<ContentDraft>) => void
   onBodyPaste: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void
   lines: ContentLine[] | undefined
@@ -42,9 +44,9 @@ function AutoHint({ id, children }: { id: string; children: React.ReactNode }) {
   )
 }
 
-/** Form gọn viết content mới ngay trong modal tạo nhiệm vụ — chỉ các ô hay dùng; file/voice/chấm điểm ở form đầy đủ. */
+/** Form gọn viết content mới ngay trong modal tạo nhiệm vụ — chỉ các ô hay dùng; voice/chấm điểm ở form đầy đủ. */
 export const NewContentFields = forwardRef<HTMLInputElement, Props>(function NewContentFields({
-  draft, hints, onChange, onBodyPaste,
+  draft, hints, errors, onChange, onBodyPaste,
   lines, loadingLines, classifications, loadingClassifications, onCreateClassification,
   planLineName, planLineHint, ownerName, marketLabel, duplicate, onUseDuplicate, onOpenFullForm, onAddToList, adding, productSlot, submitSlot,
 }, titleRef) {
@@ -79,7 +81,7 @@ export const NewContentFields = forwardRef<HTMLInputElement, Props>(function New
         className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold text-indigo-700 hover:bg-indigo-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
       >
         <Maximize2 className="w-3.5 h-3.5" aria-hidden="true" />
-        Form đầy đủ (file, voice, chấm điểm)
+        Form đầy đủ (voice, chấm điểm)
       </button>
       {onAddToList && (
         <button
@@ -150,45 +152,49 @@ export const NewContentFields = forwardRef<HTMLInputElement, Props>(function New
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <CustomSelect
-            label="Tuyến nội dung"
+            label="Tuyến nội dung *"
+            placeholder="— Chọn tuyến —"
             value={draft.content_line_id}
             onChange={v => onChange({ content_line_id: v })}
-            options={[
-              { value: '', label: '-- Không chọn --' },
-              ...(lines?.map(l => ({ value: l.id, label: l.name })) ?? []),
-            ]}
+            options={lines?.map(l => ({ value: l.id, label: l.name })) ?? []}
             searchable
             loading={loadingLines}
+            error={errors?.line}
           />
           {lineHint && draft.content_line_id && <AutoHint id={`${id}-line-hint`}>{lineHint}</AutoHint>}
         </div>
         <CreatableSelect
-          label="Phân loại nội dung"
+          label="Phân loại nội dung *"
+          placeholder="— Chọn phân loại —"
           value={draft.classification_id}
           onChange={v => onChange({ classification_id: v })}
           options={classifications}
           createLabel="Thêm phân loại nội dung"
           loading={loadingClassifications}
           onCreate={onCreateClassification}
+          required
+          error={errors?.classification}
         />
       </div>
 
       {productSlot}
 
-      <div className="space-y-1.5">
-        <label htmlFor={`${id}-body`} className="block text-base font-semibold text-slate-700">Nội dung / Script</label>
-        <DarkTextarea
-          id={`${id}-body`}
-          autoGrow
-          rows={4}
-          maxHeight={260}
-          placeholder="Dán kịch bản vào đây..."
-          value={draft.body}
-          onChange={e => onChange({ body: e.target.value })}
-          onPaste={onBodyPaste}
-          className="bg-white"
-        />
-      </div>
+      <ContentSourcePicker
+        value={draft.source}
+        onChange={source => onChange({ source })}
+        body={draft.body}
+        onBodyChange={body => onChange({ body })}
+        error={errors?.source}
+        textareaProps={{
+          id: `${id}-body`,
+          autoGrow: true,
+          rows: 4,
+          maxHeight: 260,
+          placeholder: 'Dán kịch bản vào đây...',
+          onPaste: onBodyPaste,
+          className: 'bg-white',
+        }}
+      />
 
       {submitSlot ? (
         <>

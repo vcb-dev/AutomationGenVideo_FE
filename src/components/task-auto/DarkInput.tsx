@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string
+  error?: string | null
 }
 
 interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
@@ -23,12 +24,26 @@ interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
 
 const baseInput = 'w-full bg-white border border-gray-200 rounded-xl px-4 py-3.5 text-base text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors disabled:opacity-50 disabled:bg-gray-50'
 const labelClass = 'block text-base font-semibold text-slate-700 mb-2'
+const invalidClass = 'border-red-400 focus:ring-red-400 focus:border-red-400'
 
-export const DarkInput = forwardRef<HTMLInputElement, InputProps>(function DarkInput({ label, className, ...props }, ref) {
+export function FieldError({ id, children }: { id: string; children: React.ReactNode }) {
+  return <p id={id} className="mt-1.5 text-sm text-red-600">{children}</p>
+}
+
+export const DarkInput = forwardRef<HTMLInputElement, InputProps>(function DarkInput({ label, className, error, ...props }, ref) {
+  const errorId = useId()
+  const describedBy = [props['aria-describedby'], error && errorId].filter(Boolean).join(' ') || undefined
   return (
     <div>
       {label && <label className={labelClass}>{label}</label>}
-      <input ref={ref} className={cn(baseInput, className)} {...props} />
+      <input
+        ref={ref}
+        className={cn(baseInput, error && invalidClass, className)}
+        {...props}
+        aria-invalid={error ? true : props['aria-invalid']}
+        aria-describedby={describedBy}
+      />
+      {error && <FieldError id={errorId}>{error}</FieldError>}
     </div>
   )
 })
@@ -78,11 +93,14 @@ export interface CustomSelectProps {
   compact?: boolean
   className?: string
   loading?: boolean
+  placeholder?: string
+  error?: string | null
 }
 
-export function CustomSelect({ label, value, onChange, options, searchable, compact, className, loading }: CustomSelectProps) {
+export function CustomSelect({ label, value, onChange, options, searchable, compact, className, loading, placeholder = '—', error }: CustomSelectProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const errorId = useId()
   const triggerRef = useRef<HTMLButtonElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0, openUp: false })
@@ -130,16 +148,19 @@ export function CustomSelect({ label, value, onChange, options, searchable, comp
         ref={triggerRef}
         type="button"
         onClick={handleOpen}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? errorId : undefined}
         className={cn(
           compact
             ? 'w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors'
             : baseInput,
           'flex items-center justify-between gap-2 text-left cursor-pointer',
+          error && invalidClass,
           open && 'ring-2 ring-indigo-500 border-indigo-500 bg-white'
         )}
       >
         <span className={selected ? 'text-slate-800' : 'text-slate-400'}>
-          {selected?.label ?? '—'}
+          {selected?.label ?? placeholder}
         </span>
         {loading
           ? <Loader2 className="w-4 h-4 text-slate-400 shrink-0 animate-spin" />
@@ -195,6 +216,7 @@ export function CustomSelect({ label, value, onChange, options, searchable, comp
         </div>,
         document.body
       )}
+      {error && <FieldError id={errorId}>{error}</FieldError>}
     </div>
   )
 }
@@ -708,6 +730,8 @@ interface CreatableSelectProps {
   createLabel?: string
   onCreate: (name: string) => Promise<{ id: string; label: string }>
   loading?: boolean
+  required?: boolean
+  error?: string | null
 }
 
 export function CreatableSelect({
@@ -717,7 +741,10 @@ export function CreatableSelect({
   createLabel = 'Thêm mới',
   onCreate,
   loading,
+  required,
+  error,
 }: CreatableSelectProps) {
+  const errorId = useId()
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [inlineCreate, setInlineCreate] = useState(false)
@@ -792,13 +819,15 @@ export function CreatableSelect({
         ref={triggerRef}
         type="button"
         onClick={handleOpen}
-        className={cn(baseInput, 'flex items-center justify-between gap-2 text-left cursor-pointer', open && 'ring-2 ring-indigo-500 border-indigo-500')}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? errorId : undefined}
+        className={cn(baseInput, 'flex items-center justify-between gap-2 text-left cursor-pointer', error && invalidClass, open && 'ring-2 ring-indigo-500 border-indigo-500')}
       >
         <span className={selected ? 'text-slate-800' : 'text-slate-400'}>
           {selected?.label ?? placeholder}
         </span>
         <div className="flex items-center gap-1 shrink-0">
-          {value && (
+          {value && !required && (
             <span role="button" onClick={e => { e.stopPropagation(); select('') }}
               className="p-0.5 hover:bg-gray-100 rounded-full text-slate-400 hover:text-slate-600">
               <X className="w-3.5 h-3.5" />
@@ -837,13 +866,15 @@ export function CreatableSelect({
           </div>
 
           <ul className="max-h-44 overflow-y-auto py-1">
-            <li>
-              <button type="button" onClick={() => select('')}
-                className={cn('w-full text-left px-4 py-2.5 text-sm transition-colors',
-                  !value ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-slate-500 hover:bg-gray-50')}>
-                {clearLabel}
-              </button>
-            </li>
+            {!required && (
+              <li>
+                <button type="button" onClick={() => select('')}
+                  className={cn('w-full text-left px-4 py-2.5 text-sm transition-colors',
+                    !value ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-slate-500 hover:bg-gray-50')}>
+                  {clearLabel}
+                </button>
+              </li>
+            )}
             {loading ? (
               <li className="px-4 py-3 text-sm text-slate-400 flex items-center gap-2">
                 <Loader2 className="w-3.5 h-3.5 animate-spin" /> Đang tải...
@@ -913,6 +944,7 @@ export function CreatableSelect({
         </div>,
         document.body
       )}
+      {error && <FieldError id={errorId}>{error}</FieldError>}
     </div>
   )
 }

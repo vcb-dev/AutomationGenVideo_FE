@@ -9,11 +9,12 @@ import {
   type DragStartEvent, type DragEndEvent,
 } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { FileText, Mic, Loader2, ChevronDown, Plus, Edit2, Trash2, Minus, GripVertical, ClipboardList } from 'lucide-react'
+import { FileText, Video, Mic, Loader2, ChevronDown, Plus, Edit2, Trash2, Minus, GripVertical, ClipboardList } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
 import { formatDate } from '@/components/task-auto/helpers'
 import { parseMarkets } from '@/components/task-auto/ContentFormModal'
+import { isVideoLink } from '@/components/task-auto/ContentSourcePicker'
 import { getContentLines, getContents, updateContent } from '@/lib/api/task-auto'
 import { useLoadMoreScroll } from '@/hooks/useLoadMoreScroll'
 import { ContentWinProofLink } from '@/components/task-auto/ContentWinProofLink'
@@ -86,6 +87,7 @@ interface Filters {
   search: string
   classificationId: string
   market: string
+  productSku?: string
 }
 
 interface CardActions {
@@ -141,7 +143,9 @@ function ContentCardBody({ c }: { c: Content }) {
           )}
           {c.file_content_url && (
             <span className="inline-flex items-center gap-1 text-[11px] text-blue-500 font-semibold">
-              <FileText className="w-3 h-3" /> File
+              {isVideoLink(c.file_content_url)
+                ? <><Video className="w-3 h-3" aria-hidden="true" /> Video</>
+                : <><FileText className="w-3 h-3" aria-hidden="true" /> File</>}
             </span>
           )}
         </div>
@@ -259,7 +263,7 @@ function ContentColumn({
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: column.key, disabled: isDropDisabled })
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['task-auto', 'contents', 'kanban', filters.brandType, filters.month, filters.search, filters.classificationId, filters.market, column.key, limit],
+    queryKey: ['task-auto', 'contents', 'kanban', filters.brandType, filters.month, filters.search, filters.classificationId, filters.market, filters.productSku, column.key, limit],
     queryFn: () => getContents({
       brand_type: filters.brandType,
       page: 1, limit,
@@ -268,6 +272,7 @@ function ContentColumn({
       market: filters.market || undefined,
       month: filters.month || undefined,
       content_line_id: column.key,
+      product_sku: filters.productSku || undefined,
     }),
     // Giữ thẻ cũ khi "Xem thêm" đổi queryKey — nếu không, cột chớp skeleton và scroll nhảy về đầu.
     placeholderData: keepPreviousData,
@@ -359,6 +364,7 @@ interface ContentsBoardProps {
   search: string
   classificationId: string
   market: string
+  productSku?: string
   canEdit: boolean
   canDelete: boolean
   onSelect: (c: Content) => void
@@ -368,7 +374,7 @@ interface ContentsBoardProps {
 }
 
 export function ContentsBoard({
-  brandType, month, search, classificationId, market, canEdit, canDelete,
+  brandType, month, search, classificationId, market, productSku, canEdit, canDelete,
   onSelect, onEdit, onDelete, onAdd,
 }: ContentsBoardProps) {
   const qc = useQueryClient()
@@ -383,7 +389,7 @@ export function ContentsBoard({
   // cột "Chưa gán tuyến" có đang hiển thị hay không, để quyết định ẩn/hiện cột mà không rơi vào
   // vòng luẩn quẩn "phải hiện cột mới biết tổng, mà biết tổng rồi mới quyết định hiện cột".
   const { data: unassignedProbe } = useQuery({
-    queryKey: ['task-auto', 'contents', 'kanban-unassigned-probe', brandType, month, search, classificationId, market],
+    queryKey: ['task-auto', 'contents', 'kanban-unassigned-probe', brandType, month, search, classificationId, market, productSku],
     queryFn: () => getContents({
       brand_type: brandType,
       page: 1, limit: 1,
@@ -392,6 +398,7 @@ export function ContentsBoard({
       market: market || undefined,
       month: month || undefined,
       content_line_id: UNASSIGNED_KEY,
+      product_sku: productSku || undefined,
     }),
   })
   const unassignedTotal = unassignedProbe?.total ?? 0
@@ -435,7 +442,7 @@ export function ContentsBoard({
     moveMutation.mutate({ id: c.id, content_line_id: toKey === UNASSIGNED_KEY ? null : toKey })
   }
 
-  const filters: Filters = { brandType, month, search, classificationId, market }
+  const filters: Filters = { brandType, month, search, classificationId, market, productSku }
   const draggingKey = draggingContent ? currentColumnKey(draggingContent) : null
 
   const cardActions: CardActions = { canEdit, canDelete, onSelect, onEdit, onDelete }

@@ -20,7 +20,7 @@ const TOC: { id: string; label: string }[] = [
   { id: 'chi-tiet-task', label: 'Xem chi tiết nhiệm vụ' },
   { id: 'tab-khac', label: 'Chờ duyệt, Kết quả & Công cụ' },
   { id: 'tong-quan', label: 'Trang Tổng quan' },
-  { id: 'doi-nhom', label: 'Đội nhóm' },
+  { id: 'doi-nhom', label: 'Nội dung, sản phẩm & team' },
   { id: 'danh-muc-kho', label: 'Danh mục & Kho cá nhân' },
   { id: 'kpi', label: 'KPI' },
   { id: 'cai-dat', label: 'Cài đặt (Admin/Manager)' },
@@ -149,7 +149,7 @@ export default function NhiemVuGuidePage() {
             <ul className="list-disc pl-5 space-y-1">
               <li>
                 <strong>Auto</strong> — hệ thống tự động tạo hàng ngày theo KPI tuyến A4 của từng người: mỗi task gắn sẵn 1
-                sản phẩm lấy từ Kho sản phẩm của team, chưa gắn content — bạn mở task, bấm <Tag>Sửa</Tag> để chọn content
+                sản phẩm dòng GMV lấy từ Kho sản phẩm của team, chưa gắn content — bạn mở task, bấm <Tag>Sửa</Tag> để chọn content
                 (chạy vào một giờ cố định, cấu hình ở mục <a href="#cai-dat" className="text-blue-500 hover:underline">Cài đặt</a>).
               </li>
               <li>
@@ -161,7 +161,7 @@ export default function NhiemVuGuidePage() {
           </Section>
 
           <Section id="cac-khu-vuc" title="2. Các khu vực chính">
-            <p>Vào <strong>Nhiệm vụ</strong> ở menu trên cùng, bạn sẽ thấy thanh điều hướng con với các mục:</p>
+            <p>Rê chuột (hoặc bấm) vào <strong>Nhiệm vụ</strong> ở menu trên cùng để mở danh sách các mục:</p>
             <div className="overflow-x-auto rounded-xl border border-border">
               <table className="w-full text-sm">
                 <thead className="bg-muted text-xs uppercase text-muted-foreground">
@@ -174,14 +174,10 @@ export default function NhiemVuGuidePage() {
                 <tbody className="divide-y divide-border">
                   {[
                     ['Tổng quan', 'Trang chủ, xem số liệu tổng hợp theo vai trò', 'Tất cả'],
-                    ['Công việc hôm nay', 'Danh sách, tạo, xử lý và duyệt nhiệm vụ', 'Tất cả'],
-                    ['Team của tôi / Quản lý team', 'Quản lý thành viên và kho của team', 'Tất cả'],
-                    ['Kho sản phẩm', 'Sản phẩm dùng chung toàn hệ thống', 'Tất cả'],
+                    ['Công việc hôm nay', 'Danh sách, tạo, xử lý và duyệt nhiệm vụ; tab Còn thiếu theo dõi nhiệm vụ còn thiếu theo ngày (phạm vi tùy vai trò)', 'Tất cả'],
+                    ['Nội dung, sản phẩm & team','Kho nội dung/sản phẩm (kho cá nhân, kho team, kho tổng) và thành viên team', 'Tất cả'],
                     ['Kho tư liệu dựng video', 'Video nguồn, outro và tư liệu sản phẩm dùng chung', 'Tất cả'],
-                    ['Video nổi bật', 'Video Facebook nội bộ đạt từ 10K lượt xem', 'Tất cả'],
-                    ['Kho cá nhân', 'Kho sản phẩm/content/nguồn của riêng bạn', 'Leader, Member, Editor, Content'],
                     ['KPI và OKR', 'Đặt và theo dõi chỉ tiêu công việc', 'Tất cả (chỉnh sửa tùy vai trò)'],
-                    ['Nhiệm vụ còn thiếu', 'Theo dõi số nhiệm vụ còn thiếu theo ngày', 'Tất cả (phạm vi tùy vai trò)'],
                     ['Cài đặt', 'Cấu hình hệ thống giao việc tự động', 'Admin, Manager'],
                   ].map((row) => (
                     <tr key={row[0]}>
@@ -382,7 +378,7 @@ export default function NhiemVuGuidePage() {
 
           <Section id="tab-khac" title="9. Tab Chờ duyệt, Kết quả và menu Công cụ">
             <p>
-              Trang Nhiệm vụ có 3 tab: <strong>Nhiệm vụ</strong> · <strong>Chờ duyệt</strong> · <strong>Kết quả</strong>.
+              Trang Nhiệm vụ có 4 tab: <strong>Nhiệm vụ</strong> · <strong>Chờ duyệt</strong> · <strong>Kết quả</strong> · <strong>Còn thiếu</strong>.
               Tab Chờ duyệt và Kết quả mỗi tab có 2 màn, chọn bằng nút ở bên phải hàng tab (số trên nút là số việc đang chờ):
             </p>
             <ul className="list-disc pl-5 space-y-2">
@@ -403,6 +399,10 @@ export default function NhiemVuGuidePage() {
               <li>
                 <strong>Kết quả › Bài đăng Facebook</strong> — các video đã đăng trên trang Facebook nội bộ; dùng để xem
                 hiệu quả bài đăng và gắn bài đăng vào đúng nhiệm vụ đã duyệt.
+              </li>
+              <li>
+                <strong>Còn thiếu</strong> — ai chưa làm đủ nhiệm vụ theo từng ngày (chốt sau hạn chót), bấm vào từng người
+                để xem thiếu tuyến nào, task nào. Tab này có bộ lọc ngày/team/thành viên riêng, không dùng thanh lọc chung.
               </li>
             </ul>
             <p>Nút <Tag>Công cụ</Tag> cạnh nút <Tag>Tạo nhiệm vụ</Tag> (góc trên bên phải) gom các thao tác phụ:</p>
@@ -438,15 +438,14 @@ export default function NhiemVuGuidePage() {
             <p>Hầu hết các thẻ số liệu có bộ lọc ngày riêng: <Tag>Hôm nay</Tag> <Tag>7 ngày qua</Tag> <Tag>Tháng này</Tag> <Tag>Tháng trước</Tag> <Tag>Tùy chọn</Tag>.</p>
           </Section>
 
-          <Section id="doi-nhom" title="11. Đội nhóm">
-            <p>Trang Team có các tab:</p>
+          <Section id="doi-nhom" title="11. Nội dung, sản phẩm & team">
+            <p>Trang <strong>Nội dung, sản phẩm & team</strong> có các tab (mở trang là vào thẳng Kho nội dung):</p>
             <ul className="list-disc pl-5 space-y-1.5">
-              <li><strong>Thành viên</strong> — danh sách thành viên, vai trò (Leader/Editor/Content Creator).</li>
-              <li><strong>Kho sản phẩm / Kho nội dung / Kho tư liệu dựng video</strong> — kho dùng chung cho cả team.</li>
+              <li><strong>Kho nội dung / Kho sản phẩm</strong> — mặc định là kho của team. Ngay trong tab có nút chuyển <Tag>Kho cá nhân</Tag> <Tag>Kho team</Tag> <Tag>Kho tổng</Tag> để xem kho riêng của bạn hoặc kho dùng chung toàn hệ thống.</li>
               <li><strong>Yêu cầu thêm vào kho</strong> (Leader/Quản lý) — duyệt yêu cầu đưa sản phẩm/nội dung từ kho cá nhân lên kho team.</li>
-              <li><strong>Thống kê đóng góp</strong> — số liệu đóng góp tư liệu/nội dung theo từng thành viên trong tháng.</li>
+              <li><strong>Thành viên</strong> — danh sách thành viên, vai trò (Leader/Editor/Content Creator).</li>
             </ul>
-            <p>Admin/Manager có thể bấm <Tag>Tạo đội mới</Tag> để lập team mới, chọn Leader và thêm thành viên.</p>
+            <p>Admin/Manager có thể bấm <Tag>Tạo đội mới</Tag> trong tab Thành viên để lập team mới, chọn Leader và thêm thành viên.</p>
           </Section>
 
           <Section id="danh-muc-kho" title="12. Danh mục & Kho cá nhân">
@@ -455,15 +454,16 @@ export default function NhiemVuGuidePage() {
               Kho cá nhân (riêng bạn) → đẩy sang → Kho team (Leader duyệt) → đẩy sang → Danh mục / Content (dùng chung toàn hệ thống)
             </div>
             <ul className="list-disc pl-5 space-y-1.5">
-              <li><strong>Kho cá nhân</strong> — chỉ mình bạn quản lý, có nút "Đẩy sang kho team" trên từng mục.</li>
+              <li><strong>Kho cá nhân</strong> — vào trang Nội dung, sản phẩm & team, tab Kho nội dung/Kho sản phẩm, bấm <Tag>Kho cá nhân</Tag>. Chỉ mình bạn quản lý, có nút "Đẩy sang kho team" trên từng mục.</li>
               <li><strong>Danh mục</strong> / <strong>Content</strong> — kho chung, ai cũng chọn được khi tạo nhiệm vụ.</li>
             </ul>
             <InfoBox variant="note" title="Sản phẩm / Nguồn là gì?">
               <strong>Sản phẩm</strong>: món hàng thật sẽ lên hình trong video. <strong>Nguồn (Source)</strong>: tư liệu hỗ
               trợ dựng video, gồm 5 loại — Source sản phẩm, Source sản phẩm sưu tầm, Source Outro, Source chế tác,
-              Source Huy-K. Hệ thống tự động giao việc lấy sản phẩm từ <strong>Kho sản phẩm</strong> của team — mỗi sản
-              phẩm đã giao cho một người phải cách ít nhất 5 ngày mới giao lại cho người đó (sản phẩm có thể đặt số ngày
-              riêng). Nếu kho sản phẩm team trống, sẽ không tạo được task Auto.
+              Source Huy-K. Hệ thống tự động giao việc chỉ lấy sản phẩm <strong>dòng GMV</strong> từ <strong>Kho sản phẩm</strong> của
+              team, sản phẩm có <strong>điểm ưu tiên</strong> cao hơn được giao trước — mỗi sản phẩm đã giao cho một người phải cách
+              ít nhất 5 ngày mới giao lại cho người đó (sản phẩm có thể đặt số ngày riêng). Nếu kho sản phẩm team không có sản
+              phẩm dòng GMV nào, sẽ không tạo được task Auto.
             </InfoBox>
           </Section>
 
