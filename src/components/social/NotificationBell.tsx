@@ -175,7 +175,7 @@ export default function NotificationBell() {
     else if (n.type === 'DAILY_TASK_SHORTFALL') {
       // meta.work_date do TaskComplianceService ghi — mở thẳng đúng ngày bị thiếu
       const workDate = (n.meta as { work_date?: string } | null | undefined)?.work_date;
-      router.push(workDate ? `/dashboard/task-auto/compliance?date=${workDate}` : '/dashboard/task-auto/compliance');
+      router.push(`/dashboard/task-auto/tasks?tab=missing${workDate ? `&date=${workDate}` : ''}`);
     }
   };
 

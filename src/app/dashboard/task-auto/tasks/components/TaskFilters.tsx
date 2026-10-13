@@ -176,7 +176,7 @@ export function TaskFilters({
           <input
             type="text"
             aria-label={searchPlaceholder}
-            className="w-full pl-10 pr-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-colors"
+            className="w-full h-10 pl-10 pr-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-colors"
             placeholder={searchPlaceholder}
             value={localSearch}
             onChange={e => setLocalSearch(e.target.value)}
@@ -192,7 +192,7 @@ export function TaskFilters({
               { value: '', label: 'Tất cả team' },
               ...teams.map(t => ({ value: t.id, label: t.name })),
             ]}
-            className="min-w-[155px]"
+            className="min-w-[155px] [&>button]:h-10 [&>button]:py-0"
             searchable
             compact
           />
@@ -207,7 +207,7 @@ export function TaskFilters({
               { value: '', label: 'Tất cả người làm' },
               ...assigneeOptions.map(a => ({ value: a.id, label: a.name })),
             ]}
-            className="min-w-[165px]"
+            className="min-w-[165px] [&>button]:h-10 [&>button]:py-0"
             searchable
             compact
           />
@@ -303,7 +303,7 @@ export function TaskFilters({
           <button
             type="button"
             onClick={resetAllFilters}
-            className="flex items-center gap-1.5 px-3 py-3 rounded-xl text-sm font-semibold text-slate-500 hover:text-slate-700 hover:bg-gray-100 transition-colors flex-shrink-0"
+            className="h-10 flex items-center gap-1.5 px-3 rounded-xl text-sm font-semibold text-slate-500 hover:text-slate-700 hover:bg-gray-100 transition-colors flex-shrink-0"
           >
             <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
             Xoá lọc
@@ -386,7 +386,7 @@ function MoreFiltersButton({ count, children }: { count: number; children: React
         aria-expanded={open}
         aria-haspopup="dialog"
         className={cn(
-          'flex items-center gap-2 px-3.5 py-3 rounded-xl text-sm font-semibold border transition-colors whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500',
+          'h-10 flex items-center gap-2 px-3.5 rounded-xl text-sm font-semibold border transition-colors whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500',
           count > 0
             ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
             : 'bg-gray-50 border-gray-200 text-slate-600 hover:bg-gray-100',

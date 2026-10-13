@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {
@@ -10,11 +10,14 @@ import { cn } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { CustomSelect, CreatableSelect } from '@/components/task-auto/DarkInput'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
-import {
-  parseMarkets, MarketPicker, VoicePicker, ContentFilePicker,
-} from '@/components/task-auto/ContentFormModal'
+import { ContentProductFilter } from '@/components/task-auto/ContentProductFilter'
+import { parseMarkets, MarketPicker, VoicePicker } from '@/components/task-auto/ContentFormModal'
 import type { VoicePickerHandle } from '@/components/task-auto/ContentFormModal'
-import { DarkInput, DarkTextarea } from '@/components/task-auto/DarkInput'
+import {
+  ContentSourcePicker, contentSourceFrom, contentSourceFields, contentRequiredErrors, focusFirstInvalid, REQUIRED_TOAST,
+  type ContentSource,
+} from '@/components/task-auto/ContentSourcePicker'
+import { DarkInput } from '@/components/task-auto/DarkInput'
 import {
   getContents, getTeamContents,
   getEditorContents, getEditorContent, createEditorContent, updateEditorContent, deleteEditorContent, pushEditorContentToTeam,
@@ -369,29 +372,46 @@ function PersonalContentModal({
   const qc = useQueryClient()
   const isEdit = !!editing
   const brandType: 'DO_DA' | 'TRANG_SUC' = (editing?.brand_type as 'DO_DA' | 'TRANG_SUC') ?? defaultBrandType ?? 'TRANG_SUC'
-  const [form, setForm] = useState<Partial<Content>>({
-    code: editing?.code ?? '',
-    title: editing?.title ?? '',
-    body: editing?.body ?? '',
-    script: editing?.script ?? '',
-    file_content_url: editing?.file_content_url ?? '',
-    voice_url: editing?.voice_url ?? '',
-    content_line_id: editing?.content_line_id ?? presetContentLineId ?? '',
-    classification_id: editing?.classification_id ?? '',
+  const formFrom = (c?: Content | null): Partial<Content> => ({
+    code: c?.code ?? '',
+    title: c?.title ?? '',
+    body: c?.body ?? '',
+    script: c?.script ?? '',
+    file_content_url: c?.file_content_url ?? '',
+    voice_url: c?.voice_url ?? '',
+    content_line_id: c?.content_line_id ?? presetContentLineId ?? '',
+    classification_id: c?.classification_id ?? '',
   })
+  const [form, setForm] = useState<Partial<Content>>(() => formFrom(editing))
   const [market, setMarket] = useState<string>(editing?.market ?? defaultMarket)
+  const [initialSource, setInitialSource] = useState(() => contentSourceFrom(editing?.body, editing?.file_content_url))
+  const [source, setSource] = useState<ContentSource>(initialSource)
+  const [showErrors, setShowErrors] = useState(false)
+  const formRef = useRef<HTMLDivElement>(null)
   const voicePickerRef = useRef<VoicePickerHandle>(null)
+
+  // Danh sách không trả body/script: bản đầy đủ tải về sau thì nạp lại form, không thì lưu sẽ xoá mất nội dung
+  useEffect(() => {
+    if (!editing) return
+    setForm(formFrom(editing))
+    const s = contentSourceFrom(editing.body, editing.file_content_url)
+    setInitialSource(s)
+    setSource(s)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing])
 
   const { data: contentLines } = useQuery({ queryKey: ['task-auto', 'content-lines'], queryFn: getContentLines })
   const { data: contentClassifications } = useQuery({ queryKey: ['task-auto', 'content-classifications'], queryFn: getContentClassifications })
+
+  const errors = showErrors ? contentRequiredErrors({ ...form, source }) : {}
+  const sourceFields = () => contentSourceFields(source, form.body ?? '', isEdit ? { mode: initialSource.mode, fileUrl: editing!.file_content_url } : undefined)
 
   const createMut = useMutation({
     mutationFn: async () => createEditorContent(userId, {
       code: form.code?.trim() || null,
       title: form.title,
-      body: form.body,
+      ...sourceFields(),
       script: form.script,
-      file_content_url: form.file_content_url,
       voice_url: await voicePickerRef.current!.resolvePending(form.voice_url ?? ''),
       content_line_id: form.content_line_id || null,
       classification_id: form.classification_id || null,
@@ -410,9 +430,8 @@ function PersonalContentModal({
     mutationFn: async () => updateEditorContent(userId, editing!.id, {
       code: form.code?.trim() || null,
       title: form.title,
-      body: form.body,
+      ...sourceFields(),
       script: form.script,
-      file_content_url: form.file_content_url,
       voice_url: await voicePickerRef.current!.resolvePending(form.voice_url ?? ''),
       content_line_id: form.content_line_id || null,
       classification_id: form.classification_id || null,
@@ -429,7 +448,11 @@ function PersonalContentModal({
   const saving = createMut.isPending || updateMut.isPending
 
   const handleSubmit = () => {
-    if (!form.title?.trim()) return toast.error('Tiêu đề content là bắt buộc')
+    if (Object.keys(contentRequiredErrors({ ...form, source })).length) {
+      setShowErrors(true)
+      focusFirstInvalid(formRef.current)
+      return toast.error(REQUIRED_TOAST)
+    }
     isEdit ? updateMut.mutate() : createMut.mutate()
   }
 
@@ -453,7 +476,7 @@ function PersonalContentModal({
         </>
       }
     >
-      <div className="space-y-6">
+      <div ref={formRef} className="space-y-6">
         <div className="space-y-4">
           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
             Thông tin chính
@@ -470,22 +493,28 @@ function PersonalContentModal({
               placeholder="Nhập tiêu đề..."
               value={form.title ?? ''}
               onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+              error={errors.title}
             />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <CustomSelect
-              label="Tuyến nội dung"
+              label="Tuyến nội dung *"
+              placeholder="— Chọn tuyến —"
               value={form.content_line_id ?? ''}
               onChange={v => setForm(f => ({ ...f, content_line_id: v }))}
-              options={[{ value: '', label: '-- Không chọn --' }, ...(contentLines?.map(l => ({ value: l.id, label: l.name })) ?? [])]}
+              options={contentLines?.map(l => ({ value: l.id, label: l.name })) ?? []}
               searchable
+              error={errors.line}
             />
             <CreatableSelect
-              label="Phân loại nội dung"
+              label="Phân loại nội dung *"
+              placeholder="— Chọn phân loại —"
               value={form.classification_id ?? ''}
               onChange={v => setForm(f => ({ ...f, classification_id: v }))}
               options={contentClassifications?.map(c => ({ value: c.id, label: c.name })) ?? []}
               createLabel="Thêm phân loại nội dung"
+              required
+              error={errors.classification}
               onCreate={async (name) => {
                 const created = await createContentClassification(name)
                 qc.setQueryData<typeof contentClassifications>(['task-auto', 'content-classifications'], old => [...(old ?? []), created])
@@ -498,18 +527,14 @@ function PersonalContentModal({
         </div>
         <div className="space-y-4">
           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
-            Nội dung văn bản
+            Nội dung
           </p>
-          <DarkTextarea
-            label="Nội dung / Script"
-            rows={4}
-            placeholder="Nhập nội dung hoặc kịch bản..."
-            value={form.body ?? ''}
-            onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
-          />
-          <ContentFilePicker
-            value={form.file_content_url ?? ''}
-            onChange={url => setForm(f => ({ ...f, file_content_url: url }))}
+          <ContentSourcePicker
+            value={source}
+            onChange={setSource}
+            body={form.body ?? ''}
+            onBodyChange={body => setForm(f => ({ ...f, body }))}
+            error={errors.source}
           />
         </div>
         <div className="space-y-4">
@@ -532,6 +557,7 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM', readO
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<ContentUsageStatus | ''>('')
   const [classificationFilter, setClassificationFilter] = useState('')
+  const [productSku, setProductSku] = useState('')
   const [month, setMonth] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [showImport, setShowImport] = useState(false)
@@ -608,6 +634,7 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM', readO
             className="min-w-[170px]"
             compact
           />
+          <ContentProductFilter scope={{ kind: 'personal', userId, brandType }} value={productSku} onChange={setProductSku} />
           {!readOnly && (
             <>
               <button
@@ -636,6 +663,7 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM', readO
         search={search}
         status={statusFilter}
         classificationId={classificationFilter}
+        productSku={productSku}
         readOnly={readOnly}
         pendingContentIds={pendingContentIds}
         onSelect={openDetail}

@@ -20,7 +20,6 @@ export type TeamKind = 'PRODUCTION' | 'CONTENT'
 export type ContentOrigin = 'COLLECTED' | 'SELF_CREATED'
 export type SourceType = 'PRODUCT_STOCK' | 'COLLECTED' | 'OUTRO' | 'WORKSHOP' | 'HUYK'
 export type KpiAllocationType = 'CONTENT_LINE' | 'PRODUCT_LINE'
-export type AssignmentOutcome = 'COMPLETED' | 'OVERDUE' | 'REASSIGNED' | 'CANCELLED'
 export type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 
 // ── User Basic ──────────────────────────────────
@@ -865,7 +864,7 @@ export interface Task {
   created_at: string
   updated_at: string
   // Relations
-  team?: Pick<Team, 'id' | 'name' | 'market'>
+  team?: Pick<Team, 'id' | 'name' | 'market' | 'brand_type'>
   content?: Pick<Content, 'id' | 'code' | 'title' | 'script' | 'file_content_url' | 'market'> & {
     content_line?: ContentLine | null
     source_team_content?: {
@@ -910,7 +909,6 @@ export interface Task {
   team_source_huyk?:       { id: string; name: string | null; link: string | null; type: SourceType | null; nas_link?: string | null; source_editor_source?: { name: string; link: string; type: SourceType; nas_link?: string | null } | null } | null
   assignee?: UserBasic | null
   reviewed_by?: UserBasic | null
-  assignments?: TaskAssignment[]
   pending_video?: TaskPendingVideo | null
   product_sources?: Source[]
 }
@@ -926,18 +924,6 @@ export interface TaskPendingVideo {
   url: string
   storage: string
   created_at: string
-}
-
-export interface TaskAssignment {
-  id: string
-  task_id: string
-  user_id: string
-  assigned_at: string
-  deadline: string
-  outcome: AssignmentOutcome | null
-  run_id: string | null
-  note: string | null
-  user?: UserBasic
 }
 
 // ── Assignment Runs ─────────────────────────────
@@ -1334,6 +1320,14 @@ export interface ContentsQuery {
   limit?: number
   search?: string
   month?: string
+  product_sku?: string
+}
+
+export interface LinkedProduct {
+  sku: string
+  name: string | null
+  image_url: string | null
+  content_count: number
 }
 
 export interface SourcesQuery {

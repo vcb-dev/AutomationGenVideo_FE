@@ -29,6 +29,7 @@ import type {
   OmsProductQuery,
   Content,
   ContentsQuery,
+  LinkedProduct,
   Source,
   SourcesQuery,
   TeamSource,
@@ -292,6 +293,7 @@ export interface TeamListOpts {
   classification_id?: string
   content_line_id?: string
   market?: string
+  product_sku?: string
 }
 
 // Không truyền `opts.page` → trả mảng đầy đủ như trước (dùng bởi dropdown chọn sản phẩm khi
@@ -321,9 +323,12 @@ export const pushTeamProductToGlobal = (teamId: string, teamProductId: string) =
 export function getTeamContents(teamId: string, brandType?: string, month?: string): Promise<TeamContent[]>
 export function getTeamContents(teamId: string, brandType: string | undefined, month: string | undefined, opts: TeamListOpts & { page: number }): Promise<PaginatedResult<TeamContent>>
 export function getTeamContents(teamId: string, brandType?: string, month?: string, opts?: TeamListOpts) {
-  const query = qs({ brand_type: brandType, month, search: opts?.search, page: opts?.page, limit: opts?.limit, content_line_id: opts?.content_line_id, classification_id: opts?.classification_id, market: opts?.market })
+  const query = qs({ brand_type: brandType, month, search: opts?.search, page: opts?.page, limit: opts?.limit, content_line_id: opts?.content_line_id, classification_id: opts?.classification_id, market: opts?.market, product_sku: opts?.product_sku })
   return apiClient.get<any>(`/task-auto/teams/${teamId}/contents${query}`).then(r => r.data)
 }
+
+export const getTeamContentLinkedProducts = (teamId: string, brandType?: string) =>
+  apiClient.get<LinkedProduct[]>(`/task-auto/teams/${teamId}/contents/linked-products${qs({ brand_type: brandType })}`).then(r => r.data)
 
 export const getTeamContent = (teamId: string, teamContentId: string) =>
   apiClient.get<TeamContent>(`/task-auto/teams/${teamId}/contents/${teamContentId}`).then(r => r.data)
@@ -793,6 +798,9 @@ export const uploadProductImage = (file: File): Promise<{ url: string }> => {
 export const getContents = (q: ContentsQuery = {}) =>
   apiClient.get<PaginatedResult<Content>>(`/task-auto/contents${qs(q as any)}`).then(r => r.data)
 
+export const getContentLinkedProducts = (brandType?: string) =>
+  apiClient.get<LinkedProduct[]>(`/task-auto/contents/linked-products${qs({ brand_type: brandType })}`).then(r => r.data)
+
 export const getContent = (id: string) =>
   apiClient.get<Content>(`/task-auto/contents/${id}`).then(r => r.data)
 
@@ -879,6 +887,9 @@ export const pushEditorProductToGlobal = (userId: string, id: string) =>
 
 export const getEditorContents = (userId: string, q: Record<string, any> = {}) =>
   apiClient.get<PaginatedResult<Content>>(`/task-auto/editors/${userId}/contents${qs(q as any)}`).then(r => r.data)
+
+export const getEditorContentLinkedProducts = (userId: string, brandType?: string) =>
+  apiClient.get<LinkedProduct[]>(`/task-auto/editors/${userId}/contents/linked-products${qs({ brand_type: brandType })}`).then(r => r.data)
 
 export const getEditorContent = (userId: string, id: string) =>
   apiClient.get<Content>(`/task-auto/editors/${userId}/contents/${id}`).then(r => r.data)

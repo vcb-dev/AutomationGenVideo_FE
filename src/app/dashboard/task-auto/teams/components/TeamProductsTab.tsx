@@ -15,6 +15,7 @@ import { getTeamProducts, getTeams, removeTeamProduct, getProductLines, getProdu
 import { AddProductModal } from './products/AddProductModal'
 import { ProductCard } from './products/ProductCard'
 import { TeamProductFormModal } from './products/TeamProductFormModal'
+import { TargetTeamPickerModal } from './TargetTeamPickerModal'
 
 const PAGE_SIZE = 24
 
@@ -37,6 +38,8 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
   const [classificationFilter, setClassificationFilter] = useState('')
   const [page, setPage] = useState(1)
   const [deletingProduct, setDeletingProduct] = useState<TeamProduct | null>(null)
+  const [targetTeamId, setTargetTeamId] = useState('')
+  const [pickingTeam, setPickingTeam] = useState(false)
 
   const { data: teams } = useQuery({
     queryKey: ['task-auto', 'teams'],
@@ -64,8 +67,11 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
   const listTeamId = isAllTeams ? ALL_TEAMS_ID : selectedTeamId
   const listBrandType = isAllTeams ? undefined : brandType
   const teamNameById = new Map((teams ?? []).map(t => [t.id, t.name]))
-  // Thêm sản phẩm luôn phải vào kho của 1 team cụ thể
-  const canAddHere = !!selectedTeamId && canAddSelected
+  // Thêm sản phẩm luôn vào kho của 1 team cụ thể — đang xem tất cả đội nhóm thì hỏi team nhận trước
+  const canAddHere = !!listTeamId && canAddSelected
+  const actionTeamId = isAllTeams ? targetTeamId : selectedTeamId
+  const actionBrandType = teams?.find(t => t.id === actionTeamId)?.brand_type ?? brandType
+  const startAdd = () => (isAllTeams ? setPickingTeam(true) : setShowAdd(true))
 
   const { data: page1Data, isLoading } = useQuery({
     queryKey: ['task-auto', 'team-products', listTeamId, listBrandType, month, search, productLineFilter, classificationFilter, page],
@@ -81,9 +87,9 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
   // Danh sách SKU đầy đủ trong kho team (không phân trang) — chỉ dùng để loại sản phẩm đã có
   // ra khỏi danh sách "chọn từ kho tổng" trong AddProductModal, không dùng để hiển thị bảng.
   const { data: allTeamProducts } = useQuery({
-    queryKey: ['task-auto', 'team-products-all-skus', selectedTeamId, brandType],
-    queryFn: () => getTeamProducts(selectedTeamId, brandType),
-    enabled: !!selectedTeamId && showAdd,
+    queryKey: ['task-auto', 'team-products-all-skus', actionTeamId, actionBrandType],
+    queryFn: () => getTeamProducts(actionTeamId, actionBrandType),
+    enabled: !!actionTeamId && showAdd,
   })
 
   // Danh sách dòng SP/phân loại toàn hệ thống — dùng làm option cho dropdown lọc (không kèm
@@ -181,7 +187,7 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
 
           {canAddHere && (
             <button
-              onClick={() => setShowAdd(true)}
+              onClick={startAdd}
               className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-5 py-3.5 text-base font-semibold flex items-center gap-2 transition-colors ml-auto shrink-0"
             >
               <Plus className="w-5 h-5" /> Thêm sản phẩm
@@ -221,13 +227,11 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
                     {isAllTeams ? 'Chưa team nào có sản phẩm trong kho' : 'Kho team chưa có sản phẩm'}
                   </p>
                   <p className="text-sm text-slate-400">
-                    {canAddHere
-                      ? 'Nhấn "Thêm sản phẩm" để chọn từ kho tổng'
-                      : isAllTeams ? 'Chọn một đội nhóm để thêm sản phẩm vào kho của team đó' : 'Chưa có sản phẩm nào trong kho team'}
+                    {canAddHere ? 'Nhấn "Thêm sản phẩm" để chọn từ kho tổng' : 'Chưa có sản phẩm nào trong kho team'}
                   </p>
                   {canAddHere && (
                     <button
-                      onClick={() => setShowAdd(true)}
+                      onClick={startAdd}
                       className="mt-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-5 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors"
                     >
                       <Plus className="w-4 h-4" /> Thêm sản phẩm đầu tiên
@@ -279,15 +283,30 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
         onCancel={() => setDeletingProduct(null)}
       />
 
-      {showAdd && selectedTeamId && (
+      {showAdd && actionTeamId && (
         <AddProductModal
           open={showAdd}
-          teamId={selectedTeamId}
+          teamId={actionTeamId}
           existingSkus={existingSkus}
           userId={userId}
-          initialBrandType={brandType}
+          initialBrandType={actionBrandType}
           onClose={() => setShowAdd(false)}
-          onSuccess={() => setShowAdd(false)}
+          onSuccess={() => {
+            setShowAdd(false)
+            if (isAllTeams) qc.invalidateQueries({ queryKey: ['task-auto', 'team-products', ALL_TEAMS_ID] })
+          }}
+        />
+      )}
+
+      {pickingTeam && (
+        <TargetTeamPickerModal
+          title="Thêm sản phẩm"
+          subtitle="Chọn đội nhóm sẽ nhận sản phẩm này"
+          teams={teams ?? []}
+          value={targetTeamId}
+          onChange={setTargetTeamId}
+          onCancel={() => setPickingTeam(false)}
+          onConfirm={() => { setPickingTeam(false); setShowAdd(true) }}
         />
       )}
 

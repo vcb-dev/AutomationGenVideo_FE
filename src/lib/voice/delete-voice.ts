@@ -1,5 +1,5 @@
 /**
- * Gọi BE xoá một giọng đã clone (Minimax) — tách khỏi component để test được phần
+ * Gọi BE xoá một giọng đã clone — tách khỏi component để test được phần
  * logic thuần: lỗi từ BE/AI phải hiện ra đúng câu chữ thay vì bị nuốt thành "500".
  *
  * Luật giọng nào được phép xoá nằm ở `isUsableVoice` (voice-selection.ts) — cùng

@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/task-auto/EmptyState'
 import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
 import { ContentFormModal } from '@/components/task-auto/ContentFormModal'
+import { ContentProductFilter } from '@/components/task-auto/ContentProductFilter'
 import {
   getTeams, getTeamContents, getTeamContent, addTeamContent, removeTeamContent,
   pushTeamContentToGlobal, getContentClassifications, ALL_TEAMS_ID,
@@ -16,6 +17,7 @@ import {
 import type { Content, TeamContent, ContentOrigin } from '@/types/task-auto'
 import { AddContentModal } from './contents/AddContentModal'
 import { TeamContentsBoard } from './contents/TeamContentsBoard'
+import { TargetTeamPickerModal } from './TargetTeamPickerModal'
 import { ContentViewModal } from '@/components/task-auto/ContentViewModal'
 
 interface TeamContentsTabProps {
@@ -37,7 +39,10 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
   const [editingContent, setEditingContent] = useState<TeamContent | null>(null)
   const [search, setSearch] = useState('')
   const [classificationFilter, setClassificationFilter] = useState('')
+  const [productSku, setProductSku] = useState('')
   const [pendingOrigin, setPendingOrigin] = useState<ContentOrigin | null>(null)
+  const [targetTeamId, setTargetTeamId] = useState('')
+  const [pickTeamFor, setPickTeamFor] = useState<'create' | 'add' | null>(null)
 
   const { data: teams } = useQuery({
     queryKey: ['task-auto', 'teams'],
@@ -61,17 +66,36 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
     : myTeams.map(t => ({ value: t.id, label: t.name }))
 
   // Admin/Manager chọn "Tất cả đội nhóm" → board gộp content của mọi team, không lọc loại/thị trường
-  // theo 1 team; tạo/thêm content vẫn phải chọn 1 team cụ thể.
+  // theo 1 team; tạo/thêm content thì hỏi team nhận trước (targetTeamId).
   const isAllTeams = isAdminOrManager && !selectedTeamId
   const listTeamId = isAllTeams ? ALL_TEAMS_ID : selectedTeamId
   const teamNameById = new Map((teams ?? []).map(t => [t.id, t.name]))
 
+  const actionTeamId = isAllTeams ? targetTeamId : selectedTeamId
+  const actionTeam = teams?.find(t => t.id === actionTeamId)
+  const actionBrandType = actionTeam?.brand_type ?? brandType
+  const actionMarket: string = actionTeam?.market ?? 'VIETNAM'
+  const isContentCreatorOfAction = actionTeam?.members?.some(m => m.user_id === userId && m.is_content_creator) ?? false
+
+  const startCreate = (contentLineId?: string) => {
+    setPresetLineId(contentLineId)
+    if (isAllTeams) setPickTeamFor('create')
+    else setShowCreate(true)
+  }
+  const startAdd = () => (isAllTeams ? setPickTeamFor('add') : setShowAdd(true))
+  const cancelPickTeam = () => { setPickTeamFor(null); setPresetLineId(undefined) }
+  const confirmPickTeam = () => {
+    if (pickTeamFor === 'create') setShowCreate(true)
+    else setShowAdd(true)
+    setPickTeamFor(null)
+  }
+
   // Danh sách đầy đủ (không phân trang) — chỉ dùng để loại content đã có ra khỏi danh sách
   // "chọn từ kho tổng" trong AddContentModal, không dùng để hiển thị board.
   const { data: allTeamContents } = useQuery({
-    queryKey: ['task-auto', 'team-contents-all-ids', selectedTeamId, brandType],
-    queryFn: () => getTeamContents(selectedTeamId, brandType),
-    enabled: !!selectedTeamId && showAdd,
+    queryKey: ['task-auto', 'team-contents-all-ids', actionTeamId, actionBrandType],
+    queryFn: () => getTeamContents(actionTeamId, actionBrandType),
+    enabled: !!actionTeamId && showAdd,
   })
 
   // Danh sách phân loại toàn hệ thống — dùng làm option cho dropdown lọc trong toolbar. Tuyến ND
@@ -105,7 +129,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
   const [removingContent, setRemovingContent] = useState<TeamContent | null>(null)
   const [pushingContent, setPushingContent] = useState<TeamContent | null>(null)
 
-  useEffect(() => { setPendingOrigin(null) }, [selectedTeamId])
+  useEffect(() => { setPendingOrigin(null); setProductSku('') }, [selectedTeamId])
 
   // Board chỉ trả field rút gọn (không có body/script) để nhẹ payload — mở xem chi tiết/sửa phải
   // lấy lại bản đầy đủ, không thì modal/form hiện trống dù content đã có nội dung.
@@ -172,6 +196,14 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
             />
           )}
 
+          {listTeamId && (
+            <ContentProductFilter
+              scope={{ kind: 'team', teamId: listTeamId, brandType: isAllTeams ? undefined : brandType }}
+              value={productSku}
+              onChange={setProductSku}
+            />
+          )}
+
           {selectedTeamId && isContentCreatorOfSelected && (
             <div className="flex items-center gap-1.5 shrink-0 bg-emerald-50 border border-emerald-200 rounded-xl p-1">
               <Sparkles className="w-3.5 h-3.5 text-emerald-500 ml-1.5" />
@@ -190,16 +222,16 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
             </div>
           )}
 
-          {selectedTeamId && canManageSelected && (
+          {listTeamId && canManageSelected && (
             <div className="flex items-center gap-2 ml-auto shrink-0">
               <button
-                onClick={() => setShowCreate(true)}
+                onClick={() => startCreate()}
                 className="border border-indigo-500 text-indigo-600 hover:bg-indigo-50 rounded-xl px-5 py-3.5 text-base font-semibold flex items-center gap-2 transition-colors"
               >
                 <Plus className="w-5 h-5" /> Tạo mới
               </button>
               <button
-                onClick={() => setShowAdd(true)}
+                onClick={startAdd}
                 className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-5 py-3.5 text-base font-semibold flex items-center gap-2 transition-colors"
               >
                 <FileText className="w-5 h-5" /> Từ kho tổng
@@ -220,13 +252,14 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
           search={search}
           classificationId={classificationFilter}
           market={isAllTeams ? undefined : teamMarket}
+          productSku={productSku}
           canManage={canManageSelected}
           canPush={canPushToGlobal}
           onSelect={openDetail}
           onEdit={openEdit}
           onRemove={setRemovingContent}
           onPush={setPushingContent}
-          onAdd={isAllTeams ? undefined : contentLineId => { setPresetLineId(contentLineId); setShowCreate(true) }}
+          onAdd={startCreate}
           teamNameOf={isAllTeams ? id => teamNameById.get(id) : undefined}
         />
       )}
@@ -271,9 +304,9 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
         open={showCreate || !!editingContent}
         editing={editingContent as unknown as Content}
         userId={userId}
-        teamId={editingContent?.team_id ?? selectedTeamId}
-        brandType={brandType}
-        initialMarket={teamMarket}
+        teamId={editingContent?.team_id ?? actionTeamId}
+        brandType={actionBrandType}
+        initialMarket={actionMarket}
         initialContentLineId={presetLineId}
         onClose={() => { setShowCreate(false); setEditingContent(null); setPresetLineId(undefined) }}
         onSuccess={async (content: Content) => {
@@ -284,7 +317,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
             setShowCreate(false)
             setPresetLineId(undefined)
             try {
-              await addTeamContent(selectedTeamId, {
+              await addTeamContent(actionTeamId, {
                 brand_type: content.brand_type,
                 market: content.market,
                 code: content.code,
@@ -295,7 +328,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
                 voice_url: content.voice_url,
                 content_line_id: content.content_line_id,
                 classification_id: content.classification_id,
-                origin: isContentCreatorOfSelected ? (pendingOrigin ?? undefined) : undefined,
+                origin: isContentCreatorOfAction ? (pendingOrigin ?? undefined) : undefined,
               })
               qc.invalidateQueries({ queryKey: ['task-auto', 'team-contents'] })
             } catch (e: any) {
@@ -305,16 +338,28 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
         }}
       />
 
-      {showAdd && selectedTeamId && (
+      {showAdd && actionTeamId && (
         <AddContentModal
           open={showAdd}
-          teamId={selectedTeamId}
+          teamId={actionTeamId}
           existingContentIds={existingContentIds}
-          initialBrandType={brandType}
-          initialMarket={teamMarket}
-          showOriginPicker={isContentCreatorOfSelected}
+          initialBrandType={actionBrandType}
+          initialMarket={actionMarket}
+          showOriginPicker={isContentCreatorOfAction}
           onClose={() => setShowAdd(false)}
-          onSuccess={() => setShowAdd(false)}
+          onSuccess={() => { setShowAdd(false); qc.invalidateQueries({ queryKey: ['task-auto', 'team-contents'] }) }}
+        />
+      )}
+
+      {pickTeamFor && (
+        <TargetTeamPickerModal
+          title={pickTeamFor === 'add' ? 'Thêm content từ kho tổng' : 'Tạo content mới'}
+          subtitle="Chọn đội nhóm sẽ nhận content này"
+          teams={teams ?? []}
+          value={targetTeamId}
+          onChange={setTargetTeamId}
+          onCancel={cancelPickTeam}
+          onConfirm={confirmPickTeam}
         />
       )}
     </div>

@@ -7,6 +7,7 @@ import { Plus, Trash2, Loader2, Search, Tags, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { ContentFormModal } from '@/components/task-auto/ContentFormModal'
+import { ContentProductFilter } from '@/components/task-auto/ContentProductFilter'
 import {
   getContent, deleteContent,
   getContentLines, createContentLine, deleteContentLine,
@@ -95,6 +96,7 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
   const [search, setSearch] = useState('')
   const [classificationFilter, setClassificationFilter] = useState('')
   const [marketFilter, setMarketFilter] = useState('')
+  const [productSku, setProductSku] = useState('')
   const [showCatalogPanel, setShowCatalogPanel] = useState(false)
   const [presetLineId, setPresetLineId] = useState<string | undefined>(undefined)
   const [showModal, setShowModal] = useState(false)
@@ -191,6 +193,8 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
               compact
             />
 
+            <ContentProductFilter scope={{ kind: 'global', brandType }} value={productSku} onChange={setProductSku} />
+
             <button
               onClick={() => setShowCatalogPanel(v => !v)}
               className={cn(
@@ -222,6 +226,7 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
           search={search}
           classificationId={classificationFilter}
           market={marketFilter}
+          productSku={productSku}
           canEdit={canCreateOrEdit}
           canDelete={canDelete}
           onSelect={openDetail}

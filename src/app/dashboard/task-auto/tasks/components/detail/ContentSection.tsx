@@ -4,9 +4,11 @@ import { useEffect, useRef, useState } from 'react'
 import {
   FileText, Link2, Mic, Download, X, ChevronDown, ChevronUp,
   Sparkles, Loader2, Copy, Check, Languages, Save, Send, Clock, CheckCircle2, XCircle, PenLine, Wand2, Gauge, ArrowLeftRight,
+  Video, ExternalLink,
 } from 'lucide-react'
 import { cn, drivePreviewUrl, cleanContentText } from '@/lib/utils'
 import { ServerSearchSelect } from '@/components/task-auto/DarkInput'
+import { isVideoLink } from '@/components/task-auto/ContentSourcePicker'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
 import { PaastScoreModal } from '@/components/task-auto/PaastScoreModal'
 import type { PaastAnalysisHistory } from '@/lib/api/paast-analyzer'
@@ -830,13 +832,22 @@ export function ContentSection({
           {(view.fileUrl || view.voiceUrl) && (
             <div className="space-y-3">
               <div className="flex flex-wrap gap-2">
-                {view.fileUrl && (
+                {view.fileUrl && (isVideoLink(view.fileUrl) ? (
+                  <a
+                    href={view.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 px-3.5 py-2 rounded-lg transition-colors">
+                    <Video className="w-3.5 h-3.5 text-indigo-500" aria-hidden="true" /> Xem video content
+                    <ExternalLink className="w-3 h-3 text-gray-400" aria-hidden="true" />
+                  </a>
+                ) : (
                   <button
                     onClick={() => setFilePreviewOpen(true)}
                     className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 px-3.5 py-2 rounded-lg transition-colors">
                     <Link2 className="w-3.5 h-3.5 text-indigo-500" /> Xem File Content
                   </button>
-                )}
+                ))}
                 {view.voiceUrl && (
                   <>
                     <button
