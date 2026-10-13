@@ -333,9 +333,6 @@ export const getTeamContentLinkedProducts = (teamId: string, brandType?: string)
 export const getTeamContent = (teamId: string, teamContentId: string) =>
   apiClient.get<TeamContent>(`/task-auto/teams/${teamId}/contents/${teamContentId}`).then(r => r.data)
 
-/** Copy từ kho tổng: truyền { source_content_id }. Tạo mới: truyền full content data */
-export const addTeamContent = (teamId: string, data: { source_content_id?: string; brand_type?: string; [key: string]: any }) =>
-  apiClient.post<TeamContent>(`/task-auto/teams/${teamId}/contents`, data).then(r => r.data)
 export const updateTeamContent = (teamId: string, teamContentId: string, data: Partial<TeamContent>) =>
   apiClient.patch<TeamContent>(`/task-auto/teams/${teamId}/contents/${teamContentId}`, data).then(r => r.data)
 
@@ -803,9 +800,6 @@ export const getContentLinkedProducts = (brandType?: string) =>
 
 export const getContent = (id: string) =>
   apiClient.get<Content>(`/task-auto/contents/${id}`).then(r => r.data)
-
-export const createContent = (body: Partial<Content>) =>
-  apiClient.post<Content>('/task-auto/contents', body).then(r => r.data)
 
 export const updateContent = (id: string, body: Partial<Content>) =>
   apiClient.put<Content>(`/task-auto/contents/${id}`, body).then(r => r.data)

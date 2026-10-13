@@ -139,8 +139,10 @@ export function PersonalCatalogPanel({ kind, contentView, viewUserId, onViewUser
         </div>
       ) : (
         <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-5 py-3 text-indigo-700 text-sm">
-          Những mục trong kho cá nhân chỉ mình bạn quản lý. Bạn có thể{' '}
-          <strong>đẩy sang kho team</strong> để chia sẻ với cả đội.
+          {kind === 'contents' && contentView === 'manual'
+            ? <>Content bạn <strong>viết mới khi tạo nhiệm vụ</strong> sẽ tự lưu vào kho cá nhân. </>
+            : 'Những mục trong kho cá nhân chỉ mình bạn quản lý. '}
+          Bạn có thể <strong>đẩy sang kho team</strong> để chia sẻ với cả đội.
         </div>
       )}
 

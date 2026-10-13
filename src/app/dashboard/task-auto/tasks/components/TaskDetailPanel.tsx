@@ -96,9 +96,10 @@ interface Props {
   currentUserId?: string
   /** Nút "Nhân bản" ở header — trang cha đóng panel rồi mở modal tạo task điền sẵn từ task này */
   onDuplicate?: (task: Task) => void
+  hidePublishedLinks?: boolean
 }
 
-export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId, onDuplicate }: Props) {
+export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId, onDuplicate, hidePublishedLinks }: Props) {
   useScrollLock()
   const qc = useQueryClient()
   const [showSubmit, setShowSubmit]         = useState(false)
@@ -918,7 +919,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId, onD
                     } : undefined}
                   />
 
-                  {task.status === 'APPROVED' && (
+                  {task.status === 'APPROVED' && !hidePublishedLinks && (
                     <PublishedLinksSection
                       taskId={task.id}
                       publishedLinks={task.published_links}
