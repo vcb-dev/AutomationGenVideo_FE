@@ -13,6 +13,8 @@ import {
   ClipboardX,
   Clock3,
   ExternalLink,
+  Link2,
+  Link2Off,
   Loader2,
   XCircle,
 } from 'lucide-react'
@@ -160,7 +162,7 @@ export function ComplianceHistoryTab() {
     <div className="space-y-4">
       <header className="flex flex-col xl:flex-row xl:items-end justify-between gap-4">
         <p className="text-sm text-slate-500 max-w-2xl">
-          Ghi nhận sau hạn chót theo số task đã nộp đúng hạn. A4 lấy từ task tự động; các tuyến khác lấy từ chỉ tiêu kế hoạch ngày.
+          Một task chỉ tính hoàn thành khi đã nộp video và có link bài đăng; nộp bù sau hạn chót vẫn được tính và không còn bị ghi thiếu. A4 lấy từ task tự động; các tuyến khác lấy từ chỉ tiêu kế hoạch ngày.
         </p>
 
         <div className="flex flex-wrap items-end gap-2.5 bg-white border border-slate-200 rounded-2xl p-3 shadow-sm">
@@ -229,7 +231,7 @@ export function ComplianceHistoryTab() {
         />
         <SummaryCard
           icon={CheckCircle2}
-          label="Đã nộp / Phải làm"
+          label="Hoàn thành / Phải làm"
           value={`${query.data?.summary.completed ?? 0}/${query.data?.summary.expected ?? 0}`}
           tone="indigo"
         />
@@ -267,7 +269,7 @@ export function ComplianceHistoryTab() {
                     <th className="text-left px-6 py-3 font-bold">Thành viên</th>
                     <th className="text-left px-4 py-3 font-bold">Team</th>
                     <th className="text-left px-4 py-3 font-bold">Tuyến bị thiếu</th>
-                    <th className="text-center px-4 py-3 font-bold">Đúng hạn</th>
+                    <th className="text-center px-4 py-3 font-bold">Hoàn thành</th>
                     <th className="text-center px-4 py-3 font-bold">Còn thiếu</th>
                     <th className="w-12 px-4 py-3"><span className="sr-only">Chi tiết</span></th>
                   </tr>
@@ -349,7 +351,7 @@ export function ComplianceHistoryTab() {
                               <span className="min-w-0">
                                 <span className="block font-black text-slate-900">{group.user.full_name}</span>
                                 <span className="block text-xs text-slate-500">
-                                  {group.teams.map(team => team.name).join(', ')} · đúng hạn {group.completed_count}/{group.expected_count}
+                                  {group.teams.map(team => team.name).join(', ')} · hoàn thành {group.completed_count}/{group.expected_count}
                                 </span>
                               </span>
                               <span className="flex items-center gap-2 shrink-0">
@@ -424,9 +426,9 @@ function DayDetail({ group, teamId }: { group: ComplianceDayGroup; teamId: strin
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
         <span className="font-bold text-slate-700">
-          Cả ngày: đúng hạn {summary.completed}/{summary.expected} task · <span className="text-red-600">thiếu {summary.missing}</span>
+          Cả ngày: hoàn thành {summary.completed}/{summary.expected} task · <span className="text-red-600">thiếu {summary.missing}</span>
         </span>
-        <span className="text-slate-400">Số thiếu chốt lúc hết hạn; trạng thái task là hiện tại.</span>
+        <span className="text-slate-500">Nộp bù đủ video và link bài đăng thì task hết bị tính thiếu.</span>
       </div>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         {lines.map(line => <LineDetailCard key={line.id} line={line} showTeam={multiTeam} />)}
@@ -444,7 +446,7 @@ function LineDetailCard({ line, showTeam }: { line: ComplianceDayLine; showTeam:
           <LineBadge name={line.content_line.name} source={line.source} />
           <p className="text-xs text-slate-500">
             {showTeam && <>{line.team.name} · </>}
-            Đúng hạn <span className="font-bold text-slate-700">{line.completed_count}/{line.expected_count}</span>
+            Hoàn thành <span className="font-bold text-slate-700">{line.completed_count}/{line.expected_count}</span>
             {' · '}Hạn {formatDeadline(line.deadline)}
           </p>
         </div>
@@ -479,27 +481,31 @@ function LineDetailCard({ line, showTeam }: { line: ComplianceDayLine; showTeam:
   )
 }
 
-const RED_STATE = { tone: 'bg-red-50 text-red-700', iconTone: 'text-red-500' }
+function videoState(task: ComplianceDayTask): { ok: boolean; label: string; icon: typeof CheckCircle2 } {
+  if (task.status === 'SUBMITTED' || task.status === 'APPROVED') {
+    return task.on_time || !task.submitted_at
+      ? { ok: true, label: 'Đã nộp video', icon: CheckCircle2 }
+      : { ok: true, label: `Nộp bù · ${formatDeadline(task.submitted_at)}`, icon: Clock3 }
+  }
+  if (task.status === 'REJECTED') return { ok: false, label: 'Bị từ chối', icon: XCircle }
+  return { ok: false, label: `Chưa nộp · ${TASK_STATUS_LABELS[task.status]}`, icon: CircleDashed }
+}
 
-function taskState(task: ComplianceDayTask): { label: string; tone: string; iconTone: string; icon: typeof CheckCircle2 } {
-  if (task.on_time) {
-    return { label: 'Đúng hạn', tone: 'bg-emerald-50 text-emerald-700', iconTone: 'text-emerald-500', icon: CheckCircle2 }
-  }
-  if ((task.status === 'SUBMITTED' || task.status === 'APPROVED') && task.submitted_at) {
-    return {
-      label: `Nộp trễ · ${formatDeadline(task.submitted_at)}`,
-      tone: 'bg-amber-50 text-amber-700',
-      iconTone: 'text-amber-500',
-      icon: Clock3,
-    }
-  }
-  if (task.status === 'REJECTED') return { label: 'Bị từ chối', ...RED_STATE, icon: XCircle }
-  return { label: `Chưa nộp · ${TASK_STATUS_LABELS[task.status]}`, ...RED_STATE, icon: CircleDashed }
+function StateChip({ ok, icon: Icon, label }: { ok: boolean; icon: typeof CheckCircle2; label: string }) {
+  return (
+    <span className={cn(
+      'inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-bold whitespace-nowrap',
+      ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700',
+    )}>
+      <Icon className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+      {label}
+    </span>
+  )
 }
 
 function TaskRow({ task }: { task: ComplianceDayTask }) {
-  const state = taskState(task)
-  const Icon = state.icon
+  const video = videoState(task)
+  const Icon = task.completed ? CheckCircle2 : AlertCircle
   const primary = task.title ?? task.product_name ?? 'Task chưa gắn content'
   const secondary = task.title
     ? task.product_name && `SP: ${task.product_name}`
@@ -511,23 +517,25 @@ function TaskRow({ task }: { task: ComplianceDayTask }) {
         target="_blank"
         rel="noopener noreferrer"
         className={cn(
-          'group flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400',
-          task.on_time && 'opacity-70',
+          'group flex items-start gap-3 rounded-lg px-3 py-2.5 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400',
+          task.completed && 'opacity-70',
         )}
       >
-        <Icon className={cn('w-4 h-4 shrink-0', state.iconTone)} aria-hidden="true" />
+        <Icon className={cn('w-4 h-4 mt-0.5 shrink-0', task.completed ? 'text-emerald-500' : 'text-red-500')} aria-hidden="true" />
         <span className="min-w-0 flex-1">
+          <span className="sr-only">{task.completed ? 'Đã hoàn thành: ' : 'Chưa hoàn thành: '}</span>
           <span className="block text-sm font-semibold text-slate-800 truncate">{primary}</span>
           {secondary && <span className="block text-xs text-slate-500 truncate">{secondary}</span>}
-          {/* Màn hẹp: nhãn xuống dòng dưới tên để tên task không bị ép mất */}
-          <span className={cn('sm:hidden inline-flex mt-1 rounded-md px-2 py-0.5 text-[11px] font-bold whitespace-nowrap', state.tone)}>
-            {state.label}
+          <span className="mt-1.5 flex flex-wrap gap-1.5">
+            <StateChip {...video} />
+            <StateChip
+              ok={task.has_link}
+              icon={task.has_link ? Link2 : Link2Off}
+              label={task.has_link ? 'Có link bài đăng' : 'Chưa có link bài đăng'}
+            />
           </span>
         </span>
-        <span className={cn('hidden sm:inline-flex shrink-0 rounded-md px-2 py-1 text-[11px] font-bold whitespace-nowrap', state.tone)}>
-          {state.label}
-        </span>
-        <ExternalLink className="w-3.5 h-3.5 shrink-0 text-slate-300 group-hover:text-slate-500" aria-hidden="true" />
+        <ExternalLink className="w-3.5 h-3.5 mt-1 shrink-0 text-slate-300 group-hover:text-slate-500" aria-hidden="true" />
         <span className="sr-only">(mở task ở tab mới)</span>
       </Link>
     </li>

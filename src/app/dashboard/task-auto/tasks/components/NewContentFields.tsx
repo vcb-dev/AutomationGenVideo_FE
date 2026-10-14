@@ -185,6 +185,7 @@ export const NewContentFields = forwardRef<HTMLInputElement, Props>(function New
         body={draft.body}
         onBodyChange={body => onChange({ body })}
         error={errors?.source}
+        hideVideoLink
         textareaProps={{
           id: `${id}-body`,
           autoGrow: true,

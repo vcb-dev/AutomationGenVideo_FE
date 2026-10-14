@@ -56,7 +56,7 @@ export default function ContentPage() {
           <p className="text-slate-500 text-base mt-1">
             {view === 'win'
               ? 'Toàn bộ video trên trang Facebook nội bộ đạt từ 10K lượt xem — lọc theo team, kênh, tuyến nội dung và thị trường'
-              : 'Content nhập tay dùng chung toàn hệ thống — sưu tầm, dịch và theo dõi content theo tuyến'}
+              : 'Content dùng chung toàn hệ thống — đẩy lên từ kho team và content win, theo dõi theo tuyến'}
           </p>
         </div>
 

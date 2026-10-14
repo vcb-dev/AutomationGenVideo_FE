@@ -9,7 +9,7 @@ import {
   type DragStartEvent, type DragEndEvent,
 } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { FileText, Video, Mic, Loader2, ChevronDown, Plus, Edit2, Globe, Trash2, Minus, GripVertical, ClipboardList } from 'lucide-react'
+import { FileText, Video, Mic, Loader2, ChevronDown, Edit2, Globe, Trash2, Minus, GripVertical, ClipboardList } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
 import { formatDate } from '@/components/task-auto/helpers'
@@ -227,14 +227,13 @@ function ContentCard({ tc, actions, cardAccent }: { tc: TeamContent; actions: Ca
 }
 
 function ContentColumn({
-  column, filters, isDropDisabled, isValidTarget, actions, onAdd, onTotalChange,
+  column, filters, isDropDisabled, isValidTarget, actions, onTotalChange,
 }: {
   column: ColumnDef
   filters: Filters
   isDropDisabled: boolean
   isValidTarget: boolean
   actions: CardActions
-  onAdd?: (contentLineId: string | undefined) => void
   onTotalChange: (key: string, total: number) => void
 }) {
   const [limit, setLimit] = useState(PAGE_SIZE)
@@ -321,16 +320,6 @@ function ContentColumn({
           </>
         )}
       </div>
-
-      {actions.canManage && onAdd && (
-        <button
-          type="button"
-          onClick={() => onAdd(column.isUnassigned ? undefined : column.key)}
-          className="flex items-center gap-1.5 px-4 py-3 text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:bg-white/60 transition-colors shrink-0"
-        >
-          <Plus className="w-3.5 h-3.5" /> Thêm content
-        </button>
-      )}
     </div>
   )
 }
@@ -350,14 +339,12 @@ interface TeamContentsBoardProps {
   onEdit: (tc: TeamContent) => void
   onRemove: (tc: TeamContent) => void
   onPush: (tc: TeamContent) => void
-  /** Bỏ trống → ẩn nút "Thêm content" ở từng cột (vd khi xem tất cả đội nhóm) */
-  onAdd?: (contentLineId: string | undefined) => void
   teamNameOf?: (teamId: string) => string | undefined
 }
 
 export function TeamContentsBoard({
   teamId, brandType, month, search, classificationId, market, productSku, canManage, canPush,
-  onSelect, onEdit, onRemove, onPush, onAdd, teamNameOf,
+  onSelect, onEdit, onRemove, onPush, teamNameOf,
 }: TeamContentsBoardProps) {
   const qc = useQueryClient()
   const [draggingContent, setDraggingContent] = useState<TeamContent | null>(null)
@@ -449,7 +436,6 @@ export function TeamContentsBoard({
               isValidTarget={!!draggingKey && draggingKey !== col.key}
               isDropDisabled={!!draggingKey && draggingKey === col.key}
               actions={cardActions}
-              onAdd={onAdd}
               onTotalChange={handleTotalChange}
             />
           ))}

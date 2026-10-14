@@ -3,15 +3,12 @@
 import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import {
-  Plus, Loader2, FileText, Search, Download, Check, X,
-} from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { Loader2, Search } from 'lucide-react'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { CustomSelect, CreatableSelect } from '@/components/task-auto/DarkInput'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
 import { ContentProductFilter } from '@/components/task-auto/ContentProductFilter'
-import { parseMarkets, MarketPicker, VoicePicker } from '@/components/task-auto/ContentFormModal'
+import { MarketPicker, VoicePicker } from '@/components/task-auto/ContentFormModal'
 import type { VoicePickerHandle } from '@/components/task-auto/ContentFormModal'
 import {
   ContentSourcePicker, contentSourceFrom, contentSourceFields, contentRequiredErrors, focusFirstInvalid, REQUIRED_TOAST,
@@ -19,26 +16,12 @@ import {
 } from '@/components/task-auto/ContentSourcePicker'
 import { DarkInput } from '@/components/task-auto/DarkInput'
 import {
-  getContents, getTeamContents,
-  getEditorContents, getEditorContent, createEditorContent, updateEditorContent, deleteEditorContent, pushEditorContentToTeam,
+  getEditorContent, updateEditorContent, deleteEditorContent, pushEditorContentToTeam,
   getContentLines, getContentClassifications, createContentClassification, getTeams, getMyPushRequests,
 } from '@/lib/api/task-auto'
-import { Content, TeamContent, ContentUsageStatus } from '@/types/task-auto'
+import { Content, ContentUsageStatus } from '@/types/task-auto'
 import { ContentViewModal } from '@/components/task-auto/ContentViewModal'
 import { MyContentsBoard } from './MyContentsBoard'
-
-const MARKET_COLOR: Record<string, string> = {
-  VIETNAM: 'bg-emerald-100 text-emerald-700',
-  INDONESIA: 'bg-amber-100 text-amber-700',
-  JAPAN: 'bg-rose-100 text-rose-700',
-  THAILAND: 'bg-sky-100 text-sky-700',
-}
-const MARKET_SHORT: Record<string, string> = { VIETNAM: 'VN', INDONESIA: 'ID', JAPAN: 'JP', THAILAND: 'TH' }
-const MarketBadge = ({ market }: { market: string }) => (
-  <span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold', MARKET_COLOR[market] ?? 'bg-gray-100 text-gray-600')}>
-    {MARKET_SHORT[market] ?? market}
-  </span>
-)
 
 // ── Push to team modal ────────────────────────────────────────────────────────
 
@@ -103,288 +86,33 @@ function PushModal({ content, userId, onClose }: { content: Content; userId: str
   )
 }
 
-// ── Import from catalog modal ─────────────────────────────────────────────────
-
-function ImportModal({
-  userId,
-  brandType: initialBrandType,
-  teamMarket,
-  onImported,
-  onClose,
-}: {
-  userId: string
-  brandType: 'DO_DA' | 'TRANG_SUC'
-  teamMarket?: string
-  onImported: () => void
-  onClose: () => void
-}) {
-  const [search, setSearch] = useState('')
-  const [scope, setScope] = useState<'global' | 'team'>('global')
-  const brandType = initialBrandType
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const qc = useQueryClient()
-
-  const { data: teams } = useQuery({ queryKey: ['task-auto', 'teams'], queryFn: getTeams })
-  const myTeam = teams?.find(t => t.leader_id === userId || t.members?.some(m => m.user_id === userId))
-
-  const { data: myContents, isLoading: loadingMyContents } = useQuery({
-    queryKey: ['task-auto', 'my-contents-titles', userId],
-    queryFn: () => getEditorContents(userId, { limit: 500 }),
-  })
-  const myTitleSet = new Set(myContents?.data?.map(c => c.title?.trim().toLowerCase()).filter(Boolean) ?? [])
-
-  const { data: globalData, isLoading: loadingGlobal } = useQuery({
-    queryKey: ['task-auto', 'import-contents-global', brandType, teamMarket, search],
-    queryFn: () => getContents({ brand_type: brandType, market: teamMarket, search: search || undefined, limit: 50, status: 'AVAILABLE' } as any),
-    enabled: scope === 'global',
-  })
-
-  const { data: teamData, isLoading: loadingTeam } = useQuery({
-    queryKey: ['task-auto', 'import-contents-team', myTeam?.id, brandType],
-    queryFn: () => getTeamContents(myTeam!.id, brandType),
-    enabled: scope === 'team' && !!myTeam,
-  })
-
-  const isLoading = scope === 'global' ? loadingGlobal : loadingTeam
-
-  const rawItems: Array<Content | TeamContent> = scope === 'global'
-    ? (globalData?.data ?? [])
-    : (teamData ?? [])
-
-  // Content được đẩy lên kho tổng/kho team từ kho khác có title/body rỗng ở bản ghi gốc —
-  // dữ liệu thật nằm ở source_team_content (kho tổng) hoặc source_editor_content (kho team).
-  const resolveImportItem = (c: Content | TeamContent) => {
-    if (scope === 'global') {
-      const g = c as Content
-      const tc = g.source_team_content
-      const tc_ec = tc?.source_editor_content
-      return {
-        code: g.code || tc?.code || tc_ec?.code || '',
-        title: g.title || tc?.title || tc_ec?.title || '',
-        body: g.body ?? tc?.body ?? tc_ec?.body ?? null,
-        script: g.script ?? tc?.script ?? tc_ec?.script ?? null,
-        fileContentUrl: g.file_content_url ?? tc?.file_content_url ?? tc_ec?.file_content_url ?? null,
-        voiceUrl: g.voice_url ?? tc?.voice_url ?? tc_ec?.voice_url ?? null,
-        contentLineId: g.content_line_id ?? tc?.content_line?.id ?? tc_ec?.content_line?.id ?? null,
-        contentLine: g.content_line ?? tc?.content_line ?? tc_ec?.content_line ?? null,
-        classificationId: g.classification_id ?? tc?.classification?.id ?? tc_ec?.classification?.id ?? null,
-        market: g.market ?? tc?.market ?? tc_ec?.market ?? 'VIETNAM',
-      }
-    }
-    const t = c as TeamContent
-    const ec = t.source_editor_content
-    return {
-      code: t.code || ec?.code || '',
-      title: t.title || ec?.title || '',
-      body: t.body ?? ec?.body ?? null,
-      script: t.script ?? ec?.script ?? null,
-      fileContentUrl: t.file_content_url ?? ec?.file_content_url ?? null,
-      voiceUrl: t.voice_url ?? ec?.voice_url ?? null,
-      contentLineId: t.content_line_id ?? ec?.content_line_id ?? null,
-      contentLine: t.content_line ?? ec?.content_line ?? null,
-      classificationId: t.classification_id ?? ec?.classification_id ?? null,
-      market: t.market ?? ec?.market ?? 'VIETNAM',
-    }
-  }
-
-  const available = rawItems.filter(c => {
-    const title = resolveImportItem(c).title.trim().toLowerCase()
-    if (myTitleSet.has(title)) return false
-    if (scope === 'team' && search) return title.includes(search.toLowerCase())
-    return true
-  })
-
-  const toggleId = (id: string) =>
-    setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
-  const toggleAll = () =>
-    setSelectedIds(selectedIds.size === available.length ? new Set() : new Set(available.map(c => c.id)))
-  const allSelected = available.length > 0 && selectedIds.size === available.length
-
-  const copyMut = useMutation({
-    mutationFn: async () => {
-      const selected = available.filter(c => selectedIds.has(c.id))
-      const results = await Promise.allSettled(
-        selected.map(c => {
-          const isTeamContent = scope === 'team'
-          const sourceId = isTeamContent
-            ? (c as TeamContent).source_content_id ?? undefined
-            : c.id
-          const r = resolveImportItem(c)
-          return createEditorContent(userId, {
-            ...(sourceId ? { source_content_id: sourceId } : {}),
-            brand_type: brandType,
-            title: r.title || undefined,
-            body: r.body ?? undefined,
-            script: r.script ?? undefined,
-            file_content_url: r.fileContentUrl ?? undefined,
-            voice_url: r.voiceUrl ?? undefined,
-            content_line_id: r.contentLineId ?? undefined,
-            classification_id: r.classificationId ?? undefined,
-            market: r.market as any,
-          } as any)
-        })
-      )
-      const failed = results.filter(r => r.status === 'rejected').length
-      if (failed > 0) throw new Error(`${failed} content thêm thất bại`)
-    },
-    onSuccess: () => {
-      toast.success(`Đã thêm ${selectedIds.size} content vào kho cá nhân`)
-      qc.invalidateQueries({ queryKey: ['task-auto', 'my-contents'] })
-      qc.invalidateQueries({ queryKey: ['task-auto', 'my-contents-titles'] })
-      onImported()
-    },
-    onError: (e: any) => toast.error(e?.message || 'Không thể thêm content'),
-  })
-
-  return (
-    <DarkModal
-      open
-      onClose={onClose}
-      title="Lấy từ kho danh mục"
-      subtitle="Chọn nhiều content để thêm vào kho cá nhân"
-      size="lg"
-      footer={
-        <>
-          <button onClick={onClose} className="bg-gray-100 hover:bg-gray-200 text-slate-800 rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors">Hủy</button>
-          <button
-            onClick={() => copyMut.mutate()}
-            disabled={copyMut.isPending || selectedIds.size === 0}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-5 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors disabled:opacity-60"
-          >
-            {copyMut.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : selectedIds.size > 0 ? <Check className="w-3.5 h-3.5" /> : null}
-            {selectedIds.size > 0 ? `Thêm ${selectedIds.size} content` : 'Thêm vào kho'}
-          </button>
-        </>
-      }
-    >
-      <div className="space-y-3">
-        {/* Scope switcher */}
-        <div className="flex gap-1.5">
-          {(['global', 'team'] as const).map(s => (
-            <button key={s} onClick={() => { setScope(s); setSelectedIds(new Set()) }}
-              className={cn('px-4 py-1.5 rounded-xl text-sm font-semibold transition-colors',
-                scope === s ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-slate-600 hover:bg-gray-200')}>
-              {s === 'global' ? 'Kho chung' : 'Kho team'}
-            </button>
-          ))}
-        </div>
-
-        {scope === 'team' && (myTeam ? (
-          <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-xl text-sm text-indigo-700">
-            <span className="font-semibold">{myTeam.name}</span>
-            <span className="text-indigo-400 text-xs">— kho team của bạn</span>
-          </div>
-        ) : (
-          <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
-            Bạn chưa thuộc team nào
-          </div>
-        ))}
-
-        {/* Search + select all */}
-        <div className="flex items-center gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              autoFocus
-              value={search}
-              onChange={e => { setSearch(e.target.value); setSelectedIds(new Set()) }}
-              placeholder="Tìm tiêu đề content..."
-              className="w-full pl-9 pr-9 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-            {search && (
-              <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-          {available.length > 0 && (
-            <button onClick={toggleAll} className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors whitespace-nowrap">
-              {allSelected ? 'Bỏ chọn tất cả' : `Chọn tất cả (${available.length})`}
-            </button>
-          )}
-        </div>
-
-        {/* List */}
-        <div className="max-h-72 overflow-y-auto space-y-1">
-          {(isLoading || loadingMyContents) && <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 text-indigo-500 animate-spin" /></div>}
-          {!isLoading && !loadingMyContents && available.length === 0 && (
-            <p className="text-center text-slate-400 text-sm py-10 italic">
-              {search ? 'Không tìm thấy content phù hợp' : 'Tất cả content đã có trong kho cá nhân'}
-            </p>
-          )}
-          {!isLoading && !loadingMyContents && available.map(c => {
-            const selected = selectedIds.has(c.id)
-            const r = resolveImportItem(c)
-            return (
-              <button
-                key={c.id}
-                onClick={() => toggleId(c.id)}
-                className={cn(
-                  'w-full flex items-start gap-3 px-3 py-2.5 rounded-xl transition-colors text-left',
-                  selected ? 'bg-indigo-50 border border-indigo-300' : 'hover:bg-gray-50 border border-transparent'
-                )}
-              >
-                <div className={cn('w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors',
-                  selected ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white')}>
-                  {selected && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
-                </div>
-                <div className="w-9 h-9 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0">
-                  <FileText className="w-4 h-4 text-indigo-400" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-slate-800 text-sm truncate">
-                    {r.title || <span className="text-slate-400 italic font-normal">Chưa đặt tên</span>}
-                  </p>
-                  <p className="text-xs text-slate-400 truncate">Mã: {r.code || '—'}</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    {parseMarkets(r.market).map(m => <MarketBadge key={m} market={m} />)}
-                    {r.contentLine?.name && <span className="text-xs text-slate-400">{r.contentLine.name}</span>}
-                  </div>
-                </div>
-              </button>
-            )
-          })}
-        </div>
-      </div>
-    </DarkModal>
-  )
-}
-
 // ── Personal content form modal ───────────────────────────────────────────────
 
 function PersonalContentModal({
   editing,
   userId,
-  defaultBrandType = 'DO_DA',
-  defaultMarket = 'VIETNAM',
-  presetContentLineId,
   onClose,
   onSuccess,
 }: {
-  editing?: Content | null
+  editing: Content
   userId: string
-  defaultBrandType?: 'DO_DA' | 'TRANG_SUC'
-  defaultMarket?: string
-  presetContentLineId?: string
   onClose: () => void
   onSuccess: () => void
 }) {
   const qc = useQueryClient()
-  const isEdit = !!editing
-  const brandType: 'DO_DA' | 'TRANG_SUC' = (editing?.brand_type as 'DO_DA' | 'TRANG_SUC') ?? defaultBrandType ?? 'TRANG_SUC'
-  const formFrom = (c?: Content | null): Partial<Content> => ({
-    code: c?.code ?? '',
-    title: c?.title ?? '',
-    body: c?.body ?? '',
-    script: c?.script ?? '',
-    file_content_url: c?.file_content_url ?? '',
-    voice_url: c?.voice_url ?? '',
-    content_line_id: c?.content_line_id ?? presetContentLineId ?? '',
-    classification_id: c?.classification_id ?? '',
+  const formFrom = (c: Content): Partial<Content> => ({
+    code: c.code ?? '',
+    title: c.title ?? '',
+    body: c.body ?? '',
+    script: c.script ?? '',
+    file_content_url: c.file_content_url ?? '',
+    voice_url: c.voice_url ?? '',
+    content_line_id: c.content_line_id ?? '',
+    classification_id: c.classification_id ?? '',
   })
   const [form, setForm] = useState<Partial<Content>>(() => formFrom(editing))
-  const [market, setMarket] = useState<string>(editing?.market ?? defaultMarket)
-  const [initialSource, setInitialSource] = useState(() => contentSourceFrom(editing?.body, editing?.file_content_url))
+  const [market, setMarket] = useState<string>(editing.market ?? 'VIETNAM')
+  const [initialSource, setInitialSource] = useState(() => contentSourceFrom(editing.body, editing.file_content_url))
   const [source, setSource] = useState<ContentSource>(initialSource)
   const [showErrors, setShowErrors] = useState(false)
   const formRef = useRef<HTMLDivElement>(null)
@@ -392,7 +120,6 @@ function PersonalContentModal({
 
   // Danh sách không trả body/script: bản đầy đủ tải về sau thì nạp lại form, không thì lưu sẽ xoá mất nội dung
   useEffect(() => {
-    if (!editing) return
     setForm(formFrom(editing))
     const s = contentSourceFrom(editing.body, editing.file_content_url)
     setInitialSource(s)
@@ -404,30 +131,10 @@ function PersonalContentModal({
   const { data: contentClassifications } = useQuery({ queryKey: ['task-auto', 'content-classifications'], queryFn: getContentClassifications })
 
   const errors = showErrors ? contentRequiredErrors({ ...form, source }) : {}
-  const sourceFields = () => contentSourceFields(source, form.body ?? '', isEdit ? { mode: initialSource.mode, fileUrl: editing!.file_content_url } : undefined)
-
-  const createMut = useMutation({
-    mutationFn: async () => createEditorContent(userId, {
-      code: form.code?.trim() || null,
-      title: form.title,
-      ...sourceFields(),
-      script: form.script,
-      voice_url: await voicePickerRef.current!.resolvePending(form.voice_url ?? ''),
-      content_line_id: form.content_line_id || null,
-      classification_id: form.classification_id || null,
-      brand_type: brandType,
-      market: market as any,
-    } as any),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['task-auto', 'my-contents'] })
-      toast.success('Đã thêm content')
-      onSuccess()
-    },
-    onError: (e: any) => toast.error(e?.response?.data?.message || 'Không thể thêm content'),
-  })
+  const sourceFields = () => contentSourceFields(source, form.body ?? '', { mode: initialSource.mode, fileUrl: editing.file_content_url })
 
   const updateMut = useMutation({
-    mutationFn: async () => updateEditorContent(userId, editing!.id, {
+    mutationFn: async () => updateEditorContent(userId, editing.id, {
       code: form.code?.trim() || null,
       title: form.title,
       ...sourceFields(),
@@ -445,7 +152,7 @@ function PersonalContentModal({
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Không thể cập nhật content'),
   })
 
-  const saving = createMut.isPending || updateMut.isPending
+  const saving = updateMut.isPending
 
   const handleSubmit = () => {
     if (Object.keys(contentRequiredErrors({ ...form, source })).length) {
@@ -453,14 +160,14 @@ function PersonalContentModal({
       focusFirstInvalid(formRef.current)
       return toast.error(REQUIRED_TOAST)
     }
-    isEdit ? updateMut.mutate() : createMut.mutate()
+    updateMut.mutate()
   }
 
   return (
     <DarkModal
       open
       onClose={onClose}
-      title={isEdit ? 'Chỉnh sửa content' : 'Thêm content vào kho cá nhân'}
+      title="Chỉnh sửa content"
       size="xl"
       footer={
         <>
@@ -471,7 +178,7 @@ function PersonalContentModal({
             className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors disabled:opacity-60"
           >
             {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-            {isEdit ? 'Lưu thay đổi' : 'Thêm mới'}
+            Lưu thay đổi
           </button>
         </>
       }
@@ -560,8 +267,6 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM', readO
   const [productSku, setProductSku] = useState('')
   const [month, setMonth] = useState('')
   const [showModal, setShowModal] = useState(false)
-  const [showImport, setShowImport] = useState(false)
-  const [presetLineId, setPresetLineId] = useState<string | undefined>(undefined)
   const [editing, setEditing] = useState<Content | null>(null)
   const [detailItem, setDetailItem] = useState<Content | null>(null)
   const [pushItem, setPushItem] = useState<Content | null>(null)
@@ -582,7 +287,6 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM', readO
     onError: () => { toast.error('Không thể xóa content'); setDeletingId(null) },
   })
 
-  const openCreate = () => { setEditing(null); setPresetLineId(undefined); setShowModal(true) }
   // Danh sách chỉ trả về field rút gọn (không có body/script) để nhẹ payload — mở sửa/xem chi
   // tiết phải lấy lại bản đầy đủ, không thì form/modal hiện trống dù content đã có nội dung.
   const openEdit = (c: Content) => {
@@ -635,22 +339,6 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM', readO
             compact
           />
           <ContentProductFilter scope={{ kind: 'personal', userId, brandType }} value={productSku} onChange={setProductSku} />
-          {!readOnly && (
-            <>
-              <button
-                onClick={() => setShowImport(true)}
-                className="bg-white border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 rounded-xl px-4 py-3.5 text-base font-semibold flex items-center gap-2 transition-colors shrink-0"
-              >
-                <Download className="w-4 h-4" /> Lấy từ kho
-              </button>
-              <button
-                onClick={openCreate}
-                className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-5 py-3.5 text-base font-semibold flex items-center gap-2 transition-colors shrink-0"
-              >
-                <Plus className="w-5 h-5" /> Thêm content
-              </button>
-            </>
-          )}
         </div>
       </div>
 
@@ -670,28 +358,14 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM', readO
         onEdit={openEdit}
         onPush={setPushItem}
         onDelete={c => setDeletingId(c.id)}
-        onAdd={contentLineId => { setPresetLineId(contentLineId); setEditing(null); setShowModal(true) }}
       />
 
-      {showModal && (
+      {showModal && editing && (
         <PersonalContentModal
           editing={editing}
           userId={userId}
-          defaultBrandType={brandType}
-          defaultMarket={teamMarket}
-          presetContentLineId={presetLineId}
-          onClose={() => { setShowModal(false); setPresetLineId(undefined) }}
-          onSuccess={() => { setShowModal(false); setPresetLineId(undefined) }}
-        />
-      )}
-
-      {showImport && (
-        <ImportModal
-          userId={userId}
-          brandType={brandType}
-          teamMarket={teamMarket}
-          onImported={() => setShowImport(false)}
-          onClose={() => setShowImport(false)}
+          onClose={() => setShowModal(false)}
+          onSuccess={() => setShowModal(false)}
         />
       )}
 

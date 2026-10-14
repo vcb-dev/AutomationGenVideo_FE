@@ -943,7 +943,7 @@ export interface AssignmentRun {
 
 export type DailyTaskComplianceSource = 'AUTO_A4' | 'DAILY_PLAN'
 
-/** Một tuyến của một người trong một ngày (bản chụp lúc hết hạn). */
+/** Một tuyến của một người trong một ngày: số phải làm chốt lúc hết hạn, số hoàn thành tính theo task hiện tại. */
 export interface DailyTaskComplianceLine {
   id: string
   source: DailyTaskComplianceSource
@@ -992,12 +992,14 @@ export interface ComplianceDayTask {
   id: string
   title: string | null
   product_name: string | null
-  /** Trạng thái hiện tại — có thể đã nộp bù sau khi bản chụp được chốt */
   status: TaskStatus
   deadline: string | null
   submitted_at: string | null
   /** Nộp (hoặc được duyệt) trước hạn chót của tuyến */
   on_time: boolean
+  has_link: boolean
+  /** Đã nộp video và có link bài đăng — nộp bù sau hạn vẫn tính */
+  completed: boolean
 }
 
 export interface ComplianceDayLine extends DailyTaskComplianceLine {

@@ -44,6 +44,7 @@ const STATUS_COLOR_CLASS: Record<string, string> = {
   violet: 'bg-violet-500/10 text-violet-500 border-violet-500/20',
   green: 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20',
   red: 'bg-red-500/10 text-red-500 border-red-500/20',
+  cyan: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20',
 };
 
 function StatusPill({ label, color }: { label: string; color: string }) {
@@ -232,7 +233,7 @@ export default function NhiemVuGuidePage() {
                   <StatusPill label="Đang làm" color="amber" />{' '}
                   <StatusPill label="Đã nộp" color="violet" />{' '}
                   <StatusPill label="Đã duyệt" color="green" />{' '}
-                  <StatusPill label="Quá hạn" color="red" />. Bạn có thể{' '}
+                  <StatusPill label="Đã đăng" color="cyan" />. Bạn có thể{' '}
                   <strong>kéo-thả thẻ nhiệm vụ</strong> giữa các cột để đổi trạng thái nhanh:
                 </p>
                 <ul className="list-disc pl-5 mt-2 space-y-1 text-muted-foreground">
@@ -241,6 +242,11 @@ export default function NhiemVuGuidePage() {
                   <li>
                     Muốn <strong>nộp</strong> hoặc <strong>từ chối</strong> thì phải dùng nút/mở chi tiết — không kéo-thả
                     được vì cần nhập thêm dữ liệu (video, lý do).
+                  </li>
+                  <li>
+                    Cột "Đã đăng" liệt kê lại các nhiệm vụ đã duyệt, mỗi thẻ có thêm phần link bài đăng — thẻ chưa có link
+                    hiện dòng cảnh báo <Tag>Thiếu link bài đăng</Tag>, bấm vào đó để chọn bài từ kho hoặc dán link. Không
+                    kéo-thả vào cột này.
                   </li>
                 </ul>
                 <p className="text-muted-foreground mt-2">
@@ -366,7 +372,8 @@ export default function NhiemVuGuidePage() {
               <li><strong>Sản phẩm</strong> — ảnh sản phẩm, giá, chất liệu, phân khúc (nếu có gắn sản phẩm).</li>
               <li><strong>Người thực hiện / Deadline / Đội nhóm</strong> — dải thông tin tóm tắt (deadline trễ hạn sẽ hiện màu đỏ cảnh báo).</li>
               <li>
-                <strong>Link bài đăng</strong> — chỉ hiện khi nhiệm vụ đã <StatusPill label="Đã duyệt" color="green" />.
+                <strong>Link bài đăng</strong> — chỉ hiện khi nhiệm vụ đã <StatusPill label="Đã duyệt" color="green" />{' '}
+                (mở nhiệm vụ từ cột "Đã duyệt" trên Kanban thì mục này ẩn — xem và gắn link ở cột "Đã đăng").
                 Bấm <Tag>Chọn từ kho bài đã đăng</Tag> để tìm các bài hệ thống đã đồng bộ theo caption, kênh, nền tảng
                 và khoảng ngày; chọn một hoặc nhiều bài rồi gắn vào task. Hệ thống mặc định ưu tiên khoảng ±2 ngày
                 quanh ngày nộp/duyệt task và đánh dấu các bài đã gắn để tránh chọn lặp. Nếu bài chưa có trong kho, dùng
@@ -401,8 +408,10 @@ export default function NhiemVuGuidePage() {
                 hiệu quả bài đăng và gắn bài đăng vào đúng nhiệm vụ đã duyệt.
               </li>
               <li>
-                <strong>Còn thiếu</strong> — ai chưa làm đủ nhiệm vụ theo từng ngày (chốt sau hạn chót), bấm vào từng người
-                để xem thiếu tuyến nào, task nào. Tab này có bộ lọc ngày/team/thành viên riêng, không dùng thanh lọc chung.
+                <strong>Còn thiếu</strong> — ai chưa làm đủ nhiệm vụ theo từng ngày (ghi nhận sau hạn chót), bấm vào từng người
+                để xem thiếu tuyến nào, task nào. Một task chỉ tính hoàn thành khi đã nộp video và có link bài đăng; nộp bù
+                sau hạn vẫn được tính và ngày đó hết bị ghi thiếu. Tab này có bộ lọc ngày/team/thành viên riêng, không dùng
+                thanh lọc chung.
               </li>
             </ul>
             <p>Nút <Tag>Công cụ</Tag> cạnh nút <Tag>Tạo nhiệm vụ</Tag> (góc trên bên phải) gom các thao tác phụ:</p>
@@ -457,6 +466,12 @@ export default function NhiemVuGuidePage() {
               <li><strong>Kho cá nhân</strong> — vào trang Nội dung, sản phẩm & team, tab Kho nội dung/Kho sản phẩm, bấm <Tag>Kho cá nhân</Tag>. Chỉ mình bạn quản lý, có nút "Đẩy sang kho team" trên từng mục.</li>
               <li><strong>Danh mục</strong> / <strong>Content</strong> — kho chung, ai cũng chọn được khi tạo nhiệm vụ.</li>
             </ul>
+            <InfoBox variant="note" title="Nội dung vào kho bằng cách nào?">
+              Kho nội dung không có nút thêm trực tiếp. Content bạn <strong>viết mới khi tạo nhiệm vụ</strong> tự lưu vào{' '}
+              <strong>kho cá nhân</strong>; kho team chỉ nhận content <strong>đẩy từ kho cá nhân</strong> (Leader duyệt); kho tổng
+              nhận content <strong>đẩy từ kho team</strong> và <strong>content win</strong> — content của nhiệm vụ có video đạt
+              trên 10K lượt xem, hệ thống tự đưa lên.
+            </InfoBox>
             <InfoBox variant="note" title="Sản phẩm / Nguồn là gì?">
               <strong>Sản phẩm</strong>: món hàng thật sẽ lên hình trong video. <strong>Nguồn (Source)</strong>: tư liệu hỗ
               trợ dựng video, gồm 5 loại — Source sản phẩm, Source sản phẩm sưu tầm, Source Outro, Source chế tác,

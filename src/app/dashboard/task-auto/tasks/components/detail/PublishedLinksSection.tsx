@@ -1,17 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Link2, Plus, Pencil, Trash2, Check, X, Loader2, Eye, Heart, MessageCircle, Share2, RefreshCw, Library } from 'lucide-react'
+import { Link2, Plus, Pencil, Trash2, Check, X, Loader2, Eye, Heart, MessageCircle, Share2, RefreshCw, Library, Info, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Select } from '@/components/ui/simple-select'
 import { updateTaskPublishedLinks, refreshPublishedLinkStats } from '@/lib/api/task-auto'
 import type { PublishedLink } from '@/types/task-auto'
 import type { ExternalVideo } from '@/services/scraperService'
 import { Section } from './Section'
 import { PublishedPostPicker } from './PublishedPostPicker'
 
-function formatCount(n: number): string {
+export function formatCount(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M'
   if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K'
   return n.toString()
@@ -42,6 +43,8 @@ const BRAND_SVGS: Record<string, { label: string; color: string; path: string }>
   },
 }
 const QUICK_PLATFORMS = Object.keys(BRAND_SVGS) as (keyof typeof BRAND_SVGS)[]
+const DEFAULT_PLATFORM = BRAND_SVGS.FACEBOOK.label
+const CUSTOM_PLATFORM_VALUE = '__CUSTOM__'
 
 function BrandIcon({ path, className }: { path: string; className?: string }) {
   return (
@@ -51,7 +54,7 @@ function BrandIcon({ path, className }: { path: string; className?: string }) {
   )
 }
 
-function getPlatformMeta(platform: string) {
+export function getPlatformMeta(platform: string) {
   const brand = BRAND_SVGS[platform.trim().toUpperCase()]
   if (brand) {
     return { label: brand.label, color: brand.color, icon: <BrandIcon path={brand.path} className="w-3.5 h-3.5 text-white" /> }
@@ -64,6 +67,25 @@ function normalizeUrl(raw: string): string {
   if (!v) return v
   return /^https?:\/\//i.test(v) ? v : `https://${v}`
 }
+
+const URL_PLATFORMS: [RegExp, keyof typeof BRAND_SVGS][] = [
+  [/(^|\.)(facebook\.com|fb\.com|fb\.watch)$/, 'FACEBOOK'],
+  [/(^|\.)instagram\.com$/, 'INSTAGRAM'],
+  [/(^|\.)tiktok\.com$/, 'TIKTOK'],
+  [/(^|\.)(youtube\.com|youtu\.be)$/, 'YOUTUBE'],
+]
+
+function platformFromUrl(raw: string): string | null {
+  try {
+    const host = new URL(normalizeUrl(raw)).hostname
+    const hit = URL_PLATFORMS.find(([re]) => re.test(host))
+    return hit ? BRAND_SVGS[hit[1]].label : null
+  } catch {
+    return null
+  }
+}
+
+const NEW_LINK = '__NEW__'
 
 /**
  * Nối link bài đăng chọn từ kho (picker trong chi tiết task, nút "Thêm link" ở tab Video đã làm,
@@ -104,26 +126,43 @@ export function PublishedLinksSection({ taskId, publishedLinks, canEdit, taskTit
   const links = publishedLinks ?? []
 
   const [formOpen, setFormOpen] = useState(false)
-  const [draftPlatform, setDraftPlatform] = useState('')
+  const [draftPlatform, setDraftPlatform] = useState(DEFAULT_PLATFORM)
+  const [draftCustomPlatform, setDraftCustomPlatform] = useState('')
   const [draftUrl, setDraftUrl] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editPlatform, setEditPlatform] = useState('')
   const [editUrl, setEditUrl] = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [linkError, setLinkError] = useState<{ target: string; message: string } | null>(null)
+  const errorTargetRef = useRef<string | null>(null)
 
   const mutation = useMutation({
     mutationFn: (next: PublishedLink[]) => updateTaskPublishedLinks(taskId, next),
     onSuccess: () => {
       toast.success('Đã cập nhật link bài đăng')
       qc.invalidateQueries({ queryKey: ['task-auto', 'task', taskId] })
+      qc.invalidateQueries({ queryKey: ['task-auto', 'tasks'] })
     },
-    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Cập nhật link thất bại'),
+    onError: (err: any) => {
+      const message = err?.response?.data?.message ?? 'Cập nhật link thất bại'
+      if (errorTargetRef.current) setLinkError({ target: errorTargetRef.current, message })
+      else toast.error(message)
+    },
   })
+
+  const saveLinks = (next: PublishedLink[], errorTarget: string | null, onSuccess?: () => void) => {
+    errorTargetRef.current = errorTarget
+    setLinkError(null)
+    mutation.mutate(next, { onSuccess })
+  }
 
   const [refreshingId, setRefreshingId] = useState<string | null>(null)
   const refreshMutation = useMutation({
     mutationFn: (linkId: string) => refreshPublishedLinkStats(taskId, linkId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['task-auto', 'task', taskId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['task-auto', 'task', taskId] })
+      qc.invalidateQueries({ queryKey: ['task-auto', 'tasks'] })
+    },
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Làm mới số liệu thất bại'),
     onSettled: () => setRefreshingId(null),
   })
@@ -132,14 +171,36 @@ export function PublishedLinksSection({ taskId, publishedLinks, canEdit, taskTit
     refreshMutation.mutate(linkId)
   }
 
-  const resetForm = () => { setFormOpen(false); setDraftPlatform(''); setDraftUrl('') }
+  const resetForm = () => {
+    setFormOpen(false)
+    setDraftPlatform(DEFAULT_PLATFORM)
+    setDraftCustomPlatform('')
+    setDraftUrl('')
+    setLinkError(null)
+  }
+
+  const handleDraftUrlChange = (value: string) => {
+    setDraftUrl(value)
+    setLinkError(null)
+    const detected = platformFromUrl(value)
+    if (detected) setDraftPlatform(detected)
+  }
+
+  const handleEditUrlChange = (value: string) => {
+    setEditUrl(value)
+    setLinkError(null)
+    const detected = platformFromUrl(value)
+    if (detected) setEditPlatform(detected)
+  }
 
   const handleAdd = () => {
-    const platform = draftPlatform.trim()
+    const platform = draftPlatform === CUSTOM_PLATFORM_VALUE
+      ? draftCustomPlatform.trim()
+      : draftPlatform.trim()
     const url = normalizeUrl(draftUrl)
     if (!platform) return toast.error('Nhập tên nền tảng')
     if (!url) return toast.error('Nhập link bài đăng')
-    mutation.mutate([...links, { id: crypto.randomUUID(), platform, url }], { onSuccess: resetForm })
+    saveLinks([...links, { id: crypto.randomUUID(), platform, url }], NEW_LINK, resetForm)
   }
 
   const handleSaveEdit = (id: string) => {
@@ -148,11 +209,11 @@ export function PublishedLinksSection({ taskId, publishedLinks, canEdit, taskTit
     if (!platform) return toast.error('Nhập tên nền tảng')
     if (!url) return toast.error('Nhập link bài đăng')
     const next = links.map(l => l.id === id ? { ...l, platform, url } : l)
-    mutation.mutate(next, { onSuccess: () => setEditingId(null) })
+    saveLinks(next, id, () => setEditingId(null))
   }
 
   const handleDelete = (id: string) => {
-    mutation.mutate(links.filter(l => l.id !== id))
+    saveLinks(links.filter(l => l.id !== id), null)
   }
 
   const handleAttachFromLibrary = async (videos: ExternalVideo[]) => {
@@ -162,6 +223,7 @@ export function PublishedLinksSection({ taskId, publishedLinks, canEdit, taskTit
       return
     }
 
+    errorTargetRef.current = null
     await mutation.mutateAsync(next)
     setPickerOpen(false)
   }
@@ -188,9 +250,15 @@ export function PublishedLinksSection({ taskId, publishedLinks, canEdit, taskTit
                   />
                   <input
                     value={editUrl}
-                    onChange={e => setEditUrl(e.target.value)}
+                    onChange={e => handleEditUrlChange(e.target.value)}
                     placeholder="https://..."
-                    className="flex-1 min-w-0 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:ring-2 ring-indigo-500/20 outline-none"
+                    aria-label="Link bài đăng"
+                    aria-invalid={linkError?.target === link.id}
+                    aria-describedby={linkError?.target === link.id ? `published-url-error-${link.id}` : undefined}
+                    className={cn(
+                      'flex-1 min-w-0 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:ring-2 ring-indigo-500/20 outline-none',
+                      linkError?.target === link.id && 'border-red-400 ring-red-500/20',
+                    )}
                   />
                   <button
                     onClick={() => handleSaveEdit(link.id)}
@@ -199,9 +267,15 @@ export function PublishedLinksSection({ taskId, publishedLinks, canEdit, taskTit
                   >
                     {mutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                   </button>
-                  <button onClick={() => setEditingId(null)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 shrink-0 transition-colors">
+                  <button onClick={() => { setEditingId(null); setLinkError(null) }} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 shrink-0 transition-colors">
                     <X className="w-3.5 h-3.5" />
                   </button>
+                  {linkError?.target === link.id && (
+                    <p id={`published-url-error-${link.id}`} role="alert" className="flex basis-full items-start gap-1.5 text-xs leading-5 text-red-600">
+                      <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      {linkError.message}
+                    </p>
+                  )}
                 </>
               ) : (
                 <>
@@ -256,7 +330,7 @@ export function PublishedLinksSection({ taskId, publishedLinks, canEdit, taskTit
                   {canEdit && (
                     <div className="flex items-center gap-1 shrink-0">
                       <button
-                        onClick={() => { setEditingId(link.id); setEditPlatform(link.platform); setEditUrl(link.url) }}
+                        onClick={() => { setEditingId(link.id); setEditPlatform(link.platform); setEditUrl(link.url); setLinkError(null) }}
                         className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-indigo-600 transition-colors"
                         title="Sửa link"
                       >
@@ -279,7 +353,7 @@ export function PublishedLinksSection({ taskId, publishedLinks, canEdit, taskTit
         })}
 
         {canEdit && (
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className={cn('grid grid-cols-1 gap-2', !formOpen && 'sm:grid-cols-2')}>
             <button
               type="button"
               onClick={() => setPickerOpen(true)}
@@ -302,51 +376,95 @@ export function PublishedLinksSection({ taskId, publishedLinks, canEdit, taskTit
 
         {canEdit && (
           formOpen ? (
-            <div className="border border-indigo-200 rounded-xl bg-indigo-50/30 p-3 space-y-2.5">
-              <div className="flex flex-wrap gap-1.5">
-                {QUICK_PLATFORMS.map(key => {
-                  const p = BRAND_SVGS[key]
-                  const selected = draftPlatform === p.label
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => setDraftPlatform(p.label)}
-                      className={cn(
-                        'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-colors',
-                        selected ? 'border-indigo-400 bg-white shadow-sm' : 'border-gray-200 bg-white hover:border-gray-300'
-                      )}
-                    >
-                      <span className="w-4 h-4 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: p.color }}>
-                        <BrandIcon path={p.path} className="w-2.5 h-2.5 text-white" />
-                      </span>
-                      {p.label}
-                    </button>
-                  )
-                })}
+            <div className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/30 p-3">
+              <div id={`published-link-note-${taskId}`} role="note" className="flex items-start gap-2 rounded-lg border border-indigo-100 bg-white/80 px-3 py-2.5 text-xs leading-5 text-slate-600">
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-indigo-500" aria-hidden="true" />
+                <p>
+                  Bạn chỉ cần gắn link của <span className="font-semibold text-slate-800">một nền tảng</span>. Facebook được chọn mặc định.
+                </p>
               </div>
-              <input
-                value={draftPlatform}
-                onChange={e => setDraftPlatform(e.target.value)}
-                placeholder="Tên nền tảng (vd Facebook, Threads, Zalo...)"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 ring-indigo-500/20 outline-none"
-              />
-              <input
-                value={draftUrl}
-                onChange={e => setDraftUrl(e.target.value)}
-                placeholder="Dán link bài đăng..."
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 ring-indigo-500/20 outline-none"
-              />
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-[180px_minmax(0,1fr)]">
+                <div className="space-y-1.5">
+                  <label htmlFor={`published-platform-${taskId}`} className="block text-xs font-semibold text-slate-700">
+                    Nền tảng
+                  </label>
+                  <Select
+                    id={`published-platform-${taskId}`}
+                    value={draftPlatform}
+                    onChange={e => { setDraftPlatform(e.target.value); setLinkError(null) }}
+                    aria-describedby={`published-link-note-${taskId}`}
+                    className="h-10 border-slate-200 bg-white font-medium text-slate-700 focus:ring-indigo-500"
+                  >
+                    {QUICK_PLATFORMS.map(key => {
+                      const platform = BRAND_SVGS[key]
+                      return (
+                        <option key={key} value={platform.label}>
+                          {platform.label}{key === 'FACEBOOK' ? ' (mặc định)' : ''}
+                        </option>
+                      )
+                    })}
+                    <option value={CUSTOM_PLATFORM_VALUE}>Nền tảng khác</option>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor={`published-url-${taskId}`} className="block text-xs font-semibold text-slate-700">
+                    Link bài đăng
+                  </label>
+                  <input
+                    id={`published-url-${taskId}`}
+                    type="url"
+                    inputMode="url"
+                    value={draftUrl}
+                    onChange={e => handleDraftUrlChange(e.target.value)}
+                    aria-invalid={linkError?.target === NEW_LINK}
+                    aria-describedby={linkError?.target === NEW_LINK
+                      ? `published-link-note-${taskId} published-url-error-${taskId}`
+                      : `published-link-note-${taskId}`}
+                    placeholder={`Dán link ${draftPlatform === CUSTOM_PLATFORM_VALUE ? 'bài đăng' : draftPlatform}...`}
+                    className={cn(
+                      'h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none transition-shadow placeholder:text-slate-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20',
+                      linkError?.target === NEW_LINK && 'border-red-400 focus:border-red-400 focus:ring-red-500/20',
+                    )}
+                  />
+                  {linkError?.target === NEW_LINK && (
+                    <p id={`published-url-error-${taskId}`} role="alert" className="flex items-start gap-1.5 text-xs leading-5 text-red-600">
+                      <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      {linkError.message}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {draftPlatform === CUSTOM_PLATFORM_VALUE && (
+                <div className="space-y-1.5">
+                  <label htmlFor={`published-custom-platform-${taskId}`} className="block text-xs font-semibold text-slate-700">
+                    Tên nền tảng
+                  </label>
+                  <input
+                    id={`published-custom-platform-${taskId}`}
+                    value={draftCustomPlatform}
+                    onChange={e => setDraftCustomPlatform(e.target.value)}
+                    placeholder="Ví dụ: Threads, Zalo..."
+                    autoFocus
+                    className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none transition-shadow placeholder:text-slate-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                </div>
+              )}
+
               <div className="flex items-center gap-2">
                 <button
+                  type="button"
                   onClick={handleAdd}
                   disabled={mutation.isPending}
-                  className="flex-1 flex items-center justify-center gap-2 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white text-xs font-semibold rounded-lg transition-colors"
+                  aria-busy={mutation.isPending}
+                  className="flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3 text-xs font-semibold text-white transition-colors hover:bg-indigo-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {mutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-                  Nộp link
+                  {mutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <Plus className="w-3.5 h-3.5" aria-hidden="true" />}
+                  Gắn link
                 </button>
-                <button onClick={resetForm} className="px-3 py-2 text-xs font-semibold text-gray-500 hover:text-gray-700 transition-colors">
+                <button type="button" onClick={resetForm} className="min-h-10 rounded-lg px-3 text-xs font-semibold text-gray-500 transition-colors hover:bg-white hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
                   Huỷ
                 </button>
               </div>

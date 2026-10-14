@@ -26,7 +26,7 @@ export default function MyCatalogPage() {
         <BookUser className="w-8 h-8 text-indigo-600" aria-hidden="true" />
         <div>
           <h1 className="text-3xl font-black text-slate-900">Kho cá nhân</h1>
-          <p className="text-slate-500 text-base mt-0.5">Kho riêng của bạn — gồm sản phẩm và nội dung do bạn tự thêm</p>
+          <p className="text-slate-500 text-base mt-0.5">Kho riêng của bạn — sản phẩm bạn tự thêm và nội dung bạn viết khi tạo nhiệm vụ</p>
         </div>
       </div>
 

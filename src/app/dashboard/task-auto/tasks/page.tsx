@@ -149,6 +149,7 @@ export default function TasksPage() {
   const [tablePage, setTablePage] = useState(1)
 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(() => searchParams?.get('taskId') ?? null)
+  const [approvedColumnTaskId, setApprovedColumnTaskId] = useState<string | null>(null)
   const [showCreate, setShowCreate]   = useState(false)
   // Điền sẵn modal tạo task: nhân bản từ panel chi tiết, hoặc mở từ 1 tuyến của Kế hoạch ngày
   const [createPrefill, setCreatePrefill] = useState<CreateTaskPrefill | undefined>()
@@ -177,6 +178,7 @@ export default function TasksPage() {
 
   function closeTaskDetail() {
     setSelectedTaskId(null)
+    setApprovedColumnTaskId(null)
     if (searchParams?.get('taskId')) {
       const params = new URLSearchParams(searchParams.toString())
       params.delete('taskId')
@@ -687,7 +689,10 @@ export default function TasksPage() {
             productLineId={productLineId || undefined}
             currentUserId={user?.id}
             canApproveReject={canApproveReject}
-            onViewTask={setSelectedTaskId}
+            onViewTask={(id, column) => {
+              setSelectedTaskId(id)
+              setApprovedColumnTaskId(column === 'APPROVED' ? id : null)
+            }}
             onClearDateFilter={() => { handleDateFromChange(''); handleDateToChange('') }}
           />
         ) : (
@@ -770,6 +775,7 @@ export default function TasksPage() {
           onClose={closeTaskDetail}
           userRoles={userRoles}
           currentUserId={user?.id}
+          hidePublishedLinks={selectedTaskId === approvedColumnTaskId}
           onDuplicate={task => {
             closeTaskDetail()
             openCreate(prefillFromTask(task))
