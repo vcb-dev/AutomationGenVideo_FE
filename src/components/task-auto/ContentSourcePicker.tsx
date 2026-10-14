@@ -115,6 +115,7 @@ export function ContentSourcePicker({
   textareaProps,
   headerAction,
   error,
+  hideVideoLink,
 }: {
   value: ContentSource
   onChange: (v: ContentSource) => void
@@ -123,7 +124,9 @@ export function ContentSourcePicker({
   textareaProps?: Omit<React.ComponentProps<typeof DarkTextarea>, 'value' | 'onChange' | 'label'>
   headerAction?: React.ReactNode
   error?: string | null
+  hideVideoLink?: boolean
 }) {
+  const options = hideVideoLink ? SOURCE_OPTIONS.filter(o => o.mode !== 'video') : SOURCE_OPTIONS
   const id = useId()
   const labelId = `${id}-label`
   const errorId = `${id}-error`
@@ -158,8 +161,8 @@ export function ContentSourcePicker({
         {value.mode === 'text' && headerAction}
       </div>
 
-      <div role="radiogroup" aria-labelledby={labelId} className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {SOURCE_OPTIONS.map(o => {
+      <div role="radiogroup" aria-labelledby={labelId} className={cn('grid gap-2', hideVideoLink ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-2 sm:grid-cols-4')}>
+        {options.map(o => {
           const active = value.mode === o.mode
           return (
             <label

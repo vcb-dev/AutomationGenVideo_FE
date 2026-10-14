@@ -90,15 +90,14 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
   const { user } = useAuthStore()
   const canDelete = user?.roles?.some((r: string) => ['ADMIN', 'MANAGER'].includes(r)) ?? false
   const { data: teams } = useQuery({ queryKey: ['task-auto', 'teams'], queryFn: getTeams })
-  // Nới quyền tạo/sửa cho content-team member — backend POST/PUT /contents vốn không role-gate,
+  // Nới quyền sửa cho content-team member — backend PUT /contents vốn không role-gate,
   // chỉ FE tự giới hạn qua canDelete trước đây (nhầm dùng chung với quyền Xóa, vốn chặt hơn ở BE).
-  const canCreateOrEdit = canDelete || isContentTeamMember(teams, user?.id)
+  const canEdit = canDelete || isContentTeamMember(teams, user?.id)
   const [search, setSearch] = useState('')
   const [classificationFilter, setClassificationFilter] = useState('')
   const [marketFilter, setMarketFilter] = useState('')
   const [productSku, setProductSku] = useState('')
   const [showCatalogPanel, setShowCatalogPanel] = useState(false)
-  const [presetLineId, setPresetLineId] = useState<string | undefined>(undefined)
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Content | null>(null)
   const [detailItem, setDetailItem] = useState<Content | null>(null)
@@ -135,7 +134,6 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
     onError: () => { toast.error('Không thể xóa content'); setDeletingId(null) },
   })
 
-  const openCreate = () => { setEditing(null); setPresetLineId(undefined); setShowModal(true) }
   // Danh sách chỉ trả về field rút gọn (không có body/script) để nhẹ payload — mở sửa phải lấy
   // lại bản đầy đủ, không thì form hiện trống dù content đã có nội dung.
   const openEdit = (c: Content) => {
@@ -198,8 +196,7 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
             <button
               onClick={() => setShowCatalogPanel(v => !v)}
               className={cn(
-                'rounded-xl px-4 py-3.5 text-base font-semibold flex items-center gap-2 transition-colors shrink-0 border',
-                canCreateOrEdit ? 'ml-0' : 'ml-auto',
+                'ml-auto rounded-xl px-4 py-3.5 text-base font-semibold flex items-center gap-2 transition-colors shrink-0 border',
                 showCatalogPanel
                   ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
                   : 'bg-white border-gray-200 text-slate-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600',
@@ -207,16 +204,11 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
             >
               <Tags className="w-4 h-4" /> Tuyến & phân loại
             </button>
-
-            {canCreateOrEdit && (
-              <button
-                onClick={openCreate}
-                className="ml-auto bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-5 py-3.5 text-base font-semibold flex items-center gap-2 transition-colors shrink-0"
-              >
-                <Plus className="w-5 h-5" /> Thêm content
-              </button>
-            )}
           </div>
+        </div>
+
+        <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-5 py-3 text-indigo-700 text-sm">
+          Kho tổng nhận content <strong>đẩy từ kho team</strong> và <strong>content win</strong> — content của nhiệm vụ có video đạt trên 10K lượt xem.
         </div>
 
         {/* Board theo tuyến */}
@@ -227,12 +219,11 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
           classificationId={classificationFilter}
           market={marketFilter}
           productSku={productSku}
-          canEdit={canCreateOrEdit}
+          canEdit={canEdit}
           canDelete={canDelete}
           onSelect={openDetail}
           onEdit={openEdit}
           onDelete={c => setDeletingId(c.id)}
-          onAdd={contentLineId => { setPresetLineId(contentLineId); setEditing(null); setShowModal(true) }}
         />
       </div>
 
@@ -271,7 +262,7 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
           open
           item={detailItem as any}
           catalogType="global"
-          canEdit={canCreateOrEdit}
+          canEdit={canEdit}
           canDelete={canDelete && detailItem.status !== 'IN_TASK'}
           onClose={() => setDetailItem(null)}
           onEdit={() => { openEdit(detailItem); setDetailItem(null) }}
@@ -282,10 +273,8 @@ export function ContentsTab({ brandType, month, onMonthChange }: { brandType: Br
       <ContentFormModal
         open={showModal}
         editing={editing}
-        brandType={brandType}
-        initialContentLineId={presetLineId}
-        onClose={() => { setShowModal(false); setPresetLineId(undefined) }}
-        onSuccess={() => { setShowModal(false); setPresetLineId(undefined) }}
+        onClose={() => setShowModal(false)}
+        onSuccess={() => setShowModal(false)}
       />
 
       <ConfirmDialog
