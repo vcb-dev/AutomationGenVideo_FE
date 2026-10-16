@@ -145,6 +145,7 @@ export const PERMISSION_TREE: PermissionGroup[] = [
           { id: 'social:external:xiaohongshu', label: 'Nền tảng XiaoHongShu (📕)' },
           { id: 'social:external:kuaishou', label: 'Nền tảng KuaiShou (⚡)' },
           { id: 'social:external:bilibili', label: 'Nền tảng Bilibili (📺)' },
+          { id: 'social:external:reddit', label: 'Nền tảng Reddit' },
           { id: 'social:external:watch', label: 'Trang Watch Feed' },
           {
             id: 'social:external:crawl_all',
@@ -353,6 +354,7 @@ export const DEFAULT_PERMISSIONS_BY_ROLE: Record<string, string[]> = {
     'social:external:xiaohongshu',
     'social:external:kuaishou',
     'social:external:bilibili',
+    'social:external:reddit',
     'social:external:watch',
     'social:external:crawl_all',
     'social:external:propose',
@@ -438,6 +440,7 @@ export const DEFAULT_PERMISSIONS_BY_ROLE: Record<string, string[]> = {
     'social:external:xiaohongshu',
     'social:external:kuaishou',
     'social:external:bilibili',
+    'social:external:reddit',
     'social:external:watch',
     'social:external:propose',
     'social:internal:overview',
