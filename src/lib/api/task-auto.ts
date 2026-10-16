@@ -2,6 +2,7 @@ import { apiClient } from '@/lib/api-client'
 import type {
   BrandType,
   Task,
+  TaskStatus,
   TasksQuery,
   TaskHeaderCountsQuery,
   TaskHeaderCounts,
@@ -28,12 +29,21 @@ import type {
   OmsProductQuery,
   Content,
   ContentsQuery,
+  LinkedProduct,
   Source,
   SourcesQuery,
   TeamSource,
   TeamSourcesQuery,
   AssignmentRun,
   AutoAssignSetting,
+  DailyPlanQuickCreateResult,
+  DailyPlanSearchContent,
+  DailyPlanSearchCreateBody,
+  DailyPlanSearchKind,
+  DailyPlanSearchMarket,
+  DailyPlanSearchResult,
+  DailyPlanSearchVideo,
+  MyDailyPlans,
   LarkWebhookGlobalSetting,
   PaginatedResult,
   UserBasic,
@@ -52,6 +62,10 @@ import type {
   PerformanceGoalStatus,
   PerformanceGoalType,
   PerformanceKpiGroup,
+  TaskVideoMatchRunResult,
+  ComplianceHistoryQuery,
+  ComplianceDayDetail,
+  ComplianceHistoryResponse,
 } from '@/types/task-auto'
 
 function qs(params: Record<string, string | number | boolean | undefined | null>): string {
@@ -102,10 +116,8 @@ export const getTaskHeaderCounts = (q: TaskHeaderCountsQuery = {}) =>
 export const getTask = (id: string) =>
   apiClient.get<Task>(`/task-auto/tasks/${id}`).then(r => r.data)
 
-export const createTask = (body: Partial<Task>) =>{
-  console.log( body)
-  return apiClient.post<Task>('/task-auto/tasks', body).then(r => r.data)
-}
+export const createTask = (body: Partial<Task>) =>
+  apiClient.post<Task>('/task-auto/tasks', body).then(r => r.data)
 
 export const updateTask = (id: string, body: Partial<Task>) =>
   apiClient.put<Task>(`/task-auto/tasks/${id}`, body).then(r => r.data)
@@ -137,6 +149,24 @@ export const cancelTask = (id: string) =>
 
 export const deleteTask = (id: string) =>
   apiClient.delete(`/task-auto/tasks/${id}`).then(r => r.data)
+
+/** Chạy tay cùng matcher mà cron hằng ngày sử dụng; BE tự thu hẹp phạm vi theo role. */
+export const runTaskVideoMapping = (
+  body: {
+    since_days?: number
+    max_videos?: number
+    date_from?: string
+    date_to?: string
+    team_id?: string
+    assignee_id?: string
+    content_line_id?: string
+    product_line_id?: string
+    task_type?: 'auto' | 'extra' | 'manual'
+    status?: TaskStatus
+    search?: string
+    search_target?: 'task' | 'video'
+  } = {},
+) => apiClient.post<TaskVideoMatchRunResult>('/task-auto/tasks/match-videos', body).then(r => r.data)
 
 // ── Task Video (pending → Drive on approval) ─────────────────────────────────
 
@@ -215,6 +245,9 @@ export const getContentApprovals = (q: ContentApprovalsQuery = {}) =>
 export const getTeams = () =>
   apiClient.get<Team[]>('/task-auto/teams').then(r => r.data)
 
+/** `teamId` đặc biệt cho API danh sách kho team (sản phẩm/content/source/yêu cầu đẩy kho): gộp mọi team, chỉ ADMIN/MANAGER — khớp BE (team-membership.util.ts). */
+export const ALL_TEAMS_ID = 'all'
+
 /** Tên các team được cấp quyền quản lý source ở kho ngang với ADMIN/MANAGER — khớp với BE (team-membership.util.ts). */
 export const PRIVILEGED_SOURCE_TEAM_NAMES = ['Scale Data', 'MEDIA']
 
@@ -260,10 +293,11 @@ export interface TeamListOpts {
   classification_id?: string
   content_line_id?: string
   market?: string
+  product_sku?: string
 }
 
 // Không truyền `opts.page` → trả mảng đầy đủ như trước (dùng bởi dropdown chọn sản phẩm khi
-// tạo task, kho tháng team...). Truyền `opts.page` → BE chuyển sang chế độ phân trang + search.
+// tạo task...). Truyền `opts.page` → BE chuyển sang chế độ phân trang + search.
 export function getTeamProducts(teamId: string, brandType?: string, month?: string): Promise<TeamProduct[]>
 export function getTeamProducts(teamId: string, brandType: string | undefined, month: string | undefined, opts: TeamListOpts & { page: number }): Promise<PaginatedResult<TeamProduct>>
 export function getTeamProducts(teamId: string, brandType?: string, month?: string, opts?: TeamListOpts) {
@@ -289,16 +323,16 @@ export const pushTeamProductToGlobal = (teamId: string, teamProductId: string) =
 export function getTeamContents(teamId: string, brandType?: string, month?: string): Promise<TeamContent[]>
 export function getTeamContents(teamId: string, brandType: string | undefined, month: string | undefined, opts: TeamListOpts & { page: number }): Promise<PaginatedResult<TeamContent>>
 export function getTeamContents(teamId: string, brandType?: string, month?: string, opts?: TeamListOpts) {
-  const query = qs({ brand_type: brandType, month, search: opts?.search, page: opts?.page, limit: opts?.limit, content_line_id: opts?.content_line_id, classification_id: opts?.classification_id, market: opts?.market })
+  const query = qs({ brand_type: brandType, month, search: opts?.search, page: opts?.page, limit: opts?.limit, content_line_id: opts?.content_line_id, classification_id: opts?.classification_id, market: opts?.market, product_sku: opts?.product_sku })
   return apiClient.get<any>(`/task-auto/teams/${teamId}/contents${query}`).then(r => r.data)
 }
+
+export const getTeamContentLinkedProducts = (teamId: string, brandType?: string) =>
+  apiClient.get<LinkedProduct[]>(`/task-auto/teams/${teamId}/contents/linked-products${qs({ brand_type: brandType })}`).then(r => r.data)
 
 export const getTeamContent = (teamId: string, teamContentId: string) =>
   apiClient.get<TeamContent>(`/task-auto/teams/${teamId}/contents/${teamContentId}`).then(r => r.data)
 
-/** Copy từ kho tổng: truyền { source_content_id }. Tạo mới: truyền full content data */
-export const addTeamContent = (teamId: string, data: { source_content_id?: string; brand_type?: string; [key: string]: any }) =>
-  apiClient.post<TeamContent>(`/task-auto/teams/${teamId}/contents`, data).then(r => r.data)
 export const updateTeamContent = (teamId: string, teamContentId: string, data: Partial<TeamContent>) =>
   apiClient.patch<TeamContent>(`/task-auto/teams/${teamId}/contents/${teamContentId}`, data).then(r => r.data)
 
@@ -363,6 +397,10 @@ export type TaskAutoDashboard = {
     kpi_completed: number
     kpi_target: number; kpi_content_new: number; kpi_product_gmv: number
   }>
+  /** LEADER: lựa chọn cho dropdown "Thành viên" — luôn đủ cả team, không co lại khi đang lọc 1 người. */
+  member_options?: { user_id: string; full_name: string }[]
+  /** LEADER: thành viên BE đã áp bộ lọc (null = đang xem cả team, kể cả khi assignee_id không hợp lệ). */
+  focus_member?: { user_id: string; full_name: string } | null
   kpi?: {
     month: string; total_target: number; completed: number
     // Content
@@ -384,11 +422,13 @@ export type TaskAutoDashboard = {
 }
 
 export const getDashboard = (params?: {
-  date_from?: string; date_to?: string
-  /** Chỉ có tác dụng khi user là ADMIN/MANAGER (scope global) — khoan sâu về 1 team/1 thành viên. */
-  team_id?: string; assignee_id?: string
-}) =>
-  apiClient.get<TaskAutoDashboard>(`/task-auto/dashboard${qs(params ?? {})}`).then(r => r.data)
+  date_from?: string
+  date_to?: string
+  /** Khoan sâu về 1 team/1 thành viên. ADMIN/MANAGER: cả 2; LEADER: chỉ assignee_id (thành viên
+   * team mình lead); MEMBER: BE bỏ qua. */
+  team_id?: string
+  assignee_id?: string
+}) => apiClient.get<TaskAutoDashboard>(`/task-auto/dashboard${qs(params ?? {})}`).then(r => r.data)
 
 export interface ProductVideoItem {
   id: string
@@ -412,6 +452,49 @@ export const getProductVideoStats = (params?: {
   team_id?: string; assignee_id?: string
 }) =>
   apiClient.get<ProductVideoStats>(`/task-auto/product-video-stats${qs(params ?? {})}`).then(r => r.data)
+
+export interface TrafficTrendDay {
+  /** "YYYY-MM-DD" theo giờ VN. */
+  date: string
+  /** Traffic phát sinh trong ngày; null = không ai trong phạm vi báo cáo ngày này. */
+  daily: number | null
+  /** Luỹ kế từ đầu tháng tới ngày này. */
+  cumulative: number | null
+  reporters: number
+  /** Phần của `daily` là số dồn của những ngày bỏ trống trước đó (báo cáo bù / lần đầu trong tháng). */
+  catch_up: number
+}
+
+export interface TrafficTrendSummary {
+  daily_sum: number
+  latest_cumulative: number
+  reported_days: number
+  reporters: number
+}
+
+export interface TrafficTrend {
+  range: { from: string; to: string }
+  /** 'team': toàn hệ thống tách theo team; 'member': 1 team tách theo thành viên; null: 1 người. */
+  breakdown_kind: 'team' | 'member' | null
+  days: TrafficTrendDay[]
+  summary: TrafficTrendSummary
+  breakdown: (TrafficTrendSummary & {
+    /** Team id hoặc user id — null khi không khớp được (vd "Chưa có team"). */
+    id: string | null
+    label: string
+    /** Phát sinh theo từng ngày, cùng thứ tự `days`. */
+    daily: (number | null)[]
+    /** Luỹ kế tháng theo từng ngày, cùng thứ tự `days` (null = ngày đó không báo cáo). */
+    cumulative: (number | null)[]
+  })[]
+}
+
+/** Traffic theo ngày từ lịch sử báo cáo tay — phạm vi theo role, giống getProductVideoStats(). */
+export const getTrafficTrend = (params?: {
+  date_from?: string; date_to?: string
+  team_id?: string; assignee_id?: string
+}) =>
+  apiClient.get<TrafficTrend>(`/task-auto/traffic-trend${qs(params ?? {})}`).then(r => r.data)
 
 // ── Editor Approvals ──────────────────────────────────────────────────────────
 
@@ -592,24 +675,24 @@ export const getContentCreatorKpiReport = (params: { user_id?: string; team_id?:
 
 /** Chỉ số MỚI, tự tính win/fail (1 link bài đăng bất kỳ >10.000 view = win) theo content creator
  * lẫn editor — tách biệt EditorKpi.video_win/fail (nhập tay). Cần truyền user_id hoặc team_id. */
-export const getContentWinFailStats = (params: { user_id?: string; team_id?: string; from?: string; to?: string }) =>
+export const getContentWinFailStats = (params: { user_id?: string; team_id?: string; from?: string; to?: string; classification_id?: string }) =>
   apiClient.get<ContentWinFailStats>(`/task-auto/kpi/content-win-fail${qs(params)}`).then(r => r.data)
 
 /** Cào lại traffic Facebook/YouTube mới nhất cho đúng scope rồi trả về win/fail đã tính lại — CHỦ
  * ĐỘNG, chỉ chạy khi user bấm nút "Cập nhật" (không tự động khi mở chi tiết 1 thành viên nữa —
  * từng gây dội hàng loạt request khi duyệt qua nhiều người, làm chậm hệ thống). Số liệu mặc định
  * đã được làm mới mỗi ngày qua cron 8:15 sáng. */
-export const refreshContentWinFailStats = (params: { user_id?: string; team_id?: string; from?: string; to?: string }) =>
+export const refreshContentWinFailStats = (params: { user_id?: string; team_id?: string; from?: string; to?: string; classification_id?: string }) =>
   apiClient.post<ContentWinFailStats>(`/task-auto/kpi/content-win-fail/refresh${qs(params)}`).then(r => r.data)
 
 /** Top N người có nhiều content win nhất TOÀN HỆ THỐNG — mặc định cho ADMIN/MANAGER khi chưa
  * chọn team/thành viên cụ thể ở trang Tổng quan (không bắt buộc chọn team trước mới xem được). */
-export const getTopContentWinFailStats = (params: { from?: string; to?: string; limit?: number }) =>
+export const getTopContentWinFailStats = (params: { from?: string; to?: string; limit?: number; classification_id?: string }) =>
   apiClient.get<ContentWinFailStats>(`/task-auto/kpi/content-win-fail/top${qs(params)}`).then(r => r.data)
 
 /** Nút "Cập nhật" khi đang xem bảng xếp hạng Top N (không có team_id/user_id để gọi route refresh
  * bên trên) — chỉ cào lại traffic cho top N đang hiển thị. */
-export const refreshTopContentWinFailStats = (params: { from?: string; to?: string; limit?: number }) =>
+export const refreshTopContentWinFailStats = (params: { from?: string; to?: string; limit?: number; classification_id?: string }) =>
   apiClient.post<ContentWinFailStats>(`/task-auto/kpi/content-win-fail/top/refresh${qs(params)}`).then(r => r.data)
 
 // ── Catalog — Lookup Tables ────────────────────────────────────────────────────
@@ -712,11 +795,11 @@ export const uploadProductImage = (file: File): Promise<{ url: string }> => {
 export const getContents = (q: ContentsQuery = {}) =>
   apiClient.get<PaginatedResult<Content>>(`/task-auto/contents${qs(q as any)}`).then(r => r.data)
 
+export const getContentLinkedProducts = (brandType?: string) =>
+  apiClient.get<LinkedProduct[]>(`/task-auto/contents/linked-products${qs({ brand_type: brandType })}`).then(r => r.data)
+
 export const getContent = (id: string) =>
   apiClient.get<Content>(`/task-auto/contents/${id}`).then(r => r.data)
-
-export const createContent = (body: Partial<Content>) =>
-  apiClient.post<Content>('/task-auto/contents', body).then(r => r.data)
 
 export const updateContent = (id: string, body: Partial<Content>) =>
   apiClient.put<Content>(`/task-auto/contents/${id}`, body).then(r => r.data)
@@ -799,6 +882,9 @@ export const pushEditorProductToGlobal = (userId: string, id: string) =>
 export const getEditorContents = (userId: string, q: Record<string, any> = {}) =>
   apiClient.get<PaginatedResult<Content>>(`/task-auto/editors/${userId}/contents${qs(q as any)}`).then(r => r.data)
 
+export const getEditorContentLinkedProducts = (userId: string, brandType?: string) =>
+  apiClient.get<LinkedProduct[]>(`/task-auto/editors/${userId}/contents/linked-products${qs({ brand_type: brandType })}`).then(r => r.data)
+
 export const getEditorContent = (userId: string, id: string) =>
   apiClient.get<Content>(`/task-auto/editors/${userId}/contents/${id}`).then(r => r.data)
 
@@ -872,6 +958,31 @@ export const triggerAutoAssign = () =>
     '/task-auto/assignment-runs/trigger', {}
   ).then(r => r.data)
 
+// ── Kế hoạch ngày (A1/A2/A3/A5: chỉ tiêu + gợi ý content, tạo task nhanh) ─────────
+
+/** Theo bộ lọc ngày của trang — bỏ trống cả 2 đầu = "Tất cả ngày" */
+export const getMyDailyPlans = (range: { from?: string; to?: string }) =>
+  apiClient.get<MyDailyPlans>(`/task-auto/daily-plans/me${range.from || range.to ? qs({ from: range.from, to: range.to }) : qs({ all: 'true' })}`).then(r => r.data)
+
+export const quickCreateFromDailyPlan = (suggestionIds: string[]) =>
+  apiClient.post<DailyPlanQuickCreateResult>('/task-auto/daily-plans/quick-create', { suggestion_ids: suggestionIds }).then(r => r.data)
+
+/**
+ * Tìm content trong kho / video win cho 1 kế hoạch — `line`: id tuyến, 'all', bỏ trống = tuyến của kế
+ * hoạch; `market` bỏ trống = theo thị trường của team.
+ */
+export function searchForDailyPlan(
+  planId: string,
+  q: { kind: 'content'; q?: string; line?: string; market?: DailyPlanSearchMarket; page?: number },
+): Promise<DailyPlanSearchResult<DailyPlanSearchContent>>
+export function searchForDailyPlan(planId: string, q: { kind: 'video'; q?: string; line?: string; market?: DailyPlanSearchMarket; page?: number }): Promise<DailyPlanSearchResult<DailyPlanSearchVideo>>
+export function searchForDailyPlan(planId: string, q: { kind: DailyPlanSearchKind; q?: string; line?: string; market?: DailyPlanSearchMarket; page?: number }) {
+  return apiClient.get(`/task-auto/daily-plans/${planId}/search${qs(q)}`).then(r => r.data)
+}
+
+export const quickCreateFromDailyPlanSearch = (planId: string, body: DailyPlanSearchCreateBody) =>
+  apiClient.post<{ task_id: string; reused: boolean }>(`/task-auto/daily-plans/${planId}/quick-create-item`, body).then(r => r.data)
+
 // ── Webhook Lark chung (thông báo task/content cần duyệt) ───────────────────────
 
 export const getLarkWebhookGlobalSetting = () =>
@@ -884,81 +995,12 @@ export const updateLarkWebhookGlobalSetting = (body: { webhook_url?: string | nu
 export const getAssignmentRuns = (limit = 50) =>
   apiClient.get<AssignmentRun[]>(`/task-auto/assignment-runs${qs({ limit })}`).then(r => r.data)
 
-// ── Warehouse — Kho tháng ─────────────────────────────────────────────────────
+// ── Lịch sử thiếu task theo ngày ────────────────────────────────────────────
 
-export type WarehouseCatalogType = 'products' | 'contents' | 'sources'
+export const getComplianceHistory = (q: ComplianceHistoryQuery = {}) =>
+  apiClient.get<ComplianceHistoryResponse>(`/task-auto/compliance-history${qs({ from: q.from, to: q.to, team_id: q.team_id, user_id: q.user_id, page: q.page, limit: q.limit })}`).then(r => r.data)
 
-export interface WarehouseData {
-  month: string
-  products: Product[]
-  contents: Content[]
-  sources: Source[]
-}
-
-export interface TeamWarehouseData extends WarehouseData {
-  team_id: string
-}
-
-export interface EditorWarehouseData extends WarehouseData {
-  editor_id: string
-}
-
-// Global
-export const getGlobalWarehouse = (month: string, brandType?: string) =>
-  apiClient.get<WarehouseData>(`/task-auto/warehouse/global${qs({ month, brand_type: brandType })}`).then(r => r.data)
-
-export const addGlobalWarehouse = (type: WarehouseCatalogType, month: string, ids: string[]) =>
-  apiClient.post(`/task-auto/warehouse/global/${type}`, { month, ids }).then(r => r.data)
-
-export const removeGlobalWarehouse = (type: WarehouseCatalogType, month: string, ids: string[]) =>
-  apiClient.delete(`/task-auto/warehouse/global/${type}`, { data: { month, ids } }).then(r => r.data)
-
-export const autoCarryGlobal = (month: string) =>
-  apiClient.post('/task-auto/warehouse/auto-carry', { month }).then(r => r.data)
-
-// Product quantity — số video cụ thể cần cho sản phẩm này trong tháng (target_quantity)
-export interface WarehouseProductItem {
-  id: string
-  target_quantity: number
-}
-
-// Team
-export const getTeamWarehouse = (teamId: string, month: string) =>
-  apiClient.get<TeamWarehouseData>(`/task-auto/warehouse/teams/${teamId}${qs({ month })}`).then(r => r.data)
-
-export const addTeamWarehouse = (teamId: string, type: WarehouseCatalogType, month: string, ids: string[]) =>
-  apiClient.post(`/task-auto/warehouse/teams/${teamId}/${type}`, { month, ids }).then(r => r.data)
-
-export const addTeamWarehouseProducts = (teamId: string, month: string, items: WarehouseProductItem[]) =>
-  apiClient.post(`/task-auto/warehouse/teams/${teamId}/products`, { month, items }).then(r => r.data)
-
-export const updateTeamProductWarehouseQuantity = (teamId: string, month: string, items: WarehouseProductItem[]) =>
-  apiClient.patch(`/task-auto/warehouse/teams/${teamId}/products/quantity`, { month, items }).then(r => r.data)
-
-export const removeTeamWarehouse = (teamId: string, type: WarehouseCatalogType, month: string, ids: string[]) =>
-  apiClient.delete(`/task-auto/warehouse/teams/${teamId}/${type}`, { data: { month, ids } }).then(r => r.data)
-
-export const pushTeamToMonth = (teamId: string, fromMonth: string, toMonth: string, ids?: string[]) =>
-  apiClient.post(`/task-auto/warehouse/teams/${teamId}/push`, { from_month: fromMonth, to_month: toMonth, ids }).then(r => r.data)
-
-// Editor
-export const getEditorWarehouse = (editorId: string, month: string) =>
-  apiClient.get<EditorWarehouseData>(`/task-auto/warehouse/editors/${editorId}${qs({ month })}`).then(r => r.data)
-
-export const addEditorWarehouse = (editorId: string, type: WarehouseCatalogType, month: string, ids: string[]) =>
-  apiClient.post(`/task-auto/warehouse/editors/${editorId}/${type}`, { month, ids }).then(r => r.data)
-
-export const addEditorWarehouseProducts = (editorId: string, month: string, items: WarehouseProductItem[]) =>
-  apiClient.post(`/task-auto/warehouse/editors/${editorId}/products`, { month, items }).then(r => r.data)
-
-export const updateEditorProductWarehouseQuantity = (editorId: string, month: string, items: WarehouseProductItem[]) =>
-  apiClient.patch(`/task-auto/warehouse/editors/${editorId}/products/quantity`, { month, items }).then(r => r.data)
-
-export const removeEditorWarehouse = (editorId: string, type: WarehouseCatalogType, month: string, ids: string[]) =>
-  apiClient.delete(`/task-auto/warehouse/editors/${editorId}/${type}`, { data: { month, ids } }).then(r => r.data)
-
-export const pushEditorToMonth = (editorId: string, fromMonth: string, toMonth: string, ids?: string[]) =>
-  apiClient.post(`/task-auto/warehouse/editors/${editorId}/push`, { from_month: fromMonth, to_month: toMonth, ids }).then(r => r.data)
+export const getComplianceDay = (q: { date: string; user_id?: string; team_id?: string }) => apiClient.get<ComplianceDayDetail>(`/task-auto/compliance-history/day${qs(q)}`).then(r => r.data)
 
 // ── Scale Data Team Stats ──────────────────────────────────────────────────────
 

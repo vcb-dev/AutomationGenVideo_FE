@@ -20,13 +20,10 @@ import {
     TrendingUp,
     CalendarDays,
     Bookmark,
-    Languages,
     BookOpen,
     Zap,
     Radio,
-    FolderOpen,
     AudioLines,
-    Wand2,
     DownloadCloud,
     Sparkles,
     Boxes,
@@ -329,18 +326,20 @@ export function useNavMenus(
                             },
                         ],
                     },
-                    {
-                        section: n.secDiscover,
-                        color: "slate" as const,
-                        items: [
-                            {
-                                label: n.searchHub,
-                                href: "/dashboard/search-video",
-                                icon: Search,
-                                description: n.searchHubDesc,
-                            },
-                        ],
-                    },
+                    // Ẩn mục Tìm kiếm Video (Hub) với mọi vai trò theo yêu cầu. Section Khám phá
+                    // chỉ có mục này nên ẩn cả section, tránh tiêu đề trơ trọi không có item:
+                    // {
+                    //     section: n.secDiscover,
+                    //     color: "slate" as const,
+                    //     items: [
+                    //         {
+                    //             label: n.searchHub,
+                    //             href: "/dashboard/search-video",
+                    //             icon: Search,
+                    //             description: n.searchHubDesc,
+                    //         },
+                    //     ],
+                    // },
                     {
                         section: n.secCollections,
                         color: "violet" as const,
@@ -351,12 +350,13 @@ export function useNavMenus(
                                 icon: Bookmark,
                                 description: n.collectionsDesc,
                             },
-                            {
-                                label: n.translateContent,
-                                href: "/dashboard/content/generate?mode=translate-only",
-                                icon: Languages,
-                                description: n.translateContentDesc,
-                            },
+                            // Ẩn mục Dịch Content với mọi vai trò theo yêu cầu:
+                            // {
+                            //     label: n.translateContent,
+                            //     href: "/dashboard/content/generate?mode=translate-only",
+                            //     icon: Languages,
+                            //     description: n.translateContentDesc,
+                            // },
                         ],
                     },
                 ],
@@ -392,13 +392,13 @@ export function useNavMenus(
                                 label: n.teams,
                                 href: "/dashboard/task-auto/teams",
                                 icon: Users,
-                                description: n.teamsDesc,
+                                description: isManagerOrAdmin ? n.teamsManageDesc : n.teamsDesc,
                             },
                             {
-                                label: n.catalog,
-                                href: "/dashboard/task-auto/catalog",
-                                icon: FolderOpen,
-                                description: n.catalogDesc,
+                                label: n.sourceCatalog,
+                                href: "/dashboard/task-auto/catalog/sources",
+                                icon: Radio,
+                                description: n.sourceCatalogDesc,
                             },
                         ],
                     },
@@ -406,12 +406,6 @@ export function useNavMenus(
                         section: n.secPersonal,
                         color: "violet",
                         items: [
-                            {
-                                label: n.myCatalog,
-                                href: "/dashboard/task-auto/my-catalog",
-                                icon: User,
-                                description: n.myCatalogDesc,
-                            },
                             {
                                 label: n.kpi,
                                 href: "/dashboard/task-auto/kpi",
@@ -548,18 +542,20 @@ export function useNavMenus(
                             },
                         ],
                     },
-                    {
-                        section: n.secAiContent,
-                        color: "indigo" as const,
-                        items: [
-                            {
-                                label: n.contentTransform,
-                                href: "/dashboard/ai/content-transform",
-                                icon: Wand2,
-                                description: n.contentTransformDesc,
-                            },
-                        ],
-                    },
+                    // Ẩn mục Chuyển đổi content với mọi vai trò theo yêu cầu. Section Nội dung AI
+                    // chỉ có mục này nên ẩn cả section:
+                    // {
+                    //     section: n.secAiContent,
+                    //     color: "indigo" as const,
+                    //     items: [
+                    //         {
+                    //             label: n.contentTransform,
+                    //             href: "/dashboard/ai/content-transform",
+                    //             icon: Wand2,
+                    //             description: n.contentTransformDesc,
+                    //         },
+                    //     ],
+                    // },
                     {
                         section: n.secDownloadTools,
                         color: "violet" as const,

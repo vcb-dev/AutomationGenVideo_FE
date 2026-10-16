@@ -36,6 +36,19 @@ export function toVNDatetimeLocalInput(dt?: string | null): string {
   return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`
 }
 
+// Ngày lịch theo giờ VN (YYYY-MM-DD), lệch `offsetDays` ngày — "hôm nay" tính theo VN, không theo
+// múi giờ trình duyệt.
+export function vnDate(offsetDays = 0): string {
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date())
+  const d = new Date(`${today}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + offsetDays)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`
+}
+
+/** Giá trị lọc "Chưa phân loại" — khớp UNCLASSIFIED_FILTER bên BE (classification_id thật là uuid). */
+export const UNCLASSIFIED_FILTER = 'none'
+
 export function currentMonth(): string {
   const now = new Date()
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`

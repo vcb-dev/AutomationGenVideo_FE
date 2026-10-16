@@ -197,7 +197,7 @@ export const PERMISSION_TREE: PermissionGroup[] = [
         id: 'tasks:admin',
         label: 'Đội nhóm & Danh mục',
         children: [
-          { id: 'tasks:teams', label: 'Đội nhóm (Quản lý đội nhóm nhiệm vụ)' },
+          { id: 'tasks:teams', label: 'Nội dung, sản phẩm & team (Kho nội dung, kho sản phẩm, thành viên team)' },
           { id: 'tasks:catalog', label: 'Danh mục tổng (Danh mục đầu việc)' },
         ],
       },

@@ -9,15 +9,17 @@ import {
   type DragStartEvent, type DragEndEvent,
 } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { FileText, Mic, Loader2, ChevronDown, Plus, Edit2, Globe, Trash2, Minus, GripVertical, ClipboardList } from 'lucide-react'
+import { FileText, Video, Mic, Loader2, ChevronDown, Edit2, Globe, Trash2, Minus, GripVertical, ClipboardList } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
 import { formatDate } from '@/components/task-auto/helpers'
 import { parseMarkets } from '@/components/task-auto/ContentFormModal'
+import { isVideoLink } from '@/components/task-auto/ContentSourcePicker'
 import { getContentLines, getTeamContents, updateTeamContent } from '@/lib/api/task-auto'
 import { useLoadMoreScroll } from '@/hooks/useLoadMoreScroll'
 import type { ContentLine, TeamContent } from '@/types/task-auto'
 import { MARKET_LABELS, MARKET_COLORS } from './constants'
+import { TeamTag } from '../TeamTag'
 
 const PAGE_SIZE = 10
 // Sentinel dùng làm "id cột" cho content chưa gán tuyến — BE lọc where content_line_id IS NULL
@@ -61,11 +63,12 @@ interface ColumnDef {
 
 interface Filters {
   teamId: string
-  brandType: 'DO_DA' | 'TRANG_SUC'
+  brandType?: 'DO_DA' | 'TRANG_SUC'
   month: string
   search: string
   classificationId: string
-  market: string
+  market?: string
+  productSku?: string
 }
 
 interface CardActions {
@@ -75,6 +78,8 @@ interface CardActions {
   onEdit: (tc: TeamContent) => void
   onRemove: (tc: TeamContent) => void
   onPush: (tc: TeamContent) => void
+  /** Có khi xem "Tất cả đội nhóm" — hiện tên team trên từng thẻ */
+  teamNameOf?: (teamId: string) => string | undefined
 }
 
 function currentColumnKey(tc: TeamContent): string {
@@ -122,7 +127,9 @@ function ContentCardBody({ tc }: { tc: TeamContent }) {
           )}
           {fileUrl && (
             <span className="inline-flex items-center gap-1 text-[11px] text-blue-500 font-semibold">
-              <FileText className="w-3 h-3" /> File
+              {isVideoLink(fileUrl)
+                ? <><Video className="w-3 h-3" aria-hidden="true" /> Video</>
+                : <><FileText className="w-3 h-3" aria-hidden="true" /> File</>}
             </span>
           )}
         </div>
@@ -166,6 +173,7 @@ function ContentCard({ tc, actions, cardAccent }: { tc: TeamContent; actions: Ca
       )}
     >
       <GripVertical className="absolute top-2.5 right-2.5 w-3.5 h-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+      {actions.teamNameOf && <TeamTag name={actions.teamNameOf(tc.team_id)} className="mb-2" />}
       <ContentCardBody tc={tc} />
 
       {(actions.canManage || actions.canPush) && (
@@ -219,27 +227,27 @@ function ContentCard({ tc, actions, cardAccent }: { tc: TeamContent; actions: Ca
 }
 
 function ContentColumn({
-  column, filters, isDropDisabled, isValidTarget, actions, onAdd, onTotalChange,
+  column, filters, isDropDisabled, isValidTarget, actions, onTotalChange,
 }: {
   column: ColumnDef
   filters: Filters
   isDropDisabled: boolean
   isValidTarget: boolean
   actions: CardActions
-  onAdd: (contentLineId: string | undefined) => void
   onTotalChange: (key: string, total: number) => void
 }) {
   const [limit, setLimit] = useState(PAGE_SIZE)
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: column.key, disabled: isDropDisabled })
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['task-auto', 'team-contents', 'kanban', filters.teamId, filters.brandType, filters.month, filters.search, filters.classificationId, filters.market, column.key, limit],
+    queryKey: ['task-auto', 'team-contents', 'kanban', filters.teamId, filters.brandType, filters.month, filters.search, filters.classificationId, filters.market, filters.productSku, column.key, limit],
     queryFn: () => getTeamContents(filters.teamId, filters.brandType, filters.month, {
       page: 1, limit,
       search: filters.search || undefined,
       classification_id: filters.classificationId || undefined,
       market: filters.market,
       content_line_id: column.key,
+      product_sku: filters.productSku || undefined,
     }),
     enabled: !!filters.teamId,
     // Giữ thẻ cũ khi "Xem thêm" đổi queryKey — nếu không, cột chớp skeleton và scroll nhảy về đầu.
@@ -312,39 +320,31 @@ function ContentColumn({
           </>
         )}
       </div>
-
-      {actions.canManage && (
-        <button
-          type="button"
-          onClick={() => onAdd(column.isUnassigned ? undefined : column.key)}
-          className="flex items-center gap-1.5 px-4 py-3 text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:bg-white/60 transition-colors shrink-0"
-        >
-          <Plus className="w-3.5 h-3.5" /> Thêm content
-        </button>
-      )}
     </div>
   )
 }
 
 interface TeamContentsBoardProps {
+  /** id 1 team, hoặc ALL_TEAMS_ID để xem gộp mọi team */
   teamId: string
-  brandType: 'DO_DA' | 'TRANG_SUC'
+  brandType?: 'DO_DA' | 'TRANG_SUC'
   month: string
   search: string
   classificationId: string
-  market: string
+  market?: string
+  productSku?: string
   canManage: boolean
   canPush: boolean
   onSelect: (tc: TeamContent) => void
   onEdit: (tc: TeamContent) => void
   onRemove: (tc: TeamContent) => void
   onPush: (tc: TeamContent) => void
-  onAdd: (contentLineId: string | undefined) => void
+  teamNameOf?: (teamId: string) => string | undefined
 }
 
 export function TeamContentsBoard({
-  teamId, brandType, month, search, classificationId, market, canManage, canPush,
-  onSelect, onEdit, onRemove, onPush, onAdd,
+  teamId, brandType, month, search, classificationId, market, productSku, canManage, canPush,
+  onSelect, onEdit, onRemove, onPush, teamNameOf,
 }: TeamContentsBoardProps) {
   const qc = useQueryClient()
   const [draggingContent, setDraggingContent] = useState<TeamContent | null>(null)
@@ -358,13 +358,14 @@ export function TeamContentsBoard({
   // cột "Chưa gán tuyến" có đang hiển thị hay không, để quyết định ẩn/hiện cột mà không rơi vào
   // vòng luẩn quẩn "phải hiện cột mới biết tổng, mà biết tổng rồi mới quyết định hiện cột".
   const { data: unassignedProbe } = useQuery({
-    queryKey: ['task-auto', 'team-contents', 'kanban-unassigned-probe', teamId, brandType, month, search, classificationId, market],
+    queryKey: ['task-auto', 'team-contents', 'kanban-unassigned-probe', teamId, brandType, month, search, classificationId, market, productSku],
     queryFn: () => getTeamContents(teamId, brandType, month, {
       page: 1, limit: 1,
       search: search || undefined,
       classification_id: classificationId || undefined,
       market,
       content_line_id: UNASSIGNED_KEY,
+      product_sku: productSku || undefined,
     }),
     enabled: !!teamId,
   })
@@ -381,8 +382,8 @@ export function TeamContentsBoard({
   const columns: ColumnDef[] = (unassignedTotal > 0 || !!draggingContent) ? [...lineColumns, unassignedColumn] : lineColumns
 
   const moveMutation = useMutation({
-    mutationFn: ({ id, content_line_id }: { id: string; content_line_id: string | null }) =>
-      updateTeamContent(teamId, id, { content_line_id }),
+    mutationFn: ({ tc, content_line_id }: { tc: TeamContent; content_line_id: string | null }) =>
+      updateTeamContent(tc.team_id, tc.id, { content_line_id }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['task-auto', 'team-contents'] })
       toast.success('Đã chuyển tuyến')
@@ -406,13 +407,13 @@ export function TeamContentsBoard({
     if (!tc) return
     const toKey = over.id as string
     if (currentColumnKey(tc) === toKey) return
-    moveMutation.mutate({ id: tc.id, content_line_id: toKey === UNASSIGNED_KEY ? null : toKey })
+    moveMutation.mutate({ tc, content_line_id: toKey === UNASSIGNED_KEY ? null : toKey })
   }
 
-  const filters: Filters = { teamId, brandType, month, search, classificationId, market }
+  const filters: Filters = { teamId, brandType, month, search, classificationId, market, productSku }
   const draggingKey = draggingContent ? currentColumnKey(draggingContent) : null
 
-  const cardActions: CardActions = { canManage, canPush, onSelect, onEdit, onRemove, onPush }
+  const cardActions: CardActions = { canManage, canPush, onSelect, onEdit, onRemove, onPush, teamNameOf }
   // Cộng riêng unassignedTotal (từ probe, luôn có) thay vì đọc columnTotals[UNASSIGNED_KEY] — cột
   // đó có thể đang bị ẩn (không mount) nên không kịp báo total qua onTotalChange.
   const totalAll = lineColumns.reduce((s, c) => s + (columnTotals[c.key] ?? 0), 0) + unassignedTotal
@@ -435,7 +436,6 @@ export function TeamContentsBoard({
               isValidTarget={!!draggingKey && draggingKey !== col.key}
               isDropDisabled={!!draggingKey && draggingKey === col.key}
               actions={cardActions}
-              onAdd={onAdd}
               onTotalChange={handleTotalChange}
             />
           ))}

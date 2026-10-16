@@ -15,9 +15,10 @@ export interface LeaderDashboardMember {
   kpi_target: number;
   kpi_content_new: number;
   kpi_product_gmv: number;
-  /** Số task có deadline hôm nay (hoặc tạo hôm nay nếu chưa có deadline) — "mục tiêu" của KPI ngày. */
+  /** Mục tiêu KPI ngày (set tay, chưa set → số task có deadline ngày đó) của ngày đang xem — tab
+   * ngày chọn khoảng nhiều ngày (pin_traffic_month) thì cộng từng ngày trong khoảng. */
   kpi_day_target: number;
-  /** Số task đã duyệt hôm nay — "hiện tại" của KPI ngày. */
+  /** Số task đã duyệt có deadline trong ngày/khoảng đang xem — "hiện tại" của KPI ngày. */
   kpi_day_completed: number;
   /** Tổng traffic tự báo cáo hằng ngày, cộng dồn trong tháng hiện tại. Chưa có KPI/mục tiêu traffic. */
   traffic_month: number;

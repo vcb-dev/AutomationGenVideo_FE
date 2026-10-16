@@ -9,11 +9,12 @@ import {
   type DragStartEvent, type DragEndEvent,
 } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { FileText, Mic, Loader2, ChevronDown, Plus, Edit2, Trash2, Minus, GripVertical, SendHorizontal, ClipboardList } from 'lucide-react'
+import { FileText, Video, Mic, Loader2, ChevronDown, Edit2, Trash2, Minus, GripVertical, SendHorizontal, ClipboardList } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
 import { formatDate } from '@/components/task-auto/helpers'
 import { parseMarkets } from '@/components/task-auto/ContentFormModal'
+import { isVideoLink } from '@/components/task-auto/ContentSourcePicker'
 import { getContentLines, getEditorContents, updateEditorContent } from '@/lib/api/task-auto'
 import { useLoadMoreScroll } from '@/hooks/useLoadMoreScroll'
 import type { Content, ContentLine, ContentUsageStatus } from '@/types/task-auto'
@@ -87,6 +88,7 @@ interface Filters {
   search: string
   status: string
   classificationId: string
+  productSku?: string
 }
 
 interface CardActions {
@@ -143,7 +145,9 @@ function ContentCardBody({ c }: { c: Content }) {
           )}
           {c.file_content_url && (
             <span className="inline-flex items-center gap-1 text-[11px] text-blue-500 font-semibold">
-              <FileText className="w-3 h-3" /> File
+              {isVideoLink(c.file_content_url)
+                ? <><Video className="w-3 h-3" aria-hidden="true" /> Video</>
+                : <><FileText className="w-3 h-3" aria-hidden="true" /> File</>}
             </span>
           )}
         </div>
@@ -244,21 +248,20 @@ function ContentCard({ c, actions, cardAccent }: { c: Content; actions: CardActi
 }
 
 function ContentColumn({
-  column, filters, isDropDisabled, isValidTarget, actions, onAdd, onTotalChange,
+  column, filters, isDropDisabled, isValidTarget, actions, onTotalChange,
 }: {
   column: ColumnDef
   filters: Filters
   isDropDisabled: boolean
   isValidTarget: boolean
   actions: CardActions
-  onAdd: (contentLineId: string | undefined) => void
   onTotalChange: (key: string, total: number) => void
 }) {
   const [limit, setLimit] = useState(PAGE_SIZE)
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: column.key, disabled: isDropDisabled })
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['task-auto', 'my-contents', 'kanban', filters.userId, filters.brandType, filters.market, filters.month, filters.search, filters.status, filters.classificationId, column.key, limit],
+    queryKey: ['task-auto', 'my-contents', 'kanban', filters.userId, filters.brandType, filters.market, filters.month, filters.search, filters.status, filters.classificationId, filters.productSku, column.key, limit],
     queryFn: () => getEditorContents(filters.userId, {
       brand_type: filters.brandType,
       market: filters.market,
@@ -268,6 +271,7 @@ function ContentColumn({
       classification_id: filters.classificationId || undefined,
       month: filters.month || undefined,
       content_line_id: column.key,
+      product_sku: filters.productSku || undefined,
     }),
     enabled: !!filters.userId,
     // Giữ thẻ cũ khi "Xem thêm" đổi queryKey — nếu không, cột chớp skeleton và scroll nhảy về đầu.
@@ -340,16 +344,6 @@ function ContentColumn({
           </>
         )}
       </div>
-
-      {!actions.readOnly && (
-        <button
-          type="button"
-          onClick={() => onAdd(column.isUnassigned ? undefined : column.key)}
-          className="flex items-center gap-1.5 px-4 py-3 text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:bg-white/60 transition-colors shrink-0"
-        >
-          <Plus className="w-3.5 h-3.5" /> Thêm content
-        </button>
-      )}
     </div>
   )
 }
@@ -362,18 +356,18 @@ interface MyContentsBoardProps {
   search: string
   status: string
   classificationId: string
+  productSku?: string
   readOnly: boolean
   pendingContentIds: Set<string>
   onSelect: (c: Content) => void
   onEdit: (c: Content) => void
   onPush: (c: Content) => void
   onDelete: (c: Content) => void
-  onAdd: (contentLineId: string | undefined) => void
 }
 
 export function MyContentsBoard({
-  userId, brandType, market, month, search, status, classificationId, readOnly, pendingContentIds,
-  onSelect, onEdit, onPush, onDelete, onAdd,
+  userId, brandType, market, month, search, status, classificationId, productSku, readOnly, pendingContentIds,
+  onSelect, onEdit, onPush, onDelete,
 }: MyContentsBoardProps) {
   const qc = useQueryClient()
   const [draggingContent, setDraggingContent] = useState<Content | null>(null)
@@ -387,7 +381,7 @@ export function MyContentsBoard({
   // cột "Chưa gán tuyến" có đang hiển thị hay không, để quyết định ẩn/hiện cột mà không rơi vào
   // vòng luẩn quẩn "phải hiện cột mới biết tổng, mà biết tổng rồi mới quyết định hiện cột".
   const { data: unassignedProbe } = useQuery({
-    queryKey: ['task-auto', 'my-contents', 'kanban-unassigned-probe', userId, brandType, market, month, search, status, classificationId],
+    queryKey: ['task-auto', 'my-contents', 'kanban-unassigned-probe', userId, brandType, market, month, search, status, classificationId, productSku],
     queryFn: () => getEditorContents(userId, {
       brand_type: brandType,
       market,
@@ -397,6 +391,7 @@ export function MyContentsBoard({
       classification_id: classificationId || undefined,
       month: month || undefined,
       content_line_id: UNASSIGNED_KEY,
+      product_sku: productSku || undefined,
     }),
     enabled: !!userId,
   })
@@ -442,7 +437,7 @@ export function MyContentsBoard({
     moveMutation.mutate({ id: c.id, content_line_id: toKey === UNASSIGNED_KEY ? null : toKey })
   }
 
-  const filters: Filters = { userId, brandType, market, month, search, status, classificationId }
+  const filters: Filters = { userId, brandType, market, month, search, status, classificationId, productSku }
   const draggingKey = draggingContent ? currentColumnKey(draggingContent) : null
 
   const cardActions: CardActions = {
@@ -474,7 +469,6 @@ export function MyContentsBoard({
               isValidTarget={!!draggingKey && draggingKey !== col.key}
               isDropDisabled={!!draggingKey && draggingKey === col.key}
               actions={cardActions}
-              onAdd={onAdd}
               onTotalChange={handleTotalChange}
             />
           ))}

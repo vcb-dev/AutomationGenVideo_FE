@@ -15,12 +15,11 @@ export type TaskStatus =
 export type TaskTypeValue = 'AUTO' | 'EXTRA'
 export type ContentUsageStatus = 'AVAILABLE' | 'IN_TASK' | 'USED' | 'ARCHIVED'
 export type ContentMarket = 'VIETNAM' | 'INDONESIA' | 'JAPAN' | 'THAILAND'
-export type TeamMarket = 'VIETNAM' | 'INDONESIA' | 'JAPAN' | 'THAILAND'
+export type TeamMarket = 'GLOBAL' | 'VIETNAM' | 'INDONESIA' | 'JAPAN' | 'THAILAND'
 export type TeamKind = 'PRODUCTION' | 'CONTENT'
 export type ContentOrigin = 'COLLECTED' | 'SELF_CREATED'
 export type SourceType = 'PRODUCT_STOCK' | 'COLLECTED' | 'OUTRO' | 'WORKSHOP' | 'HUYK'
 export type KpiAllocationType = 'CONTENT_LINE' | 'PRODUCT_LINE'
-export type AssignmentOutcome = 'COMPLETED' | 'OVERDUE' | 'REASSIGNED' | 'CANCELLED'
 export type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 
 // ── User Basic ──────────────────────────────────
@@ -407,6 +406,8 @@ export interface ContentWinFailVideo {
   task_id: string
   content_title: string | null
   content_code: string | null
+  /** Phân loại HIỆN TẠI của content gắn task — null khi chưa phân loại / task không gắn content. */
+  classification: { id: string; name: string } | null
   published_links: PublishedLink[] | null
   win_status_auto: WinFailStatus
   /** View của link cao nhất trong số link đã cào thành công (0 khi pending). */
@@ -425,9 +426,20 @@ export interface ContentWinFailPersonRow {
   videos: ContentWinFailVideo[]
 }
 
+/** Win/fail theo phân loại content — `classification_id` null = "Chưa phân loại" (lọc bằng 'none'). */
+export interface ContentWinFailClassificationRow {
+  classification_id: string | null
+  classification: string
+  win: number
+  fail: number
+  pending: number
+}
+
 export interface ContentWinFailStats {
   by_member: ContentWinFailPersonRow[]
   totals: { win: number; fail: number; pending: number }
+  /** Đếm trên MỌI phân loại (trước khi lọc classification_id) — đủ ô lọc dù đang lọc 1 phân loại. */
+  by_classification: ContentWinFailClassificationRow[]
 }
 
 // ── Team Push Request (duyệt đẩy kho cá nhân → kho team) ──
@@ -468,6 +480,11 @@ export interface ContentApprovalsQuery {
   team_id?: string
   assignee_id?: string
   search?: string
+  content_line_id?: string
+  product_line_id?: string
+  /** Khoảng ngày gửi yêu cầu duyệt (YYYY-MM-DD, giờ VN) */
+  date_from?: string
+  date_to?: string
   page?: number
   limit?: number
 }
@@ -847,7 +864,7 @@ export interface Task {
   created_at: string
   updated_at: string
   // Relations
-  team?: Pick<Team, 'id' | 'name' | 'market'>
+  team?: Pick<Team, 'id' | 'name' | 'market' | 'brand_type'>
   content?: Pick<Content, 'id' | 'code' | 'title' | 'script' | 'file_content_url' | 'market'> & {
     content_line?: ContentLine | null
     source_team_content?: {
@@ -892,7 +909,6 @@ export interface Task {
   team_source_huyk?:       { id: string; name: string | null; link: string | null; type: SourceType | null; nas_link?: string | null; source_editor_source?: { name: string; link: string; type: SourceType; nas_link?: string | null } | null } | null
   assignee?: UserBasic | null
   reviewed_by?: UserBasic | null
-  assignments?: TaskAssignment[]
   pending_video?: TaskPendingVideo | null
   product_sources?: Source[]
 }
@@ -910,18 +926,6 @@ export interface TaskPendingVideo {
   created_at: string
 }
 
-export interface TaskAssignment {
-  id: string
-  task_id: string
-  user_id: string
-  assigned_at: string
-  deadline: string
-  outcome: AssignmentOutcome | null
-  run_id: string | null
-  note: string | null
-  user?: UserBasic
-}
-
 // ── Assignment Runs ─────────────────────────────
 
 export interface AssignmentRun {
@@ -935,6 +939,84 @@ export interface AssignmentRun {
   finished_at: string | null
 }
 
+// ── Lịch sử thiếu task theo ngày ─────────────────
+
+export type DailyTaskComplianceSource = 'AUTO_A4' | 'DAILY_PLAN'
+
+/** Một tuyến của một người trong một ngày: số phải làm chốt lúc hết hạn, số hoàn thành tính theo task hiện tại. */
+export interface DailyTaskComplianceLine {
+  id: string
+  source: DailyTaskComplianceSource
+  expected_count: number
+  completed_count: number
+  missing_count: number
+  deadline: string
+  team: { id: string; name: string }
+  content_line: { id: string; name: string }
+}
+
+/** Một dòng lịch sử = một người trong một ngày, gộp các tuyến bị thiếu. */
+export interface ComplianceDayGroup {
+  key: string
+  work_date: string
+  user: { id: string; full_name: string; email: string }
+  teams: { id: string; name: string }[]
+  expected_count: number
+  completed_count: number
+  missing_count: number
+  lines: DailyTaskComplianceLine[]
+}
+
+export interface ComplianceHistoryQuery {
+  from?: string
+  to?: string
+  team_id?: string
+  user_id?: string
+  page?: number
+  limit?: number
+}
+
+export interface ComplianceHistoryResponse extends PaginatedResult<ComplianceDayGroup> {
+  summary: {
+    /** Số lượt người × ngày bị thiếu */
+    person_days: number
+    /** Số lượt tuyến bị thiếu */
+    lines: number
+    expected: number
+    completed: number
+    missing: number
+  }
+}
+
+export interface ComplianceDayTask {
+  id: string
+  title: string | null
+  product_name: string | null
+  status: TaskStatus
+  deadline: string | null
+  submitted_at: string | null
+  /** Nộp (hoặc được duyệt) trước hạn chót của tuyến */
+  on_time: boolean
+  has_link: boolean
+  /** Đã nộp video và có link bài đăng — nộp bù sau hạn vẫn tính */
+  completed: boolean
+}
+
+export interface ComplianceDayLine extends DailyTaskComplianceLine {
+  evaluated_at: string
+  /** Phần thiếu không ứng với task nào: kế hoạch tuyến = task chưa tạo, A4 = task đã huỷ/xoá */
+  untracked_missing: number
+  tasks: ComplianceDayTask[]
+}
+
+export interface ComplianceDayDetail {
+  work_date: string
+  user: { id: string; full_name: string; email: string }
+  /** Tổng cả ngày, gồm cả tuyến đã đủ */
+  summary: { expected: number; completed: number; missing: number }
+  lines: ComplianceDayLine[]
+}
+
 // ── Auto-Assign Settings ────────────────────────
 
 export interface AutoAssignSetting {
@@ -945,9 +1027,129 @@ export interface AutoAssignSetting {
   is_active: boolean
   /** Số ngày cooldown mặc định (per editor+product) cho sản phẩm chưa tự set cooldown_days riêng */
   default_cooldown_days: number
+  /** Lập Kế hoạch ngày (chỉ tiêu + gợi ý content, không tạo task) cùng lượt chia task */
+  daily_plan_enabled: boolean
+  /** Tuyến nội dung lập Kế hoạch ngày */
+  daily_plan_line_names: string[]
+  /** Job khớp video ↔ task (cron 7:45 + nút Gắn link video) hỏi AI cho video luật chưa ghép được */
+  video_match_ai_enabled: boolean
   updated_by: string | null
   updated_at: string
 }
+
+// ── Kế hoạch ngày (tuyến không tự tạo task: A1/A2/A3/A5) ──
+
+export type DailyPlanContentSource = 'editor' | 'team' | 'global'
+
+export interface DailyPlanSuggestion {
+  id: string
+  kind: 'CONTENT' | 'WIN_VIDEO'
+  rank: number
+  /** Đã (hoặc đang) dùng để tạo task */
+  used: boolean
+  task: { id: string; status: TaskStatus } | null
+  content: { source: DailyPlanContentSource; id: string; code: string | null; title: string | null; is_win: boolean; win_views: number | null } | null
+  video: {
+    platform: string | null
+    post_id: string | null
+    url: string | null
+    caption: string | null
+    thumbnail_url: string | null
+    views: number | null
+    published_at: string | null
+    page_name: string | null
+  } | null
+}
+
+export interface DailyPlan {
+  id: string
+  /** market: thị trường của team (VIETNAM/THAILAND/...) — mặc định bộ lọc thị trường khi tìm */
+  team: { id: string; name: string; market: string }
+  content_line: { id: string; name: string }
+  /** Số video cần làm trong ngày kế hoạch */
+  target: number
+  /** Task tuyến này đã có hạn trong ngày kế hoạch (tính cả task tạo tay) */
+  done: number
+  remaining: number
+  monthly_target: number
+  deadline: string
+  suggestions: DailyPlanSuggestion[]
+}
+
+/** 1 tuyến (của 1 team) cộng dồn mọi ngày có kế hoạch trong khoảng lọc */
+export interface DailyPlanTotal {
+  team: { id: string; name: string; market: string }
+  content_line: { id: string; name: string }
+  target: number
+  done: number
+  remaining: number
+  /** Số ngày có kế hoạch tuyến này trong khoảng */
+  days: number
+}
+
+export interface MyDailyPlans {
+  /** Khoảng ngày BE đã áp dụng (null = không giới hạn đầu đó) */
+  from: string | null
+  to: string | null
+  /** Có giá trị khi khoảng lọc đúng 1 ngày */
+  plan_date: string | null
+  /** Các ngày có kế hoạch trong khoảng, tăng dần */
+  plan_dates: string[]
+  /** Kế hoạch chi tiết kèm gợi ý — chỉ khi khoảng lọc đúng 1 ngày */
+  plans: DailyPlan[]
+  totals: DailyPlanTotal[]
+}
+
+export interface DailyPlanQuickCreateResult {
+  created: { suggestion_id: string; task_id: string }[]
+  failed: { suggestion_id: string; message: string }[]
+}
+
+export type DailyPlanSearchKind = 'content' | 'video'
+
+/** vn = Việt Nam, global = mọi thị trường ngoài Việt Nam, all = không lọc */
+export type DailyPlanSearchMarket = 'vn' | 'global' | 'all'
+
+/** Content trong kho (cá nhân của mình / kho team / kho tổng) tìm được cho kế hoạch */
+export interface DailyPlanSearchContent {
+  source: DailyPlanContentSource
+  id: string
+  code: string | null
+  title: string | null
+  line: { id: string; name: string } | null
+  /** VIETNAM / GLOBAL / THAILAND / JAPAN / INDONESIA */
+  market: string
+  is_win: boolean
+  win_views: number | null
+  /** Lần gần nhất chính mình làm content này (60 ngày) — vẫn cho tạo task */
+  last_used_at: string | null
+}
+
+/** Video win Facebook (> 10K view) tìm được trên mọi kênh nội bộ */
+export interface DailyPlanSearchVideo {
+  platform: string
+  post_id: string
+  url: string
+  caption: string | null
+  thumbnail_url: string | null
+  views: number
+  published_at: string | null
+  page_name: string | null
+  /** Tuyến theo hashtag #A1..#A5 trong caption */
+  line_name: string | null
+  /** Đã lấy video này làm content kho cá nhân — tạo task sẽ dùng lại content đó */
+  in_my_warehouse: boolean
+}
+
+export interface DailyPlanSearchResult<T> {
+  items: T[]
+  total: number
+  has_more: boolean
+  /** Bộ lọc thị trường BE đã áp (mặc định theo thị trường của team) */
+  market: DailyPlanSearchMarket
+}
+
+export type DailyPlanSearchCreateBody = { kind: 'CONTENT'; source: DailyPlanContentSource; content_id: string } | { kind: 'WIN_VIDEO'; post_id: string }
 
 // ── Webhook Lark chung (thông báo task/content cần duyệt) ──
 
@@ -973,13 +1175,13 @@ export interface EmptyWarehouseNoticeMeta {
   contentLines: { id: string; name: string; count: number }[]
 }
 
-export interface Notification {
+export interface Notification<TMeta = EmptyWarehouseNoticeMeta> {
   id: string
   user_id: string
   type: string
   title: string
   body: string | null
-  meta?: EmptyWarehouseNoticeMeta | null
+  meta?: TMeta | null
   task_id: string | null
   is_read: boolean
   created_at: string
@@ -1006,14 +1208,21 @@ export interface TasksQuery {
   deadline_date?: string
   deadline_from?: string
   deadline_to?: string
-  /** Lọc theo thời điểm task được duyệt/từ chối (reviewed_at) — dùng cho tab "Video đã nộp" (status APPROVED) */
+  /** Lọc theo thời điểm task được duyệt/từ chối (reviewed_at) — dùng cho tab "Video đã làm" (status APPROVED) */
   reviewed_from?: string
   reviewed_to?: string
+  /** ISO datetime — chỉ task nộp video trước thời điểm này (picker "Gắn vào video đã làm") */
+  submitted_before?: string
+  /** Mã tuyến A1…A5 (so theo tên tuyến) */
+  content_line?: string
+  /** Lọc theo tuyến nội dung / dòng sản phẩm (id) — dòng SP suy qua sản phẩm gắn trên task nếu task chưa có */
+  content_line_id?: string
+  product_line_id?: string
   task_type?: 'auto' | 'extra' | 'manual' | ''
   page?: number
   limit?: number
   search?: string
-  sort?: 'created_at' | 'updated_at'
+  sort?: 'created_at' | 'updated_at' | 'submitted_at'
   /** Cột "Quá hạn" (Kanban) — chỉ lấy task đang xử lý đã trễ hạn, bỏ qua deadline_from/to */
   overdue?: boolean
   /** Loại task đã trễ hạn khỏi kết quả — dùng cho các cột trạng thái khác để không hiện trùng với cột "Quá hạn" */
@@ -1032,6 +1241,12 @@ export interface TaskHeaderCountsQuery {
   /** Khoảng ngày riêng cho badge "Video chờ duyệt" — KHÔNG dùng chung deadline_from/to */
   pending_from?: string
   pending_to?: string
+  /** Bộ lọc chung màn Nhiệm vụ — áp cho tổng "N task" lẫn 2 badge chờ duyệt */
+  content_line_id?: string
+  product_line_id?: string
+  /** Khoảng ngày gửi duyệt cho badge "Content chờ duyệt" */
+  approval_from?: string
+  approval_to?: string
   /** BE chỉ nhận diện 'auto'/'extra' (khớp QueryTaskHeaderCountsDto) — 'manual' được giữ trong type
    * cho khớp TasksQuery.task_type, gửi lên BE sẽ bị bỏ qua giống getTasks() hiện tại. */
   task_type?: 'auto' | 'extra' | 'manual' | ''
@@ -1041,6 +1256,42 @@ export interface TaskHeaderCounts {
   total: number
   submittedTotal: number
   contentApprovalTotal: number
+}
+
+export interface TaskVideoMatchMappedItem {
+  platform: 'FACEBOOK'
+  postId: string
+  url: string
+  caption: string
+  publishedAt: string
+  task: { id: string; title: string; assigneeName: string | null; teamName: string | null; contentLineName: string | null }
+  score: number
+  matchedBy: Record<string, unknown>
+  alreadyLinked: boolean
+}
+
+export interface TaskVideoMatchRunResult {
+  considered: number
+  /** Số link vừa được gắn mới trong lượt chạy này. */
+  matched: number
+  /** Số bài hệ thống nhận ra task đã có sẵn đúng link. */
+  alreadyLinked: number
+  unmatched: number
+  ambiguous: number
+  mappedItems: TaskVideoMatchMappedItem[]
+  /** Video auto-map từ các lượt trước, vẫn còn link trong task và thuộc đúng scope đang lọc. */
+  existingMappedItems: TaskVideoMatchMappedItem[]
+  /** Chỉ có khi AI đang bật và lượt này có video luật bỏ trống cần hỏi. */
+  ai?: {
+    mode: string
+    /** Video gửi AI lượt này (không tính video dùng lại phán quyết cũ). */
+    asked: number
+    cached: number
+    confident: number
+    attached: number
+    /** AI service không phản hồi — lượt sau hỏi lại. */
+    failed: number
+  }
 }
 
 export type BrandType = 'DO_DA' | 'TRANG_SUC'
@@ -1071,6 +1322,14 @@ export interface ContentsQuery {
   limit?: number
   search?: string
   month?: string
+  product_sku?: string
+}
+
+export interface LinkedProduct {
+  sku: string
+  name: string | null
+  image_url: string | null
+  content_count: number
 }
 
 export interface SourcesQuery {

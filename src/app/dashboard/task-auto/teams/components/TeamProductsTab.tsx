@@ -11,10 +11,11 @@ import { Pagination } from '@/components/task-auto/Pagination'
 import { HeaderFilterDropdown } from '@/components/task-auto/HeaderFilterDropdown'
 
 import type { TeamProduct } from '@/types/task-auto'
-import { getTeamProducts, getTeams, removeTeamProduct, getProductLines, getProductClassifications } from '@/lib/api/task-auto'
+import { getTeamProducts, getTeams, removeTeamProduct, getProductLines, getProductClassifications, ALL_TEAMS_ID } from '@/lib/api/task-auto'
 import { AddProductModal } from './products/AddProductModal'
 import { ProductCard } from './products/ProductCard'
 import { TeamProductFormModal } from './products/TeamProductFormModal'
+import { TargetTeamPickerModal } from './TargetTeamPickerModal'
 
 const PAGE_SIZE = 24
 
@@ -36,8 +37,9 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
   const [productLineFilter, setProductLineFilter] = useState('')
   const [classificationFilter, setClassificationFilter] = useState('')
   const [page, setPage] = useState(1)
-  const [deletingProductId, setDeletingProductId] = useState<string | null>(null)
-  const [deletingProductName, setDeletingProductName] = useState('')
+  const [deletingProduct, setDeletingProduct] = useState<TeamProduct | null>(null)
+  const [targetTeamId, setTargetTeamId] = useState('')
+  const [pickingTeam, setPickingTeam] = useState(false)
 
   const { data: teams } = useQuery({
     queryKey: ['task-auto', 'teams'],
@@ -60,13 +62,24 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
     ? [{ value: '', label: 'Tất cả đội nhóm' }, ...(teams ?? []).map(t => ({ value: t.id, label: t.name }))]
     : myTeams.map(t => ({ value: t.id, label: t.name }))
 
+  // Admin/Manager chọn "Tất cả đội nhóm" → xem gộp kho của mọi team, không lọc theo loại của 1 team
+  const isAllTeams = isAdminOrManager && !selectedTeamId
+  const listTeamId = isAllTeams ? ALL_TEAMS_ID : selectedTeamId
+  const listBrandType = isAllTeams ? undefined : brandType
+  const teamNameById = new Map((teams ?? []).map(t => [t.id, t.name]))
+  // Thêm sản phẩm luôn vào kho của 1 team cụ thể — đang xem tất cả đội nhóm thì hỏi team nhận trước
+  const canAddHere = !!listTeamId && canAddSelected
+  const actionTeamId = isAllTeams ? targetTeamId : selectedTeamId
+  const actionBrandType = teams?.find(t => t.id === actionTeamId)?.brand_type ?? brandType
+  const startAdd = () => (isAllTeams ? setPickingTeam(true) : setShowAdd(true))
+
   const { data: page1Data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'team-products', selectedTeamId, brandType, month, search, productLineFilter, classificationFilter, page],
-    queryFn: () => getTeamProducts(selectedTeamId, brandType, month, {
+    queryKey: ['task-auto', 'team-products', listTeamId, listBrandType, month, search, productLineFilter, classificationFilter, page],
+    queryFn: () => getTeamProducts(listTeamId, listBrandType, month, {
       page, limit: PAGE_SIZE, search: search || undefined,
       product_line_id: productLineFilter || undefined, classification_id: classificationFilter || undefined,
     }),
-    enabled: !!selectedTeamId,
+    enabled: !!listTeamId,
   })
   const teamProducts = page1Data?.data ?? []
   const total = page1Data?.total ?? 0
@@ -74,9 +87,9 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
   // Danh sách SKU đầy đủ trong kho team (không phân trang) — chỉ dùng để loại sản phẩm đã có
   // ra khỏi danh sách "chọn từ kho tổng" trong AddProductModal, không dùng để hiển thị bảng.
   const { data: allTeamProducts } = useQuery({
-    queryKey: ['task-auto', 'team-products-all-skus', selectedTeamId, brandType],
-    queryFn: () => getTeamProducts(selectedTeamId, brandType),
-    enabled: !!selectedTeamId && showAdd,
+    queryKey: ['task-auto', 'team-products-all-skus', actionTeamId, actionBrandType],
+    queryFn: () => getTeamProducts(actionTeamId, actionBrandType),
+    enabled: !!actionTeamId && showAdd,
   })
 
   // Danh sách dòng SP/phân loại toàn hệ thống — dùng làm option cho dropdown lọc (không kèm
@@ -88,18 +101,18 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
   const classificationOptions = (allClassifications ?? []).map(c => ({ value: c.id, label: c.name })).sort((a, b) => a.label.localeCompare(b.label, 'vi'))
 
   const removeMut = useMutation({
-    mutationFn: (productId: string) => removeTeamProduct(selectedTeamId, productId),
+    mutationFn: (tp: TeamProduct) => removeTeamProduct(tp.team_id, tp.id),
     onSuccess: () => {
       toast.success('Đã xóa sản phẩm khỏi kho team')
-      setDeletingProductId(null)
-      qc.invalidateQueries({ queryKey: ['task-auto', 'team-products', selectedTeamId, brandType] })
+      setDeletingProduct(null)
+      qc.invalidateQueries({ queryKey: ['task-auto', 'team-products', listTeamId, listBrandType] })
     },
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Xóa thất bại'),
   })
 
   const existingSkus = (allTeamProducts ?? []).map(tp => tp.sku ?? tp.source_editor_product?.sku ?? '').filter(Boolean)
 
-  useEffect(() => { setPage(1) }, [selectedTeamId, brandType, month, search, productLineFilter, classificationFilter])
+  useEffect(() => { setPage(1) }, [listTeamId, listBrandType, month, search, productLineFilter, classificationFilter])
 
   return (
     <div className="space-y-5">
@@ -145,7 +158,7 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
             className="px-3 py-3.5 border border-gray-200 rounded-xl text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
           />
 
-          {selectedTeamId && (
+          {listTeamId && (
             <>
               <div className="flex items-center gap-2 px-4 py-3.5 rounded-xl border border-gray-200 hover:border-gray-300 transition-colors">
                 <HeaderFilterDropdown
@@ -166,15 +179,15 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
             </>
           )}
 
-          {selectedTeamId && page1Data && (
+          {listTeamId && page1Data && (
             <span className="text-sm text-slate-400 font-medium whitespace-nowrap">
               {total} sản phẩm
             </span>
           )}
 
-          {selectedTeamId && canAddSelected && (
+          {canAddHere && (
             <button
-              onClick={() => setShowAdd(true)}
+              onClick={startAdd}
               className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-5 py-3.5 text-base font-semibold flex items-center gap-2 transition-colors ml-auto shrink-0"
             >
               <Plus className="w-5 h-5" /> Thêm sản phẩm
@@ -184,7 +197,7 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
       </div>
 
       {/* Content */}
-      {!selectedTeamId ? (
+      {!listTeamId ? (
         <EmptyState icon={ShoppingBag} title="Chọn đội nhóm để xem kho sản phẩm" />
       ) : (
         <>
@@ -210,13 +223,15 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
                   <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center">
                     <ShoppingBag className="w-7 h-7 text-indigo-300" />
                   </div>
-                  <p className="font-semibold text-slate-600">Kho team chưa có sản phẩm</p>
-                  <p className="text-sm text-slate-400">
-                    {canAddSelected ? 'Nhấn "Thêm sản phẩm" để chọn từ kho tổng' : 'Chưa có sản phẩm nào trong kho team'}
+                  <p className="font-semibold text-slate-600">
+                    {isAllTeams ? 'Chưa team nào có sản phẩm trong kho' : 'Kho team chưa có sản phẩm'}
                   </p>
-                  {canAddSelected && (
+                  <p className="text-sm text-slate-400">
+                    {canAddHere ? 'Nhấn "Thêm sản phẩm" để chọn từ kho tổng' : 'Chưa có sản phẩm nào trong kho team'}
+                  </p>
+                  {canAddHere && (
                     <button
-                      onClick={() => setShowAdd(true)}
+                      onClick={startAdd}
                       className="mt-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-5 py-2.5 text-sm font-semibold flex items-center gap-2 transition-colors"
                     >
                       <Plus className="w-4 h-4" /> Thêm sản phẩm đầu tiên
@@ -240,11 +255,9 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
                     key={tp.id}
                     teamProduct={tp}
                     canRemove={canDeleteSelected}
-                    onRemove={() => {
-                      setDeletingProductId(tp.id)
-                      setDeletingProductName(tp.name ?? tp.source_editor_product?.name ?? '')
-                    }}
+                    onRemove={() => setDeletingProduct(tp)}
                     onEdit={canEditSelected && isTeamCreated ? () => setEditingProduct(tp) : undefined}
+                    teamName={isAllTeams ? teamNameById.get(tp.team_id) : undefined}
                   />
                 )
               })}
@@ -260,37 +273,52 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
       )}
 
       <ConfirmDialog
-        open={!!deletingProductId}
+        open={!!deletingProduct}
         title="Xóa sản phẩm khỏi kho team"
-        message={`Xóa "${deletingProductName}" khỏi kho team? Hành động này không thể hoàn tác.`}
+        message={`Xóa "${deletingProduct?.name ?? deletingProduct?.source_editor_product?.name ?? ''}" khỏi kho team${isAllTeams && deletingProduct ? ` ${teamNameById.get(deletingProduct.team_id) ?? ''}` : ''}? Hành động này không thể hoàn tác.`}
         confirmLabel="Xóa sản phẩm"
         danger
         isLoading={removeMut.isPending}
-        onConfirm={() => deletingProductId && removeMut.mutate(deletingProductId)}
-        onCancel={() => setDeletingProductId(null)}
+        onConfirm={() => deletingProduct && removeMut.mutate(deletingProduct)}
+        onCancel={() => setDeletingProduct(null)}
       />
 
-      {showAdd && selectedTeamId && (
+      {showAdd && actionTeamId && (
         <AddProductModal
           open={showAdd}
-          teamId={selectedTeamId}
+          teamId={actionTeamId}
           existingSkus={existingSkus}
           userId={userId}
-          initialBrandType={brandType}
+          initialBrandType={actionBrandType}
           onClose={() => setShowAdd(false)}
-          onSuccess={() => setShowAdd(false)}
+          onSuccess={() => {
+            setShowAdd(false)
+            if (isAllTeams) qc.invalidateQueries({ queryKey: ['task-auto', 'team-products', ALL_TEAMS_ID] })
+          }}
         />
       )}
 
-      {editingProduct && selectedTeamId && (
+      {pickingTeam && (
+        <TargetTeamPickerModal
+          title="Thêm sản phẩm"
+          subtitle="Chọn đội nhóm sẽ nhận sản phẩm này"
+          teams={teams ?? []}
+          value={targetTeamId}
+          onChange={setTargetTeamId}
+          onCancel={() => setPickingTeam(false)}
+          onConfirm={() => { setPickingTeam(false); setShowAdd(true) }}
+        />
+      )}
+
+      {editingProduct && (
         <TeamProductFormModal
           open
-          teamId={selectedTeamId}
+          teamId={editingProduct.team_id}
           teamProduct={editingProduct}
           onClose={() => setEditingProduct(null)}
           onSuccess={() => {
             setEditingProduct(null)
-            qc.invalidateQueries({ queryKey: ['task-auto', 'team-products', selectedTeamId, brandType] })
+            qc.invalidateQueries({ queryKey: ['task-auto', 'team-products', listTeamId, listBrandType] })
           }}
         />
       )}

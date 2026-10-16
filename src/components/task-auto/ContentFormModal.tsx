@@ -3,15 +3,20 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Loader2, Mic, X, Play, Pause, FileText, Upload, Gauge } from 'lucide-react'
+import { Loader2, Mic, X, Play, Pause, Gauge } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DarkModal } from '@/components/task-auto/DarkModal'
-import { DarkInput, DarkTextarea, CustomSelect, CreatableSelect } from '@/components/task-auto/DarkInput'
+import { DarkInput, CustomSelect, CreatableSelect } from '@/components/task-auto/DarkInput'
+import {
+  ContentSourcePicker, EMPTY_CONTENT_SOURCE, REQUIRED_TOAST,
+  contentRequiredErrors, contentSourceFields, contentSourceFrom, focusFirstInvalid,
+  type ContentSource, type ContentSourceMode,
+} from '@/components/task-auto/ContentSourcePicker'
 import { PaastScoreModal } from '@/components/task-auto/PaastScoreModal'
 import type { PaastAnalysisHistory } from '@/lib/api/paast-analyzer'
 import {
-  createContent, updateContent, createEditorContent, updateTeamContent,
-  getContentLines, uploadVoiceFile, uploadContentFile,
+  updateContent, createEditorContent, updateTeamContent,
+  getContentLines, uploadVoiceFile,
   getContentClassifications, createContentClassification,
 } from '@/lib/api/task-auto'
 import type { Content } from '@/types/task-auto'
@@ -201,132 +206,6 @@ export const VoicePicker = forwardRef<VoicePickerHandle, { value: string; onChan
   }
 )
 
-// ── ContentFilePicker ─────────────────────────────────────────────────────────
-
-const CONTENT_ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt'
-const CONTENT_MIME = [
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/vnd.ms-powerpoint',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'text/plain',
-]
-
-export function ContentFilePicker({
-  value,
-  onChange,
-}: {
-  value: string
-  onChange: (url: string) => void
-}) {
-  const fileRef = useRef<HTMLInputElement>(null)
-  const [uploading, setUploading] = useState(false)
-  const [mode, setMode] = useState<'url' | 'file'>('url')
-
-  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (!CONTENT_MIME.includes(file.type)) return toast.error('Chỉ chấp nhận PDF, Word, Excel, PowerPoint, TXT')
-    if (file.size > 100 * 1024 * 1024) return toast.error('File tối đa 100MB')
-    setUploading(true)
-    try {
-      const { url } = await uploadContentFile(file)
-      onChange(url)
-    } catch {
-      toast.error('Không thể tải file lên')
-    } finally {
-      setUploading(false)
-      if (fileRef.current) fileRef.current.value = ''
-    }
-  }
-
-  const filename = value ? decodeURIComponent(value.split('/').pop() ?? '') : ''
-  const isUploaded = value && !value.startsWith('http') === false && mode === 'file'
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <label className="block text-sm font-semibold text-slate-700">File content</label>
-        <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-semibold">
-          <button
-            type="button"
-            onClick={() => setMode('url')}
-            className={cn('px-3 py-1.5 transition-colors', mode === 'url' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-gray-50')}
-          >
-            Link URL
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('file')}
-            className={cn('px-3 py-1.5 transition-colors', mode === 'file' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-gray-50')}
-          >
-            Tải file lên
-          </button>
-        </div>
-      </div>
-
-      {mode === 'url' ? (
-        <input
-          type="url"
-          placeholder="https://drive.google.com/..."
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
-        />
-      ) : (
-        <>
-          <input ref={fileRef} type="file" accept={CONTENT_ACCEPT} className="hidden" onChange={handleFile} />
-          {value && mode === 'file' ? (
-            <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
-              <FileText className="w-5 h-5 text-emerald-600 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-emerald-700 truncate">{filename || 'File đã tải lên'}</p>
-                <a href={value} target="_blank" rel="noreferrer" className="text-xs text-emerald-500 hover:underline">Xem file</a>
-              </div>
-              <button
-                type="button"
-                onClick={() => onChange('')}
-                className="p-1 rounded-full hover:bg-emerald-200 text-emerald-500 transition-colors"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="text-xs text-emerald-600 hover:text-emerald-800 font-medium"
-              >
-                Đổi file
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => !uploading && fileRef.current?.click()}
-              disabled={uploading}
-              className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-gray-200 hover:border-indigo-400 rounded-xl py-4 text-sm text-slate-400 hover:text-indigo-600 transition-colors disabled:opacity-60"
-            >
-              {uploading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
-                  <span className="text-indigo-600">Đang tải lên...</span>
-                </>
-              ) : (
-                <>
-                  <Upload className="w-4 h-4" />
-                  <span>Chọn file <span className="text-slate-300">(PDF, Word, Excel, PPT — tối đa 100MB)</span></span>
-                </>
-              )}
-            </button>
-          )}
-        </>
-      )}
-    </div>
-  )
-}
-
 // ── ContentFormModal ──────────────────────────────────────────────────────────
 
 type BrandType = 'DO_DA' | 'TRANG_SUC'
@@ -341,11 +220,12 @@ interface ContentFormModalProps {
   teamId?: string
   brandType?: BrandType
   initialMarket?: string
-  /** Preset tuyến khi mở form tạo mới từ 1 cột cụ thể của board — bỏ qua khi đang sửa content có sẵn */
-  initialContentLineId?: string
+  /** Giá trị điền sẵn khi tạo mới (vd. content đang viết dở trong modal tạo nhiệm vụ) — phải là object
+   *  ổn định (state/memo), đổi identity sẽ reset form. Bỏ qua khi đang sửa content có sẵn. */
+  initialValues?: Partial<Pick<Content, 'title' | 'code' | 'body' | 'file_content_url' | 'content_line_id' | 'classification_id'>> & { source?: ContentSource }
 }
 
-export function ContentFormModal({ open, editing, onClose, onSuccess, userId, teamId, brandType, initialMarket, initialContentLineId }: ContentFormModalProps) {
+export function ContentFormModal({ open, editing, onClose, onSuccess, userId, teamId, brandType, initialMarket, initialValues }: ContentFormModalProps) {
   const qc = useQueryClient()
   const isEdit = !!editing
 
@@ -353,6 +233,10 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
     code: '', title: '', body: '', script: '', file_content_url: '', voice_url: '',
     content_line_id: '', classification_id: '',
   })
+  const [source, setSource] = useState<ContentSource>(EMPTY_CONTENT_SOURCE)
+  const [initialSourceMode, setInitialSourceMode] = useState<ContentSourceMode>('text')
+  const [showErrors, setShowErrors] = useState(false)
+  const formRef = useRef<HTMLDivElement>(null)
   const [market, setMarket] = useState<string>(initialMarket ?? 'VIETNAM')
   const [resolvingVoice, setResolvingVoice] = useState(false)
   const voicePickerRef = useRef<VoicePickerHandle>(null)
@@ -366,14 +250,23 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
     if (open) {
       if (editing) {
         setForm({ ...editing })
+        const s = contentSourceFrom(editing.body, editing.file_content_url)
+        setSource(s)
+        setInitialSourceMode(s.mode)
         setMarket(editing.market ?? initialMarket ?? 'VIETNAM')
       } else {
-        setForm({ code: '', title: '', body: '', script: '', file_content_url: '', voice_url: '', content_line_id: initialContentLineId ?? '', classification_id: '' })
+        const { source: initialSource, ...values } = initialValues ?? {}
+        setForm({ code: '', title: '', body: '', script: '', file_content_url: '', voice_url: '', content_line_id: '', classification_id: '', ...values })
+        setSource(initialSource ?? contentSourceFrom(values.body, values.file_content_url))
+        setInitialSourceMode('text')
         setMarket(initialMarket ?? 'VIETNAM')
       }
+      setShowErrors(false)
       setScoreCache(null)
     }
-  }, [open, editing, initialMarket, initialContentLineId])
+  }, [open, editing, initialMarket, initialValues])
+
+  const errors = showErrors ? contentRequiredErrors({ ...form, source }) : {}
 
   const { data: contentLines, isLoading: loadingContentLines } = useQuery({
     queryKey: ['task-auto', 'content-lines'],
@@ -384,16 +277,6 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
     queryKey: ['task-auto', 'content-classifications'],
     queryFn: getContentClassifications,
     enabled: open,
-  })
-
-  const createMut = useMutation({
-    mutationFn: createContent,
-    onSuccess: async (content) => {
-      await qc.invalidateQueries({ queryKey: ['task-auto', 'contents'] })
-      toast.success('Đã thêm content')
-      onSuccess(content)
-    },
-    onError: (e: any) => toast.error(e?.response?.data?.message || 'Không thể thêm content'),
   })
 
   const updateMut = useMutation({
@@ -408,10 +291,14 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Không thể cập nhật content'),
   })
 
-  const saving = createMut.isPending || updateMut.isPending || resolvingVoice
+  const saving = updateMut.isPending || resolvingVoice
 
   const handleSubmit = async () => {
-    if (!form.title?.trim()) return toast.error('Tiêu đề content là bắt buộc')
+    if (Object.keys(contentRequiredErrors({ ...form, source })).length) {
+      setShowErrors(true)
+      focusFirstInvalid(formRef.current)
+      return toast.error(REQUIRED_TOAST)
+    }
 
     setResolvingVoice(true)
     let voice_url: string
@@ -427,23 +314,19 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
     const sharedBody = {
       code: form.code?.trim() || null,
       title: form.title,
-      body: form.body,
+      ...contentSourceFields(source, form.body ?? '', isEdit ? { mode: initialSourceMode, fileUrl: editing!.file_content_url } : undefined),
       script: form.script,
-      file_content_url: form.file_content_url,
       voice_url,
       content_line_id: form.content_line_id || null,
       classification_id: form.classification_id || null,
       market,
     }
     if (!isEdit) {
+      if (!userId) return
       const body = { ...sharedBody, brand_type: brandType ?? 'DO_DA' }
-      if (userId) {
-        createEditorContent(userId, body as any)
-          .then(content => { qc.invalidateQueries({ queryKey: ['task-auto', 'contents'] }); toast.success('Đã thêm content'); onSuccess(content) })
-          .catch((e: any) => toast.error(e?.response?.data?.message || 'Không thể thêm content'))
-      } else {
-        createMut.mutate(body as any)
-      }
+      createEditorContent(userId, body as any)
+        .then(content => { qc.invalidateQueries({ queryKey: ['task-auto', 'contents'] }); toast.success('Đã thêm content'); onSuccess(content) })
+        .catch((e: any) => toast.error(e?.response?.data?.message || 'Không thể thêm content'))
     } else {
       updateMut.mutate({ id: editing!.id, body: { ...sharedBody, status: form.status } })
     }
@@ -474,7 +357,7 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
         </>
       }
     >
-      <div className="space-y-6">
+      <div ref={formRef} className="space-y-6">
 
         {/* ── Thông tin chính ── */}
         <div className="space-y-4">
@@ -493,27 +376,30 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
               placeholder="Nhập tiêu đề..."
               value={form.title ?? ''}
               onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+              error={errors.title}
             />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <CustomSelect
-              label="Tuyến nội dung"
+              label="Tuyến nội dung *"
+              placeholder="— Chọn tuyến —"
               value={form.content_line_id ?? ''}
               onChange={v => setForm(f => ({ ...f, content_line_id: v }))}
-              options={[
-                { value: '', label: '-- Không chọn --' },
-                ...(contentLines?.map(l => ({ value: l.id, label: l.name })) ?? []),
-              ]}
+              options={contentLines?.map(l => ({ value: l.id, label: l.name })) ?? []}
               searchable
               loading={loadingContentLines}
+              error={errors.line}
             />
             <CreatableSelect
-              label="Phân loại nội dung"
+              label="Phân loại nội dung *"
+              placeholder="— Chọn phân loại —"
               value={form.classification_id ?? ''}
               onChange={v => setForm(f => ({ ...f, classification_id: v }))}
               options={contentClassifications?.map(c => ({ value: c.id, label: c.name })) ?? []}
               createLabel="Thêm phân loại nội dung"
               loading={loadingContentClassifications}
+              required
+              error={errors.classification}
               onCreate={async (name) => {
                 const created = await createContentClassification(name)
                 qc.setQueryData<typeof contentClassifications>(['task-auto', 'content-classifications'], old => [...(old ?? []), created])
@@ -525,16 +411,20 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
           <MarketPicker label="Thị trường" value={market} onChange={setMarket} />
         </div>
 
-        {/* ── Nội dung văn bản ── */}
+        {/* ── Nội dung ── */}
         <div className="space-y-4">
-          <div className="flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest shrink-0">
-              Nội dung văn bản
-            </p>
-          </div>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <label className="block text-base font-semibold text-slate-700">Nội dung / Script</label>
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
+            Nội dung
+          </p>
+          <ContentSourcePicker
+            value={source}
+            onChange={setSource}
+            body={form.body ?? ''}
+            onBodyChange={body => setForm(f => ({ ...f, body }))}
+            textareaProps={{ rows: 12 }}
+            error={errors.source}
+            hideVideoLink={!isEdit}
+            headerAction={
               <button
                 type="button"
                 onClick={() => setShowScoreModal(true)}
@@ -547,19 +437,9 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
                     : 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed',
                 )}
               >
-                <Gauge className="w-3.5 h-3.5" /> Chấm điểm content
+                <Gauge className="w-3.5 h-3.5" /> Chấm điểm nội dung
               </button>
-            </div>
-            <DarkTextarea
-              rows={12}
-              placeholder="Nhập nội dung hoặc kịch bản..."
-              value={form.body ?? ''}
-              onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
-            />
-          </div>
-          <ContentFilePicker
-            value={form.file_content_url ?? ''}
-            onChange={url => setForm(f => ({ ...f, file_content_url: url }))}
+            }
           />
         </div>
 

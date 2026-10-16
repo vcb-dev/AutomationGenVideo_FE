@@ -17,6 +17,11 @@ interface Props {
   teamId?: string
   search?: string
   assigneeId?: string
+  contentLineId?: string
+  productLineId?: string
+  /** Khoảng ngày gửi yêu cầu duyệt (YYYY-MM-DD) — bộ lọc ngày chung của màn Nhiệm vụ */
+  dateFrom?: string
+  dateTo?: string
   page: number
   onPageChange: (page: number) => void
   canApproveReject: boolean
@@ -53,7 +58,7 @@ function SkeletonRows() {
   )
 }
 
-export function ContentApprovalList({ teamId, search, assigneeId, page, onPageChange, canApproveReject }: Props) {
+export function ContentApprovalList({ teamId, search, assigneeId, contentLineId, productLineId, dateFrom, dateTo, page, onPageChange, canApproveReject }: Props) {
   const qc = useQueryClient()
   const [rejectingId, setRejectingId] = useState<string | null>(null)
   const [rejectReason, setRejectReason] = useState('')
@@ -62,12 +67,16 @@ export function ContentApprovalList({ teamId, search, assigneeId, page, onPageCh
   const [viewing, setViewing] = useState<TaskContentApproval | null>(null)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'content-approvals', { teamId, search, assigneeId, page }],
+    queryKey: ['task-auto', 'content-approvals', { teamId, search, assigneeId, contentLineId, productLineId, dateFrom, dateTo, page }],
     queryFn: () => getContentApprovals({
       status: 'PENDING',
       team_id: teamId,
       assignee_id: assigneeId,
       search: search || undefined,
+      content_line_id: contentLineId,
+      product_line_id: productLineId,
+      date_from: dateFrom,
+      date_to: dateTo,
       page,
       limit: LIMIT,
     }),
@@ -218,7 +227,7 @@ export function ContentApprovalList({ teamId, search, assigneeId, page, onPageCh
       <DarkModal
         open
         onClose={() => setViewing(null)}
-        title={resolveApprovalTaskTitle(viewing.task) ?? 'Content chờ duyệt'}
+        title={resolveApprovalTaskTitle(viewing.task) ?? 'Nội dung chờ duyệt'}
         subtitle={[viewing.task?.team?.name, viewing.requested_by?.full_name && `Gửi bởi ${viewing.requested_by.full_name}`]
           .filter(Boolean).join(' · ')}
         size="lg"
