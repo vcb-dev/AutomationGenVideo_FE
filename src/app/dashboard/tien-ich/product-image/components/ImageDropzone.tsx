@@ -3,7 +3,8 @@
 import { ReactNode, useEffect, useRef, useState } from 'react';
 import { UploadCloud, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { PRODUCT_IMAGE_ACCEPT, validateProductImageFile } from '@/lib/product-image/upload-validation';
+import { PRODUCT_IMAGE_ACCEPT } from '@/lib/product-image/upload-validation';
+import { fitProductImageFile } from '@/lib/product-image/shrink-image';
 
 /** Nền kẻ ô để thấy rõ phần trong suốt của ảnh đã tách nền. */
 export const CHECKERBOARD_STYLE = {
@@ -11,8 +12,8 @@ export const CHECKERBOARD_STYLE = {
 };
 
 /**
- * Ô kéo-thả/chọn 1 ảnh, hiện luôn ảnh đã chọn. Kiểm định dạng + dung lượng ngay khi chọn
- * (khớp bộ lọc của BE) để người dùng không phải chờ tải lên mới biết file hỏng.
+ * Ô kéo-thả/chọn 1 ảnh, hiện luôn ảnh đã chọn. Kiểm định dạng ngay khi chọn (khớp bộ lọc của BE)
+ * để người dùng không phải chờ tải lên mới biết file hỏng; ảnh trên 10MB tự nén cho vừa.
  */
 export function ImageDropzone({
   title,
@@ -50,15 +51,19 @@ export function ImageDropzone({
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
-  const handleFiles = (files: FileList | null) => {
+  const [shrinking, setShrinking] = useState(false);
+
+  const handleFiles = async (files: FileList | null) => {
     const picked = files?.[0];
-    if (!picked || disabled) return;
-    const error = validateProductImageFile(picked);
-    if (error) {
-      toast.error(error);
+    if (!picked || disabled || shrinking) return;
+    setShrinking(true);
+    const fitted = await fitProductImageFile(picked).finally(() => setShrinking(false));
+    if (fitted.error !== undefined) {
+      toast.error(fitted.error);
       return;
     }
-    onFile(picked);
+    if (fitted.notice) toast.success(fitted.notice);
+    onFile(fitted.file);
   };
 
   const shownSrc = previewSrc ?? objectUrl;
@@ -116,10 +121,14 @@ export function ImageDropzone({
             <span className="text-sm text-[#1b1b1d]">
               Kéo thả ảnh vào đây hoặc <span className="text-[#4441cc] font-semibold underline underline-offset-2">chọn file</span>
             </span>
-            <span className="text-xs text-[#9c9aa8] mt-1">JPG, PNG, WebP · tối đa 10MB</span>
+            <span className="text-xs text-[#9c9aa8] mt-1">JPG, PNG, WebP · ảnh trên 10MB tự nén</span>
           </button>
         )}
-        {overlay && <div className="absolute inset-0 flex items-center justify-center bg-white/75">{overlay}</div>}
+        {(overlay || shrinking) && (
+          <div className="absolute inset-0 flex items-center justify-center bg-white/75">
+            {shrinking ? <span className="text-sm font-semibold text-[#4441cc]">Đang nén ảnh…</span> : overlay}
+          </div>
+        )}
       </div>
     </div>
   );

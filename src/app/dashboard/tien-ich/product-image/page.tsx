@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { BarChart3, Coins, Hand, Layers } from 'lucide-react';
+import { BarChart3, Hand, Layers } from 'lucide-react';
 import { useAuthStore } from '@/store/auth-store';
 import {
   canViewProductImageCosts,
@@ -10,14 +10,15 @@ import {
   productImageTabQuery,
   type ProductImageTab,
 } from '@/lib/product-image/cost-view';
-import { BackgroundComposer } from './components/BackgroundComposer';
+import { BatchGenerator } from './components/BatchGenerator';
 import { HeldProductGenerator } from './components/HeldProductGenerator';
 import { ProductImageCostPanel } from './components/ProductImageCostPanel';
 
 /**
  * Tiện ích → Tạo ảnh sản phẩm. Chỉ dành cho SP MỚI chưa về hàng (media chưa chụp được); SP đã
- * về thì lấy ảnh có sẵn từ media. Hai chế độ theo nhu cầu ảnh:
- *  - Ghép background: rembg tách nền rồi dán lên ảnh phòng — 0đ.
+ * về thì lấy ảnh có sẵn từ media. Các chế độ theo nhu cầu ảnh:
+ *  - Ghép background (mặc định, MỘT tab tự động, nhiều ảnh): thả ảnh SP là tự ra ảnh, không chỉnh
+ *    tay — tách nền 0đ (tự chạy) hoặc Gemini đặt vào cảnh (tính phí, xác nhận một lần mỗi lô).
  *  - Chị Nhạm cầm SP: Gemini thay SP trên tay — tính phí mỗi lượt.
  * Thêm tab Chi phí cho ADMIN/MANAGER (khớp @Roles của GET /product-image/costs).
  *
@@ -59,13 +60,13 @@ function ProductImagePageContent() {
           </p>
         </header>
 
-        <div className="flex items-center gap-6 border-b border-[#e2e0ea] mb-6">
+        <div className="flex flex-wrap items-center gap-x-6 border-b border-[#e2e0ea] mb-6">
           <button type="button" onClick={() => changeTab('background')} className={tabClass('background')}>
             <span className="inline-flex items-center gap-1.5">
               <Layers className="w-4 h-4" />
               Ghép background
-              <span className="ml-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-                Miễn phí
+              <span className="ml-1 rounded-full bg-[#4441cc]/10 border border-[#4441cc]/20 px-2 py-0.5 text-[11px] font-semibold text-[#4441cc]">
+                Tự động · nhiều ảnh
               </span>
             </span>
           </button>
@@ -73,9 +74,9 @@ function ProductImagePageContent() {
             <span className="inline-flex items-center gap-1.5">
               <Hand className="w-4 h-4" />
               Chị Nhạm cầm sản phẩm
-              <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
-                <Coins className="w-3 h-3" />
-                Tính phí
+              {/* Mặc định đổi SP 0đ (model tự huấn luyện); Gemini vẽ lại là lựa chọn tính phí trong tab. */}
+              <span className="ml-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                Đổi SP 0đ
               </span>
             </span>
           </button>
@@ -89,9 +90,9 @@ function ProductImagePageContent() {
           )}
         </div>
 
-        {/* Giữ hai chế độ tạo ảnh trong cây (chỉ ẩn) để đổi tab không mất ảnh đã chọn/ảnh đã tạo. */}
+        {/* Giữ các chế độ tạo ảnh trong cây (chỉ ẩn) để đổi tab không mất ảnh đã chọn/ảnh đã tạo. */}
         <div className={tab === 'background' ? '' : 'hidden'}>
-          <BackgroundComposer />
+          <BatchGenerator />
         </div>
         <div className={tab === 'held' ? '' : 'hidden'}>
           <HeldProductGenerator />

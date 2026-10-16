@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { AlertTriangle, CheckCircle2, Coins, Info, Layers, Loader2, RefreshCw, Sparkles, Table2, Wallet, XCircle } from 'lucide-react';
+import { AlertTriangle, ArrowLeftRight, CheckCircle2, Coins, Info, Layers, Loader2, RefreshCw, Sparkles, Table2, Wallet, XCircle } from 'lucide-react';
 import apiClient from '@/lib/api-client';
 import { DatePicker } from '@/components/ui/DatePicker';
 import { apiErrorMessage } from '@/lib/product-image/api-error';
@@ -20,6 +20,7 @@ import {
   formatRatio,
   formatUsd,
   formatVnd,
+  generationModeLabel,
   type ProductImageCostStats,
 } from '@/lib/product-image/cost-view';
 
@@ -133,7 +134,7 @@ export function ProductImageCostPanel() {
               {formatCount(stats.pricing.usd_vnd_rate)}đ.
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3">
               <Tile icon={<Wallet className="w-4 h-4 text-[#4441cc]" />} label="Tổng chi phí Gemini" value={formatVnd(t.cost_vnd)} sub={formatUsd(t.cost_usd)} />
               <Tile
                 icon={<Sparkles className="w-4 h-4 text-[#4441cc]" />}
@@ -155,9 +156,15 @@ export function ProductImageCostPanel() {
               />
               <Tile
                 icon={<Layers className="w-4 h-4 text-[#464554]" />}
-                label="Tách nền (miễn phí)"
+                label="Tách nền"
                 value={formatCount(t.cutouts)}
-                sub={t.cutout_failed ? `${formatCount(t.cutout_failed)} lượt lỗi` : 'Chạy trên máy chủ, 0đ'}
+                sub={`Nhận diện SP ${formatVnd(t.cutout_cost.cost_vnd)}` + (t.cutout_failed ? ` · ${formatCount(t.cutout_failed)} lượt lỗi` : '')}
+              />
+              <Tile
+                icon={<ArrowLeftRight className="w-4 h-4 text-[#464554]" />}
+                label="Đổi SP chị Nhạm (0đ)"
+                value={formatCount(t.swaps ?? 0)}
+                sub={t.swap_failed ? `${formatCount(t.swap_failed)} lượt lỗi` : 'Model tự huấn luyện, không tính phí'}
               />
             </div>
 
@@ -280,6 +287,7 @@ export function ProductImageCostPanel() {
                         <th className="text-right font-medium py-1.5 pr-2">Lượt tạo</th>
                         <th className="text-right font-medium py-1.5 pr-2">Ảnh đạt</th>
                         <th className="text-right font-medium py-1.5 pr-2">Tách nền</th>
+                        <th className="text-right font-medium py-1.5 pr-2">Đổi SP</th>
                         <th className="text-right font-medium py-1.5">Chi phí</th>
                       </tr>
                     </thead>
@@ -290,6 +298,7 @@ export function ProductImageCostPanel() {
                           <td className="py-1.5 pr-2 text-right">{formatCount(u.attempts)}</td>
                           <td className="py-1.5 pr-2 text-right">{formatCount(u.approved)}</td>
                           <td className="py-1.5 pr-2 text-right">{formatCount(u.cutouts)}</td>
+                          <td className="py-1.5 pr-2 text-right">{formatCount(u.swaps ?? 0)}</td>
                           <td className="py-1.5 text-right font-medium">{formatVnd(u.cost_vnd)}</td>
                         </tr>
                       ))}
@@ -327,7 +336,14 @@ export function ProductImageCostPanel() {
                                 ) : (
                                   <XCircle className="w-3.5 h-3.5 text-rose-600" aria-label="Lỗi" />
                                 )}
-                                {r.mode === 'CUTOUT' ? 'Tách nền' : r.product_name || 'Chị Nhạm cầm SP'}
+                                {r.mode === 'CUTOUT' ? (
+                                  generationModeLabel(r.mode)
+                                ) : (
+                                  <>
+                                    {r.product_name || generationModeLabel(r.mode)}
+                                    {r.product_name && <span className="text-[#9c9aa8]">· {generationModeLabel(r.mode)}</span>}
+                                  </>
+                                )}
                                 {r.approved && <span className="ml-1 rounded bg-emerald-50 px-1 text-emerald-700">Đạt</span>}
                               </span>
                               {r.status !== 'SUCCESS' && r.error_message && (
@@ -337,7 +353,7 @@ export function ProductImageCostPanel() {
                               )}
                             </td>
                             <td className="py-1.5 text-right whitespace-nowrap tabular-nums" title={r.cost_note ?? undefined}>
-                              {r.mode === 'CUTOUT' ? '0đ' : formatGenerationCost(r.cost_vnd)}
+                              {formatGenerationCost(r.cost_vnd)}
                             </td>
                           </tr>
                         ))}

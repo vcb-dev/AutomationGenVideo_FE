@@ -5,11 +5,13 @@
  */
 import { UserRole } from '@/types/auth';
 import {
+  DEFAULT_PRODUCT_IMAGE_TAB,
   canViewProductImageCosts,
   formatGenerationCost,
   formatRatio,
   formatUsd,
   formatVnd,
+  generationModeLabel,
   productImageTabFromParam,
   productImageTabQuery,
   summarizeSession,
@@ -31,18 +33,34 @@ describe('productImageTabFromParam / productImageTabQuery', () => {
     expect(productImageTabFromParam('costs', true)).toBe('costs');
   });
 
+  it('mặc định là Ghép background (một tab tự động, nhiều ảnh)', () => {
+    expect(DEFAULT_PRODUCT_IMAGE_TAB).toBe('background');
+  });
+
   it('không có quyền thì ?tab=costs rơi về tab mặc định', () => {
     expect(productImageTabFromParam('costs', false)).toBe('background');
   });
 
-  it('thiếu hoặc lạ → tab mặc định', () => {
+  it('thiếu, lạ, hoặc link cũ ?tab=batch → tab mặc định', () => {
     expect(productImageTabFromParam(null, true)).toBe('background');
     expect(productImageTabFromParam('khong-co', true)).toBe('background');
+    expect(productImageTabFromParam('batch', true)).toBe('background');
   });
 
   it('tab mặc định không cần query', () => {
     expect(productImageTabQuery('background')).toBe('');
+    expect(productImageTabQuery('held')).toBe('?tab=held');
     expect(productImageTabQuery('costs')).toBe('?tab=costs');
+  });
+});
+
+describe('generationModeLabel', () => {
+  it('đủ 4 chế độ, chế độ lạ giữ nguyên mã', () => {
+    expect(generationModeLabel('CUTOUT')).toBe('Tách nền');
+    expect(generationModeLabel('HELD_PRODUCT')).toBe('Chị Nhạm cầm SP');
+    expect(generationModeLabel('HELD_SWAP')).toBe('Đổi SP chị Nhạm (0đ)');
+    expect(generationModeLabel('SCENE_PLACEMENT')).toBe('Đặt vào cảnh');
+    expect(generationModeLabel('KHAC')).toBe('KHAC');
   });
 });
 

@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Check, RefreshCw, UploadCloud } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { BACKGROUND_PRESETS } from '@/lib/product-image/background-presets';
-import { PRODUCT_IMAGE_ACCEPT, validateProductImageFile } from '@/lib/product-image/upload-validation';
+import { PRODUCT_IMAGE_ACCEPT } from '@/lib/product-image/upload-validation';
+import { fitProductImageFile } from '@/lib/product-image/shrink-image';
 
 /** Giá trị `selected` khi dùng ảnh nền người dùng tự tải lên thay cho nền có sẵn. */
 export const UPLOADED_BACKGROUND = 'upload';
@@ -23,12 +24,18 @@ export function BackgroundPicker({
   uploadFile,
   onSelect,
   onUploadFile,
+  title = '2. Ảnh background phòng',
+  hint = 'Chọn nền có sẵn của phòng media hoặc tải ảnh phòng khác.',
+  disabled = false,
 }: {
   /** id nền có sẵn, hoặc `UPLOADED_BACKGROUND`. */
   selected: string;
   uploadFile: File | null;
   onSelect: (choice: string) => void;
   onUploadFile: (file: File) => void;
+  title?: string;
+  hint?: string;
+  disabled?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploadUrl, setUploadUrl] = useState<string | null>(null);
@@ -43,25 +50,27 @@ export function BackgroundPicker({
     return () => URL.revokeObjectURL(url);
   }, [uploadFile]);
 
-  // Kiểm định dạng + dung lượng ngay khi chọn, cùng bộ lọc với ô ảnh sản phẩm.
-  const handleFiles = (files: FileList | null) => {
+  // Kiểm định dạng ngay khi chọn, ảnh trên 10MB tự nén — cùng cách với ô ảnh sản phẩm.
+  const handleFiles = async (files: FileList | null) => {
     const picked = files?.[0];
-    if (!picked) return;
-    const error = validateProductImageFile(picked);
-    if (error) {
-      toast.error(error);
+    // fieldset disabled chặn bấm nhưng không chặn kéo-thả.
+    if (!picked || disabled) return;
+    const fitted = await fitProductImageFile(picked);
+    if (fitted.error !== undefined) {
+      toast.error(fitted.error);
       return;
     }
-    onUploadFile(picked);
+    if (fitted.notice) toast.success(fitted.notice);
+    onUploadFile(fitted.file);
   };
 
   const uploadActive = selected === UPLOADED_BACKGROUND && !!uploadUrl;
 
   return (
     <div>
-      <h3 className="text-sm font-bold text-[#1b1b1d] mb-0.5">2. Ảnh background phòng</h3>
-      <p className="text-xs text-[#9c9aa8] mb-2">Chọn nền có sẵn của phòng media hoặc tải ảnh phòng khác.</p>
-      <div className="grid grid-cols-3 gap-2">
+      <h3 className="text-sm font-bold text-[#1b1b1d] mb-0.5">{title}</h3>
+      <p className="text-xs text-[#9c9aa8] mb-2">{hint}</p>
+      <fieldset disabled={disabled} className="grid grid-cols-3 gap-2 disabled:opacity-50">
         {BACKGROUND_PRESETS.map((preset) => {
           const active = selected === preset.id;
           return (
@@ -135,8 +144,8 @@ export function BackgroundPicker({
             </button>
           )}
         </div>
-      </div>
-      <p className="text-[11px] text-[#9c9aa8] mt-1.5">Ảnh tải lên: JPG, PNG, WebP · tối đa 10MB</p>
+      </fieldset>
+      <p className="text-[11px] text-[#9c9aa8] mt-1.5">Ảnh tải lên: JPG, PNG, WebP · ảnh trên 10MB tự nén</p>
     </div>
   );
 }

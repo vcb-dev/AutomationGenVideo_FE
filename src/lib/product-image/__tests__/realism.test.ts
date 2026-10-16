@@ -4,6 +4,8 @@
  * với nền, đáy sản phẩm tối lại sát mặt phẳng.
  */
 import {
+  addedWarmth,
+  sameLightAsScene,
   DEFAULT_SHADOW_HEIGHT,
   DEFAULT_SHADOW_STRENGTH,
   REAL_SHADOW_PROFILE,
@@ -19,6 +21,25 @@ import {
   unpremultiplyEdges,
   shadowProfileAt,
   shadowSizeReference,
+  FALLOFF_MAX,
+  FALLOFF_MIN,
+  REAL_TOP_LIGHT_DIFF,
+  SURFACE_POOL_MAX,
+  chooseFalloff,
+  footprint,
+  lightness,
+  medianLightness,
+  surfacePoolStrength,
+  brightenProduct,
+  PRODUCT_EXPOSURE,
+  PRODUCT_EXPOSURE_MAX,
+  PRODUCT_EXPOSURE_MIN,
+  REFERENCE_SCENE_L,
+  STUDIO_BODY_PROFILE,
+  STUDIO_STRENGTH,
+  analyzeSceneLight,
+  studioRowFactors,
+  productExposureFor,
 } from '../realism';
 
 /** Ảnh RGBA: `solid(x, y)` = true thì điểm đó thuộc sản phẩm (màu xám 200, alpha 255). */
@@ -36,7 +57,7 @@ function makeImage(width: number, height: number, solid: (x: number, y: number) 
 
 /** Độ sáng còn lại (1 − độ tối) tại (x, y) của lớp bóng. */
 const brightnessAt = (layer: ReturnType<typeof buildShadowLayer>, x: number, y: number) =>
-  1 - layer.alpha[y * layer.width + x] / 255;
+  1 - layer.alpha[y * layer.width + x + layer.padX] / 255;
 
 describe('mặc định đã chốt', () => {
   it('độ đậm 100% (đúng ảnh thật), độ cao 1,8 lần', () => {
@@ -105,8 +126,30 @@ describe('buildShadowLayer — hình dáng', () => {
       for (let y = from; y < layer.height; y += 1) if (brightnessAt(layer, x, y) < 0.97) last = y;
       return last - from;
     };
-    // Dưới chân (cột giữa) và dưới mép nhấc lên: bóng mép không được dài quá 1,6 lần bóng chân.
-    expect(reachOf(1, 380)).toBeLessThanOrEqual(reachOf(100, 400) * 1.6 + 2);
+    // Dưới chân (cột giữa) và dưới mép nhấc lên: bóng mép không được dài quá 1,6 lần bóng chân. Đo từ mặt
+    // sàn (y = 400): cột mép sát chân còn nhận bóng lan sang bên của chân — bóng đó nằm trên mặt sàn.
+    expect(reachOf(1, 400)).toBeLessThanOrEqual(reachOf(100, 400) * 1.6 + 2);
+  });
+
+  it('bóng lan sang hai bên đáy: mặt sàn sát mép đáy tối lại, xa mép thì hết, dưới đáy giữ số đo ảnh thật', () => {
+    // Thân 200x400 đứng giữa ảnh rộng 400 (cột 100..299 đặc).
+    const product = makeImage(400, 400, (x) => x >= 100 && x < 300);
+    const layer = buildShadowLayer(product, 400, 400, 1, 1.8);
+    expect(brightnessAt(layer, 94, 404)).toBeLessThan(0.9);         // ngay ngoài mép trái, sát sàn
+    expect(brightnessAt(layer, 305, 404)).toBeLessThan(0.9);        // ngay ngoài mép phải
+    expect(brightnessAt(layer, 40, 404)).toBeGreaterThan(0.99);     // xa mép: không còn bóng
+    expect(brightnessAt(layer, 94, 404)).toBeGreaterThan(brightnessAt(layer, 200, 404)); // vẫn nhạt hơn dưới đáy
+  });
+
+  it('dây/khoá thòng thấp hơn thân: lấy đáy THÂN làm chỗ chạm mặt phẳng — thân vẫn có bóng sát đáy đậm (soát 15/10)', () => {
+    // Thân 200x300 (cột 100..299, hàng 0..299) + dây mảnh 4px thòng xuống tới hàng 399 ở cột 120..123.
+    const product = makeImage(400, 400, (x, y) => (x >= 100 && x < 300 && y < 300) || (x >= 120 && x < 124));
+    const byLowest = buildShadowLayer(product, 400, 400, 1, 1.8);
+    const byBody = buildShadowLayer(product, 400, 400, 1, 1.8, 299);
+    expect(brightnessAt(byLowest, 220, 301)).toBeGreaterThan(0.9);   // cách cũ: thân bị coi là nhấc lên, gần như không bóng
+    expect(brightnessAt(byBody, 220, 301)).toBeLessThan(0.3);        // đáy thân sát mặt phẳng gần đen như ảnh thật
+    expect(brightnessAt(byBody, 121, 401)).toBeLessThan(0.5);        // dây cũng có bóng sát mép dưới của nó
+    expect(footprint(product, 400, 400, 299)).toEqual({ left: 100, right: 299, bottom: 299 });
   });
 
   it('không có điểm đặc nào hoặc độ đậm 0 → lớp bóng trống', () => {
@@ -134,6 +177,16 @@ describe('applySelfOcclusion', () => {
     expect(valueAt(500)).toBe(200);
     expect(valueAt(999)).toBeLessThan(200 * 0.3);
     expect(valueAt(900)).toBeLessThan(200);
+  });
+
+  it('có đáy thân: tối theo đáy thân, phần dây thòng thấp hơn không bị tối thêm', () => {
+    const width = 4;
+    const height = 1000;
+    const data = makeImage(width, height, () => true);
+    applySelfOcclusion(data, width, height, 1, 1.8, 799);
+    const valueAt = (y: number) => data[(y * width) * 4];
+    expect(valueAt(799)).toBeLessThan(200 * 0.3);
+    expect(valueAt(900)).toBe(200);
   });
 });
 
@@ -302,5 +355,139 @@ describe('applyLook', () => {
     const data = new Uint8ClampedArray(8 * 8 * 4);
     applyLook(data, 8, 8, 1);
     expect(Math.max(...Array.from(data))).toBe(0);
+  });
+});
+
+describe('ánh sáng khớp ảnh chụp thật (đo 100 ảnh phòng media, 10/10)', () => {
+  it('lightness: trắng 100, đen 0, xám giữa ~53,6', () => {
+    expect(lightness(255, 255, 255)).toBeCloseTo(100, 1);
+    expect(lightness(0, 0, 0)).toBeCloseTo(0, 5);
+    expect(lightness(128, 128, 128)).toBeCloseTo(53.6, 0);
+  });
+
+  it('medianLightness bỏ điểm trong suốt và kẹp vùng trong ảnh', () => {
+    const data = makeImage(10, 10, (x) => x < 5, [255, 255, 255]);
+    expect(medianLightness(data, 10, 10, -5, -5, 20, 20, 1)).toBeCloseTo(100, 1);
+    expect(medianLightness(data, 10, 10, 6, 0, 10, 10, 1)).toBeNull();
+  });
+
+  it('mặt đặt sáng hơn vùng quanh SP nhiều hơn ảnh thật → tối lại, có trần; mặt đặt vốn tối → không đổi', () => {
+    expect(surfacePoolStrength(49, 31.5)).toBeCloseTo(SURFACE_POOL_MAX, 5);   // nền mẫu: mặt hộp sáng trưng
+    const mild = surfacePoolStrength(36, 31.5);
+    expect(mild).toBeGreaterThan(0);
+    expect(mild).toBeLessThan(SURFACE_POOL_MAX);
+    expect(surfacePoolStrength(21, 19.3)).toBe(0);                              // như ảnh thật (≤ quanh + 2,6)
+    expect(surfacePoolStrength(null, 20)).toBe(0);
+  });
+
+  it('SP chụp đều sáng → chọn độ tối dần để trên sáng hơn dưới đúng mức ảnh thật', () => {
+    const width = 20;
+    const height = 60;
+    const data = makeImage(width, height, () => true, [170, 120, 80]);
+    const range = chooseFalloff(data, width, height, 0, height - 1, [1, 1, 1]);
+    expect(range).toBeGreaterThanOrEqual(FALLOFF_MIN);
+    expect(range).toBeLessThanOrEqual(FALLOFF_MAX);
+    const l = (t: number) => lightness(170 * (1.04 - range * t), 120 * (1.04 - range * t), 80 * (1.04 - range * t));
+    const topMean = (l(0) + l(1 / 3)) / 2;
+    const bottomMean = (l(2 / 3) + l(1)) / 2;
+    expect(Math.abs(topMean - bottomMean - REAL_TOP_LIGHT_DIFF)).toBeLessThan(2.5);
+  });
+
+  it('SP chụp đã sáng trên tối dưới rất mạnh → chỉ thêm mức thấp nhất', () => {
+    const width = 20;
+    const height = 60;
+    const data = makeImage(width, height, () => true, [200, 200, 200]);
+    for (let y = 30; y < height; y += 1) for (let x = 0; x < width; x += 1) data.set([60, 60, 60], (y * width + x) * 4);
+    expect(chooseFalloff(data, width, height, 0, height - 1, [1, 1, 1])).toBe(FALLOFF_MIN);
+  });
+
+  it('footprint: phần đáy chạm mặt phẳng, bỏ cột nhấc lên', () => {
+    const data = makeImage(100, 100, (x, y) => x >= 20 && x < 80 && (x < 70 || y < 60));
+    expect(footprint(data, 100, 100)).toEqual({ left: 20, right: 69, bottom: 99 });
+    expect(footprint(new Uint8ClampedArray(10 * 10 * 4), 10, 10)).toBeNull();
+  });
+});
+
+describe('SP sáng lên mà không cháy', () => {
+  it('SP sáng lên ở vùng tối/trung bình, gần trắng thì gần như giữ nguyên, không đổi alpha', () => {
+    const data = new Uint8ClampedArray([60, 60, 60, 255, 128, 100, 70, 200, 250, 250, 250, 255, 30, 30, 30, 0]);
+    brightenProduct(data, 1.15);
+    expect(data[0]).toBeGreaterThan(60);
+    expect(lightness(data[4], data[5], data[6])).toBeGreaterThan(lightness(128, 100, 70));
+    expect(data[4]).toBeGreaterThan(data[5]);                  // giữ tông màu (đỏ > lục > lam)
+    expect(data[5]).toBeGreaterThan(data[6]);
+    expect(data[7]).toBe(200);
+    expect(data[8]).toBeGreaterThanOrEqual(250);
+    expect(data[8]).toBeLessThanOrEqual(252);                  // gần trắng: không cháy
+    expect(Array.from(data.slice(12))).toEqual([30, 30, 30, 0]); // điểm trong suốt không đụng
+  });
+});
+
+describe('đèn studio trên thân túi và độ sáng SP theo cảnh (đo lại 12/10 trên 457 ảnh thật Tháng 7–9)', () => {
+  const bandMean = (data: Uint8ClampedArray, width: number, y0: number, y1: number) => {
+    let sum = 0, n = 0;
+    for (let y = y0; y < y1; y += 1) for (let x = 0; x < width; x += 1) { sum += lightness(data[(y * width + x) * 4], data[(y * width + x) * 4 + 1], data[(y * width + x) * 4 + 2]); n += 1; }
+    return sum / n;
+  };
+
+  it('SP chụp sáng đều → mép trên thân sáng lên, giữa gần như giữ, dưới tối đi; không lệch trái/phải', () => {
+    const width = 60;
+    const height = 120;
+    const data = makeImage(width, height, () => true, [150, 120, 100]);
+    const factors = studioRowFactors(data, width, height, [0, 0, width, height], [1, 1, 1]);
+    expect(factors).not.toBeNull();
+    expect(factors![5]).toBeGreaterThan(1.03);            // dải trên cùng
+    expect(Math.abs(factors![50] - 1)).toBeLessThan(0.03); // giữa thân
+    expect(factors![100]).toBeLessThan(1);                // dải dưới
+    applyLook(data, width, height, 0, 3, [0, 0, width, height]);
+    // SP sáng đều thì mép trên được bù ≈ STUDIO_STRENGTH × (dải trên − dải giữa) của kiểu studio; đòi ít nhất
+    // một nửa mức đó (các dải chuyển mượt nên dải đo không đạt trọn) — tính theo hằng số, đo lại không phải sửa.
+    const expectedLift = STUDIO_STRENGTH * (STUDIO_BODY_PROFILE[0] - STUDIO_BODY_PROFILE[2]);
+    expect(bandMean(data, width, 0, 20) - bandMean(data, width, 50, 70)).toBeGreaterThan(expectedLift / 2);
+    // trái/phải cùng hàng như nhau (không đánh đèn lệch một bên)
+    const at = (x: number, y: number) => data[(y * width + x) * 4];
+    expect(Math.abs(at(5, 60) - at(54, 60))).toBeLessThanOrEqual(6);
+  });
+
+  it('SP đã có đèn trên rất mạnh → không sáng chồng thêm ở trên', () => {
+    const width = 60;
+    const height = 120;
+    const data = makeImage(width, height, (x, y) => true, [150, 120, 100]);
+    for (let y = 0; y < 20; y += 1) for (let x = 0; x < width; x += 1) data.set([250, 230, 215], (y * width + x) * 4);
+    const factors = studioRowFactors(data, width, height, [0, 0, width, height], [1, 1, 1]);
+    expect(factors![5]).toBeLessThanOrEqual(1);
+  });
+
+  it('khung thân quá nhỏ hoặc không có điểm thân → không áp kiểu studio', () => {
+    expect(studioRowFactors(new Uint8ClampedArray(20 * 20 * 4), 20, 20, [0, 0, 20, 20], [1, 1, 1])).toBeNull();
+    expect(studioRowFactors(makeImage(20, 20, () => true), 20, 20, [0, 0, 3, 3], [1, 1, 1])).toBeNull();
+  });
+
+  it('analyzeSceneLight: độ sáng cảnh = trung vị L* cả ảnh nền', () => {
+    expect(analyzeSceneLight(makeImage(40, 40, () => true, [128, 128, 128]), 40, 40).lightness).toBeCloseTo(53.6, 0);
+  });
+
+  it('productExposureFor: cảnh như nền mẫu → mức chuẩn; cảnh sáng hơn → sáng hơn; luôn trong khoảng', () => {
+    expect(productExposureFor(REFERENCE_SCENE_L)).toBeCloseTo(PRODUCT_EXPOSURE, 5);
+    expect(productExposureFor(50)).toBeGreaterThan(PRODUCT_EXPOSURE);
+    expect(productExposureFor(90)).toBe(PRODUCT_EXPOSURE_MAX);
+    expect(productExposureFor(2)).toBe(PRODUCT_EXPOSURE_MIN);
+  });
+});
+
+
+
+describe('ánh sáng nơi chụp SP so với nền (kiểm chứng 15/10 trên ảnh chụp thật)', () => {
+  it('chỉ nhuộm ấm phần nền ấm hơn nơi chụp', () => {
+    expect(addedWarmth(1, 0)).toBe(1);        // ảnh catalog phông trắng → nhuộm đủ
+    expect(addedWarmth(1, 0.9)).toBeCloseTo(0.1);
+    expect(addedWarmth(0.5, 1)).toBe(0);      // nơi chụp ấm hơn nền → không nhuộm
+  });
+
+  it('chụp dưới cùng kiểu đèn với nền thì giữ ánh sáng gốc', () => {
+    expect(sameLightAsScene(1, 0.95)).toBe(true);
+    expect(sameLightAsScene(1, 0.46)).toBe(true);   // ảnh shop ấm thấp nhất đo được
+    expect(sameLightAsScene(1, 0)).toBe(false);     // ảnh catalog phông trắng
+    expect(sameLightAsScene(0, 0)).toBe(false);     // nền trung tính: luôn chỉnh ánh sáng như cũ
   });
 });

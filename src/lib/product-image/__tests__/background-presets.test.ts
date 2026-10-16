@@ -8,9 +8,13 @@ import { PLACEMENT_SCALE_MIN, computeDrawRect, type DrawRect, type Size } from '
 import {
   BACKGROUND_PRESETS,
   DEFAULT_BACKGROUND_PRESET_ID,
+  BOX_WIDTH_CM,
+  UPLOADED_BACKGROUND_LAYOUT,
   findBackgroundPreset,
+  placementForBody,
   placementForPreset,
   type BackgroundPreset,
+  type BodyBox,
 } from '../background-presets';
 
 const PUBLIC_DIR = path.join(__dirname, '../../../../public');
@@ -18,7 +22,8 @@ const PUBLIC_DIR = path.join(__dirname, '../../../../public');
 /** Kích thước ảnh gốc lúc đo chỗ đặt SP — đổi ảnh khác cỡ thì phải đo lại số trong background-presets. */
 const MEASURED_SIZES: Record<string, Size> = {
   'shelf-box-portrait': { width: 1707, height: 2560 },
-  'shelf-box-landscape': { width: 2560, height: 1707 },
+  // Ảnh thay 13/10, đo lại chỗ đặt SP theo ảnh này.
+  'shelf-box-landscape': { width: 2540, height: 1694 },
 };
 
 /** Đọc kích thước từ khung SOF của file JPEG, khỏi cần thư viện ảnh. */
@@ -119,5 +124,98 @@ describe('placementForPreset', () => {
     expect(placement.scale).toBe(PLACEMENT_SCALE_MIN);
     const rect = computeDrawRect(background, { width: 400, height: 400 }, placement);
     expect(footOf(rect).y).toBeCloseTo(tiny.foot.y * background.height, 6);
+  });
+});
+
+describe('UPLOADED_BACKGROUND_LAYOUT — ảnh nền tự tải lên, không chỉnh tay', () => {
+  const background: Size = { width: 1080, height: 1920 };
+
+  it('SP đứng giữa ảnh, chân ở 85% chiều cao, cao một nửa ảnh', () => {
+    // Túi cao 960px thì rộng 480px = 44% ảnh — chưa chạm trần bề ngang 60%.
+    const product = { width: 400, height: 800 };
+    const rect = computeDrawRect(background, product, placementForPreset(UPLOADED_BACKGROUND_LAYOUT, background, product));
+    expect(footOf(rect).x).toBeCloseTo(background.width / 2, 0);
+    expect(footOf(rect).y).toBeCloseTo(background.height * 0.85, 0);
+    expect(rect.height).toBeCloseTo(background.height * 0.5, 0);
+  });
+
+  it('SP bề ngang quá khổ thu nhỏ cho rộng tối đa 60% ảnh, vẫn nằm trong khung', () => {
+    const product = { width: 2000, height: 500 };
+    const rect = computeDrawRect(background, product, placementForPreset(UPLOADED_BACKGROUND_LAYOUT, background, product));
+    expect(rect.width).toBeCloseTo(background.width * 0.6, 0);
+    expect(rect.x).toBeGreaterThanOrEqual(0);
+    expect(rect.x + rect.width).toBeLessThanOrEqual(background.width);
+    expect(footOf(rect).y).toBeCloseTo(background.height * 0.85, 0);
+  });
+});
+
+describe('placementForBody — mọi túi cùng cỡ thân, đáy thân đứng đúng mặt hộp', () => {
+  const preset = findBackgroundPreset('shelf-box-portrait') as BackgroundPreset;
+  const background = MEASURED_SIZES['shelf-box-portrait'];
+  const bodyRect = (product: Size, body: BodyBox) => {
+    const rect = computeDrawRect(background, product, placementForBody(preset, background, product, body));
+    const f = rect.width / product.width;
+    return { rect, f, x0: rect.x + body[0] * f, y0: rect.y + body[1] * f, x1: rect.x + body[2] * f, y1: rect.y + body[3] * f };
+  };
+  const size = (b: { x0: number; y0: number; x1: number; y1: number }) => Math.sqrt((b.x1 - b.x0) * (b.y1 - b.y0));
+
+  // Hai ảnh thật người dùng thử (kích thước ảnh tách nền đo trong log): túi quai dựng cao và túi dây trải ngang.
+  const tall = { product: { width: 768, height: 1193 }, body: [0, 520, 768, 1193] as BodyBox };
+  const wide = { product: { width: 1984, height: 832 }, body: [600, 250, 1384, 832] as BodyBox };
+
+  it('túi quai cao và túi dây ngang có cùng độ lớn thân (trước đây chênh gấp đôi)', () => {
+    const a = bodyRect(tall.product, tall.body);
+    const b = bodyRect(wide.product, wide.body);
+    expect(size(a)).toBeCloseTo(preset.bodySize * background.height, 0);
+    expect(size(b)).toBeCloseTo(preset.bodySize * background.height, 0);
+  });
+
+  it('đáy thân túi (không phải đáy dây/quai) nằm đúng chỗ đo trên mặt hộp, giữa thân đúng tâm', () => {
+    for (const { product, body } of [tall, wide]) {
+      const b = bodyRect(product, body);
+      expect(b.y1).toBeCloseTo(preset.foot.y * background.height, 0);
+      expect((b.x0 + b.x1) / 2).toBeCloseTo(preset.foot.x * background.width, 0);
+    }
+  });
+
+  it('thân quá rộng thì thu lại cho vừa mặt hộp', () => {
+    const b = bodyRect({ width: 3000, height: 600 }, [0, 100, 3000, 600]);
+    expect(b.x1 - b.x0).toBeCloseTo(preset.maxProductWidth * background.width, 0);
+  });
+
+  it('quai rất cao thì thu lại để không trồi khỏi mép trên ảnh', () => {
+    const b = bodyRect({ width: 400, height: 4000 }, [0, 3600, 400, 4000]);
+    expect(b.rect.y).toBeGreaterThanOrEqual(-0.5);
+  });
+});
+
+
+describe('placementForBody theo bề ngang thật (cm) — túi đúng cỡ so với hộp gỗ BOX_WIDTH_CM', () => {
+  // Túi dẹt quai thấp — không chạm luật "quai không trồi khỏi mép trên" (túi to quai cao trên nền ngang thì chạm, đúng
+  // như khung hình thật chỉ cao ~40cm phía trên mặt hộp).
+  const body = [100, 100, 700, 400] as BodyBox;
+  const product = { width: 800, height: 420 };
+  it.each(BACKGROUND_PRESETS.map((p) => [p.id, p] as const))('%s: thân rộng đúng cm/BOX_WIDTH_CM bề ngang hộp ở hàng chân', (id, preset) => {
+    const background = MEASURED_SIZES[id];
+    const widthOf = (cm: number) => {
+      const rect = computeDrawRect(background, product, placementForBody(preset, background, product, body, cm));
+      return ((body[2] - body[0]) * rect.width) / product.width;
+    };
+    const box = preset.boxWidth * background.width;
+    expect(widthOf(22) / box).toBeCloseTo(22 / BOX_WIDTH_CM, 2);
+    expect(widthOf(11) / box).toBeCloseTo(11 / BOX_WIDTH_CM, 2);
+    expect(widthOf(22) / widthOf(11)).toBeCloseTo(2, 2);             // túi 22cm rộng gấp đôi ví 11cm
+  });
+
+  it('hộp gỗ trong nền rộng 37cm (người dùng đo thước: dài 37 × rộng 34 × cao 19,5cm, mặt có khoá là cạnh 37)', () => {
+    expect(BOX_WIDTH_CM).toBe(37);
+  });
+
+  it('không biết cm hoặc nền tự tải lên (không số đo hộp) → cách đặt cũ, mọi túi cùng độ lớn thân', () => {
+    const preset = findBackgroundPreset('shelf-box-portrait') as BackgroundPreset;
+    const background = MEASURED_SIZES['shelf-box-portrait'];
+    expect(placementForBody(preset, background, product, body, null)).toEqual(placementForBody(preset, background, product, body));
+    expect(placementForBody(UPLOADED_BACKGROUND_LAYOUT, background, product, body, 25))
+      .toEqual(placementForBody(UPLOADED_BACKGROUND_LAYOUT, background, product, body));
   });
 });

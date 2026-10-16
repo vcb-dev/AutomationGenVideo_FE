@@ -39,6 +39,16 @@ const MAX_LIFT_STRETCH = 1.6;
 
 const ALPHA_SOLID = 128;
 
+/**
+ * Bóng lan sang hai bên đáy: mặt hộp ngay cạnh đáy SP cũng bị chính SP che bớt ánh đèn trần — ảnh chụp
+ * thật có bóng rộng hơn đáy một chút, còn bóng theo từng cột chỉ nằm đúng dưới đáy nên túi trông như
+ * "đặt hờ" (người dùng thấy ảnh ghép giả, 10/10). Dưới đáy giữ nguyên số đo ảnh thật; chỉ phần lan ra
+ * ngoài mép đáy là mới, nhạt dần theo khoảng cách tới mép.
+ */
+const SIDE_SPREAD = 0.09;
+/** Ở mép đáy bóng lan còn bằng độ tối sát đáy × hệ số này. */
+const SIDE_STRENGTH = 0.7;
+
 // ─── Bóng dưới chân ────────────────────────────────────────────────────────
 
 /**
@@ -75,8 +85,40 @@ export function bottomEdges(rgba: ArrayLike<number>, width: number, height: numb
   return edges;
 }
 
+/**
+ * Hàng đáy chạm mặt phẳng: đáy THÂN túi (`baseline`, từ khung thân AI trả) nếu có, không thì hàng thấp nhất có điểm đặc.
+ * Lấy hàng thấp nhất khi có dây/khoá thòng thấp hơn thân (soát 15/10: khoá Picotin, dây đeo trải phía trước) thì thân
+ * túi bị coi là "nhấc lên" → gần như không có bóng sát đáy → túi trông lơ lửng.
+ */
+function contactRow(lowest: number, baseline?: number | null): number {
+  return baseline !== undefined && baseline !== null && baseline >= 0 ? Math.min(lowest, Math.round(baseline)) : lowest;
+}
+
+/** Phần đáy chạm mặt phẳng: cột trái/phải và hàng đáy (cột lệch khỏi hàng đáy quá CONTACT_TOLERANCE không tính). */
+export function footprint(
+  rgba: ArrayLike<number>, width: number, height: number, baseline?: number | null,
+): { left: number; right: number; bottom: number } | null {
+  const edges = bottomEdges(rgba, width, height);
+  let lowest = -1;
+  for (let x = 0; x < width; x += 1) lowest = Math.max(lowest, edges[x]);
+  if (lowest < 0) return null;
+  const bottom = contactRow(lowest, baseline);
+  let left = -1;
+  let right = -1;
+  for (let x = 0; x < width; x += 1) {
+    if (edges[x] >= 0 && Math.abs(bottom - edges[x]) <= height * CONTACT_TOLERANCE) {
+      if (left < 0) left = x;
+      right = x;
+    }
+  }
+  return { left, right, bottom };
+}
+
 export interface ShadowLayer {
+  /** = chiều rộng sản phẩm + 2 × padX */
   width: number;
+  /** Lề thêm mỗi bên (px, theo ảnh sản phẩm) để bóng lan ra ngoài hai mép đáy không bị cắt thẳng. */
+  padX: number;
   /** = chiều cao sản phẩm + phần kéo dài xuống dưới để chứa bóng */
   height: number;
   /** Độ tối 0..255 của từng điểm (lớp đen phủ lên nền: nền × (1 − alpha/255)). */
@@ -144,20 +186,45 @@ function blurColumns(values: Float32Array, width: number, height: number, sigma:
  */
 export function buildShadowLayer(
   rgba: ArrayLike<number>,
-  width: number,
+  productWidth: number,
   height: number,
   strength = DEFAULT_SHADOW_STRENGTH,
   heightFactor = DEFAULT_SHADOW_HEIGHT,
+  baseline?: number | null,
 ): ShadowLayer {
+  // Lớp bóng rộng hơn ảnh SP mỗi bên padX: bóng lan ra ngoài mép đáy (SIDE_SPREAD, tới 2 lần độ lan + phần làm mềm)
+  // từng bị cắt đúng mép ảnh SP thành 2 cạnh dọc — trên hộp gỗ trông như tấm kính dưới đáy túi (soát 15/10, lộ ra khi
+  // ảnh tách nền được cắt sát túi).
+  const padX = Math.ceil(productWidth * (SIDE_SPREAD * 2 + 0.02)) + 2;
+  const width = productWidth + 2 * padX;
+  const padded = new Uint8ClampedArray(width * height * 4);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < productWidth; x += 1) {
+      const from = (y * productWidth + x) * 4;
+      const to = (y * width + x + padX) * 4;
+      padded[to] = rgba[from];
+      padded[to + 1] = rgba[from + 1];
+      padded[to + 2] = rgba[from + 2];
+      padded[to + 3] = rgba[from + 3];
+    }
+  }
+  rgba = padded;
   const edges = bottomEdges(rgba, width, height);
-  let bottom = -1;
-  for (let x = 0; x < width; x += 1) bottom = Math.max(bottom, edges[x]);
-  if (bottom < 0 || strength <= 0) return { width, height, alpha: new Uint8ClampedArray(width * height) };
+  let lowest = -1;
+  for (let x = 0; x < width; x += 1) lowest = Math.max(lowest, edges[x]);
+  if (lowest < 0 || strength <= 0) return { width, padX, height, alpha: new Uint8ClampedArray(width * height) };
+  // Cột thấp hơn hàng đáy (dây/khoá thòng xuống) có bóng sát mép dưới của chính nó như phần chạm mặt phẳng.
+  const bottom = contactRow(lowest, baseline);
 
-  const scale = shadowSizeReference(width, height) / REAL_PROFILE_PRODUCT_HEIGHT;
+  const scale = shadowSizeReference(productWidth, height) / REAL_PROFILE_PRODUCT_HEIGHT;
   const lastDistance = REAL_SHADOW_PROFILE[REAL_SHADOW_PROFILE.length - 1][0];
   const columns: { x: number; b: number; fade: number; stretch: number; reach: number; isLifted: boolean }[] = [];
   let layerHeight = height;
+  // Phần đáy chạm mặt phẳng (cột không nhấc lên) — nơi bóng lan sang hai bên.
+  const foot = footprint(rgba, width, height, bottom);
+  const footLeft = foot ? foot.left : -1;
+  const footRight = foot ? foot.right : -1;
+  const footWidth = footRight - footLeft + 1;
   for (let x = 0; x < width; x += 1) {
     const b = edges[x];
     if (b < 0) continue;
@@ -194,17 +261,42 @@ export function buildShadowLayer(
       if (value < target[index]) target[index] = value;
     }
   }
-  blurRows(contact, width, layerHeight, Math.max(1, width * 0.004));
+  blurRows(contact, width, layerHeight, Math.max(1, productWidth * 0.004));
   if (hasLifted) {
-    blurRows(lifted, width, layerHeight, Math.max(2, width * 0.02));
+    blurRows(lifted, width, layerHeight, Math.max(2, productWidth * 0.02));
     blurColumns(lifted, width, layerHeight, Math.max(1, height * 0.01));
   }
   const factor = new Float32Array(width * layerHeight);
   for (let i = 0; i < factor.length; i += 1) factor[i] = Math.min(contact[i], lifted[i]);
+  // Bóng lan ra ngoài hai mép đáy: cùng đường cong độ sâu như ảnh thật, nhạt dần theo khoảng cách tới mép.
+  // Lấy min với bóng đã có nên dưới đáy vẫn đúng số đo ảnh thật.
+  if (footLeft >= 0) {
+    const spread = Math.max(2, footWidth * SIDE_SPREAD);
+    const stretch = heightFactor;
+    const reach = Math.ceil(lastDistance * scale * stretch) + 2;
+    layerHeight = Math.max(layerHeight, bottom + 1 + reach);
+    const grown = new Float32Array(width * layerHeight).fill(1);
+    grown.set(factor.subarray(0, Math.min(factor.length, grown.length)));
+    for (let x = Math.max(0, Math.floor(footLeft - spread * 2)); x < Math.min(width, Math.ceil(footRight + spread * 2)); x += 1) {
+      const gap = x < footLeft ? footLeft - x : x > footRight ? x - footRight : 0;
+      if (gap === 0) continue;
+      const side = SIDE_STRENGTH * Math.exp(-((gap / spread) ** 2));
+      for (let d = -1; d < reach; d += 1) {
+        const index = (bottom + 1 + d) * width + x;
+        const value = 1 - strength * side * (1 - shadowProfileAt(Math.max(0, d) / stretch, scale));
+        if (value < grown[index]) grown[index] = value;
+      }
+    }
+    blurRows(grown, width, layerHeight, Math.max(1, productWidth * 0.004));
+    for (let i = 0; i < Math.min(factor.length, grown.length); i += 1) grown[i] = Math.min(grown[i], factor[i]);
+    const alpha = new Uint8ClampedArray(width * layerHeight);
+    for (let i = 0; i < grown.length; i += 1) alpha[i] = Math.round((1 - Math.max(0, Math.min(1, grown[i]))) * 255);
+    return { width, padX, height: layerHeight, alpha };
+  }
 
   const alpha = new Uint8ClampedArray(width * layerHeight);
   for (let i = 0; i < factor.length; i += 1) alpha[i] = Math.round((1 - Math.max(0, Math.min(1, factor[i]))) * 255);
-  return { width, height: layerHeight, alpha };
+  return { width, padX, height: layerHeight, alpha };
 }
 
 /**
@@ -217,11 +309,13 @@ export function applySelfOcclusion(
   height: number,
   strength = DEFAULT_SHADOW_STRENGTH,
   heightFactor = DEFAULT_SHADOW_HEIGHT,
+  baseline?: number | null,
 ) {
   const edges = bottomEdges(rgba, width, height);
-  let bottom = -1;
-  for (let x = 0; x < width; x += 1) bottom = Math.max(bottom, edges[x]);
-  if (bottom < 0 || strength <= 0) return;
+  let lowest = -1;
+  for (let x = 0; x < width; x += 1) lowest = Math.max(lowest, edges[x]);
+  if (lowest < 0 || strength <= 0) return;
+  const bottom = contactRow(lowest, baseline);
   const band = height * 0.07 * heightFactor;
   const contactBand = height * 0.012;
   for (let y = 0; y <= bottom; y += 1) {
@@ -392,6 +486,256 @@ export function estimateWarmth(meanR: number, meanG: number, meanB: number): num
   return Math.min(1, Math.max(0, warmIndex / 0.8));
 }
 
+/**
+ * Mức nhuộm ấm cần thêm cho SP: chỉ phần nền ẤM HƠN nơi chụp SP. Kiểm chứng 15/10 trên 15 ảnh túi chụp thật trong phòng
+ * media (cắt túi ra ghép lại lên nền trống, so với chính ảnh chụp đó): nhuộm theo nền mà không trừ ánh sáng nơi chụp thì
+ * túi đã chụp dưới đèn vàng bị nhuộm lần nữa — kênh xanh tụt ~25%, túi be thành vàng đậm. Ảnh catalog phông trắng (nơi
+ * chụp trung tính) vẫn nhuộm đủ.
+ */
+export function addedWarmth(sceneWarmth: number, sourceWarmth: number): number {
+  return Math.min(1, Math.max(0, sceneWarmth - sourceWarmth));
+}
+
+/**
+ * Nơi chụp SP ấm ít nhất tỉ lệ này của độ ấm nền = chụp dưới cùng kiểu đèn — xem sameLightAsScene. Đo 15/10: viền ảnh túi
+ * chụp trong phòng media ấm 0,46–1,0 (nền mẫu 1,0); ảnh catalog/Google/Pexels phông trắng đều 0.
+ */
+export const SAME_LIGHT_MIN_FRACTION = 0.4;
+
+/**
+ * SP chụp dưới cùng kiểu đèn với nền (ảnh chụp sẵn trong phòng media): giữ nguyên ánh sáng gốc, KHÔNG chỉnh kiểu đèn
+ * studio / làm sáng / nhuộm ấm. Kiểm chứng 15/10 (15 túi chụp thật, ghép lại lên nền trống, so chính ảnh chụp): các bước
+ * đó vốn để đưa ảnh catalog về đèn studio, áp lên ảnh đã chụp đúng đèn thì kéo mất vùng sáng bóng phía trên thân (tới
+ * −6 L*), túi tối và vàng hơn ảnh thật.
+ */
+export function sameLightAsScene(sceneWarmth: number, sourceWarmth: number): boolean {
+  return sceneWarmth > 0 && sourceWarmth >= sceneWarmth * SAME_LIGHT_MIN_FRACTION;
+}
+
+// ─── Số đo ánh sáng từ ảnh chụp thật ───────────────────────────────────────
+//
+// Đo 10/10 trên 100 ảnh túi trên hộp/kệ của phòng media và 8 ảnh ghép, cùng một cách đo (thang L* 0–100):
+// độ sáng và tương phản thân túi khớp nhau (38 vs 35; 14,6 vs 14,6), nhưng (1) túi thật sáng hơn ở trên
+// so với dưới +10,7 (đèn trần), túi ghép chỉ +7,8; (2) mặt đặt ngay dưới chân túi thật chỉ sáng hơn vùng
+// quanh túi +2,6 (túi che đèn trần), còn ảnh ghép +18 (mặt hộp nền mẫu sáng trưng ngay sát chân túi).
+
+/** Ảnh thật: thân túi phần trên sáng hơn phần dưới chừng này (trung vị L*). */
+export const REAL_TOP_LIGHT_DIFF = 10.7;
+/** Khoảng độ tối dần từ đỉnh xuống đáy được chọn (nhân vào màu) — ngoài khoảng này đổi màu SP quá tay. */
+export const FALLOFF_MIN = 0.12;
+export const FALLOFF_MAX = 0.42;
+/** Ảnh thật: mặt đặt dưới chân sáng hơn vùng quanh túi chừng này (trung vị L*). */
+export const REAL_SURFACE_ABOVE_SURROUND = 2.6;
+/** Vùng tối loang dưới chân đậm nhất bấy nhiêu ở giữa — đậm hơn thì thành vệt đen rõ, nhìn giả. */
+export const SURFACE_POOL_MAX = 0.35;
+
+function srgbToLinear(v: number): number {
+  const c = v / 255;
+  return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+}
+
+/** Độ sáng cảm nhận L* (CIELAB, 0–100) của màu sRGB 0–255. */
+export function lightness(r: number, g: number, b: number): number {
+  const y = 0.2126 * srgbToLinear(r) + 0.7152 * srgbToLinear(g) + 0.0722 * srgbToLinear(b);
+  return y > 216 / 24389 ? 116 * Math.cbrt(y) - 16 : (24389 / 27) * y;
+}
+
+// ─── Đèn studio trên thân túi, độ sáng SP theo cảnh ──────────────────────────
+//
+// Phân tích đèn 10/10 trên 100 ảnh chụp thật của phòng media (túi trên hộp gỗ): đèn chính là nguồn lớn, mềm,
+// đặt CHÍNH DIỆN hơi cao hơn máy — trái/phải gần đối xứng (chênh trung vị +1,8 L*, so với ~18 trên↔dưới), mép
+// trên thân sáng nhất, giữa thân phẳng, đáy tối nhanh; đèn LED vàng trên kệ chỉ là đèn trang trí phía sau. Ảnh
+// SP người dùng thì chụp đủ kiểu đèn. Nên: KHÔNG đánh sáng lệch trái/phải; đưa phân bố sáng từ trên xuống của
+// thân SP về đúng kiểu studio (STUDIO_BODY_PROFILE), chỉ bù phần thiếu để túi đã có đèn trên mạnh không bị
+// sáng chồng; dải đáy để lớp bóng sát đáy (applySelfOcclusion, đã hiệu chỉnh theo ảnh thật) lo.
+
+/**
+ * Kiểu đèn studio: độ sáng (L*) 6 dải ngang của thân túi, từ trên xuống, so với trung vị cả thân. Đo lại 12/10
+ * trên 457 ảnh túi chụp thật Tháng 7–9 (43 mẫu), đúng cách hàm dưới đo SP (lưới 6×6, trung vị ô, trung vị theo
+ * hàng): các đợt chụp gần đây đèn mềm hơn — mép trên chỉ +3,0 (khoảng tin cậy 95% +1,9..+4,0), bộ ảnh cũ +6,6;
+ * số cũ 10/10 là [8.6, 2.4, 1.2, 0.3, -1.9, -8.4] làm phần trên túi ghép sáng gắt hơn ảnh thật hiện nay.
+ */
+export const STUDIO_BODY_PROFILE: readonly number[] = [3.0, 2.2, 1.2, 0.4, -0.9, -5.4];
+/** Bù chừng này phần khoảng thiếu so với kiểu studio — giữ một phần đèn gốc của SP cho tự nhiên. */
+export const STUDIO_STRENGTH = 0.7;
+/** Mỗi dải đổi nhiều nhất ± chừng này L* — tránh đổi hẳn sắc độ của SP. */
+export const STUDIO_MAX_SHIFT = 10;
+
+/** Ánh sáng cảnh của ảnh nền. */
+export interface SceneLight {
+  /** Độ sáng trung vị của cả ảnh nền (L*). */
+  lightness: number;
+}
+
+/** SP sáng lên ×1,2 (ánh sáng tuyến tính) ở cảnh sáng cỡ nền mẫu; cảnh sáng hơn/tối hơn thì theo cảnh. */
+export const PRODUCT_EXPOSURE = 1.2;
+export const PRODUCT_EXPOSURE_MIN = 1.05;
+export const PRODUCT_EXPOSURE_MAX = 1.35;
+/** Độ sáng cảnh (L*) ứng với PRODUCT_EXPOSURE — ≈ 2 nền mẫu (33 và 30). */
+export const REFERENCE_SCENE_L = 30;
+
+/** Độ sáng cảnh = trung vị L* cả ảnh nền. */
+export function analyzeSceneLight(data: ArrayLike<number>, width: number, height: number): SceneLight {
+  return { lightness: medianLightness(data, width, height, 0, 0, width, height, 8) ?? REFERENCE_SCENE_L };
+}
+
+/** Mức sáng lên của SP theo độ sáng cảnh: cảnh càng sáng SP càng cần sáng theo (kẹp MIN..MAX). */
+export function productExposureFor(sceneLightness: number): number {
+  const ratio = luminanceOf(sceneLightness) / luminanceOf(REFERENCE_SCENE_L);
+  return Math.min(PRODUCT_EXPOSURE_MAX, Math.max(PRODUCT_EXPOSURE_MIN, PRODUCT_EXPOSURE * ratio ** 0.3));
+}
+
+/**
+ * Hệ số nhân (theo giá trị sRGB) cho từng hàng ảnh SP để phân bố sáng trên thân về kiểu studio. Đo phân bố
+ * sẵn có của SP trên lưới 6×6 khung thân (trung vị từng ô, trung vị theo hàng — hoa văn/màu da lệch một vài
+ * ô không kéo lệch cả hàng), bù STUDIO_STRENGTH phần chênh với STUDIO_BODY_PROFILE (kẹp ±STUDIO_MAX_SHIFT)
+ * cho 5 dải trên; dải đáy giữ mức bù của dải trên nó. Quai phía trên thân theo dải trên cùng, phần dưới đáy
+ * theo dải dưới cùng. Không đủ điểm thân → null.
+ */
+export function studioRowFactors(
+  rgba: ArrayLike<number>, width: number, height: number, body: readonly number[], gains: readonly number[],
+): Float32Array | null {
+  const N = STUDIO_BODY_PROFILE.length;
+  const x0 = Math.max(0, Math.floor(body[0]));
+  const y0 = Math.max(0, Math.floor(body[1]));
+  const x1 = Math.min(width, Math.ceil(body[2]));
+  const y1 = Math.min(height, Math.ceil(body[3]));
+  if (x1 - x0 < N || y1 - y0 < N) return null;
+  const cells: number[][] = Array.from({ length: N * N }, () => []);
+  const all: number[] = [];
+  const step = Math.max(1, Math.floor(Math.min(x1 - x0, y1 - y0) / 120));
+  for (let y = y0; y < y1; y += step) {
+    const row = Math.min(N - 1, Math.floor(((y - y0) * N) / (y1 - y0)));
+    for (let x = x0; x < x1; x += step) {
+      const i = (y * width + x) * 4;
+      if (rgba[i + 3] < 200) continue;
+      const l = lightness(
+        Math.min(255, rgba[i] * gains[0]), Math.min(255, rgba[i + 1] * gains[1]), Math.min(255, rgba[i + 2] * gains[2]),
+      );
+      cells[row * N + Math.min(N - 1, Math.floor(((x - x0) * N) / (x1 - x0)))].push(l);
+      all.push(l);
+    }
+  }
+  if (all.length < 50) return null;
+  const median = (values: number[]) => { const s = [...values].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
+  const bodyL = median(all);
+  const shift = new Array<number>(N).fill(0);
+  for (let r = 0; r < N - 1; r += 1) {
+    const rowValues = [];
+    for (let c = 0; c < N; c += 1) if (cells[r * N + c].length >= 5) rowValues.push(median(cells[r * N + c]) - bodyL);
+    if (!rowValues.length) continue;
+    const gap = STUDIO_BODY_PROFILE[r] - median(rowValues);
+    shift[r] = STUDIO_STRENGTH * Math.max(-STUDIO_MAX_SHIFT, Math.min(STUDIO_MAX_SHIFT, gap));
+  }
+  shift[N - 1] = shift[N - 2];
+  const reference = luminanceOf(bodyL);
+  const factors = new Float32Array(height);
+  for (let y = 0; y < height; y += 1) {
+    // Toạ độ theo tâm từng dải; ngoài khung thân thì giữ mức của dải đầu/cuối.
+    const t = Math.max(0, Math.min(N - 1, ((y - y0) * N) / (y1 - y0) - 0.5));
+    const r0 = Math.floor(t);
+    const r1 = Math.min(N - 1, r0 + 1);
+    const delta = shift[r0] + (shift[r1] - shift[r0]) * (t - r0);
+    const k = luminanceOf(Math.max(0, bodyL + delta)) / Math.max(1e-6, reference);
+    factors[y] = k ** (1 / 2.2);
+  }
+  return factors;
+}
+
+function linearToSrgb(c: number): number {
+  const v = c <= 0.0031308 ? c * 12.92 : 1.055 * c ** (1 / 2.4) - 0.055;
+  return Math.round(Math.min(1, Math.max(0, v)) * 255);
+}
+
+/**
+ * SP sáng lên `gain` lần theo ánh sáng tuyến tính, kèm "vai" y·g / (1 + (g − 1)·y): chỗ tối/vừa sáng lên
+ * gần đủ `gain`, chỗ đã gần trắng thì gần như giữ nguyên — không cháy chữ thêu, khoá kim loại. Giữ alpha
+ * và tỉ lệ màu (không làm lệch màu da). Sửa tại chỗ.
+ */
+export function brightenProduct(rgba: Uint8ClampedArray, gain = PRODUCT_EXPOSURE) {
+  if (gain <= 1) return;
+  const table = new Uint8ClampedArray(256);
+  for (let v = 0; v < 256; v += 1) {
+    const y = srgbToLinear(v);
+    table[v] = linearToSrgb((y * gain) / (1 + (gain - 1) * y));
+  }
+  for (let i = 0; i < rgba.length; i += 4) {
+    if (rgba[i + 3] === 0) continue;
+    rgba[i] = table[rgba[i]];
+    rgba[i + 1] = table[rgba[i + 1]];
+    rgba[i + 2] = table[rgba[i + 2]];
+  }
+}
+
+/** Ngược của `lightness` cho xám: L* → độ chói tuyến tính Y (0–1). */
+function luminanceOf(l: number): number {
+  return l > 8 ? ((l + 16) / 116) ** 3 : l / (24389 / 27);
+}
+
+/** Trung vị L* của vùng chữ nhật trong ảnh RGBA (lấy mẫu cách `step` điểm; bỏ điểm trong suốt). */
+export function medianLightness(
+  data: ArrayLike<number>, width: number, height: number,
+  x0: number, y0: number, x1: number, y1: number, step = 3,
+): number | null {
+  const values: number[] = [];
+  for (let y = Math.max(0, Math.floor(y0)); y < Math.min(height, Math.ceil(y1)); y += step) {
+    for (let x = Math.max(0, Math.floor(x0)); x < Math.min(width, Math.ceil(x1)); x += step) {
+      const i = (y * width + x) * 4;
+      if (data[i + 3] < 128) continue;
+      values.push(lightness(data[i], data[i + 1], data[i + 2]));
+    }
+  }
+  if (!values.length) return null;
+  values.sort((a, b) => a - b);
+  return values[Math.floor(values.length / 2)];
+}
+
+/**
+ * Độ đậm vùng tối loang dưới chân (0..SURFACE_POOL_MAX): mặt đặt sáng hơn vùng quanh túi càng nhiều so
+ * với ảnh thật thì càng tối lại; mặt đặt vốn đã tối (nền tự tải lên) thì không cần.
+ */
+export function surfacePoolStrength(surfaceL: number | null, surroundL: number | null): number {
+  if (surfaceL === null || surroundL === null) return 0;
+  const target = surroundL + REAL_SURFACE_ABOVE_SURROUND;
+  if (surfaceL <= target) return 0;
+  return Math.min(SURFACE_POOL_MAX, 1 - luminanceOf(target) / luminanceOf(surfaceL));
+}
+
+/**
+ * Độ tối dần từ đỉnh xuống đáy (FALLOFF_MIN..FALLOFF_MAX) để phần trên SP sáng hơn phần dưới đúng như
+ * ảnh thật (REAL_TOP_LIGHT_DIFF). SP chụp đã có sẵn độ chuyển sáng mạnh thì chỉ thêm ít.
+ */
+export function chooseFalloff(
+  rgba: ArrayLike<number>, width: number, height: number, top: number, bottom: number, gains: readonly number[],
+): number {
+  const span = Math.max(1, bottom - top);
+  const third = span / 3;
+  const samples: { t: number; r: number; g: number; b: number }[] = [];
+  for (let y = top; y <= bottom; y += 2) {
+    const t = (y - top) / span;
+    if (y > top + third && y < bottom - third) continue;
+    for (let x = 0; x < width; x += 2) {
+      const i = (y * width + x) * 4;
+      if (rgba[i + 3] < ALPHA_SOLID) continue;
+      samples.push({ t, r: rgba[i] * gains[0], g: rgba[i + 1] * gains[1], b: rgba[i + 2] * gains[2] });
+    }
+  }
+  let best = FALLOFF_MIN;
+  let bestError = Infinity;
+  for (let range = FALLOFF_MIN; range <= FALLOFF_MAX + 1e-9; range += 0.02) {
+    let topSum = 0, topCount = 0, bottomSum = 0, bottomCount = 0;
+    for (const { t, r, g, b } of samples) {
+      const k = 1.04 - range * t;
+      const l = lightness(Math.min(255, r * k), Math.min(255, g * k), Math.min(255, b * k));
+      if (t <= 1 / 3) { topSum += l; topCount += 1; } else { bottomSum += l; bottomCount += 1; }
+    }
+    if (!topCount || !bottomCount) return 0.24;
+    const error = Math.abs(topSum / topCount - bottomSum / bottomCount - REAL_TOP_LIGHT_DIFF);
+    if (error < bestError) { bestError = error; best = range; }
+  }
+  return best;
+}
+
 /** PRNG có seed — hạt nhiễu giống hệt nhau giữa xem trước và ảnh xuất, test lặp lại được. */
 function mulberry32(seed: number) {
   let a = seed >>> 0;
@@ -446,10 +790,13 @@ function blurRgb(src: Float32Array, width: number, height: number, sigma: number
 
 /**
  * Kéo ánh sáng của sản phẩm về ánh sáng của cảnh (sửa tại chỗ, giữ nguyên alpha):
- * cân trắng về tông ấm → tối dần từ trên xuống (đèn chiếu từ trên) → giảm tương phản 10% →
+ * cân trắng về tông ấm → phân bố sáng từ trên xuống theo kiểu đèn studio (studioRowFactors; thiếu khung thân thì
+ * tối dần tuyến tính — chooseFalloff) → giảm tương phản 10% →
  * dịu vân quá sắc (trộn 50% bản làm mờ nhẹ) → hạt nhiễu nhẹ như ảnh chụp.
  */
-export function applyLook(rgba: Uint8ClampedArray, width: number, height: number, warmth: number, seed = 1) {
+export function applyLook(
+  rgba: Uint8ClampedArray, width: number, height: number, warmth: number, seed = 1, body?: readonly number[] | null,
+) {
   const w = Math.min(1, Math.max(0, warmth));
   const gains = [1 + 0.06 * w, 1 - 0.01 * w, 1 - 0.14 * w];
 
@@ -462,12 +809,16 @@ export function applyLook(rgba: Uint8ClampedArray, width: number, height: number
   for (let x = 0; x < width; x += 1) bottom = Math.max(bottom, edges[x]);
   if (top < 0 || bottom < 0) return;
   const span = Math.max(1, bottom - top);
+  // Có khung thân (AI trả): phân bố sáng trên thân về đúng kiểu đèn studio. Không có: tối dần tuyến tính, độ
+  // dốc chọn theo chính SP để trên−dưới khớp ảnh thật.
+  const studio = body ? studioRowFactors(rgba, width, height, body, gains) : null;
+  const range = studio ? 0 : chooseFalloff(rgba, width, height, top, bottom, gains);
 
   const rgb = new Float32Array(width * height * 3);
   const mean = [0, 0, 0];
   let weight = 0;
   for (let y = 0; y < height; y += 1) {
-    const falloff = 1.04 - 0.24 * Math.min(1, Math.max(0, (y - top) / span));
+    const falloff = studio ? studio[y] : 1.04 - range * Math.min(1, Math.max(0, (y - top) / span));
     for (let x = 0; x < width; x += 1) {
       const i = y * width + x;
       const a = rgba[i * 4 + 3] / 255;

@@ -53,7 +53,9 @@ describe('buildHeldProductFormData', () => {
     expect((form.get(HELD_PRODUCT_FIELDS.product) as File).name).toBe('sp.png');
     expect(form.get(HELD_PRODUCT_FIELDS.productName)).toBe('Nhẫn Kim Vũ');
     expect(form.get(HELD_PRODUCT_FIELDS.note)).toBe('cao 30cm');
-    expect(HELD_PRODUCT_FIELDS).toEqual({ person: 'personImage', product: 'productImage', productName: 'productName', note: 'note' });
+    expect(HELD_PRODUCT_FIELDS).toEqual({
+      person: 'personImage', product: 'productImage', productName: 'productName', note: 'note', widthCm: 'widthCm',
+    });
   });
 
   it('ghi chú rỗng thì không gửi field note (BE chặn field lạ)', () => {

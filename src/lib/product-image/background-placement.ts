@@ -27,7 +27,11 @@ export interface DrawRect {
 }
 
 export const PLACEMENT_SCALE_MIN = 0.05;
-export const PLACEMENT_SCALE_MAX = 1;
+/**
+ * scale = 1 là SP vừa khít ảnh nền theo chiều hạn chế. Cho vượt tới 4: túi dây đeo trải ngang rộng hơn
+ * cả ảnh nền vẫn phải giữ thân đúng cỡ (placementForBody) — phần dây thừa tràn ra mép thì bị cắt.
+ */
+export const PLACEMENT_SCALE_MAX = 4;
 
 /** Vừa đủ thấy rõ SP mà vẫn còn chỗ cho bối cảnh phòng; người dùng chỉnh tiếp bằng thanh trượt. */
 export const DEFAULT_PLACEMENT: Placement = { scale: 0.4, centerX: 0.5, centerY: 0.5 };

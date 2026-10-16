@@ -23,6 +23,11 @@ export interface ProductImageCostStats {
     output_tokens: number;
     cutouts: number;
     cutout_failed: number;
+    /** Lượt đổi SP chị Nhạm 0đ (HELD_SWAP) thành công / lỗi — không phải lượt tạo Gemini. */
+    swaps: number;
+    swap_failed: number;
+    /** Tiền Gemini nhận diện SP của các lượt tách nền (đã nằm trong tổng). */
+    cutout_cost: Money;
     per_attempt: Money | null;
     per_approved: (Money & { attempts: number | null }) | null;
   };
@@ -34,12 +39,12 @@ export interface ProductImageCostStats {
     approved: number;
     per_approved: (Money & { attempts: number | null }) | null;
   })[];
-  by_user: (Money & { user_id: string; name: string; attempts: number; approved: number; cutouts: number })[];
+  by_user: (Money & { user_id: string; name: string; attempts: number; approved: number; cutouts: number; swaps: number })[];
   unpriced_notes: { note: string; count: number }[];
   recent: {
     id: string;
     created_at: string;
-    mode: 'CUTOUT' | 'HELD_PRODUCT' | string;
+    mode: 'CUTOUT' | 'HELD_PRODUCT' | 'HELD_SWAP' | 'SCENE_PLACEMENT' | string;
     status: 'SUCCESS' | 'FAILED' | string;
     product_name: string | null;
     user_name: string;
@@ -54,23 +59,45 @@ export interface ProductImageCostStats {
   }[];
 }
 
+/** Nhãn chế độ của một lượt trong nhật ký tab Chi phí (mode lưu ở product_image_generations). */
+export function generationModeLabel(mode: string): string {
+  switch (mode) {
+    case 'CUTOUT':
+      return 'Tách nền';
+    case 'HELD_PRODUCT':
+      return 'Chị Nhạm cầm SP';
+    case 'HELD_SWAP':
+      return 'Đổi SP chị Nhạm (0đ)';
+    case 'SCENE_PLACEMENT':
+      return 'Đặt vào cảnh';
+    default:
+      return mode;
+  }
+}
+
 /** Khớp @Roles(ADMIN, MANAGER) của GET /product-image/costs — chỉ để ẩn tab, BE mới là chốt chặn. */
 export function canViewProductImageCosts(roles: readonly string[] | null | undefined): boolean {
   return (roles ?? []).some((r) => r === UserRole.ADMIN || r === UserRole.MANAGER);
 }
 
+/**
+ * Ghép background là MỘT tab tự động, nhận nhiều ảnh (người dùng chốt 2026-10-08: không tách tab
+ * chỉnh tay với tab hàng loạt, không chỉnh tay gì nữa).
+ */
 export type ProductImageTab = 'background' | 'held' | 'costs';
+
+export const DEFAULT_PRODUCT_IMAGE_TAB: ProductImageTab = 'background';
 
 /** `?tab=held|costs` → tab; lạ/thiếu → tab mặc định. Không có quyền xem chi phí thì không mở tab đó. */
 export function productImageTabFromParam(param: string | null | undefined, canViewCosts: boolean): ProductImageTab {
   if (param === 'held') return 'held';
   if (param === 'costs' && canViewCosts) return 'costs';
-  return 'background';
+  return DEFAULT_PRODUCT_IMAGE_TAB;
 }
 
 /** Query cho từng tab — tab mặc định không cần query, để link gọn. */
 export function productImageTabQuery(tab: ProductImageTab): string {
-  return tab === 'background' ? '' : `?tab=${tab}`;
+  return tab === DEFAULT_PRODUCT_IMAGE_TAB ? '' : `?tab=${tab}`;
 }
 
 /** 1234.6 → "1.235đ" (làm tròn, phân tách hàng nghìn kiểu Việt Nam). */
