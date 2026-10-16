@@ -30,8 +30,8 @@ function toLineTargets(allocations?: { name: string; weight: number }[]): Partia
 function SummaryItem({ value, label, accent }: { value: string | number; label: string; accent?: boolean }) {
   return (
     <div className="min-w-0 rounded-xl bg-slate-50 px-3 py-2.5 text-center">
-      <p className={cn('text-lg font-black tabular-nums', accent ? 'text-indigo-600' : 'text-slate-800')}>{value}</p>
-      <p className="mt-0.5 truncate text-[10px] font-semibold text-slate-400">{label}</p>
+      <p className={cn('text-lg font-bold tabular-nums', accent ? 'text-indigo-600' : 'text-slate-900')}>{value}</p>
+      <p className="mt-0.5 truncate text-xs font-medium text-slate-500">{label}</p>
     </div>
   )
 }
@@ -61,7 +61,7 @@ export function DailyVideoPlanCard({
   return (
     <DashboardCard
       title="Kế hoạch từng ngày"
-      subtitle={`Tháng ${monthNumber}/${year} · Chủ nhật nghỉ`}
+      subtitle={`Số video cần làm mỗi ngày tới hết tháng ${monthNumber}/${year} · Chủ nhật nghỉ`}
       right={(
         <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-indigo-50 px-2.5 py-1 text-xs font-bold text-indigo-600">
           <CalendarDays className="h-3.5 w-3.5" aria-hidden />
@@ -102,7 +102,7 @@ export function DailyVideoPlanCard({
         </div>
       ) : (
         <div>
-          <div className="custom-scrollbar max-h-[430px] overflow-auto">
+          <div className="custom-scrollbar max-h-[360px] overflow-auto">
             <table className="w-full min-w-[520px] border-collapse text-sm">
               <thead className="sticky top-0 z-10 bg-slate-50 shadow-[0_1px_0_0_#e2e8f0]">
                 <tr>
@@ -125,7 +125,7 @@ export function DailyVideoPlanCard({
                     <td className="whitespace-nowrap px-4 py-2.5 font-semibold tabular-nums text-slate-700">
                       {String(item.day).padStart(2, '0')}/{monthNumber}
                       {item.isToday && (
-                        <span className="ml-2 rounded bg-indigo-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-indigo-600">Hôm nay</span>
+                        <span className="ml-2 rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold text-indigo-700">Hôm nay</span>
                       )}
                     </td>
                     {CONTENT_LINES.map(line => (
@@ -155,7 +155,7 @@ export function DailyVideoPlanCard({
               </tfoot>
             </table>
           </div>
-          <p className="border-t border-slate-100 px-4 py-3 text-[10px] leading-relaxed text-slate-400">
+          <p className="border-t border-slate-100 px-4 py-3 text-xs leading-relaxed text-slate-500">
             Tổng video còn thiếu được chia đều theo ngày và phân bổ A1–A5 theo tỷ trọng KPI tháng; phần dư ưu tiên ngày gần nhất.
           </p>
         </div>

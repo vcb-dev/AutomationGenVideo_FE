@@ -10,6 +10,7 @@ import { MarketBadge } from '../../../catalog/components/ProductsTab/ProductForm
 import { parseMarkets } from '../../../catalog/components/ProductsTab/product-utils'
 import { refreshTeamProductFromOms } from '@/lib/api/task-auto'
 import type { TeamProduct } from '@/types/task-auto'
+import { TeamTag } from '../TeamTag'
 
 function formatPrice(price?: string | number | null): string {
   if (!price) return ''
@@ -21,9 +22,11 @@ interface Props {
   canRemove: boolean
   onRemove: () => void
   onEdit?: () => void
+  /** Tên team sở hữu — chỉ truyền khi xem kho của tất cả đội nhóm */
+  teamName?: string
 }
 
-export function ProductCard({ teamProduct, canRemove, onRemove, onEdit }: Props) {
+export function ProductCard({ teamProduct, canRemove, onRemove, onEdit, teamName }: Props) {
   const qc = useQueryClient()
   const [showDetail, setShowDetail] = useState(false)
   const [imgError, setImgError] = useState(false)
@@ -33,7 +36,8 @@ export function ProductCard({ teamProduct, canRemove, onRemove, onEdit }: Props)
     mutationFn: () => refreshTeamProductFromOms(p.team_id, p.id),
     onSuccess: () => {
       toast.success('Đã làm mới từ OMS')
-      qc.invalidateQueries({ queryKey: ['task-auto', 'team-products', p.team_id] })
+      // Không gắn team_id vào key — thẻ có thể đang nằm trong danh sách "Tất cả đội nhóm" (key 'all')
+      qc.invalidateQueries({ queryKey: ['task-auto', 'team-products'] })
     },
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Không thể làm mới từ OMS'),
   })
@@ -109,6 +113,7 @@ export function ProductCard({ teamProduct, canRemove, onRemove, onEdit }: Props)
 
         {/* Info */}
         <div className="p-2.5">
+          {teamName && <TeamTag name={teamName} className="mb-1.5" />}
           <p className="text-sm font-semibold text-slate-800 line-clamp-2 min-h-[2.25rem]" title={name ?? undefined}>
             {name || <span className="text-slate-300 italic font-normal text-sm">Chưa đặt tên</span>}
           </p>

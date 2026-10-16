@@ -4,7 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, Cell, LabelList, ResponsiveContai
 import { Clapperboard, TrendingUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ElementType } from 'react'
-import { DashboardCard, PeriodBadge } from './DashboardUI'
+import { DashboardCard } from './DashboardUI'
 import { TONE } from './tokens'
 
 // Mọi cột đều tô cùng tông brand (indigo) — cột dẫn đầu đậm nhất để mắt vẫn bắt được ngay, các cột
@@ -116,8 +116,8 @@ export function LineBarChart({
   if (chartData.length === 0 || (total === 0 && totalTarget === 0)) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-slate-400 py-12">
-        <Icon className="w-8 h-8 mb-2 opacity-20" />
-        <p className="text-sm">{emptyLabel}</p>
+        <Icon className="w-8 h-8 mb-2 opacity-40" aria-hidden />
+        <p className="text-sm text-slate-500">{emptyLabel}</p>
       </div>
     )
   }
@@ -132,7 +132,7 @@ export function LineBarChart({
               dataKey="line"
               tickLine={false}
               axisLine={{ stroke: '#f1f5f9' }}
-              tick={{ fontSize: 12, fontWeight: 700, fill: '#475569' }}
+              tick={{ fontSize: 12, fontWeight: 600, fill: '#475569' }}
             />
             <YAxis hide domain={hasTarget ? [0, domainMax as number] : [0, (max: number) => Math.ceil(max * 1.25) || 1]} />
             <Tooltip content={<LineTooltip itemLabel={itemLabel} unitLabel={unitLabel} />} cursor={{ fill: '#f8fafc' }} />
@@ -145,7 +145,7 @@ export function LineBarChart({
               <LabelList
                 dataKey="barLabel"
                 position="top"
-                style={{ fontSize: 13, fontWeight: 800, fill: '#334155' }}
+                style={{ fontSize: 13, fontWeight: 700, fill: '#1e293b' }}
               />
               {chartData.map(d => (
                 <Cell key={d.line} fill={top && d.line === top.line ? BAR_COLOR_LEADER : BAR_COLOR_DEFAULT} />
@@ -155,20 +155,29 @@ export function LineBarChart({
         </ResponsiveContainer>
       </div>
 
-      <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-50">
-        <span className="text-xs text-slate-400">
-          Tổng <span className="font-bold text-slate-700">{total}</span>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mt-3 pt-3 border-t border-slate-100">
+        <span className="text-xs text-slate-500">
+          Tổng <span className="font-bold text-slate-900 tabular-nums">{total}</span>
           {hasTarget && totalTarget > 0 && (
-            <span className="text-slate-400">/{totalTarget} mục tiêu</span>
+            <span className="tabular-nums"> / {totalTarget} mục tiêu</span>
           )}{' '}
           {unitLabel}
+          {hasTarget && totalTarget > 0 && (
+            <span className="ml-1.5 font-semibold text-slate-700">({Math.round((total / totalTarget) * 100)}%)</span>
+          )}
         </span>
         {top && (
           <span className={cn('flex items-center gap-1 text-xs font-semibold', TONE.brand.text)}>
-            <TrendingUp className="w-3.5 h-3.5" /> {itemLabel} {top.line} {leaderSuffix}
+            <TrendingUp className="w-3.5 h-3.5" aria-hidden /> {itemLabel} {top.line} {leaderSuffix}
           </span>
         )}
       </div>
+      {hasTarget && (
+        <div className="mt-2 flex items-center gap-4 text-[11px] text-slate-500" aria-hidden>
+          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: BAR_COLOR_LEADER }} /> Đã duyệt</span>
+          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: TRACK_COLOR_LEADER }} /> Mục tiêu KPI</span>
+        </div>
+      )}
     </div>
   )
 }
@@ -179,14 +188,13 @@ export function LineBarChart({
  * icon/itemLabel/unitLabel — chỉ cần map dữ liệu về đúng shape { line, count }.
  */
 export function VideoByLineCard({
-  data, periodLabel, title = 'Video theo tuyến nội dung', subtitle,
+  data, title = 'Video theo tuyến nội dung', subtitle,
   icon = Clapperboard, iconColor = 'text-teal-600', iconBg = 'bg-teal-50',
   itemLabel = 'Tuyến', unitLabel = 'video đã duyệt',
   emptyLabel = 'Chưa có video nào được duyệt theo tuyến',
-  leaderSuffix = 'dẫn đầu',
+  leaderSuffix = 'dẫn đầu', className,
 }: {
   data?: VideoByLineDatum[]
-  periodLabel?: string
   title?: string
   subtitle?: string
   icon?: ElementType
@@ -196,13 +204,13 @@ export function VideoByLineCard({
   unitLabel?: string
   emptyLabel?: string
   leaderSuffix?: string
+  className?: string
 }) {
   return (
     <DashboardCard
       icon={icon} iconColor={iconColor} iconBg={iconBg}
       title={title} subtitle={subtitle}
-      right={periodLabel ? <PeriodBadge label={periodLabel} /> : undefined}
-      className="flex flex-col"
+      className={cn('flex flex-col', className)}
     >
       <LineBarChart data={data} icon={icon} itemLabel={itemLabel} unitLabel={unitLabel} emptyLabel={emptyLabel} leaderSuffix={leaderSuffix} />
     </DashboardCard>

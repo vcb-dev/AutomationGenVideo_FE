@@ -9,9 +9,10 @@ interface Props {
   bgColor?: string
   children: React.ReactNode
   className?: string
+  headerExtra?: React.ReactNode
 }
 
-export function Section({ icon, title, iconColor = 'text-indigo-500', bgColor = 'bg-indigo-50', children, className }: Props) {
+export function Section({ icon, title, iconColor = 'text-indigo-500', bgColor = 'bg-indigo-50', children, className, headerExtra }: Props) {
   return (
     <div className={cn("border border-gray-200 rounded-2xl overflow-hidden bg-white flex flex-col", className)}>
       <div className="flex items-center gap-3 px-5 py-3.5 border-b border-gray-200 bg-gray-100/70">
@@ -19,6 +20,7 @@ export function Section({ icon, title, iconColor = 'text-indigo-500', bgColor = 
           <span className={iconColor}>{icon}</span>
         </div>
         <h3 className="text-sm font-bold text-gray-700">{title}</h3>
+        {headerExtra && <div className="ml-auto flex items-center gap-2 min-w-0">{headerExtra}</div>}
       </div>
       {children}
     </div>

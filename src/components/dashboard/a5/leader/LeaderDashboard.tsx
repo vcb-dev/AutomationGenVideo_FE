@@ -3,7 +3,8 @@
 import { Camera } from "lucide-react";
 import { useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import { DashboardFilters } from "../shared/DashboardFilters";
+import { DashboardFilters, type DashboardDateRange } from "../shared/DashboardFilters";
+import { formatRangeLabel, ymd } from "../shared/date-range-presets";
 import { LeaderContentByClassificationChart } from "./LeaderContentByClassificationChart";
 import { LeaderHeader } from "./LeaderHeader";
 import { LeaderMemberCard } from "./LeaderMemberCard";
@@ -18,29 +19,28 @@ import { useLeaderTaskDashboard } from "./leader-task-dashboard-api";
 
 type TabKey = "month" | "day";
 
-function todayStr(d = new Date()) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-function dmy(dateStr: string) {
-  const [y, m, d] = dateStr.split("-");
-  return `${d}/${m}/${y}`;
+function todayRange(): DashboardDateRange {
+  const today = ymd(new Date());
+  return { from: today, to: today };
 }
 
 export function LeaderDashboard() {
   const [tab, setTab] = useState<TabKey>("month");
   const [month, setMonth] = useState(currentMonthKey);
-  const [day, setDay] = useState(todayStr);
+  const [dayRange, setDayRange] = useState(todayRange);
   const [isCapturing, setIsCapturing] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
 
   const isDay = tab === "day";
+  const isMultiDay = isDay && dayRange.from !== dayRange.to;
   const { data, isLoading, isFetching } = useLeaderTaskDashboard(
-    isDay ? { dateFrom: day, dateTo: day, pinTrafficMonth: true } : { month },
+    isDay ? { dateFrom: dayRange.from, dateTo: dayRange.to, pinTrafficMonth: true } : { month },
   );
   const members = data?.members ?? [];
 
-  const periodLabel = isDay ? `Ngày ${dmy(day)}` : monthLabelOf(month);
-  const trafficLabel = isDay ? `Tháng ${Number(day.split("-")[1])}` : monthLabelOf(month);
+  const periodLabel = isDay ? formatRangeLabel(dayRange) : monthLabelOf(month);
+  // BE giữ traffic/doanh thu theo THÁNG chứa ngày bắt đầu (pin_traffic_month).
+  const trafficLabel = isDay ? `Tháng ${Number(dayRange.from.split("-")[1])}` : monthLabelOf(month);
 
   // "Video tháng" chỉ tổng hợp editor — content creator dùng kpi_completed/kpi_target cho SỐ CONTENT
   // (không phải video), gộp chung vào đây sẽ làm sai lệch tổng.
@@ -56,7 +56,7 @@ export function LeaderDashboard() {
           : { current: acc.current + m.kpi_completed, target: acc.target + m.kpi_target },
       { current: 0, target: 0 },
     );
-  const videoCardLabel = isDay ? "Số video ngày" : "Số video tháng";
+  const videoCardLabel = isMultiDay ? "Số video trong kỳ" : isDay ? "Số video ngày" : "Số video tháng";
 
   const trafficTotal = members.reduce((sum, m) => sum + m.traffic_month, 0);
   const revenueTotal = members.reduce((sum, m) => sum + m.revenue_month, 0);
@@ -76,7 +76,8 @@ export function LeaderDashboard() {
       });
       const teamSlug = (data?.team?.name ?? "team").replace(/[^a-zA-Z0-9]+/g, "-");
       const link = document.createElement("a");
-      link.download = `bao-cao-${teamSlug}-${isDay ? day : month}.png`;
+      const periodSlug = !isDay ? month : isMultiDay ? `${dayRange.from}_${dayRange.to}` : dayRange.from;
+      link.download = `bao-cao-${teamSlug}-${periodSlug}.png`;
       link.href = dataUrl;
       link.click();
     } finally {
@@ -144,7 +145,7 @@ export function LeaderDashboard() {
             className="justify-center"
             showTeamFallback={false}
             showPlatformChannelFallback={false}
-            singleDate={{ value: day, onChange: setDay }}
+            dayRange={{ value: dayRange, onChange: setDayRange }}
           />
         ) : (
           <LeaderMonthFilter month={month} onChange={setMonth} />
@@ -171,6 +172,7 @@ export function LeaderDashboard() {
                   key={m.user_id}
                   index={i}
                   dayView={isDay}
+                  multiDay={isMultiDay}
                   showDailyKpi={!isDay && month === currentMonthKey()}
                   entity={{
                     id: m.user_id,

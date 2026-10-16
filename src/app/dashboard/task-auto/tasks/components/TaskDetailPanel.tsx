@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, type ReactNode } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import toast from 'react-hot-toast'
 import { Loader2, XCircle, CheckCircle2, Play, ExternalLink } from 'lucide-react'
@@ -22,13 +22,15 @@ import { TaskPanelFooter } from './detail/TaskPanelFooter'
 import { TaskMetaStrip } from './detail/TaskMetaStrip'
 import { toVNDatetimeLocalInput } from '@/components/task-auto/helpers'
 import { ContentSection } from './detail/ContentSection'
+import { TaskContentPicker } from './detail/TaskContentPicker'
 import { VideoResultSection } from './detail/VideoResultSection'
 import { SourcesSection } from './detail/SourcesSection'
 import { ProductSection } from './detail/ProductSection'
 import { VideoPreviewOverlay } from './detail/VideoPreviewOverlay'
 import { TaskSchedulePostModal } from './detail/TaskSchedulePostModal'
 import { PublishedLinksSection } from './detail/PublishedLinksSection'
-import type { Source, TeamSource, OmsProductSummary } from '@/types/task-auto'
+import { contentLineCode } from './detail/PublishedPostPicker'
+import type { Source, Task, TeamSource, OmsProductSummary } from '@/types/task-auto'
 import { useBackdropClose } from '@/hooks/useBackdropClose'
 
 type CatalogScope = 'personal' | 'global' | 'team'
@@ -41,6 +43,16 @@ function contentTaskMeta(c: any): ReactNode {
   return n === 0
     ? <span className="text-emerald-600">Chưa làm</span>
     : <>Đã làm {n} lần</>
+}
+
+// Dòng task đã có trong cache các danh sách (bảng, kanban, lưới video…) — đủ cho header trong lúc
+// chờ GET /tasks/:id, nhưng thiếu content/SP/nguồn đầy đủ nên phần thân vẫn phải chờ.
+function findTaskInLists(qc: QueryClient, taskId: string): Task | undefined {
+  for (const [, page] of qc.getQueriesData<{ data?: Task[] }>({ queryKey: ['task-auto', 'tasks'] })) {
+    const hit = Array.isArray(page?.data) ? page.data.find(t => t.id === taskId) : undefined
+    if (hit) return hit
+  }
+  return undefined
 }
 
 function ScopeSwitch({ value, onChange, hasTeam, includeAll = false }: {
@@ -82,9 +94,12 @@ interface Props {
   onClose: () => void
   userRoles: string[]
   currentUserId?: string
+  /** Nút "Nhân bản" ở header — trang cha đóng panel rồi mở modal tạo task điền sẵn từ task này */
+  onDuplicate?: (task: Task) => void
+  hidePublishedLinks?: boolean
 }
 
-export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: Props) {
+export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId, onDuplicate, hidePublishedLinks }: Props) {
   useScrollLock()
   const qc = useQueryClient()
   const [showSubmit, setShowSubmit]         = useState(false)
@@ -98,6 +113,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
   // (backdrop, Esc, nút Đóng) mất trắng thay đổi mà không hỏi lại.
   const [contentDirty, setContentDirty]     = useState(false)
   const [showCloseConfirm, setShowCloseConfirm] = useState(false)
+  const [changingContent, setChangingContent] = useState(false)
   const [editForm, setEditForm] = useState({
     product_id: '',
     content_id: '',
@@ -125,13 +141,17 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key !== 'Escape' || hasChildOverlay) return
+      if (e.defaultPrevented || document.querySelector('[data-dark-modal]')) return
       if (editMode) { setEditMode(false); setProductSearch(''); setContentSearch(''); return }
+      if (changingContent) { setChangingContent(false); return }
       requestClose()
     }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasChildOverlay, editMode, contentDirty, onClose])
+  }, [hasChildOverlay, editMode, changingContent, contentDirty, onClose])
+
+  useEffect(() => { setChangingContent(false) }, [taskId])
 
   // Nội dung content sửa tay chưa lưu (dirty) sẽ mất nếu đóng panel — hỏi lại thay vì đóng thẳng.
   function requestClose() {
@@ -143,12 +163,17 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
   // ở backdrop z-[1001], vì lớp z-[1002] cũng inset-0 nên đã phủ kín backdrop, nuốt hết click.
   const backdrop = useBackdropClose(requestClose)
 
-  const { data: task, isLoading } = useQuery({
+  const { data: task, isLoading, isPlaceholderData } = useQuery({
     queryKey: ['task-auto', 'task', taskId],
     queryFn: () => getTask(taskId),
     enabled: !!taskId,
     refetchOnWindowFocus: true,
+    placeholderData: () => findTaskInLists(qc, taskId),
   })
+  const loadingDetail = isLoading || isPlaceholderData
+  // Task Auto = hệ thống chia theo KPI tuyến A4: tạo ra chỉ gắn SP kho team, editor tự chọn content.
+  // Ở chế độ sửa chỉ đổi được content — SP/nguồn giữ nguyên (BE chặn).
+  const isAutoTask = task?.task_type === 'AUTO'
 
   // ✅ Chỉ query full content khi có content_id toàn cục (endpoint /task-auto/contents/:id
   // chỉ tìm trong bảng content global). editor_content/team_content đã được include sẵn trong
@@ -382,6 +407,21 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
       const [contentSource, rawContentId] = editForm.content_id.includes(':')
         ? editForm.content_id.split(':', 2)
         : ['', editForm.content_id]
+      const contentFields = {
+        content_id:        contentSource === 'global' ? rawContentId || null : null,
+        editor_content_id: contentSource === 'editor' ? rawContentId || null : null,
+        team_content_id:   contentSource === 'team'   ? rawContentId || null : null,
+      }
+      // Task Auto: BE chỉ cho đổi content — không được gửi field SP/nguồn (kể cả null cũng bị chặn).
+      if (isAutoTask) {
+        return updateTask(taskId, {
+          ...contentFields,
+          deadline: editForm.deadline || undefined,
+          ...(canAssign && task?.status === 'PENDING' && {
+            assignee_id: editForm.assignee_id || null,
+          }),
+        } as any)
+      }
       return updateTask(taskId, {
         // "oms" (kho tổng/OMS): không có Product local — gửi oms_product_id/oms_variant_id,
         // BE tự materialize vào kho cá nhân editor được giao (đã resolve lúc chọn, xem onChange
@@ -393,9 +433,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
           oms_product_id: omsSelection.oms_product_id,
           oms_variant_id: omsSelection.oms_variant_id,
         } : {}),
-        content_id:        contentSource === 'global' ? rawContentId || null : null,
-        editor_content_id: contentSource === 'editor' ? rawContentId || null : null,
-        team_content_id:   contentSource === 'team'   ? rawContentId || null : null,
+        ...contentFields,
         source_outro_id:    editForm.source_outro_id    || null,
         source_extra_id:    editForm.source_collected_id || null,
         source_workshop_id: editForm.source_workshop_id || null,
@@ -451,6 +489,15 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
   const canDelete         = (isAssignee && !isLockedForMember) || isPrivilegedRole
   const canAssign         = isPrivilegedRole
   const canStart         = task?.status === 'ASSIGNED' && isAssignee
+
+  const hasContent = !!(task?.content_id || task?.editor_content_id || task?.team_content_id)
+  const canPickContent = isAssignee || isPrivilegedRole
+  const showContentPicker = !!task && canPickContent && !editMode && ((isAutoTask && !hasContent) || changingContent)
+  const canChangeContent = canPickContent && !editMode && (hasContent || !isAutoTask)
+    && task?.status !== 'SUBMITTED' && task?.status !== 'APPROVED'
+  const isAdminOrManager = userRoles.some(r => r === 'ADMIN' || r === 'MANAGER')
+  const contentOwnerId = isAssignee || !isAdminOrManager || !task?.assignee_id ? currentUserId : task.assignee_id
+  const contentOwnerName = contentOwnerId && contentOwnerId !== currentUserId ? task?.assignee?.full_name : undefined
 
   const assignEnabled = editMode && canAssign && task?.status === 'PENDING'
   const { data: taskTeam, isLoading: loadingTaskTeam } = useQuery({
@@ -627,7 +674,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
   // Dùng ở cả 2 vị trí: cột phải bình thường, hoặc dời xuống cuối cột trái khi video chiếm cột phải.
   const productSectionEl = (
     <ProductSection
-      editMode={editMode}
+      editMode={editMode && !isAutoTask}
       edit={{
         productId: editForm.product_id,
         onChange: handleProductChange,
@@ -673,11 +720,13 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
           <TaskPanelHeader
             task={task}
             editMode={editMode}
+            loading={isPlaceholderData}
             contentTitle={contentTitle}
             contentCode={contentCode}
             productName={productName}
             productSku={productSku}
-            onToggleEdit={() => setEditMode(v => !v)}
+            onToggleEdit={() => { setChangingContent(false); setEditMode(v => !v) }}
+            onDuplicate={task && onDuplicate ? () => onDuplicate(task) : undefined}
             onClose={requestClose}
           />
 
@@ -720,7 +769,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
           )}
 
           <div className="flex-1 overflow-y-auto">
-            {isLoading ? (
+            {loadingDetail ? (
               <div className="flex items-center justify-center h-64">
                 <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
               </div>
@@ -747,6 +796,17 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
 
                     {/* LEFT: Content + Sources (+ Product dời xuống đây khi video chiếm cột phải) */}
                     <div className="flex flex-col gap-4">
+                      {showContentPicker && contentOwnerId ? (
+                        <TaskContentPicker
+                          task={task}
+                          ownerId={contentOwnerId}
+                          ownerName={contentOwnerName}
+                          currentKey={hasContent ? currentContentPrefixedId : undefined}
+                          onCancel={changingContent ? () => setChangingContent(false) : undefined}
+                          onAssigned={() => setChangingContent(false)}
+                          onDirtyChange={setContentDirty}
+                        />
+                      ) : (
                       <ContentSection
                         editMode={editMode}
                         edit={{
@@ -765,8 +825,14 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                               hasTeam={!!task?.team_id}
                             />
                           ),
+                          hint: isAutoTask
+                            ? 'Task tự động chỉ đổi được content — sản phẩm và nguồn do hệ thống gắn theo kho team.'
+                            : undefined,
                         }}
                         view={{
+                          emptyTitle: isAutoTask ? (
+                            <span className="text-gray-400 font-normal italic">Chưa chọn content — người được giao sẽ chọn</span>
+                          ) : undefined,
                           contentTitle,
                           contentMarket,
                           contentLine,
@@ -787,10 +853,12 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                         editorMarket={task.team?.market ?? null}
                         sourceTranslations={fullContent?.translations}
                         onDirtyChange={setContentDirty}
+                        onChangeContent={canChangeContent ? () => setChangingContent(true) : undefined}
                       />
+                      )}
 
                       <SourcesSection
-                        editMode={editMode}
+                        editMode={editMode && !isAutoTask}
                         task={task}
                         //productSources={productSources}
                         edit={{
@@ -851,11 +919,27 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
                     } : undefined}
                   />
 
-                  {task.status === 'APPROVED' && (
+                  {task.status === 'APPROVED' && !hidePublishedLinks && (
                     <PublishedLinksSection
                       taskId={task.id}
                       publishedLinks={task.published_links}
                       canEdit={isAssignee || canApproveReject}
+                      taskTitle={
+                        task.content?.title ??
+                        task.team_content?.title ??
+                        task.editor_content?.title ??
+                        task.content?.source_team_content?.title ??
+                        null
+                      }
+                      anchorDate={task.submitted_at ?? task.reviewed_at ?? task.deadline}
+                      owner={task.assignee ? { id: task.assignee.id, name: task.assignee.full_name } : null}
+                      team={task.team ? { id: task.team.id, name: task.team.name } : null}
+                      contentLine={contentLineCode(
+                        task.content_line,
+                        task.content?.content_line,
+                        task.team_content?.content_line,
+                        task.editor_content?.content_line,
+                      )}
                     />
                   )}
                 </div>
@@ -867,6 +951,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId }: P
             <TaskPanelFooter
               task={task}
               editMode={editMode}
+              loading={isPlaceholderData}
               isAssignee={isAssignee}
               canApproveReject={canApproveReject}
               canDelete={canDelete}

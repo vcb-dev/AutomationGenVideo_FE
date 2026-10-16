@@ -27,13 +27,21 @@ interface LeaderMemberCardProps {
   /** "KPI ngày" chỉ có ý nghĩa khi đang xem đúng tháng hiện tại (chỉ tiêu/tiến độ trong NGÀY). */
   showDailyKpi: boolean;
   dayView?: boolean;
+  /** Tab ngày đang chọn khoảng nhiều ngày — kpi_day_* là cộng dồn cả khoảng. */
+  multiDay?: boolean;
 }
 
 /**
  * Video tháng là chỉ số chính (gauge lớn, căn giữa) — KPI ngày và Traffic là 2 ô phụ ở chân card.
  * Dùng chung cho cả card 1 người (leader dashboard) và card 1 team (admin dashboard, chế độ "Tất cả Team").
  */
-export function LeaderMemberCard({ entity, index, showDailyKpi, dayView = false }: LeaderMemberCardProps) {
+export function LeaderMemberCard({
+  entity,
+  index,
+  showDailyKpi,
+  dayView = false,
+  multiDay = false,
+}: LeaderMemberCardProps) {
   const name = entity.name;
   const monthPct = entity.kpi_target > 0 ? Math.round((entity.kpi_completed / entity.kpi_target) * 100) : null;
   const dayPct =
@@ -44,9 +52,7 @@ export function LeaderMemberCard({ entity, index, showDailyKpi, dayView = false 
   const headCurrent = dayView ? entity.kpi_day_completed : entity.kpi_completed;
   const headTarget = dayView ? entity.kpi_day_target : entity.kpi_target;
   const headLabel = dayView
-    ? entity.is_content_creator
-      ? "Content ngày"
-      : "Video ngày"
+    ? `${entity.is_content_creator ? "Content" : "Video"} ${multiDay ? "trong kỳ" : "ngày"}`
     : entity.is_content_creator
       ? "Content tháng"
       : "Video tháng";
