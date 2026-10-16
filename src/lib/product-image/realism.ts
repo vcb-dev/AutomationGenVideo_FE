@@ -1,11 +1,6 @@
 /**
- * Chế độ "Ghép background": làm ảnh ghép giống ảnh chụp thật — bóng dưới chân sản phẩm, ánh sáng
- * khớp với nền, dịu vân ảnh sản phẩm quá sắc. Tính thẳng trên mảng điểm ảnh RGBA (ImageData.data)
- * để test được, không cần canvas; chạy trong trình duyệt nên vẫn 0đ.
- *
- * Hiệu chỉnh theo ẢNH CHỤP THẬT của media (túi đen trên hộp gỗ, túi cao 1267px): độ sáng mặt hộp
- * dưới đáy túi so với chỗ không có bóng — 15% sát đáy, 32% ở 4px, 52% ở 12px, 70% ở 20px, 84% ở
- * 32px. Người dùng xem thử và chốt (2026-09-29): độ đậm 100% (đúng ảnh thật), độ cao 1,8 lần.
+ * Ghép background giống ảnh chụp thật: bóng dưới chân, ánh sáng khớp nền, dịu vân quá sắc. Tính trên mảng RGBA để
+ * test được không cần canvas. Số đo bóng hiệu chỉnh theo ảnh chụp thật của media.
  */
 
 // ─── Tham số đã chốt ───────────────────────────────────────────────────────
@@ -33,28 +28,19 @@ const CONTACT_TOLERANCE = 0.025;
 const LIFT_FADE = 0.03;
 /** Càng nhấc cao bóng càng loang rộng... */
 const LIFT_STRETCH = 0.015;
-/** ...nhưng tối đa 1,6 lần — thử trên trình duyệt: vài cột ở mép túi hơi nhấc lên, không giới hạn thì
- *  bóng của chúng kéo dài hơn 100px thành vệt tối dọc xuống dưới chân. */
+/** ...nhưng tối đa 1,6 lần — tránh vệt tối dọc dưới mép túi nhấc lên. */
 const MAX_LIFT_STRETCH = 1.6;
 
 const ALPHA_SOLID = 128;
 
-/**
- * Bóng lan sang hai bên đáy: mặt hộp ngay cạnh đáy SP cũng bị chính SP che bớt ánh đèn trần — ảnh chụp
- * thật có bóng rộng hơn đáy một chút, còn bóng theo từng cột chỉ nằm đúng dưới đáy nên túi trông như
- * "đặt hờ" (người dùng thấy ảnh ghép giả, 10/10). Dưới đáy giữ nguyên số đo ảnh thật; chỉ phần lan ra
- * ngoài mép đáy là mới, nhạt dần theo khoảng cách tới mép.
- */
+/** Bóng lan sang hai bên đáy, nhạt dần theo khoảng cách tới mép — ảnh thật có bóng rộng hơn đáy một chút. */
 const SIDE_SPREAD = 0.09;
 /** Ở mép đáy bóng lan còn bằng độ tối sát đáy × hệ số này. */
 const SIDE_STRENGTH = 0.7;
 
 // ─── Bóng dưới chân ────────────────────────────────────────────────────────
 
-/**
- * Kích thước dùng để co giãn độ dài bóng: chiều cao sản phẩm, nhưng không quá 1,3 lần chiều rộng —
- * vật cao mảnh (dây chuyền dựng đứng) có chân nhỏ nên bóng không được dài như túi cùng chiều cao.
- */
+/** Kích thước co giãn độ dài bóng: chiều cao SP, không quá 1,3 lần chiều rộng (vật cao mảnh có chân nhỏ). */
 export function shadowSizeReference(width: number, height: number): number {
   return Math.min(height, width * 1.3);
 }
@@ -85,11 +71,7 @@ export function bottomEdges(rgba: ArrayLike<number>, width: number, height: numb
   return edges;
 }
 
-/**
- * Hàng đáy chạm mặt phẳng: đáy THÂN túi (`baseline`, từ khung thân AI trả) nếu có, không thì hàng thấp nhất có điểm đặc.
- * Lấy hàng thấp nhất khi có dây/khoá thòng thấp hơn thân (soát 15/10: khoá Picotin, dây đeo trải phía trước) thì thân
- * túi bị coi là "nhấc lên" → gần như không có bóng sát đáy → túi trông lơ lửng.
- */
+/** Hàng đáy chạm mặt phẳng: đáy thân túi (`baseline`) nếu có, không thì hàng thấp nhất có điểm đặc. */
 function contactRow(lowest: number, baseline?: number | null): number {
   return baseline !== undefined && baseline !== null && baseline >= 0 ? Math.min(lowest, Math.round(baseline)) : lowest;
 }
@@ -125,11 +107,7 @@ export interface ShadowLayer {
   alpha: Uint8ClampedArray;
 }
 
-/**
- * Bán kính 3 lượt hộp trượt xấp xỉ Gaussian độ lệch `sigma` (Kovesi, "Fast almost-Gaussian
- * filtering"). Gaussian trực tiếp với bóng phần nhấc lên (sigma ~19px) đo trên trình duyệt mất gần
- * 2 giây mỗi lần kéo thanh; hộp trượt tốn thời gian không phụ thuộc bán kính.
- */
+/** Bán kính 3 lượt hộp trượt xấp xỉ Gaussian `sigma` (Kovesi) — nhanh, không phụ thuộc bán kính. */
 function boxRadiiForGauss(sigma: number, passes = 3): number[] {
   const ideal = Math.sqrt((12 * sigma * sigma) / passes + 1);
   let lower = Math.floor(ideal);
@@ -177,12 +155,8 @@ function blurColumns(values: Float32Array, width: number, height: number, sigma:
 }
 
 /**
- * Bóng dưới chân sản phẩm, trong hệ toạ độ của chính ảnh sản phẩm (không phụ thuộc vị trí/kích
- * thước đặt trên nền — kéo, thu phóng không phải tính lại).
- *
- * Mỗi cột có bóng NGAY DƯỚI mép dưới của chính nó: chạm mặt phẳng thì đúng đường cong ảnh thật;
- * nhấc lên (góc gấp, hông phình) thì nhạt và loang dần. Đặt bóng ở cao độ đáy chung cho các cột
- * nhấc lên từng tạo ra đám tối lơ lửng tách khỏi sản phẩm (đã thấy khi thử).
+ * Bóng dưới chân SP, theo toạ độ ảnh SP. Mỗi cột có bóng ngay dưới mép dưới của nó: chạm mặt phẳng thì theo đường cong
+ * ảnh thật; nhấc lên thì nhạt và loang dần.
  */
 export function buildShadowLayer(
   rgba: ArrayLike<number>,
@@ -192,9 +166,7 @@ export function buildShadowLayer(
   heightFactor = DEFAULT_SHADOW_HEIGHT,
   baseline?: number | null,
 ): ShadowLayer {
-  // Lớp bóng rộng hơn ảnh SP mỗi bên padX: bóng lan ra ngoài mép đáy (SIDE_SPREAD, tới 2 lần độ lan + phần làm mềm)
-  // từng bị cắt đúng mép ảnh SP thành 2 cạnh dọc — trên hộp gỗ trông như tấm kính dưới đáy túi (soát 15/10, lộ ra khi
-  // ảnh tách nền được cắt sát túi).
+  // Lớp bóng rộng hơn ảnh SP mỗi bên padX để bóng lan ra ngoài mép đáy không bị cắt thẳng.
   const padX = Math.ceil(productWidth * (SIDE_SPREAD * 2 + 0.02)) + 2;
   const width = productWidth + 2 * padX;
   const padded = new Uint8ClampedArray(width * height * 4);
@@ -237,15 +209,11 @@ export function buildShadowLayer(
     layerHeight = Math.max(layerHeight, b + 1 + reach);
   }
 
-  // Hai lớp: chỗ chạm mặt phẳng (vệt gọn, chỉ làm mềm ngang) và phần nhấc lên (bóng mềm, loang rộng
-  // cả hai chiều). Gộp chung một kiểu làm mềm thì vài cột mép nhấc lên thành vệt tối hẹp kéo dọc
-  // xuống — đã thấy khi thử trên trình duyệt.
+  // Hai lớp: chỗ chạm mặt phẳng (chỉ làm mềm ngang) và phần nhấc lên (loang cả hai chiều).
   const contact = new Float32Array(width * layerHeight).fill(1);
   const lifted = new Float32Array(width * layerHeight).fill(1);
   let hasLifted = false;
-  // Mép đáy sau khi tách nền là vài hàng bán trong suốt (đo: độ đặc 222 → 137 → 83 → 40). Bóng chỉ
-  // bắt đầu dưới hàng đặc cuối thì mặt phẳng CHƯA có bóng lộ qua các hàng đó thành đường sáng mảnh
-  // ngay dưới đáy — nên phủ độ tối sát đáy lên cả dải mép (hàng đặc hoàn toàn thì bị che, vô hại).
+  // Phủ độ tối sát đáy lên cả dải mép bán trong suốt — không thì lộ đường sáng mảnh ngay dưới đáy.
   const underPad = Math.max(3, Math.round(height * 0.006));
   for (const { x, b, fade, stretch, reach, isLifted } of columns) {
     const target = isLifted ? lifted : contact;
@@ -268,8 +236,7 @@ export function buildShadowLayer(
   }
   const factor = new Float32Array(width * layerHeight);
   for (let i = 0; i < factor.length; i += 1) factor[i] = Math.min(contact[i], lifted[i]);
-  // Bóng lan ra ngoài hai mép đáy: cùng đường cong độ sâu như ảnh thật, nhạt dần theo khoảng cách tới mép.
-  // Lấy min với bóng đã có nên dưới đáy vẫn đúng số đo ảnh thật.
+  // Bóng lan ra ngoài hai mép đáy; lấy min để dưới đáy vẫn đúng số đo ảnh thật.
   if (footLeft >= 0) {
     const spread = Math.max(2, footWidth * SIDE_SPREAD);
     const stretch = heightFactor;
@@ -299,10 +266,7 @@ export function buildShadowLayer(
   return { width, padX, height: layerHeight, alpha };
 }
 
-/**
- * Phần đáy sản phẩm sát mặt phẳng cũng tối lại (mặt phẳng chắn ánh sáng) — ảnh thật gần như đen ở
- * mép tiếp xúc. Cao theo cùng hệ số với bóng; sửa tại chỗ.
- */
+/** Phần đáy SP sát mặt phẳng tối lại (mặt phẳng chắn sáng). Sửa tại chỗ. */
 export function applySelfOcclusion(
   rgba: Uint8ClampedArray,
   width: number,
@@ -337,23 +301,14 @@ export function applySelfOcclusion(
 /** Độ đặc dưới mức này mà nằm xa mọi phần rõ nét của sản phẩm thì là cặn nền rembg để sót. */
 export const RESIDUE_MAX_ALPHA = 48;
 
-/**
- * Khoảng giữ lại quanh phần rõ nét: dải khử răng cưa ở mép rộng theo độ phóng mặt nạ của rembg
- * (mô hình chạy ở 1024px) — ảnh SP 426px còn ~1px, ảnh 2000px rộng tới 4–5px.
- */
+/** Khoảng giữ lại quanh phần rõ nét — theo độ phóng mặt nạ rembg. */
 export function residueReach(width: number, height: number): number {
   return Math.max(2, Math.ceil((3 * Math.max(width, height)) / 1024));
 }
 
 /**
- * rembg hay để sót một lớp nền rất mờ trong khoảng hở kín như lỗ quai túi — đo trên ảnh túi nhà
- * cung cấp người dùng gửi (2026-09-29): gần hết lỗ quai có độ đặc 6–20/255 chứ không phải 0. Lớp này
- * mang màu nền trắng của ảnh gốc; sau khi `unpremultiplyEdges` chia lại màu nó thành mảng mờ sáng như
- * kính trên nền tối (người dùng thấy "cái gì bóng bóng" giữa quai).
- *
- * Điểm có độ đặc < RESIDUE_MAX_ALPHA mà cách mọi điểm ≥ RESIDUE_MAX_ALPHA quá `reach` px thì xoá
- * hẳn. Điểm sát phần rõ nét giữ nguyên: dải khử răng cưa ở mép, rìa mờ của dây chuyền mảnh (lõi dây
- * đặc hơn 48 nên chính nó cũng được giữ). Sửa tại chỗ.
+ * Xoá lớp nền rất mờ rembg để sót trong khoảng hở (lỗ quai): điểm độ đặc < RESIDUE_MAX_ALPHA cách mọi điểm rõ nét
+ * quá `reach` px. Sửa tại chỗ.
  */
 export function clearMatteResidue(
   rgba: Uint8ClampedArray,
@@ -388,12 +343,7 @@ export function clearMatteResidue(
   }
 }
 
-/**
- * rembg (naive_cutout: Image.composite(ảnh, nền trong suốt, mặt nạ)) trả màu điểm mép ĐÃ NHÂN độ
- * đặc: đo trên ảnh thử, (30,28,28) ở độ đặc 40 thực ra là (191,178,178) — khớp điểm ảnh gốc. Vẽ
- * thẳng lên canvas (hiểu là màu chưa nhân) thì mép tối đi thành đường viền đen mảnh quanh sản phẩm.
- * Chia lại cho độ đặc để lấy màu thật; sửa tại chỗ.
- */
+/** rembg trả màu mép đã nhân độ đặc → chia lại để lấy màu thật (tránh viền đen mảnh). Sửa tại chỗ. */
 export function unpremultiplyEdges(rgba: Uint8ClampedArray) {
   for (let i = 0; i < rgba.length; i += 4) {
     const a = rgba[i + 3];
@@ -406,14 +356,8 @@ export function unpremultiplyEdges(rgba: Uint8ClampedArray) {
 }
 
 /**
- * Viền ám màu nền cũ: ảnh nhà cung cấp chụp trên nền trắng, mép sản phẩm chuyển dần sang trắng qua
- * vài điểm ảnh (đo trên ảnh thử: (80,49,50) → (146,134,133) → (225,218,215)); tách nền giữ lại cả
- * những điểm nhạt này, nhiều điểm gần như đặc. Đặt cạnh bóng tối chúng thành đường sáng mảnh viền
- * quanh sản phẩm — lộ ngay là ảnh ghép.
- *
- * Xét mọi điểm trong dải `band` px sát mép (kể cả điểm đặc); điểm nào sáng hơn hẳn thân sản phẩm
- * ngay bên trong (bán kính `sampleRadius`) thì lấy lại màu thân. Alpha giữ nguyên. Điểm không sáng
- * hơn (chi tiết tối ở mép, viền kim loại cùng tông) giữ nguyên.
+ * Khử viền ám màu nền cũ: trong dải `band` px sát mép, điểm sáng hơn hẳn thân SP ngay bên trong thì lấy lại màu thân.
+ * Alpha giữ nguyên.
  */
 export function defringeEdges(rgba: Uint8ClampedArray, width: number, height: number, band = 2, sampleRadius = 6) {
   const source = new Uint8ClampedArray(rgba);
@@ -474,11 +418,7 @@ export function defringeEdges(rgba: Uint8ClampedArray, width: number, height: nu
 
 // ─── Ánh sáng khớp với nền ─────────────────────────────────────────────────
 
-/**
- * Mức "ánh vàng ấm" 0..1 tự suy từ màu trung bình của ảnh nền: nền càng ngả cam (đèn LED vàng) thì
- * càng kéo sản phẩm (chụp đèn studio trắng) về tông ấm. Nền của ảnh ghép mẫu có chỉ số 0,86 → 1
- * (đúng bản đã duyệt); nền trắng trung tính → 0, không nhuộm vàng sản phẩm.
- */
+/** Mức ánh vàng ấm 0..1 suy từ màu trung bình ảnh nền (nền ngả cam → nhuộm ấm SP). */
 export function estimateWarmth(meanR: number, meanG: number, meanB: number): number {
   const total = meanR + meanG + meanB;
   if (total <= 0) return 0;
@@ -486,38 +426,20 @@ export function estimateWarmth(meanR: number, meanG: number, meanB: number): num
   return Math.min(1, Math.max(0, warmIndex / 0.8));
 }
 
-/**
- * Mức nhuộm ấm cần thêm cho SP: chỉ phần nền ẤM HƠN nơi chụp SP. Kiểm chứng 15/10 trên 15 ảnh túi chụp thật trong phòng
- * media (cắt túi ra ghép lại lên nền trống, so với chính ảnh chụp đó): nhuộm theo nền mà không trừ ánh sáng nơi chụp thì
- * túi đã chụp dưới đèn vàng bị nhuộm lần nữa — kênh xanh tụt ~25%, túi be thành vàng đậm. Ảnh catalog phông trắng (nơi
- * chụp trung tính) vẫn nhuộm đủ.
- */
+/** Mức nhuộm ấm cần thêm cho SP: chỉ phần nền ấm hơn nơi chụp SP (không nhuộm chồng ảnh đã chụp dưới đèn vàng). */
 export function addedWarmth(sceneWarmth: number, sourceWarmth: number): number {
   return Math.min(1, Math.max(0, sceneWarmth - sourceWarmth));
 }
 
-/**
- * Nơi chụp SP ấm ít nhất tỉ lệ này của độ ấm nền = chụp dưới cùng kiểu đèn — xem sameLightAsScene. Đo 15/10: viền ảnh túi
- * chụp trong phòng media ấm 0,46–1,0 (nền mẫu 1,0); ảnh catalog/Google/Pexels phông trắng đều 0.
- */
+/** Nơi chụp SP ấm ít nhất tỉ lệ này của độ ấm nền = chụp dưới cùng kiểu đèn. */
 export const SAME_LIGHT_MIN_FRACTION = 0.4;
 
-/**
- * SP chụp dưới cùng kiểu đèn với nền (ảnh chụp sẵn trong phòng media): giữ nguyên ánh sáng gốc, KHÔNG chỉnh kiểu đèn
- * studio / làm sáng / nhuộm ấm. Kiểm chứng 15/10 (15 túi chụp thật, ghép lại lên nền trống, so chính ảnh chụp): các bước
- * đó vốn để đưa ảnh catalog về đèn studio, áp lên ảnh đã chụp đúng đèn thì kéo mất vùng sáng bóng phía trên thân (tới
- * −6 L*), túi tối và vàng hơn ảnh thật.
- */
+/** SP chụp dưới cùng kiểu đèn với nền: giữ ánh sáng gốc, không chỉnh đèn studio / làm sáng / nhuộm ấm. */
 export function sameLightAsScene(sceneWarmth: number, sourceWarmth: number): boolean {
   return sceneWarmth > 0 && sourceWarmth >= sceneWarmth * SAME_LIGHT_MIN_FRACTION;
 }
 
-// ─── Số đo ánh sáng từ ảnh chụp thật ───────────────────────────────────────
-//
-// Đo 10/10 trên 100 ảnh túi trên hộp/kệ của phòng media và 8 ảnh ghép, cùng một cách đo (thang L* 0–100):
-// độ sáng và tương phản thân túi khớp nhau (38 vs 35; 14,6 vs 14,6), nhưng (1) túi thật sáng hơn ở trên
-// so với dưới +10,7 (đèn trần), túi ghép chỉ +7,8; (2) mặt đặt ngay dưới chân túi thật chỉ sáng hơn vùng
-// quanh túi +2,6 (túi che đèn trần), còn ảnh ghép +18 (mặt hộp nền mẫu sáng trưng ngay sát chân túi).
+// ─── Số đo ánh sáng từ ảnh chụp thật (thang L*) ─────────────────────────────
 
 /** Ảnh thật: thân túi phần trên sáng hơn phần dưới chừng này (trung vị L*). */
 export const REAL_TOP_LIGHT_DIFF = 10.7;
@@ -541,20 +463,9 @@ export function lightness(r: number, g: number, b: number): number {
 }
 
 // ─── Đèn studio trên thân túi, độ sáng SP theo cảnh ──────────────────────────
-//
-// Phân tích đèn 10/10 trên 100 ảnh chụp thật của phòng media (túi trên hộp gỗ): đèn chính là nguồn lớn, mềm,
-// đặt CHÍNH DIỆN hơi cao hơn máy — trái/phải gần đối xứng (chênh trung vị +1,8 L*, so với ~18 trên↔dưới), mép
-// trên thân sáng nhất, giữa thân phẳng, đáy tối nhanh; đèn LED vàng trên kệ chỉ là đèn trang trí phía sau. Ảnh
-// SP người dùng thì chụp đủ kiểu đèn. Nên: KHÔNG đánh sáng lệch trái/phải; đưa phân bố sáng từ trên xuống của
-// thân SP về đúng kiểu studio (STUDIO_BODY_PROFILE), chỉ bù phần thiếu để túi đã có đèn trên mạnh không bị
-// sáng chồng; dải đáy để lớp bóng sát đáy (applySelfOcclusion, đã hiệu chỉnh theo ảnh thật) lo.
+// Đèn chính diện, mềm: không đánh sáng lệch trái/phải; đưa phân bố sáng trên→dưới của thân SP về kiểu studio.
 
-/**
- * Kiểu đèn studio: độ sáng (L*) 6 dải ngang của thân túi, từ trên xuống, so với trung vị cả thân. Đo lại 12/10
- * trên 457 ảnh túi chụp thật Tháng 7–9 (43 mẫu), đúng cách hàm dưới đo SP (lưới 6×6, trung vị ô, trung vị theo
- * hàng): các đợt chụp gần đây đèn mềm hơn — mép trên chỉ +3,0 (khoảng tin cậy 95% +1,9..+4,0), bộ ảnh cũ +6,6;
- * số cũ 10/10 là [8.6, 2.4, 1.2, 0.3, -1.9, -8.4] làm phần trên túi ghép sáng gắt hơn ảnh thật hiện nay.
- */
+/** Kiểu đèn studio: độ sáng (L*) 6 dải ngang của thân túi từ trên xuống, so với trung vị cả thân (đo trên ảnh thật). */
 export const STUDIO_BODY_PROFILE: readonly number[] = [3.0, 2.2, 1.2, 0.4, -0.9, -5.4];
 /** Bù chừng này phần khoảng thiếu so với kiểu studio — giữ một phần đèn gốc của SP cho tự nhiên. */
 export const STUDIO_STRENGTH = 0.7;
@@ -586,11 +497,8 @@ export function productExposureFor(sceneLightness: number): number {
 }
 
 /**
- * Hệ số nhân (theo giá trị sRGB) cho từng hàng ảnh SP để phân bố sáng trên thân về kiểu studio. Đo phân bố
- * sẵn có của SP trên lưới 6×6 khung thân (trung vị từng ô, trung vị theo hàng — hoa văn/màu da lệch một vài
- * ô không kéo lệch cả hàng), bù STUDIO_STRENGTH phần chênh với STUDIO_BODY_PROFILE (kẹp ±STUDIO_MAX_SHIFT)
- * cho 5 dải trên; dải đáy giữ mức bù của dải trên nó. Quai phía trên thân theo dải trên cùng, phần dưới đáy
- * theo dải dưới cùng. Không đủ điểm thân → null.
+ * Hệ số nhân cho từng hàng ảnh SP để phân bố sáng trên thân về kiểu studio (đo lưới 6×6 khung thân, bù một phần, kẹp
+ * ±STUDIO_MAX_SHIFT). Không đủ điểm thân → null.
  */
 export function studioRowFactors(
   rgba: ArrayLike<number>, width: number, height: number, body: readonly number[], gains: readonly number[],
@@ -647,11 +555,7 @@ function linearToSrgb(c: number): number {
   return Math.round(Math.min(1, Math.max(0, v)) * 255);
 }
 
-/**
- * SP sáng lên `gain` lần theo ánh sáng tuyến tính, kèm "vai" y·g / (1 + (g − 1)·y): chỗ tối/vừa sáng lên
- * gần đủ `gain`, chỗ đã gần trắng thì gần như giữ nguyên — không cháy chữ thêu, khoá kim loại. Giữ alpha
- * và tỉ lệ màu (không làm lệch màu da). Sửa tại chỗ.
- */
+/** SP sáng lên `gain` lần (ánh sáng tuyến tính) có "vai" để chỗ gần trắng không cháy. Giữ alpha và tỉ lệ màu. */
 export function brightenProduct(rgba: Uint8ClampedArray, gain = PRODUCT_EXPOSURE) {
   if (gain <= 1) return;
   const table = new Uint8ClampedArray(256);
@@ -690,10 +594,7 @@ export function medianLightness(
   return values[Math.floor(values.length / 2)];
 }
 
-/**
- * Độ đậm vùng tối loang dưới chân (0..SURFACE_POOL_MAX): mặt đặt sáng hơn vùng quanh túi càng nhiều so
- * với ảnh thật thì càng tối lại; mặt đặt vốn đã tối (nền tự tải lên) thì không cần.
- */
+/** Độ đậm vùng tối dưới chân: mặt đặt càng sáng hơn quanh túi so với ảnh thật thì càng tối lại. */
 export function surfacePoolStrength(surfaceL: number | null, surroundL: number | null): number {
   if (surfaceL === null || surroundL === null) return 0;
   const target = surroundL + REAL_SURFACE_ABOVE_SURROUND;
@@ -701,10 +602,7 @@ export function surfacePoolStrength(surfaceL: number | null, surroundL: number |
   return Math.min(SURFACE_POOL_MAX, 1 - luminanceOf(target) / luminanceOf(surfaceL));
 }
 
-/**
- * Độ tối dần từ đỉnh xuống đáy (FALLOFF_MIN..FALLOFF_MAX) để phần trên SP sáng hơn phần dưới đúng như
- * ảnh thật (REAL_TOP_LIGHT_DIFF). SP chụp đã có sẵn độ chuyển sáng mạnh thì chỉ thêm ít.
- */
+/** Độ tối dần từ đỉnh xuống đáy để phần trên SP sáng hơn phần dưới như ảnh thật. */
 export function chooseFalloff(
   rgba: ArrayLike<number>, width: number, height: number, top: number, bottom: number, gains: readonly number[],
 ): number {
@@ -789,10 +687,8 @@ function blurRgb(src: Float32Array, width: number, height: number, sigma: number
 }
 
 /**
- * Kéo ánh sáng của sản phẩm về ánh sáng của cảnh (sửa tại chỗ, giữ nguyên alpha):
- * cân trắng về tông ấm → phân bố sáng từ trên xuống theo kiểu đèn studio (studioRowFactors; thiếu khung thân thì
- * tối dần tuyến tính — chooseFalloff) → giảm tương phản 10% →
- * dịu vân quá sắc (trộn 50% bản làm mờ nhẹ) → hạt nhiễu nhẹ như ảnh chụp.
+ * Kéo ánh sáng SP về ánh sáng cảnh (sửa tại chỗ, giữ alpha): nhuộm ấm → phân bố sáng kiểu studio → giảm tương phản
+ * → dịu vân quá sắc → hạt nhiễu nhẹ.
  */
 export function applyLook(
   rgba: Uint8ClampedArray, width: number, height: number, warmth: number, seed = 1, body?: readonly number[] | null,
@@ -809,8 +705,7 @@ export function applyLook(
   for (let x = 0; x < width; x += 1) bottom = Math.max(bottom, edges[x]);
   if (top < 0 || bottom < 0) return;
   const span = Math.max(1, bottom - top);
-  // Có khung thân (AI trả): phân bố sáng trên thân về đúng kiểu đèn studio. Không có: tối dần tuyến tính, độ
-  // dốc chọn theo chính SP để trên−dưới khớp ảnh thật.
+  // Có khung thân: phân bố sáng kiểu studio; không có: tối dần tuyến tính.
   const studio = body ? studioRowFactors(rgba, width, height, body, gains) : null;
   const range = studio ? 0 : chooseFalloff(rgba, width, height, top, bottom, gains);
 

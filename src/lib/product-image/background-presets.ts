@@ -1,8 +1,4 @@
-/**
- * Nền có sẵn cho chế độ "Ghép background": ảnh phòng media chụp hộp gỗ trước kệ túi (người dùng
- * gửi 2026-09-29, thay bản chỉnh màu 2026-10-13; ảnh ở public/product-image/backgrounds). Mỗi nền ghi sẵn chỗ SP đứng trên mặt
- * hộp, nên tách nền xong là SP tự đứng đúng chỗ, không phải chỉnh tay.
- */
+/** Nền có sẵn cho "Ghép background": 2 ảnh hộp gỗ trước kệ túi, ghi sẵn chỗ SP đứng trên mặt hộp. */
 import {
   PLACEMENT_SCALE_MAX,
   PLACEMENT_SCALE_MIN,
@@ -25,31 +21,16 @@ export interface BackgroundPreset {
   productHeight: number;
   /** SP bề ngang quá khổ thì thu nhỏ cho vừa mặt hộp — theo tỉ lệ bề ngang ảnh nền. */
   maxProductWidth: number;
-  /**
-   * Độ lớn THÂN SP (√(rộng × cao) của thân túi, không tính quai/dây) theo tỉ lệ chiều cao ảnh nền —
-   * mọi túi trên cùng nền có cùng độ lớn thân, dù dây dài hay quai cao. ≈ 0,77 × productHeight: túi
-   * thường có thân cao ~70% cả túi và rộng ~1,2 lần thân cao, nên cỡ thân ngang với cách đặt cũ.
-   */
+  /** Độ lớn thân SP (√(rộng × cao) thân túi) theo tỉ lệ chiều cao nền — mọi túi cùng cỡ thân khi chưa biết cm. */
   bodySize: number;
-  /**
-   * Bề ngang hộp ĐÚNG Ở HÀNG ĐẶT CHÂN (foot.y), theo tỉ lệ bề ngang ảnh nền — để quy cm ra điểm ảnh (BOX_WIDTH_CM). Đo ở
-   * hàng chân chứ không ở mép trước: nền chụp gần nên hộp ở độ sâu đặt túi hẹp hơn mép trước ~11%.
-   */
+  /** Bề ngang hộp ở hàng đặt chân (foot.y), theo tỉ lệ bề ngang nền — để quy cm ra điểm ảnh. */
   boxWidth: number;
 }
 
-/**
- * Bề ngang thật của hộp gỗ "Vạn Phong Các" trong 2 nền có sẵn (cm) — người dùng đo thước 15/10: dài 37 × rộng 34 × cao
- * 19,5cm; mặt có khoá đồng quay ra máy là cạnh 37 (ước tính gián tiếp bằng khoá đồng trước đó ra ~38cm: khoá 99px /
- * mặt trước 1558px trên nền ngang, khoá ~2,4cm). Hộp này LỚN hơn hộp ở ảnh chụp SP của shop (~29–31cm) — bản đầu lấy 31cm
- * của hộp nhỏ nên túi to quá ~19–37%.
- */
+/** Bề ngang thật của hộp gỗ trong 2 nền (cm) — người dùng đo: 37 × 34 × 19,5cm, cạnh 37 quay ra máy. */
 export const BOX_WIDTH_CM = 37;
 
-// Số đo trên ảnh gốc. Nền ngang lấy đúng chỗ người dùng tự đặt túi (ảnh ghép của họ trừ đi ảnh nền):
-// chân túi ở 86% chiều cao = 73% độ sâu mặt hộp, túi cao 62,5% ảnh. Nền dọc đặt chân ở cùng 73% độ
-// sâu; hộp ở độ sâu đó rộng 1565px so với 1516px bên ảnh ngang nên SP cao hơn tương ứng (≈1100px).
-// Bề ngang tối đa = 80% bề ngang mặt hộp ở độ sâu đặt chân.
+// Số đo trên ảnh gốc: chân túi ở 73% độ sâu mặt hộp; bề ngang tối đa = 80% mặt hộp ở độ sâu đặt chân.
 export const BACKGROUND_PRESETS: readonly BackgroundPreset[] = [
   {
     id: 'shelf-box-portrait',
@@ -69,9 +50,7 @@ export const BACKGROUND_PRESETS: readonly BackgroundPreset[] = [
     label: 'Hộp gỗ · ngang',
     src: '/product-image/backgrounds/shelf-box-landscape.jpg',
     thumbnailSrc: '/product-image/backgrounds/shelf-box-landscape-thumb.jpg',
-    // Mặt hộp từ 76% (mép sau) tới 89,8% (mép trước) chiều cao ảnh. Ảnh thay 13/10 (2540×1694) chụp
-    // cùng chỗ nhưng hộp to hơn ảnh cũ ~1% và lệch phải/xuống chút (đo bằng khớp cạnh hai ảnh) → số
-    // đo cũ nhân theo đúng tỉ lệ đó.
+    // Mặt hộp từ 76% (mép sau) tới 89,8% (mép trước) chiều cao ảnh.
     foot: { x: 0.5025, y: 0.861 },
     productHeight: 0.631,
     maxProductWidth: 0.475,
@@ -85,11 +64,7 @@ export const BACKGROUND_PRESETS: readonly BackgroundPreset[] = [
 export type BackgroundLayout = Pick<BackgroundPreset, 'foot' | 'productHeight' | 'maxProductWidth' | 'bodySize'> &
   Partial<Pick<BackgroundPreset, 'boxWidth'>>;
 
-/**
- * Ảnh nền tự tải lên: máy chưa biết mặt bàn nằm đâu nên đặt SP theo bố cục ảnh sản phẩm thường gặp —
- * giữa ảnh, chân ở 85% chiều cao, SP cao một nửa ảnh. Cần đặt đúng mặt phẳng thì dùng Gemini, hoặc
- * đo ảnh nền đó rồi thêm vào BACKGROUND_PRESETS.
- */
+/** Ảnh nền tự tải lên: chưa biết mặt bàn nên đặt giữa ảnh, chân ở 85% chiều cao, SP cao nửa ảnh. */
 export const UPLOADED_BACKGROUND_LAYOUT: BackgroundLayout = {
   foot: { x: 0.5, y: 0.85 },
   productHeight: 0.5,
@@ -104,10 +79,7 @@ export function findBackgroundPreset(id: string | null | undefined): BackgroundP
   return BACKGROUND_PRESETS.find((preset) => preset.id === id);
 }
 
-/**
- * Vị trí để SP đứng lên mặt hộp: chân SP trùng `foot`, SP cao `productHeight` ảnh nền, trừ khi SP
- * bề ngang quá `maxProductWidth` thì thu nhỏ lại. Đi ngược công thức của `computeDrawRect`.
- */
+/** Vị trí để chân SP trùng `foot`, SP cao `productHeight` (thu nhỏ nếu quá `maxProductWidth`). */
 export function placementForPreset(preset: BackgroundLayout, background: Size, product: Size): Placement {
   const targetHeight = Math.min(
     preset.productHeight * background.height,
@@ -124,28 +96,21 @@ export function placementForPreset(preset: BackgroundLayout, background: Size, p
 /** Khung thân SP [x0, y0, x1, y1] theo pixel của ảnh tách nền (AI trả về). */
 export type BodyBox = readonly [number, number, number, number];
 
-/**
- * Vị trí SP theo THÂN túi (AI trả khung thân): thân có độ lớn `bodySize` × chiều cao nền, giữa đáy
- * thân trùng `foot` — quai/dây nằm đâu theo đó. Đặt theo cả khung SP (placementForPreset) thì túi dây
- * dài/ngang bị thu nhỏ còn nửa vì chạm trần bề ngang (đo trên ảnh thật: khung 1984×832 so với 768×1193
- * trên cùng nền cao chênh gấp đôi). Thân không rộng quá `maxProductWidth`, quai không trồi khỏi mép trên.
- */
+/** Vị trí SP theo thân túi: thân cỡ theo cm (hoặc `bodySize`), giữa đáy thân trùng `foot`, quai theo đó. */
 export function placementForBody(
   layout: BackgroundLayout, background: Size, product: Size, body: BodyBox, widthCm?: number | null,
 ): Placement {
   const [bx0, by0, bx1, by1] = body;
   const bodyWidth = Math.max(1, bx1 - bx0);
   const bodyHeight = Math.max(1, by1 - by0);
-  // Biết bề ngang thật (cm) và nền có số đo hộp → thân túi rộng đúng tỉ lệ với hộp BOX_WIDTH_CM: ví 11cm chưa tới 1/3 mặt
-  // hộp, túi lớn 37cm vừa khít bề ngang hộp. Không biết → mọi túi cùng độ lớn thân (bodySize), không quá maxProductWidth.
+  // Biết cm → thân rộng đúng tỉ lệ với hộp BOX_WIDTH_CM; không biết → cùng độ lớn thân (bodySize).
   const bySize = widthCm && layout.boxWidth
     ? ((widthCm / BOX_WIDTH_CM) * layout.boxWidth * background.width) / bodyWidth
     : Math.min(
       (layout.bodySize * background.height) / Math.sqrt(bodyWidth * bodyHeight),
       (layout.maxProductWidth * background.width) / bodyWidth,
     );
-  // Hệ số phóng: pixel ảnh tách nền → pixel ảnh nền. Phần trên đáy thân (quai) không trồi khỏi mép trên. Không kẹp theo
-  // bề ngang cả SP: dây đeo trải ngang rộng hơn ảnh thì để tràn mép, thân túi vẫn đúng cỡ.
+  // Quai không trồi khỏi mép trên; dây trải ngang rộng hơn ảnh thì để tràn, thân vẫn đúng cỡ.
   let factor = Math.min(bySize, (layout.foot.y * background.height) / by1);
   const fitPerScale = Math.min(background.width / product.width, background.height / product.height);
   const scale = Math.min(PLACEMENT_SCALE_MAX, Math.max(PLACEMENT_SCALE_MIN, factor / fitPerScale));

@@ -1,16 +1,8 @@
-/**
- * Tab "Tạo hàng loạt": nhiều ảnh SP + một ảnh cảnh → mỗi SP một ảnh, không chỉnh tay. Phần thuần
- * logic (đặt tên, chạy song song có giới hạn, tóm tắt lô) tách ra đây để test được.
- */
+/** Tab "Tạo hàng loạt": nhiều ảnh SP + một ảnh cảnh → mỗi SP một ảnh. Phần thuần logic để test được. */
 import { formatUsd, formatVnd } from './cost-view';
 import { PRODUCT_NAME_MAX_LENGTH } from './held-product-request';
 
-/**
- * - cutout (mặc định): rembg tách nền rồi tự đặt lên mặt hộp của nền có sẵn — 0đ, thả ảnh là tự
- *   chạy, chỉ dùng với nền có sẵn.
- * - gemini: Gemini đặt SP vào cảnh (khớp ánh sáng/phối cảnh/bóng) — tính phí mỗi ảnh, xác nhận một
- *   lần mỗi lô.
- */
+/** cutout (0đ): tách nền rồi tự đặt lên mặt hộp; gemini: Gemini đặt SP vào cảnh (tính phí, xác nhận mỗi lô). */
 export type BatchMode = 'cutout' | 'gemini';
 
 export const DEFAULT_BATCH_MODE: BatchMode = 'cutout';
@@ -32,25 +24,16 @@ export interface CutoutDetection {
   model_reasons?: string[];
 }
 
-/**
- * Ai đã nhận diện SP của ảnh tách nền — hiện cạnh tiền lượt đó. Ảnh có cảnh báo (skipped) thì null: đã có
- * dòng cảnh báo vàng riêng kèm lý do.
- */
+/** Ai đã nhận diện SP — hiện cạnh tiền lượt đó; ảnh có cảnh báo (skipped) thì null. */
 export function cutoutDetectionLabel(detection: CutoutDetection | null | undefined): string | null {
   if (!detection || detection.status !== 'applied' || detection.source !== 'model') return null;
   return 'model tự huấn luyện (0đ)';
 }
 
-/**
- * Số ảnh chạy cùng lúc. Gemini mỗi lượt 10–30s nên chạy song song cho nhanh, nhưng không dồn cả lô
- * vào một lúc để khỏi chạm hạn mức theo phút của Gemini và khỏi giành CPU tách nền của AI service.
- */
+/** Số ảnh chạy cùng lúc — tránh chạm hạn mức Gemini và giành CPU tách nền. */
 export const BATCH_CONCURRENCY = 2;
 
-/**
- * Đổi nền khi đang ở chế độ ghép nền: mọi ảnh đã ghép nền đưa về hàng chờ để tự ghép lại lên nền
- * mới (giữ ảnh cũ trên màn hình tới khi có ảnh mới). Ảnh Gemini giữ nguyên — tạo lại là tốn tiền.
- */
+/** Đổi nền: ảnh đã ghép nền về hàng chờ để ghép lại; ảnh Gemini giữ nguyên (tạo lại tốn tiền). */
 export function requeueCutoutResults<T extends { status: BatchItemStatus; result: { mode: BatchMode } | null }>(
   items: readonly T[],
 ): T[] {
@@ -66,10 +49,8 @@ export function productNameFromFileName(fileName: string): string {
 }
 
 /**
- * Bề ngang thân túi (cm) đọc từ mã SP của shop: số 2 chữ số ngay sau mã — "TX018-25-CS-02" → 25, "TK9001-23-B-02" → 23,
- * "T103002-1-24" → 24 (có số phiên bản), "WA9001-11-B" → 11. Đo 15/10 trên ảnh chụp thật 15/16 mẫu khớp (bề ngang thân
- * túi / bề ngang hộp gỗ ~31cm). Nhận cả "_" và dấu cách thay "-" (tên SP mặc định đổi "-" thành dấu cách). Không thấy mã
- * hoặc số ngoài SIZE_CM_RANGE → null.
+ * Bề ngang thân túi (cm) từ mã SP: số 2 chữ số sau mã — "TX018-25-CS-02" → 25, "T103002-1-24" → 24. Nhận cả "_" và
+ * dấu cách. Không thấy hoặc ngoài SIZE_CM_RANGE → null.
  */
 export const SIZE_CM_RANGE = [6, 60] as const;
 const SIZE_CODE = /(?:^|[^A-Za-z0-9])[A-Za-z]{1,3}\d{3,6}[-_ ](?:\d[-_ ])?(\d{2})(?=[-_ .]|$)/;
@@ -93,10 +74,7 @@ export function typicalWidthCm(size: BagSizeClass): number {
   return (size.minCm + size.maxCm) / 2;
 }
 
-/**
- * Ảnh chưa rõ cỡ tạm coi là túi nhỏ: không có cm thì túi nào cũng ra cùng một cỡ thân (bodySize), không theo hộp — lấy
- * túi nhỏ thì ít nhất đúng cỡ so với hộp cho phần lớn hàng; người dùng bấm "Túi lớn" hoặc gõ cm để sửa.
- */
+/** Ảnh chưa rõ cỡ tạm coi là túi nhỏ — người dùng bấm "Túi lớn" hoặc gõ cm để sửa. */
 export const FALLBACK_SIZE_CLASS: BagSizeClass = BAG_SIZE_CLASSES[0];
 
 /** "Túi Đeo Chéo  #2" → "tui-deo-cheo-2" — tên file an toàn trên mọi hệ điều hành. */
@@ -127,10 +105,8 @@ export function uniqueFileNames(entries: readonly { name: string; extension: str
 }
 
 /**
- * Chạy `worker` cho từng phần tử, tối đa `limit` phần tử cùng lúc, theo đúng thứ tự danh sách.
- * `isStopped()` trả true thì không nhận thêm phần tử mới (phần tử đang chạy vẫn chạy nốt — bên gọi
- * tự huỷ request nếu muốn). Lỗi của một phần tử không làm dừng cả lô: worker tự ghi lỗi vào phần tử
- * đó; lỗi lọt ra ngoài worker cũng bị nuốt để các phần tử còn lại vẫn chạy.
+ * Chạy `worker` cho từng phần tử, tối đa `limit` cùng lúc, đúng thứ tự. `isStopped()` → không nhận thêm phần tử mới.
+ * Lỗi của một phần tử không dừng cả lô.
  */
 export async function runWithConcurrency<T>(
   items: readonly T[],
@@ -162,10 +138,7 @@ export interface GeminiEstimate {
   note: string | null;
 }
 
-/**
- * Câu trong hộp xác nhận lô Gemini: "N ảnh, khoảng X đ". `estimate` null = không lấy được giá ước
- * tính (lỗi mạng...) — vẫn cho chạy, chỉ nói thẳng là chưa có số. Không bao giờ tự bịa đơn giá.
- */
+/** Câu xác nhận lô Gemini: "N ảnh, khoảng X đ"; `estimate` null thì nói chưa có giá, không tự bịa. */
 export function geminiBatchCostText(count: number, estimate: GeminiEstimate | null): string {
   const head = `Lô này là ${count} lượt tính phí Gemini, kể cả ảnh ra chưa đạt.`;
   if (!estimate) return `${head} Chưa lấy được giá ước tính.`;
