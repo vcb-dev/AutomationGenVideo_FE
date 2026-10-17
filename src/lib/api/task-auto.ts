@@ -8,6 +8,9 @@ import type {
   TaskHeaderCounts,
   Team,
   TeamKind,
+  HrmSyncChoices,
+  HrmSyncPlan,
+  HrmSyncResult,
   EditorApproval,
   TeamKpi,
   EditorKpi,
@@ -36,6 +39,8 @@ import type {
   TeamSourcesQuery,
   AssignmentRun,
   AutoAssignSetting,
+  MemberAutoAssignSchedule,
+  TeamAutoAssignSchedules,
   DailyPlanQuickCreateResult,
   DailyPlanSearchContent,
   DailyPlanSearchCreateBody,
@@ -282,6 +287,12 @@ export const setMemberEditorRole = (teamId: string, userId: string, isEditor: bo
 
 export const setMemberContentCreatorRole = (teamId: string, userId: string, isContentCreator: boolean) =>
   apiClient.patch(`/task-auto/teams/${teamId}/members/${userId}/content-creator`, { is_content_creator: isContentCreator }).then(r => r.data)
+
+export const previewHrmSync = (body: HrmSyncChoices) =>
+  apiClient.post<HrmSyncPlan>('/task-auto/hrm-sync/preview', body).then(r => r.data)
+
+export const applyHrmSync = (body: HrmSyncChoices) =>
+  apiClient.post<HrmSyncResult>('/task-auto/hrm-sync', body).then(r => r.data)
 
 // ── Team Products (standalone) ────────────────────────────────────────────────
 
@@ -952,6 +963,15 @@ export const getAutoAssignSettings = () =>
 
 export const updateAutoAssignSettings = (body: Partial<AutoAssignSetting>) =>
   apiClient.put<AutoAssignSetting>('/task-auto/settings', body).then(r => r.data)
+
+export const getMemberAutoAssignSchedules = () =>
+  apiClient.get<TeamAutoAssignSchedules[]>('/task-auto/settings/members').then(r => r.data)
+
+export const updateMemberAutoAssignSchedule = (
+  memberId: string,
+  body: Partial<Pick<MemberAutoAssignSchedule, 'auto_assign_enabled' | 'auto_assign_weekdays'>>,
+) =>
+  apiClient.patch<MemberAutoAssignSchedule>(`/task-auto/settings/members/${memberId}`, body).then(r => r.data)
 
 export const triggerAutoAssign = () =>
   apiClient.post<{ message: string; timestamp: string; assigned: number; skipped: number; runId: string }>(
