@@ -2340,6 +2340,27 @@ export const scraperService = {
     return res.json();
   },
 
+  // Bảng tin của tag chủ đề — BE gọi Apify tính phí theo bài, chỉ ADMIN/LEADER.
+  searchThreadsByTag: async (
+    token: string,
+    tag: string,
+    count: number,
+  ): Promise<{ tag: string; posts: ThreadsPost[] }> => {
+    const res = await fetchWithAuth(`${API_URL}/scraper/threads/search/tag`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ tag, count }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Tìm bài Threads theo tag thất bại');
+    }
+    return res.json();
+  },
+
   searchThreadsHotPosts: async (
     token: string,
     query: string,
@@ -2362,27 +2383,6 @@ export const scraperService = {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.message || 'Tìm kiếm nội dung Threads thất bại');
-    }
-    return res.json();
-  },
-
-  // Bảng tin của tag chủ đề — BE gọi Apify tính phí theo bài, chỉ ADMIN/LEADER.
-  searchThreadsByTag: async (
-    token: string,
-    tag: string,
-    count: number,
-  ): Promise<{ tag: string; posts: ThreadsPost[] }> => {
-    const res = await fetchWithAuth(`${API_URL}/scraper/threads/search/tag`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ tag, count }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || 'Tìm bài Threads theo tag thất bại');
     }
     return res.json();
   },

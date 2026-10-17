@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import {
+    Compass,
     Activity,
     LayoutDashboard,
     LayoutGrid,
@@ -34,7 +35,6 @@ import {
     Truck,
     Undo2,
     ImagePlus,
-    Compass,
 } from "lucide-react";
 import { useSocialLang } from "@/contexts/SocialLanguageContext";
 import { NavMenu } from "./types";
