@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import {
+    Compass,
     Activity,
     LayoutDashboard,
     LayoutGrid,
@@ -321,7 +322,7 @@ export function useNavMenus(
                             {
                                 label: n.externalChannels,
                                 href: "/dashboard/externalChannels",
-                                icon: BookOpen,
+                                icon: Compass,
                                 description: n.externalChannelsDesc,
                             },
                         ],

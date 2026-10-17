@@ -17,35 +17,9 @@ import {
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService, ScraperChannelTag } from '@/services/scraperService';
 import { UserRole } from '@/types/auth';
+import { normalizeThreadsUsername } from '@/lib/scrape/threads-helpers';
+import { detectPlatform, type DetectedPlatform } from '@/lib/scrape/detect-channel-platform';
 import AddTagModal from './AddTagModal';
-
-type DetectedPlatform =
-  | 'tiktok'
-  | 'douyin'
-  | 'instagram'
-  | 'youtube'
-  | 'xiaohongshu'
-  | 'kuaishou'
-  | 'bilibili'
-  | 'facebook'
-  | 'threads'
-  | null;
-
-// Nhận diện cả domain đầy đủ lẫn domain rút gọn (link copy từ app điện thoại).
-// Link rút gọn được BE tự follow redirect để lấy URL thật (resolve-short-link.util.ts).
-function detectPlatform(url: string): DetectedPlatform {
-  const u = url.toLowerCase();
-  if (u.includes('tiktok.com')) return 'tiktok'; // gồm cả vt./vm.tiktok.com
-  if (u.includes('douyin.com')) return 'douyin'; // gồm cả v.douyin.com
-  if (u.includes('instagram.com')) return 'instagram';
-  if (u.includes('youtube.com') || u.includes('youtu.be')) return 'youtube';
-  if (u.includes('xiaohongshu.com') || u.includes('xhslink.com')) return 'xiaohongshu';
-  if (u.includes('kuaishou.com')) return 'kuaishou'; // gồm cả v.kuaishou.com
-  if (u.includes('bilibili.com') || u.includes('b23.tv')) return 'bilibili';
-  if (u.includes('facebook.com') || u.includes('fb.watch')) return 'facebook';
-  if (u.includes('threads.net')) return 'threads';
-  return null;
-}
 
 const PLATFORM_LABEL: Record<string, { label: string; badgeClass: string }> = {
   tiktok: { label: 'TikTok', badgeClass: 'bg-black text-cyan-400 border border-cyan-500/30' },
@@ -226,8 +200,7 @@ export default function QuickAddChannel() {
           result = await scraperService.fanpageScrapeByUrl(token, trimmed, n, classificationPayload);
           break;
         case 'threads': {
-          const cleanUname = trimmed.replace(/^https?:\/\/(www\.)?threads\.net\//i, '').split('?')[0].split('/')[0].replace(/^@/, '');
-          result = await scraperService.scrapeThreadsProfile(token, cleanUname, n);
+          result = await scraperService.scrapeThreadsProfile(token, normalizeThreadsUsername(trimmed), n);
           break;
         }
       }
@@ -314,7 +287,7 @@ export default function QuickAddChannel() {
             onKeyDown={(e) => {
               if (e.key === 'Enter' && url.trim() && !mutation.isPending) mutation.mutate();
             }}
-            placeholder="Dán URL kênh TikTok / Douyin / Instagram / YouTube / Xiaohongshu / Kuaishou / Bilibili / Facebook..."
+            placeholder="Dán URL kênh TikTok / Douyin / Instagram / YouTube / Xiaohongshu / Kuaishou / Bilibili / Facebook / Threads..."
             className="flex-1 px-3 py-2.5 text-sm border border-border rounded-lg bg-card text-foreground placeholder:text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-primary shadow-2xs"
           />
           <input
