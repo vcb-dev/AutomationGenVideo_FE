@@ -12,7 +12,7 @@ export function guessPlatformFromUrl(url: string): string {
     if (u.includes('douyin.com')) return 'douyin';
     if (u.includes('instagram.com')) return 'instagram';
     if (u.includes('youtube.com') || u.includes('youtu.be')) return 'youtube';
-    if (u.includes('xiaohongshu.com') || u.includes('xhslink.com')) return 'xiaohongshu';
+    if (u.includes('xiaohongshu.com') || u.includes('xhslink.com') || u.includes('rednote.com')) return 'xiaohongshu';
     if (u.includes('kuaishou.com')) return 'kuaishou';
     if (u.includes('bilibili.com') || u.includes('b23.tv')) return 'bilibili';
     if (u.includes('facebook.com') || u.includes('fb.watch')) return 'facebook';

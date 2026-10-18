@@ -12,52 +12,20 @@ import {
   Plus,
   BookmarkSimple,
   Tag,
+  ListPlus,
 } from '@phosphor-icons/react';
 
 import { useAuthStore } from '@/store/auth-store';
 import { scraperService, ScraperChannelTag } from '@/services/scraperService';
 import { UserRole } from '@/types/auth';
 import AddTagModal from './AddTagModal';
-
-type DetectedPlatform =
-  | 'tiktok'
-  | 'douyin'
-  | 'instagram'
-  | 'youtube'
-  | 'xiaohongshu'
-  | 'kuaishou'
-  | 'bilibili'
-  | 'facebook'
-  | 'threads'
-  | null;
-
-// Nhận diện cả domain đầy đủ lẫn domain rút gọn (link copy từ app điện thoại).
-// Link rút gọn được BE tự follow redirect để lấy URL thật (resolve-short-link.util.ts).
-function detectPlatform(url: string): DetectedPlatform {
-  const u = url.toLowerCase();
-  if (u.includes('tiktok.com')) return 'tiktok'; // gồm cả vt./vm.tiktok.com
-  if (u.includes('douyin.com')) return 'douyin'; // gồm cả v.douyin.com
-  if (u.includes('instagram.com')) return 'instagram';
-  if (u.includes('youtube.com') || u.includes('youtu.be')) return 'youtube';
-  if (u.includes('xiaohongshu.com') || u.includes('xhslink.com')) return 'xiaohongshu';
-  if (u.includes('kuaishou.com')) return 'kuaishou'; // gồm cả v.kuaishou.com
-  if (u.includes('bilibili.com') || u.includes('b23.tv')) return 'bilibili';
-  if (u.includes('facebook.com') || u.includes('fb.watch')) return 'facebook';
-  if (u.includes('threads.net')) return 'threads';
-  return null;
-}
-
-const PLATFORM_LABEL: Record<string, { label: string; badgeClass: string }> = {
-  tiktok: { label: 'TikTok', badgeClass: 'bg-black text-cyan-400 border border-cyan-500/30' },
-  douyin: { label: 'Douyin', badgeClass: 'bg-black text-rose-400 border border-rose-500/30' },
-  instagram: { label: 'Instagram', badgeClass: 'bg-gradient-to-r from-purple-500 to-pink-500 text-white' },
-  youtube: { label: 'YouTube', badgeClass: 'bg-red-600 text-white' },
-  xiaohongshu: { label: 'Xiaohongshu', badgeClass: 'bg-red-500 text-white' },
-  kuaishou: { label: 'Kuaishou', badgeClass: 'bg-orange-500 text-white' },
-  bilibili: { label: 'Bilibili', badgeClass: 'bg-sky-500 text-white' },
-  facebook: { label: 'Facebook', badgeClass: 'bg-blue-600 text-white' },
-  threads: { label: 'Threads', badgeClass: 'bg-black text-white border border-slate-700' },
-};
+import BulkAddMultiPlatformModal from './BulkAddMultiPlatformModal';
+import {
+  detectPlatform,
+  DetectedPlatform,
+  PLATFORM_LABEL,
+} from '../lib/bulk-channel-helpers';
+import { normalizeThreadsUsername } from '@/lib/scrape/threads-helpers';
 
 const DEFAULT_FALLBACK_TAGS: { name: string; slug: string }[] = [
   { name: 'Vàng', slug: 'vang' },
@@ -76,7 +44,7 @@ const MAX_COUNT = 1000;
 export default function QuickAddChannel() {
   const queryClient = useQueryClient();
   const { token, user } = useAuthStore();
-  const canManageChannels = user?.roles?.some((r) => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
+  const canManageChannels = user?.roles?.some((r) => [UserRole.ADMIN, UserRole.LEADER, UserRole.MANAGER].includes(r)) ?? false;
 
   const [url, setUrl] = useState('');
   const [count, setCount] = useState(String(DEFAULT_COUNT));
@@ -84,6 +52,7 @@ export default function QuickAddChannel() {
   const [selectedProductLines, setSelectedProductLines] = useState<string[]>([]);
   const [isBookmarked, setIsBookmarked] = useState(true);
   const [showAddTagModal, setShowAddTagModal] = useState(false);
+  const [showBulkModal, setShowBulkModal] = useState(false);
 
   // Lấy danh sách thẻ phân loại dòng sản phẩm
   const { data: fetchedTags = [], refetch: refetchTags } = useQuery<ScraperChannelTag[]>({
@@ -226,7 +195,7 @@ export default function QuickAddChannel() {
           result = await scraperService.fanpageScrapeByUrl(token, trimmed, n, classificationPayload);
           break;
         case 'threads': {
-          const cleanUname = trimmed.replace(/^https?:\/\/(www\.)?threads\.net\//i, '').split('?')[0].split('/')[0].replace(/^@/, '');
+          const cleanUname = normalizeThreadsUsername(trimmed);
           result = await scraperService.scrapeThreadsProfile(token, cleanUname, n);
           break;
         }
@@ -335,6 +304,15 @@ export default function QuickAddChannel() {
             {mutation.isPending && <CircleNotch size={16} weight="bold" className="animate-spin" />}
             {mutation.isPending ? 'Đang thêm & lưu...' : 'Thêm & cào'}
           </button>
+          <button
+            type="button"
+            onClick={() => setShowBulkModal(true)}
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-foreground text-sm font-bold rounded-lg border border-border shadow-2xs whitespace-nowrap transition-all"
+            title="Dán danh sách nhiều URL để cào hàng loạt mọi nền tảng"
+          >
+            <ListPlus size={16} weight="bold" className="text-primary" />
+            <span>Thêm hàng loạt</span>
+          </button>
         </div>
 
         {/* Cấu hình phân loại & chọn thẻ để lưu */}
@@ -431,6 +409,18 @@ export default function QuickAddChannel() {
           onSuccess={(newTag) => {
             setSelectedProductLines((prev) => (prev.includes(newTag.slug) ? prev : [...prev, newTag.slug]));
             refetchTags();
+          }}
+        />
+      )}
+
+      {showBulkModal && (
+        <BulkAddMultiPlatformModal
+          isOpen={showBulkModal}
+          onClose={() => setShowBulkModal(false)}
+          availableTags={availableTags}
+          onSuccess={() => {
+            refetchTags();
+            queryClient.invalidateQueries({ queryKey: ['all-external-videos'] });
           }}
         />
       )}

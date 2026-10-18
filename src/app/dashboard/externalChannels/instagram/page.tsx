@@ -120,7 +120,7 @@ function InstagramReelCard({ reel }: { reel: InstagramReel }) {
 
 export default function InstagramExternalPage() {
   const { token, user } = useAuthStore();
-  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
+  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER, UserRole.MANAGER].includes(r)) ?? false;
   const queryClient = useQueryClient();
   const router = useRouter();
   const { start: startProfileScrapeNotif } = useProfileScrapeNotification('instagram');

@@ -18,11 +18,25 @@ describe('Threads Channel Helpers & Scraper Logic', () => {
   describe('normalizeThreadsUsername', () => {
     it('loại bỏ ký tự @ ở đầu', () => {
       expect(normalizeThreadsUsername('@tech_insider')).toBe('tech_insider');
+      expect(normalizeThreadsUsername('@daquycothy')).toBe('daquycothy');
+      expect(normalizeThreadsUsername('daquycothy')).toBe('daquycothy');
     });
 
-    it('trích xuất username từ đường dẫn threads.net/@username', () => {
+    it('trích xuất username từ đường dẫn threads.net/@username có hoặc không có https://', () => {
       expect(normalizeThreadsUsername('https://www.threads.net/@tech_insider')).toBe('tech_insider');
       expect(normalizeThreadsUsername('https://threads.net/@tech_insider?hl=vi')).toBe('tech_insider');
+      expect(normalizeThreadsUsername('threads.net/@daquycothy')).toBe('daquycothy');
+      expect(normalizeThreadsUsername('www.threads.net/@daquycothy')).toBe('daquycothy');
+      expect(normalizeThreadsUsername('threads.com/@daquycothy')).toBe('daquycothy');
+      expect(normalizeThreadsUsername('threads.net/daquycothy')).toBe('daquycothy');
+    });
+
+    it('từ chối domain trần hoặc path hệ thống của Threads', () => {
+      expect(normalizeThreadsUsername('threads.net')).toBe('');
+      expect(normalizeThreadsUsername('www.threads.net')).toBe('');
+      expect(normalizeThreadsUsername('threads.com')).toBe('');
+      expect(normalizeThreadsUsername('https://threads.net/login')).toBe('');
+      expect(normalizeThreadsUsername('threads.net/explore')).toBe('');
     });
 
     it('xử lý chuỗi rỗng và khoảng trắng an toàn', () => {
