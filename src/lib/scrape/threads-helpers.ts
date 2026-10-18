@@ -1,12 +1,46 @@
+const THREADS_RESERVED = new Set([
+  't',
+  'post',
+  'login',
+  'settings',
+  'search',
+  'terms',
+  'privacy',
+  'explore',
+  'activity',
+  'threads',
+  'threads.net',
+  'threads.com',
+  'www.threads.net',
+  'www.threads.com',
+]);
+
 export function normalizeThreadsUsername(input: string): string {
   if (!input) return '';
-  let cleaned = input.trim();
-  // Remove URL prefixes
-  cleaned = cleaned.replace(/^https?:\/\/(www\.)?threads\.net\//i, '');
-  // Remove query params or trailing slash
-  cleaned = cleaned.split('?')[0].split('/')[0];
-  // Remove leading @
-  return cleaned.replace(/^@/, '').trim();
+  const trimmed = input.trim();
+  if (!trimmed) return '';
+
+  // 1. Nếu là URL Threads (hỗ trợ có hoặc không có https?://, www, threads.net hoặc threads.com)
+  const urlMatch = trimmed.match(/(?:threads\.(?:net|com)\/@?)([A-Za-z0-9_.]+)(?:[/?#]|$)/i);
+  if (urlMatch && urlMatch[1]) {
+    const candidate = urlMatch[1].toLowerCase();
+    if (!THREADS_RESERVED.has(candidate)) {
+      return candidate;
+    }
+    return '';
+  }
+
+  // 2. Nếu là handle @username hoặc username trực tiếp
+  const handleMatch = trimmed.match(/^@?([A-Za-z0-9_.]+)(?:[/?#]|$)/i);
+  if (handleMatch && handleMatch[1]) {
+    const candidate = handleMatch[1].toLowerCase();
+    if (!THREADS_RESERVED.has(candidate)) {
+      return candidate;
+    }
+    return '';
+  }
+
+  return '';
 }
 
 export function proxyThreadsImage(url?: string): string {
@@ -61,7 +95,7 @@ export function matchLikeRange(likes: number | string, range: LikeRangeFilter): 
 
 export function parseMultipleUsernames(input: string): string[] {
   if (!input) return [];
-  const rawList = input.split(/[\n,;]+/);
+  const rawList = input.split(/[\n,;\s]+/);
   const result: string[] = [];
   const seen = new Set<string>();
 

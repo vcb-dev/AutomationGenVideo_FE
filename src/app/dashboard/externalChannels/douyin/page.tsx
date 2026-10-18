@@ -33,7 +33,7 @@ type Tab = 'videos' | 'profiles';
 
 export default function DouyinExternalPage() {
   const { token, user } = useAuthStore();
-  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
+  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER, UserRole.MANAGER].includes(r)) ?? false;
   const { addNotification, updateNotification } = useScrapingStore();
   const { start: startProfileScrapeNotif } = useProfileScrapeNotification('douyin');
   const router = useRouter();

@@ -30,7 +30,7 @@ const PAGE_SIZE_REELS = 24;
 
 export default function FacebookExternalPage() {
   const { token, user } = useAuthStore();
-  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
+  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER, UserRole.MANAGER].includes(r)) ?? false;
   const queryClient = useQueryClient();
   const router = useRouter();
   const { start: startProfileScrapeNotif } = useProfileScrapeNotification('facebook');
