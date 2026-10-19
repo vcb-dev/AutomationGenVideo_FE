@@ -18,6 +18,7 @@ import { borrowHistoryLabel } from '@/lib/equipment/borrow-history-label';
 import { buildBorrowLogQuery } from '@/lib/equipment/borrow-log-query';
 import {
   cancelRequest,
+  decideExtension,
   fetchBorrowHistoryLog,
   fetchRequests,
   type BorrowLogRow,
@@ -26,6 +27,9 @@ import {
 import { apiErrorMessage } from '@/lib/equipment/api-error';
 import { DatePicker } from '@/components/ui/DatePicker';
 import { BorrowPrintModal } from '@/components/equipment/BorrowPrintModal';
+import { EquipmentAlertBanner } from '@/components/equipment/EquipmentAlertBanner';
+import { IncidentReportModal } from '@/components/equipment/IncidentReportModal';
+import { ExtensionRequestModal } from '@/components/equipment/ExtensionRequestModal';
 import { useAuthStore } from '@/store/auth-store';
 import { canManageCatalog } from '@/lib/equipment/catalog-permissions';
 import {
@@ -117,6 +121,11 @@ function BorrowHistoryLogPageInner() {
   // Modal chi tiết phiếu & In phiếu
   const [selectedRequest, setSelectedRequest] = useState<BorrowRequest | null>(null);
   const [printingRequest, setPrintingRequest] = useState<BorrowRequest | null>(null);
+  const [incidentModalRequest, setIncidentModalRequest] = useState<BorrowRequest | null>(null);
+  const [extensionModalRequest, setExtensionModalRequest] = useState<BorrowRequest | null>(null);
+  const [rejectingExtension, setRejectingExtension] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [decidingExtension, setDecidingExtension] = useState(false);
   const [cancelling, setCancelling] = useState(false);
 
   // Load dữ liệu
@@ -175,6 +184,25 @@ function BorrowHistoryLogPageInner() {
       setError(apiErrorMessage(e, 'Không huỷ được phiếu.'));
     } finally {
       setCancelling(false);
+    }
+  };
+
+  const handleDecideExtension = async (request: BorrowRequest, decision: 'APPROVED' | 'REJECTED') => {
+    setDecidingExtension(true);
+    setError('');
+    try {
+      await decideExtension(request.id, {
+        decision,
+        rejection_reason: decision === 'REJECTED' ? rejectionReason.trim() : undefined,
+      });
+      setRejectingExtension(false);
+      setRejectionReason('');
+      setSelectedRequest(null);
+      load();
+    } catch (e: unknown) {
+      setError(apiErrorMessage(e, 'Không xử lý được quyết định gia hạn.'));
+    } finally {
+      setDecidingExtension(false);
     }
   };
 
@@ -336,6 +364,12 @@ function BorrowHistoryLogPageInner() {
             </Link>
           </div>
         </div>
+
+        {/* CẢNH BÁO QUÁ HẠN & SẮP ĐẾN HẠN TRẢ */}
+        <EquipmentAlertBanner
+          onSelectRequest={(req) => setSelectedRequest(req)}
+          className="mt-4"
+        />
 
         {/* THÔNG BÁO TẠO PHIẾU THÀNH CÔNG NẾU CÓ */}
         {createdCode && (
@@ -673,6 +707,16 @@ function BorrowHistoryLogPageInner() {
                               >
                                 {statusBadge.label}
                               </span>
+                              {req.extension?.status === 'PENDING' && (
+                                <span className="block mt-1 text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                                  ⏳ Chờ duyệt gia hạn
+                                </span>
+                              )}
+                              {req.incidents && req.incidents.length > 0 && (
+                                <span className="block mt-0.5 text-[10px] font-bold text-red-600 dark:text-red-400">
+                                  ⚠️ Có {req.incidents.length} sự cố
+                                </span>
+                              )}
                             </td>
                             <td className="px-4 py-3 text-right">
                               <button
@@ -769,7 +813,143 @@ function BorrowHistoryLogPageInner() {
                     {requestStatusBadge(selectedRequest.status).label}
                   </span>
                 </div>
+
+                {/* THÔNG TIN GHI CHÚ TỪ NGƯỜI TẠO NẾU CÓ */}
+                {selectedRequest.note && (
+                  <div className="rounded-xl bg-slate-50 p-2.5 border border-slate-200 dark:bg-white/[0.03] dark:border-white/[0.08]">
+                    <span className="block text-[11px] font-semibold text-slate-500">Ghi chú mượn:</span>
+                    <p className="text-xs text-slate-800 dark:text-slate-200 mt-0.5">{selectedRequest.note}</p>
+                  </div>
+                )}
+
+                {/* THÔNG TIN XIN GIA HẠN NẾU CÓ */}
+                {selectedRequest.extension && (
+                  <div className="rounded-xl border border-amber-300 bg-amber-50/80 p-3 dark:border-amber-500/30 dark:bg-amber-950/20">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                        <span>🔄</span> Yêu cầu gia hạn mượn
+                      </span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        selectedRequest.extension.status === 'PENDING'
+                          ? 'bg-amber-200 text-amber-900 dark:bg-amber-500/20 dark:text-amber-300'
+                          : selectedRequest.extension.status === 'APPROVED'
+                          ? 'bg-emerald-200 text-emerald-900 dark:bg-emerald-500/20 dark:text-emerald-300'
+                          : 'bg-red-200 text-red-900 dark:bg-red-500/20 dark:text-red-300'
+                      }`}>
+                        {selectedRequest.extension.status === 'PENDING' ? 'Đang chờ duyệt' : selectedRequest.extension.status === 'APPROVED' ? 'Đã duyệt' : 'Từ chối'}
+                      </span>
+                    </div>
+                    <div className="mt-1.5 text-xs text-amber-900 dark:text-amber-200">
+                      <div>Thời gian đề xuất: <strong className="font-mono">{fmt(selectedRequest.extension.requested_to_time)}</strong></div>
+                      <div>Lý do: <em>"{selectedRequest.extension.reason}"</em></div>
+                      {selectedRequest.extension.rejection_reason && (
+                        <div className="text-red-600 dark:text-red-400 mt-1">Lý do từ chối: {selectedRequest.extension.rejection_reason}</div>
+                      )}
+                    </div>
+
+                    {/* NÚT DUYỆT GIA HẠN DÀNH CHO LEADER */}
+                    {isManager && selectedRequest.extension.status === 'PENDING' && (
+                      <div className="mt-3 pt-2 border-t border-amber-200 dark:border-amber-500/20">
+                        {rejectingExtension ? (
+                          <div className="space-y-2">
+                            <input
+                              type="text"
+                              placeholder="Nhập lý do từ chối gia hạn…"
+                              value={rejectionReason}
+                              onChange={(e) => setRejectionReason(e.target.value)}
+                              className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-900 outline-none focus:border-red-500 dark:border-white/[0.12] dark:bg-slate-800 dark:text-white"
+                            />
+                            <div className="flex gap-2 justify-end">
+                              <button
+                                type="button"
+                                onClick={() => setRejectingExtension(false)}
+                                className="rounded-lg px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-200 dark:text-slate-300"
+                              >
+                                Huỷ
+                              </button>
+                              <button
+                                type="button"
+                                disabled={decidingExtension}
+                                onClick={() => handleDecideExtension(selectedRequest, 'REJECTED')}
+                                className="rounded-lg bg-red-600 px-3 py-1 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-50"
+                              >
+                                {decidingExtension ? 'Đang gửi…' : 'Xác nhận từ chối'}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              disabled={decidingExtension}
+                              onClick={() => handleDecideExtension(selectedRequest, 'APPROVED')}
+                              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 disabled:opacity-50"
+                            >
+                              {decidingExtension ? 'Đang duyệt…' : '✓ Duyệt gia hạn'}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={decidingExtension}
+                              onClick={() => setRejectingExtension(true)}
+                              className="rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 dark:border-red-500/30 dark:bg-transparent"
+                            >
+                              ✕ Từ chối gia hạn
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* DANH SÁCH SỰ CỐ ĐÃ GHI NHẬN NẾU CÓ */}
+                {selectedRequest.incidents && selectedRequest.incidents.length > 0 && (
+                  <div className="rounded-xl border border-red-200 bg-red-50/70 p-3 dark:border-red-500/20 dark:bg-red-950/20">
+                    <span className="font-bold text-xs text-red-800 dark:text-red-300 flex items-center gap-1.5 mb-2">
+                      <span>⚠️</span> Sự cố đã báo cáo ({selectedRequest.incidents.length})
+                    </span>
+                    <div className="space-y-2">
+                      {selectedRequest.incidents.map((inc) => (
+                        <div key={inc.id} className="rounded-lg bg-white/90 p-2 border border-red-100 text-xs dark:bg-slate-900/80 dark:border-red-500/20">
+                          <div className="flex items-center justify-between">
+                            <strong className="text-red-900 dark:text-red-200">{inc.title}</strong>
+                            <span className="text-[10px] font-semibold text-red-600">{inc.severity}</span>
+                          </div>
+                          {inc.description && <p className="text-slate-600 dark:text-slate-300 mt-0.5">{inc.description}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
+
+              {/* NÚT THAO TÁC SỰ CỐ & GIA HẠN KHI ĐANG MƯỢN */}
+              {HOLDING_STATUSES.includes(selectedRequest.status) && (
+                <div className="mt-4 flex flex-wrap items-center gap-2 pt-3 border-t border-slate-100 dark:border-white/[0.08]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const req = selectedRequest;
+                      setSelectedRequest(null);
+                      setIncidentModalRequest(req);
+                    }}
+                    className="flex items-center gap-1 rounded-xl border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300"
+                  >
+                    <span>⚠️</span> Báo sự cố máy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const req = selectedRequest;
+                      setSelectedRequest(null);
+                      setExtensionModalRequest(req);
+                    }}
+                    className="flex items-center gap-1 rounded-xl border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-800 hover:bg-blue-100 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300"
+                  >
+                    <span>🔄</span> Xin gia hạn mượn
+                  </button>
+                </div>
+              )}
 
               {canCancelRequest(selectedRequest, {
                 id: user?.id,
@@ -811,6 +991,26 @@ function BorrowHistoryLogPageInner() {
             </div>
           </div>
         )}
+
+        {/* MODAL BÁO CÁO SỰ CỐ */}
+        <IncidentReportModal
+          open={Boolean(incidentModalRequest)}
+          onClose={() => setIncidentModalRequest(null)}
+          request={incidentModalRequest}
+          onSuccess={() => {
+            load();
+          }}
+        />
+
+        {/* MODAL XIN GIA HẠN */}
+        <ExtensionRequestModal
+          open={Boolean(extensionModalRequest)}
+          onClose={() => setExtensionModalRequest(null)}
+          request={extensionModalRequest}
+          onSuccess={() => {
+            load();
+          }}
+        />
 
         {/* MODAL IN PHIẾU BÀN GIAO TOÀN DIỆN */}
         <BorrowPrintModal

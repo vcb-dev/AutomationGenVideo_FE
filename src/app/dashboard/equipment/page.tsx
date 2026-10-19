@@ -13,6 +13,7 @@ import { EditAssetDialog } from '@/components/equipment/EditAssetDialog';
 import { DeleteAssetDialog } from '@/components/equipment/DeleteAssetDialog';
 import { ManageLocationsDialog } from '@/components/equipment/ManageLocationsDialog';
 import { ManageCatalogDialog } from '@/components/equipment/ManageCatalogDialog';
+import { EquipmentAlertBanner } from '@/components/equipment/EquipmentAlertBanner';
 import { canManageCatalog } from '@/lib/equipment/catalog-permissions';
 import { useAuthStore } from '@/store/auth-store';
 
@@ -138,6 +139,9 @@ function EquipmentTable() {
           </Link>
         </div>
       </header>
+
+      {/* CẢNH BÁO QUÁ HẠN & SẮP ĐẾN HẠN TRẢ */}
+      <EquipmentAlertBanner className="mb-4 sm:mb-6" />
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/[0.08] dark:bg-white/[0.03]">
         {/* BỘ LỌC TÌM KIẾM */}
