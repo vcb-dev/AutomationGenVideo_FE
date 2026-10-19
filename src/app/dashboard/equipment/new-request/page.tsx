@@ -17,6 +17,7 @@ import { availabilityLabel } from '@/lib/equipment/availability-label';
 import { apiErrorMessage } from '@/lib/equipment/api-error';
 import { DateTimePicker } from '@/components/ui/DateTimePicker';
 import { MobileBorrowQRModal } from '@/components/equipment/MobileBorrowQRModal';
+import { isMobileBrowser } from '@/lib/equipment/mobile-borrow-helpers';
 import { useAuthStore } from '@/store/auth-store';
 
 /**
@@ -83,6 +84,12 @@ export default function NewRequestPage() {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    setIsMobile(Boolean(fromQr || (typeof navigator !== 'undefined' && isMobileBrowser(navigator.userAgent))));
+  }, [fromQr]);
+
   const [lines, setLines] = useState<Line[]>([
     { modelId: '', quantity: 1, availability: null, checking: false },
   ]);
@@ -383,21 +390,42 @@ export default function NewRequestPage() {
                     onChange={(e) => onPickPhotos(e.target.files)}
                   />
                   {photos.length < 5 && (
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => cameraInputRef.current?.click()}
-                        className="flex items-center gap-1.5 rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 shadow-2xs hover:bg-blue-100 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300 transition-all"
-                      >
-                        <span>📷</span> Chụp ảnh bằng Camera
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => photoInputRef.current?.click()}
-                        className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08] transition-all"
-                      >
-                        🖼️ Chọn từ máy
-                      </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {isMobile ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => cameraInputRef.current?.click()}
+                            className="flex items-center gap-1.5 rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 shadow-2xs hover:bg-blue-100 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300 transition-all"
+                          >
+                            <span>📷</span> Chụp ảnh bằng Camera
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => photoInputRef.current?.click()}
+                            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08] transition-all"
+                          >
+                            🖼️ Chọn từ thư viện
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => photoInputRef.current?.click()}
+                            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08] transition-all"
+                          >
+                            🖼️ Thêm ảnh từ máy tính
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setQrModalOpen(true)}
+                            className="flex items-center gap-1.5 rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 shadow-2xs hover:bg-blue-100 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300 transition-all"
+                          >
+                            <span>📱</span> Quét QR để chụp bằng điện thoại
+                          </button>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
