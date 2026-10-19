@@ -40,6 +40,12 @@ import {
   requestStatusBadge,
   type RequestStatusTone,
 } from '@/lib/equipment/request-status';
+import {
+  type EquipmentQuickFilter,
+  QUICK_FILTER_OPTIONS,
+  computeQuickFilterCounts,
+  filterRequestsByQuickFilter,
+} from '@/lib/equipment/quick-filters';
 
 const cardClass =
   'rounded-2xl border border-slate-200 bg-white shadow-sm ' +
@@ -101,6 +107,7 @@ function BorrowHistoryLogPageInner() {
   const [viewMode, setViewMode] = useState<'ASSET' | 'REQUEST'>(isManager ? 'ASSET' : 'REQUEST');
 
   // Bộ lọc
+  const [quickFilter, setQuickFilter] = useState<EquipmentQuickFilter>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [status, setStatus] = useState('');
   const [from, setFrom] = useState('');
@@ -215,6 +222,7 @@ function BorrowHistoryLogPageInner() {
   };
 
   const handleResetFilters = () => {
+    setQuickFilter('ALL');
     setSearchQuery('');
     setStatus('');
     setFrom('');
@@ -222,24 +230,36 @@ function BorrowHistoryLogPageInner() {
     setPage(1);
   };
 
-  const hasActiveFilters = Boolean(searchQuery || status || from || to);
+  const hasActiveFilters = Boolean(
+    searchQuery || status || from || to || quickFilter !== 'ALL',
+  );
+
+  // Tính số lượng thống kê cho các nút lọc nhanh 1 chạm
+  const quickFilterCounts = useMemo(() => computeQuickFilterCounts(requests), [requests]);
 
   // Lọc tìm kiếm đa năng trên tập dữ liệu ASSET
   const filteredAssetRows = useMemo(() => {
-    if (!searchQuery.trim()) return assetRows;
+    let rows = assetRows;
+    if (quickFilter === 'OVERDUE') {
+      rows = rows.filter((r) => r.status === 'OVERDUE');
+    }
+    if (!searchQuery.trim()) return rows;
     const q = searchQuery.trim().toLowerCase();
-    return assetRows.filter(
+    return rows.filter(
       (r) =>
         r.assetCode.toLowerCase().includes(q) ||
         (r.borrowerName && r.borrowerName.toLowerCase().includes(q)) ||
         (r.project && r.project.toLowerCase().includes(q)) ||
         r.status.toLowerCase().includes(q),
     );
-  }, [assetRows, searchQuery]);
+  }, [assetRows, quickFilter, searchQuery]);
 
-  // Lọc tìm kiếm đa năng và khoảng ngày trên tập dữ liệu REQUEST
+  // Lọc tìm kiếm đa năng, bộ lọc nhanh 1 chạm và khoảng ngày trên tập dữ liệu REQUEST
   const filteredRequests = useMemo(() => {
     let result = requests;
+    if (quickFilter !== 'ALL') {
+      result = filterRequestsByQuickFilter(result, quickFilter);
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
       result = result.filter((r) => {
@@ -267,7 +287,7 @@ function BorrowHistoryLogPageInner() {
       result = result.filter((r) => new Date(r.from_time).getTime() <= toTime);
     }
     return result;
-  }, [requests, searchQuery, from, to]);
+  }, [requests, quickFilter, searchQuery, from, to]);
 
   // Thống kê nhanh tổng quan toàn hệ thống
   const stats = useMemo(() => {
@@ -450,6 +470,51 @@ function BorrowHistoryLogPageInner() {
 
         {/* THANH TÌM KIẾM VÀ BỘ LỌC TỔNG HỢP */}
         <section className={cn(cardClass, 'mt-4 p-3.5 sm:p-4')}>
+          {/* BỘ LỌC NHANH 1 CHẠM */}
+          <div className="mb-3.5 flex flex-wrap items-center gap-2 border-b border-slate-100 pb-3 dark:border-white/[0.06]">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 mr-1 flex items-center gap-1">
+              <span>⚡</span> Lọc nhanh:
+            </span>
+            {QUICK_FILTER_OPTIONS.map((opt) => {
+              const count = opt.badgeCount(quickFilterCounts);
+              const isActive = quickFilter === opt.key;
+              return (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => {
+                    changeFilter(() => {
+                      const next = isActive && opt.key !== 'ALL' ? 'ALL' : opt.key;
+                      setQuickFilter(next);
+                      if (next !== 'ALL' && viewMode !== 'REQUEST') {
+                        setViewMode('REQUEST');
+                      }
+                    });
+                  }}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs transition-all cursor-pointer',
+                    isActive
+                      ? opt.activeClass
+                      : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/[0.1] dark:bg-white/[0.04] dark:text-slate-300 dark:hover:bg-white/[0.08]',
+                  )}
+                >
+                  <span>{opt.icon}</span>
+                  <span>{opt.label}</span>
+                  <span
+                    className={cn(
+                      'ml-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold',
+                      isActive
+                        ? 'bg-white/80 text-slate-900 dark:bg-black/40 dark:text-white'
+                        : opt.badgeStyle,
+                    )}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
             {/* Ô TÌM KIẾM TẤT CẢ CHỈ TIÊU */}
             <div className="lg:col-span-1">
@@ -505,6 +570,9 @@ function BorrowHistoryLogPageInner() {
               <span className="text-xs text-slate-500 dark:text-slate-400">
                 Đang lọc theo:{' '}
                 {[
+                  quickFilter !== 'ALL'
+                    ? `Lọc nhanh "${QUICK_FILTER_OPTIONS.find((o) => o.key === quickFilter)?.label}"`
+                    : '',
                   searchQuery ? `Từ khóa "${searchQuery}"` : '',
                   status ? `Trạng thái` : '',
                   from ? `Từ ${from}` : '',
@@ -515,7 +583,7 @@ function BorrowHistoryLogPageInner() {
               </span>
               <button
                 onClick={handleResetFilters}
-                className="text-xs font-semibold text-blue-600 hover:underline dark:text-blue-400"
+                className="text-xs font-semibold text-blue-600 hover:underline dark:text-blue-400 cursor-pointer"
               >
                 ✕ Xoá bộ lọc
               </button>
