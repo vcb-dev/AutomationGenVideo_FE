@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Asset,
@@ -9,6 +9,7 @@ import {
   checkAvailability,
   createBorrowRequest,
   fetchAssets,
+  uploadRequestPhoto,
 } from '@/lib/equipment/api';
 import { groupModels } from '@/lib/equipment/group-models';
 import { noModelLeft, selectableModels } from '@/lib/equipment/selectable-models';
@@ -55,6 +56,12 @@ const inputClass =
 const labelClass = 'text-sm font-semibold text-slate-900 dark:text-white';
 const hintClass = 'mt-1 block text-xs text-slate-400';
 
+interface RequestPhotoItem {
+  file: File;
+  previewUrl: string;
+  name: string;
+}
+
 export default function NewRequestPage() {
   const router = useRouter();
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -65,11 +72,35 @@ export default function NewRequestPage() {
   const [purpose, setPurpose] = useState<BorrowPurpose>('WORK');
   const [fromTime, setFromTime] = useState('');
   const [toTime, setToTime] = useState('');
+  const [note, setNote] = useState('');
+  const [photos, setPhotos] = useState<RequestPhotoItem[]>([]);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const [lines, setLines] = useState<Line[]>([
     { modelId: '', quantity: 1, availability: null, checking: false },
   ]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  const onPickPhotos = (files: FileList | null) => {
+    if (!files?.length) return;
+    const remainingSlots = Math.max(0, 5 - photos.length);
+    const picked = Array.from(files).slice(0, remainingSlots);
+    const newItems: RequestPhotoItem[] = picked.map((f) => ({
+      file: f,
+      previewUrl: URL.createObjectURL(f),
+      name: f.name,
+    }));
+    setPhotos((prev) => [...prev, ...newItems]);
+    if (photoInputRef.current) photoInputRef.current.value = '';
+  };
+
+  const removePhoto = (index: number) => {
+    setPhotos((prev) => {
+      const target = prev[index];
+      if (target?.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((_, i) => i !== index);
+    });
+  };
 
   useEffect(() => {
     fetchAssets().then(setAssets).catch((e: unknown) => setError(apiErrorMessage(e, 'Không đọc được danh sách thiết bị.')));
@@ -136,6 +167,14 @@ export default function NewRequestPage() {
     setError('');
     setSubmitting(true);
     try {
+      let uploadedPhotoUrls: string[] = [];
+      if (photos.length > 0) {
+        for (const p of photos) {
+          const res = await uploadRequestPhoto(p.file);
+          if (res?.url) uploadedPhotoUrls.push(res.url);
+        }
+      }
+
       const created = await createBorrowRequest({
         project: project.trim(),
         place: place.trim(),
@@ -143,8 +182,10 @@ export default function NewRequestPage() {
         fromTime: new Date(fromTime).toISOString(),
         toTime: new Date(toTime).toISOString(),
         lines: filledLines.map((l) => ({ modelId: l.modelId, quantity: l.quantity })),
+        note: note.trim() || undefined,
+        photos: uploadedPhotoUrls.length > 0 ? uploadedPhotoUrls : undefined,
       });
-      router.push(`/dashboard/equipment?created=${created.request_code}`);
+      router.push(`/dashboard/equipment/borrow-history?created=${created.request_code}`);
     } catch (e: unknown) {
       setError(
         apiErrorMessage(e, 'Gửi phiếu không thành công.'),
@@ -255,6 +296,75 @@ export default function NewRequestPage() {
                 Thời điểm trả phải sau thời điểm nhận.
               </p>
             )}
+
+            <div className="border-t border-slate-100 pt-4 dark:border-white/[0.06]">
+              <label className="block">
+                <span className={labelClass}>Ghi chú cho thủ kho & người duyệt (Tùy chọn)</span>
+                <span className={hintClass}>
+                  Nêu rõ kịch bản quay, yêu cầu phụ kiện đặc biệt, hoặc ghi chú bàn giao nếu có.
+                </span>
+                <textarea
+                  className={`${inputClass} mt-2`}
+                  rows={2}
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Nhập ghi chú thêm cho phiếu mượn này…"
+                />
+              </label>
+
+              <div className="mt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className={labelClass}>Ảnh đính kèm từ người mượn (Tùy chọn)</span>
+                    <span className={hintClass}>
+                      Đính kèm ảnh hiện trường, danh sách thiết bị cần khớp hoặc tài liệu quay (tối đa 5 ảnh).
+                    </span>
+                  </div>
+                  <input
+                    ref={photoInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => onPickPhotos(e.target.files)}
+                  />
+                  {photos.length < 5 && (
+                    <button
+                      type="button"
+                      onClick={() => photoInputRef.current?.click()}
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08]"
+                    >
+                      + Thêm ảnh
+                    </button>
+                  )}
+                </div>
+
+                {photos.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-3">
+                    {photos.map((p, idx) => (
+                      <div
+                        key={idx}
+                        className="group relative h-20 w-20 overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-slate-800"
+                      >
+                        <img
+                          src={p.previewUrl}
+                          alt={p.name}
+                          className="h-full w-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removePhoto(idx)}
+                          className="absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-[10px] text-white opacity-90 hover:bg-red-600 transition cursor-pointer"
+                          title="Xoá ảnh"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </section>
 

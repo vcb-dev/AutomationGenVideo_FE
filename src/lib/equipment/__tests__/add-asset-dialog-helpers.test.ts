@@ -1,10 +1,30 @@
-import { formatCategoryName, suggestCode, findExistingModel } from '@/components/equipment/AddAssetDialog';
+import { formatCategoryName, suggestCode, findExistingModel, generateSerialNumber } from '@/components/equipment/AddAssetDialog';
 import { createCategory, createModel, createAsset } from '@/lib/equipment/api';
 import { apiClient } from '@/lib/api-client';
 
 jest.mock('@/lib/api-client');
 
 describe('AddAssetDialog Helpers & API flows', () => {
+  describe('generateSerialNumber', () => {
+    it('sinh mã serial chuẩn định dạng SN-[PREFIX]-[SUFFIX] cho 1 máy', () => {
+      const sn = generateSerialNumber('TRP', 1);
+      expect(sn).toMatch(/^SN-TRP-[0-9]{4}[A-Z0-9]{4}$/);
+    });
+
+    it('sinh danh sách n mã serial phân tách bằng xuống dòng cho số lượng > 1', () => {
+      const sns = generateSerialNumber('CAM', 3).split('\n');
+      expect(sns).toHaveLength(3);
+      expect(sns[0]).toMatch(/^SN-CAM-[0-9]{4}[A-Z0-9]{4}-01$/);
+      expect(sns[1]).toMatch(/^SN-CAM-[0-9]{4}[A-Z0-9]{4}-02$/);
+      expect(sns[2]).toMatch(/^SN-CAM-[0-9]{4}[A-Z0-9]{4}-03$/);
+    });
+
+    it('fallback tiền tố EQP nếu không truyền prefix', () => {
+      const sn = generateSerialNumber('', 1);
+      expect(sn).toMatch(/^SN-EQP-/);
+    });
+  });
+
   describe('formatCategoryName', () => {
     it('should format known category codes into friendly Vietnamese labels', () => {
       expect(formatCategoryName({ id: '1', code: 'CAM', name: 'Camera', buffer_minutes: 120 })).toBe('Máy ảnh (Camera)');

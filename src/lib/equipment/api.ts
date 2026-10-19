@@ -51,6 +51,8 @@ export interface CreateBorrowRequestPayload {
   fromTime: string;
   toTime: string;
   lines: BorrowLine[];
+  note?: string;
+  photos?: string[];
 }
 
 export async function createBorrowRequest(payload: CreateBorrowRequestPayload) {
@@ -312,3 +314,15 @@ export async function setPrimaryPhoto(photoId: string) {
 export async function deleteAssetPhoto(photoId: string) {
   await apiClient.delete(`/mems/photos/${photoId}`);
 }
+
+export async function uploadRequestPhoto(file: File) {
+  const form = new FormData();
+  form.append('photo', file);
+  const { data } = await apiClient.post<{ url: string; key: string }>(
+    '/mems/requests/upload-photo',
+    form,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
+  );
+  return data;
+}
+

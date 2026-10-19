@@ -398,7 +398,7 @@ function HandoverPageInner() {
                     Chi tiết thiết bị & Biên bản bàn giao
                   </h2>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Phiếu: <strong className="font-semibold text-slate-800 dark:text-slate-200">{request?.request_code}</strong> · {units.length} thiết bị · Dự án: {request?.project || '—'}
+                    Phiếu: <strong className="font-semibold text-slate-800 dark:text-slate-200">{request?.request_code}</strong> · Người mượn: <strong className="font-semibold text-blue-600 dark:text-blue-400">{request?.owner_name || '—'}</strong> · {units.length} thiết bị · Dự án: {request?.project || '—'}
                   </p>
                 </div>
                 <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">
@@ -407,6 +407,31 @@ function HandoverPageInner() {
               </div>
 
               <div className="flex flex-col gap-4 p-4 sm:p-5">
+                {(request?.note || (request?.photos && request.photos.length > 0)) && (
+                  <div className="rounded-xl border border-amber-200/80 bg-amber-50/60 p-3.5 text-xs text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
+                    <div className="font-bold uppercase tracking-wider text-[11px] text-amber-800 dark:text-amber-300">
+                      📝 Ghi chú & Ảnh đính kèm từ người mượn:
+                    </div>
+                    {request.note && (
+                      <p className="mt-1 text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{request.note}</p>
+                    )}
+                    {request.photos && request.photos.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {request.photos.map((src, idx) => (
+                          <a
+                            key={idx}
+                            href={src}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="group block h-16 w-16 overflow-hidden rounded-lg border border-amber-200 bg-white hover:ring-2 hover:ring-amber-500"
+                          >
+                            <img src={src} alt="Ảnh yêu cầu mượn" className="h-full w-full object-cover" />
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {/* KHUNG CHỤP ẢNH CHUNG TOÀN BỘ DÀN MÁY (1 LƯỢT) */}
                 <div className="rounded-2xl border-2 border-dashed border-blue-300 bg-blue-50/60 p-4 sm:p-5 dark:border-blue-500/30 dark:bg-blue-500/5">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">

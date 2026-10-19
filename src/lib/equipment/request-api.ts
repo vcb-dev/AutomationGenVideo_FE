@@ -59,6 +59,9 @@ export interface BorrowRequest {
   approved_levels: number;
   /** Cấp kế tiếp chờ ai ký; null nghĩa là đã đủ chữ ký. BE tính trong `decorate()`. */
   next_approver_role: string | null;
+  /** Ghi chú và ảnh do người tạo phiếu đính kèm */
+  note?: string | null;
+  photos?: string[];
 }
 
 export async function fetchRequests(status?: string) {

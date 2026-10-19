@@ -10,6 +10,7 @@ import { AssetPhotoGallery } from '@/components/equipment/AssetPhotoGallery';
 import { StatusPill } from '@/components/equipment/StatusPill';
 import { ConditionDot } from '@/components/equipment/ConditionDot';
 import { AssetBorrowHistory } from '@/components/equipment/AssetBorrowHistory';
+import { canManageCatalog } from '@/lib/equipment/catalog-permissions';
 
 const cardClass =
   'rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/[0.08] dark:bg-white/[0.03]';
@@ -36,9 +37,9 @@ export default function AssetDetailPage({ params }: { params: { assetCode: strin
   const code = decodeURIComponent(params.assetCode).toUpperCase();
   const [data, setData] = useState<AssetDetail | null>(null);
   const [photos, setPhotos] = useState<AssetPhoto[]>([]);
-  const roles = useAuthStore((s) => s.user?.roles ?? []);
-  // Chỉ người của kho mới sửa được ảnh; member xem thôi.
-  const canEdit = roles.some((r) => ['LEADER', 'MANAGER', 'ADMIN'].includes(r));
+  const user = useAuthStore((s) => s.user);
+  // Chỉ người của kho media / quản trị mới sửa được ảnh; member xem thôi.
+  const canEdit = canManageCatalog(user?.roles, user?.team);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
