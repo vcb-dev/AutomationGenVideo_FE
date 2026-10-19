@@ -1,4 +1,5 @@
 import { apiClient } from '../api-client';
+import { compressImage } from './image-compressor';
 
 export interface Asset {
   id: string;
@@ -316,8 +317,9 @@ export async function deleteAssetPhoto(photoId: string) {
 }
 
 export async function uploadRequestPhoto(file: File) {
+  const compressed = await compressImage(file);
   const form = new FormData();
-  form.append('photo', file);
+  form.append('photo', compressed);
   const { data } = await apiClient.post<{ url: string; key: string }>(
     '/mems/requests/upload-photo',
     form,
