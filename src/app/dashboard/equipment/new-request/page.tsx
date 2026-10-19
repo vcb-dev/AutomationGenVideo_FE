@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Asset,
   AvailabilityResponse,
@@ -16,6 +16,8 @@ import { noModelLeft, selectableModels } from '@/lib/equipment/selectable-models
 import { availabilityLabel } from '@/lib/equipment/availability-label';
 import { apiErrorMessage } from '@/lib/equipment/api-error';
 import { DateTimePicker } from '@/components/ui/DateTimePicker';
+import { MobileBorrowQRModal } from '@/components/equipment/MobileBorrowQRModal';
+import { useAuthStore } from '@/store/auth-store';
 
 /**
  * Mục đích mượn — thứ quyết định phiếu cần một hay hai chữ ký.
@@ -64,6 +66,10 @@ interface RequestPhotoItem {
 
 export default function NewRequestPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const fromQr = searchParams?.get('from_qr') === '1';
+  const user = useAuthStore((s) => s.user);
+
   const [assets, setAssets] = useState<Asset[]>([]);
   const [project, setProject] = useState('');
   const [place, setPlace] = useState('');
@@ -75,6 +81,8 @@ export default function NewRequestPage() {
   const [note, setNote] = useState('');
   const [photos, setPhotos] = useState<RequestPhotoItem[]>([]);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const [qrModalOpen, setQrModalOpen] = useState(false);
   const [lines, setLines] = useState<Line[]>([
     { modelId: '', quantity: 1, availability: null, checking: false },
   ]);
@@ -198,13 +206,51 @@ export default function NewRequestPage() {
   return (
     <div className="mx-auto grid max-w-6xl gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">
       <div>
-        <header className="mb-5">
-          <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Tạo phiếu mượn</h1>
-          <p className="mt-1 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
-            Khai mục đích và khoảng thời gian trước, chọn thiết bị sau. Số khả dụng được tính lại
-            mỗi khi bạn đổi thời điểm nhận hoặc trả.
-          </p>
+        <header className="mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Tạo phiếu mượn</h1>
+            <p className="mt-1 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
+              Khai mục đích và khoảng thời gian trước, chọn thiết bị sau. Số khả dụng được tính lại
+              mỗi khi bạn đổi thời điểm nhận hoặc trả.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setQrModalOpen(true)}
+            className="flex items-center gap-1.5 self-start sm:self-auto rounded-xl border border-blue-200 bg-blue-50/90 px-3.5 py-2 text-xs font-bold text-blue-700 shadow-2xs hover:bg-blue-100 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-300 transition-all"
+          >
+            <span>📱</span> Mở trên điện thoại để chụp ảnh
+          </button>
         </header>
+
+        {/* THÔNG BÁO KHI VÀO QUA MÃ QR TRÊN ĐIỆN THOẠI */}
+        {fromQr && (
+          <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50/95 p-3.5 text-xs text-blue-900 shadow-2xs dark:border-blue-500/30 dark:bg-blue-950/20 dark:text-blue-300 flex items-center gap-2.5">
+            <span className="text-2xl">📱</span>
+            <div>
+              <strong className="block font-bold">Chế độ tạo phiếu mượn trên điện thoại</strong>
+              <span>
+                Bạn có thể bấm nút <b>"📷 Chụp ảnh bằng Camera"</b> ở phần đính kèm ảnh bên dưới để chụp trực tiếp thiết bị và phụ kiện tại chỗ!
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* THÔNG TIN DANH TÍNH NGƯỜI MƯỢN */}
+        {user?.full_name && (
+          <div className="mb-4 flex items-center justify-between rounded-xl bg-slate-100/90 px-3.5 py-2 text-xs text-slate-700 border border-slate-200 dark:bg-white/[0.04] dark:border-white/[0.08] dark:text-slate-300">
+            <div className="flex items-center gap-2">
+              <span>👤</span>
+              <span>
+                Người tạo phiếu: <strong className="text-slate-900 dark:text-white">{user.full_name}</strong>
+                {user.email ? ` (${user.email})` : ''}
+              </span>
+            </div>
+            <span className="text-slate-500 font-medium">
+              {user.team || 'Thành viên VCBI'}
+            </span>
+          </div>
+        )}
 
         <section className="mb-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/[0.08] dark:bg-white/[0.03]">
           <h2 className="mb-4 text-sm font-semibold text-slate-900 dark:text-white">
@@ -328,14 +374,31 @@ export default function NewRequestPage() {
                     className="hidden"
                     onChange={(e) => onPickPhotos(e.target.files)}
                   />
+                  <input
+                    ref={cameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={(e) => onPickPhotos(e.target.files)}
+                  />
                   {photos.length < 5 && (
-                    <button
-                      type="button"
-                      onClick={() => photoInputRef.current?.click()}
-                      className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08]"
-                    >
-                      + Thêm ảnh
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => cameraInputRef.current?.click()}
+                        className="flex items-center gap-1.5 rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 shadow-2xs hover:bg-blue-100 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300 transition-all"
+                      >
+                        <span>📷</span> Chụp ảnh bằng Camera
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => photoInputRef.current?.click()}
+                        className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08] transition-all"
+                      >
+                        🖼️ Chọn từ máy
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -503,6 +566,12 @@ export default function NewRequestPage() {
           </button>
         </div>
       </aside>
+
+      {/* MODAL QUÉT MÃ QR TẠO PHIẾU BẰNG ĐIỆN THOẠI */}
+      <MobileBorrowQRModal
+        open={qrModalOpen}
+        onClose={() => setQrModalOpen(false)}
+      />
     </div>
   );
 }

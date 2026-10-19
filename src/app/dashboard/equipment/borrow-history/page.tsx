@@ -30,6 +30,7 @@ import { BorrowPrintModal } from '@/components/equipment/BorrowPrintModal';
 import { EquipmentAlertBanner } from '@/components/equipment/EquipmentAlertBanner';
 import { IncidentReportModal } from '@/components/equipment/IncidentReportModal';
 import { ExtensionRequestModal } from '@/components/equipment/ExtensionRequestModal';
+import { MobileBorrowQRModal } from '@/components/equipment/MobileBorrowQRModal';
 import { useAuthStore } from '@/store/auth-store';
 import { canManageCatalog } from '@/lib/equipment/catalog-permissions';
 import {
@@ -123,6 +124,7 @@ function BorrowHistoryLogPageInner() {
   const [printingRequest, setPrintingRequest] = useState<BorrowRequest | null>(null);
   const [incidentModalRequest, setIncidentModalRequest] = useState<BorrowRequest | null>(null);
   const [extensionModalRequest, setExtensionModalRequest] = useState<BorrowRequest | null>(null);
+  const [mobileQrOpen, setMobileQrOpen] = useState(false);
   const [rejectingExtension, setRejectingExtension] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [decidingExtension, setDecidingExtension] = useState(false);
@@ -355,6 +357,14 @@ function BorrowHistoryLogPageInner() {
                 </button>
               </div>
             )}
+
+            <button
+              type="button"
+              onClick={() => setMobileQrOpen(true)}
+              className="flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50/80 px-3 py-2 text-xs font-bold text-blue-700 shadow-2xs hover:bg-blue-100 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-300 transition-all"
+            >
+              <span>📱</span> Quét QR điện thoại
+            </button>
 
             <Link
               href="/dashboard/equipment/new-request"
@@ -1017,6 +1027,12 @@ function BorrowHistoryLogPageInner() {
           open={Boolean(printingRequest)}
           onClose={() => setPrintingRequest(null)}
           request={printingRequest}
+        />
+
+        {/* MODAL QUÉT MÃ QR TẠO PHIẾU BẰNG ĐIỆN THOẠI */}
+        <MobileBorrowQRModal
+          open={mobileQrOpen}
+          onClose={() => setMobileQrOpen(false)}
         />
       </div>
     </div>
