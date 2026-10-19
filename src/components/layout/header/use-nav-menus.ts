@@ -27,7 +27,6 @@ import {
     DownloadCloud,
     Sparkles,
     Boxes,
-    PackageCheck,
     Truck,
     Undo2,
     ImagePlus,
@@ -481,12 +480,6 @@ export function useNavMenus(
                                     href: "/dashboard/equipment/approvals",
                                     icon: CheckSquare,
                                     description: n.equipmentApprovalsDesc,
-                                },
-                                {
-                                    label: n.equipmentPrepare,
-                                    href: "/dashboard/equipment/prepare",
-                                    icon: PackageCheck,
-                                    description: n.equipmentPrepareDesc,
                                 },
                                 {
                                     label: n.equipmentHandover,
