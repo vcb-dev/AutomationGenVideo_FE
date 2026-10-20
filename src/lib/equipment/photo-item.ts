@@ -12,4 +12,6 @@ export interface PhotoItem {
   file?: File;
   previewUrl: string;
   name: string;
+  /** Đánh dấu ảnh tự động kế thừa từ phiếu mượn của người mượn */
+  isInherited?: boolean;
 }

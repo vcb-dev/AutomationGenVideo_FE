@@ -142,10 +142,16 @@ function EquipmentTable() {
             <span>📱</span> Quét QR tạo phiếu
           </button>
           <Link
-            href="/dashboard/equipment/new-request"
-            className="flex items-center justify-center whitespace-nowrap rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 transition-all dark:border-white/[0.12] dark:text-slate-200 dark:hover:bg-white/[0.05] shrink-0"
+            href="/dashboard/equipment/borrow-history"
+            className="flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 transition-all dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08] shrink-0"
           >
-            Tạo phiếu mượn
+            <span>📋</span> {canManageCatalog(user?.roles, user?.team) ? 'Nhật ký mượn' : 'Phiếu mượn của tôi'}
+          </Link>
+          <Link
+            href="/dashboard/equipment/new-request"
+            className="flex items-center justify-center whitespace-nowrap rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700 active:scale-95 transition-all shrink-0"
+          >
+            + Tạo phiếu mượn
           </Link>
         </div>
       </header>

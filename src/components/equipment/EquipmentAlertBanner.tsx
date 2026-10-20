@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { fetchUpcomingReturnsAlerts, UpcomingReturnsAlerts, BorrowRequest } from '@/lib/equipment/request-api';
+import { useAuthStore } from '@/store/auth-store';
+import { canManageCatalog } from '@/lib/equipment/catalog-permissions';
 
 interface EquipmentAlertBannerProps {
   onSelectRequest?: (req: BorrowRequest) => void;
@@ -10,6 +13,11 @@ interface EquipmentAlertBannerProps {
 }
 
 export function EquipmentAlertBanner({ onSelectRequest, className }: EquipmentAlertBannerProps) {
+  const user = useAuthStore((s) => s.user);
+  const isManager = canManageCatalog(user?.roles, user?.team);
+  const pathname = usePathname();
+  const isHistoryPage = pathname?.includes('/borrow-history');
+
   const [alerts, setAlerts] = useState<UpcomingReturnsAlerts | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(true);
@@ -35,6 +43,18 @@ export function EquipmentAlertBanner({ onSelectRequest, className }: EquipmentAl
 
   if (totalOverdue === 0 && totalExpiring === 0) return null;
 
+  const alertTitle = isManager
+    ? totalOverdue > 0
+      ? `Cảnh báo: Có ${totalOverdue} phiếu mượn thiết bị quá hạn!`
+      : `Nhắc nhở: Có ${totalExpiring} phiếu mượn sắp đến hạn trả trong 2 giờ!`
+    : totalOverdue > 0
+      ? `Bạn có ${totalOverdue} phiếu mượn thiết bị quá hạn trả!`
+      : `Nhắc nhở: Bạn có ${totalExpiring} phiếu mượn sắp đến hạn trả trong 2 giờ!`;
+
+  const alertSubtitle = isManager
+    ? 'Vui lòng kiểm tra hoàn trả hoặc đôn đốc thu hồi để tránh gián đoạn các đoàn quay kế tiếp.'
+    : 'Vui lòng kiểm tra hoàn trả thiết bị đúng hạn hoặc gửi yêu cầu xin gia hạn mượn.';
+
   return (
     <div
       className={`rounded-2xl border transition-all duration-300 shadow-sm ${
@@ -51,9 +71,7 @@ export function EquipmentAlertBanner({ onSelectRequest, className }: EquipmentAl
           <div>
             <div className="flex items-center gap-2">
               <h4 className="font-bold text-sm sm:text-base">
-                {totalOverdue > 0
-                  ? `Cảnh báo: Có ${totalOverdue} phiếu mượn thiết bị quá hạn!`
-                  : `Nhắc nhở: Có ${totalExpiring} phiếu mượn sắp đến hạn trả trong 2 giờ!`}
+                {alertTitle}
               </h4>
               {totalOverdue > 0 && totalExpiring > 0 && (
                 <span className="rounded-full bg-amber-200/80 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:bg-amber-500/20 dark:text-amber-300">
@@ -62,7 +80,7 @@ export function EquipmentAlertBanner({ onSelectRequest, className }: EquipmentAl
               )}
             </div>
             <p className="text-xs opacity-90 mt-0.5">
-              Vui lòng kiểm tra hoàn trả hoặc xin gia hạn thời gian mượn để tránh gián đoạn các đoàn quay kế tiếp.
+              {alertSubtitle}
             </p>
           </div>
         </div>
@@ -75,12 +93,14 @@ export function EquipmentAlertBanner({ onSelectRequest, className }: EquipmentAl
           >
             {expanded ? 'Thu gọn ▲' : 'Xem chi tiết ▼'}
           </button>
-          <Link
-            href="/dashboard/equipment/borrow-history"
-            className="rounded-xl bg-white/80 px-3 py-1.5 text-xs font-bold shadow-xs hover:bg-white dark:bg-white/10 dark:hover:bg-white/20 transition-all text-current"
-          >
-            Xem nhật ký mượn →
-          </Link>
+          {!isHistoryPage && (
+            <Link
+              href="/dashboard/equipment/borrow-history"
+              className="rounded-xl bg-white/80 px-3 py-1.5 text-xs font-bold shadow-xs hover:bg-white dark:bg-white/10 dark:hover:bg-white/20 transition-all text-current"
+            >
+              Xem nhật ký mượn →
+            </Link>
+          )}
         </div>
       </div>
 
@@ -117,7 +137,7 @@ export function EquipmentAlertBanner({ onSelectRequest, className }: EquipmentAl
                         onClick={() => onSelectRequest(req)}
                         className="mt-2 text-left text-[11px] font-semibold text-blue-600 hover:underline dark:text-blue-400"
                       >
-                        Xử lý phiếu này →
+                        {isManager ? 'Xử lý phiếu này →' : 'Xem chi tiết & xin gia hạn →'}
                       </button>
                     )}
                   </div>
@@ -157,7 +177,7 @@ export function EquipmentAlertBanner({ onSelectRequest, className }: EquipmentAl
                         onClick={() => onSelectRequest(req)}
                         className="mt-2 text-left text-[11px] font-semibold text-blue-600 hover:underline dark:text-blue-400"
                       >
-                        Xử lý phiếu này →
+                        {isManager ? 'Xử lý phiếu này →' : 'Xem chi tiết & xin gia hạn →'}
                       </button>
                     )}
                   </div>

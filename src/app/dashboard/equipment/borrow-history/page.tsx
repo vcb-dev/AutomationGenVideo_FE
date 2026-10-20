@@ -45,6 +45,8 @@ import {
   QUICK_FILTER_OPTIONS,
   computeQuickFilterCounts,
   filterRequestsByQuickFilter,
+  isRequestOverdue,
+  isRequestExpiringSoon,
 } from '@/lib/equipment/quick-filters';
 
 const cardClass =
@@ -122,7 +124,13 @@ function BorrowHistoryLogPageInner() {
   // Dữ liệu phiếu mượn
   const [requests, setRequests] = useState<BorrowRequest[]>([]);
 
-  // Trạng thái tải
+  const [dismissSuccessBanner, setDismissSuccessBanner] = useState(false);
+
+  useEffect(() => {
+    if (createdCode) {
+      setDismissSuccessBanner(false);
+    }
+  }, [createdCode]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -402,7 +410,7 @@ function BorrowHistoryLogPageInner() {
         />
 
         {/* THÔNG BÁO TẠO PHIẾU THÀNH CÔNG NẾU CÓ */}
-        {createdCode && (
+        {createdCode && !dismissSuccessBanner && (
           <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50/90 p-4 text-sm text-emerald-900 shadow-sm dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300 animate-in fade-in slide-in-from-top-2 duration-300">
             <div className="flex items-center gap-2.5">
               <span className="text-2xl">🎉</span>
@@ -413,6 +421,19 @@ function BorrowHistoryLogPageInner() {
                 </p>
               </div>
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                setDismissSuccessBanner(true);
+                const url = new URL(window.location.href);
+                url.searchParams.delete('created');
+                window.history.replaceState({}, '', url.toString());
+              }}
+              className="grid h-7 w-7 place-items-center rounded-lg text-emerald-700 hover:bg-emerald-100 hover:text-emerald-900 dark:text-emerald-300 dark:hover:bg-emerald-500/20 transition-colors cursor-pointer"
+              title="Đóng thông báo"
+            >
+              ✕
+            </button>
           </div>
         )}
 
@@ -777,24 +798,37 @@ function BorrowHistoryLogPageInner() {
                               <div className="text-slate-400">đến {fmt(req.to_time)}</div>
                             </td>
                             <td className="px-4 py-3">
-                              <span
-                                className={cn(
-                                  'inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold',
-                                  REQUEST_TONE_CLASS[statusBadge.tone],
+                              <div className="flex flex-col gap-1 items-start">
+                                <span
+                                  className={cn(
+                                    'inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold',
+                                    REQUEST_TONE_CLASS[statusBadge.tone],
+                                  )}
+                                >
+                                  {statusBadge.label}
+                                </span>
+                                {isRequestOverdue(req.to_time, req.status) && (
+                                  <span className="inline-flex items-center gap-1 rounded-md bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700 dark:bg-red-500/20 dark:text-red-300">
+                                    <span>🚨</span> Quá hạn trả
+                                  </span>
                                 )}
-                              >
-                                {statusBadge.label}
-                              </span>
-                              {req.extension?.status === 'PENDING' && (
-                                <span className="block mt-1 text-[10px] font-bold text-amber-600 dark:text-amber-400">
-                                  ⏳ Chờ duyệt gia hạn
-                                </span>
-                              )}
-                              {req.incidents && req.incidents.length > 0 && (
-                                <span className="block mt-0.5 text-[10px] font-bold text-red-600 dark:text-red-400">
-                                  ⚠️ Có {req.incidents.length} sự cố
-                                </span>
-                              )}
+                                {isRequestExpiringSoon(req.to_time, req.status) &&
+                                  !isRequestOverdue(req.to_time, req.status) && (
+                                    <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-500/20 dark:text-amber-300">
+                                      <span>⏰</span> Sắp hết hạn
+                                    </span>
+                                  )}
+                                {req.extension?.status === 'PENDING' && (
+                                  <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                                    ⏳ Chờ duyệt gia hạn
+                                  </span>
+                                )}
+                                {req.incidents && req.incidents.length > 0 && (
+                                  <span className="text-[10px] font-bold text-red-600 dark:text-red-400">
+                                    ⚠️ Có {req.incidents.length} sự cố
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="px-4 py-3 text-right">
                               <button
@@ -882,14 +916,21 @@ function BorrowHistoryLogPageInner() {
 
                 <div className="flex items-center justify-between pt-2">
                   <span className="text-xs text-slate-400">Trạng thái</span>
-                  <span
-                    className={cn(
-                      'rounded-lg border px-2.5 py-1 text-xs font-semibold',
-                      REQUEST_TONE_CLASS[requestStatusBadge(selectedRequest.status).tone],
+                  <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                    <span
+                      className={cn(
+                        'rounded-lg border px-2.5 py-1 text-xs font-semibold',
+                        REQUEST_TONE_CLASS[requestStatusBadge(selectedRequest.status).tone],
+                      )}
+                    >
+                      {requestStatusBadge(selectedRequest.status).label}
+                    </span>
+                    {isRequestOverdue(selectedRequest.to_time, selectedRequest.status) && (
+                      <span className="inline-flex items-center gap-1 rounded-md bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700 dark:bg-red-500/20 dark:text-red-300">
+                        <span>🚨</span> Quá hạn trả
+                      </span>
                     )}
-                  >
-                    {requestStatusBadge(selectedRequest.status).label}
-                  </span>
+                  </div>
                 </div>
 
                 {/* THÔNG TIN GHI CHÚ TỪ NGƯỜI TẠO NẾU CÓ */}

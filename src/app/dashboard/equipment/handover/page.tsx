@@ -4,7 +4,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { Accessory, Asset, uploadAssetPhoto } from '@/lib/equipment/api';
+import { Accessory, Asset, createAsset, uploadAssetPhoto } from '@/lib/equipment/api';
 import {
   BorrowRequest,
   HandoverSheetUnit,
@@ -23,6 +23,7 @@ import { BorrowPrintModal } from '@/components/equipment/BorrowPrintModal';
 import { RequireCatalogManager } from '@/components/equipment/RequireCatalogManager';
 import { apiErrorMessage } from '@/lib/equipment/api-error';
 import { conditionLabel } from '@/lib/equipment/status-label';
+import { compressImage } from '@/lib/equipment/image-compressor';
 import type { PhotoItem } from '@/lib/equipment/photo-item';
 
 const cardClass =
@@ -34,6 +35,7 @@ const inputClass =
 
 interface UnitForm {
   lineId?: string;
+  modelId?: string;
   assetId: string;
   code: string;
   serialNumber: string;
@@ -61,6 +63,9 @@ function HandoverPageInner() {
   const [printing, setPrinting] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState('');
+  const [quickSerials, setQuickSerials] = useState<Record<number, string>>({});
+  const [addingAssetIndex, setAddingAssetIndex] = useState<number | null>(null);
+  const [quickAddError, setQuickAddError] = useState<Record<number, string>>({});
 
   const loadRequest = useCallback(async (id: string) => {
     setError('');
@@ -69,8 +74,50 @@ function HandoverPageInner() {
       setRequest(detail);
       setDone('');
       setConfirmed(false);
-      setCommonPhotos([]);
       setReceivedBy(detail.owner_name || '');
+
+      if (detail.photos && detail.photos.length > 0) {
+        const inherited: PhotoItem[] = detail.photos.map((src, idx) => ({
+          previewUrl: src,
+          name: `Ảnh từ người mượn #${idx + 1}`,
+          isInherited: true,
+        }));
+        setCommonPhotos(inherited);
+
+        // Nạp ngầm file blob nếu lấy được qua HTTP để sẵn sàng upload
+        Promise.all(
+          detail.photos.map(async (src, idx) => {
+            try {
+              const res = await fetch(src);
+              if (res.ok) {
+                const blob = await res.blob();
+                return {
+                  previewUrl: src,
+                  name: `Ảnh từ người mượn #${idx + 1}`,
+                  isInherited: true,
+                  file: new File([blob], `borrower_photo_${idx + 1}.jpg`, {
+                    type: blob.type || 'image/jpeg',
+                  }),
+                };
+              }
+            } catch {}
+            return {
+              previewUrl: src,
+              name: `Ảnh từ người mượn #${idx + 1}`,
+              isInherited: true,
+            };
+          }),
+        ).then((loaded) => {
+          setCommonPhotos((current) => {
+            if (current.some((p) => p.isInherited)) {
+              return loaded;
+            }
+            return current;
+          });
+        });
+      } else {
+        setCommonPhotos([]);
+      }
 
       if (detail.status === 'PREPARING') {
         const sheet = await fetchHandoverSheet(id);
@@ -120,6 +167,7 @@ function HandoverPageInner() {
                 : ((pickedAsset as any)?.model?.accessories || []);
             newUnits.push({
               lineId: line.id,
+              modelId: line.model_id || line.model?.id,
               assetId: pickedAsset ? pickedAsset.id : '',
               code: pickedAsset ? pickedAsset.asset_code : `Chưa có máy`,
               serialNumber: pickedAsset ? pickedAsset.serial_number : '',
@@ -191,14 +239,18 @@ function HandoverPageInner() {
     );
 
   // Chọn ảnh riêng từ máy tính / camera
-  const onPickUnitPhotos = (index: number, files: FileList | null) => {
+  const onPickUnitPhotos = async (index: number, files: FileList | null) => {
     if (!files?.length) return;
     const picked = Array.from(files);
-    const newItems: PhotoItem[] = picked.map((f) => ({
-      file: f,
-      previewUrl: URL.createObjectURL(f),
-      name: f.name,
-    }));
+    const newItems: PhotoItem[] = [];
+    for (const f of picked) {
+      const compressed = await compressImage(f).catch(() => f);
+      newItems.push({
+        file: compressed,
+        previewUrl: URL.createObjectURL(compressed),
+        name: f.name,
+      });
+    }
     setUnits((prev) =>
       prev.map((u, i) =>
         i === index
@@ -227,14 +279,18 @@ function HandoverPageInner() {
   };
 
   // Chọn ảnh chung toàn bộ dàn máy (chụp 1 lần cho tất cả máy)
-  const onPickCommonPhotos = (files: FileList | null) => {
+  const onPickCommonPhotos = async (files: FileList | null) => {
     if (!files?.length) return;
     const picked = Array.from(files);
-    const newItems: PhotoItem[] = picked.map((f) => ({
-      file: f,
-      previewUrl: URL.createObjectURL(f),
-      name: f.name,
-    }));
+    const newItems: PhotoItem[] = [];
+    for (const f of picked) {
+      const compressed = await compressImage(f).catch(() => f);
+      newItems.push({
+        file: compressed,
+        previewUrl: URL.createObjectURL(compressed),
+        name: f.name,
+      });
+    }
     setCommonPhotos((prev) => [...prev, ...newItems]);
     if (commonFileInputRef.current) commonFileInputRef.current.value = '';
   };
@@ -245,6 +301,51 @@ function HandoverPageInner() {
       if (target?.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(target.previewUrl);
       return prev.filter((_, i) => i !== index);
     });
+  };
+
+  const handleQuickAddAsset = async (index: number) => {
+    const targetUnit = units[index];
+    const serial = quickSerials[index]?.trim();
+    if (!targetUnit || !serial) return;
+    if (!targetUnit.modelId) {
+      setQuickAddError((prev) => ({ ...prev, [index]: 'Không tìm thấy thông tin dòng máy.' }));
+      return;
+    }
+    setAddingAssetIndex(index);
+    setQuickAddError((prev) => ({ ...prev, [index]: '' }));
+    try {
+      const created = await createAsset({
+        modelId: targetUnit.modelId,
+        serialNumber: serial,
+        condition: 'GOOD',
+      });
+      const accs =
+        targetUnit.accessories.length > 0
+          ? targetUnit.accessories
+          : ((created as any).model?.accessories || []);
+
+      patch(index, {
+        assetId: created.id,
+        code: created.asset_code,
+        serialNumber: created.serial_number,
+        condition: created.condition,
+        locationName: created.location?.name,
+        accessories: accs,
+        present:
+          targetUnit.present.length === accs.length
+            ? targetUnit.present
+            : accs.map(() => true),
+        availableOptions: [...(targetUnit.availableOptions || []), created],
+      });
+      setQuickSerials((prev) => ({ ...prev, [index]: '' }));
+    } catch (err: unknown) {
+      setQuickAddError((prev) => ({
+        ...prev,
+        [index]: apiErrorMessage(err, 'Không thể nhập nhanh thiết bị mới vào kho.'),
+      }));
+    } finally {
+      setAddingAssetIndex(null);
+    }
   };
 
   const readiness = handoverReadiness(
@@ -273,32 +374,39 @@ function HandoverPageInner() {
 
       // 2. Tải ảnh lên TRƯỚC và giữ lại ID máy chủ trả về.
       //
-      // Biên bản phải trỏ tới ảnh có thật. Bản cũ gửi lên tên file trên máy người dùng, còn lỗi
-      // tải lên thì nuốt lặng — nên biên bản ghi "3 ảnh" mà không tấm nào mở được, và đúng lúc
-      // tranh cãi vết xước thì không còn gì chống lưng. Lỗi ở đây phải CHẶN việc bàn giao.
-      //
       // Ảnh chụp chung cả dàn máy vẫn tải riêng cho từng máy: mỗi máy cần chứng cứ của chính nó.
       const photoIdsByUnit: string[][] = [];
       for (const u of units) {
         const photosToUpload = u.photos && u.photos.length > 0 ? u.photos : commonPhotos;
         const uploadedIds: string[] = [];
+        let uploadErrorMsg = '';
         for (const item of photosToUpload) {
           if (!item.file) continue;
-          const saved = await uploadAssetPhoto(
-            u.code,
-            item.file,
-            `Ảnh bàn giao phiếu ${request.request_code}`,
-            // Ảnh chứng cứ: không vào thư viện ảnh hồ sơ của máy, không làm ảnh đại diện.
-            'HANDOVER',
-          );
-          uploadedIds.push(saved.id);
+          try {
+            const saved = await uploadAssetPhoto(
+              u.code,
+              item.file,
+              `Ảnh bàn giao phiếu ${request.request_code}`,
+              'HANDOVER',
+            );
+            uploadedIds.push(saved.id);
+          } catch (uploadErr) {
+            console.warn('Lỗi tải file ảnh riêng, BE sẽ kế thừa tự động:', uploadErr);
+            uploadErrorMsg = apiErrorMessage(uploadErr, 'Lỗi tải ảnh lên máy chủ.');
+          }
         }
-        if (uploadedIds.length === 0) {
-          // Đặt lỗi thẳng vào state chứ không ném: `apiErrorMessage` cố ý chỉ đọc lỗi HTTP nên
-          // một `Error` thường sẽ bị thay bằng câu dự phòng, mất đúng tên máy đang thiếu ảnh.
+        // Nếu không có file tải lên trực tiếp nhưng có ảnh kế thừa từ người mượn -> BE tự động gán ảnh
+        const hasInherited =
+          photosToUpload.some((p) => p.isInherited) ||
+          Boolean(request.photos && request.photos.length > 0);
+
+        if (uploadedIds.length === 0 && !hasInherited) {
           setError(
-            `Máy ${u.code} chưa có ảnh tình trạng nào được lưu. Chụp hoặc chọn ảnh rồi thử lại.`,
+            uploadErrorMsg
+              ? `Máy ${u.code}: ${uploadErrorMsg}`
+              : `Máy ${u.code} chưa có ảnh tình trạng nào được lưu. Chụp hoặc chọn ảnh rồi thử lại.`,
           );
+          setSaving(false);
           return;
         }
         photoIdsByUnit.push(uploadedIds);
@@ -409,8 +517,13 @@ function HandoverPageInner() {
               <div className="flex flex-col gap-4 p-4 sm:p-5">
                 {(request?.note || (request?.photos && request.photos.length > 0)) && (
                   <div className="rounded-xl border border-amber-200/80 bg-amber-50/60 p-3.5 text-xs text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
-                    <div className="font-bold uppercase tracking-wider text-[11px] text-amber-800 dark:text-amber-300">
-                      📝 Ghi chú & Ảnh đính kèm từ người mượn:
+                    <div className="flex flex-wrap items-center justify-between gap-1.5 font-bold uppercase tracking-wider text-[11px] text-amber-800 dark:text-amber-300">
+                      <span>📝 Ghi chú & Ảnh đính kèm từ người mượn:</span>
+                      {request.photos && request.photos.length > 0 && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300">
+                          ⚡ Đã tự động kế thừa làm bằng chứng bàn giao
+                        </span>
+                      )}
                     </div>
                     {request.note && (
                       <p className="mt-1 text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{request.note}</p>
@@ -436,11 +549,16 @@ function HandoverPageInner() {
                 <div className="rounded-2xl border-2 border-dashed border-blue-300 bg-blue-50/60 p-4 sm:p-5 dark:border-blue-500/30 dark:bg-blue-500/5">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="text-xl">📸</span>
                         <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white">
                           Chụp / Tải ảnh chung cho toàn bộ {units.length} thiết bị
                         </h3>
+                        {commonPhotos.some((p) => p.isInherited) && (
+                          <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
+                            ⚡ Đã có ảnh từ người mượn
+                          </span>
+                        )}
                       </div>
                       <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                         Chụp 1–2 ảnh toàn cảnh cả dàn máy lúc giao từ máy tính hoặc điện thoại. Hệ thống sẽ tự động gán làm bằng chứng bàn giao cho tất cả thiết bị.
@@ -486,6 +604,11 @@ function HandoverPageInner() {
                               alt={photo.name || `Ảnh ${idx + 1}`}
                               className="h-full w-full object-cover"
                             />
+                            {photo.isInherited && (
+                              <span className="absolute top-1 left-1 rounded bg-emerald-600/90 px-1 py-0.5 text-[8px] font-bold text-white shadow">
+                                ⚡ Người mượn
+                              </span>
+                            )}
                             <button
                               type="button"
                               onClick={() => removeCommonPhoto(idx)}
@@ -500,9 +623,15 @@ function HandoverPageInner() {
                           </div>
                         ))}
                       </div>
-                      <p className="mt-2 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                        ✓ Đã tự động áp dụng {commonPhotos.length} ảnh này làm bằng chứng bàn giao cho tất cả {units.length} thiết bị bên dưới!
-                      </p>
+                      {commonPhotos.some((p) => p.isInherited) ? (
+                        <p className="mt-2 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                          ⚡ Đã tự động kế thừa {commonPhotos.filter((p) => p.isInherited).length} ảnh từ người mượn làm bằng chứng bàn giao cho tất cả {units.length} thiết bị! Bạn có thể chọn thêm ảnh từ máy nếu cần.
+                        </p>
+                      ) : (
+                        <p className="mt-2 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                          ✓ Đã tự động áp dụng {commonPhotos.length} ảnh này làm bằng chứng bàn giao cho tất cả {units.length} thiết bị bên dưới!
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -542,40 +671,119 @@ function HandoverPageInner() {
                           Số Serial / Máy cụ thể bàn giao <em className="not-italic text-red-600">*</em>
                         </label>
                         {unit.availableOptions && unit.availableOptions.length > 0 ? (
-                          <select
-                            className={cn(inputClass, 'w-full font-mono text-xs sm:text-sm font-semibold')}
-                            value={unit.assetId}
-                            onChange={(e) => {
-                              const nextAsset = unit.availableOptions?.find((a) => a.id === e.target.value);
-                              if (nextAsset) {
-                                const accs =
-                                  unit.accessories.length > 0
-                                    ? unit.accessories
-                                    : ((nextAsset as any).model?.accessories || []);
-                                patch(i, {
-                                  assetId: nextAsset.id,
-                                  code: nextAsset.asset_code,
-                                  serialNumber: nextAsset.serial_number,
-                                  condition: nextAsset.condition,
-                                  locationName: nextAsset.location?.name,
-                                  accessories: accs,
-                                  present:
-                                    unit.present.length === accs.length
-                                      ? unit.present
-                                      : accs.map(() => true),
-                                });
-                              }
-                            }}
-                          >
-                            {unit.availableOptions.map((a) => (
-                              <option key={a.id} value={a.id}>
-                                {a.asset_code} (Serial: {a.serial_number}) · {a.location?.name || 'Kho'} · {conditionLabel(a.condition).label}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
+                          <div className="flex flex-col gap-2">
+                            <select
+                              className={cn(inputClass, 'w-full font-mono text-xs sm:text-sm font-semibold')}
+                              value={unit.assetId}
+                              onChange={(e) => {
+                                const nextAsset = unit.availableOptions?.find((a) => a.id === e.target.value);
+                                if (nextAsset) {
+                                  const accs =
+                                    unit.accessories.length > 0
+                                      ? unit.accessories
+                                      : ((nextAsset as any).model?.accessories || []);
+                                  patch(i, {
+                                    assetId: nextAsset.id,
+                                    code: nextAsset.asset_code,
+                                    serialNumber: nextAsset.serial_number,
+                                    condition: nextAsset.condition,
+                                    locationName: nextAsset.location?.name,
+                                    accessories: accs,
+                                    present:
+                                      unit.present.length === accs.length
+                                        ? unit.present
+                                        : accs.map(() => true),
+                                  });
+                                }
+                              }}
+                            >
+                              {unit.availableOptions.map((a) => (
+                                <option key={a.id} value={a.id}>
+                                  {a.asset_code} (Serial: {a.serial_number}) · {a.location?.name || 'Kho'} · {conditionLabel(a.condition).label}
+                                </option>
+                              ))}
+                            </select>
+
+                            <details className="text-[11px] text-slate-500 dark:text-slate-400">
+                              <summary className="cursor-pointer font-medium hover:text-blue-600">
+                                ➕ Cầm máy mới trên tay chưa có trong danh sách trên? Nhập nhanh số Serial mới
+                              </summary>
+                              <div className="mt-2 flex flex-wrap items-center gap-2 pl-2">
+                                <input
+                                  type="text"
+                                  placeholder="Nhập số Serial máy mới..."
+                                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-800 outline-none focus:border-blue-500 dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-white"
+                                  value={quickSerials[i] || ''}
+                                  onChange={(e) => setQuickSerials((prev) => ({ ...prev, [i]: e.target.value }))}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      handleQuickAddAsset(i);
+                                    }
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  disabled={!quickSerials[i]?.trim() || addingAssetIndex === i}
+                                  onClick={() => handleQuickAddAsset(i)}
+                                  className="rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white shadow hover:bg-blue-700 disabled:opacity-50 transition-all cursor-pointer"
+                                >
+                                  {addingAssetIndex === i ? 'Đang thêm…' : '+ Nhập kho & Chọn máy này luôn'}
+                                </button>
+                                {quickAddError[i] && (
+                                  <span className="w-full text-xs text-red-600 dark:text-red-400">
+                                    {quickAddError[i]}
+                                  </span>
+                                )}
+                              </div>
+                            </details>
+                          </div>
+                        ) : unit.assetId ? (
                           <div className="font-mono text-sm font-semibold text-slate-900 dark:text-white bg-slate-100 dark:bg-white/[0.05] px-3 py-2 rounded-lg inline-block">
                             Mã máy: {unit.code} {unit.serialNumber ? `(Serial: ${unit.serialNumber})` : ''}
+                          </div>
+                        ) : (
+                          <div className="rounded-xl border border-amber-300 bg-amber-50/90 p-3.5 text-xs dark:border-amber-500/30 dark:bg-amber-500/10">
+                            <div className="flex items-start gap-2.5">
+                              <span className="text-base shrink-0">⚠️</span>
+                              <div className="flex-1">
+                                <div className="font-bold text-amber-900 dark:text-amber-200">
+                                  Kho hiện chưa có máy nào rảnh cho dòng &quot;{unit.modelName}&quot;
+                                </div>
+                                <p className="mt-0.5 text-[11px] text-amber-700 dark:text-amber-300/80">
+                                  Tất cả các máy của dòng này đã bị mượn hết hoặc chưa nhập số Serial vào hệ thống.
+                                </p>
+
+                                <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                                  <input
+                                    type="text"
+                                    placeholder="Nhập số Serial máy thực tế trên tay (VD: SN-12345)..."
+                                    className="rounded-lg border border-amber-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 outline-none focus:border-blue-500 dark:border-amber-500/40 dark:bg-slate-900 dark:text-white min-w-[240px]"
+                                    value={quickSerials[i] || ''}
+                                    onChange={(e) => setQuickSerials((prev) => ({ ...prev, [i]: e.target.value }))}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        handleQuickAddAsset(i);
+                                      }
+                                    }}
+                                  />
+                                  <button
+                                    type="button"
+                                    disabled={!quickSerials[i]?.trim() || addingAssetIndex === i}
+                                    onClick={() => handleQuickAddAsset(i)}
+                                    className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white shadow hover:bg-amber-700 disabled:opacity-50 transition-all cursor-pointer"
+                                  >
+                                    {addingAssetIndex === i ? 'Đang thêm…' : '+ Nhập kho & Chọn máy này luôn'}
+                                  </button>
+                                </div>
+                                {quickAddError[i] && (
+                                  <p className="mt-1.5 text-xs font-medium text-red-600 dark:text-red-400">
+                                    {quickAddError[i]}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -735,7 +943,14 @@ function HandoverPageInner() {
                   </div>
                   <div className="flex justify-between items-center">
                     <dt className={keyClass}>Tổng số ảnh bằng chứng</dt>
-                    <dd className={valueClass}>{readiness.totalPhotoCount} ảnh</dd>
+                    <dd className={valueClass}>
+                      {readiness.totalPhotoCount} ảnh
+                      {commonPhotos.some((p) => p.isInherited) && (
+                        <span className="ml-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                          (Tự động)
+                        </span>
+                      )}
+                    </dd>
                   </div>
                   <div className="flex justify-between items-center">
                     <dt className={keyClass}>Phụ kiện chưa tick</dt>
@@ -751,6 +966,12 @@ function HandoverPageInner() {
                     </dd>
                   </div>
                 </dl>
+
+                {units.some((u) => !u.assetId) && (
+                  <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
+                    ⚠️ Chưa bàn giao được: Còn {units.filter((u) => !u.assetId).length} thiết bị chưa có số Serial máy (do kho hết máy rảnh). Bạn có thể nhập nhanh số Serial máy mới ở bên trái.
+                  </p>
+                )}
 
                 {readiness.unitsMissingPhoto.length > 0 && (
                   <p className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
@@ -807,6 +1028,10 @@ function HandoverPageInner() {
             nextHref="/dashboard/equipment/returns"
             nextLabel="Sang Bước 3: Nhận trả →"
             stayLabel="Tiếp tục bàn giao phiếu khác"
+            onPrint={() => {
+              setPrinting(true);
+            }}
+            printLabel="🖨️ In phiếu bàn giao ngay (A4 / Ký nhận)"
           />
 
           <BorrowPrintModal

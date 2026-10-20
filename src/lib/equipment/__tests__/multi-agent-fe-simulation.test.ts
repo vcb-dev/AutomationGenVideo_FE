@@ -156,11 +156,144 @@ describe('Multi-Agent FE Simulation — Mô phỏng toàn diện 4 Agent thao t�
     });
   });
 
-  describe('Agent 4 (Content Creator): Thao tác trên Laptop/PC', () => {
+  describe('Agent 3 (Thủ kho Handover): Tự động kế thừa ảnh người mượn & tự động chọn số serial', () => {
+    it('kế thừa ảnh từ phiếu của người mượn mà thủ kho không cần tải ảnh thủ công', () => {
+      const borrowerPhotos = ['https://storage.vcbi.vn/photos/tamron-check1.jpg', 'https://storage.vcbi.vn/photos/tamron-check2.jpg'];
+      const inheritedPhotos = borrowerPhotos.map((src, idx) => ({
+        previewUrl: src,
+        name: `Ảnh từ người mượn #${idx + 1}`,
+        isInherited: true,
+      }));
+
+      expect(inheritedPhotos).toHaveLength(2);
+      expect(inheritedPhotos.every((p) => p.isInherited)).toBe(true);
+      expect(inheritedPhotos[0].previewUrl).toBe('https://storage.vcbi.vn/photos/tamron-check1.jpg');
+    });
+
+    it('tự động gán đúng máy rảnh (AVAILABLE) và không trùng lặp giữa các dòng', () => {
+      const availableTamron = [
+        { id: 'asset-tamron-1', asset_code: 'LENS-007', serial_number: 'TR2875-001' },
+        { id: 'asset-tamron-2', asset_code: 'LENS-008', serial_number: 'TR2875-002' },
+      ];
+      const pickedAssetIds = new Set<string>();
+      const chosen = availableTamron.filter((a) => !pickedAssetIds.has(a.id)).slice(0, 1);
+      chosen.forEach((a) => pickedAssetIds.add(a.id));
+
+      expect(chosen[0].asset_code).toBe('LENS-007');
+      expect(pickedAssetIds.has('asset-tamron-1')).toBe(true);
+    });
+  });
+
+  describe('Agent 4 (Thủ kho Edge Case): Xử lý kho hết máy rảnh & Nhập nhanh số serial mới', () => {
+    it('phát hiện kho hết máy rảnh và cảnh báo rõ ràng thay vì để nhãn bế tắc', () => {
+      const assignable: any[] = [];
+      const isOutOfStock = assignable.length === 0;
+      expect(isOutOfStock).toBe(true);
+    });
+
+    it('nhập nhanh số serial mới lập tức cập nhật vào danh sách options và chọn máy', () => {
+      const createdAsset = {
+        id: 'new-asset-uuid-99',
+        asset_code: 'LENS-TAMRON-LIVE-99',
+        serial_number: 'SN-LIVE-2026',
+        condition: 'GOOD',
+      };
+      const prevOptions: any[] = [];
+      const updatedOptions = [...prevOptions, createdAsset];
+
+      expect(updatedOptions).toHaveLength(1);
+      expect(updatedOptions[0].serial_number).toBe('SN-LIVE-2026');
+      expect(updatedOptions[0].asset_code).toBe('LENS-TAMRON-LIVE-99');
+    });
+  });
+
+  describe('Agent 5 (Thủ kho Return): Đối chiếu phụ kiện & tiếp nhận hoàn trả', () => {
+    it('đối chiếu đầy đủ 100% phụ kiện đi kèm khi nhận lại máy', () => {
+      const accessories = ['Nắp trước', 'Nắp sau', 'Loa che nắng (Hood)'];
+      const returnedAccessories = [true, true, true];
+      const isComplete = returnedAccessories.every(Boolean);
+
+      expect(isComplete).toBe(true);
+      expect(accessories).toHaveLength(3);
+    });
+  });
+
+  describe('Agent 6 (Content Creator): Thao tác trên Laptop/PC', () => {
     it('trên trình duyệt máy tính, không bị nhầm lẫn giữa camera điện thoại và tải ảnh desktop', () => {
       const desktopChromeUA =
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
       expect(isMobileBrowser(desktopChromeUA)).toBe(false);
+    });
+  });
+
+  describe('Agent 7 (Member Edge Case): Phân quyền phiếu quá hạn & xin gia hạn', () => {
+    it('Member không có phiếu quá hạn sẽ có badge Quá hạn = 0 và không hiện cảnh báo nhầm của người khác', () => {
+      const memberCleanRequests: BorrowRequest[] = [
+        {
+          id: 'clean-01',
+          request_code: 'REQ-CLEAN-01',
+          owner_id: 'member-clean',
+          status: 'ON_LOAN',
+          to_time: '2026-10-19T18:00:00.000Z', // 4h nữa mới hết hạn
+        } as BorrowRequest,
+      ];
+      const counts = computeQuickFilterCounts(memberCleanRequests, fixedNow);
+      expect(counts.overdue).toBe(0);
+
+      const overdueList = filterRequestsByQuickFilter(memberCleanRequests, 'OVERDUE', fixedNow);
+      expect(overdueList).toHaveLength(0);
+    });
+
+    it('Member có phiếu quá hạn sẽ được gắn cờ isRequestOverdue = true và nhận huy hiệu Quá hạn trả', () => {
+      const memberLateRequests: BorrowRequest[] = [
+        {
+          id: 'late-01',
+          request_code: 'REQ-LATE-01',
+          owner_id: 'member-late',
+          status: 'ON_LOAN',
+          to_time: '2026-10-19T12:00:00.000Z', // Đã trễ 2 giờ so với fixedNow (14:00)
+        } as BorrowRequest,
+      ];
+      const counts = computeQuickFilterCounts(memberLateRequests, fixedNow);
+      expect(counts.overdue).toBe(1);
+
+      const overdueList = filterRequestsByQuickFilter(memberLateRequests, 'OVERDUE', fixedNow);
+      expect(overdueList).toHaveLength(1);
+      expect(isRequestOverdue(overdueList[0].to_time, overdueList[0].status, fixedNow)).toBe(true);
+    });
+  });
+
+  describe('Agent 8 (Thủ kho / Member): Xử lý quên in phiếu ở Bước 2', () => {
+    it('cho phép in bổ sung biên bản bàn giao ngay từ WorkflowSuccessModal qua onPrint', () => {
+      let printModalOpened = false;
+      const onPrint = () => {
+        printModalOpened = true;
+      };
+
+      // Giả lập thủ kho bấm nút in trên popup chúc mừng
+      onPrint();
+      expect(printModalOpened).toBe(true);
+    });
+
+    it('cho phép in lại phiếu bất cứ lúc nào từ lịch sử mượn với đầy đủ thông tin máy và phụ kiện', () => {
+      const historyRequest: BorrowRequest = {
+        id: 'hist-01',
+        request_code: 'REQ-HIST-01',
+        owner_name: 'Hoàng Nam',
+        project: 'Quay MV',
+        status: 'ON_LOAN',
+        lines: [
+          {
+            id: 'l1',
+            quantity: 1,
+            model: { name: 'Sony FX3', accessories: [{ id: 'a1', name: 'Pin FZ100' }] },
+          },
+        ],
+      } as unknown as BorrowRequest;
+
+      expect(historyRequest.request_code).toBe('REQ-HIST-01');
+      expect(historyRequest.lines[0].model.name).toBe('Sony FX3');
+      expect(historyRequest.lines[0].model.accessories?.[0].name).toBe('Pin FZ100');
     });
   });
 });

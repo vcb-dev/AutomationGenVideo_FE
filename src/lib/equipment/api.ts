@@ -295,8 +295,9 @@ export async function uploadAssetPhoto(
   caption?: string,
   purpose?: PhotoPurpose,
 ) {
+  const compressed = await compressImage(file).catch(() => file);
   const form = new FormData();
-  form.append('photo', file);
+  form.append('photo', compressed);
   if (caption) form.append('caption', caption);
   if (purpose) form.append('purpose', purpose);
   const { data } = await apiClient.post<AssetPhoto>(
