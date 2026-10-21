@@ -3,7 +3,7 @@
 import Image from "next/image";
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Target, Globe, Video, TrendingUp, DollarSign, Tv2, Flame, CheckCircle2, Package } from 'lucide-react';
+import { Target, Globe, Video, TrendingUp, DollarSign, Tv2, Flame, CheckCircle2 } from 'lucide-react';
 
 interface ActivityKPIsProps {
     summary?: {
@@ -21,11 +21,19 @@ interface ActivityKPIsProps {
         global: { videos: number; traffic: number; revenue: number; channels: number; orders?: number; videoPct: number; trafficPct: number; revenuePct: number; channelPct: number; orderPct?: number };
         vn: { videos: number; traffic: number; revenue: number; channels: number; orders?: number; videoPct: number; trafficPct: number; revenuePct: number; channelPct: number; orderPct?: number };
     } | null;
+    hideRegionBreakdown?: boolean;
 }
 
-const ActivityKPIs = ({ summary, teamContributions, groupContributions }: ActivityKPIsProps) => {
+const ActivityKPIs = ({ summary, teamContributions, groupContributions, hideRegionBreakdown }: ActivityKPIsProps) => {
     const formatNumber = (num: number) =>
         new Intl.NumberFormat('vi-VN').format(num);
+
+    const compactParts = (num: number): { value: string; suffix: string } => {
+        const short = (n: number) => new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(n);
+        if (num >= 1e9) return { value: short(num / 1e9), suffix: 'tỷ' };
+        if (num >= 1e6) return { value: short(num / 1e6), suffix: 'triệu' };
+        return { value: formatNumber(num), suffix: '' };
+    };
 
     const calculatePercentage = (current: number, target: number) => {
         if (!target) return 0;
@@ -35,8 +43,9 @@ const ActivityKPIs = ({ summary, teamContributions, groupContributions }: Activi
     const kpis = [
         {
             title: 'Video đóng góp',
-            value: formatNumber(summary?.totalVideoCompleted || 0),
+            rawValue: summary?.totalVideoCompleted || 0,
             target: formatNumber(summary?.totalVideoTarget || 0),
+            targetLabel: 'KPI tháng',
             targetUnit: 'video',
             percentage: calculatePercentage(summary?.totalVideoCompleted || 0, summary?.totalVideoTarget || 0),
             icon: Video,
@@ -48,7 +57,7 @@ const ActivityKPIs = ({ summary, teamContributions, groupContributions }: Activi
         },
         {
             title: 'Tổng traffic',
-            value: formatNumber(summary?.totalTrafficCompleted || 0),
+            rawValue: summary?.totalTrafficCompleted || 0,
             target: formatNumber(summary?.totalTrafficTarget || 0),
             targetUnit: 'lượt xem',
             percentage: calculatePercentage(summary?.totalTrafficCompleted || 0, summary?.totalTrafficTarget || 0),
@@ -61,7 +70,7 @@ const ActivityKPIs = ({ summary, teamContributions, groupContributions }: Activi
         },
         {
             title: 'Doanh thu',
-            value: formatNumber(summary?.totalRevenueCompleted || 0),
+            rawValue: summary?.totalRevenueCompleted || 0,
             target: formatNumber(summary?.totalRevenueTarget || 0),
             targetUnit: 'VNĐ',
             percentage: calculatePercentage(summary?.totalRevenueCompleted || 0, summary?.totalRevenueTarget || 0),
@@ -74,7 +83,7 @@ const ActivityKPIs = ({ summary, teamContributions, groupContributions }: Activi
         },
         {
             title: 'Kênh hoạt động',
-            value: formatNumber(summary?.totalChannels || 0),
+            rawValue: summary?.totalChannels || 0,
             target: null,
             targetUnit: null,
             percentage: 100,
@@ -84,19 +93,6 @@ const ActivityKPIs = ({ summary, teamContributions, groupContributions }: Activi
             pctKey: 'channelPct',
             isCountOnly: true,
             showRegionPct: false,
-        },
-        {
-            title: 'Tổng số đơn',
-            value: formatNumber(summary?.totalOrders || 0),
-            target: null,
-            targetUnit: 'đơn',
-            percentage: 100,
-            icon: Package,
-            accent: 'amber',
-            groupKey: 'orders',
-            pctKey: 'orderPct',
-            isCountOnly: true,
-            showRegionPct: true,
         },
     ];
 
@@ -177,17 +173,17 @@ const ActivityKPIs = ({ summary, teamContributions, groupContributions }: Activi
         (summary?.totalTrafficCompleted || 0) +
         (summary?.totalRevenueTarget || 0) +
         (summary?.totalRevenueCompleted || 0) +
-        (summary?.totalChannels || 0) +
-        (summary?.totalOrders || 0) > 0;
+        (summary?.totalChannels || 0) > 0;
 
     return (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             {kpis.map((kpi, idx) => {
                 const a = accentMap[kpi.accent as AccentKey];
                 const Icon = kpi.icon;
                 const isDone = kpi.percentage >= 100;
                 const isHot = kpi.percentage >= 75 && kpi.percentage < 100;
                 const clampedPct = Math.min(kpi.percentage, 100);
+                const main = compactParts(kpi.rawValue);
 
                 const globalVal = (groupContributions?.global?.[kpi.groupKey as keyof typeof groupContributions.global] as number) || 0;
                 const vnVal = (groupContributions?.vn?.[kpi.groupKey as keyof typeof groupContributions.vn] as number) || 0;
@@ -242,13 +238,17 @@ const ActivityKPIs = ({ summary, teamContributions, groupContributions }: Activi
                             {/* Main value + ring */}
                             <div className="flex items-center justify-between px-5 pb-3 gap-3">
                                 <div className="min-w-0">
-                                    <p className="text-[30px] font-extrabold text-slate-900 leading-none tracking-tight tabular-nums truncate">
-                                        {kpi.value}
+                                    <p
+                                        className="text-[30px] font-extrabold text-slate-900 leading-none tracking-tight tabular-nums truncate"
+                                        title={formatNumber(kpi.rawValue)}
+                                    >
+                                        {main.value}
+                                        {main.suffix && <span className="ml-1 text-base font-bold text-slate-500">{main.suffix}</span>}
                                     </p>
                                     <div className={`mt-2 flex items-center gap-1 ${kpi.isCountOnly ? 'invisible' : ''}`}>
                                         <Target className="w-3 h-3 text-slate-400 flex-shrink-0" />
                                         <p className="text-[11px] text-slate-400 leading-tight">
-                                            Mục tiêu:&nbsp;
+                                            {'targetLabel' in kpi ? kpi.targetLabel : 'Mục tiêu'}:&nbsp;
                                             <span className="font-semibold text-slate-600">
                                                 {kpi.target} <span className="text-slate-400 font-normal">{kpi.targetUnit}</span>
                                             </span>
@@ -303,40 +303,44 @@ const ActivityKPIs = ({ summary, teamContributions, groupContributions }: Activi
                                 )}
                             </div>
 
-                            {/* Divider */}
-                            <div className="mx-5 h-px bg-slate-100" />
+                            {!hideRegionBreakdown && (
+                                <>
+                                    {/* Divider */}
+                                    <div className="mx-5 h-px bg-slate-100" />
 
-                            {/* Global / VN breakdown */}
-                            <div className="grid grid-cols-2 gap-2 p-4">
-                                <div className="rounded-xl bg-amber-50 border border-amber-100 px-3 py-2.5 flex flex-col gap-1">
-                                    <div className="flex items-center gap-1.5">
-                                        <Globe className="w-3 h-3 text-amber-500 flex-shrink-0" />
-                                        <span className="text-[9px] font-bold text-amber-600 uppercase tracking-widest">Global</span>
-                                    </div>
-                                    <p className="text-[16px] font-bold text-slate-800 leading-none tabular-nums">
-                                        {formatNumber(globalVal)}
-                                    </p>
-                                    <p className={`text-[10px] font-semibold text-amber-500 leading-none ${!kpi.showRegionPct ? 'invisible' : ''}`}>
-                                        {globalPct}%
-                                    </p>
-                                </div>
+                                    {/* Global / VN breakdown */}
+                                    <div className="grid grid-cols-2 gap-2 p-4">
+                                        <div className="rounded-xl bg-amber-50 border border-amber-100 px-3 py-2.5 flex flex-col gap-1">
+                                            <div className="flex items-center gap-1.5">
+                                                <Globe className="w-3 h-3 text-amber-500 flex-shrink-0" />
+                                                <span className="text-[9px] font-bold text-amber-600 uppercase tracking-widest">Global</span>
+                                            </div>
+                                            <p className="text-[16px] font-bold text-slate-800 leading-none tabular-nums">
+                                                {formatNumber(globalVal)}
+                                            </p>
+                                            <p className={`text-[10px] font-semibold text-amber-500 leading-none ${!kpi.showRegionPct ? 'invisible' : ''}`}>
+                                                {globalPct}%
+                                            </p>
+                                        </div>
 
-                                <div className="rounded-xl bg-blue-50 border border-blue-100 px-3 py-2.5 flex flex-col gap-1">
-                                    <div className="flex items-center gap-1.5">
-                                        <Image src="/vn-flag.png" alt="VN"
-                                            className="w-[14px] h-[10px] rounded-[2px] object-cover flex-shrink-0"
-                                            width={14} height={10} unoptimized
-                                        />
-                                        <span className="text-[9px] font-bold text-blue-600 uppercase tracking-widest">Vietnam</span>
+                                        <div className="rounded-xl bg-blue-50 border border-blue-100 px-3 py-2.5 flex flex-col gap-1">
+                                            <div className="flex items-center gap-1.5">
+                                                <Image src="/vn-flag.png" alt="VN"
+                                                    className="w-[14px] h-[10px] rounded-[2px] object-cover flex-shrink-0"
+                                                    width={14} height={10} unoptimized
+                                                />
+                                                <span className="text-[9px] font-bold text-blue-600 uppercase tracking-widest">Vietnam</span>
+                                            </div>
+                                            <p className="text-[16px] font-bold text-slate-800 leading-none tabular-nums">
+                                                {formatNumber(vnVal)}
+                                            </p>
+                                            <p className={`text-[10px] font-semibold text-blue-500 leading-none ${!kpi.showRegionPct ? 'invisible' : ''}`}>
+                                                {vnPct}%
+                                            </p>
+                                        </div>
                                     </div>
-                                    <p className="text-[16px] font-bold text-slate-800 leading-none tabular-nums">
-                                        {formatNumber(vnVal)}
-                                    </p>
-                                    <p className={`text-[10px] font-semibold text-blue-500 leading-none ${!kpi.showRegionPct ? 'invisible' : ''}`}>
-                                        {vnPct}%
-                                    </p>
-                                </div>
-                            </div>
+                                </>
+                            )}
 
                         </CardContent>
                     </Card>
@@ -345,7 +349,7 @@ const ActivityKPIs = ({ summary, teamContributions, groupContributions }: Activi
 
             {!hasAnyKpi && summary && (
                 <p className="col-span-full text-center text-xs text-slate-400 mt-2">
-                    Toàn bộ số liệu đang là 0 — kiểm tra đã đồng bộ KPI từ Lark chưa và tháng đang chọn có dữ liệu chưa.
+                    Chưa có số liệu trong kỳ đang chọn — chưa có task hoặc báo cáo traffic/doanh thu nào rơi vào khoảng ngày này.
                 </p>
             )}
         </div>

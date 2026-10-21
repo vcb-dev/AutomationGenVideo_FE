@@ -34,14 +34,23 @@ interface UseActivityFiltersReturn {
  * infinite scroll setup live in the parent component where both data and
  * filter state are available.
  */
-export function useActivityFilters(): UseActivityFiltersReturn {
+export function thisMonthRange(): { start: Date; end: Date } {
+    const now = new Date();
+    return {
+        start: new Date(now.getFullYear(), now.getMonth(), 1),
+        end: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999),
+    };
+}
+
+export function useActivityFilters(initialTimeType: "today" | "this_month" = "today"): UseActivityFiltersReturn {
     /** Mặc định "All" để lần gọi API đầu không gửi team=... — có đủ teamContributions cho dropdown Global/VN. */
     const [activeTeam, setActiveTeam] = React.useState("All");
     const [selectedDate, setSelectedDate] = React.useState(new Date());
     const [searchName, setSearchName] = React.useState("");
     const [dailyFilter, setDailyFilter] = React.useState<"all" | "video_win" | "product_win" | "idea" | "difficulty">("all");
-    const [timeType, setTimeType] = React.useState("today");
+    const [timeType, setTimeType] = React.useState<string>(initialTimeType);
     const [dateRange, setDateRange] = React.useState<{ start: Date; end: Date }>(() => {
+        if (initialTimeType === "this_month") return thisMonthRange();
         const start = new Date();
         start.setHours(0, 0, 0, 0);
         const end = new Date();
