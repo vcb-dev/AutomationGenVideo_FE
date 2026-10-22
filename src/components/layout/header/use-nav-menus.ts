@@ -413,7 +413,7 @@ export function useNavMenus(
                                 icon: BarChart3,
                                 description: n.kpiDesc,
                             },
-                            ...(isManagerOrAdmin ? [{
+                            ...(isManagerOrAdmin || isLeader ? [{
                                 label: n.taskSettings,
                                 href: "/dashboard/task-auto/settings",
                                 icon: Zap,

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Crown, Users, PenLine, Pencil, Check, X, Loader2, Trash2, Sparkles, Link2, Lock, ChevronDown, Settings2, Plus } from 'lucide-react'
+import { Crown, Users, PenLine, Pencil, Check, X, Loader2, Trash2, Sparkles, Link2, Lock, ChevronDown, Settings2, Plus, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
 import { EmptyState } from '@/components/task-auto/EmptyState'
@@ -12,6 +12,7 @@ import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
 import { formatDate } from '@/components/task-auto/helpers'
 import { getTeams, getApprovals, setMemberEditorRole, setMemberContentCreatorRole, updateTeam, deleteTeam } from '@/lib/api/task-auto'
 import type { BrandType, Team, TeamMarket, TeamKind, TeamMember } from '@/types/task-auto'
+import { HrmSyncModal } from './HrmSyncModal'
 
 const BRANDS: { key: BrandType; label: string; color: string }[] = [
   { key: 'DO_DA',     label: 'Đồ da',     color: 'amber' },
@@ -81,6 +82,14 @@ function TeamBadges({ team }: { team: Team }) {
           Content Team
         </span>
       )}
+      {team.hrm_project_id && (
+        <span
+          title="Tên team và thành viên Content/Editor đồng bộ từ dự án HRM"
+          className="px-3 py-1 rounded-full text-xs font-semibold border-2 bg-white border-teal-600 text-teal-700"
+        >
+          HRM
+        </span>
+      )}
     </>
   )
 }
@@ -106,6 +115,7 @@ export function MembersTab({ canManage, isAdmin, isAdminOrManager, userId, selec
   const [pendingWebhookUrl, setPendingWebhookUrl] = useState('')
   const [pendingWebhookSecret, setPendingWebhookSecret] = useState('')
   const [collapsedTeamIds, setCollapsedTeamIds] = useState<Set<string>>(() => new Set())
+  const [hrmSyncOpen, setHrmSyncOpen] = useState(false)
 
   const { data: teams } = useQuery({
     queryKey: ['task-auto', 'teams'],
@@ -261,6 +271,7 @@ export function MembersTab({ canManage, isAdmin, isAdminOrManager, userId, selec
     const isTogglingContentCreator = contentCreatorMut.isPending
       && contentCreatorMut.variables?.teamId === team.id
       && contentCreatorMut.variables?.memberId === member.user_id
+    const canToggleRoles = canManage && !team.hrm_project_id
 
     return (
       <div key={member.id} className="flex items-center gap-4 flex-wrap gap-y-2 px-5 py-4 hover:bg-gray-50 transition-colors">
@@ -300,7 +311,7 @@ export function MembersTab({ canManage, isAdmin, isAdminOrManager, userId, selec
           </div>
 
           {/* Editor toggle */}
-          {canManage && (
+          {canToggleRoles && (
             <button
               onClick={() => editorMut.mutate({ teamId: team.id, memberId: member.user_id, isEditor: !isEditor })}
               disabled={editorMut.isPending}
@@ -321,7 +332,7 @@ export function MembersTab({ canManage, isAdmin, isAdminOrManager, userId, selec
           )}
 
           {/* Content Creator toggle */}
-          {canManage && (
+          {canToggleRoles && (
             <button
               onClick={() => contentCreatorMut.mutate({ teamId: team.id, memberId: member.user_id, isContentCreator: !isContentCreator })}
               disabled={contentCreatorMut.isPending}
@@ -467,13 +478,27 @@ export function MembersTab({ canManage, isAdmin, isAdminOrManager, userId, selec
             </div>
           )}
 
+          {isAdminOrManager && (
+            <button
+              type="button"
+              onClick={() => setHrmSyncOpen(true)}
+              className={cn(
+                'flex items-center gap-2 bg-white hover:bg-teal-50 text-teal-700 border border-teal-600 rounded-xl px-4 py-3.5 text-base font-semibold whitespace-nowrap transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2',
+                !selectedTeam && 'ml-auto',
+              )}
+            >
+              <RefreshCw className="w-4 h-4" aria-hidden="true" />
+              Đồng bộ từ HRM
+            </button>
+          )}
+
           {onCreateTeam && (
             <button
               type="button"
               onClick={onCreateTeam}
               className={cn(
                 'flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white border border-transparent rounded-xl px-4 py-3.5 text-base font-semibold whitespace-nowrap transition-colors shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2',
-                !selectedTeam && 'ml-auto',
+                !selectedTeam && !isAdminOrManager && 'ml-auto',
               )}
             >
               <Plus className="w-4 h-4" aria-hidden="true" />
@@ -684,6 +709,10 @@ export function MembersTab({ canManage, isAdmin, isAdminOrManager, userId, selec
         onConfirm={() => deleteMut.mutate()}
         onCancel={() => setDeletingTeam(false)}
       />
+
+      {isAdminOrManager && (
+        <HrmSyncModal open={hrmSyncOpen} onClose={() => setHrmSyncOpen(false)} teams={teams ?? []} />
+      )}
     </div>
   )
 }

@@ -52,7 +52,7 @@ interface CardActions {
   canApproveReject?: boolean
   startingId: string | null
   approvingId: string | null
-  onStart: (id: string) => void
+  onStart: (task: Task) => void
   onApprove: (id: string) => void
   onReject: (task: Task) => void
 }
@@ -577,7 +577,7 @@ function TaskCard({ task, variant, cardBar, actions, onViewTask, onManageLinks }
           {canStartTask && (
             <button
               type="button"
-              onClick={() => actions.onStart(task.id)}
+              onClick={() => actions.onStart(task)}
               disabled={isStarting}
               className={cn(
                 'flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-blue-50 text-xs font-bold text-blue-700 transition-colors hover:bg-blue-600 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60',
@@ -910,6 +910,17 @@ export function TasksKanbanBoard({
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Không thể duyệt task này'),
   })
 
+  function startTask(task: Task) {
+    const missingContent = task.task_type === 'AUTO'
+      && !task.content_id && !task.editor_content_id && !task.team_content_id
+    if (missingContent) {
+      toast.error('Chọn content cho task trước khi bắt đầu làm')
+      onViewTask(task.id, task.status)
+      return
+    }
+    moveMutation.mutate({ id: task.id, to: 'IN_PROGRESS' })
+  }
+
   function handleDragStart(event: DragStartEvent) {
     setDraggingTask((event.active.data.current?.task as Task) ?? null)
   }
@@ -924,6 +935,7 @@ export function TasksKanbanBoard({
     const transition = DRAG_TRANSITIONS[task.status]
     if (!transition || transition.to !== toStatus) return
     if (transition.action === 'approve') approveMutation.mutate(task.id)
+    else if (transition.to === 'IN_PROGRESS') startTask(task)
     else moveMutation.mutate({ id: task.id, to: transition.to })
   }
 
@@ -935,7 +947,7 @@ export function TasksKanbanBoard({
     canApproveReject,
     startingId:  moveMutation.isPending   ? moveMutation.variables?.id ?? null : null,
     approvingId: approveMutation.isPending ? approveMutation.variables ?? null : null,
-    onStart:   id => moveMutation.mutate({ id, to: 'IN_PROGRESS' }),
+    onStart:   startTask,
     onApprove: id => approveMutation.mutate(id),
     onReject:  task => setRejectingTask(task),
   }

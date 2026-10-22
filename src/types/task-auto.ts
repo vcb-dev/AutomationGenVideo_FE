@@ -42,6 +42,8 @@ export interface Team {
   brand_type: BrandType
   market: TeamMarket
   team_kind: TeamKind
+  /** Dự án HRM tương ứng — có giá trị thì tên + thành viên do đồng bộ HRM quyết định. */
+  hrm_project_id: string | null
   is_active: boolean
   /** Webhook bot Lark riêng của team — null = chưa cấu hình, thông báo "cần duyệt" của team này chỉ đi vào webhook chung. */
   lark_webhook_url: string | null
@@ -52,6 +54,63 @@ export interface Team {
   leader?: UserBasic | null
   members?: TeamMember[]
   _count?: { tasks: number; members: number }
+}
+
+export type HrmMemberKind = 'CONTENT' | 'EDITOR'
+
+export interface HrmSyncMember {
+  user_id: string | null
+  hrm_employee_id: string | null
+  full_name: string
+  email: string | null
+  kind: HrmMemberKind | null
+  inactive?: boolean
+}
+
+export type HrmProjectLinkStatus = 'LINKED' | 'CHOSEN' | 'SUGGESTED' | 'NEW' | 'SKIP'
+
+export interface HrmSyncProjectPlan {
+  project_id: string
+  project_name: string
+  status: HrmProjectLinkStatus
+  team_id: string | null
+  team_name: string | null
+  rename: boolean
+  rename_conflict: boolean
+  add: HrmSyncMember[]
+  remove: HrmSyncMember[]
+  keep: HrmSyncMember[]
+  flag_updates: { user_id: string; is_content_creator: boolean }[]
+}
+
+export interface HrmSyncPlan {
+  projects: HrmSyncProjectPlan[]
+  accounts_to_create: (HrmSyncMember & {
+    email: string
+    hrm_employee_id: string
+    possible_matches: { user_id: string; full_name: string; email: string }[]
+  })[]
+  user_links: { user_id: string; hrm_employee_id: string }[]
+  editor_approvals: string[]
+  skipped: { hrm_employee_id: string; full_name: string; email: string | null; reason: string }[]
+  errors: string[]
+}
+
+export interface HrmSyncResult {
+  teams_created: number
+  teams_linked: number
+  teams_renamed: number
+  members_added: number
+  members_removed: number
+  accounts_created: number
+  editors_approved: number
+  skipped: HrmSyncPlan['skipped']
+}
+
+/** links: project_id → team_id | 'NEW' | 'SKIP'; accounts: hrm_employee_id → user_id có sẵn */
+export interface HrmSyncChoices {
+  links: Record<string, string>
+  accounts: Record<string, string>
 }
 
 export interface TeamMember {
@@ -1023,7 +1082,6 @@ export interface AutoAssignSetting {
   id: number
   schedule_time: string
   timezone: string
-  weekend_enabled: boolean
   is_active: boolean
   /** Số ngày cooldown mặc định (per editor+product) cho sản phẩm chưa tự set cooldown_days riêng */
   default_cooldown_days: number
@@ -1035,6 +1093,22 @@ export interface AutoAssignSetting {
   video_match_ai_enabled: boolean
   updated_by: string | null
   updated_at: string
+}
+
+export interface MemberAutoAssignSchedule {
+  id: string
+  user_id: string
+  full_name: string
+  email: string
+  is_editor: boolean
+  auto_assign_enabled: boolean
+  auto_assign_weekdays: number[]
+}
+
+export interface TeamAutoAssignSchedules {
+  id: string
+  name: string
+  members: MemberAutoAssignSchedule[]
 }
 
 // ── Kế hoạch ngày (tuyến không tự tạo task: A1/A2/A3/A5) ──
