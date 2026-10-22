@@ -27,7 +27,6 @@ import {
     DownloadCloud,
     Sparkles,
     Boxes,
-    PackageCheck,
     Truck,
     Undo2,
     ImagePlus,
@@ -447,16 +446,6 @@ export function useNavMenus(
                                 icon: Boxes,
                                 description: n.equipmentStockDesc,
                             },
-                            // Nhật ký lộ thói quen mượn của từng người nên chỉ quản lý kho thấy.
-                            // BE cũng chặn bằng @Roles — đây chỉ là ẩn đầu mục cho đỡ vướng mắt.
-                            ...(isMediaLeaderOrAdmin
-                                ? [{
-                                    label: n.equipmentBorrowLog,
-                                    href: "/dashboard/equipment/borrow-history",
-                                    icon: History,
-                                    description: n.equipmentBorrowLogDesc,
-                                }]
-                                : []),
                         ],
                     },
                     {
@@ -468,6 +457,14 @@ export function useNavMenus(
                                 href: "/dashboard/equipment/new-request",
                                 icon: ClipboardList,
                                 description: n.equipmentNewRequestDesc,
+                            },
+                            {
+                                label: isMediaLeaderOrAdmin ? n.equipmentBorrowLog : "Lịch sử mượn & Phiếu của tôi",
+                                href: "/dashboard/equipment/borrow-history",
+                                icon: History,
+                                description: isMediaLeaderOrAdmin
+                                    ? n.equipmentBorrowLogDesc
+                                    : "Theo dõi tiến độ duyệt, lịch sử tạo phiếu và phiếu đang mượn của bạn",
                             },
                         ],
                     },
@@ -481,12 +478,6 @@ export function useNavMenus(
                                     href: "/dashboard/equipment/approvals",
                                     icon: CheckSquare,
                                     description: n.equipmentApprovalsDesc,
-                                },
-                                {
-                                    label: n.equipmentPrepare,
-                                    href: "/dashboard/equipment/prepare",
-                                    icon: PackageCheck,
-                                    description: n.equipmentPrepareDesc,
                                 },
                                 {
                                     label: n.equipmentHandover,

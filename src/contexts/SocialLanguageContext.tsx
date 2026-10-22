@@ -817,8 +817,8 @@ const T = {
       equipmentApprovalsDesc: 'Xem chi tiết phiếu, duyệt hoặc từ chối kèm lý do',
       equipmentPrepare: 'Chuẩn bị, gán serial',
       equipmentPrepareDesc: 'Chọn máy cụ thể cho phiếu đã duyệt, lọc theo khoảng thời gian',
-      equipmentHandover: 'Bàn giao',
-      equipmentHandoverDesc: 'Biên bản kiểm tra khi giao: tình trạng, phụ kiện, ảnh',
+      equipmentHandover: 'Bàn giao thiết bị',
+      equipmentHandoverDesc: 'Gán serial, kiểm tra phụ kiện, chụp ảnh và lập biên bản giao nhận',
       equipmentReturns: 'Trả và kiểm tra',
       equipmentReturnsDesc: 'Nhận lại từng máy, đối chiếu với lúc giao, kết luận sự cố',
 
@@ -1657,8 +1657,8 @@ const T = {
       equipmentApprovalsDesc: 'Review requests, approve or reject with a reason',
       equipmentPrepare: 'Prepare and assign serials',
       equipmentPrepareDesc: 'Pick specific units for an approved request, filtered by time window',
-      equipmentHandover: 'Handover',
-      equipmentHandoverDesc: 'Handover record: condition, accessories and photos',
+      equipmentHandover: 'Handover & Assign',
+      equipmentHandoverDesc: 'Assign serials, inspect condition, accessories, photos and sign handover sheet',
       equipmentReturns: 'Returns and inspection',
       equipmentReturnsDesc: 'Take units back, compare against handover, conclude incidents',
 

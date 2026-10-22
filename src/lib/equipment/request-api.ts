@@ -35,6 +35,31 @@ export interface ApprovalRecord {
   decided_at: string;
 }
 
+export interface RequestExtensionInfo {
+  requested_to_time: string;
+  reason: string;
+  requested_at: string;
+  requested_by_id: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  decided_at?: string;
+  decided_by_id?: string;
+  rejection_reason?: string;
+}
+
+export interface RequestIncidentItem {
+  id: string;
+  asset_id?: string;
+  asset?: { id: string; asset_code: string; serial_number: string | null };
+  model?: { id: string; name: string };
+  title: string;
+  description?: string;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  reported_at: string;
+  reported_by_id?: string;
+  reporter?: { id: string; name: string; email: string };
+  photos?: string[];
+}
+
 export interface BorrowRequest {
   id: string;
   request_code: string;
@@ -59,6 +84,13 @@ export interface BorrowRequest {
   approved_levels: number;
   /** Cấp kế tiếp chờ ai ký; null nghĩa là đã đủ chữ ký. BE tính trong `decorate()`. */
   next_approver_role: string | null;
+  /** Ghi chú và ảnh do người tạo phiếu đính kèm */
+  note?: string | null;
+  photos?: string[];
+  /** Thông tin yêu cầu gia hạn nếu có */
+  extension?: RequestExtensionInfo | null;
+  /** Danh sách sự cố được báo trong quá trình mượn */
+  incidents?: RequestIncidentItem[];
 }
 
 export async function fetchRequests(status?: string) {
@@ -255,4 +287,49 @@ export async function fetchBorrowHistoryLog(query: Record<string, string | numbe
 export async function cancelRequest(id: string) {
   const { data } = await apiClient.post(`/mems/requests/${id}/cancel`);
   return data as BorrowRequest;
+}
+
+export async function reportIncident(
+  requestId: string,
+  payload: {
+    asset_id?: string;
+    title: string;
+    description?: string;
+    severity?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+    photos?: string[];
+  },
+) {
+  const { data } = await apiClient.post(`/mems/requests/${requestId}/incident`, payload);
+  return data;
+}
+
+export async function fetchRequestIncidents(requestId: string) {
+  const { data } = await apiClient.get<RequestIncidentItem[]>(`/mems/requests/${requestId}/incidents`);
+  return data;
+}
+
+export async function requestExtension(
+  requestId: string,
+  payload: { to_time: string; reason: string },
+) {
+  const { data } = await apiClient.post(`/mems/requests/${requestId}/extend`, payload);
+  return data as BorrowRequest;
+}
+
+export async function decideExtension(
+  requestId: string,
+  payload: { decision: 'APPROVED' | 'REJECTED'; rejection_reason?: string },
+) {
+  const { data } = await apiClient.post(`/mems/requests/${requestId}/decide-extension`, payload);
+  return data as BorrowRequest;
+}
+
+export interface UpcomingReturnsAlerts {
+  expiringSoon: Array<BorrowRequest & { remaining_hours: number }>;
+  overdue: Array<BorrowRequest & { overdue_hours: number }>;
+}
+
+export async function fetchUpcomingReturnsAlerts() {
+  const { data } = await apiClient.get<UpcomingReturnsAlerts>('/mems/requests/alerts/upcoming-returns');
+  return data;
 }

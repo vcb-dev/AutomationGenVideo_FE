@@ -124,6 +124,10 @@ export default function EquipmentOverviewPage() {
             hoàn thành. Hiện tại bạn có thể{' '}
             <Link href="/dashboard/equipment/new-request" className="font-semibold underline">
               tạo phiếu mượn
+            </Link>
+            , theo dõi tại{' '}
+            <Link href="/dashboard/equipment/borrow-history" className="font-semibold underline">
+              Lịch sử & Phiếu của tôi
             </Link>{' '}
             và tra kho.
           </div>
