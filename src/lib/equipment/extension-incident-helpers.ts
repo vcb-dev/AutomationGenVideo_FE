@@ -1,4 +1,4 @@
-import { UpcomingReturnsAlerts, BorrowRequest } from './request-api';
+import { BorrowRequest, IncidentKind, UpcomingReturnsAlerts } from './request-api';
 
 /**
  * Kiểm tra tính hợp lệ của thời gian xin gia hạn.
@@ -86,29 +86,45 @@ export function categorizeAlerts(alerts?: UpcomingReturnsAlerts | null): {
 }
 
 /**
- * Ánh xạ mức độ sự cố sang nhãn tiếng Việt và tone màu.
- */
-export function getSeverityBadge(severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'): {
-  label: string;
-  tone: 'ok' | 'busy' | 'maint' | 'bad';
-} {
-  switch (severity) {
-    case 'LOW':
-      return { label: 'Thấp (Trầy xước/bụi)', tone: 'ok' };
-    case 'MEDIUM':
-      return { label: 'Vừa (Chập chờn/lỗi nhẹ)', tone: 'maint' };
-    case 'HIGH':
-      return { label: 'Nặng (Rơi vỡ/hư hỏng)', tone: 'bad' };
-    case 'CRITICAL':
-      return { label: 'Khẩn cấp (Cháy nổ/mất máy)', tone: 'bad' };
-    default:
-      return { label: 'Chưa rõ', tone: 'busy' };
-  }
-}
-
-/**
  * Kiểm tra xem phiếu có đang trong trạng thái chờ duyệt gia hạn hay không.
  */
 export function isExtensionPending(request?: BorrowRequest | null): boolean {
   return request?.extension?.status === 'PENDING';
+}
+
+export type ReportableIncidentKind = Exclude<IncidentKind, 'OVERDUE'>;
+
+/** Loại sự cố người mượn tự báo được; trả trễ do hệ thống ghi. */
+export const REPORTABLE_INCIDENT_KINDS: ReportableIncidentKind[] = ['CONDITION_WORSENED', 'MISSING_ACCESSORY'];
+
+export const INCIDENT_KIND_LABEL: Record<IncidentKind, string> = {
+  CONDITION_WORSENED: 'Hỏng / tình trạng tệ đi',
+  MISSING_ACCESSORY: 'Mất / thiếu phụ kiện',
+  OVERDUE: 'Trả trễ hạn',
+};
+
+/** Nhãn tiếng Việt của loại sự cố; loại lạ thì trả nguyên mã. */
+export function incidentKindLabel(kind: string): string {
+  return INCIDENT_KIND_LABEL[kind as IncidentKind] ?? kind;
+}
+
+/** Đổi số phút ra chữ ngắn gọn: "45 phút", "3 giờ", "2 ngày 4 giờ". */
+export function formatMinutes(minutes: number): string {
+  const m = Math.max(0, Math.round(minutes));
+  if (m < 60) return `${m} phút`;
+  const hours = Math.floor(m / 60);
+  if (hours < 24) return `${hours} giờ`;
+  const days = Math.floor(hours / 24);
+  const rest = hours % 24;
+  return rest === 0 ? `${days} ngày` : `${days} ngày ${rest} giờ`;
+}
+
+/** Máy đã ghim vào phiếu, để người mượn chọn máy gặp sự cố. */
+export function handedOverAssets(request?: BorrowRequest | null): Array<{ id: string; label: string }> {
+  if (!request) return [];
+  return request.lines.flatMap((line) =>
+    (line.reservations ?? []).flatMap((r) =>
+      r.asset ? [{ id: r.asset.id, label: `${line.model.name} · ${r.asset.asset_code}` }] : [],
+    ),
+  );
 }

@@ -60,7 +60,7 @@ export function ExtensionRequestModal({
 
     try {
       await requestExtension(request.id, {
-        to_time: newDate.toISOString(),
+        toTime: newDate.toISOString(),
         reason: reason.trim(),
       });
       onSuccess();

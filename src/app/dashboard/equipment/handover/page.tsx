@@ -4,7 +4,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { Accessory, Asset, createAsset, uploadAssetPhoto } from '@/lib/equipment/api';
+import { Accessory, Asset, createAsset, photoSrc, uploadAssetPhoto } from '@/lib/equipment/api';
 import {
   BorrowRequest,
   HandoverSheetUnit,
@@ -76,48 +76,14 @@ function HandoverPageInner() {
       setConfirmed(false);
       setReceivedBy(detail.owner_name || '');
 
-      if (detail.photos && detail.photos.length > 0) {
-        const inherited: PhotoItem[] = detail.photos.map((src, idx) => ({
-          previewUrl: src,
+      // Ảnh người mượn chỉ để xem trước; máy không có ảnh riêng thì BE tự dùng chính ảnh này làm chứng cứ
+      setCommonPhotos(
+        (detail.photos ?? []).map((src, idx) => ({
+          previewUrl: photoSrc(src),
           name: `Ảnh từ người mượn #${idx + 1}`,
           isInherited: true,
-        }));
-        setCommonPhotos(inherited);
-
-        // Nạp ngầm file blob nếu lấy được qua HTTP để sẵn sàng upload
-        Promise.all(
-          detail.photos.map(async (src, idx) => {
-            try {
-              const res = await fetch(src);
-              if (res.ok) {
-                const blob = await res.blob();
-                return {
-                  previewUrl: src,
-                  name: `Ảnh từ người mượn #${idx + 1}`,
-                  isInherited: true,
-                  file: new File([blob], `borrower_photo_${idx + 1}.jpg`, {
-                    type: blob.type || 'image/jpeg',
-                  }),
-                };
-              }
-            } catch {}
-            return {
-              previewUrl: src,
-              name: `Ảnh từ người mượn #${idx + 1}`,
-              isInherited: true,
-            };
-          }),
-        ).then((loaded) => {
-          setCommonPhotos((current) => {
-            if (current.some((p) => p.isInherited)) {
-              return loaded;
-            }
-            return current;
-          });
-        });
-      } else {
-        setCommonPhotos([]);
-      }
+        })),
+      );
 
       if (detail.status === 'PREPARING') {
         const sheet = await fetchHandoverSheet(id);
@@ -533,12 +499,12 @@ function HandoverPageInner() {
                         {request.photos.map((src, idx) => (
                           <a
                             key={idx}
-                            href={src}
+                            href={photoSrc(src)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="group block h-16 w-16 overflow-hidden rounded-lg border border-amber-200 bg-white hover:ring-2 hover:ring-amber-500"
                           >
-                            <img src={src} alt="Ảnh yêu cầu mượn" className="h-full w-full object-cover" />
+                            <img src={photoSrc(src)} alt="Ảnh yêu cầu mượn" className="h-full w-full object-cover" />
                           </a>
                         ))}
                       </div>
