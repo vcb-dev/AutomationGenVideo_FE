@@ -25,6 +25,8 @@ import {
   type BorrowRequest,
 } from '@/lib/equipment/request-api';
 import { apiErrorMessage } from '@/lib/equipment/api-error';
+import { photoSrc } from '@/lib/equipment/api';
+import { incidentKindLabel } from '@/lib/equipment/extension-incident-helpers';
 import { DatePicker } from '@/components/ui/DatePicker';
 import { BorrowPrintModal } from '@/components/equipment/BorrowPrintModal';
 import { EquipmentAlertBanner } from '@/components/equipment/EquipmentAlertBanner';
@@ -210,7 +212,7 @@ function BorrowHistoryLogPageInner() {
     try {
       await decideExtension(request.id, {
         decision,
-        rejection_reason: decision === 'REJECTED' ? rejectionReason.trim() : undefined,
+        reason: decision === 'REJECTED' ? rejectionReason.trim() : undefined,
       });
       setRejectingExtension(false);
       setRejectionReason('');
@@ -405,7 +407,7 @@ function BorrowHistoryLogPageInner() {
 
         {/* CẢNH BÁO QUÁ HẠN & SẮP ĐẾN HẠN TRẢ */}
         <EquipmentAlertBanner
-          onSelectRequest={(req) => setSelectedRequest(req)}
+          onSelectRequest={(id) => setSelectedRequest(requests.find((r) => r.id === id) ?? null)}
           className="mt-4"
         />
 
@@ -1029,12 +1031,21 @@ function BorrowHistoryLogPageInner() {
                     </span>
                     <div className="space-y-2">
                       {selectedRequest.incidents.map((inc) => (
-                        <div key={inc.id} className="rounded-lg bg-white/90 p-2 border border-red-100 text-xs dark:bg-slate-900/80 dark:border-red-500/20">
+                        <div key={inc.id} className="rounded-lg border border-red-100 bg-white/90 p-2 text-xs dark:border-red-500/20 dark:bg-slate-900/80">
                           <div className="flex items-center justify-between">
-                            <strong className="text-red-900 dark:text-red-200">{inc.title}</strong>
-                            <span className="text-[10px] font-semibold text-red-600">{inc.severity}</span>
+                            <strong className="text-red-900 dark:text-red-200">{incidentKindLabel(inc.kind)}</strong>
+                            <span className="font-mono text-[10px] font-semibold text-red-600">{inc.asset.asset_code}</span>
                           </div>
-                          {inc.description && <p className="text-slate-600 dark:text-slate-300 mt-0.5">{inc.description}</p>}
+                          <p className="mt-0.5 text-slate-600 dark:text-slate-300">{inc.description}</p>
+                          {inc.photos.length > 0 && (
+                            <div className="mt-1.5 flex flex-wrap gap-1.5">
+                              {inc.photos.map((src) => (
+                                <a key={src} href={photoSrc(src)} target="_blank" rel="noreferrer">
+                                  <img src={photoSrc(src)} alt="Ảnh sự cố" className="h-12 w-12 rounded object-cover" />
+                                </a>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>

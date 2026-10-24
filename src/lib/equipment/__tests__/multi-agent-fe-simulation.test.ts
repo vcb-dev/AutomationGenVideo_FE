@@ -30,17 +30,26 @@ describe('Multi-Agent FE Simulation — Mô phỏng toàn diện 4 Agent thao t�
       incidents: [
         {
           id: 'inc-01',
-          title: 'Cát biển xước nhẹ kính lọc UV',
-          severity: 'LOW',
-          reported_at: '2026-10-19T11:00:00.000Z',
+          asset_id: 'asset-1',
+          kind: 'CONDITION_WORSENED',
+          description: 'Cát biển xước nhẹ kính lọc UV',
+          status: 'OPEN',
+          created_at: '2026-10-19T11:00:00.000Z',
+          reported_by: 'agent-1-cameraman',
+          asset: { id: 'asset-1', asset_code: 'LENS-001', serial_number: null },
+          photos: [],
         },
       ],
       extension: {
+        id: 'ext-1',
         requested_to_time: '2026-10-19T21:00:00.000Z',
         reason: 'Quay thêm cảnh hoàng hôn muộn',
-        requested_at: '2026-10-19T13:30:00.000Z',
-        requested_by_id: 'agent-1-cameraman',
         status: 'PENDING',
+        requested_by: 'agent-1-cameraman',
+        requested_at: '2026-10-19T13:30:00.000Z',
+        decided_by: null,
+        decided_at: null,
+        rejection_reason: null,
       },
     },
     {
@@ -129,7 +138,7 @@ describe('Multi-Agent FE Simulation — Mô phỏng toàn diện 4 Agent thao t�
       const filtered = filterRequestsByQuickFilter(requestsData, 'HAS_INCIDENT', fixedNow);
       expect(filtered.length).toBe(1);
       expect(filtered[0].request_code).toBe('REQ-20261019-01');
-      expect(filtered[0].incidents?.[0].title).toContain('Cát biển xước');
+      expect(filtered[0].incidents?.[0].description).toContain('Cát biển xước');
     });
   });
 

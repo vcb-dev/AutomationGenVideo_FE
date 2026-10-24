@@ -3,12 +3,13 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { fetchUpcomingReturnsAlerts, UpcomingReturnsAlerts, BorrowRequest } from '@/lib/equipment/request-api';
+import { fetchUpcomingReturnsAlerts, UpcomingReturnsAlerts } from '@/lib/equipment/request-api';
+import { formatMinutes } from '@/lib/equipment/extension-incident-helpers';
 import { useAuthStore } from '@/store/auth-store';
 import { canManageCatalog } from '@/lib/equipment/catalog-permissions';
 
 interface EquipmentAlertBannerProps {
-  onSelectRequest?: (req: BorrowRequest) => void;
+  onSelectRequest?: (requestId: string) => void;
   className?: string;
 }
 
@@ -124,7 +125,7 @@ export function EquipmentAlertBanner({ onSelectRequest, className }: EquipmentAl
                           {req.request_code}
                         </span>
                         <span className="text-[11px] font-semibold text-red-600 dark:text-red-400">
-                          Trễ ~{req.overdue_hours}h
+                          Trễ {formatMinutes(req.overdue_minutes)}
                         </span>
                       </div>
                       <div className="mt-1 font-medium text-slate-800 dark:text-slate-200 truncate">
@@ -134,7 +135,7 @@ export function EquipmentAlertBanner({ onSelectRequest, className }: EquipmentAl
                     {onSelectRequest && (
                       <button
                         type="button"
-                        onClick={() => onSelectRequest(req)}
+                        onClick={() => onSelectRequest(req.id)}
                         className="mt-2 text-left text-[11px] font-semibold text-blue-600 hover:underline dark:text-blue-400"
                       >
                         {isManager ? 'Xử lý phiếu này →' : 'Xem chi tiết & xin gia hạn →'}
@@ -164,7 +165,7 @@ export function EquipmentAlertBanner({ onSelectRequest, className }: EquipmentAl
                           {req.request_code}
                         </span>
                         <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">
-                          Còn ~{req.remaining_hours}h
+                          Còn {formatMinutes(req.remaining_minutes)}
                         </span>
                       </div>
                       <div className="mt-1 font-medium text-slate-800 dark:text-slate-200 truncate">
@@ -174,7 +175,7 @@ export function EquipmentAlertBanner({ onSelectRequest, className }: EquipmentAl
                     {onSelectRequest && (
                       <button
                         type="button"
-                        onClick={() => onSelectRequest(req)}
+                        onClick={() => onSelectRequest(req.id)}
                         className="mt-2 text-left text-[11px] font-semibold text-blue-600 hover:underline dark:text-blue-400"
                       >
                         {isManager ? 'Xử lý phiếu này →' : 'Xem chi tiết & xin gia hạn →'}

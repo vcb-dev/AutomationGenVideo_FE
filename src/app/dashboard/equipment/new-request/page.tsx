@@ -182,12 +182,10 @@ export default function NewRequestPage() {
     setError('');
     setSubmitting(true);
     try {
-      let uploadedPhotoUrls: string[] = [];
-      if (photos.length > 0) {
-        for (const p of photos) {
-          const res = await uploadRequestPhoto(p.file);
-          if (res?.url) uploadedPhotoUrls.push(res.url);
-        }
+      const photoIds: string[] = [];
+      for (const p of photos) {
+        const saved = await uploadRequestPhoto(p.file);
+        photoIds.push(saved.id);
       }
 
       const created = await createBorrowRequest({
@@ -198,7 +196,7 @@ export default function NewRequestPage() {
         toTime: new Date(toTime).toISOString(),
         lines: filledLines.map((l) => ({ modelId: l.modelId, quantity: l.quantity })),
         note: note.trim() || undefined,
-        photos: uploadedPhotoUrls.length > 0 ? uploadedPhotoUrls : undefined,
+        photoIds: photoIds.length > 0 ? photoIds : undefined,
       });
       router.push(`/dashboard/equipment/borrow-history?created=${created.request_code}`);
     } catch (e: unknown) {

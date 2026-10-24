@@ -2,7 +2,9 @@ import {
   validateExtensionTime,
   formatExtensionDuration,
   categorizeAlerts,
-  getSeverityBadge,
+  formatMinutes,
+  handedOverAssets,
+  incidentKindLabel,
   isExtensionPending,
 } from '../extension-incident-helpers';
 import { BorrowRequest, UpcomingReturnsAlerts } from '../request-api';
@@ -96,7 +98,7 @@ describe('extension-incident-helpers', () => {
           {
             id: 'req-1',
             request_code: 'REQ-001',
-            overdue_hours: 5,
+            overdue_minutes: 300,
           } as never,
         ],
         expiringSoon: [],
@@ -114,7 +116,7 @@ describe('extension-incident-helpers', () => {
           {
             id: 'req-2',
             request_code: 'REQ-002',
-            remaining_hours: 1,
+            remaining_minutes: 60,
           } as never,
         ],
       };
@@ -125,36 +127,54 @@ describe('extension-incident-helpers', () => {
     });
   });
 
-  describe('getSeverityBadge', () => {
-    it('ánh xạ đúng nhãn và tông màu', () => {
-      expect(getSeverityBadge('LOW')).toEqual({
-        label: 'Thấp (Trầy xước/bụi)',
-        tone: 'ok',
-      });
-      expect(getSeverityBadge('MEDIUM')).toEqual({
-        label: 'Vừa (Chập chờn/lỗi nhẹ)',
-        tone: 'maint',
-      });
-      expect(getSeverityBadge('HIGH')).toEqual({
-        label: 'Nặng (Rơi vỡ/hư hỏng)',
-        tone: 'bad',
-      });
-      expect(getSeverityBadge('CRITICAL')).toEqual({
-        label: 'Khẩn cấp (Cháy nổ/mất máy)',
-        tone: 'bad',
-      });
+  describe('incidentKindLabel', () => {
+    it('ánh xạ đúng nhãn tiếng Việt', () => {
+      expect(incidentKindLabel('CONDITION_WORSENED')).toBe('Hỏng / tình trạng tệ đi');
+      expect(incidentKindLabel('MISSING_ACCESSORY')).toBe('Mất / thiếu phụ kiện');
+      expect(incidentKindLabel('OVERDUE')).toBe('Trả trễ hạn');
     });
+    it('loại lạ thì trả nguyên mã', () => expect(incidentKindLabel('SOMETHING_NEW')).toBe('SOMETHING_NEW'));
+  });
+
+  describe('formatMinutes', () => {
+    it('dưới 1 giờ thì ghi phút', () => expect(formatMinutes(45)).toBe('45 phút'));
+    it('dưới 1 ngày thì ghi giờ', () => expect(formatMinutes(185)).toBe('3 giờ'));
+    it('tròn ngày thì không ghi giờ lẻ', () => expect(formatMinutes(2 * 24 * 60)).toBe('2 ngày'));
+    it('ngày và giờ lẻ', () => expect(formatMinutes(52 * 60)).toBe('2 ngày 4 giờ'));
+    it('số âm coi là 0', () => expect(formatMinutes(-5)).toBe('0 phút'));
+  });
+
+  describe('handedOverAssets', () => {
+    it('chỉ lấy dòng giữ chỗ đã ghim máy', () => {
+      const request = {
+        lines: [
+          {
+            model: { name: 'Sony A7 IV' },
+            reservations: [
+              { id: 'r1', asset_id: 'a1', asset: { id: 'a1', asset_code: 'CAM-001' } },
+              { id: 'r2', asset_id: null, asset: null },
+            ],
+          },
+        ],
+      } as unknown as BorrowRequest;
+      expect(handedOverAssets(request)).toEqual([{ id: 'a1', label: 'Sony A7 IV · CAM-001' }]);
+    });
+    it('chưa có phiếu thì rỗng', () => expect(handedOverAssets(null)).toEqual([]));
   });
 
   describe('isExtensionPending', () => {
     it('trả về true khi có extension PENDING', () => {
       const req: Partial<BorrowRequest> = {
         extension: {
-          status: 'PENDING',
+          id: 'ext-1',
           requested_to_time: '2026-10-20T10:00:00Z',
           reason: 'Lý do',
+          status: 'PENDING',
+          requested_by: 'u1',
           requested_at: '2026-10-19T10:00:00Z',
-          requested_by_id: 'u1',
+          decided_by: null,
+          decided_at: null,
+          rejection_reason: null,
         },
       };
       expect(isExtensionPending(req as BorrowRequest)).toBe(true);
