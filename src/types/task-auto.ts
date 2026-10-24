@@ -139,8 +139,10 @@ export interface TeamProduct {
   market: string | null
   price_segment: string | null
   priority_score: number
-  /** Override số ngày cooldown riêng (per editor); null = dùng default_cooldown_days toàn cục */
-  cooldown_days: number | null
+  /** Chỉ tiêu video của sản phẩm trong tháng đang truy vấn; 0 = chia đều ở lane sau */
+  monthly_target: number
+  assigned_this_month: number
+  remaining_this_month: number | null
   material_id: string | null
   product_line_id: string | null
   classification_id: string | null
@@ -164,7 +166,7 @@ export interface TeamProduct {
     id: string; sku: string; name: string
     image_url: string | null; image_urls: string[]
     price: string | null; market: string | null; price_segment: string | null
-    priority_score: number; cooldown_days: number | null
+    priority_score: number
     material_id: string | null; product_line_id: string | null
     classification_id: string | null
     brand_type: BrandType; is_active: boolean
@@ -614,8 +616,6 @@ export interface Product {
   market: string | null
   price_segment: string | null
   priority_score: number
-  /** Override số ngày cooldown riêng (per editor); null = dùng default_cooldown_days toàn cục */
-  cooldown_days: number | null
   material_id: string | null
   product_line_id: string | null
   classification_id: string | null
@@ -638,13 +638,11 @@ export interface Product {
   source_team_product?: {
     id: string; sku: string | null; name: string | null; image_url: string | null; image_urls: string[]
     price: string | null; market: string | null; price_segment: string | null; priority_score: number
-    cooldown_days: number | null
     material?: { id: string; name: string } | null; product_line?: { id: string; name: string } | null
     classification?: { id: string; name: string } | null
     source_editor_product?: {
       id: string; sku: string | null; name: string | null; image_url: string | null; image_urls: string[]
       price: string | null; market: string | null; price_segment: string | null; priority_score: number
-      cooldown_days: number | null
       material?: { id: string; name: string } | null; product_line?: { id: string; name: string } | null
       classification?: { id: string; name: string } | null
     } | null
@@ -1083,8 +1081,6 @@ export interface AutoAssignSetting {
   schedule_time: string
   timezone: string
   is_active: boolean
-  /** Số ngày cooldown mặc định (per editor+product) cho sản phẩm chưa tự set cooldown_days riêng */
-  default_cooldown_days: number
   /** Lập Kế hoạch ngày (chỉ tiêu + gợi ý content, không tạo task) cùng lượt chia task */
   daily_plan_enabled: boolean
   /** Tuyến nội dung lập Kế hoạch ngày */
@@ -1093,6 +1089,14 @@ export interface AutoAssignSetting {
   video_match_ai_enabled: boolean
   updated_by: string | null
   updated_at: string
+}
+
+export interface TeamAutoAssignSetting {
+  team_id: string
+  team_name: string
+  cooldown_days: number
+  updated_by: string | null
+  updated_at: string | null
 }
 
 export interface MemberAutoAssignSchedule {

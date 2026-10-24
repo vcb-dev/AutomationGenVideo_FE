@@ -6,6 +6,7 @@ import { SettingsCard } from './components/SettingsCard'
 import { MemberScheduleCard } from './components/MemberScheduleCard'
 import { LarkWebhookSettingsCard } from './components/LarkWebhookSettingsCard'
 import { RunsTable } from './components/RunsTable'
+import { TeamCooldownSettingsCard } from './components/TeamCooldownSettingsCard'
 
 export default function SettingsPage() {
   const { user } = useAuthStore()
@@ -23,7 +24,7 @@ export default function SettingsPage() {
         <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 text-sm text-amber-700">
           <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" aria-hidden="true" />
           {isLeader ? (
-            <span>Cài đặt chung chỉ <strong>ADMIN</strong> hoặc <strong>MANAGER</strong> sửa được. Bạn bật/tắt chia task tự động và chọn ngày cho từng thành viên team mình ở bảng bên dưới.</span>
+            <span>Cài đặt chung chỉ <strong>ADMIN</strong> hoặc <strong>MANAGER</strong> sửa được. Bạn vẫn có thể đặt giãn cách sản phẩm và lịch chia task cho team mình ở các bảng bên dưới.</span>
           ) : (
             <span>Bạn chỉ có quyền xem. Chỉ <strong>ADMIN</strong> hoặc <strong>MANAGER</strong> mới có thể chỉnh sửa cài đặt.</span>
           )}
@@ -31,6 +32,7 @@ export default function SettingsPage() {
       )}
 
       <SettingsCard canEdit={canEdit} />
+      {(canEdit || isLeader) && <TeamCooldownSettingsCard />}
       {(canEdit || isLeader) && <MemberScheduleCard />}
       {canEdit && <LarkWebhookSettingsCard canEdit={canEdit} />}
       <RunsTable />
