@@ -16,7 +16,7 @@ import {
 import {
   addTeamProduct, updateTeamProduct, createProductLine, createMaterial,
   getProductLines, getMaterials, addTeamSource, getTeamSources, removeTeamSource,
-  getProductClassifications, createProductClassification, getAutoAssignSettings,
+  getProductClassifications, createProductClassification, updateTeamProductMonthlyTarget,
 } from '@/lib/api/task-auto'
 import type { TeamProduct, BrandType } from '@/types/task-auto'
 
@@ -35,6 +35,8 @@ interface Props {
   open: boolean
   teamId: string
   teamProduct?: TeamProduct | null
+  month: string
+  canSetTarget?: boolean
   defaultBrandType?: BrandType
   omsPrefill?: OmsPrefill | null
   onClose: () => void
@@ -48,7 +50,7 @@ interface FormState {
   price: string
   price_segment: string
   priority_score: number
-  cooldown_days: number | null
+  monthly_target: number
   material_id: string
   product_line_id: string
   classification_id: string
@@ -57,10 +59,10 @@ interface FormState {
 
 const defaultForm: FormState = {
   sku: '', name: '', image_urls: [], price: '',
-  price_segment: '', priority_score: 0, cooldown_days: null, material_id: '', product_line_id: '', classification_id: '', is_active: true,
+  price_segment: '', priority_score: 0, monthly_target: 0, material_id: '', product_line_id: '', classification_id: '', is_active: true,
 }
 
-export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandType = 'DO_DA', omsPrefill, onClose, onSuccess }: Props) {
+export function TeamProductFormModal({ open, teamId, teamProduct, month, canSetTarget = true, defaultBrandType = 'DO_DA', omsPrefill, onClose, onSuccess }: Props) {
   const qc = useQueryClient()
   const isEdit = !!teamProduct
 
@@ -73,11 +75,6 @@ export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandTy
   // ép lại nếu leader tự đổi/xoá sau đó) — xem effect dùng productLines bên dưới.
   const omsDefaultLineAppliedRef = useRef(false)
 
-  const { data: autoAssignSettings } = useQuery({
-    queryKey: ['task-auto', 'auto-assign-settings'],
-    queryFn: getAutoAssignSettings,
-    enabled: open,
-  })
   const { data: productLines, isLoading: loadingProductLines } = useQuery({
     queryKey: ['task-auto', 'product-lines'],
     queryFn: () => getProductLines(),
@@ -112,7 +109,7 @@ export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandTy
           price: teamProduct.price ?? '',
           price_segment: teamProduct.price_segment ?? '',
           priority_score: teamProduct.priority_score ?? 0,
-          cooldown_days: teamProduct.cooldown_days ?? null,
+          monthly_target: teamProduct.monthly_target ?? 0,
           material_id: teamProduct.material_id ?? '',
           product_line_id: teamProduct.product_line_id ?? '',
           classification_id: teamProduct.classification_id ?? '',
@@ -172,7 +169,6 @@ export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandTy
         market: markets.join(','),
         price_segment: form.price_segment || undefined,
         priority_score: form.priority_score,
-        cooldown_days: form.cooldown_days,
         material_id: form.material_id || null,
         product_line_id: form.product_line_id || null,
         classification_id: form.classification_id || null,
@@ -191,16 +187,26 @@ export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandTy
         }
       }
       if (isEdit) {
-        await updateTeamProduct(teamId, teamProduct!.id, payload)
-        await addSourceIfNeeded(teamProduct!.id)
-        return undefined
+        const updated = await updateTeamProduct(teamId, teamProduct!.id, payload)
+        await Promise.all([
+          canSetTarget
+            ? updateTeamProductMonthlyTarget(teamId, teamProduct!.id, month, form.monthly_target)
+            : Promise.resolve(),
+          addSourceIfNeeded(teamProduct!.id),
+        ])
+        return updated
       } else {
         const newProduct = await addTeamProduct(teamId, {
           sku: form.sku,
           ...payload,
           ...(omsPrefill ? { oms_product_id: omsPrefill.oms_product_id, oms_variant_id: omsPrefill.oms_variant_id } : {}),
         })
-        await addSourceIfNeeded(newProduct.id)
+        await Promise.all([
+          canSetTarget && form.monthly_target > 0
+            ? updateTeamProductMonthlyTarget(teamId, newProduct.id, month, form.monthly_target)
+            : Promise.resolve(),
+          addSourceIfNeeded(newProduct.id),
+        ])
         return newProduct
       }
     },
@@ -348,15 +354,19 @@ export function TeamProductFormModal({ open, teamId, teamProduct, defaultBrandTy
             />
             <div>
               <DarkInput
-                label="Giãn cách giao lại SP (ngày)"
+                label={`Số video cần làm · ${month}`}
                 type="number"
-                placeholder={`Mặc định: ${autoAssignSettings?.default_cooldown_days ?? 5} ngày`}
+                placeholder="0"
                 min={0}
-                value={form.cooldown_days ?? ''}
-                onChange={e => setForm(f => ({ ...f, cooldown_days: e.target.value === '' ? null : Number(e.target.value) }))}
+                step={1}
+                disabled={!canSetTarget}
+                value={form.monthly_target}
+                onChange={e => setForm(f => ({ ...f, monthly_target: Math.max(0, Math.trunc(Number(e.target.value) || 0)) }))}
               />
               <p className="text-xs text-slate-400 mt-1.5 leading-snug">
-                Sau khi giao cho 1 editor, phải chờ đủ số ngày này mới được giao lại SP này cho chính người đó. Để trống = dùng mặc định hệ thống.
+                {canSetTarget
+                  ? 'Nhập 0 để chia đều sau nhóm có quota. Điểm ưu tiên bằng 0 sẽ không được auto-assign.'
+                  : 'Chỉ leader hoặc quản lý được đặt quota tháng. Sản phẩm mới mặc định được chia đều.'}
               </p>
             </div>
           </div>

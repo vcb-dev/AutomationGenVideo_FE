@@ -17,7 +17,7 @@ import {
   createProduct, updateProduct, createProductLine, createMaterial, createSource,
   createEditorProduct, updateEditorProduct, createEditorSource, getEditorSources,
   getProductLines, getMaterials, getSources,
-  getProductClassifications, createProductClassification, getAutoAssignSettings,
+  getProductClassifications, createProductClassification,
 } from '@/lib/api/task-auto'
 import type { Product } from '@/types/task-auto'
 import { SOURCE_TYPE_LABELS } from '@/types/task-auto'
@@ -43,17 +43,12 @@ export function ProductFormModal({ open, editing, userId, title, defaultBrandTyp
   const [brandType, setBrandType] = useState<'DO_DA' | 'TRANG_SUC'>(defaultBrandType)
   const [form, setForm] = useState<Partial<Product> & { image_urls: string[] }>({
     sku: '', name: '', image_urls: [], price: '',
-    price_segment: '', priority_score: 0, cooldown_days: null, material_id: '', product_line_id: '', classification_id: '', is_active: true,
+    price_segment: '', priority_score: 0, material_id: '', product_line_id: '', classification_id: '', is_active: true,
   })
   const [markets, setMarkets] = useState<string[]>([initialMarket])
   const [sourceDraft, setSourceDraft] = useState<SourceDraft>(defaultSource)
   const imagePickerRef = useRef<MultiImagePickerHandle>(null)
 
-  const { data: autoAssignSettings } = useQuery({
-    queryKey: ['task-auto', 'auto-assign-settings'],
-    queryFn: getAutoAssignSettings,
-    enabled: open,
-  })
   const { data: productLines, isLoading: loadingProductLines } = useQuery({
     queryKey: ['task-auto', 'product-lines'],
     queryFn: () => getProductLines(),
@@ -90,7 +85,7 @@ export function ProductFormModal({ open, editing, userId, title, defaultBrandTyp
         setSourceDraft(defaultSource)
       } else {
         setBrandType(defaultBrandType)
-        setForm({ sku: '', name: '', image_urls: [], price: '', price_segment: '', priority_score: 0, cooldown_days: null, material_id: '', product_line_id: '', classification_id: '', is_active: true })
+        setForm({ sku: '', name: '', image_urls: [], price: '', price_segment: '', priority_score: 0, material_id: '', product_line_id: '', classification_id: '', is_active: true })
         setMarkets([initialMarket])
         setSourceDraft(defaultSource)
       }
@@ -108,7 +103,6 @@ export function ProductFormModal({ open, editing, userId, title, defaultBrandTyp
         market: markets.join(','),
         price_segment: form.price_segment || undefined,
         priority_score: form.priority_score,
-        cooldown_days: form.cooldown_days ?? null,
         material_id: form.material_id || null,
         product_line_id: form.product_line_id || null,
         classification_id: form.classification_id || null,
@@ -251,14 +245,6 @@ export function ProductFormModal({ open, editing, userId, title, defaultBrandTyp
               value={form.price_segment ?? ''} onChange={e => setForm(f => ({ ...f, price_segment: e.target.value }))} />
             <DarkInput label="Điểm ưu tiên" type="number" placeholder="0" min={0}
               value={form.priority_score ?? 0} onChange={e => setForm(f => ({ ...f, priority_score: Number(e.target.value) }))} />
-            <div>
-              <DarkInput label="Giãn cách giao lại SP (ngày)" type="number"
-                placeholder={`Mặc định: ${autoAssignSettings?.default_cooldown_days ?? 5} ngày`} min={0}
-                value={form.cooldown_days ?? ''} onChange={e => setForm(f => ({ ...f, cooldown_days: e.target.value === '' ? null : Number(e.target.value) }))} />
-              <p className="text-xs text-slate-400 mt-1.5 leading-snug">
-                Sau khi giao cho 1 editor, phải chờ đủ số ngày này mới được giao lại SP này cho chính người đó. Để trống = dùng mặc định hệ thống.
-              </p>
-            </div>
           </div>
         </div>
 

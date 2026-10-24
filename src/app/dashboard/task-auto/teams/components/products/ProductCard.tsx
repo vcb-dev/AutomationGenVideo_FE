@@ -135,6 +135,16 @@ export function ProductCard({ teamProduct, canRemove, onRemove, onEdit, teamName
               {markets.map(m => <MarketBadge key={m} market={m} />)}
             </div>
           </div>
+          <div className="flex items-center justify-between mt-2 text-[11px] tabular-nums">
+            <span className={p.priority_score > 0 ? 'text-amber-600 font-semibold' : 'text-slate-400'}>
+              Ưu tiên {p.priority_score}
+            </span>
+            <span className="text-indigo-600 font-semibold">
+              {p.monthly_target > 0
+                ? `${p.assigned_this_month}/${p.monthly_target} video`
+                : `${p.assigned_this_month ?? 0} · chia đều`}
+            </span>
+          </div>
         </div>
       </div>
 
