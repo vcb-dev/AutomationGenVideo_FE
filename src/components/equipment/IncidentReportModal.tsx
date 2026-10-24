@@ -58,7 +58,9 @@ export function IncidentReportModal({ open, onClose, request, onSuccess }: Incid
 
   const addFiles = (list: FileList | null) => {
     if (!list) return;
-    setFiles((prev) => [...prev, ...Array.from(list)].slice(0, MAX_PHOTOS));
+    // Chép ra mảng ngay: FileList bị xoá khi reset ô chọn file, trước lúc React chạy hàm cập nhật
+    const picked = Array.from(list);
+    setFiles((prev) => [...prev, ...picked].slice(0, MAX_PHOTOS));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

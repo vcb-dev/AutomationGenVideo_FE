@@ -3,6 +3,7 @@ import {
   joinDateTime,
   splitDateTime,
   timeOptions,
+  toLocalDateTimeValue,
 } from '../datetime-value';
 
 /**
@@ -91,5 +92,20 @@ describe('isOffGridTime', () => {
 
   it('chưa chọn giờ thì không tính là lệch', () => {
     expect(isOffGridTime('')).toBe(false);
+  });
+});
+
+describe('toLocalDateTimeValue', () => {
+  it('lấy giờ máy chứ không lấy giờ UTC', () => {
+    expect(toLocalDateTimeValue(new Date(2026, 9, 24, 10, 23))).toBe('2026-10-24T10:23');
+  });
+
+  it('đọc lại bằng new Date() ra đúng mốc ban đầu (tới phút)', () => {
+    const at = new Date(2026, 9, 24, 23, 5);
+    expect(new Date(toLocalDateTimeValue(at)).getTime()).toBe(at.getTime());
+  });
+
+  it('đệm số 0 cho tháng, ngày, giờ, phút một chữ số', () => {
+    expect(toLocalDateTimeValue(new Date(2026, 0, 3, 4, 7))).toBe('2026-01-03T04:07');
   });
 });

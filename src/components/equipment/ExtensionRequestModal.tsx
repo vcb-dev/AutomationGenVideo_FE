@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BorrowRequest, requestExtension } from '@/lib/equipment/request-api';
 import { apiErrorMessage } from '@/lib/equipment/api-error';
+import { toLocalDateTimeValue } from '@/lib/equipment/datetime-value';
 
 interface ExtensionRequestModalProps {
   open: boolean;
@@ -17,17 +18,19 @@ export function ExtensionRequestModal({
   request,
   onSuccess,
 }: ExtensionRequestModalProps) {
-  // Mặc định đề xuất gia hạn thêm 4 tiếng so với to_time hiện tại
-  const initialNewTime = request
-    ? new Date(new Date(request.to_time).getTime() + 4 * 3600 * 1000)
-        .toISOString()
-        .slice(0, 16)
-    : '';
-
-  const [toTime, setToTime] = useState(initialNewTime);
+  const [toTime, setToTime] = useState('');
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Modal gắn sẵn lúc chưa có phiếu nên phải đặt lại giá trị mỗi lần mở
+  useEffect(() => {
+    if (!open || !request) return;
+    // Mặc định đề xuất thêm 4 tiếng so với hạn hiện tại, theo giờ máy như ô datetime-local
+    setToTime(toLocalDateTimeValue(new Date(new Date(request.to_time).getTime() + 4 * 3600 * 1000)));
+    setReason('');
+    setError('');
+  }, [open, request]);
 
   if (!open || !request) return null;
 
