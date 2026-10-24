@@ -3,12 +3,14 @@
 import { AlertTriangle } from 'lucide-react'
 import { useAuthStore } from '@/store/auth-store'
 import { SettingsCard } from './components/SettingsCard'
+import { MemberScheduleCard } from './components/MemberScheduleCard'
 import { LarkWebhookSettingsCard } from './components/LarkWebhookSettingsCard'
 import { RunsTable } from './components/RunsTable'
 
 export default function SettingsPage() {
   const { user } = useAuthStore()
   const canEdit = user?.roles?.some(r => r === 'ADMIN' || r === 'MANAGER') ?? false
+  const isLeader = user?.roles?.some(r => r === 'LEADER') ?? false
 
   return (
     <div className="space-y-8">
@@ -19,13 +21,18 @@ export default function SettingsPage() {
 
       {!canEdit && (
         <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 text-sm text-amber-700">
-          <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" />
-          <span>Bạn chỉ có quyền xem. Chỉ <strong>ADMIN</strong> hoặc <strong>MANAGER</strong> mới có thể chỉnh sửa cài đặt.</span>
+          <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" aria-hidden="true" />
+          {isLeader ? (
+            <span>Cài đặt chung chỉ <strong>ADMIN</strong> hoặc <strong>MANAGER</strong> sửa được. Bạn bật/tắt chia task tự động và chọn ngày cho từng thành viên team mình ở bảng bên dưới.</span>
+          ) : (
+            <span>Bạn chỉ có quyền xem. Chỉ <strong>ADMIN</strong> hoặc <strong>MANAGER</strong> mới có thể chỉnh sửa cài đặt.</span>
+          )}
         </div>
       )}
 
       <SettingsCard canEdit={canEdit} />
-      <LarkWebhookSettingsCard canEdit={canEdit} />
+      {(canEdit || isLeader) && <MemberScheduleCard />}
+      {canEdit && <LarkWebhookSettingsCard canEdit={canEdit} />}
       <RunsTable />
     </div>
   )

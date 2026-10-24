@@ -1,11 +1,13 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useInfiniteQuery, useMutation } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { CircleNotch, FilmReel, Warning, Eye, Heart, ChatCircle, FacebookLogo, TiktokLogo, InstagramLogo, PaperPlaneTilt, MagnifyingGlass, X, ArrowsDownUp, SquaresFour } from '@phosphor-icons/react';
+import { CircleNotch, FilmReel, Warning, Eye, Heart, ChatCircle, FacebookLogo, TiktokLogo, InstagramLogo, PaperPlaneTilt, MagnifyingGlass, X, ArrowsDownUp, SquaresFour, Trash, ArrowCounterClockwise } from '@phosphor-icons/react';
 
 import { useAuthStore } from '@/store/auth-store';
+import { UserRole } from '@/types/auth';
+import { hasPermission } from '@/lib/permissions';
 import { platformStyle } from '@/lib/platform-config';
 import { scraperService, ExternalVideo } from '@/services/scraperService';
 import { videoLibraryService } from '@/services/videoLibraryService';
@@ -58,8 +60,17 @@ function getAuthorAvatar(video: ExternalVideo): string {
   return video.author_avatar || '';
 }
 
-
-function AllVideoCard({ video }: { video: ExternalVideo }) {
+function AllVideoCard({
+  video,
+  isHiddenView = false,
+  onHide,
+  onRestore,
+}: {
+  video: ExternalVideo;
+  isHiddenView?: boolean;
+  onHide?: (v: ExternalVideo) => void;
+  onRestore?: (v: ExternalVideo) => void;
+}) {
   // platformStyle LUÔN trả về kiểu dáng dùng được. Tra thẳng vào bảng rồi `.icon` như
   // trước là cách đã làm trang này vỡ trắng khi gặp video Douyin.
   const config = platformStyle(video.platform);
@@ -67,6 +78,7 @@ function AllVideoCard({ video }: { video: ExternalVideo }) {
   const { token } = useAuthStore();
   // Leader/Admin them thang vao Bo Suu Tap, con lai vao hang cho duyet — xem useProposeVideo.ts
   const { submit, successMessage, actionLabel, doneLabel } = useSubmitVideoToLibrary();
+
   const proposeMutation = useMutation({
     mutationFn: () => {
       return submit({
@@ -88,8 +100,48 @@ function AllVideoCard({ video }: { video: ExternalVideo }) {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const hideMutation = useMutation({
+    mutationFn: () => {
+      if (!token) throw new Error('Chưa đăng nhập');
+      return scraperService.hideVideo(token, video.platform, video.post_id);
+    },
+    onSuccess: () => {
+      onHide?.(video);
+      toast(
+        (t) => (
+          <div className="flex items-center justify-between gap-3 text-xs">
+            <span>Đã ẩn video khỏi danh sách</span>
+            <button
+              onClick={() => {
+                toast.dismiss(t.id);
+                restoreMutation.mutate();
+              }}
+              className="px-2 py-0.5 font-bold bg-primary text-primary-foreground rounded hover:opacity-90 transition-opacity cursor-pointer"
+            >
+              Hoàn tác
+            </button>
+          </div>
+        ),
+        { duration: 5000, icon: '🗑️' }
+      );
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const restoreMutation = useMutation({
+    mutationFn: () => {
+      if (!token) throw new Error('Chưa đăng nhập');
+      return scraperService.restoreVideo(token, video.platform, video.post_id);
+    },
+    onSuccess: () => {
+      onRestore?.(video);
+      toast.success('Đã khôi phục video về danh sách hiển thị');
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   return (
-    <div className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg hover:scale-[1.01] transition-all duration-200 flex flex-col">
+    <div className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg hover:scale-[1.01] transition-all duration-200 flex flex-col relative">
       <a
         href={video.url}
         target="_blank"
@@ -107,6 +159,48 @@ function AllVideoCard({ video }: { video: ExternalVideo }) {
         ) : null}
         <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900 -z-10">
           <PlatformIcon size={32} className="text-slate-600" />
+        </div>
+
+        {/* Nút xoá / khôi phục nhanh trên ảnh preview khi hover */}
+        <div className="absolute top-2 right-2 flex items-center gap-1.5 z-10">
+          {!isHiddenView ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                hideMutation.mutate();
+              }}
+              disabled={hideMutation.isPending}
+              title="Xoá / Ẩn video không phù hợp"
+              className="p-1.5 bg-black/60 hover:bg-rose-600 text-white rounded-md backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-all shadow-sm cursor-pointer"
+            >
+              {hideMutation.isPending ? (
+                <CircleNotch size={14} className="animate-spin" />
+              ) : (
+                <Trash size={14} weight="bold" />
+              )}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                restoreMutation.mutate();
+              }}
+              disabled={restoreMutation.isPending}
+              title="Khôi phục video về feed"
+              className="flex items-center gap-1 px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-md backdrop-blur-xs transition-colors shadow-sm cursor-pointer"
+            >
+              {restoreMutation.isPending ? (
+                <CircleNotch size={12} className="animate-spin" />
+              ) : (
+                <ArrowCounterClockwise size={12} weight="bold" />
+              )}
+              Khôi phục
+            </button>
+          )}
         </div>
 
         {/* Metrics overlay */}
@@ -129,7 +223,7 @@ function AllVideoCard({ video }: { video: ExternalVideo }) {
 
         {/* Duration badge */}
         {video.duration_seconds && video.duration_seconds > 0 && (
-          <div className="absolute top-2 right-2 px-1.5 py-0.5 bg-black/60 backdrop-blur-sm rounded text-white text-xs font-medium">
+          <div className="absolute top-2 right-10 group-hover:right-11 px-1.5 py-0.5 bg-black/60 backdrop-blur-sm rounded text-white text-xs font-medium transition-all">
             {Math.floor(video.duration_seconds / 60)}:{String(Math.round(video.duration_seconds % 60)).padStart(2, '0')}
           </div>
         )}
@@ -159,22 +253,43 @@ function AllVideoCard({ video }: { video: ExternalVideo }) {
           </span>
         </div>
 
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-1.5 pt-1">
           <p className="text-xs text-slate-400 dark:text-slate-500">
             {relativeTime(video.date_posted)}
           </p>
-          <button
-            onClick={() => proposeMutation.mutate()}
-            disabled={proposeMutation.isPending || proposeMutation.isSuccess}
-            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-primary border border-primary/30 rounded-md hover:bg-primary/10 disabled:opacity-50 transition-colors flex-shrink-0"
-          >
-            {proposeMutation.isPending ? (
-              <CircleNotch size={12} weight="bold" className="animate-spin" />
+
+          <div className="flex items-center gap-1.5">
+            {!isHiddenView ? (
+              <button
+                type="button"
+                onClick={() => proposeMutation.mutate()}
+                disabled={proposeMutation.isPending || proposeMutation.isSuccess}
+                className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-primary border border-primary/30 rounded-md hover:bg-primary/10 disabled:opacity-50 transition-colors flex-shrink-0 cursor-pointer"
+              >
+                {proposeMutation.isPending ? (
+                  <CircleNotch size={12} weight="bold" className="animate-spin" />
+                ) : (
+                  <PaperPlaneTilt size={12} weight="bold" />
+                )}
+                {proposeMutation.isSuccess ? doneLabel : actionLabel}
+              </button>
             ) : (
-              <PaperPlaneTilt size={12} weight="bold" />
+              <button
+                type="button"
+                onClick={() => restoreMutation.mutate()}
+                disabled={restoreMutation.isPending}
+                title="Khôi phục video về feed"
+                className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-md hover:bg-emerald-100 dark:hover:bg-emerald-900/50 disabled:opacity-50 transition-colors flex-shrink-0 cursor-pointer"
+              >
+                {restoreMutation.isPending ? (
+                  <CircleNotch size={12} weight="bold" className="animate-spin" />
+                ) : (
+                  <ArrowCounterClockwise size={12} weight="bold" />
+                )}
+                Khôi phục
+              </button>
             )}
-            {proposeMutation.isSuccess ? doneLabel : actionLabel}
-          </button>
+          </div>
         </div>
       </div>
     </div>
@@ -182,8 +297,12 @@ function AllVideoCard({ video }: { video: ExternalVideo }) {
 }
 
 export default function AllExternalVideosPage() {
-  const { token } = useAuthStore();
+  const { token, user } = useAuthStore();
+  const canManageChannels =
+    (user?.roles?.some((r) => [UserRole.ADMIN, UserRole.LEADER, UserRole.MANAGER].includes(r as any)) ?? false) ||
+    hasPermission(user, 'social:external:add_channel');
 
+  const [viewMode, setViewMode] = useState<'active' | 'hidden'>('active');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [sortBy, setSortBy] = useState('date');
@@ -202,7 +321,7 @@ export default function AllExternalVideosPage() {
   const clearFilters = () => { setSearch(''); setPlatform(''); setMinPlays(''); setDateFrom(''); setDateTo(''); setSortBy('date'); };
 
   const videosQuery = useInfiniteQuery({
-    queryKey: ['all-external-videos', debouncedSearch, sortBy, platform, minPlays, dateFrom, dateTo],
+    queryKey: ['all-external-videos', debouncedSearch, sortBy, platform, minPlays, dateFrom, dateTo, viewMode],
     queryFn: ({ pageParam = 1 }) => {
       if (!token) return Promise.reject('No token');
       return scraperService.getAllExternalVideos(token, {
@@ -214,6 +333,7 @@ export default function AllExternalVideosPage() {
         min_plays: minPlays ? Number(minPlays) : undefined,
         date_from: dateFrom || undefined,
         date_to: dateTo || undefined,
+        hidden: viewMode === 'hidden' ? 'true' : undefined,
       });
     },
     getNextPageParam: (last) => last.page < last.total_pages ? last.page + 1 : undefined,
@@ -236,7 +356,7 @@ export default function AllExternalVideosPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <QuickAddChannel />
+      {canManageChannels && <QuickAddChannel />}
 
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <WatchFeedButton platform="all" label="Xem ngay tại đây" />
@@ -276,6 +396,12 @@ export default function AllExternalVideosPage() {
             { value: 'facebook', label: 'Facebook' },
             { value: 'tiktok', label: 'TikTok' },
             { value: 'instagram', label: 'Instagram' },
+            { value: 'douyin', label: 'Douyin' },
+            { value: 'xiaohongshu', label: 'Xiaohongshu' },
+            { value: 'kuaishou', label: 'Kuaishou' },
+            { value: 'bilibili', label: 'Bilibili' },
+            { value: 'youtube', label: 'YouTube' },
+            { value: 'threads', label: 'Threads' },
           ]}
           placeholder="Tất cả nền tảng"
           icon={<SquaresFour size={15} />}
@@ -323,10 +449,51 @@ export default function AllExternalVideosPage() {
         )}
       </div>
 
-      {/* Count */}
-      <h2 className="text-sm font-semibold text-foreground">
-        Tất cả video {totalVideos > 0 && <span className="font-normal text-slate-500">({totalVideos})</span>}
-      </h2>
+      {/* View Mode Tabs: Tất cả video vs Thùng rác / Video đã xoá */}
+      <div className="flex items-center justify-between border-b border-border pb-2 gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setViewMode('active')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
+              viewMode === 'active'
+                ? 'bg-primary text-primary-foreground shadow-xs'
+                : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+            }`}
+          >
+            <FilmReel size={16} weight={viewMode === 'active' ? 'fill' : 'regular'} />
+            Tất cả video
+            {viewMode === 'active' && totalVideos > 0 && (
+              <span className="text-xs px-1.5 py-0.2 rounded-full bg-primary-foreground/20 text-primary-foreground">
+                {totalVideos}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('hidden')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
+              viewMode === 'hidden'
+                ? 'bg-rose-600 text-white shadow-xs'
+                : 'text-muted-foreground hover:bg-rose-50 dark:hover:bg-rose-950/30 hover:text-rose-600 dark:hover:text-rose-400'
+            }`}
+          >
+            <Trash size={16} weight={viewMode === 'hidden' ? 'fill' : 'regular'} />
+            Thùng rác / Video đã ẩn
+            {viewMode === 'hidden' && totalVideos > 0 && (
+              <span className="text-xs px-1.5 py-0.2 rounded-full bg-white/20 text-white">
+                {totalVideos}
+              </span>
+            )}
+          </button>
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          {viewMode === 'active'
+            ? 'Video bị xoá sẽ tự động chuyển vào Thùng rác và không bị cào trùng lặp'
+            : 'Các video đã ẩn. Bạn có thể bấm [Khôi phục] để đưa video trở lại danh sách'}
+        </p>
+      </div>
 
       {/* Loading */}
       {videosQuery.isLoading && (
@@ -349,8 +516,14 @@ export default function AllExternalVideosPage() {
       {!videosQuery.isLoading && !videosQuery.isError && allVideos.length === 0 && (
         <div className="flex flex-col items-center py-16 gap-4 bg-card border border-border rounded-xl">
           <FilmReel size={32} className="text-slate-300" />
-          <p className="text-sm text-foreground font-medium">Chưa có video nào</p>
-          <p className="text-xs text-slate-400 text-center max-w-sm">Cào dữ liệu từ các tab Facebook, TikTok, Instagram trước.</p>
+          <p className="text-sm text-foreground font-medium">
+            {viewMode === 'active' ? 'Chưa có video nào' : 'Thùng rác rỗng'}
+          </p>
+          <p className="text-xs text-slate-400 text-center max-w-sm">
+            {viewMode === 'active'
+              ? 'Cào dữ liệu từ các tab Facebook, TikTok, Instagram trước.'
+              : 'Chưa có video nào bị xoá hoặc ẩn.'}
+          </p>
         </div>
       )}
 
@@ -358,7 +531,15 @@ export default function AllExternalVideosPage() {
       {allVideos.length > 0 && (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4">
-            {allVideos.map(v => <AllVideoCard key={`${v.platform}-${v.post_id}`} video={v} />)}
+            {allVideos.map(v => (
+              <AllVideoCard
+                key={`${v.platform}-${v.post_id}`}
+                video={v}
+                isHiddenView={viewMode === 'hidden'}
+                onHide={() => videosQuery.refetch()}
+                onRestore={() => videosQuery.refetch()}
+              />
+            ))}
             {videosQuery.isFetchingNextPage && Array.from({ length: 6 }).map((_, i) => (
               <div key={`skel-${i}`} className="bg-card border border-border rounded-lg overflow-hidden animate-pulse">
                 <div className="aspect-[9/16] bg-slate-200 dark:bg-slate-700" />

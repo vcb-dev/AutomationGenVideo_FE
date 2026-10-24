@@ -13,6 +13,8 @@ import { EditAssetDialog } from '@/components/equipment/EditAssetDialog';
 import { DeleteAssetDialog } from '@/components/equipment/DeleteAssetDialog';
 import { ManageLocationsDialog } from '@/components/equipment/ManageLocationsDialog';
 import { ManageCatalogDialog } from '@/components/equipment/ManageCatalogDialog';
+import { EquipmentAlertBanner } from '@/components/equipment/EquipmentAlertBanner';
+import { MobileBorrowQRModal } from '@/components/equipment/MobileBorrowQRModal';
 import { canManageCatalog } from '@/lib/equipment/catalog-permissions';
 import { useAuthStore } from '@/store/auth-store';
 
@@ -53,6 +55,7 @@ function EquipmentTable() {
   const [deleting, setDeleting] = useState<Asset | null>(null);
   const [managingLocations, setManagingLocations] = useState(false);
   const [managingCatalog, setManagingCatalog] = useState(false);
+  const [mobileQrOpen, setMobileQrOpen] = useState(false);
   // Thêm, sửa, xoá chỉ hiện cho leader và admin — BE trả 403 cho những vai trò còn lại.
   // Nút Xem thì ai cũng thấy: đọc kho không cần quyền gì.
   // Phải truyền cả `team`: quyền quản lý kho giờ gắn với Team Media, thiếu tham số này thì
@@ -130,14 +133,31 @@ function EquipmentTable() {
               </button>
             </>
           )}
+          <button
+            type="button"
+            onClick={() => setMobileQrOpen(true)}
+            title="Quét QR bằng điện thoại để tạo phiếu và chụp ảnh trực tiếp"
+            className="flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-blue-200 bg-blue-50/80 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100 active:scale-95 transition-all dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-300 shrink-0"
+          >
+            <span>📱</span> Quét QR tạo phiếu
+          </button>
+          <Link
+            href="/dashboard/equipment/borrow-history"
+            className="flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 transition-all dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08] shrink-0"
+          >
+            <span>📋</span> {canManageCatalog(user?.roles, user?.team) ? 'Nhật ký mượn' : 'Phiếu mượn của tôi'}
+          </Link>
           <Link
             href="/dashboard/equipment/new-request"
-            className="flex items-center justify-center whitespace-nowrap rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 transition-all dark:border-white/[0.12] dark:text-slate-200 dark:hover:bg-white/[0.05] shrink-0"
+            className="flex items-center justify-center whitespace-nowrap rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700 active:scale-95 transition-all shrink-0"
           >
-            Tạo phiếu mượn
+            + Tạo phiếu mượn
           </Link>
         </div>
       </header>
+
+      {/* CẢNH BÁO QUÁ HẠN & SẮP ĐẾN HẠN TRẢ */}
+      <EquipmentAlertBanner className="mb-4 sm:mb-6" />
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/[0.08] dark:bg-white/[0.03]">
         {/* BỘ LỌC TÌM KIẾM */}
@@ -409,6 +429,12 @@ function EquipmentTable() {
           }}
         />
       )}
+
+      {/* MODAL QUÉT MÃ QR TẠO PHIẾU BẰNG ĐIỆN THOẠI */}
+      <MobileBorrowQRModal
+        open={mobileQrOpen}
+        onClose={() => setMobileQrOpen(false)}
+      />
     </div>
   );
 }

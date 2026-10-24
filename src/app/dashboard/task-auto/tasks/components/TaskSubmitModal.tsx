@@ -257,7 +257,7 @@ export function SubmitModal({ task, isResubmit = false, onClose, onSuccess }: Pr
       qc.invalidateQueries({ queryKey: ['task-auto', 'task', task.id] })
       onSuccess()
     },
-    onError: () => toast.error('Nộp task thất bại'),
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Nộp task thất bại'),
   })
 
   const hasVideo = !!uploadedVideo || !!manualUrl.trim()

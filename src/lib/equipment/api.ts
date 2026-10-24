@@ -1,4 +1,5 @@
 import { apiClient } from '../api-client';
+import { compressImage } from './image-compressor';
 
 export interface Asset {
   id: string;
@@ -51,6 +52,8 @@ export interface CreateBorrowRequestPayload {
   fromTime: string;
   toTime: string;
   lines: BorrowLine[];
+  note?: string;
+  photos?: string[];
 }
 
 export async function createBorrowRequest(payload: CreateBorrowRequestPayload) {
@@ -292,8 +295,9 @@ export async function uploadAssetPhoto(
   caption?: string,
   purpose?: PhotoPurpose,
 ) {
+  const compressed = await compressImage(file).catch(() => file);
   const form = new FormData();
-  form.append('photo', file);
+  form.append('photo', compressed);
   if (caption) form.append('caption', caption);
   if (purpose) form.append('purpose', purpose);
   const { data } = await apiClient.post<AssetPhoto>(
@@ -312,3 +316,16 @@ export async function setPrimaryPhoto(photoId: string) {
 export async function deleteAssetPhoto(photoId: string) {
   await apiClient.delete(`/mems/photos/${photoId}`);
 }
+
+export async function uploadRequestPhoto(file: File) {
+  const compressed = await compressImage(file);
+  const form = new FormData();
+  form.append('photo', compressed);
+  const { data } = await apiClient.post<{ url: string; key: string }>(
+    '/mems/requests/upload-photo',
+    form,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
+  );
+  return data;
+}
+

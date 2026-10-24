@@ -6,6 +6,7 @@ import DetailSection, { DETAIL_ITEMS } from './DetailSection';
 import LeaderEvaluationSection, { LEADER_QUESTIONS } from './LeaderEvaluationSection';
 import TrafficReportSection, { TrafficData, initialTrafficData, initialTrafficChannels } from './TrafficReportSection';
 import RevenueReportSection, { RevenueData, initialRevenueData, initialRevenueChannels } from './RevenueReportSection';
+import { isTeamReportLocked } from './report-lock';
 import { Send, AlertCircle, Calendar, ChevronDown, Check, ChevronLeft, ChevronRight, Layers, Pencil } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/store/auth-store';
@@ -229,6 +230,12 @@ const ChecklistContainer = ({
     const [serverTrafficRecords, setServerTrafficRecords] = useState<any[]>([]); // Lưu raw records từ BE để lọc theo team
     const [reportedRevenueTeams, setReportedRevenueTeams] = useState<string[]>([]);  // Các team đã báo cáo doanh thu
     const [serverRevenueRecords, setServerRevenueRecords] = useState<any[]>([]); // Lưu raw records từ BE để lọc theo team
+    // Đã bấm "Sửa báo cáo": lần gửi tới phải ghi đè bản đã nộp (BE nhận replaceExisting) thay vì bị
+    // BE coi là nộp trùng và bỏ qua.
+    const [isEditingSubmitted, setIsEditingSubmitted] = useState(false);
+    // Tăng sau mỗi lần gửi thành công để tải lại báo cáo từ BE — trạng thái "đã báo cáo" và số liệu
+    // trên form luôn lấy từ server, không tự đoán ở client.
+    const [reloadCount, setReloadCount] = useState(0);
 
     // Deadline 10h: Đã bỏ logic khoá.
     const isDeadlinePassed = false;
@@ -270,6 +277,7 @@ const ChecklistContainer = ({
             setHasFetchedReport(false);
             setHasReportData(false);
             setIsReadOnly(false);
+            setIsEditingSubmitted(false);
             setChecks(initialChecks());
             setDetails(initialDetails());
             setLeaderAnswers(initialLeaderAnswers());
@@ -479,7 +487,7 @@ const ChecklistContainer = ({
         };
 
         fetchReportDetails();
-    }, [user?.email, reportDate]);
+    }, [user?.email, reportDate, reloadCount]);
 
     // Switch traffic data when selectedTeam changes (Isolation)
     useEffect(() => {
@@ -502,7 +510,9 @@ const ChecklistContainer = ({
                     const ck = `channel_${p}`;
                     const ek = `evidence_${p}`;
 
-                    if (rec[tk] && Number(rec[tk]) > 0) {
+                    // Nhận cả dòng nhập số 0 (cột khác null) — bỏ đi thì khi "Sửa báo cáo" gửi lại,
+                    // nền tảng đã báo cáo 0 bị ghi đè mất.
+                    if (rec[tk] !== null && rec[tk] !== undefined) {
                         newTraffic[p as keyof TrafficData] = (Number(newTraffic[p as keyof TrafficData] || 0) + Number(rec[tk])).toString();
 
                         if (rec[ck]) {
@@ -568,7 +578,7 @@ const ChecklistContainer = ({
                     const rk = `revenue_${p}`;
                     const ck = `channel_${p}`;
 
-                    if (rec[rk] && Number(rec[rk]) > 0) {
+                    if (rec[rk] !== null && rec[rk] !== undefined) {
                         newRevenue[p as keyof RevenueData] = (Number(newRevenue[p as keyof RevenueData] || 0) + Number(rec[rk])).toString();
 
                         if (rec[ck]) {
@@ -628,6 +638,7 @@ const ChecklistContainer = ({
 
     const showForm12 = mode ? mode === 'member' : (isAdmin || isStaff);
     const showForm3 = mode ? mode === 'leader' : (isAdmin || isLeader);
+    const isTeamLocked = isTeamReportLocked({ isReadOnly, showOnlyWork, selectedTeam, reportedTeams, reportedRevenueTeams });
 
     const handleCheckChange = useCallback((index: number, checked: boolean) => {
         if (isReadOnly) return;
@@ -688,12 +699,12 @@ const ChecklistContainer = ({
             payload[item.question] = (details[i] ?? '').trim() || '';
         });
 
-        // Add Leader answers only if user is authorized as leader
-        if (showForm3) {
-            LEADER_QUESTIONS.forEach((item, i) => {
-                payload[item.question] = (leaderAnswers[i] ?? '').trim() || '';
-            });
-        }
+        // Leader điền phần đánh giá; member sửa lại báo cáo thì vẫn gửi kèm phần leader đã có
+        // (BE thay toàn bộ answers khi nộp lại — không gửi thì đánh giá của leader bị xoá mất).
+        LEADER_QUESTIONS.forEach((item, i) => {
+            const answer = (leaderAnswers[i] ?? '').trim();
+            if (showForm3 || answer) payload[item.question] = answer;
+        });
 
         return payload;
     }, [checks, details, leaderAnswers, showForm3]);
@@ -876,6 +887,7 @@ const ChecklistContainer = ({
                             evidences: platformEvidences
                         },
                         reportDate: reportDate, // Send custom date
+                        replaceExisting: isEditingSubmitted,
                     })
 
 
@@ -896,6 +908,13 @@ const ChecklistContainer = ({
                 // biết mình bị tính là chưa báo cáo. Dừng luôn để họ nhập lại ngay.
                 if (trafficData?.savedNothing) {
                     toast.error(trafficData.message || 'Chưa lưu được số liệu traffic nào. Vui lòng nhập lại.');
+                    setLoading(false);
+                    return;
+                }
+                // BE trả HTTP 200 kèm alreadySubmitted khi KHÔNG ghi gì (đã nộp rồi, hoặc sửa báo cáo
+                // ngày đã qua). Trước đây vẫn báo thành công nên số vừa sửa mất mà người dùng không biết.
+                if (trafficData?.alreadySubmitted) {
+                    toast.error(trafficData.message || 'Báo cáo traffic chưa được cập nhật.');
                     setLoading(false);
                     return;
                 }
@@ -923,6 +942,7 @@ const ChecklistContainer = ({
                                 }, {} as Record<string, any>),
                             },
                             reportDate: reportDate,
+                            replaceExisting: isEditingSubmitted,
                         }),
                     });
 
@@ -933,6 +953,11 @@ const ChecklistContainer = ({
                         return;
                     }
                     const revenueData = await revenueRes.json().catch(() => ({} as any));
+                    if (revenueData?.alreadySubmitted) {
+                        toast.error(revenueData.message || 'Báo cáo doanh thu chưa được cập nhật.');
+                        setLoading(false);
+                        return;
+                    }
                     teamlessWarning = teamlessWarning || revenueData?.warning;
                 }
 
@@ -942,20 +967,21 @@ const ChecklistContainer = ({
                 }
 
                 if (showOnlyTraffic) {
-                    toast.success(`Gửi báo cáo ${currentSelectedTeam} thành công`);
+                    toast.success(isEditingSubmitted
+                        ? `Đã cập nhật báo cáo ${currentSelectedTeam}`
+                        : `Gửi báo cáo ${currentSelectedTeam} thành công`);
                     if (currentSelectedTeam) {
-                        setReportedTeams(prev => [...prev, currentSelectedTeam]);
-                        if (hasRevenueData) setReportedRevenueTeams(prev => [...prev, currentSelectedTeam]);
+                        setReportedTeams(prev => prev.includes(currentSelectedTeam) ? prev : [...prev, currentSelectedTeam]);
+                        if (hasRevenueData) setReportedRevenueTeams(prev => prev.includes(currentSelectedTeam) ? prev : [...prev, currentSelectedTeam]);
                     }
                 }
 
-                // Reset form (giữ nguyên revenueEntryDetails — giống traffic không reset entryDetails —
-                // để section remount theo key mới vẫn hiển thị đúng dữ liệu vừa gửi ở chế độ readOnly)
-                setTraffic(initialTrafficData());
-                setTrafficChannels(initialTrafficChannels());
+                // KHÔNG xoá traffic/revenue ở đây: form vẫn hiện các dòng vừa gửi, nếu tổng bị xoá thì
+                // bấm "Sửa báo cáo" rồi gửi lại sẽ bị chặn "Vui lòng nhập số liệu...". Tải lại từ BE
+                // (reloadCount) để số liệu và trạng thái đã báo cáo khớp đúng những gì đã lưu.
                 setPlatformEvidences({});
-                setRevenue(initialRevenueData());
-                setRevenueChannels(initialRevenueChannels());
+                setIsEditingSubmitted(false);
+                setReloadCount(prev => prev + 1);
 
                 // Do not lock globally if user has other teams to report
                 if (showOnlyTraffic) {
@@ -973,6 +999,8 @@ const ChecklistContainer = ({
             } else {
                 if (!showOnlyWork) toast.success('Báo cáo thành công');
                 setIsReadOnly(true);
+                setIsEditingSubmitted(false);
+                setReloadCount(prev => prev + 1);
                 setSubmitCount(prev => prev + 1);
                 if (onSuccess) onSuccess();
             }
@@ -1158,24 +1186,27 @@ const ChecklistContainer = ({
                     <button
                         type="button"
                         onClick={handleSubmit}
-                        disabled={loading || isReadOnly}
+                        disabled={loading || isTeamLocked}
                         className="flex items-center gap-2 bg-[#dbeafe] text-blue-600 px-8 py-4 rounded-full font-bold uppercase tracking-wider hover:bg-blue-200 transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                         <Send className="w-4 h-4" />
                         {loading ? 'Đang gửi...' :
-                            (isReadOnly || reportedTeams.includes(selectedTeam)) ?
+                            isTeamLocked ?
                                 (reportDate < localCalendarYMD() ? 'CHỈ XEM (NGÀY ĐÃ QUA)' : `ĐÃ BÁO CÁO XONG ${selectedTeam || ''}`) :
-                                'GỬI BÁO CÁO'}
+                                (isEditingSubmitted ? 'CẬP NHẬT BÁO CÁO' : 'GỬI BÁO CÁO')}
                     </button>
                     {/* Cho phép tự sửa & nộp lại báo cáo hôm nay (không áp dụng cho ngày quá khứ —
                         vẫn giữ nguyên chỉ-xem để không sửa lại lịch sử cũ). Bấm xong form mở khoá,
-                        gửi lại sẽ UPDATE bản ghi cũ (backend đã upsert theo email/tên, không tạo trùng). */}
-                    {!loading && isReadOnly && reportDate >= localCalendarYMD() && (
+                        gửi lại kèm replaceExisting: checklist được BE upsert, traffic/doanh thu của team
+                        đang chọn được BE xoá bản cũ rồi ghi bản mới (BE cũng chỉ cho sửa trong ngày nộp). */}
+                    {!loading && isTeamLocked && reportDate >= localCalendarYMD() && (
                         <button
                             type="button"
                             onClick={() => {
                                 setIsReadOnly(false);
                                 setReportedTeams(prev => prev.filter(t => t !== selectedTeam));
+                                setReportedRevenueTeams(prev => prev.filter(t => t !== selectedTeam));
+                                setIsEditingSubmitted(true);
                             }}
                             className="flex items-center gap-2 bg-amber-50 text-amber-700 px-6 py-4 rounded-full font-bold uppercase tracking-wider hover:bg-amber-100 transition-all shadow-sm border-2 border-amber-200"
                         >

@@ -303,7 +303,8 @@ export default function NhiemVuGuidePage() {
             <div className="space-y-4">
               <Step n={1} title='Bấm "Bắt đầu làm"'>
                 Chuyển nhiệm vụ từ <StatusPill label="Đã giao" color="blue" /> sang{' '}
-                <StatusPill label="Đang làm" color="amber" />, cho mọi người biết bạn đang xử lý.
+                <StatusPill label="Đang làm" color="amber" />, cho mọi người biết bạn đang xử lý. Nhiệm vụ{' '}
+                <strong>Auto</strong> (hệ thống tự chia) phải chọn content trước rồi mới bắt đầu làm hoặc nộp được.
               </Step>
               <Step n={2} title='Bấm "Nộp task" khi làm xong'>
                 Mở form nộp: kéo/chọn file video (MP4, tối đa 2GB — video sẽ tự động tải lên Google Drive ngay khi nộp),

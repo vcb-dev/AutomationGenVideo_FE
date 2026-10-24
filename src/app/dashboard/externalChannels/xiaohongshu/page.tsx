@@ -6,7 +6,7 @@ import {
   CircleNotch, FilmReel, MagnifyingGlassPlus, Heart,
   Bookmarks, ChatCircle, User, Plus, Warning,
   ArrowsClockwise, BookmarkSimple, Timer, SealCheck, VideoCamera, PaperPlaneTilt,
-  MagnifyingGlass, X, ArrowsDownUp, Tag,
+  MagnifyingGlass, X, ArrowsDownUp, Tag, Trash,
 } from '@phosphor-icons/react';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
@@ -53,6 +53,8 @@ function relativeTime(dateStr: string): string {
 
 function XhsVideoCard({ video }: { video: XiaohongshuVideo }) {
   const { token } = useAuthStore();
+  const [isDeleted, setIsDeleted] = useState(false);
+
   // Leader/Admin them thang vao Bo Suu Tap, con lai vao hang cho duyet — xem useProposeVideo.ts
   const { submit, successMessage, actionLabel, doneLabel } = useSubmitVideoToLibrary();
   const proposeMutation = useMutation({
@@ -77,8 +79,50 @@ function XhsVideoCard({ video }: { video: XiaohongshuVideo }) {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const hideMutation = useMutation({
+    mutationFn: () => {
+      if (!token) throw new Error('Chưa đăng nhập');
+      return scraperService.hideVideo(token, 'xiaohongshu', video.note_id);
+    },
+    onSuccess: () => {
+      setIsDeleted(true);
+      toast(
+        (t) => (
+          <div className="flex items-center justify-between gap-3 text-xs">
+            <span>Đã ẩn video khỏi danh sách</span>
+            <button
+              onClick={() => {
+                toast.dismiss(t.id);
+                restoreMutation.mutate();
+              }}
+              className="px-2 py-0.5 font-bold bg-primary text-primary-foreground rounded hover:opacity-90 transition-opacity cursor-pointer"
+            >
+              Hoàn tác
+            </button>
+          </div>
+        ),
+        { duration: 5000, icon: '🗑️' }
+      );
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const restoreMutation = useMutation({
+    mutationFn: () => {
+      if (!token) throw new Error('Chưa đăng nhập');
+      return scraperService.restoreVideo(token, 'xiaohongshu', video.note_id);
+    },
+    onSuccess: () => {
+      setIsDeleted(false);
+      toast.success('Đã khôi phục video về danh sách');
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  if (isDeleted) return null;
+
   return (
-    <div className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg hover:scale-[1.01] transition-all duration-200 flex flex-col">
+    <div className="group bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg hover:scale-[1.01] transition-all duration-200 flex flex-col relative">
       <a
         href={video.url}
         target="_blank"
@@ -97,6 +141,28 @@ function XhsVideoCard({ video }: { video: XiaohongshuVideo }) {
             <FilmReel size={32} />
           </div>
         )}
+
+        {/* Nút xoá nhanh trên ảnh preview khi hover */}
+        <div className="absolute top-2 right-2 flex items-center gap-1.5 z-10">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              hideMutation.mutate();
+            }}
+            disabled={hideMutation.isPending}
+            title="Xoá / Ẩn video không phù hợp"
+            className="p-1.5 bg-black/60 hover:bg-rose-600 text-white rounded-md backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-all shadow-sm cursor-pointer"
+          >
+            {hideMutation.isPending ? (
+              <CircleNotch size={14} className="animate-spin" />
+            ) : (
+              <Trash size={14} weight="bold" />
+            )}
+          </button>
+        </div>
+
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent px-2.5 pb-2.5 pt-8">
           <div className="flex items-center gap-2.5 text-white text-xs">
             <span className="flex items-center gap-1"><Heart size={12} weight="fill" />{formatNum(video.liked_count)}</span>
@@ -105,7 +171,7 @@ function XhsVideoCard({ video }: { video: XiaohongshuVideo }) {
           </div>
         </div>
         {video.duration_seconds > 0 && (
-          <div className="absolute top-2 right-2 px-1.5 py-0.5 bg-black/60 backdrop-blur-sm rounded text-white text-xs font-medium">
+          <div className="absolute top-2 right-10 group-hover:right-11 px-1.5 py-0.5 bg-black/60 backdrop-blur-sm rounded text-white text-xs font-medium transition-all">
             {formatDuration(video.duration_seconds)}
           </div>
         )}
@@ -123,7 +189,7 @@ function XhsVideoCard({ video }: { video: XiaohongshuVideo }) {
         <button
           onClick={() => proposeMutation.mutate()}
           disabled={proposeMutation.isPending || proposeMutation.isSuccess}
-          className="flex items-center justify-center gap-1 px-2 py-1 text-xs font-medium text-primary border border-primary/30 rounded-md hover:bg-primary/10 disabled:opacity-50 transition-colors"
+          className="flex items-center justify-center gap-1 px-2 py-1 text-xs font-medium text-primary border border-primary/30 rounded-md hover:bg-primary/10 disabled:opacity-50 transition-colors cursor-pointer"
         >
           {proposeMutation.isPending ? (
             <CircleNotch size={12} weight="bold" className="animate-spin" />
@@ -297,7 +363,7 @@ function XhsProfileCard({
 // ─── SEARCH TAB ──────────────────────────────────────────────
 function VideoSearchTab() {
   const { token, user } = useAuthStore();
-  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
+  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER, UserRole.MANAGER].includes(r)) ?? false;
   const queryClient = useQueryClient();
   const { addNotification, updateNotification } = useScrapingStore();
   const notifIdRef = useRef<string | null>(null);
@@ -631,7 +697,7 @@ function VideoSearchTab() {
 // ─── PROFILES TAB ────────────────────────────────────────────
 function ProfilesTab() {
   const { token, user } = useAuthStore();
-  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
+  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER, UserRole.MANAGER].includes(r)) ?? false;
   const queryClient = useQueryClient();
   const { addNotification, updateNotification } = useScrapingStore();
   const router = useRouter();

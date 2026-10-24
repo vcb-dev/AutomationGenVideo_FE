@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, type ReactNode } from 'react'
+import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import toast from 'react-hot-toast'
@@ -495,6 +495,24 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId, onD
   const showContentPicker = !!task && canPickContent && !editMode && ((isAutoTask && !hasContent) || changingContent)
   const canChangeContent = canPickContent && !editMode && (hasContent || !isAutoTask)
     && task?.status !== 'SUBMITTED' && task?.status !== 'APPROVED'
+  const needsContent = isAutoTask && !hasContent
+  const contentPickerRef = useRef<HTMLDivElement>(null)
+  const [pickerAttention, setPickerAttention] = useState(false)
+
+  useEffect(() => {
+    if (!pickerAttention) return
+    const timer = setTimeout(() => setPickerAttention(false), 1600)
+    return () => clearTimeout(timer)
+  }, [pickerAttention])
+
+  function requireContent(action: string) {
+    toast.error(`Chọn content cho task trước khi ${action}`)
+    const el = contentPickerRef.current
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el.querySelector<HTMLInputElement>('input[type="text"], input:not([type]), input[type="search"]')?.focus({ preventScroll: true })
+    setPickerAttention(true)
+  }
   const isAdminOrManager = userRoles.some(r => r === 'ADMIN' || r === 'MANAGER')
   const contentOwnerId = isAssignee || !isAdminOrManager || !task?.assignee_id ? currentUserId : task.assignee_id
   const contentOwnerName = contentOwnerId && contentOwnerId !== currentUserId ? task?.assignee?.full_name : undefined
@@ -526,7 +544,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId, onD
       qc.invalidateQueries({ queryKey: ['task-auto', 'tasks'] })
       qc.invalidateQueries({ queryKey: ['task-auto', 'task', taskId] })
     },
-    onError: () => toast.error('Thao tác thất bại'),
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Thao tác thất bại'),
   })
   const approveMut = useMutation({
     mutationFn: () => approveTask(taskId),
@@ -797,15 +815,23 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId, onD
                     {/* LEFT: Content + Sources (+ Product dời xuống đây khi video chiếm cột phải) */}
                     <div className="flex flex-col gap-4">
                       {showContentPicker && contentOwnerId ? (
-                        <TaskContentPicker
-                          task={task}
-                          ownerId={contentOwnerId}
-                          ownerName={contentOwnerName}
-                          currentKey={hasContent ? currentContentPrefixedId : undefined}
-                          onCancel={changingContent ? () => setChangingContent(false) : undefined}
-                          onAssigned={() => setChangingContent(false)}
-                          onDirtyChange={setContentDirty}
-                        />
+                        <div
+                          ref={contentPickerRef}
+                          className={cn(
+                            'rounded-2xl transition-shadow duration-300 motion-reduce:transition-none',
+                            pickerAttention && 'ring-2 ring-amber-400 ring-offset-2 ring-offset-gray-50',
+                          )}
+                        >
+                          <TaskContentPicker
+                            task={task}
+                            ownerId={contentOwnerId}
+                            ownerName={contentOwnerName}
+                            currentKey={hasContent ? currentContentPrefixedId : undefined}
+                            onCancel={changingContent ? () => setChangingContent(false) : undefined}
+                            onAssigned={() => setChangingContent(false)}
+                            onDirtyChange={setContentDirty}
+                          />
+                        </div>
                       ) : (
                       <ContentSection
                         editMode={editMode}
@@ -964,12 +990,12 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId, onD
               onClose={requestClose}
               onCancelEdit={() => { setEditMode(false); setProductSearch(''); setContentSearch('') }}
               onSaveEdit={() => updateMut.mutate()}
-              onStart={() => startMut.mutate()}
-              onSubmit={() => setShowSubmit(true)}
+              onStart={() => (needsContent ? requireContent('bắt đầu làm') : startMut.mutate())}
+              onSubmit={() => (needsContent ? requireContent('nộp') : setShowSubmit(true))}
               onApprove={() => approveMut.mutate()}
               onReject={() => setShowReject(true)}
               onDelete={() => setShowDeleteConfirm(true)}
-              onResubmit={() => setShowResubmit(true)}
+              onResubmit={() => (needsContent ? requireContent('nộp lại') : setShowResubmit(true))}
               onSchedulePost={() => setShowSchedule(true)}
             />
           )}
