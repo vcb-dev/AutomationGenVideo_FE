@@ -921,7 +921,7 @@ export interface Task {
   created_at: string
   updated_at: string
   // Relations
-  team?: Pick<Team, 'id' | 'name' | 'market' | 'brand_type'>
+  team?: Pick<Team, 'id' | 'name' | 'market' | 'brand_type'> & { auto_task_delete_enabled?: boolean }
   content?: Pick<Content, 'id' | 'code' | 'title' | 'script' | 'file_content_url' | 'market'> & {
     content_line?: ContentLine | null
     source_team_content?: {
@@ -964,7 +964,7 @@ export interface Task {
   team_source_extra?:      { id: string; name: string | null; link: string | null; type: SourceType | null; nas_link?: string | null; source_editor_source?: { name: string; link: string; type: SourceType; nas_link?: string | null } | null } | null
   team_source_workshop?:   { id: string; name: string | null; link: string | null; type: SourceType | null; nas_link?: string | null; source_editor_source?: { name: string; link: string; type: SourceType; nas_link?: string | null } | null } | null
   team_source_huyk?:       { id: string; name: string | null; link: string | null; type: SourceType | null; nas_link?: string | null; source_editor_source?: { name: string; link: string; type: SourceType; nas_link?: string | null } | null } | null
-  assignee?: UserBasic | null
+  assignee?: (UserBasic & { team_memberships?: { team_id: string; auto_task_delete_enabled: boolean }[] }) | null
   reviewed_by?: UserBasic | null
   pending_video?: TaskPendingVideo | null
   product_sources?: Source[]
@@ -1107,11 +1107,15 @@ export interface MemberAutoAssignSchedule {
   is_editor: boolean
   auto_assign_enabled: boolean
   auto_assign_weekdays: number[]
+  /** Được tự xoá task chia tự động chưa nộp — chỉ có hiệu lực khi team bật */
+  auto_task_delete_enabled: boolean
 }
 
 export interface TeamAutoAssignSchedules {
   id: string
   name: string
+  /** Thành viên team được tự xoá task chia tự động chưa nộp (công tắc chính) */
+  auto_task_delete_enabled: boolean
   members: MemberAutoAssignSchedule[]
 }
 

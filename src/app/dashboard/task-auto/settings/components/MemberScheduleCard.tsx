@@ -9,6 +9,7 @@ import {
   getAutoAssignSettings,
   getMemberAutoAssignSchedules,
   updateMemberAutoAssignSchedule,
+  updateTeamAutoTaskDelete,
 } from '@/lib/api/task-auto'
 import { MemberAutoAssignSchedule, TeamAutoAssignSchedules } from '@/types/task-auto'
 import { ToggleSwitch } from './SettingsCard'
@@ -25,7 +26,7 @@ const WEEKDAYS = [
 
 const QUERY_KEY = ['task-auto', 'member-auto-assign-schedules']
 
-type ScheduleUpdate = Partial<Pick<MemberAutoAssignSchedule, 'auto_assign_enabled' | 'auto_assign_weekdays'>>
+type ScheduleUpdate = Partial<Pick<MemberAutoAssignSchedule, 'auto_assign_enabled' | 'auto_assign_weekdays' | 'auto_task_delete_enabled'>>
 
 export function MemberScheduleCard() {
   const qc = useQueryClient()
@@ -60,17 +61,39 @@ export function MemberScheduleCard() {
     },
     onSuccess: (saved) => {
       replaceMember(saved.id, () => saved)
-      toast.success('Đã lưu lịch chia task', { id: 'member-auto-assign-saved' })
+      toast.success('Đã lưu cài đặt chia task', { id: 'member-auto-assign-saved' })
     },
     onError: (_err, _vars, ctx) => {
       if (ctx?.previous) qc.setQueryData(QUERY_KEY, ctx.previous)
-      toast.error('Không thể lưu lịch chia task')
+      toast.error('Không thể lưu cài đặt chia task')
     },
     onSettled: (_data, _err, { memberId }) => togglePending(memberId, false),
   })
 
+  const teamDeleteMut = useMutation({
+    mutationFn: ({ teamId, enabled }: { teamId: string; enabled: boolean }) => updateTeamAutoTaskDelete(teamId, enabled),
+    onMutate: async ({ teamId, enabled }) => {
+      await qc.cancelQueries({ queryKey: QUERY_KEY })
+      const previous = qc.getQueryData<TeamAutoAssignSchedules[]>(QUERY_KEY)
+      qc.setQueryData<TeamAutoAssignSchedules[]>(QUERY_KEY, (old) =>
+        old?.map((t) => (t.id === teamId ? { ...t, auto_task_delete_enabled: enabled } : t)),
+      )
+      return { previous }
+    },
+    onSuccess: (_saved, { enabled }) => {
+      toast.success(enabled ? 'Đã cho thành viên tự xoá task tự động' : 'Đã tắt quyền tự xoá task tự động', { id: 'team-auto-task-delete-saved' })
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.previous) qc.setQueryData(QUERY_KEY, ctx.previous)
+      toast.error('Không thể lưu quyền tự xoá task tự động')
+    },
+  })
+
   const team = teams.find((t) => t.id === teamId) ?? teams[0]
   const enabledCount = team?.members.filter((m) => m.auto_assign_enabled).length ?? 0
+  const teamDeleteOn = !!team?.auto_task_delete_enabled
+  const deleteAllowedCount = teamDeleteOn ? team.members.filter((m) => m.auto_task_delete_enabled).length : 0
+  const teamDeleteBusy = teamDeleteMut.isPending && teamDeleteMut.variables?.teamId === team?.id
 
   const toggleDay = (m: MemberAutoAssignSchedule, day: number) => {
     const days = m.auto_assign_weekdays.includes(day)
@@ -89,7 +112,7 @@ export function MemberScheduleCard() {
           <div className="min-w-0">
             <h2 className="font-bold text-slate-900 text-xl">Chia task tự động theo thành viên</h2>
             <p className="text-sm text-slate-500 mt-0.5">
-              Bật/tắt từng người và chọn ngày được chia việc. Lượt chạy {settings?.schedule_time ?? '17:00'} chia việc cho ngày hôm sau.
+              Bật/tắt từng người, chọn ngày được chia việc và quyền tự xoá task tự động. Lượt chạy {settings?.schedule_time ?? '17:00'} chia việc cho ngày hôm sau.
             </p>
           </div>
         </div>
@@ -127,6 +150,25 @@ export function MemberScheduleCard() {
           <p className="text-sm text-slate-500 py-6 text-center">Team {team.name} chưa có thành viên.</p>
         ) : (
           <>
+            <div className="flex items-start gap-3 rounded-xl border border-gray-100 bg-slate-50 px-4 py-3">
+              <ToggleSwitch
+                checked={teamDeleteOn}
+                onChange={(v) => teamDeleteMut.mutate({ teamId: team.id, enabled: v })}
+                disabled={teamDeleteBusy}
+                label={`Cho thành viên ${team.name} tự xoá task tự động`}
+              />
+              <div className="min-w-0">
+                <p className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                  Cho thành viên tự xoá task tự động
+                  {teamDeleteBusy && <Loader2 className="w-3.5 h-3.5 text-indigo-500 animate-spin" aria-label="Đang lưu" />}
+                </p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {teamDeleteOn
+                    ? `${deleteAllowedCount}/${team.members.length} người được tự xoá task hệ thống chia khi chưa nộp. Tắt riêng từng người ở mục "Tự xoá task" bên dưới.`
+                    : 'Đang tắt — thành viên không tự xoá được task hệ thống chia, chỉ leader xoá được.'}
+                </p>
+              </div>
+            </div>
             <p className="text-sm text-slate-500">
               <span className="font-semibold text-slate-800">{enabledCount}/{team.members.length}</span> thành viên {team.name} đang bật chia task tự động
             </p>
@@ -159,8 +201,8 @@ export function MemberScheduleCard() {
                           disabled={busy}
                           label={`Chia task tự động cho ${m.full_name}`}
                         />
-                        <span className={cn('w-8 text-sm font-medium', m.auto_assign_enabled ? 'text-indigo-700' : 'text-slate-500')}>
-                          {m.auto_assign_enabled ? 'Bật' : 'Tắt'}
+                        <span className={cn('whitespace-nowrap text-sm font-medium', m.auto_assign_enabled ? 'text-indigo-700' : 'text-slate-500')}>
+                          Chia task
                         </span>
                       </div>
 
@@ -187,6 +229,18 @@ export function MemberScheduleCard() {
                             </button>
                           )
                         })}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <ToggleSwitch
+                          checked={teamDeleteOn && m.auto_task_delete_enabled}
+                          onChange={(v) => updateMut.mutate({ memberId: m.id, body: { auto_task_delete_enabled: v } })}
+                          disabled={busy || !teamDeleteOn}
+                          label={`Cho ${m.full_name} tự xoá task tự động`}
+                        />
+                        <span className={cn('whitespace-nowrap text-sm font-medium', teamDeleteOn && m.auto_task_delete_enabled ? 'text-indigo-700' : 'text-slate-500')}>
+                          Tự xoá task
+                        </span>
                       </div>
                     </div>
                   </li>

@@ -987,9 +987,15 @@ export const getMemberAutoAssignSchedules = () =>
 
 export const updateMemberAutoAssignSchedule = (
   memberId: string,
-  body: Partial<Pick<MemberAutoAssignSchedule, 'auto_assign_enabled' | 'auto_assign_weekdays'>>,
+  body: Partial<Pick<MemberAutoAssignSchedule, 'auto_assign_enabled' | 'auto_assign_weekdays' | 'auto_task_delete_enabled'>>,
 ) =>
   apiClient.patch<MemberAutoAssignSchedule>(`/task-auto/settings/members/${memberId}`, body).then(r => r.data)
+
+export const updateTeamAutoTaskDelete = (teamId: string, enabled: boolean) =>
+  apiClient.patch<{ id: string; auto_task_delete_enabled: boolean }>(
+    `/task-auto/settings/teams/${teamId}/auto-task-delete`,
+    { enabled },
+  ).then(r => r.data)
 
 export const triggerAutoAssign = () =>
   apiClient.post<{ message: string; timestamp: string; assigned: number; skipped: number; runId: string }>(
