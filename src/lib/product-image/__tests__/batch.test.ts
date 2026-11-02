@@ -255,6 +255,10 @@ describe('withBrightness', () => {
     expect(withBrightness([gemini], 12)[0]).toMatchObject({ brightness: 12, status: 'done' });
   });
 
+  it('ảnh ghép lại bị lỗi mà đổi mức thì thử ghép lại', () => {
+    expect(withBrightness([{ ...cutout, status: 'error' as const }], 12)[0]).toMatchObject({ brightness: 12, status: 'pending' });
+  });
+
   it('đặt lại về theo AI thì ghép lại', () => {
     expect(withBrightness([{ ...cutout, brightness: 12 }], null)[0]).toMatchObject({ brightness: null, status: 'pending' });
   });

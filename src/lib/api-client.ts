@@ -8,7 +8,12 @@ interface RetryConfig extends InternalAxiosRequestConfig {
   _retry429?: number;
   /** Đã thử làm mới phiên cho request này chưa — chặn thử đi thử lại vô hạn. */
   _retriedAfterRefresh?: boolean;
+  /** Request chạy nền: lỗi không được làm phiền người dùng — không chờ thử lại 429, không đẩy về trang đăng nhập. */
+  background?: boolean;
 }
+
+/** Cấu hình cho request chạy nền (xem RetryConfig.background). */
+export const BACKGROUND_REQUEST = { background: true } as Record<string, unknown>;
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
 const MUTATING = new Set(['post', 'put', 'patch', 'delete']);
@@ -80,7 +85,7 @@ apiClient.interceptors.response.use(
     const config = error.config as RetryConfig | undefined;
 
     // 429 Too Many Requests: wait then retry (max 3 times)
-    if (error.response?.status === 429 && config) {
+    if (error.response?.status === 429 && config && !config.background) {
       config._retry429 = (config._retry429 ?? 0) + 1;
       if (config._retry429 <= 3) {
         const retryAfterSec = parseInt(
@@ -109,7 +114,7 @@ apiClient.interceptors.response.use(
 
     if (error.response?.status === 401) {
       if (typeof window !== 'undefined') {
-        if (!config?.url?.includes('/auth/login')) {
+        if (!config?.url?.includes('/auth/login') && !config?.background) {
           window.location.href = '/login';
         }
       }

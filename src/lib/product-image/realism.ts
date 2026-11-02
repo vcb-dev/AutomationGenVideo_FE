@@ -33,6 +33,9 @@ const MAX_LIFT_STRETCH = 1.6;
 
 const ALPHA_SOLID = 128;
 
+/** Khoảng nhạt dần của dải tối dưới hàng đáy, theo kích thước thân. */
+const BELOW_BOTTOM_FADE = 0.03;
+
 /** Bóng lan rất hẹp sang hai bên đáy, chỉ đủ để mép đáy không cắt thẳng — rộng hơn là lòi ra ngoài túi. */
 const SIDE_SPREAD = 0.015;
 /** Ở mép đáy bóng lan còn bằng độ tối sát đáy × hệ số này. */
@@ -73,6 +76,19 @@ export function bottomEdges(rgba: ArrayLike<number>, width: number, height: numb
     }
   }
   return edges;
+}
+
+/** Không có khung thân: đáy là hàng thấp nhất đủ rộng, để vật mảnh thòng xuống không bị coi là đáy túi. */
+const SOLID_BOTTOM_MIN_WIDTH = 0.15;
+
+export function solidBottomRow(rgba: ArrayLike<number>, width: number, height: number): number | null {
+  const minimum = width * SOLID_BOTTOM_MIN_WIDTH;
+  for (let y = height - 1; y >= 0; y -= 1) {
+    let solid = 0;
+    for (let x = 0; x < width; x += 1) if (rgba[(y * width + x) * 4 + 3] >= ALPHA_SOLID) solid += 1;
+    if (solid >= minimum) return y;
+  }
+  return null;
 }
 
 /** Hàng đáy chạm mặt phẳng: đáy thân túi (`baseline`) nếu có, không thì hàng thấp nhất có điểm đặc. */
@@ -291,10 +307,13 @@ export function applySelfOcclusion(
   const size = reference ?? height;
   const band = size * 0.07 * heightFactor;
   const contactBand = size * 0.012;
-  for (let y = 0; y <= bottom; y += 1) {
+  const darkest = Math.max(0, (1 - 0.35 * strength) * (1 - 0.6 * strength));
+  // Dưới đáy (dây thòng, khung thân cao hơn đáy thật) nhạt dần để không thành đường kẻ ngang.
+  const belowFade = size * BELOW_BOTTOM_FADE;
+  for (let y = 0; y < height; y += 1) {
     const broad = 1 - 0.35 * strength * Math.min(1, Math.max(0, (y - (bottom - band)) / band));
     const contact = 1 - 0.6 * strength * Math.min(1, Math.max(0, (y - (bottom - contactBand)) / contactBand));
-    const k = Math.max(0, broad * contact);
+    const k = y <= bottom ? Math.max(0, broad * contact) : darkest + (1 - darkest) * Math.min(1, (y - bottom) / belowFade);
     if (k >= 1) continue;
     for (let x = 0; x < width; x += 1) {
       const i = (y * width + x) * 4;
@@ -670,6 +689,30 @@ export function chooseFalloff(
   return best;
 }
 
+/** Túi sáng ít màu nhuộm ấm mạnh sẽ đổi màu thật của túi. */
+const PALE_MIN_LIGHTNESS = 75;
+const PALE_MAX_CHROMA = 0.15;
+const PALE_MAX_WARMTH = 0.25;
+const PALE_SAMPLE_GRID = 60;
+
+export function isPaleProduct(rgba: ArrayLike<number>, width: number, height: number, body?: readonly number[] | null): boolean {
+  const [x0, y0, x1, y1] = body && body.length === 4 ? body : [0, 0, width, height];
+  const step = Math.max(1, Math.floor(Math.min(x1 - x0, y1 - y0) / PALE_SAMPLE_GRID));
+  const values: number[] = [];
+  let chroma = 0;
+  for (let y = Math.max(0, Math.floor(y0)); y < Math.min(height, Math.ceil(y1)); y += step) {
+    for (let x = Math.max(0, Math.floor(x0)); x < Math.min(width, Math.ceil(x1)); x += step) {
+      const i = (y * width + x) * 4;
+      if (rgba[i + 3] < ALPHA_SOLID) continue;
+      values.push(lightness(rgba[i], rgba[i + 1], rgba[i + 2]));
+      chroma += (Math.max(rgba[i], rgba[i + 1], rgba[i + 2]) - Math.min(rgba[i], rgba[i + 1], rgba[i + 2])) / 255;
+    }
+  }
+  if (!values.length) return false;
+  values.sort((a, b) => a - b);
+  return values[Math.floor(values.length / 2)] > PALE_MIN_LIGHTNESS && chroma / values.length < PALE_MAX_CHROMA;
+}
+
 /**
  * Kéo ánh sáng SP về ánh sáng cảnh (sửa tại chỗ, giữ alpha): nhuộm ấm → phân bố sáng kiểu studio. Không đụng độ nét
  * và tương phản của SP.
@@ -677,7 +720,7 @@ export function chooseFalloff(
 export function applyLook(
   rgba: Uint8ClampedArray, width: number, height: number, warmth: number, body?: readonly number[] | null,
 ) {
-  const w = Math.min(1, Math.max(0, warmth));
+  const w = Math.min(isPaleProduct(rgba, width, height, body) ? PALE_MAX_WARMTH : 1, Math.max(0, warmth));
   const gains = [1 + 0.06 * w, 1 - 0.01 * w, 1 - 0.14 * w];
 
   let top = -1;

@@ -8,6 +8,8 @@ import {
   fitProductImageFile,
   renamedForType,
   shrinkUntilFits,
+  CUTOUT_MAX_SIDE_PX,
+  cutoutTargetSize,
 } from '../shrink-image';
 import { PRODUCT_IMAGE_MAX_BYTES } from '../upload-validation';
 
@@ -76,5 +78,17 @@ describe('renamedForType', () => {
     expect(renamedForType('tui.webp', 'image/jpeg')).toBe('tui.jpg');
     expect(renamedForType('cat-nen.png', 'image/png')).toBe('cat-nen.png');
     expect(renamedForType('khong-duoi', 'image/jpeg')).toBe('khong-duoi.jpg');
+  });
+});
+
+describe('cutoutTargetSize', () => {
+  it('ảnh đã đủ nhỏ giữ nguyên', () => {
+    expect(cutoutTargetSize({ width: 1536, height: 1024 })).toBeNull();
+    expect(cutoutTargetSize({ width: CUTOUT_MAX_SIDE_PX, height: 100 })).toBeNull();
+  });
+
+  it('ảnh lớn thu về cạnh dài tối đa, giữ tỉ lệ, kể cả ảnh dọc', () => {
+    expect(cutoutTargetSize({ width: 3508, height: 4961 })).toEqual({ width: 1810, height: 2560 });
+    expect(cutoutTargetSize({ width: 6000, height: 4000 })).toEqual({ width: 2560, height: 1707 });
   });
 });

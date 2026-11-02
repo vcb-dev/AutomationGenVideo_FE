@@ -47,7 +47,11 @@ export function withBrightness<T extends { brightness: number | null; status: Ba
   items: readonly T[],
   value: number | null,
 ): T[] {
-  return items.map((item) => (item.brightness === value ? item : { ...requeueCutoutResults([item])[0], brightness: value }));
+  return items.map((item) => {
+    if (item.brightness === value) return item;
+    const failed = item.status === 'error' && item.result?.mode === 'cutout';
+    return { ...(failed ? { ...item, status: 'pending' as const } : requeueCutoutResults([item])[0]), brightness: value };
+  });
 }
 
 /** "tui_hermes-birkin 30.jpg" → "tui hermes birkin 30" — tên SP mặc định, người dùng sửa được. */

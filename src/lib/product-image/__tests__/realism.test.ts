@@ -21,6 +21,7 @@ import {
   unpremultiplyEdges,
   shadowProfileAt,
   shadowSizeReference,
+  solidBottomRow,
   FALLOFF_MAX,
   FALLOFF_MIN,
   REAL_TOP_LIGHT_DIFF,
@@ -28,6 +29,7 @@ import {
   SURFACE_POOL_MAX_DEPTH,
   chooseFalloff,
   footprint,
+  isPaleProduct,
   lightness,
   medianLightness,
   surfacePoolRadii,
@@ -221,7 +223,36 @@ describe('applySelfOcclusion', () => {
   });
 });
 
+describe('solidBottomRow', () => {
+  it('bỏ qua vật mảnh thòng xuống, lấy hàng thấp nhất đủ rộng', () => {
+    const data = makeImage(100, 200, (x, y) => y < 150 || (x >= 40 && x < 44));
+    expect(solidBottomRow(data, 100, 200)).toBe(149);
+    expect(solidBottomRow(new Uint8ClampedArray(100 * 200 * 4), 100, 200)).toBeNull();
+  });
+});
+
+describe('giữ màu túi sáng', () => {
+  it('túi trắng được nhận là túi sáng ít màu, túi màu và túi tối thì không', () => {
+    expect(isPaleProduct(makeImage(20, 20, () => true, [235, 235, 232]), 20, 20)).toBe(true);
+    expect(isPaleProduct(makeImage(20, 20, () => true, [220, 170, 120]), 20, 20)).toBe(false);
+    expect(isPaleProduct(makeImage(20, 20, () => true, [40, 40, 40]), 20, 20)).toBe(false);
+  });
+
+  it('nền ấm không nhuộm túi trắng thành kem', () => {
+    const data = makeImage(20, 40, () => true, [235, 235, 235]);
+    applyLook(data, 20, 40, 1);
+    expect(data[0] - data[2]).toBeLessThan(15);
+  });
+});
+
 describe('applySelfOcclusion theo thước đo thân', () => {
+  it('khung thân cao hơn đáy thật: không có bước nhảy thành đường kẻ ngang', () => {
+    const data = makeImage(4, 1000, () => true);
+    applySelfOcclusion(data, 4, 1000, 1, 1.8, 799);
+    const valueAt = (y: number) => data[(y * 4) * 4];
+    for (let y = 800; y < 900; y += 1) expect(Math.abs(valueAt(y) - valueAt(y - 1))).toBeLessThan(12);
+  });
+
   it('quai cao không làm dải tối ở đáy dày lên', () => {
     const width = 4;
     const height = 1000;
