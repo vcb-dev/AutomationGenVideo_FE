@@ -226,6 +226,8 @@ export function BatchGenerator() {
   const [brightnessError, setBrightnessError] = useState<string | null>(null);
   const brightnessModelRef = useRef<BrightnessModel | null>(null);
   const brightnessLoadRef = useRef<Promise<void> | null>(null);
+  /** Lần nạp model gần nhất hỏng: lượt ghép sau thử lại. */
+  const brightnessFailedRef = useRef(false);
   /** Số đo nền có sẵn: đo một lần, không đo lại mỗi lần ghép. */
   const backgroundCacheRef = useRef(new Map<string, MeasuredBackground>());
   /** Ảnh cần ghép lại ngay cả khi lô đang dừng. */
@@ -313,7 +315,7 @@ export function BatchGenerator() {
     const widthCm = value !== null && Number.isFinite(value) && value > 0 && value < 1000 ? value : null;
     const requeue = item.status === 'done' && item.result?.mode === 'cutout' && placementWidthCm(widthCm) !== placementWidthCm(item.widthCm);
     patchItem(item.id, requeue ? { widthCm, status: 'pending' } : { widthCm });
-    if (requeue) setAutoPaused(false);
+    if (requeue) rerunIdsRef.current.add(item.id);
   };
 
   /** Đang dừng thì chỉ ghép lại ảnh vừa đổi, không chạy tiếp cả lô. */
@@ -322,8 +324,11 @@ export function BatchGenerator() {
     setItems((prev) => prev.map((item) => (ids.includes(item.id) ? withBrightness([item], value)[0] : item)));
   };
 
-  const applyBrightnessToAll = (value: number) =>
-    changeBrightness(items.filter((item) => item.status === 'done' || item.status === 'error').map((item) => item.id), value);
+  /** Cả ảnh đang ghép và đang chờ; ảnh chưa chạy lần nào thì không kéo cả lô chạy khi đang dừng. */
+  const applyBrightnessToAll = (value: number) => {
+    items.forEach((item) => item.status !== 'pending' && rerunIdsRef.current.add(item.id));
+    setItems((prev) => withBrightness(prev, value));
+  };
 
   /** Đặt một cỡ (túi nhỏ/lớn) cho mọi ảnh chưa rõ cm — ảnh đã ghép thì ghép lại nếu cỡ khác cỡ tạm đang dùng. */
   const setUnknownSize = (size: BagSizeClass) => {
@@ -372,13 +377,16 @@ export function BatchGenerator() {
     const load = apiClient
       .get('/product-image/brightness-model', { timeout: BRIGHTNESS_MODEL_TIMEOUT_MS, ...BACKGROUND_REQUEST })
       .then(({ data }) => {
-        if (!isUsableBrightnessModel(data)) return;
+        if (!isUsableBrightnessModel(data)) throw new Error('Model độ sáng trả về sai dạng.');
+        brightnessFailedRef.current = false;
         brightnessModelRef.current = data;
         setBrightnessModel(data);
         setBrightnessError(null);
       })
       .catch((err: any) => {
+        brightnessFailedRef.current = true;
         if (err?.response?.status === 500) setBrightnessError(errorText(err, 'Chưa tải được model độ sáng.'));
+        else if (!brightnessModelRef.current) setBrightnessError('Chưa tải được model độ sáng nên ảnh để mức 0, lượt ghép sau sẽ thử lại.');
       });
     brightnessLoadRef.current = load;
     return load;
@@ -420,6 +428,7 @@ export function BatchGenerator() {
       const layout = scenePreset ?? UPLOADED_BACKGROUND_LAYOUT;
       const measured = (scenePreset && backgroundCacheRef.current.get(scenePreset.id)) || (await measureBackground(src));
       if (scenePreset) backgroundCacheRef.current.set(scenePreset.id, measured);
+      if (brightnessFailedRef.current) refreshBrightnessModel();
       // Chờ model trong thời gian ngắn cho lượt đầu, chậm hơn thì ghép luôn.
       await Promise.race([brightnessLoadRef.current, new Promise((resolve) => setTimeout(resolve, BRIGHTNESS_MODEL_WAIT_MS))]);
       return {
@@ -508,7 +517,7 @@ export function BatchGenerator() {
       scene: ctx.scene,
       brightness: item.brightness,
       model: ctx.backgroundId ? model : null,
-    }, target);
+    }, target, signal);
     const blob = await renderComposite(ctx.background, pixels, placement, layers);
     // Tiền là của lần tách nền (0đ) — ghép lại lên nền khác không tốn thêm.
     return {
@@ -608,14 +617,15 @@ export function BatchGenerator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items, mode, running, autoPaused, blockReason]);
 
-  const requestRun = async (ids: string[], replacing: boolean) => {
+  /** `keepPaused`: thử lại ảnh lỗi khi đang dừng thì chỉ chạy đúng các ảnh đó. */
+  const requestRun = async (ids: string[], replacing: boolean, keepPaused = false) => {
     if (!ids.length || running) return;
     if (blockReason) {
       toast.error(blockReason);
       return;
     }
     if (mode !== 'gemini') {
-      startRun(ids);
+      startRun(ids, keepPaused && autoPaused);
       return;
     }
     for (const id of ids) {
@@ -908,7 +918,7 @@ export function BatchGenerator() {
           {!running && errorIds.length > 0 && (
             <button
               type="button"
-              onClick={() => requestRun(errorIds, false)}
+              onClick={() => requestRun(errorIds, false, true)}
               disabled={!!blockReason || preparingConfirm}
               className="w-full px-5 py-2 rounded-xl font-semibold text-sm text-rose-700 border border-rose-200 hover:bg-rose-50 disabled:opacity-40 inline-flex items-center justify-center gap-2"
             >
@@ -1076,7 +1086,7 @@ export function BatchGenerator() {
               {(selected.status === 'error' || (selected.status === 'done' && mode === 'gemini')) && (
                 <button
                   type="button"
-                  onClick={() => requestRun([selected.id], selected.status === 'done')}
+                  onClick={() => requestRun([selected.id], selected.status === 'done', true)}
                   disabled={running || !!blockReason || preparingConfirm}
                   className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#e2e0ea] text-sm font-semibold text-[#464554] hover:border-[#4441cc] hover:text-[#4441cc] disabled:opacity-40"
                 >

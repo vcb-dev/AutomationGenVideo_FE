@@ -51,4 +51,12 @@ describe('buildRealismLayers', () => {
     expect(layers.shadowHeightRatio).toBeGreaterThan(1);
     expect(layers.foot?.bottom).toBeCloseTo(1, 1);
   });
+
+  it('khung thân cao hơn đáy thật không tạo dải tối giữa thân túi', () => {
+    const base = { width: 40, height: 200, data: new Uint8ClampedArray(40 * 200 * 4) };
+    for (let i = 0; i < base.data.length; i += 4) base.data.set([200, 200, 200, 255], i);
+    const layers = buildRealismLayers(base, { ...settings, body: [0, 0, 40, 160] }, { width: 40, height: 200 });
+    const column = Array.from({ length: 200 }, (_, y) => layers.product.data[(y * 40 + 20) * 4]);
+    for (let y = 1; y < 200; y += 1) expect(column[y]).toBeLessThanOrEqual(column[y - 1]);
+  });
 });

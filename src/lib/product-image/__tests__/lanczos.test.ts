@@ -41,4 +41,15 @@ describe('resizeLanczos', () => {
     const out = resizeLanczos(flat(6, 6, [9, 9, 9, 0]), 6, 6, 12, 12);
     expect(Math.max(...Array.from(out))).toBe(0);
   });
+
+  it('mép cứng: chỗ alpha vượt trần không làm màu sáng lên', () => {
+    const data = flat(12, 12, [0, 0, 0, 0]);
+    for (let y = 0; y < 12; y += 1) for (let x = 0; x < 6; x += 1) data.set([200, 100, 50, 255], (y * 12 + x) * 4);
+    const out = resizeLanczos(data, 12, 12, 30, 30);
+    for (let i = 0; i < out.length; i += 4) {
+      if (out[i + 3] < 128) continue;
+      expect(Math.abs(out[i] - 200)).toBeLessThanOrEqual(1);
+      expect(Math.abs(out[i + 1] - 100)).toBeLessThanOrEqual(1);
+    }
+  });
 });

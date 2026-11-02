@@ -3,6 +3,7 @@
  * vừa giới hạn tải lên của BE thay vì bị từ chối.
  */
 import {
+  shrinkForCutout,
   SHRINK_SCALES,
   SHRINK_TARGET_BYTES,
   fitProductImageFile,
@@ -90,5 +91,12 @@ describe('cutoutTargetSize', () => {
   it('ảnh lớn thu về cạnh dài tối đa, giữ tỉ lệ, kể cả ảnh dọc', () => {
     expect(cutoutTargetSize({ width: 3508, height: 4961 })).toEqual({ width: 1810, height: 2560 });
     expect(cutoutTargetSize({ width: 6000, height: 4000 })).toEqual({ width: 2560, height: 1707 });
+  });
+});
+
+describe('shrinkForCutout', () => {
+  it('WebP giữ nguyên file gốc để không mất nền trong suốt', async () => {
+    const file = new File([new Uint8Array(10)], 'tui.webp', { type: 'image/webp' });
+    await expect(shrinkForCutout(file)).resolves.toBe(file);
   });
 });

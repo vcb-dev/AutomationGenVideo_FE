@@ -689,13 +689,16 @@ export function chooseFalloff(
   return best;
 }
 
-/** Túi sáng ít màu nhuộm ấm mạnh sẽ đổi màu thật của túi. */
-const PALE_MIN_LIGHTNESS = 75;
-const PALE_MAX_CHROMA = 0.15;
+/** Túi sáng ít màu nhuộm ấm mạnh sẽ đổi màu thật của túi; giảm dần theo độ sáng và độ rực để không nhảy cứng. */
+const PALE_LIGHTNESS_RANGE = [60, 75];
+const PALE_CHROMA_RANGE = [0.15, 0.3];
 const PALE_MAX_WARMTH = 0.25;
 const PALE_SAMPLE_GRID = 60;
 
-export function isPaleProduct(rgba: ArrayLike<number>, width: number, height: number, body?: readonly number[] | null): boolean {
+const ramp = (value: number, [from, to]: number[]) => Math.min(1, Math.max(0, (value - from) / (to - from)));
+
+/** 0 = túi đậm hoặc rực màu, 1 = túi sáng gần như không màu. */
+export function productPaleness(rgba: ArrayLike<number>, width: number, height: number, body?: readonly number[] | null): number {
   const [x0, y0, x1, y1] = body && body.length === 4 ? body : [0, 0, width, height];
   const step = Math.max(1, Math.floor(Math.min(x1 - x0, y1 - y0) / PALE_SAMPLE_GRID));
   const values: number[] = [];
@@ -708,9 +711,9 @@ export function isPaleProduct(rgba: ArrayLike<number>, width: number, height: nu
       chroma += (Math.max(rgba[i], rgba[i + 1], rgba[i + 2]) - Math.min(rgba[i], rgba[i + 1], rgba[i + 2])) / 255;
     }
   }
-  if (!values.length) return false;
+  if (!values.length) return 0;
   values.sort((a, b) => a - b);
-  return values[Math.floor(values.length / 2)] > PALE_MIN_LIGHTNESS && chroma / values.length < PALE_MAX_CHROMA;
+  return ramp(values[Math.floor(values.length / 2)], PALE_LIGHTNESS_RANGE) * (1 - ramp(chroma / values.length, PALE_CHROMA_RANGE));
 }
 
 /**
@@ -720,7 +723,8 @@ export function isPaleProduct(rgba: ArrayLike<number>, width: number, height: nu
 export function applyLook(
   rgba: Uint8ClampedArray, width: number, height: number, warmth: number, body?: readonly number[] | null,
 ) {
-  const w = Math.min(isPaleProduct(rgba, width, height, body) ? PALE_MAX_WARMTH : 1, Math.max(0, warmth));
+  const limit = 1 - (1 - PALE_MAX_WARMTH) * productPaleness(rgba, width, height, body);
+  const w = Math.min(limit, Math.max(0, warmth));
   const gains = [1 + 0.06 * w, 1 - 0.01 * w, 1 - 0.14 * w];
 
   let top = -1;

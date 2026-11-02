@@ -30,21 +30,37 @@ export function ProductBrightnessSlider({
   onReset,
   onApplyAll,
 }: ProductBrightnessSliderProps) {
-  const [draft, setDraft] = useState(value);
+  const [draft, setDraftState] = useState(value);
+  const draftRef = useRef(value);
   const dragging = useRef(false);
   const keyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latest = useRef({ value, onCommit });
+  latest.current = { value, onCommit };
+
+  const setDraft = (next: number) => {
+    draftRef.current = next;
+    setDraftState(next);
+  };
+  const commit = (next: number) => {
+    if (next !== latest.current.value) latest.current.onCommit(next);
+  };
+  const cancelKey = () => {
+    if (keyTimer.current) clearTimeout(keyTimer.current);
+    keyTimer.current = null;
+  };
+  /** Còn thay đổi bàn phím chưa chốt thì chốt ngay (rời ô, đổi ảnh). */
+  const flushKey = () => {
+    if (!keyTimer.current) return;
+    cancelKey();
+    commit(draftRef.current);
+  };
 
   useEffect(() => {
     if (!dragging.current && !keyTimer.current) setDraft(value);
   }, [value]);
 
-  useEffect(() => () => {
-    if (keyTimer.current) clearTimeout(keyTimer.current);
-  }, []);
-
-  const commit = (next: number) => {
-    if (next !== value) onCommit(next);
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => flushKey, []);
   const endDrag = () => {
     dragging.current = false;
     commit(draft);
@@ -54,11 +70,8 @@ export function ProductBrightnessSlider({
     setDraft(value);
   };
   const commitKey = () => {
-    if (keyTimer.current) clearTimeout(keyTimer.current);
-    keyTimer.current = setTimeout(() => {
-      keyTimer.current = null;
-      commit(draft);
-    }, KEYBOARD_COMMIT_DELAY_MS);
+    cancelKey();
+    keyTimer.current = setTimeout(flushKey, KEYBOARD_COMMIT_DELAY_MS);
   };
 
   return (
@@ -83,6 +96,7 @@ export function ProductBrightnessSlider({
             onPointerUp={endDrag}
             onPointerCancel={cancelDrag}
             onKeyUp={commitKey}
+            onBlur={flushKey}
             className="min-w-0 flex-1 accent-[#4441cc]"
             aria-label="Độ sáng sản phẩm"
           />
@@ -90,7 +104,10 @@ export function ProductBrightnessSlider({
         </div>
         <button
           type="button"
-          onClick={onReset}
+          onClick={() => {
+            cancelKey();
+            onReset();
+          }}
           disabled={followingAi}
           title="Về độ sáng tự động"
           aria-label="Đặt lại độ sáng"
@@ -101,7 +118,10 @@ export function ProductBrightnessSlider({
         {canApplyAll && (
           <button
             type="button"
-            onClick={() => onApplyAll(draft)}
+            onClick={() => {
+              cancelKey();
+              onApplyAll(draftRef.current);
+            }}
             className="flex-none px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border border-[#d5d3e0] text-[#464554] hover:border-[#4441cc] hover:text-[#4441cc]"
           >
             Áp dụng cả lô

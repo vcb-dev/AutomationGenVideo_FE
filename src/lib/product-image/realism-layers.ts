@@ -95,7 +95,9 @@ export function buildRealismLayers(base: CutoutPixels, settings: RealismSettings
   const suggested = settings.model ? predictBrightness(settings.model, features) : null;
   const brightness = settings.brightness ?? suggested ?? 0;
   if (brightness) adjustProductBrightness(productData, brightness);
-  if (shadow) applySelfOcclusion(productData, width, height, shadowStrength, shadowHeight, baseline, reference);
+  // Khung thân có thể cao hơn đáy thật: tối đáy theo hàng đặc thấp hơn để không thành dải tối giữa thân.
+  const occlusionBottom = Math.max(baseline ?? -1, solidBottomRow(base.data, width, height) ?? -1);
+  if (shadow) applySelfOcclusion(productData, width, height, shadowStrength, shadowHeight, occlusionBottom, reference);
   const product = target.width === width && target.height === height
     ? { width, height, data: productData }
     : { ...target, data: resizeLanczos(productData, width, height, target.width, target.height) };

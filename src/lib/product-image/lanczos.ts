@@ -92,7 +92,7 @@ export function resizeLanczos(rgba: Uint8ClampedArray, width: number, height: nu
       }
       if (a <= 0) continue;
       const alpha = a > 255 ? 255 : a;
-      const scale = 255 / alpha;
+      const scale = 255 / a;
       const out = (y * toWidth + x) * 4;
       output[out] = r > 0 ? r * scale : 0;
       output[out + 1] = g > 0 ? g * scale : 0;

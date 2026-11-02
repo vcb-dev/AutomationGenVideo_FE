@@ -29,7 +29,7 @@ import {
   SURFACE_POOL_MAX_DEPTH,
   chooseFalloff,
   footprint,
-  isPaleProduct,
+  productPaleness,
   lightness,
   medianLightness,
   surfacePoolRadii,
@@ -232,10 +232,34 @@ describe('solidBottomRow', () => {
 });
 
 describe('giữ màu túi sáng', () => {
-  it('túi trắng được nhận là túi sáng ít màu, túi màu và túi tối thì không', () => {
-    expect(isPaleProduct(makeImage(20, 20, () => true, [235, 235, 232]), 20, 20)).toBe(true);
-    expect(isPaleProduct(makeImage(20, 20, () => true, [220, 170, 120]), 20, 20)).toBe(false);
-    expect(isPaleProduct(makeImage(20, 20, () => true, [40, 40, 40]), 20, 20)).toBe(false);
+  const paleness = (color: number[]) => productPaleness(makeImage(20, 20, () => true, color), 20, 20);
+
+  it('túi trắng là túi sáng ít màu, túi màu và túi tối thì không', () => {
+    expect(paleness([235, 235, 232])).toBe(1);
+    expect(paleness([220, 170, 120])).toBe(0);
+    expect(paleness([40, 40, 40])).toBe(0);
+  });
+
+  it('đổi màu một chút thì mức giữ màu chỉ đổi một chút, không nhảy cứng', () => {
+    const near = [paleness([238, 224, 201]), paleness([238, 222, 199])];
+    expect(near[0]).toBeGreaterThan(0.8);
+    expect(Math.abs(near[0] - near[1])).toBeLessThan(0.1);
+    expect(paleness([196, 216, 236])).toBeGreaterThan(0.6);
+    expect(paleness([175, 175, 175])).toBeGreaterThan(0.3);
+  });
+
+  it('túi kem, xanh nhạt, trắng ám ấm bị nhuộm ấm gần bằng túi trắng, không như túi màu', () => {
+    const warmShift = (color: number[]) => {
+      const [warm, plain] = [1, 0].map((warmth) => {
+        const data = makeImage(20, 40, () => true, color);
+        applyLook(data, 20, 40, warmth);
+        return data[0] - data[2];
+      });
+      return warm - plain;
+    };
+    const white = warmShift([235, 235, 235]);
+    for (const color of [[238, 222, 199], [196, 216, 236], [250, 232, 205]]) expect(warmShift(color)).toBeLessThan(white + 4);
+    expect(warmShift([150, 90, 60])).toBeGreaterThan(white + 4);
   });
 
   it('nền ấm không nhuộm túi trắng thành kem', () => {

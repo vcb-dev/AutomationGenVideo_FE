@@ -52,6 +52,8 @@ export function cutoutTargetSize(size: Size, maxSide = CUTOUT_MAX_SIDE_PX): Size
 
 /** Thu ảnh trên trình duyệt trước khi tách nền; không thu được thì gửi file gốc. */
 export async function shrinkForCutout(file: File): Promise<File> {
+  // WebP có thể trong suốt: xuất JPEG sẽ mất nền, xuất PNG thì nặng hơn file gốc.
+  if (file.type === 'image/webp') return file;
   let bitmap: ImageBitmap | null = null;
   const canvas = document.createElement('canvas');
   try {

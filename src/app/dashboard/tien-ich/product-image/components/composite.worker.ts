@@ -1,13 +1,5 @@
-import { buildRealismLayers, type CutoutPixels, type RealismLayers, type RealismSettings } from '@/lib/product-image/realism-layers';
-
-export interface CompositeJob {
-  id: number;
-  base: CutoutPixels;
-  settings: RealismSettings;
-  target: { width: number; height: number };
-}
-
-export type CompositeReply = { id: number; layers: RealismLayers } | { id: number; error: string };
+import type { CompositeJob, CompositeReply } from '@/lib/product-image/composite-pool';
+import { buildRealismLayers } from '@/lib/product-image/realism-layers';
 
 const scope = self as unknown as Worker;
 
