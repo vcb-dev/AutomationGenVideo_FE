@@ -32,7 +32,10 @@ import {
   medianLightness,
   surfacePoolRadii,
   surfacePoolStrength,
+  adjustProductBrightness,
   brightenProduct,
+  PRODUCT_BRIGHTNESS_MAX,
+  PRODUCT_BRIGHTNESS_MIN,
   PRODUCT_EXPOSURE,
   PRODUCT_EXPOSURE_MAX,
   PRODUCT_EXPOSURE_MIN,
@@ -458,6 +461,36 @@ describe('ánh sáng khớp ảnh chụp thật (đo 100 ảnh phòng media, 10/
     const data = makeImage(100, 100, (x, y) => x >= 20 && x < 80 && (x < 70 || y < 60));
     expect(footprint(data, 100, 100)).toEqual({ left: 20, right: 69, bottom: 99 });
     expect(footprint(new Uint8ClampedArray(10 * 10 * 4), 10, 10)).toBeNull();
+  });
+});
+
+describe('adjustProductBrightness', () => {
+  const pixel = (r: number, g: number, b: number, a = 255) => new Uint8ClampedArray([r, g, b, a]);
+
+  it('mức 0 giữ nguyên từng điểm ảnh', () => {
+    const data = pixel(120, 80, 40);
+    adjustProductBrightness(data, 0);
+    expect(Array.from(data)).toEqual([120, 80, 40, 255]);
+  });
+
+  it('kéo lên sáng hơn, kéo xuống tối hơn, kéo xa thì đổi nhiều hơn', () => {
+    const at = (value: number) => {
+      const data = pixel(120, 120, 120);
+      adjustProductBrightness(data, value);
+      return data[0];
+    };
+    expect(at(PRODUCT_BRIGHTNESS_MIN)).toBeLessThan(at(-10));
+    expect(at(-10)).toBeLessThan(120);
+    expect(at(10)).toBeGreaterThan(120);
+    expect(at(PRODUCT_BRIGHTNESS_MAX)).toBeGreaterThan(at(10));
+  });
+
+  it('túi trắng vẫn tối đi được, giữ alpha, bỏ qua điểm trong suốt', () => {
+    const data = new Uint8ClampedArray([250, 250, 250, 200, 90, 90, 90, 0]);
+    adjustProductBrightness(data, PRODUCT_BRIGHTNESS_MIN);
+    expect(data[0]).toBeLessThan(200);
+    expect(data[3]).toBe(200);
+    expect(Array.from(data.slice(4))).toEqual([90, 90, 90, 0]);
   });
 });
 

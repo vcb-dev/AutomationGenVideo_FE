@@ -2,6 +2,7 @@
 
 import { computeDrawRect, type Placement, type Size } from '@/lib/product-image/background-placement';
 import {
+  adjustProductBrightness,
   applyLook,
   applySelfOcclusion,
   brightenProduct,
@@ -38,6 +39,8 @@ export interface RealismSettings {
   body?: readonly number[] | null;
   /** Ánh sáng cảnh của ảnh nền — để SP sáng lên theo độ sáng cảnh. */
   scene?: SceneLight | null;
+  /** Độ sáng người dùng chỉnh thêm (PRODUCT_BRIGHTNESS_MIN..MAX), 0 = giữ nguyên. */
+  brightness?: number;
 }
 
 export interface CutoutPixels {
@@ -118,6 +121,7 @@ export function buildRealismCanvases(base: CutoutPixels, settings: RealismSettin
     // SP sáng lên theo độ sáng cảnh (cảnh sáng thì SP sáng theo) — chỗ sáng nhất không cháy.
     brightenProduct(productData, settings.scene ? productExposureFor(settings.scene.lightness) : undefined);
   }
+  if (settings.brightness) adjustProductBrightness(productData, settings.brightness);
   if (shadow) applySelfOcclusion(productData, width, height, shadowStrength, shadowHeight, baseline, reference);
   const product = canvasFrom(width, height, productData);
   const contact = shadow ? footprint(base.data, width, height, baseline) : null;

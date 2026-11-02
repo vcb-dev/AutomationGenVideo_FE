@@ -566,6 +566,15 @@ function linearToSrgb(c: number): number {
   return Math.round(Math.min(1, Math.max(0, v)) * 255);
 }
 
+function applyToneTable(rgba: Uint8ClampedArray, table: Uint8ClampedArray) {
+  for (let i = 0; i < rgba.length; i += 4) {
+    if (rgba[i + 3] === 0) continue;
+    rgba[i] = table[rgba[i]];
+    rgba[i + 1] = table[rgba[i + 1]];
+    rgba[i + 2] = table[rgba[i + 2]];
+  }
+}
+
 /** SP sáng lên `gain` lần (ánh sáng tuyến tính) có "vai" để chỗ gần trắng không cháy. Giữ alpha và tỉ lệ màu. */
 export function brightenProduct(rgba: Uint8ClampedArray, gain = PRODUCT_EXPOSURE) {
   if (gain <= 1) return;
@@ -574,12 +583,23 @@ export function brightenProduct(rgba: Uint8ClampedArray, gain = PRODUCT_EXPOSURE
     const y = srgbToLinear(v);
     table[v] = linearToSrgb((y * gain) / (1 + (gain - 1) * y));
   }
-  for (let i = 0; i < rgba.length; i += 4) {
-    if (rgba[i + 3] === 0) continue;
-    rgba[i] = table[rgba[i]];
-    rgba[i + 1] = table[rgba[i + 1]];
-    rgba[i + 2] = table[rgba[i + 2]];
+  applyToneTable(rgba, table);
+}
+
+/** Khoảng thanh kéo độ sáng SP; hai đầu là sáng gấp đôi / tối còn một nửa theo ánh sáng tuyến tính. */
+export const PRODUCT_BRIGHTNESS_MIN = -40;
+export const PRODUCT_BRIGHTNESS_MAX = 40;
+
+/** Chỉnh độ sáng SP theo thanh kéo, 0 = giữ nguyên. Làm tối nhân thẳng để túi trắng cũng tối đi được. */
+export function adjustProductBrightness(rgba: Uint8ClampedArray, value: number) {
+  const gain = 2 ** (value / PRODUCT_BRIGHTNESS_MAX);
+  if (gain >= 1) {
+    brightenProduct(rgba, gain);
+    return;
   }
+  const table = new Uint8ClampedArray(256);
+  for (let v = 0; v < 256; v += 1) table[v] = linearToSrgb(srgbToLinear(v) * gain);
+  applyToneTable(rgba, table);
 }
 
 /** Ngược của `lightness` cho xám: L* → độ chói tuyến tính Y (0–1). */

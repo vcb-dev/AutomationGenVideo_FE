@@ -47,6 +47,7 @@ import {
   SIZE_CM_RANGE,
   typicalWidthCm,
   widthCmFromName,
+  withBrightness,
   type BagSizeClass,
   runWithConcurrency,
   shouldAutoRun,
@@ -73,6 +74,7 @@ import { fitProductImageFile } from '@/lib/product-image/shrink-image';
 import { createZip } from '@/lib/product-image/zip';
 import { BackgroundPicker, UPLOADED_BACKGROUND } from './BackgroundPicker';
 import { ModeOption } from './ModeOption';
+import { ProductBrightnessSlider } from './ProductBrightnessSlider';
 import { analyzeBackgroundLight, averageColor, borderColor, buildRealismCanvases, readCutoutPixels, renderComposite } from './composite';
 import { downloadUrl, loadImage } from './download';
 
@@ -102,6 +104,8 @@ interface BatchItem {
   name: string;
   /** Bề ngang thân túi thật (cm) — tự đọc từ mã SP trong tên file (TX018-25 → 25), sửa được; null = chưa biết. */
   widthCm: number | null;
+  /** Độ sáng người dùng chỉnh cho riêng ảnh này (0 = theo tự động) — đổi là ghép lại từ ảnh đã tách. */
+  brightness: number;
   status: BatchItemStatus;
   error: string | null;
   /** Ảnh SP đã tách nền (blob:) — giữ lại để đổi nền thì ghép lại ngay, không tách nền lần nữa. */
@@ -232,6 +236,7 @@ export function BatchGenerator() {
         // Tên SP lấy theo tên file gốc (bản nén có thể đổi đuôi .png/.webp → .jpg).
         name: productNameFromFileName(original.name),
         widthCm: widthCmFromName(original.name),
+        brightness: 0,
         status: 'pending',
         error: null,
         cutoutSrc: null,
@@ -261,6 +266,16 @@ export function BatchGenerator() {
     const requeue = item.status === 'done' && item.result?.mode === 'cutout' && placementWidthCm(widthCm) !== placementWidthCm(item.widthCm);
     patchItem(item.id, requeue ? { widthCm, status: 'pending' } : { widthCm });
     if (requeue) setAutoPaused(false);
+  };
+
+  const changeBrightness = (id: string, value: number) => {
+    setItems((prev) => prev.map((item) => (item.id === id ? withBrightness([item], value)[0] : item)));
+    setAutoPaused(false);
+  };
+
+  const applyBrightnessToAll = (value: number) => {
+    setItems((prev) => withBrightness(prev, value));
+    setAutoPaused(false);
   };
 
   /** Đặt một cỡ (túi nhỏ/lớn) cho mọi ảnh chưa rõ cm — ảnh đã ghép thì ghép lại nếu cỡ khác cỡ tạm đang dùng. */
@@ -397,6 +412,7 @@ export function BatchGenerator() {
       warmth,
       body: cutoutBody,
       scene: ctx.scene,
+      brightness: item.brightness,
     });
     // Có khung thân túi thì đặt theo thân (biết cm thì đúng cỡ thật so với hộp, không thì mọi túi cùng cỡ; đáy thân đúng
     // mặt hộp); không thì theo cả SP.
@@ -894,6 +910,17 @@ export function BatchGenerator() {
             </div>
           )}
         </div>
+
+        {selected?.result?.mode === 'cutout' && (
+          <ProductBrightnessSlider
+            key={selected.id}
+            value={selected.brightness}
+            disabled={running}
+            canApplyAll={items.length > 1}
+            onCommit={(value) => changeBrightness(selected.id, value)}
+            onApplyAll={applyBrightnessToAll}
+          />
+        )}
 
         {selected && (
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">

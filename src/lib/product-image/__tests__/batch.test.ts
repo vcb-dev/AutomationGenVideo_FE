@@ -23,6 +23,7 @@ import {
   typicalWidthCm,
   uniqueFileNames,
   widthCmFromName,
+  withBrightness,
 } from '../batch';
 
 describe('productNameFromFileName', () => {
@@ -239,5 +240,22 @@ describe('BAG_SIZE_CLASSES — cỡ túi nhỏ/lớn cho ảnh không có mã SP
 
   it('ảnh chưa rõ cỡ tạm coi là túi nhỏ', () => {
     expect(FALLBACK_SIZE_CLASS.id).toBe('small');
+  });
+});
+
+describe('withBrightness', () => {
+  const cutout = { brightness: 0, status: 'done' as const, result: { mode: 'cutout' as const } };
+  const gemini = { brightness: 0, status: 'done' as const, result: { mode: 'gemini' as const } };
+
+  it('ảnh ghép nền đổi mức thì ghép lại', () => {
+    expect(withBrightness([cutout], 12)[0]).toMatchObject({ brightness: 12, status: 'pending' });
+  });
+
+  it('ảnh Gemini chỉ đổi số, không tạo lại', () => {
+    expect(withBrightness([gemini], 12)[0]).toMatchObject({ brightness: 12, status: 'done' });
+  });
+
+  it('mức không đổi thì giữ nguyên, không ghép lại', () => {
+    expect(withBrightness([cutout], 0)[0]).toBe(cutout);
   });
 });
