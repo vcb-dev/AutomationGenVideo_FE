@@ -91,6 +91,18 @@ export interface PublishedVideoFilterOptions {
   owners: PublishedVideoOwner[]
 }
 
+export interface ViewTotals {
+  videos: number
+  views: number
+}
+
+export interface ContentLineViews {
+  page_count: number
+  lines: (ViewTotals & { line: string })[]
+  untagged: ViewTotals
+  total: ViewTotals
+}
+
 /** Lượt bấm "Cập nhật" ở tab Video đã đăng — chạy nền ở BE, FE hỏi tiến độ theo id. */
 export interface PublishedVideoRefreshJob {
   id: string

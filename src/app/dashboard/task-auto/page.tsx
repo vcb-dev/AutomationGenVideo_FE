@@ -15,6 +15,7 @@ import { ContentCreatorDashboard } from './components/ContentCreatorDashboard'
 import { ContentTeamLeaderDashboard } from './components/ContentTeamLeaderDashboard'
 import { ContentWinFailSection } from './components/ContentWinFailSection'
 import { TrafficTrendCard } from './components/TrafficTrendCard'
+import { ContentLineViewsCard } from './components/ContentLineViewsCard'
 import { SectionHeader, SegmentedControl } from './components/DashboardUI'
 
 // ── Date filter ───────────────────────────────────────────────────────────────
@@ -439,6 +440,18 @@ export default function TaskAutoDashboard() {
             : data.scope === 'team'   ? <TeamDashboard d={data} productStats={productStats} trafficCard={trafficCard} />
             : <PersonalDashboard d={data} productStats={productStats} trafficCard={trafficCard} />}
         </div>
+      )}
+
+      {!loading && data && !isContentLeader && !isContentMember && (
+        <section aria-label="Lượt xem theo tuyến nội dung" className="pt-2">
+          <SectionHeader title="Lượt xem video" description={`${scopeLabel} · tự tính từ video Facebook cào về`} />
+          <ContentLineViewsCard
+            from={from}
+            to={to}
+            teamId={data.scope === 'global' ? teamFilter || undefined : undefined}
+            ownerId={data.scope === 'personal' ? undefined : memberFilter || undefined}
+          />
+        </section>
       )}
 
       {/* Content Win/Fail — chỉ số MỚI, tự tính từ view link bài đăng (1 link bất kỳ >10.000 view = win), tách biệt các số KPI nhập tay ở trên */}
