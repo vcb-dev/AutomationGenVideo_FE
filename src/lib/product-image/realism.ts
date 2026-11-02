@@ -1,11 +1,11 @@
 /**
- * Ghép background giống ảnh chụp thật: bóng dưới chân, ánh sáng khớp nền, dịu vân quá sắc. Tính trên mảng RGBA để
+ * Ghép background giống ảnh chụp thật: bóng dưới chân, ánh sáng khớp nền. Tính trên mảng RGBA để
  * test được không cần canvas. Số đo bóng hiệu chỉnh theo ảnh chụp thật của media.
  */
 
 // ─── Tham số đã chốt ───────────────────────────────────────────────────────
 
-export const DEFAULT_SHADOW_STRENGTH = 1;
+export const DEFAULT_SHADOW_STRENGTH = 0.7;
 export const DEFAULT_SHADOW_HEIGHT = 1.8;
 
 /** (khoảng cách px dưới đáy khi sản phẩm cao 1267px, độ sáng còn lại của mặt phẳng). */
@@ -33,10 +33,14 @@ const MAX_LIFT_STRETCH = 1.6;
 
 const ALPHA_SOLID = 128;
 
-/** Bóng lan sang hai bên đáy, nhạt dần theo khoảng cách tới mép — ảnh thật có bóng rộng hơn đáy một chút. */
-const SIDE_SPREAD = 0.09;
+/** Bóng lan rất hẹp sang hai bên đáy, chỉ đủ để mép đáy không cắt thẳng — rộng hơn là lòi ra ngoài túi. */
+const SIDE_SPREAD = 0.015;
 /** Ở mép đáy bóng lan còn bằng độ tối sát đáy × hệ số này. */
-const SIDE_STRENGTH = 0.7;
+const SIDE_STRENGTH = 0.3;
+/** Độ mềm theo chiều dọc của bóng sát đáy (px khi SP cao 1267px) — vệt đen chạm mặt phẳng không thành đường cứng. */
+const CONTACT_SOFTNESS = 3;
+/** Độ mềm theo chiều dọc của bóng lan (px khi SP cao 1267px) — không có thì lộ một vệt ngang cứng hai bên chân. */
+const SIDE_SOFTNESS = 8;
 
 // ─── Bóng dưới chân ────────────────────────────────────────────────────────
 
@@ -144,12 +148,12 @@ function blurAxis(values: Float32Array, width: number, height: number, sigma: nu
   if (src !== values) values.set(src);
 }
 
-/** Làm mờ theo chiều NGANG từng hàng (tại chỗ). Không làm mờ dọc — sẽ xoá mất vệt đen sát đáy. */
+/** Làm mờ theo chiều NGANG từng hàng (tại chỗ). */
 function blurRows(values: Float32Array, width: number, height: number, sigma: number) {
   blurAxis(values, width, height, sigma, 'rows');
 }
 
-/** Làm mờ theo chiều DỌC từng cột (tại chỗ) — chỉ dùng cho bóng của phần nhấc lên. */
+/** Làm mờ theo chiều DỌC từng cột (tại chỗ). */
 function blurColumns(values: Float32Array, width: number, height: number, sigma: number) {
   blurAxis(values, width, height, sigma, 'columns');
 }
@@ -165,6 +169,7 @@ export function buildShadowLayer(
   strength = DEFAULT_SHADOW_STRENGTH,
   heightFactor = DEFAULT_SHADOW_HEIGHT,
   baseline?: number | null,
+  reference?: number | null,
 ): ShadowLayer {
   // Lớp bóng rộng hơn ảnh SP mỗi bên padX để bóng lan ra ngoài mép đáy không bị cắt thẳng.
   const padX = Math.ceil(productWidth * (SIDE_SPREAD * 2 + 0.02)) + 2;
@@ -188,7 +193,8 @@ export function buildShadowLayer(
   // Cột thấp hơn hàng đáy (dây/khoá thòng xuống) có bóng sát mép dưới của chính nó như phần chạm mặt phẳng.
   const bottom = contactRow(lowest, baseline);
 
-  const scale = shadowSizeReference(productWidth, height) / REAL_PROFILE_PRODUCT_HEIGHT;
+  const size = reference ?? shadowSizeReference(productWidth, height);
+  const scale = size / REAL_PROFILE_PRODUCT_HEIGHT;
   const lastDistance = REAL_SHADOW_PROFILE[REAL_SHADOW_PROFILE.length - 1][0];
   const columns: { x: number; b: number; fade: number; stretch: number; reach: number; isLifted: boolean }[] = [];
   let layerHeight = height;
@@ -230,6 +236,7 @@ export function buildShadowLayer(
     }
   }
   blurRows(contact, width, layerHeight, Math.max(1, productWidth * 0.004));
+  blurColumns(contact, width, layerHeight, Math.max(1, CONTACT_SOFTNESS * scale));
   if (hasLifted) {
     blurRows(lifted, width, layerHeight, Math.max(2, productWidth * 0.02));
     blurColumns(lifted, width, layerHeight, Math.max(1, height * 0.01));
@@ -238,12 +245,11 @@ export function buildShadowLayer(
   for (let i = 0; i < factor.length; i += 1) factor[i] = Math.min(contact[i], lifted[i]);
   // Bóng lan ra ngoài hai mép đáy; lấy min để dưới đáy vẫn đúng số đo ảnh thật.
   if (footLeft >= 0) {
-    const spread = Math.max(2, footWidth * SIDE_SPREAD);
+    const spread = Math.max(2, Math.min(footWidth, size) * SIDE_SPREAD);
     const stretch = heightFactor;
     const reach = Math.ceil(lastDistance * scale * stretch) + 2;
     layerHeight = Math.max(layerHeight, bottom + 1 + reach);
-    const grown = new Float32Array(width * layerHeight).fill(1);
-    grown.set(factor.subarray(0, Math.min(factor.length, grown.length)));
+    const sides = new Float32Array(width * layerHeight).fill(1);
     for (let x = Math.max(0, Math.floor(footLeft - spread * 2)); x < Math.min(width, Math.ceil(footRight + spread * 2)); x += 1) {
       const gap = x < footLeft ? footLeft - x : x > footRight ? x - footRight : 0;
       if (gap === 0) continue;
@@ -251,13 +257,14 @@ export function buildShadowLayer(
       for (let d = -1; d < reach; d += 1) {
         const index = (bottom + 1 + d) * width + x;
         const value = 1 - strength * side * (1 - shadowProfileAt(Math.max(0, d) / stretch, scale));
-        if (value < grown[index]) grown[index] = value;
+        if (value < sides[index]) sides[index] = value;
       }
     }
-    blurRows(grown, width, layerHeight, Math.max(1, productWidth * 0.004));
-    for (let i = 0; i < Math.min(factor.length, grown.length); i += 1) grown[i] = Math.min(grown[i], factor[i]);
+    blurRows(sides, width, layerHeight, Math.max(1, productWidth * 0.004));
+    blurColumns(sides, width, layerHeight, Math.max(1, SIDE_SOFTNESS * scale));
+    for (let i = 0; i < factor.length; i += 1) sides[i] = Math.min(sides[i], factor[i]);
     const alpha = new Uint8ClampedArray(width * layerHeight);
-    for (let i = 0; i < grown.length; i += 1) alpha[i] = Math.round((1 - Math.max(0, Math.min(1, grown[i]))) * 255);
+    for (let i = 0; i < sides.length; i += 1) alpha[i] = Math.round((1 - Math.max(0, Math.min(1, sides[i]))) * 255);
     return { width, padX, height: layerHeight, alpha };
   }
 
@@ -274,14 +281,16 @@ export function applySelfOcclusion(
   strength = DEFAULT_SHADOW_STRENGTH,
   heightFactor = DEFAULT_SHADOW_HEIGHT,
   baseline?: number | null,
+  reference?: number | null,
 ) {
   const edges = bottomEdges(rgba, width, height);
   let lowest = -1;
   for (let x = 0; x < width; x += 1) lowest = Math.max(lowest, edges[x]);
   if (lowest < 0 || strength <= 0) return;
   const bottom = contactRow(lowest, baseline);
-  const band = height * 0.07 * heightFactor;
-  const contactBand = height * 0.012;
+  const size = reference ?? height;
+  const band = size * 0.07 * heightFactor;
+  const contactBand = size * 0.012;
   for (let y = 0; y <= bottom; y += 1) {
     const broad = 1 - 0.35 * strength * Math.min(1, Math.max(0, (y - (bottom - band)) / band));
     const contact = 1 - 0.6 * strength * Math.min(1, Math.max(0, (y - (bottom - contactBand)) / contactBand));
@@ -449,7 +458,9 @@ export const FALLOFF_MAX = 0.42;
 /** Ảnh thật: mặt đặt dưới chân sáng hơn vùng quanh túi chừng này (trung vị L*). */
 export const REAL_SURFACE_ABOVE_SURROUND = 2.6;
 /** Vùng tối loang dưới chân đậm nhất bấy nhiêu ở giữa — đậm hơn thì thành vệt đen rõ, nhìn giả. */
-export const SURFACE_POOL_MAX = 0.35;
+export const SURFACE_POOL_MAX = 0.22;
+/** Vùng tối loang dày tối đa bấy nhiêu lần kích thước thân — túi rộng không thành mảng tối dày hơn túi hẹp. */
+export const SURFACE_POOL_MAX_DEPTH = 0.07;
 
 function srgbToLinear(v: number): number {
   const c = v / 255;
@@ -602,6 +613,11 @@ export function surfacePoolStrength(surfaceL: number | null, surroundL: number |
   return Math.min(SURFACE_POOL_MAX, 1 - luminanceOf(target) / luminanceOf(surfaceL));
 }
 
+/** Bán kính elip vùng tối loang: không rộng hơn chân, độ dày giới hạn theo kích thước thân `size`. */
+export function surfacePoolRadii(footWidth: number, size: number): { radiusX: number; radiusY: number } {
+  return { radiusX: footWidth * 0.5, radiusY: Math.max(4, Math.min(footWidth * 0.14, size * SURFACE_POOL_MAX_DEPTH)) };
+}
+
 /** Độ tối dần từ đỉnh xuống đáy để phần trên SP sáng hơn phần dưới như ảnh thật. */
 export function chooseFalloff(
   rgba: ArrayLike<number>, width: number, height: number, top: number, bottom: number, gains: readonly number[],
@@ -634,64 +650,12 @@ export function chooseFalloff(
   return best;
 }
 
-/** PRNG có seed — hạt nhiễu giống hệt nhau giữa xem trước và ảnh xuất, test lặp lại được. */
-function mulberry32(seed: number) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-/** Làm mờ Gaussian 2 chiều cho 3 kênh màu (ảnh sản phẩm nhỏ, chạy một lần mỗi khi đổi tham số). */
-function blurRgb(src: Float32Array, width: number, height: number, sigma: number): Float32Array {
-  const radius = Math.max(1, Math.ceil(sigma * 3));
-  const kernel: number[] = [];
-  let sum = 0;
-  for (let i = -radius; i <= radius; i += 1) {
-    const v = Math.exp(-(i * i) / (2 * sigma * sigma));
-    kernel.push(v);
-    sum += v;
-  }
-  const k = kernel.map((v) => v / sum);
-  const tmp = new Float32Array(src.length);
-  const out = new Float32Array(src.length);
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      for (let c = 0; c < 3; c += 1) {
-        let acc = 0;
-        for (let j = -radius; j <= radius; j += 1) {
-          const xx = Math.min(width - 1, Math.max(0, x + j));
-          acc += src[(y * width + xx) * 3 + c] * k[j + radius];
-        }
-        tmp[(y * width + x) * 3 + c] = acc;
-      }
-    }
-  }
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      for (let c = 0; c < 3; c += 1) {
-        let acc = 0;
-        for (let j = -radius; j <= radius; j += 1) {
-          const yy = Math.min(height - 1, Math.max(0, y + j));
-          acc += tmp[(yy * width + x) * 3 + c] * k[j + radius];
-        }
-        out[(y * width + x) * 3 + c] = acc;
-      }
-    }
-  }
-  return out;
-}
-
 /**
- * Kéo ánh sáng SP về ánh sáng cảnh (sửa tại chỗ, giữ alpha): nhuộm ấm → phân bố sáng kiểu studio → giảm tương phản
- * → dịu vân quá sắc → hạt nhiễu nhẹ.
+ * Kéo ánh sáng SP về ánh sáng cảnh (sửa tại chỗ, giữ alpha): nhuộm ấm → phân bố sáng kiểu studio. Không đụng độ nét
+ * và tương phản của SP.
  */
 export function applyLook(
-  rgba: Uint8ClampedArray, width: number, height: number, warmth: number, seed = 1, body?: readonly number[] | null,
+  rgba: Uint8ClampedArray, width: number, height: number, warmth: number, body?: readonly number[] | null,
 ) {
   const w = Math.min(1, Math.max(0, warmth));
   const gains = [1 + 0.06 * w, 1 - 0.01 * w, 1 - 0.14 * w];
@@ -709,36 +673,10 @@ export function applyLook(
   const studio = body ? studioRowFactors(rgba, width, height, body, gains) : null;
   const range = studio ? 0 : chooseFalloff(rgba, width, height, top, bottom, gains);
 
-  const rgb = new Float32Array(width * height * 3);
-  const mean = [0, 0, 0];
-  let weight = 0;
   for (let y = 0; y < height; y += 1) {
     const falloff = studio ? studio[y] : 1.04 - range * Math.min(1, Math.max(0, (y - top) / span));
-    for (let x = 0; x < width; x += 1) {
-      const i = y * width + x;
-      const a = rgba[i * 4 + 3] / 255;
-      for (let c = 0; c < 3; c += 1) {
-        const v = (rgba[i * 4 + c] / 255) * gains[c] * falloff;
-        rgb[i * 3 + c] = v;
-        mean[c] += v * a;
-      }
-      weight += a;
-    }
-  }
-  if (weight <= 0) return;
-  for (let c = 0; c < 3; c += 1) mean[c] /= weight;
-  for (let i = 0; i < width * height; i += 1) {
-    for (let c = 0; c < 3; c += 1) rgb[i * 3 + c] = mean[c] + (rgb[i * 3 + c] - mean[c]) * 0.9;
-  }
-
-  const soft = blurRgb(rgb, width, height, 0.9);
-  const random = mulberry32(seed);
-  for (let i = 0; i < width * height; i += 1) {
-    // Tổng 3 số ngẫu nhiên đều ≈ phân phối chuẩn; lệch chuẩn ~0,012 (≈3/255) như bản đã duyệt.
-    const noise = (random() + random() + random() - 1.5) * 0.024;
-    for (let c = 0; c < 3; c += 1) {
-      const v = rgb[i * 3 + c] * 0.5 + soft[i * 3 + c] * 0.5 + noise;
-      rgba[i * 4 + c] = Math.round(Math.min(1, Math.max(0, v)) * 255);
+    for (let i = y * width * 4; i < (y + 1) * width * 4; i += 4) {
+      for (let c = 0; c < 3; c += 1) rgba[i + c] *= gains[c] * falloff;
     }
   }
 }

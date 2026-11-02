@@ -387,7 +387,7 @@ export function BatchGenerator() {
     const warmth = addedWarmth(ctx.warmth, sourceWarmth);
     // Chụp dưới cùng kiểu đèn với nền → giữ ánh sáng gốc của SP (sameLightAsScene), chỉ thêm bóng.
     const keepOriginalLight = sameLightAsScene(ctx.warmth, sourceWarmth);
-    // "Cho giống ảnh chụp thật" theo mặc định người dùng chốt (bóng đậm 100%, cao 1,8×), ánh ấm theo màu nền;
+    // "Cho giống ảnh chụp thật" theo mặc định người dùng chốt (bóng đậm 70%, cao 1,8×), ánh ấm theo màu nền;
     // phân bố sáng trên thân theo kiểu đèn studio (đèn chính diện, cao), độ sáng SP theo độ sáng cảnh.
     const layers = buildRealismCanvases(pixels, {
       shadow: true,

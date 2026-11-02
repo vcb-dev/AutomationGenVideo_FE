@@ -1,6 +1,6 @@
 /**
  * Chức năng: Tạo ảnh sản phẩm — "Ghép background" giống ảnh chụp thật: bóng dưới chân theo đường
- * cong đo từ ảnh chụp thật (độ đậm 100%, cao 1,8 lần là mặc định người dùng chốt), ánh sáng khớp
+ * cong đo từ ảnh chụp thật (độ đậm 70%, cao 1,8 lần là mặc định người dùng chốt), ánh sáng khớp
  * với nền, đáy sản phẩm tối lại sát mặt phẳng.
  */
 import {
@@ -25,10 +25,12 @@ import {
   FALLOFF_MIN,
   REAL_TOP_LIGHT_DIFF,
   SURFACE_POOL_MAX,
+  SURFACE_POOL_MAX_DEPTH,
   chooseFalloff,
   footprint,
   lightness,
   medianLightness,
+  surfacePoolRadii,
   surfacePoolStrength,
   brightenProduct,
   PRODUCT_EXPOSURE,
@@ -60,8 +62,8 @@ const brightnessAt = (layer: ReturnType<typeof buildShadowLayer>, x: number, y: 
   1 - layer.alpha[y * layer.width + x + layer.padX] / 255;
 
 describe('mặc định đã chốt', () => {
-  it('độ đậm 100% (đúng ảnh thật), độ cao 1,8 lần', () => {
-    expect(DEFAULT_SHADOW_STRENGTH).toBe(1);
+  it('độ đậm 70%, độ cao 1,8 lần', () => {
+    expect(DEFAULT_SHADOW_STRENGTH).toBe(0.7);
     expect(DEFAULT_SHADOW_HEIGHT).toBe(1.8);
   });
 });
@@ -79,10 +81,12 @@ describe('buildShadowLayer — hiệu chỉnh theo ảnh chụp thật', () => {
   const height = 1267;
   const product = makeImage(width, height, () => true);
 
-  it('độ đậm 1, độ cao 1: độ sáng dưới đáy khớp đúng số đo ảnh thật ở mọi khoảng cách', () => {
+  it('độ đậm 1, độ cao 1: cách đáy từ 12px độ sáng khớp số đo ảnh thật, sát đáy mềm hơn một chút', () => {
     const layer = buildShadowLayer(product, width, height, 1, 1);
+    expect(brightnessAt(layer, width / 2, height + 2)).toBeGreaterThan(shadowProfileAt(2, 1));
+    expect(brightnessAt(layer, width / 2, height + 2)).toBeLessThan(0.45);
     for (const [d, level] of REAL_SHADOW_PROFILE) {
-      if (d >= 48) continue;
+      if (d < 12 || d >= 48) continue;
       expect(brightnessAt(layer, width / 2, height + d)).toBeCloseTo(level, 1);
     }
   });
@@ -111,7 +115,7 @@ describe('buildShadowLayer — hình dáng', () => {
     const height = 260;
     const product = makeImage(width, height, (x, y) => y < 200 || (x >= 30 && x < 70));
     const layer = buildShadowLayer(product, width, height, 1, 1.8);
-    expect(brightnessAt(layer, 50, 260)).toBeLessThan(0.2); // sát chân: gần như đen như ảnh thật (0,15)
+    expect(brightnessAt(layer, 50, 260)).toBeLessThan(0.25); // sát chân vẫn tối ở độ đậm 1
     expect(brightnessAt(layer, 5, 201)).toBeGreaterThan(0.9); // dưới hông nhấc 60px: gần như sáng nguyên
   });
 
@@ -131,14 +135,15 @@ describe('buildShadowLayer — hình dáng', () => {
     expect(reachOf(1, 400)).toBeLessThanOrEqual(reachOf(100, 400) * 1.6 + 2);
   });
 
-  it('bóng lan sang hai bên đáy: mặt sàn sát mép đáy tối lại, xa mép thì hết, dưới đáy giữ số đo ảnh thật', () => {
+  it('bóng lan hai bên rất hẹp: chỉ làm mềm mép đáy, không lòi ra ngoài túi, dưới đáy giữ số đo ảnh thật', () => {
     // Thân 200x400 đứng giữa ảnh rộng 400 (cột 100..299 đặc).
     const product = makeImage(400, 400, (x) => x >= 100 && x < 300);
     const layer = buildShadowLayer(product, 400, 400, 1, 1.8);
-    expect(brightnessAt(layer, 94, 404)).toBeLessThan(0.9);         // ngay ngoài mép trái, sát sàn
-    expect(brightnessAt(layer, 305, 404)).toBeLessThan(0.9);        // ngay ngoài mép phải
-    expect(brightnessAt(layer, 40, 404)).toBeGreaterThan(0.99);     // xa mép: không còn bóng
-    expect(brightnessAt(layer, 94, 404)).toBeGreaterThan(brightnessAt(layer, 200, 404)); // vẫn nhạt hơn dưới đáy
+    expect(brightnessAt(layer, 99, 402)).toBeLessThan(0.99);        // sát mép trái vẫn có chút bóng, không cắt thẳng
+    expect(brightnessAt(layer, 300, 402)).toBeLessThan(0.99);       // sát mép phải
+    expect(brightnessAt(layer, 94, 402)).toBeGreaterThan(0.94);     // ngoài 3% rộng thân: gần như không còn bóng
+    expect(brightnessAt(layer, 305, 402)).toBeGreaterThan(0.94);
+    expect(brightnessAt(layer, 99, 402)).toBeGreaterThan(brightnessAt(layer, 200, 402)); // nhạt hơn dưới đáy
   });
 
   it('dây/khoá thòng thấp hơn thân: lấy đáy THÂN làm chỗ chạm mặt phẳng — thân vẫn có bóng sát đáy đậm (soát 15/10)', () => {
@@ -150,6 +155,29 @@ describe('buildShadowLayer — hình dáng', () => {
     expect(brightnessAt(byBody, 220, 301)).toBeLessThan(0.3);        // đáy thân sát mặt phẳng gần đen như ảnh thật
     expect(brightnessAt(byBody, 121, 401)).toBeLessThan(0.5);        // dây cũng có bóng sát mép dưới của nó
     expect(footprint(product, 400, 400, 299)).toEqual({ left: 100, right: 299, bottom: 299 });
+  });
+
+  it('bóng lan hai bên không có vệt ngang cứng: nhạt dần lên trên hàng đáy', () => {
+    const product = makeImage(400, 400, (x) => x >= 100 && x < 300);
+    const layer = buildShadowLayer(product, 400, 400, 1, 1.8);
+    const steps = Array.from({ length: 8 }, (_, i) => brightnessAt(layer, 98, 392 + i));
+    steps.forEach((value, i) => { if (i > 0) expect(steps[i - 1] - value).toBeLessThan(0.12); });
+    expect(steps[0]).toBeGreaterThan(steps[7]);
+  });
+
+  it('truyền thước đo thân: quai cao không làm bóng dài ra, dây lan rộng không làm bóng lan xa', () => {
+    // Thân 200x100 ở đáy + quai cao 300px phía trên: cùng thân thì cùng bóng, dù ảnh tách nền cao gấp 4.
+    const withHandle = makeImage(400, 400, (x, y) => (x >= 100 && x < 300 && y >= 300) || (x >= 190 && x < 210));
+    const reach = (layer: ReturnType<typeof buildShadowLayer>) => {
+      let d = 0;
+      while (brightnessAt(layer, 200, 400 + d) < 0.99) d += 1;
+      return d;
+    };
+    const byImage = buildShadowLayer(withHandle, 400, 400, 1, 1.8);
+    const byBody = buildShadowLayer(withHandle, 400, 400, 1, 1.8, null, shadowSizeReference(200, 100));
+    expect(reach(byBody)).toBeLessThan(reach(byImage) / 2);
+    expect(brightnessAt(byBody, 96, 402)).toBeGreaterThan(brightnessAt(byImage, 96, 402) - 0.001);
+    expect(brightnessAt(byBody, 200, 400)).toBeLessThan(0.45);
   });
 
   it('không có điểm đặc nào hoặc độ đậm 0 → lớp bóng trống', () => {
@@ -187,6 +215,18 @@ describe('applySelfOcclusion', () => {
     const valueAt = (y: number) => data[(y * width) * 4];
     expect(valueAt(799)).toBeLessThan(200 * 0.3);
     expect(valueAt(900)).toBe(200);
+  });
+});
+
+describe('applySelfOcclusion theo thước đo thân', () => {
+  it('quai cao không làm dải tối ở đáy dày lên', () => {
+    const width = 4;
+    const height = 1000;
+    const data = makeImage(width, height, () => true);
+    applySelfOcclusion(data, width, height, 1, 1.8, null, 300);
+    const valueAt = (y: number) => data[(y * width) * 4];
+    expect(valueAt(900)).toBe(200);
+    expect(valueAt(980)).toBeLessThan(200);
   });
 });
 
@@ -335,7 +375,7 @@ describe('applyLook', () => {
     const height = 40;
     const data = makeImage(width, height, (x) => x >= 2 && x < 18, [150, 150, 150]);
     const alphaBefore = Array.from(data.filter((_, i) => i % 4 === 3));
-    applyLook(data, width, height, 1, 7);
+    applyLook(data, width, height, 1);
     expect(Array.from(data.filter((_, i) => i % 4 === 3))).toEqual(alphaBefore);
     const at = (x: number, y: number, c: number) => data[(y * width + x) * 4 + c];
     expect(at(10, 5, 0)).toBeGreaterThan(at(10, 5, 2));
@@ -343,12 +383,19 @@ describe('applyLook', () => {
     expect(lum(35)).toBeLessThan(lum(5));
   });
 
-  it('cùng seed → cùng kết quả (xem trước và ảnh xuất giống hệt nhau)', () => {
-    const a = makeImage(12, 12, () => true, [120, 90, 80]);
-    const b = makeImage(12, 12, () => true, [120, 90, 80]);
-    applyLook(a, 12, 12, 0.5, 42);
-    applyLook(b, 12, 12, 0.5, 42);
-    expect(Array.from(a)).toEqual(Array.from(b));
+  it('giữ nguyên độ nét: vân ô cờ 1px không bị làm mờ, mặt phẳng đều không có hạt nhiễu', () => {
+    const size = 40;
+    const data = makeImage(size, size, () => true);
+    for (let y = 0; y < 20; y += 1) {
+      for (let x = 0; x < size; x += 1) {
+        const value = (x + y) % 2 ? 40 : 220;
+        data.set([value, value, value, 255], (y * size + x) * 4);
+      }
+    }
+    applyLook(data, size, size, 0);
+    const at = (x: number, y: number) => data[(y * size + x) * 4];
+    expect(at(21, 10) - at(20, 10)).toBeLessThan(-140);
+    expect(new Set(Array.from({ length: size }, (_, x) => at(x, 30))).size).toBe(1);
   });
 
   it('ảnh trong suốt hoàn toàn → không đổi gì', () => {
@@ -378,6 +425,12 @@ describe('ánh sáng khớp ảnh chụp thật (đo 100 ảnh phòng media, 10/
     expect(mild).toBeLessThan(SURFACE_POOL_MAX);
     expect(surfacePoolStrength(21, 19.3)).toBe(0);                              // như ảnh thật (≤ quanh + 2,6)
     expect(surfacePoolStrength(null, 20)).toBe(0);
+  });
+
+  it('vùng tối loang: dày theo thân nên túi rộng không dày hơn túi hẹp cùng thân, luôn dẹt', () => {
+    expect(surfacePoolRadii(1000, 650)).toEqual({ radiusX: 500, radiusY: 650 * SURFACE_POOL_MAX_DEPTH });
+    expect(surfacePoolRadii(300, 650).radiusY).toBeCloseTo(42, 5);
+    expect(surfacePoolRadii(10, 5).radiusY).toBe(4);
   });
 
   it('SP chụp đều sáng → chọn độ tối dần để trên sáng hơn dưới đúng mức ảnh thật', () => {
@@ -439,7 +492,7 @@ describe('đèn studio trên thân túi và độ sáng SP theo cảnh (đo lạ
     expect(factors![5]).toBeGreaterThan(1.03);            // dải trên cùng
     expect(Math.abs(factors![50] - 1)).toBeLessThan(0.03); // giữa thân
     expect(factors![100]).toBeLessThan(1);                // dải dưới
-    applyLook(data, width, height, 0, 3, [0, 0, width, height]);
+    applyLook(data, width, height, 0, [0, 0, width, height]);
     // SP sáng đều thì mép trên được bù ≈ STUDIO_STRENGTH × (dải trên − dải giữa) của kiểu studio; đòi ít nhất
     // một nửa mức đó (các dải chuyển mượt nên dải đo không đạt trọn) — tính theo hằng số, đo lại không phải sửa.
     const expectedLift = STUDIO_STRENGTH * (STUDIO_BODY_PROFILE[0] - STUDIO_BODY_PROFILE[2]);
