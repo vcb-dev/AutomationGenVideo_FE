@@ -51,7 +51,7 @@ function ProductImagePageContent() {
     }`;
 
   return (
-    <div className="text-[#1b1b1d]">
+    <div className="product-image-palette text-[#1b1b1d]">
       <div className="max-w-[1680px] w-full mx-auto">
         <header className="mb-4">
           <h1 className="text-2xl md:text-3xl font-bold text-[#1b1b1d] tracking-tight">Tạo ảnh sản phẩm</h1>

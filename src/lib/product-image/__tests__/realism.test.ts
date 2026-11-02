@@ -35,6 +35,7 @@ import {
   surfacePoolRadii,
   surfacePoolStrength,
   adjustProductBrightness,
+  shiftedLightness,
   brightenProduct,
   PRODUCT_BRIGHTNESS_MAX,
   PRODUCT_BRIGHTNESS_MIN,
@@ -519,6 +520,12 @@ describe('ánh sáng khớp ảnh chụp thật (đo 100 ảnh phòng media, 10/
   });
 });
 
+/** Tỉ lệ hai kênh theo ánh sáng tuyến tính — giữ nguyên nghĩa là giữ sắc màu. */
+const srgbRatio = (a: number, b: number) => {
+  const lin = (v: number) => ((v / 255 + 0.055) / 1.055) ** 2.4;
+  return lin(a) / lin(b);
+};
+
 describe('adjustProductBrightness', () => {
   const pixel = (r: number, g: number, b: number, a = 255) => new Uint8ClampedArray([r, g, b, a]);
 
@@ -543,9 +550,38 @@ describe('adjustProductBrightness', () => {
   it('túi trắng vẫn tối đi được, giữ alpha, bỏ qua điểm trong suốt', () => {
     const data = new Uint8ClampedArray([250, 250, 250, 200, 90, 90, 90, 0]);
     adjustProductBrightness(data, PRODUCT_BRIGHTNESS_MIN);
-    expect(data[0]).toBeLessThan(200);
+    expect(lightness(data[0], data[1], data[2])).toBeLessThan(lightness(250, 250, 250) - 12);
     expect(data[3]).toBe(200);
     expect(Array.from(data.slice(4))).toEqual([90, 90, 90, 0]);
+  });
+
+  it('kéo hết cỡ thì túi trắng, xám, đen đổi gần như nhau, túi trắng không cháy', () => {
+    const change = (gray: number, value: number) => {
+      const data = pixel(gray, gray, gray);
+      adjustProductBrightness(data, value);
+      return lightness(data[0], data[1], data[2]) - lightness(gray, gray, gray);
+    };
+    for (const gray of [235, 120, 40]) expect(change(gray, PRODUCT_BRIGHTNESS_MIN)).toBeLessThan(-10);
+    for (const gray of [120, 40]) expect(change(gray, PRODUCT_BRIGHTNESS_MAX)).toBeGreaterThan(12);
+    expect(change(235, PRODUCT_BRIGHTNESS_MAX)).toBeGreaterThan(3);
+    const white = pixel(250, 250, 250);
+    adjustProductBrightness(white, PRODUCT_BRIGHTNESS_MAX);
+    expect(white[0]).toBeLessThanOrEqual(255);
+  });
+
+  it('đổi sáng không đổi sắc màu', () => {
+    const data = pixel(150, 90, 60);
+    adjustProductBrightness(data, -30);
+    expect(data[0]).toBeGreaterThan(data[1]);
+    expect(data[1]).toBeGreaterThan(data[2]);
+    const ratio = (v: Uint8ClampedArray) => srgbRatio(v[0], v[2]);
+    expect(Math.abs(ratio(data) / srgbRatio(150, 60) - 1)).toBeLessThan(0.05);
+  });
+
+  it('dịch L* tiến dần tới hai đầu, không vượt', () => {
+    expect(shiftedLightness(95, 30)).toBeLessThan(100);
+    expect(shiftedLightness(5, -30)).toBeGreaterThan(0);
+    expect(shiftedLightness(50, 0)).toBe(50);
   });
 });
 

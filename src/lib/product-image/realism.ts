@@ -605,20 +605,44 @@ export function brightenProduct(rgba: Uint8ClampedArray, gain = PRODUCT_EXPOSURE
   applyToneTable(rgba, table);
 }
 
-/** Khoảng thanh kéo độ sáng SP; hai đầu là sáng gấp đôi / tối còn một nửa theo ánh sáng tuyến tính. */
+/** Khoảng thanh kéo độ sáng SP. */
 export const PRODUCT_BRIGHTNESS_MIN = -40;
 export const PRODUCT_BRIGHTNESS_MAX = 40;
+/** Mỗi nấc đổi chừng này L*, nén dần khi gần trắng tinh hoặc đen kịt — túi sáng hay tối đều đổi gần như nhau. */
+const BRIGHTNESS_L_PER_STEP = 0.45;
+const LIGHTNESS_TABLE_STEPS = 1000;
 
-/** Chỉnh độ sáng SP theo thanh kéo, 0 = giữ nguyên. Làm tối nhân thẳng để túi trắng cũng tối đi được. */
+/** L* sau khi dịch `shift`: lên thì tiến dần tới 100, xuống thì tiến dần tới 0, không vượt. */
+export function shiftedLightness(l: number, shift: number): number {
+  if (shift >= 0) return 100 - (100 - l) * Math.exp(-shift / Math.max(100 - l, 1e-6));
+  return l * Math.exp(shift / Math.max(l, 1e-6));
+}
+
+/** Chỉnh độ sáng SP theo thanh kéo, 0 = giữ nguyên. Đổi độ chói giữ nguyên sắc màu. */
 export function adjustProductBrightness(rgba: Uint8ClampedArray, value: number) {
-  const gain = 2 ** (value / PRODUCT_BRIGHTNESS_MAX);
-  if (gain >= 1) {
-    brightenProduct(rgba, gain);
-    return;
+  if (!value) return;
+  const shift = value * BRIGHTNESS_L_PER_STEP;
+  // Tỉ lệ độ chói mới/cũ theo L* (bước 0,1).
+  const ratios = new Float32Array(LIGHTNESS_TABLE_STEPS + 1);
+  for (let k = 1; k <= LIGHTNESS_TABLE_STEPS; k += 1) {
+    const l = (k / LIGHTNESS_TABLE_STEPS) * 100;
+    ratios[k] = luminanceOf(shiftedLightness(l, shift)) / luminanceOf(l);
   }
-  const table = new Uint8ClampedArray(256);
-  for (let v = 0; v < 256; v += 1) table[v] = linearToSrgb(srgbToLinear(v) * gain);
-  applyToneTable(rgba, table);
+  ratios[0] = 1;
+  const linear = new Float32Array(256);
+  for (let v = 0; v < 256; v += 1) linear[v] = srgbToLinear(v);
+  for (let i = 0; i < rgba.length; i += 4) {
+    if (rgba[i + 3] === 0) continue;
+    const r = linear[rgba[i]];
+    const g = linear[rgba[i + 1]];
+    const b = linear[rgba[i + 2]];
+    const y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    const l = y > 216 / 24389 ? 116 * Math.cbrt(y) - 16 : (24389 / 27) * y;
+    const ratio = ratios[Math.min(LIGHTNESS_TABLE_STEPS, Math.max(0, Math.round((l / 100) * LIGHTNESS_TABLE_STEPS)))];
+    rgba[i] = linearToSrgb(r * ratio);
+    rgba[i + 1] = linearToSrgb(g * ratio);
+    rgba[i + 2] = linearToSrgb(b * ratio);
+  }
 }
 
 /** Ngược của `lightness` cho xám: L* → độ chói tuyến tính Y (0–1). */
