@@ -230,6 +230,8 @@ export function BatchGenerator() {
   const brightnessFailedRef = useRef(false);
   /** Số đo nền có sẵn: đo một lần, không đo lại mỗi lần ghép. */
   const backgroundCacheRef = useRef(new Map<string, MeasuredBackground>());
+  /** Số cm đã dùng để đặt cỡ ở lần ghép gần nhất của từng ảnh. */
+  const placedWidthRef = useRef(new Map<string, number>());
   /** Ảnh cần ghép lại ngay cả khi lô đang dừng. */
   const rerunIdsRef = useRef(new Set<string>());
   const [confirm, setConfirm] = useState<{ ids: string[]; replacing: boolean; estimate: GeminiEstimate | null } | null>(null);
@@ -308,15 +310,23 @@ export function BatchGenerator() {
     setAutoPaused(false);
   };
 
-  /** Sửa cm: ảnh đã ghép (tách nền) thì ghép lại theo cỡ mới — dùng lại ảnh đã tách, không gọi AI. */
-  const changeWidth = (item: BatchItem, raw: string) => {
-    // Giữ cả số đang gõ dở (gõ "25" đi qua "2"); chỉ số trong SIZE_CM_RANGE mới dùng để đặt cỡ (usableWidthCm).
+  /** Đang gõ cm: chỉ giữ số, chưa ghép lại (gõ "25" đi qua "2"). */
+  const typeWidth = (item: BatchItem, raw: string) => {
     const value = raw.trim() === '' ? null : Math.round(Number(raw));
-    const widthCm = value !== null && Number.isFinite(value) && value > 0 && value < 1000 ? value : null;
-    const requeue = item.status === 'done' && item.result?.mode === 'cutout' && placementWidthCm(widthCm) !== placementWidthCm(item.widthCm);
-    patchItem(item.id, requeue ? { widthCm, status: 'pending' } : { widthCm });
-    if (requeue) rerunIdsRef.current.add(item.id);
+    patchItem(item.id, { widthCm: value !== null && Number.isFinite(value) && value > 0 && value < 1000 ? value : null });
   };
+
+  /** Chốt cm (rời ô, Enter, chọn cỡ): ảnh đã ghép khác cỡ thì ghép lại từ ảnh đã tách, không gọi AI. */
+  const commitWidth = (id: string, widthCm?: number) =>
+    setItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        const next = widthCm ?? item.widthCm;
+        const requeue = item.status === 'done' && item.result?.mode === 'cutout' && placementWidthCm(next) !== placedWidthRef.current.get(id);
+        if (requeue) rerunIdsRef.current.add(id);
+        return { ...item, widthCm: next, ...(requeue ? { status: 'pending' as const } : {}) };
+      }),
+    );
 
   /** Đang dừng thì chỉ ghép lại ảnh vừa đổi, không chạy tiếp cả lô. */
   const changeBrightness = (ids: string[], value: number | null) => {
@@ -334,7 +344,7 @@ export function BatchGenerator() {
   const setUnknownSize = (size: BagSizeClass) => {
     const widthCm = typicalWidthCm(size);
     const targets = items.filter((i) => i.status !== 'running' && usableWidthCm(i.widthCm) === null);
-    for (const item of targets) changeWidth(item, String(widthCm));
+    for (const item of targets) commitWidth(item.id, widthCm);
   };
 
   const removeItem = (id: string) => {
@@ -505,6 +515,7 @@ export function BatchGenerator() {
     const placement = cutoutBody
       ? placementForBody(ctx.layout, ctx.background, pixels, cutoutBody, placementWidthCm(item.widthCm))
       : placementForPreset(ctx.layout, ctx.background, pixels);
+    placedWidthRef.current.set(item.id, placementWidthCm(item.widthCm));
     const model = brightnessModelRef.current;
     const target = productTarget(computeDrawRect(ctx.background, pixels, placement));
     const layers = await buildLayersInBackground(pixels, {
@@ -782,10 +793,12 @@ export function BatchGenerator() {
                       value={item.widthCm ?? ''}
                       disabled={item.status === 'running'}
                       onFocus={() => setSelectedId(item.id)}
-                      onChange={(e) => changeWidth(item, e.target.value)}
+                      onChange={(e) => typeWidth(item, e.target.value)}
+                      onBlur={() => commitWidth(item.id)}
+                      onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
                       placeholder="?"
                       aria-label={`Bề ngang thân túi (cm) của ảnh ${item.file.name}`}
-                      className={`w-11 rounded-lg border px-1 py-1 text-sm text-right focus:outline-none focus:border-[#4441cc] disabled:bg-transparent ${
+                      className={`w-11 rounded-lg border px-1 py-1 text-sm text-right focus:outline-none focus:border-[#4441cc] disabled:bg-transparent [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none ${
                         usableWidthCm(item.widthCm) ? 'border-[#e2e0ea] text-[#1b1b1d]' : 'border-amber-300 bg-amber-50'
                       }`}
                     />
