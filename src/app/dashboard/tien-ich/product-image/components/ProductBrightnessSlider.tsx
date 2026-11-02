@@ -6,22 +6,32 @@ import { PRODUCT_BRIGHTNESS_MAX, PRODUCT_BRIGHTNESS_MIN } from '@/lib/product-im
 
 interface ProductBrightnessSliderProps {
   value: number;
+  /** Ảnh chưa chỉnh tay, đang theo mức tự động. */
+  followingAi: boolean;
+  /** Tiến độ học hoặc lỗi cấu hình, hiện dưới thanh kéo. */
+  hint: string | null;
   disabled: boolean;
   /** Có nhiều ảnh trong lô thì hiện nút áp dụng cả lô. */
   canApplyAll: boolean;
   onCommit: (value: number) => void;
+  onReset: () => void;
   onApplyAll: (value: number) => void;
 }
 
 /** Thanh kéo độ sáng SP: giữ giá trị nháp trong lúc kéo, thả tay mới ghép lại ảnh. */
-export function ProductBrightnessSlider({ value, disabled, canApplyAll, onCommit, onApplyAll }: ProductBrightnessSliderProps) {
+export function ProductBrightnessSlider({
+  value,
+  followingAi,
+  hint,
+  disabled,
+  canApplyAll,
+  onCommit,
+  onReset,
+  onApplyAll,
+}: ProductBrightnessSliderProps) {
   const [draft, setDraft] = useState(value);
   const commit = () => {
     if (draft !== value) onCommit(draft);
-  };
-  const reset = () => {
-    setDraft(0);
-    if (value !== 0) onCommit(0);
   };
 
   return (
@@ -49,8 +59,8 @@ export function ProductBrightnessSlider({ value, disabled, canApplyAll, onCommit
         <Sun className="w-4 h-4 flex-none text-[#9c9aa8]" />
         <button
           type="button"
-          onClick={reset}
-          disabled={disabled || draft === 0}
+          onClick={onReset}
+          disabled={disabled || followingAi}
           title="Về độ sáng tự động"
           aria-label="Đặt lại độ sáng"
           className="flex-none p-1.5 rounded-lg border border-[#d5d3e0] text-[#464554] hover:border-[#4441cc] hover:text-[#4441cc] disabled:opacity-40"
@@ -68,6 +78,7 @@ export function ProductBrightnessSlider({ value, disabled, canApplyAll, onCommit
           </button>
         )}
       </div>
+      {hint && <p className="mt-1.5 text-[11px] text-[#9c9aa8]">{hint}</p>}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { computeDrawRect, type Placement, type Size } from '@/lib/product-image/background-placement';
+import { measureBrightnessFeatures } from '@/lib/product-image/brightness-model';
 import {
   adjustProductBrightness,
   applyLook,
@@ -13,6 +14,7 @@ import {
   analyzeSceneLight,
   medianLightness,
   productExposureFor,
+  REFERENCE_SCENE_L,
   shadowSizeReference,
   surfacePoolRadii,
   surfacePoolStrength,
@@ -39,8 +41,10 @@ export interface RealismSettings {
   body?: readonly number[] | null;
   /** Ánh sáng cảnh của ảnh nền — để SP sáng lên theo độ sáng cảnh. */
   scene?: SceneLight | null;
-  /** Độ sáng người dùng chỉnh thêm (PRODUCT_BRIGHTNESS_MIN..MAX), 0 = giữ nguyên. */
-  brightness?: number;
+  /** Độ sáng người dùng chỉnh (PRODUCT_BRIGHTNESS_MIN..MAX); null = theo `suggestBrightness`. */
+  brightness?: number | null;
+  /** Mức AI đề xuất từ số đo ảnh; không có thì giữ nguyên. */
+  suggestBrightness?: (features: number[]) => number;
 }
 
 export interface CutoutPixels {
@@ -64,6 +68,10 @@ export interface RealismCanvases {
   shadowHeightRatio: number;
   /** Lề mỗi bên của lớp bóng / chiều rộng sản phẩm — bóng lan ra ngoài hai mép đáy. */
   shadowPadRatio: number;
+  /** Số đo ảnh trước khi áp độ sáng — mẫu học khi tải ảnh. */
+  features: number[];
+  /** Mức độ sáng đã áp. */
+  brightness: number;
   /** Phần đáy chạm mặt phẳng và kích thước thân, theo tỉ lệ ảnh SP (0..1) — để vẽ vùng tối loang trên mặt đặt; null = không có. */
   foot: FootRatio | null;
 }
@@ -121,7 +129,9 @@ export function buildRealismCanvases(base: CutoutPixels, settings: RealismSettin
     // SP sáng lên theo độ sáng cảnh (cảnh sáng thì SP sáng theo) — chỗ sáng nhất không cháy.
     brightenProduct(productData, settings.scene ? productExposureFor(settings.scene.lightness) : undefined);
   }
-  if (settings.brightness) adjustProductBrightness(productData, settings.brightness);
+  const features = measureBrightnessFeatures(productData, width, height, body, settings.scene?.lightness ?? REFERENCE_SCENE_L, look);
+  const brightness = settings.brightness ?? settings.suggestBrightness?.(features) ?? 0;
+  if (brightness) adjustProductBrightness(productData, brightness);
   if (shadow) applySelfOcclusion(productData, width, height, shadowStrength, shadowHeight, baseline, reference);
   const product = canvasFrom(width, height, productData);
   const contact = shadow ? footprint(base.data, width, height, baseline) : null;
@@ -134,7 +144,7 @@ export function buildRealismCanvases(base: CutoutPixels, settings: RealismSettin
     }
     : null;
 
-  if (!shadow) return { product, shadow: null, shadowHeightRatio: 1, shadowPadRatio: 0, foot: null };
+  if (!shadow) return { product, shadow: null, shadowHeightRatio: 1, shadowPadRatio: 0, foot: null, features, brightness };
   const layer = buildShadowLayer(base.data, width, height, shadowStrength, shadowHeight, baseline, reference);
   const rgba = new Uint8ClampedArray(layer.width * layer.height * 4);
   for (let i = 0; i < layer.alpha.length; i += 1) rgba[i * 4 + 3] = layer.alpha[i];
@@ -144,6 +154,8 @@ export function buildRealismCanvases(base: CutoutPixels, settings: RealismSettin
     shadowHeightRatio: layer.height / height,
     shadowPadRatio: layer.padX / width,
     foot,
+    features,
+    brightness,
   };
 }
 

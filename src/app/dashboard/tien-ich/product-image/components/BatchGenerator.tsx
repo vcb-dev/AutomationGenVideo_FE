@@ -58,6 +58,12 @@ import {
   type BatchMode,
   type GeminiEstimate,
 } from '@/lib/product-image/batch';
+import {
+  type BrightnessModel,
+  brightnessModelHint,
+  brightnessSamples,
+  predictBrightness,
+} from '@/lib/product-image/brightness-model';
 import { formatGenerationCost, formatVnd } from '@/lib/product-image/cost-view';
 import { HELD_PRODUCT_NOTE_MAX_LENGTH, PRODUCT_NAME_MAX_LENGTH, extensionForMime } from '@/lib/product-image/held-product-request';
 import {
@@ -95,6 +101,10 @@ interface BatchResult {
   cost: ItemCost | null;
   approved: boolean;
   approving: boolean;
+  /** Mức độ sáng đã áp cho ảnh ghép. */
+  brightness: number;
+  /** Số đo ảnh ghép — mẫu học khi tải về; null với ảnh Gemini. */
+  features: number[] | null;
 }
 
 interface BatchItem {
@@ -104,8 +114,8 @@ interface BatchItem {
   name: string;
   /** Bề ngang thân túi thật (cm) — tự đọc từ mã SP trong tên file (TX018-25 → 25), sửa được; null = chưa biết. */
   widthCm: number | null;
-  /** Độ sáng người dùng chỉnh cho riêng ảnh này (0 = theo tự động) — đổi là ghép lại từ ảnh đã tách. */
-  brightness: number;
+  /** Độ sáng người dùng chỉnh cho riêng ảnh này (null = theo AI) — đổi là ghép lại từ ảnh đã tách. */
+  brightness: number | null;
   status: BatchItemStatus;
   error: string | null;
   /** Ảnh SP đã tách nền (blob:) — giữ lại để đổi nền thì ghép lại ngay, không tách nền lần nữa. */
@@ -133,6 +143,8 @@ type RunContext =
       warmth: number;
       /** Ánh sáng cảnh của ảnh nền — null khi không phân tích được (vẫn ghép, chỉ không chỉnh sáng theo cảnh). */
       scene: SceneLight | null;
+      /** Mức độ sáng AI đề xuất cho ảnh chưa chỉnh tay. */
+      suggestBrightness: (features: number[]) => number;
       /** Thu hồi URL tạm của ảnh nền tự tải lên khi lượt chạy xong. */
       release: () => void;
     };
@@ -182,6 +194,8 @@ export function BatchGenerator() {
   /** Người dùng bấm "Dừng" (hoặc chuẩn bị cảnh hỏng) → thôi tự chạy tới khi thêm ảnh / bấm Tiếp tục. */
   const [autoPaused, setAutoPaused] = useState(false);
   const [zipping, setZipping] = useState(false);
+  const [brightnessModel, setBrightnessModel] = useState<BrightnessModel | null>(null);
+  const [brightnessError, setBrightnessError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ ids: string[]; replacing: boolean; estimate: GeminiEstimate | null } | null>(null);
   const [preparingConfirm, setPreparingConfirm] = useState(false);
 
@@ -236,7 +250,7 @@ export function BatchGenerator() {
         // Tên SP lấy theo tên file gốc (bản nén có thể đổi đuôi .png/.webp → .jpg).
         name: productNameFromFileName(original.name),
         widthCm: widthCmFromName(original.name),
-        brightness: 0,
+        brightness: null,
         status: 'pending',
         error: null,
         cutoutSrc: null,
@@ -268,7 +282,7 @@ export function BatchGenerator() {
     if (requeue) setAutoPaused(false);
   };
 
-  const changeBrightness = (id: string, value: number) => {
+  const changeBrightness = (id: string, value: number | null) => {
     setItems((prev) => prev.map((item) => (item.id === id ? withBrightness([item], value)[0] : item)));
     setAutoPaused(false);
   };
@@ -320,6 +334,26 @@ export function BatchGenerator() {
     return null;
   })();
 
+  /** Lỗi cấu hình thì hiện dưới thanh kéo; lỗi nào cũng không chặn ghép ảnh, chỉ là không tự chỉnh. */
+  const loadBrightnessModel = async (): Promise<BrightnessModel | null> => {
+    try {
+      const { data } = await apiClient.get<BrightnessModel>('/product-image/brightness-model');
+      setBrightnessModel(data);
+      setBrightnessError(null);
+      return data;
+    } catch (err: any) {
+      setBrightnessModel(null);
+      setBrightnessError(err?.response?.status === 500 ? errorText(err, 'Chưa tải được model độ sáng.') : null);
+      return null;
+    }
+  };
+
+  /** Chỉ để học — lỗi không được chặn việc tải ảnh. */
+  const recordBrightness = (targets: BatchItem[]) => {
+    const samples = brightnessSamples(targets);
+    if (samples.length) apiClient.post('/product-image/brightness-samples', { samples }).catch(() => undefined);
+  };
+
   const prepareRun = async (): Promise<RunContext> => {
     const noop = () => undefined;
     if (mode === 'gemini') {
@@ -341,12 +375,14 @@ export function BatchGenerator() {
       const [r, g, b] = await averageColor(src);
       const layout = scenePreset ?? UPLOADED_BACKGROUND_LAYOUT;
       const scene = await analyzeBackgroundLight(src).catch(() => null);
+      const model = await loadBrightnessModel();
       return {
         mode,
         background: { src, width: image.naturalWidth, height: image.naturalHeight },
         layout,
         warmth: estimateWarmth(r, g, b),
         scene,
+        suggestBrightness: (features) => (model ? predictBrightness(model, features) : 0),
         release,
       };
     } catch {
@@ -369,6 +405,8 @@ export function BatchGenerator() {
       cost: res.data.cost ?? { usd: null, vnd: null, note: null },
       approved: false,
       approving: false,
+      brightness: 0,
+      features: null,
     };
   };
 
@@ -413,6 +451,7 @@ export function BatchGenerator() {
       body: cutoutBody,
       scene: ctx.scene,
       brightness: item.brightness,
+      suggestBrightness: ctx.suggestBrightness,
     });
     // Có khung thân túi thì đặt theo thân (biết cm thì đúng cỡ thật so với hộp, không thì mọi túi cùng cỡ; đáy thân đúng
     // mặt hộp); không thì theo cả SP.
@@ -421,7 +460,17 @@ export function BatchGenerator() {
       : placementForPreset(ctx.layout, ctx.background, pixels);
     const blob = await renderComposite(ctx.background, pixels, placement, layers);
     // Tiền là của lần tách nền (0đ) — ghép lại lên nền khác không tốn thêm.
-    return { src: URL.createObjectURL(blob), mimeType: 'image/jpeg', mode: 'cutout', generationId: null, cost: cutoutCost, approved: false, approving: false };
+    return {
+      src: URL.createObjectURL(blob),
+      mimeType: 'image/jpeg',
+      mode: 'cutout',
+      generationId: null,
+      cost: cutoutCost,
+      approved: false,
+      approving: false,
+      brightness: layers.brightness,
+      features: layers.features,
+    };
   };
 
   const processItem = async (id: string, ctx: RunContext): Promise<ItemOutcome> => {
@@ -565,6 +614,7 @@ export function BatchGenerator() {
       );
       const url = URL.createObjectURL(new Blob([createZip(entries)], { type: 'application/zip' }));
       downloadUrl(url, exportFileName(onlyApproved ? 'anh-sp-dat' : 'anh-sp-tu-dong', 'zip'));
+      recordBrightness(ready);
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
     } catch (err: any) {
       toast.error(err?.message || 'Không đóng gói được file ZIP, vui lòng thử lại.');
@@ -913,11 +963,14 @@ export function BatchGenerator() {
 
         {selected?.result?.mode === 'cutout' && (
           <ProductBrightnessSlider
-            key={selected.id}
-            value={selected.brightness}
+            key={`${selected.id}:${selected.result.brightness}`}
+            value={selected.brightness ?? selected.result.brightness}
+            followingAi={selected.brightness === null}
+            hint={brightnessError ?? brightnessModelHint(brightnessModel)}
             disabled={running}
             canApplyAll={items.length > 1}
             onCommit={(value) => changeBrightness(selected.id, value)}
+            onReset={() => changeBrightness(selected.id, null)}
             onApplyAll={applyBrightnessToAll}
           />
         )}
@@ -976,9 +1029,10 @@ export function BatchGenerator() {
               {selected.result && (
                 <button
                   type="button"
-                  onClick={() =>
-                    downloadUrl(selected.result!.src, `${slugifyFileName(selected.name)}.${extensionForMime(selected.result!.mimeType)}`)
-                  }
+                  onClick={() => {
+                    downloadUrl(selected.result!.src, `${slugifyFileName(selected.name)}.${extensionForMime(selected.result!.mimeType)}`);
+                    recordBrightness([selected]);
+                  }}
                   className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-white bg-[#4441cc] hover:bg-[#4441cc]/90"
                 >
                   <Download className="w-4 h-4" />

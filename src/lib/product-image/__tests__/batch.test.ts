@@ -244,8 +244,8 @@ describe('BAG_SIZE_CLASSES — cỡ túi nhỏ/lớn cho ảnh không có mã SP
 });
 
 describe('withBrightness', () => {
-  const cutout = { brightness: 0, status: 'done' as const, result: { mode: 'cutout' as const } };
-  const gemini = { brightness: 0, status: 'done' as const, result: { mode: 'gemini' as const } };
+  const cutout = { brightness: 0 as number | null, status: 'done' as const, result: { mode: 'cutout' as const } };
+  const gemini = { brightness: 0 as number | null, status: 'done' as const, result: { mode: 'gemini' as const } };
 
   it('ảnh ghép nền đổi mức thì ghép lại', () => {
     expect(withBrightness([cutout], 12)[0]).toMatchObject({ brightness: 12, status: 'pending' });
@@ -253,6 +253,10 @@ describe('withBrightness', () => {
 
   it('ảnh Gemini chỉ đổi số, không tạo lại', () => {
     expect(withBrightness([gemini], 12)[0]).toMatchObject({ brightness: 12, status: 'done' });
+  });
+
+  it('đặt lại về theo AI thì ghép lại', () => {
+    expect(withBrightness([{ ...cutout, brightness: 12 }], null)[0]).toMatchObject({ brightness: null, status: 'pending' });
   });
 
   it('mức không đổi thì giữ nguyên, không ghép lại', () => {

@@ -42,10 +42,10 @@ export function requeueCutoutResults<T extends { status: BatchItemStatus; result
   );
 }
 
-/** Đặt độ sáng SP: ảnh đã ghép mà đổi mức thì về hàng chờ để ghép lại, ảnh Gemini giữ nguyên. */
-export function withBrightness<T extends { brightness: number; status: BatchItemStatus; result: { mode: BatchMode } | null }>(
+/** Đặt độ sáng SP (null = theo AI): ảnh đã ghép mà đổi mức thì về hàng chờ để ghép lại, ảnh Gemini giữ nguyên. */
+export function withBrightness<T extends { brightness: number | null; status: BatchItemStatus; result: { mode: BatchMode } | null }>(
   items: readonly T[],
-  value: number,
+  value: number | null,
 ): T[] {
   return items.map((item) => (item.brightness === value ? item : { ...requeueCutoutResults([item])[0], brightness: value }));
 }
