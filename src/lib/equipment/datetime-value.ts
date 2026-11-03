@@ -65,3 +65,9 @@ export function isOffGridTime(time: string, stepMinutes = 30): boolean {
   if (!time) return false;
   return !timeOptions(stepMinutes).includes(time);
 }
+
+/** Đổi một mốc thời gian sang `YYYY-MM-DDTHH:mm` theo giờ máy — không dùng `toISOString()` vì đó là giờ UTC. */
+export function toLocalDateTimeValue(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}

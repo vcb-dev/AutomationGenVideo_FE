@@ -53,7 +53,7 @@ export interface CreateBorrowRequestPayload {
   toTime: string;
   lines: BorrowLine[];
   note?: string;
-  photos?: string[];
+  photoIds?: string[];
 }
 
 export async function createBorrowRequest(payload: CreateBorrowRequestPayload) {
@@ -318,14 +318,12 @@ export async function deleteAssetPhoto(photoId: string) {
 }
 
 export async function uploadRequestPhoto(file: File) {
-  const compressed = await compressImage(file);
+  const compressed = await compressImage(file).catch(() => file);
   const form = new FormData();
   form.append('photo', compressed);
-  const { data } = await apiClient.post<{ url: string; key: string }>(
-    '/mems/requests/upload-photo',
-    form,
-    { headers: { 'Content-Type': 'multipart/form-data' } },
-  );
+  const { data } = await apiClient.post<{ id: string; url: string }>('/mems/request-photos', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
   return data;
 }
 

@@ -22,10 +22,10 @@ import {
   X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import apiClient from '@/lib/api-client';
+import apiClient, { BACKGROUND_REQUEST } from '@/lib/api-client';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { apiErrorMessage, isCanceledRequest } from '@/lib/product-image/api-error';
-import { exportFileName } from '@/lib/product-image/background-placement';
+import { computeDrawRect, exportFileName } from '@/lib/product-image/background-placement';
 import {
   DEFAULT_BACKGROUND_PRESET_ID,
   UPLOADED_BACKGROUND_LAYOUT,
@@ -47,6 +47,7 @@ import {
   SIZE_CM_RANGE,
   typicalWidthCm,
   widthCmFromName,
+  withBrightness,
   type BagSizeClass,
   runWithConcurrency,
   shouldAutoRun,
@@ -57,6 +58,15 @@ import {
   type BatchMode,
   type GeminiEstimate,
 } from '@/lib/product-image/batch';
+import {
+  BRIGHTNESS_SAMPLE_BATCH,
+  type BrightnessModel,
+  type BrightnessSource,
+  brightnessModelHint,
+  brightnessSamples,
+  brightnessSource,
+  isUsableBrightnessModel,
+} from '@/lib/product-image/brightness-model';
 import { formatGenerationCost, formatVnd } from '@/lib/product-image/cost-view';
 import { HELD_PRODUCT_NOTE_MAX_LENGTH, PRODUCT_NAME_MAX_LENGTH, extensionForMime } from '@/lib/product-image/held-product-request';
 import {
@@ -69,11 +79,13 @@ import {
 } from '@/lib/product-image/realism';
 import { buildScenePlacementFormData, validateScenePlacementInput } from '@/lib/product-image/scene-placement-request';
 import { PRODUCT_IMAGE_ACCEPT, PRODUCT_IMAGE_MAX_BYTES } from '@/lib/product-image/upload-validation';
-import { fitProductImageFile } from '@/lib/product-image/shrink-image';
+import { fitProductImageFile, shrinkForCutout } from '@/lib/product-image/shrink-image';
 import { createZip } from '@/lib/product-image/zip';
 import { BackgroundPicker, UPLOADED_BACKGROUND } from './BackgroundPicker';
 import { ModeOption } from './ModeOption';
-import { analyzeBackgroundLight, averageColor, borderColor, buildRealismCanvases, readCutoutPixels, renderComposite } from './composite';
+import { ProductBrightnessSlider } from './ProductBrightnessSlider';
+import { analyzeBackgroundLight, averageColor, borderColor, productTarget, readCutoutPixels, renderComposite } from './composite';
+import { buildLayersInBackground } from './composite-workers';
 import { downloadUrl, loadImage } from './download';
 
 interface ItemCost {
@@ -93,6 +105,16 @@ interface BatchResult {
   cost: ItemCost | null;
   approved: boolean;
   approving: boolean;
+  /** Mức độ sáng đã áp cho ảnh ghép. */
+  brightness: number;
+  /** Số đo ảnh ghép — mẫu học khi tải về; null với ảnh Gemini. */
+  features: number[] | null;
+  /** Mức AI đề xuất cho ảnh này; null = chưa có. */
+  suggested: number | null;
+  /** Nguồn của mẫu học; null = không học từ ảnh này. */
+  source: BrightnessSource | null;
+  /** Id nền có sẵn; null = nền tự tải lên hoặc ảnh Gemini. */
+  background: string | null;
 }
 
 interface BatchItem {
@@ -102,6 +124,8 @@ interface BatchItem {
   name: string;
   /** Bề ngang thân túi thật (cm) — tự đọc từ mã SP trong tên file (TX018-25 → 25), sửa được; null = chưa biết. */
   widthCm: number | null;
+  /** Độ sáng người dùng chỉnh cho riêng ảnh này (null = theo AI) — đổi là ghép lại từ ảnh đã tách. */
+  brightness: number | null;
   status: BatchItemStatus;
   error: string | null;
   /** Ảnh SP đã tách nền (blob:) — giữ lại để đổi nền thì ghép lại ngay, không tách nền lần nữa. */
@@ -129,6 +153,8 @@ type RunContext =
       warmth: number;
       /** Ánh sáng cảnh của ảnh nền — null khi không phân tích được (vẫn ghép, chỉ không chỉnh sáng theo cảnh). */
       scene: SceneLight | null;
+      /** Id nền có sẵn; null = nền tự tải lên, không tự chỉnh. */
+      backgroundId: string | null;
       /** Thu hồi URL tạm của ảnh nền tự tải lên khi lượt chạy xong. */
       release: () => void;
     };
@@ -151,6 +177,24 @@ const releaseItem = (item: BatchItem) => {
 };
 
 /** Lỗi axios → lời BE/AI; lỗi dựng ảnh ở trình duyệt → lời của chính lỗi đó. */
+interface MeasuredBackground {
+  width: number;
+  height: number;
+  warmth: number;
+  scene: SceneLight | null;
+}
+
+async function measureBackground(src: string): Promise<MeasuredBackground> {
+  const image = await loadImage(src);
+  const [r, g, b] = await averageColor(src);
+  const scene = await analyzeBackgroundLight(src).catch(() => null);
+  return { width: image.naturalWidth, height: image.naturalHeight, warmth: estimateWarmth(r, g, b), scene };
+}
+
+/** Model độ sáng chỉ là phần phụ: không để API chậm làm người dùng chờ. */
+const BRIGHTNESS_MODEL_TIMEOUT_MS = 5000;
+const BRIGHTNESS_MODEL_WAIT_MS = 1500;
+
 const errorText = (err: any, fallback: string) =>
   err?.isAxiosError ? apiErrorMessage(err, fallback) : err?.message || fallback;
 
@@ -178,6 +222,18 @@ export function BatchGenerator() {
   /** Người dùng bấm "Dừng" (hoặc chuẩn bị cảnh hỏng) → thôi tự chạy tới khi thêm ảnh / bấm Tiếp tục. */
   const [autoPaused, setAutoPaused] = useState(false);
   const [zipping, setZipping] = useState(false);
+  const [brightnessModel, setBrightnessModel] = useState<BrightnessModel | null>(null);
+  const [brightnessError, setBrightnessError] = useState<string | null>(null);
+  const brightnessModelRef = useRef<BrightnessModel | null>(null);
+  const brightnessLoadRef = useRef<Promise<void> | null>(null);
+  /** Lần nạp model gần nhất hỏng: lượt ghép sau thử lại. */
+  const brightnessFailedRef = useRef(false);
+  /** Số đo nền có sẵn: đo một lần, không đo lại mỗi lần ghép. */
+  const backgroundCacheRef = useRef(new Map<string, MeasuredBackground>());
+  /** Số cm đã dùng để đặt cỡ ở lần ghép gần nhất của từng ảnh. */
+  const placedWidthRef = useRef(new Map<string, number>());
+  /** Ảnh cần ghép lại ngay cả khi lô đang dừng. */
+  const rerunIdsRef = useRef(new Set<string>());
   const [confirm, setConfirm] = useState<{ ids: string[]; replacing: boolean; estimate: GeminiEstimate | null } | null>(null);
   const [preparingConfirm, setPreparingConfirm] = useState(false);
 
@@ -232,6 +288,7 @@ export function BatchGenerator() {
         // Tên SP lấy theo tên file gốc (bản nén có thể đổi đuôi .png/.webp → .jpg).
         name: productNameFromFileName(original.name),
         widthCm: widthCmFromName(original.name),
+        brightness: null,
         status: 'pending',
         error: null,
         cutoutSrc: null,
@@ -253,21 +310,41 @@ export function BatchGenerator() {
     setAutoPaused(false);
   };
 
-  /** Sửa cm: ảnh đã ghép (tách nền) thì ghép lại theo cỡ mới — dùng lại ảnh đã tách, không gọi AI. */
-  const changeWidth = (item: BatchItem, raw: string) => {
-    // Giữ cả số đang gõ dở (gõ "25" đi qua "2"); chỉ số trong SIZE_CM_RANGE mới dùng để đặt cỡ (usableWidthCm).
+  /** Đang gõ cm: chỉ giữ số, chưa ghép lại (gõ "25" đi qua "2"). */
+  const typeWidth = (item: BatchItem, raw: string) => {
     const value = raw.trim() === '' ? null : Math.round(Number(raw));
-    const widthCm = value !== null && Number.isFinite(value) && value > 0 && value < 1000 ? value : null;
-    const requeue = item.status === 'done' && item.result?.mode === 'cutout' && placementWidthCm(widthCm) !== placementWidthCm(item.widthCm);
-    patchItem(item.id, requeue ? { widthCm, status: 'pending' } : { widthCm });
-    if (requeue) setAutoPaused(false);
+    patchItem(item.id, { widthCm: value !== null && Number.isFinite(value) && value > 0 && value < 1000 ? value : null });
+  };
+
+  /** Chốt cm (rời ô, Enter, chọn cỡ): ảnh đã ghép khác cỡ thì ghép lại từ ảnh đã tách, không gọi AI. */
+  const commitWidth = (id: string, widthCm?: number) =>
+    setItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        const next = widthCm ?? item.widthCm;
+        const requeue = item.status === 'done' && item.result?.mode === 'cutout' && placementWidthCm(next) !== placedWidthRef.current.get(id);
+        if (requeue) rerunIdsRef.current.add(id);
+        return { ...item, widthCm: next, ...(requeue ? { status: 'pending' as const } : {}) };
+      }),
+    );
+
+  /** Đang dừng thì chỉ ghép lại ảnh vừa đổi, không chạy tiếp cả lô. */
+  const changeBrightness = (ids: string[], value: number | null) => {
+    ids.forEach((id) => rerunIdsRef.current.add(id));
+    setItems((prev) => prev.map((item) => (ids.includes(item.id) ? withBrightness([item], value)[0] : item)));
+  };
+
+  /** Cả ảnh đang ghép và đang chờ; ảnh chưa chạy lần nào thì không kéo cả lô chạy khi đang dừng. */
+  const applyBrightnessToAll = (value: number) => {
+    items.forEach((item) => item.status !== 'pending' && rerunIdsRef.current.add(item.id));
+    setItems((prev) => withBrightness(prev, value));
   };
 
   /** Đặt một cỡ (túi nhỏ/lớn) cho mọi ảnh chưa rõ cm — ảnh đã ghép thì ghép lại nếu cỡ khác cỡ tạm đang dùng. */
   const setUnknownSize = (size: BagSizeClass) => {
     const widthCm = typicalWidthCm(size);
     const targets = items.filter((i) => i.status !== 'running' && usableWidthCm(i.widthCm) === null);
-    for (const item of targets) changeWidth(item, String(widthCm));
+    for (const item of targets) commitWidth(item.id, widthCm);
   };
 
   const removeItem = (id: string) => {
@@ -305,6 +382,42 @@ export function BatchGenerator() {
     return null;
   })();
 
+  /** Lỗi thì giữ model tốt gần nhất; lỗi cấu hình hiện dưới thanh kéo. Không bao giờ chặn việc ghép ảnh. */
+  const refreshBrightnessModel = () => {
+    const load = apiClient
+      .get('/product-image/brightness-model', { timeout: BRIGHTNESS_MODEL_TIMEOUT_MS, ...BACKGROUND_REQUEST })
+      .then(({ data }) => {
+        if (!isUsableBrightnessModel(data)) throw new Error('Model độ sáng trả về sai dạng.');
+        brightnessFailedRef.current = false;
+        brightnessModelRef.current = data;
+        setBrightnessModel(data);
+        setBrightnessError(null);
+      })
+      .catch((err: any) => {
+        brightnessFailedRef.current = true;
+        if (err?.response?.status === 500) setBrightnessError(errorText(err, 'Chưa tải được model độ sáng.'));
+        else if (!brightnessModelRef.current) setBrightnessError('Chưa tải được model độ sáng nên ảnh để mức 0, lượt ghép sau sẽ thử lại.');
+      });
+    brightnessLoadRef.current = load;
+    return load;
+  };
+
+  useEffect(() => {
+    refreshBrightnessModel();
+    // Chỉ nạp một lần khi mở trang; sau đó nạp lại khi có mẫu mới.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** Chỉ để học — lỗi không được chặn việc tải ảnh. */
+  const recordBrightness = async (targets: BatchItem[]) => {
+    const samples = brightnessSamples(targets);
+    for (let i = 0; i < samples.length; i += BRIGHTNESS_SAMPLE_BATCH) {
+      const batch = samples.slice(i, i + BRIGHTNESS_SAMPLE_BATCH);
+      await apiClient.post('/product-image/brightness-samples', { samples: batch }, BACKGROUND_REQUEST).catch(() => undefined);
+    }
+    if (samples.length) refreshBrightnessModel();
+  };
+
   const prepareRun = async (): Promise<RunContext> => {
     const noop = () => undefined;
     if (mode === 'gemini') {
@@ -322,16 +435,19 @@ export function BatchGenerator() {
     const src = scenePreset ? scenePreset.src : URL.createObjectURL(sceneFile as File);
     const release = scenePreset ? noop : () => URL.revokeObjectURL(src);
     try {
-      const image = await loadImage(src);
-      const [r, g, b] = await averageColor(src);
       const layout = scenePreset ?? UPLOADED_BACKGROUND_LAYOUT;
-      const scene = await analyzeBackgroundLight(src).catch(() => null);
+      const measured = (scenePreset && backgroundCacheRef.current.get(scenePreset.id)) || (await measureBackground(src));
+      if (scenePreset) backgroundCacheRef.current.set(scenePreset.id, measured);
+      if (brightnessFailedRef.current) refreshBrightnessModel();
+      // Chờ model trong thời gian ngắn cho lượt đầu, chậm hơn thì ghép luôn.
+      await Promise.race([brightnessLoadRef.current, new Promise((resolve) => setTimeout(resolve, BRIGHTNESS_MODEL_WAIT_MS))]);
       return {
         mode,
-        background: { src, width: image.naturalWidth, height: image.naturalHeight },
+        background: { src, width: measured.width, height: measured.height },
         layout,
-        warmth: estimateWarmth(r, g, b),
-        scene,
+        warmth: measured.warmth,
+        scene: measured.scene,
+        backgroundId: scenePreset?.id ?? null,
         release,
       };
     } catch {
@@ -354,6 +470,11 @@ export function BatchGenerator() {
       cost: res.data.cost ?? { usd: null, vnd: null, note: null },
       approved: false,
       approving: false,
+      brightness: 0,
+      features: null,
+      suggested: null,
+      source: null,
+      background: null,
     };
   };
 
@@ -363,7 +484,7 @@ export function BatchGenerator() {
     let cutoutBody = item.cutoutBody;
     if (!cutoutSrc) {
       const form = new FormData();
-      form.append('file', item.file);
+      form.append('file', await shrinkForCutout(item.file));
       const res = await apiClient.post('/product-image/cutout', form, { headers: { 'Content-Type': 'multipart/form-data' }, signal });
       // data URI base64 vài MB → blob để đỡ tốn bộ nhớ khi lô có nhiều ảnh.
       const fresh = URL.createObjectURL(await (await fetch(res.data.imageData)).blob());
@@ -387,9 +508,17 @@ export function BatchGenerator() {
     const warmth = addedWarmth(ctx.warmth, sourceWarmth);
     // Chụp dưới cùng kiểu đèn với nền → giữ ánh sáng gốc của SP (sameLightAsScene), chỉ thêm bóng.
     const keepOriginalLight = sameLightAsScene(ctx.warmth, sourceWarmth);
-    // "Cho giống ảnh chụp thật" theo mặc định người dùng chốt (bóng đậm 100%, cao 1,8×), ánh ấm theo màu nền;
+    // "Cho giống ảnh chụp thật" theo mặc định người dùng chốt (bóng đậm 70%, cao 1,8×), ánh ấm theo màu nền;
     // phân bố sáng trên thân theo kiểu đèn studio (đèn chính diện, cao), độ sáng SP theo độ sáng cảnh.
-    const layers = buildRealismCanvases(pixels, {
+    // Có khung thân túi thì đặt theo thân (biết cm thì đúng cỡ thật so với hộp, không thì mọi túi cùng cỡ; đáy thân đúng
+    // mặt hộp); không thì theo cả SP.
+    const placement = cutoutBody
+      ? placementForBody(ctx.layout, ctx.background, pixels, cutoutBody, placementWidthCm(item.widthCm))
+      : placementForPreset(ctx.layout, ctx.background, pixels);
+    placedWidthRef.current.set(item.id, placementWidthCm(item.widthCm));
+    const model = brightnessModelRef.current;
+    const target = productTarget(computeDrawRect(ctx.background, pixels, placement));
+    const layers = await buildLayersInBackground(pixels, {
       shadow: true,
       shadowStrength: DEFAULT_SHADOW_STRENGTH,
       shadowHeight: DEFAULT_SHADOW_HEIGHT,
@@ -397,15 +526,25 @@ export function BatchGenerator() {
       warmth,
       body: cutoutBody,
       scene: ctx.scene,
-    });
-    // Có khung thân túi thì đặt theo thân (biết cm thì đúng cỡ thật so với hộp, không thì mọi túi cùng cỡ; đáy thân đúng
-    // mặt hộp); không thì theo cả SP.
-    const placement = cutoutBody
-      ? placementForBody(ctx.layout, ctx.background, pixels, cutoutBody, placementWidthCm(item.widthCm))
-      : placementForPreset(ctx.layout, ctx.background, pixels);
+      brightness: item.brightness,
+      model: ctx.backgroundId ? model : null,
+    }, target, signal);
     const blob = await renderComposite(ctx.background, pixels, placement, layers);
     // Tiền là của lần tách nền (0đ) — ghép lại lên nền khác không tốn thêm.
-    return { src: URL.createObjectURL(blob), mimeType: 'image/jpeg', mode: 'cutout', generationId: null, cost: cutoutCost, approved: false, approving: false };
+    return {
+      src: URL.createObjectURL(blob),
+      mimeType: 'image/jpeg',
+      mode: 'cutout',
+      generationId: null,
+      cost: cutoutCost,
+      approved: false,
+      approving: false,
+      brightness: layers.brightness,
+      features: layers.features,
+      suggested: layers.suggested,
+      source: brightnessSource(item.brightness, layers.suggested, !!model, ctx.backgroundId),
+      background: ctx.backgroundId,
+    };
   };
 
   const processItem = async (id: string, ctx: RunContext): Promise<ItemOutcome> => {
@@ -420,9 +559,12 @@ export function BatchGenerator() {
         ctx.mode === 'gemini'
           ? await generateWithGemini(item, ctx, controller.signal)
           : await composeWithCutout(item, ctx, controller.signal);
-      const previous = itemsRef.current.find((i) => i.id === id)?.result;
-      revokeBlob(previous?.src);
-      patchItem(id, { status: 'done', error: null, result });
+      const latest = itemsRef.current.find((i) => i.id === id);
+      revokeBlob(latest?.result?.src);
+      // Đổi độ sáng trong lúc ảnh đang ghép: giữ ảnh vừa ra rồi ghép lại theo mức mới.
+      const stale = !!latest && latest.brightness !== item.brightness;
+      if (stale) rerunIdsRef.current.add(id);
+      patchItem(id, { status: stale ? 'pending' : 'done', error: null, result });
       return 'done';
     } catch (err) {
       if (isCanceledRequest(err) || controller.signal.aborted) {
@@ -436,11 +578,11 @@ export function BatchGenerator() {
     }
   };
 
-  const startRun = async (ids: string[]) => {
+  const startRun = async (ids: string[], keepPaused = false) => {
     if (runningRef.current || !ids.length) return;
     runningRef.current = true;
     setConfirm(null);
-    setAutoPaused(false);
+    if (!keepPaused) setAutoPaused(false);
     stopRef.current = false;
     setRunning(true);
     try {
@@ -477,21 +619,24 @@ export function BatchGenerator() {
 
   // Tách nền: có ảnh chờ là tự chạy — không nút nào phải bấm.
   useEffect(() => {
-    if (!shouldAutoRun(mode) || running || runningRef.current || autoPaused || blockReason) return;
+    if (!shouldAutoRun(mode) || running || runningRef.current || blockReason) return;
     const pending = items.filter((i) => i.status === 'pending').map((i) => i.id);
-    if (pending.length) startRun(pending);
+    const targets = autoPaused ? pending.filter((id) => rerunIdsRef.current.has(id)) : pending;
+    rerunIdsRef.current.clear();
+    if (targets.length) startRun(targets, autoPaused);
     // startRun đọc state mới nhất qua ref/closure của lần vẽ này — chỉ cần chạy lại khi các giá trị dưới đổi.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items, mode, running, autoPaused, blockReason]);
 
-  const requestRun = async (ids: string[], replacing: boolean) => {
+  /** `keepPaused`: thử lại ảnh lỗi khi đang dừng thì chỉ chạy đúng các ảnh đó. */
+  const requestRun = async (ids: string[], replacing: boolean, keepPaused = false) => {
     if (!ids.length || running) return;
     if (blockReason) {
       toast.error(blockReason);
       return;
     }
     if (mode !== 'gemini') {
-      startRun(ids);
+      startRun(ids, keepPaused && autoPaused);
       return;
     }
     for (const id of ids) {
@@ -549,6 +694,7 @@ export function BatchGenerator() {
       );
       const url = URL.createObjectURL(new Blob([createZip(entries)], { type: 'application/zip' }));
       downloadUrl(url, exportFileName(onlyApproved ? 'anh-sp-dat' : 'anh-sp-tu-dong', 'zip'));
+      recordBrightness(ready);
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
     } catch (err: any) {
       toast.error(err?.message || 'Không đóng gói được file ZIP, vui lòng thử lại.');
@@ -647,10 +793,12 @@ export function BatchGenerator() {
                       value={item.widthCm ?? ''}
                       disabled={item.status === 'running'}
                       onFocus={() => setSelectedId(item.id)}
-                      onChange={(e) => changeWidth(item, e.target.value)}
+                      onChange={(e) => typeWidth(item, e.target.value)}
+                      onBlur={() => commitWidth(item.id)}
+                      onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
                       placeholder="?"
                       aria-label={`Bề ngang thân túi (cm) của ảnh ${item.file.name}`}
-                      className={`w-11 rounded-lg border px-1 py-1 text-sm text-right focus:outline-none focus:border-[#4441cc] disabled:bg-transparent ${
+                      className={`w-11 rounded-lg border px-1 py-1 text-sm text-right focus:outline-none focus:border-[#4441cc] disabled:bg-transparent [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none ${
                         usableWidthCm(item.widthCm) ? 'border-[#e2e0ea] text-[#1b1b1d]' : 'border-amber-300 bg-amber-50'
                       }`}
                     />
@@ -783,7 +931,7 @@ export function BatchGenerator() {
           {!running && errorIds.length > 0 && (
             <button
               type="button"
-              onClick={() => requestRun(errorIds, false)}
+              onClick={() => requestRun(errorIds, false, true)}
               disabled={!!blockReason || preparingConfirm}
               className="w-full px-5 py-2 rounded-xl font-semibold text-sm text-rose-700 border border-rose-200 hover:bg-rose-50 disabled:opacity-40 inline-flex items-center justify-center gap-2"
             >
@@ -883,7 +1031,7 @@ export function BatchGenerator() {
               {selected.result && (selected.status === 'running' || selected.status === 'pending') && (
                 <span className="absolute top-3 left-3 inline-flex items-center gap-1.5 rounded-lg bg-white/90 px-2.5 py-1 text-xs font-semibold text-[#4441cc]">
                   {selected.status === 'running' && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  {selected.status === 'running' ? 'Đang tạo lại...' : 'Chờ ghép lại lên nền mới'}
+                  {selected.status === 'running' ? 'Đang tạo lại...' : 'Chờ ghép lại'}
                 </span>
               )}
             </>
@@ -894,6 +1042,19 @@ export function BatchGenerator() {
             </div>
           )}
         </div>
+
+        {selected?.result?.mode === 'cutout' && (
+          <ProductBrightnessSlider
+            key={selected.id}
+            value={selected.brightness ?? selected.result.brightness}
+            followingAi={selected.brightness === null}
+            hint={scenePreset ? brightnessError ?? brightnessModelHint(brightnessModel) : 'Nền tự tải lên chưa tự chỉnh, chỉnh tay được.'}
+            canApplyAll={items.length > 1}
+            onCommit={(value) => changeBrightness([selected.id], value)}
+            onReset={() => changeBrightness([selected.id], null)}
+            onApplyAll={applyBrightnessToAll}
+          />
+        )}
 
         {selected && (
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
@@ -938,7 +1099,7 @@ export function BatchGenerator() {
               {(selected.status === 'error' || (selected.status === 'done' && mode === 'gemini')) && (
                 <button
                   type="button"
-                  onClick={() => requestRun([selected.id], selected.status === 'done')}
+                  onClick={() => requestRun([selected.id], selected.status === 'done', true)}
                   disabled={running || !!blockReason || preparingConfirm}
                   className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#e2e0ea] text-sm font-semibold text-[#464554] hover:border-[#4441cc] hover:text-[#4441cc] disabled:opacity-40"
                 >
@@ -949,10 +1110,13 @@ export function BatchGenerator() {
               {selected.result && (
                 <button
                   type="button"
-                  onClick={() =>
-                    downloadUrl(selected.result!.src, `${slugifyFileName(selected.name)}.${extensionForMime(selected.result!.mimeType)}`)
-                  }
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-white bg-[#4441cc] hover:bg-[#4441cc]/90"
+                  disabled={selected.status !== 'done'}
+                  title={selected.status === 'done' ? undefined : 'Ảnh đang ghép lại, chờ xong rồi tải'}
+                  onClick={() => {
+                    downloadUrl(selected.result!.src, `${slugifyFileName(selected.name)}.${extensionForMime(selected.result!.mimeType)}`);
+                    recordBrightness([selected]);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-white bg-[#4441cc] hover:bg-[#4441cc]/90 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Download className="w-4 h-4" />
                   Tải ảnh

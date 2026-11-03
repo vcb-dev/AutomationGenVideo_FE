@@ -19,6 +19,11 @@ import { TargetTeamPickerModal } from './TargetTeamPickerModal'
 
 const PAGE_SIZE = 24
 
+function getCurrentMonth() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
 interface TeamProductsTabProps {
   isAdminOrManager: boolean
   userId?: string
@@ -40,6 +45,7 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
   const [deletingProduct, setDeletingProduct] = useState<TeamProduct | null>(null)
   const [targetTeamId, setTargetTeamId] = useState('')
   const [pickingTeam, setPickingTeam] = useState(false)
+  const targetMonth = month || getCurrentMonth()
 
   const { data: teams } = useQuery({
     queryKey: ['task-auto', 'teams'],
@@ -74,8 +80,8 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
   const startAdd = () => (isAllTeams ? setPickingTeam(true) : setShowAdd(true))
 
   const { data: page1Data, isLoading } = useQuery({
-    queryKey: ['task-auto', 'team-products', listTeamId, listBrandType, month, search, productLineFilter, classificationFilter, page],
-    queryFn: () => getTeamProducts(listTeamId, listBrandType, month, {
+    queryKey: ['task-auto', 'team-products', listTeamId, listBrandType, targetMonth, search, productLineFilter, classificationFilter, page],
+    queryFn: () => getTeamProducts(listTeamId, listBrandType, targetMonth, {
       page, limit: PAGE_SIZE, search: search || undefined,
       product_line_id: productLineFilter || undefined, classification_id: classificationFilter || undefined,
     }),
@@ -112,7 +118,7 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
 
   const existingSkus = (allTeamProducts ?? []).map(tp => tp.sku ?? tp.source_editor_product?.sku ?? '').filter(Boolean)
 
-  useEffect(() => { setPage(1) }, [listTeamId, listBrandType, month, search, productLineFilter, classificationFilter])
+  useEffect(() => { setPage(1) }, [listTeamId, listBrandType, targetMonth, search, productLineFilter, classificationFilter])
 
   return (
     <div className="space-y-5">
@@ -153,7 +159,7 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
 
           <input
             type="month"
-            value={month}
+            value={targetMonth}
             onChange={e => setMonth(e.target.value)}
             className="px-3 py-3.5 border border-gray-200 rounded-xl text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
           />
@@ -249,14 +255,13 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
           {!isLoading && teamProducts.length > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
               {teamProducts.map((tp: TeamProduct) => {
-                const isTeamCreated = tp.source_product_id === null
                 return (
                   <ProductCard
                     key={tp.id}
                     teamProduct={tp}
                     canRemove={canDeleteSelected}
                     onRemove={() => setDeletingProduct(tp)}
-                    onEdit={canEditSelected && isTeamCreated ? () => setEditingProduct(tp) : undefined}
+                    onEdit={canEditSelected ? () => setEditingProduct(tp) : undefined}
                     teamName={isAllTeams ? teamNameById.get(tp.team_id) : undefined}
                   />
                 )
@@ -287,6 +292,8 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
         <AddProductModal
           open={showAdd}
           teamId={actionTeamId}
+          month={targetMonth}
+          canSetTarget={canEditSelected}
           existingSkus={existingSkus}
           userId={userId}
           initialBrandType={actionBrandType}
@@ -315,6 +322,8 @@ export function TeamProductsTab({ isAdminOrManager, userId, brandType, selectedT
           open
           teamId={editingProduct.team_id}
           teamProduct={editingProduct}
+          month={targetMonth}
+          canSetTarget={canEditSelected}
           onClose={() => setEditingProduct(null)}
           onSuccess={() => {
             setEditingProduct(null)

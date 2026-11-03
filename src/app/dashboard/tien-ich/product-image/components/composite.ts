@@ -1,20 +1,14 @@
 'use client';
 
-import { computeDrawRect, type Placement, type Size } from '@/lib/product-image/background-placement';
+import { computeDrawRect, type DrawRect, type Placement, type Size } from '@/lib/product-image/background-placement';
+import type { CutoutPixels, FootRatio, RealismLayers } from '@/lib/product-image/realism-layers';
 import {
-  applyLook,
-  applySelfOcclusion,
-  brightenProduct,
-  buildShadowLayer,
-  clearMatteResidue,
-  defringeEdges,
-  footprint,
   analyzeSceneLight,
+  clearMatteResidue,
   medianLightness,
-  productExposureFor,
-  surfacePoolStrength,
   type SceneLight,
-  unpremultiplyEdges,
+  surfacePoolRadii,
+  surfacePoolStrength,
 } from '@/lib/product-image/realism';
 import { loadImage } from './download';
 
@@ -23,37 +17,7 @@ import { loadImage } from './download';
  * đã dọn mép + khớp ánh sáng, lớp bóng dưới chân, rồi vẽ cả hai lên ảnh nền.
  */
 
-export interface RealismSettings {
-  shadow: boolean;
-  /** 1 = tối đúng như ảnh chụp thật */
-  shadowStrength: number;
-  /** 1,8 = mặc định người dùng chốt */
-  shadowHeight: number;
-  look: boolean;
-  /** 0..1 */
-  warmth: number;
-  /** Khung thân SP [x0, y0, x1, y1] (AI trả) — để phân bố sáng trên thân theo kiểu đèn studio. */
-  body?: readonly number[] | null;
-  /** Ánh sáng cảnh của ảnh nền — để SP sáng lên theo độ sáng cảnh. */
-  scene?: SceneLight | null;
-}
-
-export interface CutoutPixels {
-  width: number;
-  height: number;
-  data: Uint8ClampedArray;
-}
-
-export interface RealismCanvases {
-  product: HTMLCanvasElement;
-  shadow: HTMLCanvasElement | null;
-  /** Chiều cao lớp bóng / chiều cao sản phẩm — lớp bóng kéo dài xuống dưới chân. */
-  shadowHeightRatio: number;
-  /** Lề mỗi bên của lớp bóng / chiều rộng sản phẩm — bóng lan ra ngoài hai mép đáy. */
-  shadowPadRatio: number;
-  /** Phần đáy chạm mặt phẳng theo tỉ lệ ảnh SP (0..1) — chỗ vẽ vùng tối loang trên mặt đặt; null = không có. */
-  foot: { left: number; right: number; bottom: number } | null;
-}
+export type { CutoutPixels };
 
 function canvasFrom(width: number, height: number, data: Uint8ClampedArray): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
@@ -84,45 +48,9 @@ export async function readCutoutPixels(src: string): Promise<CutoutPixels> {
   return { width: canvas.width, height: canvas.height, data };
 }
 
-/**
- * 2 lớp trong hệ toạ độ của ảnh đã tách nền: sản phẩm (ánh sáng khớp nền + đáy tối lại) và bóng
- * dưới chân. Không phụ thuộc vị trí/kích thước đặt trên nền — kéo, thu phóng chỉ đổi chỗ vẽ.
- */
-export function buildRealismCanvases(base: CutoutPixels, settings: RealismSettings): RealismCanvases {
-  const { width, height } = base;
-  const { shadow, shadowStrength, shadowHeight, look, warmth } = settings;
-  const productData = new Uint8ClampedArray(base.data);
-  // Đáy THÂN túi (khung thân AI trả) là chỗ chạm mặt hộp — dây/khoá thòng thấp hơn không được thành "đáy".
-  const baseline = settings.body && settings.body.length === 4 ? Math.min(height - 1, Math.round(settings.body[3]) - 1) : null;
-  // Mép sạch khi bật một trong hai: khôi phục màu thật của điểm mép (rembg trả màu đã nhân độ
-  // đặc → viền đen mảnh), rồi thay phần còn ám màu nền cũ (nền trắng → viền sáng) bằng màu thân.
-  if (shadow || look) {
-    unpremultiplyEdges(productData);
-    defringeEdges(productData, width, height);
-  }
-  if (look) {
-    applyLook(productData, width, height, warmth, 1, settings.body);
-    // SP sáng lên theo độ sáng cảnh (cảnh sáng thì SP sáng theo) — chỗ sáng nhất không cháy.
-    brightenProduct(productData, settings.scene ? productExposureFor(settings.scene.lightness) : undefined);
-  }
-  if (shadow) applySelfOcclusion(productData, width, height, shadowStrength, shadowHeight, baseline);
-  const product = canvasFrom(width, height, productData);
-  const contact = shadow ? footprint(base.data, width, height, baseline) : null;
-  const foot = contact && contact.left >= 0
-    ? { left: contact.left / width, right: (contact.right + 1) / width, bottom: (contact.bottom + 1) / height }
-    : null;
-
-  if (!shadow) return { product, shadow: null, shadowHeightRatio: 1, shadowPadRatio: 0, foot: null };
-  const layer = buildShadowLayer(base.data, width, height, shadowStrength, shadowHeight, baseline);
-  const rgba = new Uint8ClampedArray(layer.width * layer.height * 4);
-  for (let i = 0; i < layer.alpha.length; i += 1) rgba[i * 4 + 3] = layer.alpha[i];
-  return {
-    product,
-    shadow: canvasFrom(layer.width, layer.height, rgba),
-    shadowHeightRatio: layer.height / height,
-    shadowPadRatio: layer.padX / width,
-    foot,
-  };
+/** Cỡ lớp SP trên ảnh nền, làm tròn để vẽ khớp điểm ảnh, không bị nội suy lần nữa. */
+export function productTarget(rect: DrawRect) {
+  return { width: Math.max(1, Math.round(rect.width)), height: Math.max(1, Math.round(rect.height)) };
 }
 
 /**
@@ -191,12 +119,15 @@ export async function borderColor(src: string): Promise<[number, number, number]
   return [sum[0] / n, sum[1] / n, sum[2] / n];
 }
 
+/** Chất lượng tối đa để giữ chi tiết màu của túi — mức thấp hơn trình duyệt lấy mẫu màu 4:2:0. */
+const COMPOSITE_JPEG_QUALITY = 1;
+
 /** Ảnh ghép JPEG theo đúng độ phân giải ảnh nền — vẽ bóng rồi tới SP. */
 export async function renderComposite(
   background: { src: string } & Size,
   product: Size,
   placement: Placement,
-  layers: RealismCanvases,
+  layers: RealismLayers,
 ): Promise<Blob> {
   const bgImage = await loadImage(background.src);
   const canvas = document.createElement('canvas');
@@ -213,10 +144,10 @@ export async function renderComposite(
   if (layers.foot) drawSurfacePool(ctx, canvas.width, canvas.height, rect, layers.foot);
   if (layers.shadow) {
     const pad = rect.width * layers.shadowPadRatio;
-    ctx.drawImage(layers.shadow, rect.x - pad, rect.y, rect.width + 2 * pad, rect.height * layers.shadowHeightRatio);
+    ctx.drawImage(canvasFrom(layers.shadow.width, layers.shadow.height, layers.shadow.data), rect.x - pad, rect.y, rect.width + 2 * pad, rect.height * layers.shadowHeightRatio);
   }
-  ctx.drawImage(layers.product, rect.x, rect.y, rect.width, rect.height);
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+  ctx.drawImage(canvasFrom(layers.product.width, layers.product.height, layers.product.data), Math.round(rect.x), Math.round(rect.y));
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', COMPOSITE_JPEG_QUALITY));
   if (!blob) throw new Error('Không dựng được file ảnh');
   return blob;
 }
@@ -231,7 +162,7 @@ function drawSurfacePool(
   width: number,
   height: number,
   rect: { x: number; y: number; width: number; height: number },
-  foot: { left: number; right: number; bottom: number },
+  foot: FootRatio,
 ) {
   const footLeft = rect.x + foot.left * rect.width;
   const footRight = rect.x + foot.right * rect.width;
@@ -255,9 +186,8 @@ function drawSurfacePool(
   const surround = sides.length ? sides.reduce((a, b) => a + b, 0) / sides.length : null;
   const strength = surfacePoolStrength(surface, surround);
   if (strength <= 0) return;
-  // Elip dẹt (mặt hộp nhìn nghiêng), rộng hơn chân một chút, đậm nhất sát chân rồi nhạt dần.
-  const radiusX = footWidth * 0.68;
-  const radiusY = Math.max(4, footWidth * 0.14);
+  // Elip dẹt (mặt hộp nhìn nghiêng), đậm nhất sát chân rồi nhạt dần.
+  const { radiusX, radiusY } = surfacePoolRadii(footWidth, rect.height * foot.size);
   ctx.save();
   ctx.translate(centerX, footY);
   ctx.scale(1, radiusY / radiusX);

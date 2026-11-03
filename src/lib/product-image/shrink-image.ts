@@ -38,6 +38,46 @@ export async function shrinkUntilFits(
   return null;
 }
 
+/** Bằng cạnh dài của nền: đủ để túi to không bị phóng ngược khi ghép; lớn hơn chỉ làm tải lên và tách nền chậm đi. */
+export const CUTOUT_MAX_SIDE_PX = 2560;
+const CUTOUT_JPEG_QUALITY = 0.95;
+
+/** Cỡ ảnh gửi đi tách nền; ảnh đã đủ nhỏ thì null, giữ nguyên file gốc. */
+export function cutoutTargetSize(size: Size, maxSide = CUTOUT_MAX_SIDE_PX): Size | null {
+  const longest = Math.max(size.width, size.height);
+  if (longest <= maxSide) return null;
+  const scale = maxSide / longest;
+  return { width: Math.round(size.width * scale), height: Math.round(size.height * scale) };
+}
+
+/** Thu ảnh trên trình duyệt trước khi tách nền; không thu được thì gửi file gốc. */
+export async function shrinkForCutout(file: File): Promise<File> {
+  // WebP có thể trong suốt: xuất JPEG sẽ mất nền, xuất PNG thì nặng hơn file gốc.
+  if (file.type === 'image/webp') return file;
+  let bitmap: ImageBitmap | null = null;
+  const canvas = document.createElement('canvas');
+  try {
+    bitmap = await createImageBitmap(file);
+    const target = cutoutTargetSize({ width: bitmap.width, height: bitmap.height });
+    if (!target) return file;
+    canvas.width = target.width;
+    canvas.height = target.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return file;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(bitmap, 0, 0, target.width, target.height);
+    const type = outputTypeFor(file.type);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, CUTOUT_JPEG_QUALITY));
+    return blob ? new File([blob], renamedForType(file.name, type), { type, lastModified: file.lastModified }) : file;
+  } catch {
+    return file;
+  } finally {
+    bitmap?.close();
+    canvas.width = 0;
+    canvas.height = 0;
+  }
+}
+
 const formatMb = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 
 /** PNG giữ PNG (có thể là ảnh đã tách nền, cần nền trong suốt); JPEG/WebP ra JPEG. */

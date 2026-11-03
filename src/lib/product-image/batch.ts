@@ -42,6 +42,18 @@ export function requeueCutoutResults<T extends { status: BatchItemStatus; result
   );
 }
 
+/** Đặt độ sáng SP (null = theo AI): ảnh đã ghép mà đổi mức thì về hàng chờ để ghép lại, ảnh Gemini giữ nguyên. */
+export function withBrightness<T extends { brightness: number | null; status: BatchItemStatus; result: { mode: BatchMode } | null }>(
+  items: readonly T[],
+  value: number | null,
+): T[] {
+  return items.map((item) => {
+    if (item.brightness === value) return item;
+    const failed = item.status === 'error' && item.result?.mode === 'cutout';
+    return { ...(failed ? { ...item, status: 'pending' as const } : requeueCutoutResults([item])[0]), brightness: value };
+  });
+}
+
 /** "tui_hermes-birkin 30.jpg" → "tui hermes birkin 30" — tên SP mặc định, người dùng sửa được. */
 export function productNameFromFileName(fileName: string): string {
   const base = fileName.replace(/\.[^./\\]+$/, '');

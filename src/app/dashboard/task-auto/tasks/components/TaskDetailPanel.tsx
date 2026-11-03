@@ -480,12 +480,17 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId, onD
   const isAssignee        = task?.assignee_id === currentUserId
   const isPrivilegedRole  = userRoles.some(r => ['ADMIN', 'MANAGER', 'LEADER'].includes(r))
   const canApproveReject  = isPrivilegedRole
-  // Thành viên thường không được tự xoá task do leader giao tay (assigned_by_id khác assignee_id)
-  // hoặc hệ thống tự động chia (run_id != null) — chỉ xoá được task tự mình tạo/tự nhận. BE
-  // (tasks.service.ts remove()) enforce lại, đây chỉ là gate hiển thị nút cho đúng UX.
+  // Thành viên thường không được tự xoá task do leader giao tay (assigned_by_id khác assignee_id);
+  // task hệ thống tự động chia (run_id != null) chỉ xoá được khi leader bật cho cả team lẫn người đó
+  // và task chưa nộp/chưa duyệt. BE (tasks.service.ts remove()) enforce lại, đây chỉ là gate hiển
+  // thị nút cho đúng UX.
+  const autoTaskDeletable =
+    !!task?.team?.auto_task_delete_enabled &&
+    !!task.assignee?.team_memberships?.some(m => m.team_id === task.team_id && m.auto_task_delete_enabled) &&
+    task.status !== 'SUBMITTED' && task.status !== 'APPROVED'
   const isLockedForMember =
     !isPrivilegedRole &&
-    (!!task?.run_id || (!!task?.assigned_by_id && task.assigned_by_id !== task.assignee_id))
+    ((!!task?.run_id && !autoTaskDeletable) || (!!task?.assigned_by_id && task.assigned_by_id !== task.assignee_id))
   const canDelete         = (isAssignee && !isLockedForMember) || isPrivilegedRole
   const canAssign         = isPrivilegedRole
   const canStart         = task?.status === 'ASSIGNED' && isAssignee
