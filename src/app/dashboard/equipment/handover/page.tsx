@@ -12,7 +12,6 @@ import {
   createHandover,
   fetchAssignableAssets,
   fetchHandoverSheet,
-  fetchRequest,
   fetchRequests,
 } from '@/lib/equipment/request-api';
 import { handoverReadiness } from '@/lib/equipment/handover-readiness';
@@ -67,10 +66,9 @@ function HandoverPageInner() {
   const [addingAssetIndex, setAddingAssetIndex] = useState<number | null>(null);
   const [quickAddError, setQuickAddError] = useState<Record<number, string>>({});
 
-  const loadRequest = useCallback(async (id: string) => {
+  const loadRequest = useCallback(async (detail: BorrowRequest) => {
     setError('');
     try {
-      const detail = await fetchRequest(id);
       setRequest(detail);
       setDone('');
       setConfirmed(false);
@@ -86,7 +84,7 @@ function HandoverPageInner() {
       );
 
       if (detail.status === 'PREPARING') {
-        const sheet = await fetchHandoverSheet(id);
+        const sheet = await fetchHandoverSheet(detail.id);
         setUnits(
           sheet.units.map((u: HandoverSheetUnit) => ({
             assetId: u.asset.id,
@@ -113,8 +111,12 @@ function HandoverPageInner() {
         // bằng "Một máy được gán cho nhiều dòng trong cùng phiếu", và người dùng không hiểu vì sao
         // vì màn hình vừa tự điền sẵn cho họ.
         const pickedAssetIds = new Set<string>();
-        for (const line of detail.lines) {
-          const assignable = await fetchAssignableAssets(line.id).catch(() => []);
+        const assignableByLine = await Promise.all(
+          detail.lines.map((line) => fetchAssignableAssets(line.id).catch(() => [] as Asset[])),
+        );
+        for (let lineIndex = 0; lineIndex < detail.lines.length; lineIndex++) {
+          const line = detail.lines[lineIndex];
+          const assignable = assignableByLine[lineIndex];
           const stillFree = assignable.filter((a) => !pickedAssetIds.has(a.id));
           const chosen = stillFree.slice(0, line.quantity);
           const accessories: Accessory[] =
@@ -159,17 +161,18 @@ function HandoverPageInner() {
     setLoading(true);
     setError('');
     try {
-      const [approvedList, preparingList] = await Promise.all([
-        fetchRequests('APPROVED').catch(() => []),
-        fetchRequests('PREPARING').catch(() => []),
-      ]);
-      const combined = [...approvedList, ...preparingList];
+      const list = await fetchRequests('APPROVED,PREPARING');
+      // Giữ thứ tự cũ: phiếu chờ gán máy trước, phiếu đã chuẩn bị sau.
+      const combined = [
+        ...list.filter((r) => r.status === 'APPROVED'),
+        ...list.filter((r) => r.status === 'PREPARING'),
+      ];
       setCandidates(combined);
 
       const wanted = searchParams?.get('request');
       const target = (wanted && combined.find((r) => r.id === wanted)) || combined[0];
       if (target) {
-        await loadRequest(target.id);
+        await loadRequest(target);
       } else {
         setRequest(null);
         setUnits([]);
@@ -450,7 +453,7 @@ function HandoverPageInner() {
               {candidates.map((r) => (
                 <button
                   key={r.id}
-                  onClick={() => loadRequest(r.id)}
+                  onClick={() => loadRequest(r)}
                   className={cn(
                     'rounded-xl border px-3 py-1.5 text-xs font-bold transition-all',
                     r.id === request?.id
