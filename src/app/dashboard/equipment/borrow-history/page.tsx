@@ -28,11 +28,8 @@ import { apiErrorMessage } from '@/lib/equipment/api-error';
 import { photoSrc } from '@/lib/equipment/api';
 import { incidentKindLabel } from '@/lib/equipment/extension-incident-helpers';
 import { DatePicker } from '@/components/ui/DatePicker';
-import { BorrowPrintModal } from '@/components/equipment/BorrowPrintModal';
+import dynamic from 'next/dynamic';
 import { EquipmentAlertBanner } from '@/components/equipment/EquipmentAlertBanner';
-import { IncidentReportModal } from '@/components/equipment/IncidentReportModal';
-import { ExtensionRequestModal } from '@/components/equipment/ExtensionRequestModal';
-import { MobileBorrowQRModal } from '@/components/equipment/MobileBorrowQRModal';
 import { useAuthStore } from '@/store/auth-store';
 import { canManageCatalog } from '@/lib/equipment/catalog-permissions';
 import {
@@ -50,6 +47,20 @@ import {
   isRequestOverdue,
   isRequestExpiringSoon,
 } from '@/lib/equipment/quick-filters';
+
+// Hộp thoại chỉ tải JS khi người dùng mở.
+const BorrowPrintModal = dynamic(() =>
+  import('@/components/equipment/BorrowPrintModal').then((m) => m.BorrowPrintModal),
+);
+const IncidentReportModal = dynamic(() =>
+  import('@/components/equipment/IncidentReportModal').then((m) => m.IncidentReportModal),
+);
+const ExtensionRequestModal = dynamic(() =>
+  import('@/components/equipment/ExtensionRequestModal').then((m) => m.ExtensionRequestModal),
+);
+const MobileBorrowQRModal = dynamic(() =>
+  import('@/components/equipment/MobileBorrowQRModal').then((m) => m.MobileBorrowQRModal),
+);
 
 const cardClass =
   'rounded-2xl border border-slate-200 bg-white shadow-sm ' +
@@ -1122,37 +1133,45 @@ function BorrowHistoryLogPageInner() {
         )}
 
         {/* MODAL BÁO CÁO SỰ CỐ */}
-        <IncidentReportModal
-          open={Boolean(incidentModalRequest)}
-          onClose={() => setIncidentModalRequest(null)}
-          request={incidentModalRequest}
-          onSuccess={() => {
-            load();
-          }}
-        />
+        {incidentModalRequest && (
+          <IncidentReportModal
+            open={Boolean(incidentModalRequest)}
+            onClose={() => setIncidentModalRequest(null)}
+            request={incidentModalRequest}
+            onSuccess={() => {
+              load();
+            }}
+          />
+        )}
 
         {/* MODAL XIN GIA HẠN */}
-        <ExtensionRequestModal
-          open={Boolean(extensionModalRequest)}
-          onClose={() => setExtensionModalRequest(null)}
-          request={extensionModalRequest}
-          onSuccess={() => {
-            load();
-          }}
-        />
+        {extensionModalRequest && (
+          <ExtensionRequestModal
+            open={Boolean(extensionModalRequest)}
+            onClose={() => setExtensionModalRequest(null)}
+            request={extensionModalRequest}
+            onSuccess={() => {
+              load();
+            }}
+          />
+        )}
 
         {/* MODAL IN PHIẾU BÀN GIAO TOÀN DIỆN */}
-        <BorrowPrintModal
-          open={Boolean(printingRequest)}
-          onClose={() => setPrintingRequest(null)}
-          request={printingRequest}
-        />
+        {printingRequest && (
+          <BorrowPrintModal
+            open={Boolean(printingRequest)}
+            onClose={() => setPrintingRequest(null)}
+            request={printingRequest}
+          />
+        )}
 
         {/* MODAL QUÉT MÃ QR TẠO PHIẾU BẰNG ĐIỆN THOẠI */}
-        <MobileBorrowQRModal
-          open={mobileQrOpen}
-          onClose={() => setMobileQrOpen(false)}
-        />
+        {mobileQrOpen && (
+          <MobileBorrowQRModal
+            open={mobileQrOpen}
+            onClose={() => setMobileQrOpen(false)}
+          />
+        )}
       </div>
     </div>
   );

@@ -18,12 +18,17 @@ import { handoverReadiness } from '@/lib/equipment/handover-readiness';
 import { ConditionDot } from '@/components/equipment/ConditionDot';
 import { StepBar } from '@/components/equipment/StepBar';
 import { WorkflowSuccessModal } from '@/components/equipment/WorkflowSuccessModal';
-import { BorrowPrintModal } from '@/components/equipment/BorrowPrintModal';
+import dynamic from 'next/dynamic';
 import { RequireCatalogManager } from '@/components/equipment/RequireCatalogManager';
 import { apiErrorMessage } from '@/lib/equipment/api-error';
 import { conditionLabel } from '@/lib/equipment/status-label';
 import { compressImage } from '@/lib/equipment/image-compressor';
 import type { PhotoItem } from '@/lib/equipment/photo-item';
+
+// Phiếu in chỉ tải JS khi người dùng bấm In.
+const BorrowPrintModal = dynamic(() =>
+  import('@/components/equipment/BorrowPrintModal').then((m) => m.BorrowPrintModal),
+);
 
 const cardClass =
   'rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/[0.08] dark:bg-white/[0.03]';
@@ -1003,19 +1008,21 @@ function HandoverPageInner() {
             printLabel="🖨️ In phiếu bàn giao ngay (A4 / Ký nhận)"
           />
 
-          <BorrowPrintModal
-            open={printing}
-            onClose={() => setPrinting(false)}
-            request={request}
-            assignedUnits={units.map((u) => ({
-              modelName: u.modelName,
-              assetCode: u.code,
-              serialNumber: u.serialNumber || u.code,
-              accessories: u.accessories.filter((_, idx) => u.present[idx]).map((a) => a.name),
-              quantity: 1,
-              note: u.note,
-            }))}
-          />
+          {printing && (
+            <BorrowPrintModal
+              open={printing}
+              onClose={() => setPrinting(false)}
+              request={request}
+              assignedUnits={units.map((u) => ({
+                modelName: u.modelName,
+                assetCode: u.code,
+                serialNumber: u.serialNumber || u.code,
+                accessories: u.accessories.filter((_, idx) => u.present[idx]).map((a) => a.name),
+                quantity: 1,
+                note: u.note,
+              }))}
+            />
+          )}
         </>
       )}
     </div>

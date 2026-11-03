@@ -9,9 +9,14 @@ import { noModelLeft, selectableModels } from '@/lib/equipment/selectable-models
 import { availabilityLabel } from '@/lib/equipment/availability-label';
 import { apiErrorMessage } from '@/lib/equipment/api-error';
 import { DateTimePicker } from '@/components/ui/DateTimePicker';
-import { MobileBorrowQRModal } from '@/components/equipment/MobileBorrowQRModal';
+import dynamic from 'next/dynamic';
 import { isMobileBrowser } from '@/lib/equipment/mobile-borrow-helpers';
 import { useAuthStore } from '@/store/auth-store';
+
+// Khung QR chỉ tải JS khi người dùng mở.
+const MobileBorrowQRModal = dynamic(() =>
+  import('@/components/equipment/MobileBorrowQRModal').then((m) => m.MobileBorrowQRModal),
+);
 
 /**
  * Mục đích mượn — thứ quyết định phiếu cần một hay hai chữ ký.
@@ -594,7 +599,7 @@ export default function NewRequestPage() {
       </aside>
 
       {/* MODAL QUÉT MÃ QR TẠO PHIẾU BẰNG ĐIỆN THOẠI */}
-      {!ticketMode && (
+      {!ticketMode && qrModalOpen && (
         <MobileBorrowQRModal
           open={qrModalOpen}
           onClose={() => setQrModalOpen(false)}
