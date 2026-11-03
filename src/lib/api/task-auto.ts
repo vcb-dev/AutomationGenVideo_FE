@@ -323,6 +323,16 @@ export const addTeamProduct = (teamId: string, data: { source_product_id?: strin
 export const updateTeamProduct = (teamId: string, teamProductId: string, data: Partial<TeamProduct>) =>
   apiClient.patch<TeamProduct>(`/task-auto/teams/${teamId}/products/${teamProductId}`, data).then(r => r.data)
 
+export const updateTeamProductMonthlyTarget = (
+  teamId: string,
+  teamProductId: string,
+  month: string,
+  targetQuantity: number,
+) => apiClient.put(`/task-auto/teams/${teamId}/products/${teamProductId}/monthly-target`, {
+  month,
+  target_quantity: targetQuantity,
+}).then(r => r.data)
+
 export const removeTeamProduct = (teamId: string, teamProductId: string) =>
   apiClient.delete(`/task-auto/teams/${teamId}/products/${teamProductId}`).then(r => r.data)
 
@@ -964,14 +974,28 @@ export const getAutoAssignSettings = () =>
 export const updateAutoAssignSettings = (body: Partial<AutoAssignSetting>) =>
   apiClient.put<AutoAssignSetting>('/task-auto/settings', body).then(r => r.data)
 
+export const getTeamAutoAssignSettings = () =>
+  apiClient.get<import('@/types/task-auto').TeamAutoAssignSetting[]>('/task-auto/settings/teams').then(r => r.data)
+
+export const updateTeamAutoAssignSetting = (teamId: string, cooldownDays: number) =>
+  apiClient.patch<import('@/types/task-auto').TeamAutoAssignSetting>(`/task-auto/settings/teams/${teamId}`, {
+    cooldown_days: cooldownDays,
+  }).then(r => r.data)
+
 export const getMemberAutoAssignSchedules = () =>
   apiClient.get<TeamAutoAssignSchedules[]>('/task-auto/settings/members').then(r => r.data)
 
 export const updateMemberAutoAssignSchedule = (
   memberId: string,
-  body: Partial<Pick<MemberAutoAssignSchedule, 'auto_assign_enabled' | 'auto_assign_weekdays'>>,
+  body: Partial<Pick<MemberAutoAssignSchedule, 'auto_assign_enabled' | 'auto_assign_weekdays' | 'auto_task_delete_enabled'>>,
 ) =>
   apiClient.patch<MemberAutoAssignSchedule>(`/task-auto/settings/members/${memberId}`, body).then(r => r.data)
+
+export const updateTeamAutoTaskDelete = (teamId: string, enabled: boolean) =>
+  apiClient.patch<{ id: string; auto_task_delete_enabled: boolean }>(
+    `/task-auto/settings/teams/${teamId}/auto-task-delete`,
+    { enabled },
+  ).then(r => r.data)
 
 export const triggerAutoAssign = () =>
   apiClient.post<{ message: string; timestamp: string; assigned: number; skipped: number; runId: string }>(

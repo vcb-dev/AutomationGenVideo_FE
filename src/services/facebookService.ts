@@ -2,7 +2,7 @@ import { fetchWithAuth } from '@/lib/api-client';
 import {
   FacebookPage, PaginatedPages, PaginatedVideos, PageFilters, VideoFilters,
   PaginatedPublishedVideos, PublishedVideoFilters, PublishedVideoFilterOptions,
-  PublishedVideoRefreshFilters, PublishedVideoRefreshJob,
+  PublishedVideoRefreshFilters, PublishedVideoRefreshJob, ContentLineViews,
 } from '@/types/facebook';
 
 // Đi qua BE (proxy sang AI ở src/modules/scraper-proxy), không gọi thẳng AI nữa.
@@ -79,6 +79,13 @@ export const facebookService = {
   getVideoFilterOptions: async (): Promise<PublishedVideoFilterOptions> => {
     const res = await fetchWithAuth(`${API_URL}/facebook/videos/filter-options`);
     if (!res.ok) throw new Error('Không thể tải danh sách người cầm kênh');
+    return res.json();
+  },
+
+  getContentLineViews: async (filters: { date_from: string; date_to: string; team_id?: string; owner_id?: string }): Promise<ContentLineViews> => {
+    const qs = buildParams(filters);
+    const res = await fetchWithAuth(`${API_URL}/facebook/videos/content-line-views?${qs}`);
+    if (!res.ok) throw new Error('Không thể tải lượt xem theo tuyến');
     return res.json();
   },
 
