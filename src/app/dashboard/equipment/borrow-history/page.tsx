@@ -152,12 +152,11 @@ function BorrowHistoryLogPageInner() {
     setLoading(true);
     setError('');
 
-    // Luôn tải danh sách phiếu để có số liệu thống kê toàn diện (BE tự lọc owner_id cho Member)
-    fetchRequests()
-      .then(setRequests)
-      .catch(() => {});
+    // Một lời gọi đủ cho cả thống kê lẫn danh sách; lọc trạng thái làm ở trình duyệt (BE tự lọc owner_id cho Member).
+    const requestsLoad = fetchRequests().then(setRequests);
 
     if (isManager && viewMode === 'ASSET') {
+      requestsLoad.catch(() => {});
       fetchBorrowHistoryLog(buildBorrowLogQuery({ status, from, to, page }) as never)
         .then((res) => {
           setAssetRows(res.rows);
@@ -173,10 +172,7 @@ function BorrowHistoryLogPageInner() {
         )
         .finally(() => setLoading(false));
     } else {
-      fetchRequests(status || undefined)
-        .then((data) => {
-          setRequests(data);
-        })
+      requestsLoad
         .catch((e: unknown) =>
           setError(
             (e as { response?: { status?: number } })?.response?.status === 403
@@ -267,6 +263,9 @@ function BorrowHistoryLogPageInner() {
   // Lọc tìm kiếm đa năng, bộ lọc nhanh 1 chạm và khoảng ngày trên tập dữ liệu REQUEST
   const filteredRequests = useMemo(() => {
     let result = requests;
+    if (status) {
+      result = result.filter((r) => r.status === status);
+    }
     if (quickFilter !== 'ALL') {
       result = filterRequestsByQuickFilter(result, quickFilter);
     }
@@ -297,7 +296,7 @@ function BorrowHistoryLogPageInner() {
       result = result.filter((r) => new Date(r.from_time).getTime() <= toTime);
     }
     return result;
-  }, [requests, quickFilter, searchQuery, from, to]);
+  }, [requests, quickFilter, searchQuery, from, to, status]);
 
   // Thống kê nhanh tổng quan toàn hệ thống
   const stats = useMemo(() => {
