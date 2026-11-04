@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateA
 import toast from 'react-hot-toast';
 import { Loader2, Wand2, WifiOff, RefreshCw, FileDown } from 'lucide-react';
 import apiClient from '@/lib/api-client';
-import { IdPhotoPosition } from './constants';
+import { IdPhotoOutfitType, IdPhotoPosition, OUTFIT_TYPE_OPTIONS } from './constants';
 import { EmployeeInfoFields, EmployeeInfoValues, isEmployeeInfoValid } from './EmployeeInfoFields';
 import { BulkEmployeeCard, BulkPersonRow, BulkCardModel } from './BulkEmployeeCard';
 import { BulkResultGrid } from './BulkResultGrid';
@@ -60,8 +60,8 @@ const uploadOne = async (file: File): Promise<string> => {
   return res.data.uploadId;
 };
 
-const postCreateBatch = async (people: BatchCreatePerson[]) => {
-  const res = await apiClient.post('/id-photo/batch', { people });
+const postCreateBatch = async (people: BatchCreatePerson[], outfitType: IdPhotoOutfitType) => {
+  const res = await apiClient.post('/id-photo/batch', { people, outfitType });
   return res.data as { batchJobId: string };
 };
 
@@ -73,6 +73,7 @@ const getBatchStatus = async (batchJobId: string): Promise<BatchStatusResponse> 
 export function BulkTab() {
   const [phase, setPhase] = useState<Phase>('editing');
   const [cards, setCards] = useState<BulkCardModel[]>(() => [emptyCard()]);
+  const [outfitType, setOutfitType] = useState<IdPhotoOutfitType>('office');
 
   const [batchStatus, setBatchStatus] = useState<BatchStatusResponse | null>(null);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
@@ -256,7 +257,7 @@ export function BulkTab() {
         setUploadHint(`Đang tải ảnh ${p.done}/${p.total} — ${p.name}`),
       );
       setUploadHint('Đang khởi tạo batch...');
-      const batchJobId = await createBatch(postCreateBatch, people);
+      const batchJobId = await createBatch((p) => postCreateBatch(p, outfitType), people);
 
       saveActiveBatch({ batchJobId, startedAt: Date.now() });
       // Hiện lưới N ô PENDING ngay, chờ poll đầu tiên thay bằng dữ liệu thật.
@@ -469,6 +470,31 @@ export function BulkTab() {
       <div className="space-y-3">
         {showForm ? (
           <>
+            <div>
+              <p className="mb-2 text-sm font-bold text-[#1b1b1d]">Đồng phục cho cả lô</p>
+              <div className="grid grid-cols-2 gap-3">
+                {OUTFIT_TYPE_OPTIONS.map((opt) => {
+                  const selected = outfitType === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      disabled={submitting}
+                      onClick={() => setOutfitType(opt.value)}
+                      className={`text-left px-4 py-3 rounded-xl border transition-colors disabled:opacity-60 ${
+                        selected ? 'border-[#4441cc] bg-[#4441cc]/5' : 'border-[#d5d3e0] hover:border-[#4441cc]/60'
+                      }`}
+                    >
+                      <p className={`text-sm font-semibold ${selected ? 'text-[#4441cc]' : 'text-[#1b1b1d]'}`}>
+                        {opt.label}
+                      </p>
+                      <p className="text-xs text-[#9c9aa8] mt-0.5">{opt.description}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             <div className="space-y-4">
               {cards.map((c, i) => (
                 <BulkEmployeeCard
