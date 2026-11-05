@@ -284,7 +284,13 @@ export function BulkTab() {
       startPolling(batchJobId);
     } catch (err: any) {
       setPhase('editing');
-      toast.error(err instanceof BatchError ? err.message : 'Tạo batch thất bại, vui lòng thử lại.');
+      // BE nêu rõ người nào lỗi (vd "Ảnh của người thứ 2 … hết hạn") — hiện nguyên văn thay vì câu chung.
+      const serverMessage = err?.response?.data?.message;
+      toast.error(
+        err instanceof BatchError
+          ? err.message
+          : (Array.isArray(serverMessage) ? serverMessage.join('; ') : serverMessage) || 'Tạo batch thất bại, vui lòng thử lại.',
+      );
     } finally {
       submittingRef.current = false;
       setUploadHint(null);
