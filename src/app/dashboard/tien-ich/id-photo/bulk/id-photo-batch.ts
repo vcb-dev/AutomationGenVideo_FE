@@ -12,7 +12,7 @@
  *  - `batchRetryPath`     — dựng path endpoint "thử lại 1 người".
  */
 
-import { IdPhotoPosition } from '../components/constants';
+import { IdPhotoOutfitType, IdPhotoPosition } from '../components/constants';
 
 export type IdPhotoBatchOverallStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 export type IdPhotoItemStatus = 'PENDING' | 'PROCESSING' | 'SUCCESS' | 'FAILED';
@@ -143,6 +143,20 @@ export async function uploadBatchImages(
     onProgress?.({ done: i + 1, total: cards.length, name: who });
   }
   return people;
+}
+
+/** Body POST /id-photo/batch — một loại đồng phục áp cho cả lô. */
+export function buildCreateBatchBody(people: BatchCreatePerson[], outfitType: IdPhotoOutfitType) {
+  return { people, outfitType };
+}
+
+/** Câu báo lỗi khi tạo lô: ưu tiên BatchError, rồi nguyên văn message của BE (chuỗi hoặc mảng), cuối cùng câu chung. */
+export function batchCreateErrorMessage(err: unknown): string {
+  if (err instanceof BatchError) return err.message;
+  const message = (err as any)?.response?.data?.message;
+  if (Array.isArray(message) && message.length > 0) return message.join('; ');
+  if (typeof message === 'string' && message.trim()) return message;
+  return 'Tạo batch thất bại, vui lòng thử lại.';
 }
 
 /** POST /id-photo/batch — trả batchJobId ngay, chưa chờ xử lý. */

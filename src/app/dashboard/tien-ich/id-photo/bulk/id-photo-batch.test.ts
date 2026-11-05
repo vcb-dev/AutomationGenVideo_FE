@@ -1,6 +1,8 @@
 import {
   uploadBatchImages,
   createBatch,
+  buildCreateBatchBody,
+  batchCreateErrorMessage,
   pollIdPhotoBatch,
   batchRetryPath,
   batchRemergePath,
@@ -346,5 +348,30 @@ describe('xuất PDF hàng loạt', () => {
     } finally {
       global.fetch = realFetch;
     }
+  });
+});
+
+describe('chọn đồng phục cho cả lô + báo lỗi tạo lô', () => {
+  const people = [{ uploadId: 'u1', employeeName: 'A', employeeTeam: 'T', employeeId: 'X1', position: 'LEADER' as const }];
+
+  it('body gửi lên kèm outfitType đã chọn cho cả lô', () => {
+    expect(buildCreateBatchBody(people, 'workshop')).toEqual({ people, outfitType: 'workshop' });
+    expect(buildCreateBatchBody(people, 'office').outfitType).toBe('office');
+  });
+
+  it('lỗi BE dạng chuỗi → hiện nguyên văn (vd người thứ mấy hết hạn ảnh)', () => {
+    const err = { response: { data: { message: 'Ảnh của người thứ 2 (B) không dùng được: hết hạn' } } };
+    expect(batchCreateErrorMessage(err)).toBe('Ảnh của người thứ 2 (B) không dùng được: hết hạn');
+  });
+
+  it('lỗi validate BE dạng mảng → nối bằng "; "', () => {
+    const err = { response: { data: { message: ['outfitType must be one of the following values: office, workshop', 'people should not be empty'] } } };
+    expect(batchCreateErrorMessage(err)).toBe('outfitType must be one of the following values: office, workshop; people should not be empty');
+  });
+
+  it('BatchError giữ thông điệp riêng; lỗi mạng không có message → câu chung', () => {
+    expect(batchCreateErrorMessage(new BatchError('Máy chủ không trả về mã batch.'))).toBe('Máy chủ không trả về mã batch.');
+    expect(batchCreateErrorMessage(new Error('Network Error'))).toBe('Tạo batch thất bại, vui lòng thử lại.');
+    expect(batchCreateErrorMessage({ response: { data: { message: '   ' } } })).toBe('Tạo batch thất bại, vui lòng thử lại.');
   });
 });

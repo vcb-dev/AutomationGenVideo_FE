@@ -13,6 +13,8 @@ import { CROP_DEFAULT, CropTransform } from './crop-math';
 import {
   uploadBatchImages,
   createBatch,
+  buildCreateBatchBody,
+  batchCreateErrorMessage,
   pollIdPhotoBatch,
   retryBatchPerson,
   remergeBatchPerson,
@@ -61,7 +63,7 @@ const uploadOne = async (file: File): Promise<string> => {
 };
 
 const postCreateBatch = async (people: BatchCreatePerson[], outfitType: IdPhotoOutfitType) => {
-  const res = await apiClient.post('/id-photo/batch', { people, outfitType });
+  const res = await apiClient.post('/id-photo/batch', buildCreateBatchBody(people, outfitType));
   return res.data as { batchJobId: string };
 };
 
@@ -285,12 +287,7 @@ export function BulkTab() {
     } catch (err: any) {
       setPhase('editing');
       // BE nêu rõ người nào lỗi (vd "Ảnh của người thứ 2 … hết hạn") — hiện nguyên văn thay vì câu chung.
-      const serverMessage = err?.response?.data?.message;
-      toast.error(
-        err instanceof BatchError
-          ? err.message
-          : (Array.isArray(serverMessage) ? serverMessage.join('; ') : serverMessage) || 'Tạo batch thất bại, vui lòng thử lại.',
-      );
+      toast.error(batchCreateErrorMessage(err));
     } finally {
       submittingRef.current = false;
       setUploadHint(null);
