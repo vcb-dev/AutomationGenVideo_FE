@@ -31,8 +31,13 @@ const CARD_LAYOUT = {
     width: `${((85.2 * 2) / 420) * 100}%`,
   },
   nameTop: `${(392 / 669) * 100}%`,      // BE: CARD_LAYOUT.nameY
+  // BE 2 dòng: top = nameY + 30/2 − 1,12 × cỡ chữ (~20,6pt ≈ 4.9cqw).
+  nameTopTwoLines: `${((392 + 15 - 1.12 * 20.6) / 669) * 100}%`,
   teamIdTop: `${(458 / 669) * 100}%`,    // BE: CARD_LAYOUT.teamIdY
 };
+
+/** Tên dài hơn mức này (chữ in hoa đậm, cỡ ≥22pt ở BE) thì BE chuyển sang 2 dòng. */
+const NAME_ONE_LINE_MAX_CHARS = 24;
 
 /** Ảnh nền khung thẻ theo cấp bậc — khớp FRAME_FILE_BY_POSITION bên BE. */
 const FRAME_BY_POSITION: Record<IdPhotoPosition, string> = {
@@ -67,6 +72,8 @@ export function IdCardPreview({
   const opt = getPositionOption(position);
   const isLightBg = opt.color.toUpperCase() === '#FFFFFF';
   const textColor = isLightBg ? '#1F2937' : '#FFFFFF';
+  // Gần đúng fitNameLines bên BE: tên dài in 2 dòng cỡ nhỏ hơn, khối dịch lên giữ tâm dòng cũ.
+  const isLongName = (employeeName || '').trim().length > NAME_ONE_LINE_MAX_CHARS;
 
   return (
     <div
@@ -95,8 +102,12 @@ export function IdCardPreview({
           (bước 4 luồng đơn lẻ ~340px, ô lưới batch nhỏ hơn) — dùng rem thì thẻ nhỏ bị tràn chữ,
           đè lên dòng Team/ID. 6.3cqw ≈ 1.35rem tại 340px. */}
       <h4
-        className="absolute w-full px-[6%] text-center font-bold uppercase leading-tight truncate"
-        style={{ top: CARD_LAYOUT.nameTop, color: textColor, fontSize: '6.3cqw' }}
+        className="absolute w-full px-[6%] text-center font-bold uppercase leading-[1.12] line-clamp-2 whitespace-normal break-words"
+        style={{
+          top: isLongName ? CARD_LAYOUT.nameTopTwoLines : CARD_LAYOUT.nameTop,
+          color: textColor,
+          fontSize: isLongName ? '4.9cqw' : '6.3cqw',
+        }}
       >
         {employeeName || 'Họ và tên'}
       </h4>
