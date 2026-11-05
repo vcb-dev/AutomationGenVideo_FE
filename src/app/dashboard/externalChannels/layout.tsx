@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import { FacebookLogo, TiktokLogo, InstagramLogo, YoutubeLogo, SquaresFour } from '@phosphor-icons/react';
+import { FacebookLogo, TiktokLogo, InstagramLogo, YoutubeLogo, SquaresFour, RedditLogo } from '@phosphor-icons/react';
 import { SiThreads } from 'react-icons/si';
 import NotificationBell from './components/NotificationBell';
 import { useAuthStore } from '@/store/auth-store';
@@ -19,6 +19,7 @@ const platforms = [
   { id: 'xiaohongshu', label: 'XiaoHongShu', icon: null, emoji: '📕' },
   { id: 'kuaishou', label: 'KuaiShou', icon: null, emoji: '⚡' },
   { id: 'bilibili', label: 'Bilibili', icon: null, emoji: '📺' },
+  { id: 'reddit', label: 'Reddit', icon: RedditLogo, color: 'text-orange-600' },
 ];
 
 export default function ExternalChannelsLayout({ children }: { children: React.ReactNode }) {
