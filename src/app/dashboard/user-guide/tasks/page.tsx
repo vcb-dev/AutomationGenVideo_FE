@@ -468,10 +468,11 @@ export default function NhiemVuGuidePage() {
               <li><strong>Danh mục</strong> / <strong>Content</strong> — kho chung, ai cũng chọn được khi tạo nhiệm vụ.</li>
             </ul>
             <InfoBox variant="note" title="Nội dung vào kho bằng cách nào?">
-              Kho nội dung không có nút thêm trực tiếp. Content bạn <strong>viết mới khi tạo nhiệm vụ</strong> tự lưu vào{' '}
-              <strong>kho cá nhân</strong>; kho team chỉ nhận content <strong>đẩy từ kho cá nhân</strong> (Leader duyệt); kho tổng
-              nhận content <strong>đẩy từ kho team</strong> và <strong>content win</strong> — content của nhiệm vụ có video đạt
-              trên 10K lượt xem, hệ thống tự đưa lên.
+              Bấm <Tag>Thêm content</Tag> ngay trong từng kho: kho cá nhân (mọi người), kho team (Leader, Admin/Manager), kho
+              tổng (Admin/Manager, thành viên Content Team). Ngoài ra, content bạn <strong>viết mới khi tạo nhiệm vụ</strong> tự
+              lưu vào <strong>kho cá nhân</strong>; kho team nhận content <strong>đẩy từ kho cá nhân</strong> (Leader duyệt); kho
+              tổng nhận content <strong>đẩy từ kho team</strong> và <strong>content win</strong> — content của nhiệm vụ có video
+              đạt trên 10K lượt xem, hệ thống tự đưa lên.
             </InfoBox>
             <InfoBox variant="note" title="Sản phẩm / Nguồn là gì?">
               <strong>Sản phẩm</strong>: món hàng thật sẽ lên hình trong video. <strong>Nguồn (Source)</strong>: tư liệu hỗ
