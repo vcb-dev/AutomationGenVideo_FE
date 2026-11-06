@@ -3,6 +3,11 @@ import {
   createBatch,
   buildCreateBatchBody,
   batchCreateErrorMessage,
+  printSheetIds,
+  togglePrintSelection,
+  downloadPrintSheet,
+  PRINT_SHEET_MAX_CARDS,
+  PRINT_SHEET_PATH,
   pollIdPhotoBatch,
   batchRetryPath,
   batchRemergePath,
@@ -373,5 +378,45 @@ describe('chọn đồng phục cho cả lô + báo lỗi tạo lô', () => {
     expect(batchCreateErrorMessage(new BatchError('Máy chủ không trả về mã batch.'))).toBe('Máy chủ không trả về mã batch.');
     expect(batchCreateErrorMessage(new Error('Network Error'))).toBe('Tạo batch thất bại, vui lòng thử lại.');
     expect(batchCreateErrorMessage({ response: { data: { message: '   ' } } })).toBe('Tạo batch thất bại, vui lòng thử lại.');
+  });
+});
+
+describe('file in A4', () => {
+  const person = (id: string, status: any) => ({ id, status });
+
+  it('printSheetIds chỉ lấy người SUCCESS, giữ thứ tự, tối đa 45', () => {
+    expect(printSheetIds([person('a', 'SUCCESS'), person('b', 'FAILED'), person('c', 'SUCCESS')])).toEqual(['a', 'c']);
+    const many = Array.from({ length: 50 }, (_, i) => person(`p${i}`, 'SUCCESS'));
+    expect(printSheetIds(many)).toHaveLength(PRINT_SHEET_MAX_CARDS);
+  });
+
+  it('togglePrintSelection thêm/bỏ chọn, không vượt 45', () => {
+    expect(togglePrintSelection(['a'], 'b')).toEqual(['a', 'b']);
+    expect(togglePrintSelection(['a', 'b'], 'a')).toEqual(['b']);
+    const full = Array.from({ length: PRINT_SHEET_MAX_CARDS }, (_, i) => `p${i}`);
+    expect(togglePrintSelection(full, 'thua')).toBe(full);
+    expect(togglePrintSelection(full, 'p0')).toHaveLength(PRINT_SHEET_MAX_CARDS - 1);
+  });
+
+  it('downloadPrintSheet gửi đúng path + ids, đọc số thẻ từ header', async () => {
+    const post = jest.fn(async () => ({ data: new Blob(['%PDF']), headers: { 'x-exported-count': '2', 'x-skipped-count': '1' } }));
+    const r = await downloadPrintSheet(post, ['a', 'b', 'c']);
+    expect(post).toHaveBeenCalledWith(PRINT_SHEET_PATH, { ids: ['a', 'b', 'c'] });
+    expect({ exported: r.exported, skipped: r.skipped }).toEqual({ exported: 2, skipped: 1 });
+  });
+
+  it('downloadPrintSheet chặn rỗng / quá 45 mà không gọi API', async () => {
+    const post = jest.fn();
+    await expect(downloadPrintSheet(post as any, [])).rejects.toBeInstanceOf(BatchError);
+    await expect(downloadPrintSheet(post as any, Array.from({ length: 46 }, (_, i) => `p${i}`))).rejects.toThrow('Tối đa 45');
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('downloadPrintSheet đọc message lỗi JSON nằm trong Blob của BE', async () => {
+    const body = { text: async () => JSON.stringify({ message: 'Các thẻ đã chọn chưa có ảnh ghép áo, không xuất được file in.' }) };
+    const post = jest.fn(async () => {
+      throw { response: { data: body } };
+    });
+    await expect(downloadPrintSheet(post as any, ['a'])).rejects.toThrow('chưa có ảnh ghép áo');
   });
 });

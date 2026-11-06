@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import toast from 'react-hot-toast';
-import { Loader2, Wand2, WifiOff, RefreshCw, FileDown } from 'lucide-react';
+import { Loader2, Wand2, WifiOff, RefreshCw, FileDown, Printer } from 'lucide-react';
 import apiClient from '@/lib/api-client';
 import { IdPhotoOutfitType, IdPhotoPosition, OUTFIT_TYPE_OPTIONS } from './constants';
 import { EmployeeInfoFields, EmployeeInfoValues, isEmployeeInfoValid } from './EmployeeInfoFields';
@@ -15,6 +15,10 @@ import {
   createBatch,
   buildCreateBatchBody,
   batchCreateErrorMessage,
+  downloadPrintSheet,
+  printSheetIds,
+  triggerBlobDownload,
+  PRINT_SHEET_MAX_CARDS,
   pollIdPhotoBatch,
   retryBatchPerson,
   remergeBatchPerson,
@@ -90,6 +94,7 @@ export function BulkTab() {
   // trả về (nếu không: rời tab rồi quay lại là màn trống ~1-4s cho tới khi API xong).
   const [resuming, setResuming] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportingPrint, setExportingPrint] = useState(false);
 
   // Khoá đồng bộ chống double-submit (state disable chỉ có tác dụng ở render sau).
   const submittingRef = useRef(false);
@@ -423,6 +428,28 @@ export function BulkTab() {
     }
   };
 
+  // ── File in A4: 9 thẻ CR80/tờ có vạch cắt, chỉ người SUCCESS ─────────────
+  const handleExportPrintSheet = async () => {
+    if (!batchStatus || exportingPrint) return;
+    setExportingPrint(true);
+    const loading = toast.loading('Đang dựng file in A4...');
+    try {
+      const { blob, exported, skipped } = await downloadPrintSheet(
+        (path, body) => apiClient.post(path, body, { responseType: 'blob' }),
+        printSheetIds(batchStatus.people),
+      );
+      triggerBlobDownload(blob, `anh-the-file-in-a4-${batchStatus.id.slice(0, 8)}.pdf`);
+      toast.success(
+        skipped > 0 ? `Đã xuất file in ${exported} thẻ (bỏ qua ${skipped} thẻ chưa có ảnh).` : `Đã xuất file in ${exported} thẻ.`,
+        { id: loading, duration: 6000 },
+      );
+    } catch (err: any) {
+      toast.error(err instanceof BatchError ? err.message : 'Xuất file in thất bại, vui lòng thử lại.', { id: loading });
+    } finally {
+      setExportingPrint(false);
+    }
+  };
+
   const startOver = () => {
     pollReqRef.current += 1;
     clearActiveBatch();
@@ -585,6 +612,20 @@ export function BulkTab() {
                     >
                       {exportingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
                       {exportingPdf ? 'Đang dựng PDF...' : `Xuất PDF hàng loạt (${batchStatus.counts.success} ảnh)`}
+                    </button>
+                  )}
+                  {batchStatus.counts.success > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleExportPrintSheet}
+                      disabled={exportingPrint}
+                      title="File A4 gửi nhà in: 9 thẻ đúng cỡ CR80 mỗi tờ, có vạch cắt"
+                      className="rounded-xl border border-[#4441cc] px-4 py-2.5 text-sm font-bold text-[#4441cc] hover:bg-[#4441cc]/5 disabled:opacity-50 inline-flex items-center gap-2"
+                    >
+                      {exportingPrint ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+                      {exportingPrint
+                        ? 'Đang dựng file in...'
+                        : `Xuất file in A4 (${Math.min(batchStatus.counts.success, PRINT_SHEET_MAX_CARDS)} thẻ)`}
                     </button>
                   )}
                   <button
