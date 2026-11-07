@@ -402,7 +402,8 @@ export default function NhiemVuGuidePage() {
               </li>
               <li>
                 <strong>Kết quả › Video đã duyệt</strong> — lịch sử các nhiệm vụ đã được duyệt, lọc theo ngày duyệt. Video
-                nào chưa có link bài đăng sẽ hiện nút <Tag>Thêm link bài đăng</Tag> để chọn bài từ kho bài đã đăng.
+                nào chưa có link bài đăng sẽ hiện nút <Tag>Thêm link bài đăng</Tag> để chọn bài từ kho bài đã đăng hoặc dán
+                link thủ công.
               </li>
               <li>
                 <strong>Kết quả › Bài đăng Facebook</strong> — các video đã đăng trên trang Facebook nội bộ; dùng để xem
