@@ -251,6 +251,7 @@ function IdPhotoPageContent() {
       );
       if (requestId !== mergeRequestId.current) return; // đã bị Huỷ/lượt sau ghi đè
       setMergedImageData(res.data.processedImageData);
+      if (res.data.faceNotice) toast(res.data.faceNotice, { icon: '⚠️', duration: 8000 });
       setMergeStatus('success');
     } catch (err: any) {
       const isCanceled = err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError';
@@ -372,6 +373,7 @@ function IdPhotoPageContent() {
     try {
       const res = await apiClient.post(`/id-photo/${historyId}/remerge-outfit`);
       setMergedImageData(res.data.processedImageData);
+      if (res.data.faceNotice) toast(res.data.faceNotice, { icon: '⚠️', duration: 8000 });
       invalidateExportedPdf();
       // BE đặt lại crop theo mặt của ảnh mới (null nếu không thấy mặt) — đồng bộ state FE cho khớp.
       const newCrop: CropTransform = res.data.crop ?? CROP_DEFAULT;
