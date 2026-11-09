@@ -5,7 +5,6 @@ import {
     Mic,
     AudioLines,
     Volume2,
-    Globe,
     Download,
     Upload,
     Trash2,
@@ -33,7 +32,7 @@ import {
 } from '@/lib/voice/voice-selection';
 import { deleteClonedVoice } from '@/lib/voice/delete-voice';
 import { buildConfirmContent, type VoiceAction } from '@/lib/voice/voice-action-confirm';
-import { TTS_LANGUAGES as LANGUAGES, TTS_LANGUAGE_TO_MINIMAX as LANGUAGE_TO_MINIMAX } from '@/lib/voice/tts-languages';
+import { TTS_LANGUAGES as LANGUAGES, TTS_LANGUAGE_TO_MINIMAX as LANGUAGE_TO_MINIMAX, inferTtsLanguageFromVoiceName } from '@/lib/voice/tts-languages';
 import { fetchWithAuth } from '@/lib/api-client';
 import { downloadSrtFile, checkDuplicateVoice, type DuplicateCheckResult } from '@/lib/api/voice-tts';
 import ConfirmModal from '@/components/ui/ConfirmModal';
@@ -483,8 +482,12 @@ export default function CloneVoicePage() {
     // làm trang trông như đang chọn sẵn một giọng mà bấm Tạo là báo lỗi.
     const [selectedVoiceId, setSelectedVoiceId] = useState<string>('');
     const [text, setText] = useState('');
-    const [translateLang, setTranslateLang] = useState('Tiếng Việt');
     const [ttsLang, setTtsLang] = useState('Tiếng Việt');
+    const selectedVoiceName = voices.find((v) => v.voice_id === selectedVoiceId)?.name;
+    // Chọn giọng nước nào thì ngôn ngữ đọc tự nhảy sang nước đó (không rõ nước thì về Tiếng Việt), vẫn đổi tay được
+    useEffect(() => {
+        setTtsLang(inferTtsLanguageFromVoiceName(selectedVoiceName) ?? LANGUAGES[0]);
+    }, [selectedVoiceId, selectedVoiceName]);
     const [isGenerating, setIsGenerating] = useState(false);
     const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
     // Link riêng cho nút tải về (proxy BE + ?download=1 → server trả Content-Disposition
@@ -498,8 +501,6 @@ export default function CloneVoicePage() {
     const [srtDownloadName, setSrtDownloadName] = useState<string | null>(null);
     // Đơn giá VND / 1000 ký tự (BE trả kèm trong /ai/voice/list; 0 = chưa cấu hình → ẩn phần tiền)
     const [vndPer1kChars, setVndPer1kChars] = useState(0);
-
-    const [isTranslating, setIsTranslating] = useState(false);
 
     // Cloning states
     const [cloneFile, setCloneFile] = useState<File | null>(null);
@@ -750,45 +751,6 @@ export default function CloneVoicePage() {
             toast.error(error.message || 'Lỗi khi clone giọng nói', { id: loadingToast });
         } finally {
             setIsCloning(false);
-        }
-    };
-
-    // Dịch nội dung textarea sang `translateLang`, ghi đè lại text — dùng chung
-    // AI dịch kịch bản video (BE proxy voice/translate-text → translateVideoScript).
-    const handleTranslate = async () => {
-        if (!text.trim()) {
-            toast.error('Vui lòng nhập văn bản cần dịch');
-            return;
-        }
-
-        setIsTranslating(true);
-        const translatingToast = toast.loading(`Đang dịch sang ${translateLang}...`);
-
-        try {
-            const res = await fetchWithAuth(`${getApiUrl()}/ai/voice/translate-text`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ text, language: translateLang }),
-            });
-
-            if (!res.ok) {
-                const errMessage = await res.json().then((d) => d.error || d.message).catch(() => null);
-                throw new Error(errMessage || 'Không thể dịch văn bản');
-            }
-
-            const data = await res.json();
-            if (!data.content) {
-                throw new Error('Dịch thất bại: AI không trả về nội dung');
-            }
-            setText(data.content.slice(0, maxChars));
-            toast.success(`Đã dịch sang ${translateLang}!`, { id: translatingToast });
-        } catch (error: any) {
-            console.error('Translate error:', error);
-            toast.error(error.message || 'Lỗi khi dịch văn bản', { id: translatingToast });
-        } finally {
-            setIsTranslating(false);
         }
     };
 
@@ -1049,43 +1011,14 @@ export default function CloneVoicePage() {
                             </div>
 
                             {/* Language & Voice Controls */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                            <div className="mt-4">
                                 <SelectDropdown
-                                    icon={Globe}
-                                    label="Dịch sang"
-                                    value={translateLang}
+                                    icon={Volume2}
+                                    label="Ngôn ngữ đọc (TTS)"
+                                    value={ttsLang}
                                     options={LANGUAGES}
-                                    onChange={setTranslateLang}
+                                    onChange={setTtsLang}
                                 />
-                                <div className="flex gap-2 items-end">
-                                    <div className="flex-1">
-                                        <SelectDropdown
-                                            icon={Volume2}
-                                            label="Ngôn ngữ đọc (TTS)"
-                                            value={ttsLang}
-                                            options={LANGUAGES}
-                                            onChange={setTtsLang}
-                                        />
-                                    </div>
-                                    <button
-                                        onClick={handleTranslate}
-                                        disabled={isTranslating || !text.trim()}
-                                        className={`mb-0.5 px-3.5 py-2.5 border rounded-xl text-xs font-medium transition-all duration-150 flex items-center gap-1.5 whitespace-nowrap shadow-sm
-                                            ${isTranslating || !text.trim()
-                                                ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
-                                                : 'bg-violet-50 border-violet-200 hover:bg-violet-100 text-violet-600'}`}
-                                    >
-                                        {isTranslating ? (
-                                            <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                                            </svg>
-                                        ) : (
-                                            <Globe className="w-3.5 h-3.5" />
-                                        )}
-                                        Dịch kịch bản
-                                    </button>
-                                </div>
                             </div>
 
 
