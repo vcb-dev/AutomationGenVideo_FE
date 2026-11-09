@@ -25,26 +25,30 @@ export const TTS_LANGUAGE_TO_MINIMAX: Record<string, string> = {
 const VOICE_NAME_TOKEN_TO_LANGUAGE: Record<string, string> = {
   vn: 'Tiếng Việt',
   usa: 'English',
-  us: 'English',
-  en: 'English',
+  uk: 'English',
+  english: 'English',
   jp: '日本語',
+  japan: '日本語',
   kr: '한국어',
+  korea: '한국어',
   cn: '中文 (简体)',
+  china: '中文 (简体)',
   tbn: 'Español',
-  es: 'Español',
+  spain: 'Español',
   fr: 'Français',
-  de: 'Deutsch',
-  pt: 'Português',
+  france: 'Français',
+  germany: 'Deutsch',
+  portugal: 'Português',
   th: 'ภาษาไทย',
   thai: 'ภาษาไทย',
-  my: 'Bahasa Melayu',
+  thailand: 'ภาษาไทย',
   malay: 'Bahasa Melayu',
   malaysia: 'Bahasa Melayu',
 }
 
 /** Đoán ngôn ngữ đọc từ tên giọng theo từng từ trong tên; không nhận ra thì trả null. */
 export function inferTtsLanguageFromVoiceName(name: string | null | undefined): string | null {
-  const tokens = (name ?? '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)
+  const tokens = (name ?? '').toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean)
   for (const token of tokens) {
     const language = VOICE_NAME_TOKEN_TO_LANGUAGE[token]
     if (language) return language

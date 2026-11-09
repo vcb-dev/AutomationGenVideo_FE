@@ -29,13 +29,12 @@ describe('inferTtsLanguageFromVoiceName', () => {
         ['HuyK TBN', 'Español'],
         ['Huyk JP', '日本語'],
         ['HuyK Malay', 'Bahasa Melayu'],
-        ['huyk_my', 'Bahasa Melayu'],
     ])('giọng production "%s" → %s', (name, expected) => {
         expect(inferTtsLanguageFromVoiceName(name)).toBe(expected);
     });
 
     it('mọi ngôn ngữ đoán ra đều có trong menu', () => {
-        for (const name of ['HuyK VN', 'HuyK USA', 'HuyK TH', 'HuyK TBN', 'Huyk JP', 'HuyK Malay', 'A KR', 'A CN', 'A FR', 'A DE', 'A PT']) {
+        for (const name of ['HuyK VN', 'HuyK USA', 'HuyK TH', 'HuyK TBN', 'Huyk JP', 'HuyK Malay', 'A KR', 'A CN', 'A FR', 'A Germany', 'A Portugal', 'A UK']) {
             expect(TTS_LANGUAGES).toContain(inferTtsLanguageFromVoiceName(name));
         }
     });
@@ -44,6 +43,19 @@ describe('inferTtsLanguageFromVoiceName', () => {
         expect(inferTtsLanguageFromVoiceName('Thanh')).toBeNull();
         expect(inferTtsLanguageFromVoiceName('Myla')).toBeNull();
         expect(inferTtsLanguageFromVoiceName('Jessica')).toBeNull();
+    });
+
+    it.each(['Giọng Thảo', 'Chị Thư', 'Anh Thắng', 'Phương Thủy', 'Đức Thành', 'Đen', 'My voice'])(
+        'tên tiếng Việt có dấu / từ thường "%s" không bị đoán nhầm nước',
+        (name) => {
+            expect(inferTtsLanguageFromVoiceName(name)).toBeNull();
+        },
+    );
+
+    it('nhận tên nước viết đầy đủ', () => {
+        expect(inferTtsLanguageFromVoiceName('HuyK Thailand')).toBe('ภาษาไทย');
+        expect(inferTtsLanguageFromVoiceName('HuyK Japan')).toBe('日本語');
+        expect(inferTtsLanguageFromVoiceName('HuyK Malaysia')).toBe('Bahasa Melayu');
     });
 
     it('không có ký hiệu nước hoặc tên rỗng thì trả null', () => {

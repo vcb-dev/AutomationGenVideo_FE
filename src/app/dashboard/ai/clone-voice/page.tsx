@@ -484,10 +484,9 @@ export default function CloneVoicePage() {
     const [text, setText] = useState('');
     const [ttsLang, setTtsLang] = useState('Tiếng Việt');
     const selectedVoiceName = voices.find((v) => v.voice_id === selectedVoiceId)?.name;
-    // Chọn giọng nước nào thì ngôn ngữ đọc tự nhảy sang nước đó, người dùng vẫn đổi lại được
+    // Chọn giọng nước nào thì ngôn ngữ đọc tự nhảy sang nước đó (không rõ nước thì về Tiếng Việt), vẫn đổi tay được
     useEffect(() => {
-        const inferred = inferTtsLanguageFromVoiceName(selectedVoiceName);
-        if (inferred) setTtsLang(inferred);
+        setTtsLang(inferTtsLanguageFromVoiceName(selectedVoiceName) ?? LANGUAGES[0]);
     }, [selectedVoiceId, selectedVoiceName]);
     const [isGenerating, setIsGenerating] = useState(false);
     const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
