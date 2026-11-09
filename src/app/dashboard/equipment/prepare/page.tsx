@@ -9,7 +9,6 @@ import {
   BorrowRequest,
   assignSerials,
   fetchAssignableAssets,
-  fetchRequest,
   fetchRequests,
 } from '@/lib/equipment/request-api';
 import { ConditionDot } from '@/components/equipment/ConditionDot';
@@ -39,8 +38,7 @@ function PrepareInner() {
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
 
-  const loadRequest = useCallback(async (id: string) => {
-    const detail = await fetchRequest(id);
+  const loadRequest = useCallback(async (detail: BorrowRequest) => {
     setRequest(detail);
     setDone(false);
 
@@ -69,7 +67,7 @@ function PrepareInner() {
       .then(async (list) => {
         setCandidates(list);
         const target = (wanted && list.find((r) => r.id === wanted)) || list[0];
-        if (target) await loadRequest(target.id);
+        if (target) await loadRequest(target);
         else if (wanted) {
           // Phiếu được dẫn tới nhưng không nằm trong danh sách chờ gán: ai đó đã gán xong rồi.
           setError('Phiếu này không còn ở bước gán máy — có thể người khác đã chuẩn bị xong.');
@@ -154,7 +152,7 @@ function PrepareInner() {
               {candidates.map((r) => (
                 <button
                   key={r.id}
-                  onClick={() => loadRequest(r.id)}
+                  onClick={() => loadRequest(r)}
                   className={cn(
                     'rounded-lg border px-3 py-2 text-sm font-semibold',
                     r.id === request?.id
@@ -313,7 +311,7 @@ function PrepareInner() {
               setDone(false);
               fetchRequests('APPROVED').then((list) => {
                 setCandidates(list);
-                if (list[0]) loadRequest(list[0].id);
+                if (list[0]) loadRequest(list[0]);
                 else setRequest(null);
               });
             }}

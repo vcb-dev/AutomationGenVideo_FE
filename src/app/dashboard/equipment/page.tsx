@@ -8,15 +8,24 @@ import { listCategories } from '@/lib/equipment/group-models';
 import { CONDITION_OPTIONS, STATUS_OPTIONS } from '@/lib/equipment/status-label';
 import { StatusPill } from '@/components/equipment/StatusPill';
 import { ConditionDot } from '@/components/equipment/ConditionDot';
-import { AddAssetDialog } from '@/components/equipment/AddAssetDialog';
-import { EditAssetDialog } from '@/components/equipment/EditAssetDialog';
-import { DeleteAssetDialog } from '@/components/equipment/DeleteAssetDialog';
-import { ManageLocationsDialog } from '@/components/equipment/ManageLocationsDialog';
-import { ManageCatalogDialog } from '@/components/equipment/ManageCatalogDialog';
+import dynamic from 'next/dynamic';
 import { EquipmentAlertBanner } from '@/components/equipment/EquipmentAlertBanner';
-import { MobileBorrowQRModal } from '@/components/equipment/MobileBorrowQRModal';
 import { canManageCatalog } from '@/lib/equipment/catalog-permissions';
 import { useAuthStore } from '@/store/auth-store';
+
+// Hộp thoại chỉ tải JS khi người dùng mở.
+const AddAssetDialog = dynamic(() => import('@/components/equipment/AddAssetDialog').then((m) => m.AddAssetDialog));
+const EditAssetDialog = dynamic(() => import('@/components/equipment/EditAssetDialog').then((m) => m.EditAssetDialog));
+const DeleteAssetDialog = dynamic(() => import('@/components/equipment/DeleteAssetDialog').then((m) => m.DeleteAssetDialog));
+const ManageLocationsDialog = dynamic(() =>
+  import('@/components/equipment/ManageLocationsDialog').then((m) => m.ManageLocationsDialog),
+);
+const ManageCatalogDialog = dynamic(() =>
+  import('@/components/equipment/ManageCatalogDialog').then((m) => m.ManageCatalogDialog),
+);
+const MobileBorrowQRModal = dynamic(() =>
+  import('@/components/equipment/MobileBorrowQRModal').then((m) => m.MobileBorrowQRModal),
+);
 
 /* Ba icon của cột Thao tác. Vẽ tay bằng SVG để không kéo thêm thư viện icon cho ba hình. */
 const EyeIcon = () => (
@@ -226,6 +235,8 @@ function EquipmentTable() {
                     <img
                       src={photoSrc(a.photos[0].url)}
                       alt={a.model.name}
+                      loading="lazy"
+                      decoding="async"
                       className="h-16 w-16 shrink-0 rounded-xl border border-slate-200 object-cover shadow-sm dark:border-white/[0.08]"
                     />
                   ) : (
@@ -257,6 +268,7 @@ function EquipmentTable() {
                     <div className="flex items-center gap-1 pt-1.5">
                       <Link
                         href={`/dashboard/equipment/assets/${encodeURIComponent(a.asset_code)}`}
+                        prefetch={false}
                         aria-label={`Xem chi tiết ${a.asset_code}`}
                         className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-500 active:bg-blue-50 active:text-blue-600 dark:border-white/[0.1] dark:text-slate-400"
                       >
@@ -323,6 +335,8 @@ function EquipmentTable() {
                           <img
                             src={photoSrc(a.photos[0].url)}
                             alt={a.model.name}
+                            loading="lazy"
+                            decoding="async"
                             className="h-10 w-10 rounded-lg border border-slate-200 object-cover shadow-sm dark:border-white/[0.08]"
                           />
                         ) : (
@@ -355,6 +369,7 @@ function EquipmentTable() {
                         <div className="flex items-center justify-end gap-1">
                           <Link
                             href={`/dashboard/equipment/assets/${encodeURIComponent(a.asset_code)}`}
+                            prefetch={false}
                             title={`Xem chi tiết ${a.asset_code}`}
                             aria-label={`Xem chi tiết ${a.asset_code}`}
                             className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 hover:bg-blue-50 hover:text-blue-600 dark:text-slate-400 dark:hover:bg-blue-500/10 dark:hover:text-blue-400 transition-colors"
@@ -431,10 +446,12 @@ function EquipmentTable() {
       )}
 
       {/* MODAL QUÉT MÃ QR TẠO PHIẾU BẰNG ĐIỆN THOẠI */}
-      <MobileBorrowQRModal
-        open={mobileQrOpen}
-        onClose={() => setMobileQrOpen(false)}
-      />
+      {mobileQrOpen && (
+        <MobileBorrowQRModal
+          open={mobileQrOpen}
+          onClose={() => setMobileQrOpen(false)}
+        />
+      )}
     </div>
   );
 }

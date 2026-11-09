@@ -3,16 +3,27 @@
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { useAuthStore } from '@/store/auth-store';
-import { buildMobileBorrowUrl } from '@/lib/equipment/mobile-borrow-helpers';
+import { apiErrorMessage } from '@/lib/equipment/api-error';
+import { buildMobileBorrowUrl, qrRefreshDelayMs } from '@/lib/equipment/mobile-borrow-helpers';
+import { issueQrCode } from '@/lib/equipment/qr-ticket';
 
 interface MobileBorrowQRModalProps {
   open: boolean;
   onClose: () => void;
 }
 
+const QR_OPTIONS = {
+  width: 320,
+  margin: 2,
+  color: { dark: '#0f172a', light: '#ffffff' },
+  errorCorrectionLevel: 'M' as const,
+};
+
 export function MobileBorrowQRModal({ open, onClose }: MobileBorrowQRModalProps) {
   const user = useAuthStore((s) => s.user);
-  const [qrDataUrl, setQrDataUrl] = useState<string>('');
+  const [qrDataUrl, setQrDataUrl] = useState('');
+  const [targetUrl, setTargetUrl] = useState('');
+  const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [useLanIp, setUseLanIp] = useState(true);
 
@@ -21,39 +32,49 @@ export function MobileBorrowQRModal({ open, onClose }: MobileBorrowQRModalProps)
 
   const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001';
   const isLocalHost = origin.includes('localhost') || origin.includes('127.0.0.1');
+  const lanIp = isLocalHost && useLanIp ? DEFAULT_LAN_IP : undefined;
 
-  const targetUrl = buildMobileBorrowUrl({
-    origin,
-    lanIp: isLocalHost && useLanIp ? DEFAULT_LAN_IP : undefined,
-    userId: user?.id,
-    userName: user?.full_name,
-    userEmail: user?.email,
-  });
-
+  // Mã sống ngắn và chỉ dùng một lần, nên xin mã mới liên tục khi khung còn mở.
   useEffect(() => {
     if (!open) return;
-    QRCode.toDataURL(targetUrl, {
-      width: 320,
-      margin: 2,
-      color: {
-        dark: '#0f172a',
-        light: '#ffffff',
-      },
-      errorCorrectionLevel: 'M',
-    })
-      .then(setQrDataUrl)
-      .catch((err) => console.error('Lỗi sinh mã QR:', err));
-  }, [open, targetUrl]);
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const refresh = async () => {
+      try {
+        const { code, expiresAt } = await issueQrCode();
+        const url = buildMobileBorrowUrl({ origin, lanIp, code });
+        const dataUrl = await QRCode.toDataURL(url, QR_OPTIONS);
+        if (cancelled) return;
+        setTargetUrl(url);
+        setQrDataUrl(dataUrl);
+        setError('');
+        timer = setTimeout(refresh, qrRefreshDelayMs(expiresAt));
+      } catch (e: unknown) {
+        if (cancelled) return;
+        setQrDataUrl('');
+        setTargetUrl('');
+        setError(apiErrorMessage(e, 'Không tạo được mã QR. Đóng rồi mở lại.'));
+      }
+    };
+    refresh();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [open, origin, lanIp]);
 
   if (!open) return null;
 
   const handleCopy = () => {
+    if (!targetUrl) return;
     navigator.clipboard.writeText(targetUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handlePrintDeskQR = () => {
+  const handlePrintDeskQR = async () => {
+    // Mã in dán là link thường: người quét đăng nhập bằng tài khoản của chính họ.
+    const deskQr = await QRCode.toDataURL(buildMobileBorrowUrl({ origin, lanIp }), QR_OPTIONS);
     const iframe = document.createElement('iframe');
     iframe.style.position = 'fixed';
     iframe.style.right = '0';
@@ -98,11 +119,11 @@ export function MobileBorrowQRModal({ open, onClose }: MobileBorrowQRModalProps)
           <p class="sub">Quét mã QR bằng điện thoại để tạo phiếu và chụp ảnh thiết bị tại chỗ</p>
           
           <div class="qr-box">
-            <img class="qr-img" src="${qrDataUrl}" alt="QR Quầy kho" />
+            <img class="qr-img" src="${deskQr}" alt="QR Quầy kho" />
           </div>
 
           <div class="steps">
-            <div class="step-item"><strong>Bước 1:</strong> Mở Camera trên điện thoại và quét mã QR ở trên.</div>
+            <div class="step-item"><strong>Bước 1:</strong> Mở Camera trên điện thoại và quét mã QR ở trên. Lần đầu cần đăng nhập tài khoản của bạn.</div>
             <div class="step-item"><strong>Bước 2:</strong> Nhập dự án, thời gian và chọn model thiết bị cần mượn.</div>
             <div class="step-item"><strong>Bước 3:</strong> Bấm <em>"📷 Chụp ảnh bằng Camera"</em> để chụp thực tế máy và gửi phiếu!</div>
           </div>
@@ -166,17 +187,16 @@ export function MobileBorrowQRModal({ open, onClose }: MobileBorrowQRModalProps)
         <div className="mt-4 flex flex-col items-center justify-center rounded-2xl bg-slate-50 p-4 border border-slate-200 dark:bg-white/[0.03] dark:border-white/[0.08]">
           {qrDataUrl ? (
             <div className="rounded-xl bg-white p-3 shadow-md border border-slate-200">
-              <img
-                src={qrDataUrl}
-                alt="QR Code tạo phiếu mượn"
-                className="h-56 w-56 object-contain"
-              />
+              <img src={qrDataUrl} alt="QR Code tạo phiếu mượn" className="h-56 w-56 object-contain" />
             </div>
           ) : (
-            <div className="flex h-56 w-56 items-center justify-center text-xs text-slate-400">
-              Đang tạo mã QR…
+            <div className="flex h-56 w-56 items-center justify-center px-4 text-center text-xs text-slate-400">
+              {error || 'Đang tạo mã QR…'}
             </div>
           )}
+          <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
+            Mã dùng một lần và tự đổi sau ít phút. Điện thoại quét xong sẽ tạo phiếu bằng tài khoản của bạn.
+          </p>
 
           {/* TOGGLE MẠNG LAN CHO LOCAL DEV */}
           {isLocalHost && (
@@ -202,7 +222,7 @@ export function MobileBorrowQRModal({ open, onClose }: MobileBorrowQRModalProps)
             <strong>1.</strong> Mở ứng dụng <strong>Camera</strong> trên điện thoại quét mã QR.
           </div>
           <div>
-            <strong>2.</strong> Bấm liên kết để mở màn hình tạo phiếu.
+            <strong>2.</strong> Bấm liên kết để mở màn hình tạo phiếu, không cần đăng nhập.
           </div>
           <div>
             <strong>3.</strong> Bấm nút <strong className="text-blue-600 dark:text-blue-400">"📷 Chụp ảnh bằng Camera"</strong> để chụp trực tiếp thiết bị và gửi phiếu!

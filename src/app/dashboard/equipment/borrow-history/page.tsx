@@ -28,11 +28,8 @@ import { apiErrorMessage } from '@/lib/equipment/api-error';
 import { photoSrc } from '@/lib/equipment/api';
 import { incidentKindLabel } from '@/lib/equipment/extension-incident-helpers';
 import { DatePicker } from '@/components/ui/DatePicker';
-import { BorrowPrintModal } from '@/components/equipment/BorrowPrintModal';
+import dynamic from 'next/dynamic';
 import { EquipmentAlertBanner } from '@/components/equipment/EquipmentAlertBanner';
-import { IncidentReportModal } from '@/components/equipment/IncidentReportModal';
-import { ExtensionRequestModal } from '@/components/equipment/ExtensionRequestModal';
-import { MobileBorrowQRModal } from '@/components/equipment/MobileBorrowQRModal';
 import { useAuthStore } from '@/store/auth-store';
 import { canManageCatalog } from '@/lib/equipment/catalog-permissions';
 import {
@@ -50,6 +47,20 @@ import {
   isRequestOverdue,
   isRequestExpiringSoon,
 } from '@/lib/equipment/quick-filters';
+
+// Hộp thoại chỉ tải JS khi người dùng mở.
+const BorrowPrintModal = dynamic(() =>
+  import('@/components/equipment/BorrowPrintModal').then((m) => m.BorrowPrintModal),
+);
+const IncidentReportModal = dynamic(() =>
+  import('@/components/equipment/IncidentReportModal').then((m) => m.IncidentReportModal),
+);
+const ExtensionRequestModal = dynamic(() =>
+  import('@/components/equipment/ExtensionRequestModal').then((m) => m.ExtensionRequestModal),
+);
+const MobileBorrowQRModal = dynamic(() =>
+  import('@/components/equipment/MobileBorrowQRModal').then((m) => m.MobileBorrowQRModal),
+);
 
 const cardClass =
   'rounded-2xl border border-slate-200 bg-white shadow-sm ' +
@@ -152,12 +163,11 @@ function BorrowHistoryLogPageInner() {
     setLoading(true);
     setError('');
 
-    // Luôn tải danh sách phiếu để có số liệu thống kê toàn diện (BE tự lọc owner_id cho Member)
-    fetchRequests()
-      .then(setRequests)
-      .catch(() => {});
+    // Một lời gọi đủ cho cả thống kê lẫn danh sách; lọc trạng thái làm ở trình duyệt (BE tự lọc owner_id cho Member).
+    const requestsLoad = fetchRequests().then(setRequests);
 
     if (isManager && viewMode === 'ASSET') {
+      requestsLoad.catch(() => {});
       fetchBorrowHistoryLog(buildBorrowLogQuery({ status, from, to, page }) as never)
         .then((res) => {
           setAssetRows(res.rows);
@@ -173,10 +183,7 @@ function BorrowHistoryLogPageInner() {
         )
         .finally(() => setLoading(false));
     } else {
-      fetchRequests(status || undefined)
-        .then((data) => {
-          setRequests(data);
-        })
+      requestsLoad
         .catch((e: unknown) =>
           setError(
             (e as { response?: { status?: number } })?.response?.status === 403
@@ -267,6 +274,9 @@ function BorrowHistoryLogPageInner() {
   // Lọc tìm kiếm đa năng, bộ lọc nhanh 1 chạm và khoảng ngày trên tập dữ liệu REQUEST
   const filteredRequests = useMemo(() => {
     let result = requests;
+    if (status) {
+      result = result.filter((r) => r.status === status);
+    }
     if (quickFilter !== 'ALL') {
       result = filterRequestsByQuickFilter(result, quickFilter);
     }
@@ -297,7 +307,7 @@ function BorrowHistoryLogPageInner() {
       result = result.filter((r) => new Date(r.from_time).getTime() <= toTime);
     }
     return result;
-  }, [requests, quickFilter, searchQuery, from, to]);
+  }, [requests, quickFilter, searchQuery, from, to, status]);
 
   // Thống kê nhanh tổng quan toàn hệ thống
   const stats = useMemo(() => {
@@ -1123,37 +1133,45 @@ function BorrowHistoryLogPageInner() {
         )}
 
         {/* MODAL BÁO CÁO SỰ CỐ */}
-        <IncidentReportModal
-          open={Boolean(incidentModalRequest)}
-          onClose={() => setIncidentModalRequest(null)}
-          request={incidentModalRequest}
-          onSuccess={() => {
-            load();
-          }}
-        />
+        {incidentModalRequest && (
+          <IncidentReportModal
+            open={Boolean(incidentModalRequest)}
+            onClose={() => setIncidentModalRequest(null)}
+            request={incidentModalRequest}
+            onSuccess={() => {
+              load();
+            }}
+          />
+        )}
 
         {/* MODAL XIN GIA HẠN */}
-        <ExtensionRequestModal
-          open={Boolean(extensionModalRequest)}
-          onClose={() => setExtensionModalRequest(null)}
-          request={extensionModalRequest}
-          onSuccess={() => {
-            load();
-          }}
-        />
+        {extensionModalRequest && (
+          <ExtensionRequestModal
+            open={Boolean(extensionModalRequest)}
+            onClose={() => setExtensionModalRequest(null)}
+            request={extensionModalRequest}
+            onSuccess={() => {
+              load();
+            }}
+          />
+        )}
 
         {/* MODAL IN PHIẾU BÀN GIAO TOÀN DIỆN */}
-        <BorrowPrintModal
-          open={Boolean(printingRequest)}
-          onClose={() => setPrintingRequest(null)}
-          request={printingRequest}
-        />
+        {printingRequest && (
+          <BorrowPrintModal
+            open={Boolean(printingRequest)}
+            onClose={() => setPrintingRequest(null)}
+            request={printingRequest}
+          />
+        )}
 
         {/* MODAL QUÉT MÃ QR TẠO PHIẾU BẰNG ĐIỆN THOẠI */}
-        <MobileBorrowQRModal
-          open={mobileQrOpen}
-          onClose={() => setMobileQrOpen(false)}
-        />
+        {mobileQrOpen && (
+          <MobileBorrowQRModal
+            open={mobileQrOpen}
+            onClose={() => setMobileQrOpen(false)}
+          />
+        )}
       </div>
     </div>
   );
