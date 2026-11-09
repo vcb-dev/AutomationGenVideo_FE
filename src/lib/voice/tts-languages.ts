@@ -3,6 +3,7 @@
 export const TTS_LANGUAGES: string[] = [
   'Tiếng Việt', 'English', '日本語', '한국어', '中文 (简体)',
   'Español', 'Français', 'Deutsch', 'Português', 'ภาษาไทย',
+  'Bahasa Melayu',
 ]
 
 /** Map nhãn UI sang giá trị `language_boost` mà API TTS của Minimax cần. */
@@ -17,4 +18,5 @@ export const TTS_LANGUAGE_TO_MINIMAX: Record<string, string> = {
   'Deutsch': 'German',
   'Português': 'Portuguese',
   'ภาษาไทย': 'Thai',
+  'Bahasa Melayu': 'Malay',
 }
