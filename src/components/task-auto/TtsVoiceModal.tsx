@@ -8,7 +8,7 @@ import {
 import {
   isUsableVoice, pickDefaultVoice, type Voice,
 } from '@/lib/voice/voice-selection'
-import { TTS_LANGUAGES, TTS_LANGUAGE_TO_MINIMAX } from '@/lib/voice/tts-languages'
+import { TTS_LANGUAGES, TTS_LANGUAGE_TO_MINIMAX, inferTtsLanguageFromVoiceName } from '@/lib/voice/tts-languages'
 import {
   listVoices, generateVoiceTts, buildTtsPlayUrl, buildTtsDownloadUrl, type TtsResult,
 } from '@/lib/api/voice-tts'
@@ -31,7 +31,7 @@ interface Props {
 
 // Tái dùng thẳng backend TTS của Tiện ích → Clone Voice (POST /ai/voice/tts + GET /ai/voice/list)
 // ngay trong task — không lưu lại voice vào task (chỉ tạo nhanh để nghe/tải), theo đúng phạm vi
-// tách riêng khỏi trang Clone Voice đầy đủ (trang đó còn có clone giọng mới + dịch kịch bản).
+// tách riêng khỏi trang Clone Voice đầy đủ (trang đó còn có clone giọng mới).
 export function TtsVoiceModal({ open, content, onClose }: Props) {
   const [voices, setVoices] = useState<Voice[]>([])
   const [voicesFetched, setVoicesFetched] = useState(false)
@@ -48,6 +48,13 @@ export function TtsVoiceModal({ open, content, onClose }: Props) {
   const [downloadName, setDownloadName] = useState<string | null>(null)
 
   const usableVoices = voices.filter(isUsableVoice)
+  const selectedVoiceName = voices.find(v => v.voice_id === selectedVoiceId)?.name
+
+  // Chọn giọng nước nào thì ngôn ngữ đọc tự nhảy sang nước đó, người dùng vẫn đổi lại được
+  useEffect(() => {
+    const inferred = inferTtsLanguageFromVoiceName(selectedVoiceName)
+    if (inferred) setTtsLang(inferred)
+  }, [selectedVoiceId, selectedVoiceName])
 
   useEffect(() => {
     if (!open) return
