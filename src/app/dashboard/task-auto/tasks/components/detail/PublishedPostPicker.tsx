@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
   CalendarDays,
@@ -13,6 +13,8 @@ import {
   Hash,
   ImageOff,
   Info,
+  Library,
+  Link2,
   Loader2,
   Play,
   Search,
@@ -65,6 +67,7 @@ interface Props {
   contentLine?: string | null
   onAttach: (videos: ExternalVideo[]) => Promise<void>
   isSaving: boolean
+  manualEntry?: ReactNode
 }
 
 /**
@@ -173,12 +176,14 @@ export function PublishedPostPicker({
   contentLine,
   onAttach,
   isSaving,
+  manualEntry,
 }: Props) {
   const { token } = useAuthStore()
   const initialRange = useMemo(() => defaultDateRange(anchorDate), [anchorDate])
   const defaultScope: Scope = owner ? 'owner' : team ? 'team' : 'all'
   const defaultLine = contentLine && (CONTENT_LINES as readonly string[]).includes(contentLine) ? contentLine : ''
 
+  const [mode, setMode] = useState<'library' | 'manual'>('library')
   const [search, setSearch] = useState('')
   const [platform, setPlatform] = useState('')
   const [dateFrom, setDateFrom] = useState(initialRange.from)
@@ -195,6 +200,7 @@ export function PublishedPostPicker({
 
   useEffect(() => {
     if (!open) return
+    setMode('library')
     setSearch('')
     setPlatform('')
     setDateFrom(initialRange.from)
@@ -293,7 +299,13 @@ export function PublishedPostPicker({
     scope !== 'all' && { label: 'Xem mọi kênh', run: () => chooseScope('all') },
     hasDateFilter && { label: 'Xem mọi ngày', run: () => { setDateFrom(''); setDateTo('') } },
     search && { label: 'Xoá từ khoá', run: () => setSearch('') },
+    manualEntry && { label: 'Dán link thủ công', run: () => setMode('manual') },
   ].filter(Boolean) as { label: string; run: () => void }[]
+
+  const modeOptions = [
+    { value: 'library' as const, label: 'Chọn từ kho bài đã đăng', icon: Library },
+    { value: 'manual' as const, label: 'Dán link thủ công', icon: Link2 },
+  ]
 
   return (
     <Dialog open={open} onOpenChange={value => !isSaving && onOpenChange(value)}>
@@ -308,13 +320,55 @@ export function PublishedPostPicker({
         }}
       >
         <DialogHeader className="shrink-0 border-b border-slate-200 px-5 py-4 pr-14 sm:px-6">
-          <DialogTitle className="text-lg font-bold text-slate-900">Chọn bài đã đăng</DialogTitle>
+          <DialogTitle className="text-lg font-bold text-slate-900">{manualEntry ? 'Gắn link bài đăng' : 'Chọn bài đã đăng'}</DialogTitle>
           <DialogDescription className="mt-1 text-sm text-slate-500">
-            Mặc định chỉ hiện bài trên kênh của người nhận task, đúng tuyến nội dung, quanh ngày nộp/duyệt. Bấm ảnh để xem video lớn.
+            {mode === 'manual'
+              ? 'Dùng khi bài chưa có trong kho, ví dụ bài vừa đăng chưa được kéo về hoặc kênh chưa kết nối.'
+              : 'Mặc định chỉ hiện bài trên kênh của người nhận task, đúng tuyến nội dung, quanh ngày nộp/duyệt. Bấm ảnh để xem video lớn.'}
           </DialogDescription>
+          {manualEntry && (
+            <div role="group" aria-label="Cách gắn link" className="!mt-3 -mr-9 grid grid-cols-2 gap-0.5 rounded-lg bg-slate-100 p-0.5 sm:mr-0 sm:w-fit">
+              {modeOptions.map(option => {
+                const Icon = option.icon
+                const active = mode === option.value
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setMode(option.value)}
+                    aria-pressed={active}
+                    className={cn(
+                      'inline-flex min-h-10 items-center justify-center gap-1.5 rounded-md px-2 py-1 text-center text-sm font-semibold leading-tight transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 sm:px-3',
+                      active ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-900',
+                    )}
+                  >
+                    <Icon className="hidden h-4 w-4 shrink-0 sm:block" aria-hidden="true" />
+                    {option.label}
+                    {option.value === 'library' && selected.size > 0 && (
+                      <span className="rounded-full bg-indigo-600 px-1.5 text-xs font-bold tabular-nums text-white">{selected.size}</span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </DialogHeader>
 
-        <div className="shrink-0 space-y-3 border-b border-slate-200 bg-slate-50/80 px-4 py-3 sm:px-6">
+        {mode === 'manual' && (
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
+            <div className="mx-auto max-w-2xl space-y-3">
+              {selected.size > 0 && (
+                <p role="note" className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-800">
+                  <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  Còn {selected.size} bài đã chọn ở kho chưa gắn. Gắn link thủ công xong, các bài này sẽ bị bỏ chọn — quay lại tab kho nếu muốn gắn chúng trước.
+                </p>
+              )}
+              {manualEntry}
+            </div>
+          </div>
+        )}
+
+        <div className={cn('shrink-0 space-y-3 border-b border-slate-200 bg-slate-50/80 px-4 py-3 sm:px-6', mode === 'manual' && 'hidden')}>
           {(taskTitle || anchorDate) && (
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
               {taskTitle && (
@@ -473,7 +527,7 @@ export function PublishedPostPicker({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
+        <div className={cn('min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6', mode === 'manual' && 'hidden')}>
             {query.isLoading ? (
               <div className="flex h-full min-h-64 flex-col items-center justify-center gap-3 text-sm text-slate-500">
                 <Loader2 className="h-7 w-7 animate-spin text-indigo-500 motion-reduce:animate-none" aria-hidden="true" />
@@ -630,7 +684,7 @@ export function PublishedPostPicker({
             )}
         </div>
 
-        <div className="flex shrink-0 flex-col gap-3 border-t border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <div className={cn('flex shrink-0 flex-col gap-3 border-t border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6', mode === 'manual' && 'hidden')}>
           <div className="flex items-center justify-between gap-3 sm:justify-start">
             <button
               type="button"

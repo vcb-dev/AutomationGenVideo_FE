@@ -9,7 +9,7 @@ import {
   type DragStartEvent, type DragEndEvent,
 } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { FileText, Video, Mic, Loader2, ChevronDown, Edit2, Trash2, Minus, GripVertical, ClipboardList } from 'lucide-react'
+import { FileText, Video, Mic, Loader2, ChevronDown, Plus, Edit2, Trash2, Minus, GripVertical, ClipboardList } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
 import { formatDate } from '@/components/task-auto/helpers'
@@ -249,13 +249,14 @@ function ContentCard({ c, actions, cardAccent }: { c: Content; actions: CardActi
 }
 
 function ContentColumn({
-  column, filters, isDropDisabled, isValidTarget, actions, onTotalChange,
+  column, filters, isDropDisabled, isValidTarget, actions, onAdd, onTotalChange,
 }: {
   column: ColumnDef
   filters: Filters
   isDropDisabled: boolean
   isValidTarget: boolean
   actions: CardActions
+  onAdd: (contentLineId: string | undefined) => void
   onTotalChange: (key: string, total: number) => void
 }) {
   const [limit, setLimit] = useState(PAGE_SIZE)
@@ -343,6 +344,16 @@ function ContentColumn({
           </>
         )}
       </div>
+
+      {actions.canEdit && (
+        <button
+          type="button"
+          onClick={() => onAdd(column.isUnassigned ? undefined : column.key)}
+          className="flex items-center gap-1.5 px-4 py-3 text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:bg-white/60 transition-colors shrink-0"
+        >
+          <Plus className="w-3.5 h-3.5" aria-hidden="true" /> Thêm content
+        </button>
+      )}
     </div>
   )
 }
@@ -359,11 +370,12 @@ interface ContentsBoardProps {
   onSelect: (c: Content) => void
   onEdit: (c: Content) => void
   onDelete: (c: Content) => void
+  onAdd: (contentLineId: string | undefined) => void
 }
 
 export function ContentsBoard({
   brandType, month, search, classificationId, market, productSku, canEdit, canDelete,
-  onSelect, onEdit, onDelete,
+  onSelect, onEdit, onDelete, onAdd,
 }: ContentsBoardProps) {
   const qc = useQueryClient()
   const [draggingContent, setDraggingContent] = useState<Content | null>(null)
@@ -458,6 +470,7 @@ export function ContentsBoard({
               isValidTarget={!!draggingKey && draggingKey !== col.key}
               isDropDisabled={!!draggingKey && draggingKey === col.key}
               actions={cardActions}
+              onAdd={onAdd}
               onTotalChange={handleTotalChange}
             />
           ))}
