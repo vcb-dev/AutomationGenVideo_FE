@@ -1,6 +1,8 @@
 import {
+  DEFAULT_BORROW_LOG_VIEW,
   REQUEST_STATUS_FILTER_OPTIONS,
   canCancelRequest,
+  canDeleteRequest,
   requestStatusBadge,
 } from '../request-status';
 
@@ -97,5 +99,40 @@ describe('canCancelRequest', () => {
       expect(canCancelRequest({ status, owner_id: 'toi' }, thu_kho)).toBe(false);
       expect(canCancelRequest({ status, owner_id: 'toi' }, toi)).toBe(false);
     }
+  });
+});
+
+/**
+ * Nút Xoá phiếu trên Nhật ký mượn — phải khớp `DELETABLE_STATUSES` và quyền bên BE.
+ * Hiện thừa thì bấm vào ăn 403/409; xoá được phiếu đang mượn là mất dấu máy ở ngoài.
+ */
+describe('canDeleteRequest', () => {
+  const thu_kho = { isCatalogManager: true };
+  const thanh_vien = { isCatalogManager: false };
+
+  it.each(['DRAFT', 'REJECTED', 'CANCELLED', 'CLOSED'])(
+    'quản lý kho xoá được phiếu đã khép lại: %s',
+    (status) => {
+      expect(canDeleteRequest({ status }, thu_kho)).toBe(true);
+    },
+  );
+
+  it.each(['PENDING_APPROVAL', 'APPROVED', 'PREPARING', 'ON_LOAN', 'PARTIALLY_RETURNED'])(
+    'phiếu còn chạy (%s) thì không hiện nút xoá',
+    (status) => {
+      expect(canDeleteRequest({ status }, thu_kho)).toBe(false);
+    },
+  );
+
+  it('thành viên thường không bao giờ thấy nút xoá', () => {
+    for (const status of ['DRAFT', 'REJECTED', 'CANCELLED', 'CLOSED']) {
+      expect(canDeleteRequest({ status }, thanh_vien)).toBe(false);
+    }
+  });
+});
+
+describe('DEFAULT_BORROW_LOG_VIEW', () => {
+  it('Nhật ký mượn mở ra ở bảng phiếu, khớp nút lọc nhanh "Tất cả" đang đếm phiếu', () => {
+    expect(DEFAULT_BORROW_LOG_VIEW).toBe('REQUEST');
   });
 });
