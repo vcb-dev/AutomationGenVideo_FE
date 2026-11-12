@@ -291,6 +291,12 @@ export async function cancelRequest(id: string) {
   return data as BorrowRequest;
 }
 
+/** Xoá (ẩn khỏi nhật ký) phiếu đã khép lại — chỉ Leader Team Media và Admin. BE xoá mềm. */
+export async function deleteRequest(id: string) {
+  const { data } = await apiClient.delete(`/mems/requests/${id}`);
+  return data as { id: string; request_code: string; deleted: true };
+}
+
 export async function reportIncident(
   requestId: string,
   payload: { assetId: string; kind: 'CONDITION_WORSENED' | 'MISSING_ACCESSORY'; description: string; photoIds?: string[] },

@@ -84,3 +84,29 @@ export function canCancelRequest(
   if (viewer.isCatalogManager) return true;
   return request.owner_id === viewer.id && request.status === 'PENDING_APPROVAL';
 }
+
+/**
+ * Giai đoạn xoá (ẩn) được phiếu — phải KHỚP với `DELETABLE_STATUSES` bên BE.
+ * Phiếu đã khép lại: không còn giữ chỗ, không còn máy nào ở ngoài.
+ */
+export const DELETABLE_STATUSES = ['DRAFT', 'REJECTED', 'CANCELLED', 'CLOSED'];
+
+/**
+ * Có hiện nút Xoá phiếu không. Chỉ Leader Team Media và Admin (quản lý kho), và chỉ phiếu đã
+ * khép lại — phiếu còn chạy thì Huỷ trước, phiếu còn máy ở ngoài thì Nhận trả trước.
+ */
+export function canDeleteRequest(
+  request: { status: string },
+  viewer: { isCatalogManager: boolean },
+): boolean {
+  return viewer.isCatalogManager && DELETABLE_STATUSES.includes(request.status);
+}
+
+/**
+ * Màn Nhật ký mượn mở ra ở bảng PHIẾU cho mọi người, kể cả quản lý kho.
+ *
+ * Trước đây quản lý kho mở vào bảng "Theo từng thiết bị" trong khi nút lọc nhanh "Tất cả" lại
+ * đếm PHIẾU: thấy "Tất cả 7" mà bảng trống (phiếu huỷ/từ chối chưa từng giao máy nên không có
+ * lượt nào), phải bấm sang tab khác rồi bấm lại mới thấy phiếu.
+ */
+export const DEFAULT_BORROW_LOG_VIEW = 'REQUEST' as const;

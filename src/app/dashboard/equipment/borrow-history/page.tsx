@@ -10,7 +10,7 @@
  * Kèm ô tìm kiếm thông minh "Tất cả chỉ tiêu" + Bộ lọc trạng thái + Khoảng ngày.
  */
 
-import { useCallback, useEffect, useMemo, useState, Suspense } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -19,12 +19,14 @@ import { buildBorrowLogQuery } from '@/lib/equipment/borrow-log-query';
 import {
   cancelRequest,
   decideExtension,
+  deleteRequest,
   fetchBorrowHistoryLog,
   fetchRequests,
   type BorrowLogRow,
   type BorrowRequest,
 } from '@/lib/equipment/request-api';
 import { apiErrorMessage } from '@/lib/equipment/api-error';
+import { borrowLogLoadError, viewForQuickFilter } from '@/lib/equipment/borrow-log-view';
 import { photoSrc } from '@/lib/equipment/api';
 import { incidentKindLabel } from '@/lib/equipment/extension-incident-helpers';
 import { DatePicker } from '@/components/ui/DatePicker';
@@ -32,10 +34,13 @@ import dynamic from 'next/dynamic';
 import { EquipmentAlertBanner } from '@/components/equipment/EquipmentAlertBanner';
 import { useAuthStore } from '@/store/auth-store';
 import { canManageCatalog } from '@/lib/equipment/catalog-permissions';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import {
+  DEFAULT_BORROW_LOG_VIEW,
   HOLDING_STATUSES,
   REQUEST_STATUS_FILTER_OPTIONS,
   canCancelRequest,
+  canDeleteRequest,
   requestStatusBadge,
   type RequestStatusTone,
 } from '@/lib/equipment/request-status';
@@ -118,8 +123,8 @@ function BorrowHistoryLogPageInner() {
   const user = useAuthStore((s) => s.user);
   const isManager = canManageCatalog(user?.roles, user?.team);
 
-  // Chế độ xem: Với Member thì luôn là 'REQUEST' (Phiếu mượn của tôi); Quản lý kho có thêm tab 'ASSET'
-  const [viewMode, setViewMode] = useState<'ASSET' | 'REQUEST'>(isManager ? 'ASSET' : 'REQUEST');
+  // Chế độ xem: ai cũng mở vào bảng phiếu ('REQUEST'); Quản lý kho có thêm tab 'ASSET'.
+  const [viewMode, setViewMode] = useState<'ASSET' | 'REQUEST'>(DEFAULT_BORROW_LOG_VIEW);
 
   // Bộ lọc
   const [quickFilter, setQuickFilter] = useState<EquipmentQuickFilter>('ALL');
@@ -157,43 +162,91 @@ function BorrowHistoryLogPageInner() {
   const [rejectionReason, setRejectionReason] = useState('');
   const [decidingExtension, setDecidingExtension] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [deletingRequest, setDeletingRequest] = useState<BorrowRequest | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const deletingRef = useRef(false);
+  const [notice, setNotice] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
+
+  // Mỗi lần tải mang một số thứ tự; chỉ lần mới nhất được ghi vào màn hình. Không có thì lượt tải
+  // cũ (lúc thông tin đăng nhập chưa kịp nạp, hay trước khi đổi tab) về sau và đè lên dữ liệu đúng.
+  const loadSeq = useRef(0);
 
   // Load dữ liệu
   const load = useCallback(() => {
+    const seq = ++loadSeq.current;
+    const isLatest = () => seq === loadSeq.current;
     setLoading(true);
     setError('');
 
     // Một lời gọi đủ cho cả thống kê lẫn danh sách; lọc trạng thái làm ở trình duyệt (BE tự lọc owner_id cho Member).
-    const requestsLoad = fetchRequests().then(setRequests);
+    const requestsLoad = fetchRequests().then((rows) => {
+      if (isLatest()) setRequests(rows);
+    });
 
     if (isManager && viewMode === 'ASSET') {
       requestsLoad.catch(() => {});
       fetchBorrowHistoryLog(buildBorrowLogQuery({ status, from, to, page }) as never)
         .then((res) => {
+          if (!isLatest()) return;
           setAssetRows(res.rows);
           setTotalAssetRows(res.total);
           setPageSize(res.pageSize);
         })
-        .catch((e: unknown) =>
-          setError(
-            (e as { response?: { status?: number } })?.response?.status === 403
-              ? 'Mục này chỉ dành cho quản trị viên và Leader Media.'
-              : 'Không đọc được nhật ký mượn.',
-          ),
-        )
-        .finally(() => setLoading(false));
+        .catch((e: unknown) => {
+          if (!isLatest()) return;
+          setError(borrowLogLoadError(e, { isManager, fallback: 'Không đọc được nhật ký mượn.' }));
+        })
+        .finally(() => {
+          if (isLatest()) setLoading(false);
+        });
     } else {
       requestsLoad
-        .catch((e: unknown) =>
+        .catch((e: unknown) => {
+          if (!isLatest()) return;
           setError(
-            (e as { response?: { status?: number } })?.response?.status === 403
-              ? 'Mục này chỉ dành cho quản trị viên và Leader Media.'
-              : 'Không đọc được danh sách phiếu mượn.',
-          ),
-        )
-        .finally(() => setLoading(false));
+            borrowLogLoadError(e, { isManager, fallback: 'Không đọc được danh sách phiếu mượn.' }),
+          );
+        })
+        .finally(() => {
+          if (isLatest()) setLoading(false);
+        });
     }
   }, [isManager, viewMode, status, from, to, page]);
+
+  // Thông báo thành công tự tắt; thông báo lỗi giữ tới khi người dùng đóng.
+  useEffect(() => {
+    if (notice?.tone !== 'ok') return;
+    const timer = setTimeout(() => setNotice(null), 4000);
+    return () => clearTimeout(timer);
+  }, [notice]);
+
+  const confirmDelete = async () => {
+    // Chặn bấm trùng bằng ref chứ không bằng state: hai cú bấm xử lý trong cùng một đợt cập nhật
+    // dùng chung closure, lúc đó `deleting` vẫn là false và API bị gọi hai lần.
+    if (!deletingRequest || deletingRef.current) return;
+    deletingRef.current = true;
+    const target = deletingRequest;
+    setDeleting(true);
+    setNotice(null);
+    try {
+      await deleteRequest(target.id);
+      // Gỡ dòng tại chỗ, KHÔNG tải lại cả trang: tải lại bật vòng "Đang tải…" thay cả bảng (mất
+      // chỗ đang cuộn), và nếu lần tải đó lỗi mạng thì bảng trắng trơn dù phiếu đã xoá xong.
+      setRequests((rows) => rows.filter((r) => r.id !== target.id));
+      setDeletingRequest(null);
+      if (selectedRequest?.id === target.id) setSelectedRequest(null);
+      setNotice({ tone: 'ok', text: `Đã xoá phiếu ${target.request_code} khỏi nhật ký.` });
+    } catch (e: unknown) {
+      setDeletingRequest(null);
+      setNotice({
+        tone: 'error',
+        text: apiErrorMessage(e, `Không xoá được phiếu ${target.request_code}.`),
+      });
+    } finally {
+      deletingRef.current = false;
+      setDeleting(false);
+    }
+  };
 
   useEffect(() => {
     load();
@@ -202,6 +255,7 @@ function BorrowHistoryLogPageInner() {
   const cancel = async (request: BorrowRequest) => {
     setCancelling(true);
     setError('');
+    setNotice(null);
     try {
       await cancelRequest(request.id);
       setSelectedRequest(null);
@@ -216,6 +270,7 @@ function BorrowHistoryLogPageInner() {
   const handleDecideExtension = async (request: BorrowRequest, decision: 'APPROVED' | 'REJECTED') => {
     setDecidingExtension(true);
     setError('');
+    setNotice(null);
     try {
       await decideExtension(request.id, {
         decision,
@@ -449,6 +504,34 @@ function BorrowHistoryLogPageInner() {
           </div>
         )}
 
+        {/* THÔNG BÁO KẾT QUẢ XOÁ — cố định mép trên màn hình, nổi trên cả modal chi tiết, để thấy
+            được dù đang cuộn giữa bảng hay đang mở chi tiết phiếu. Đặt mép trên chứ không đáy:
+            trên điện thoại, toast lỗi ở đáy che nút Đóng/In phiếu của modal. */}
+        {notice && (
+          <div
+            role={notice.tone === 'error' ? 'alert' : 'status'}
+            className={cn(
+              'fixed top-4 left-1/2 z-[70] flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-start justify-between gap-3 rounded-xl border p-3 text-sm shadow-lg',
+              notice.tone === 'ok'
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-950 dark:text-emerald-200'
+                : 'border-red-200 bg-red-50 text-red-900 dark:border-red-500/30 dark:bg-red-950 dark:text-red-200',
+            )}
+          >
+            <span>
+              {notice.tone === 'ok' ? '✅ ' : '⚠️ '}
+              {notice.text}
+            </span>
+            <button
+              type="button"
+              onClick={() => setNotice(null)}
+              className="grid h-6 w-6 shrink-0 place-items-center rounded-lg opacity-70 hover:opacity-100"
+              title="Đóng thông báo"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         {/* THẺ THỐNG KÊ TOÀN DIỆN MỌI TRẠNG THÁI */}
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <div className={cn(cardClass, 'p-3')}>
@@ -519,9 +602,9 @@ function BorrowHistoryLogPageInner() {
                     changeFilter(() => {
                       const next = isActive && opt.key !== 'ALL' ? 'ALL' : opt.key;
                       setQuickFilter(next);
-                      if (next !== 'ALL' && viewMode !== 'REQUEST') {
-                        setViewMode('REQUEST');
-                      }
+                      const nextView = viewForQuickFilter(viewMode);
+                      if (nextView.resetStatus) setStatus('');
+                      setViewMode(nextView.viewMode);
                     });
                   }}
                   className={cn(
@@ -843,12 +926,23 @@ function BorrowHistoryLogPageInner() {
                               </div>
                             </td>
                             <td className="px-4 py-3 text-right">
-                              <button
-                                onClick={() => setSelectedRequest(req)}
-                                className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-blue-50 hover:text-blue-600 dark:border-white/[0.1] dark:text-slate-300 dark:hover:bg-blue-500/10 dark:hover:text-blue-400 transition-colors"
-                              >
-                                Xem
-                              </button>
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  onClick={() => setSelectedRequest(req)}
+                                  className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-blue-50 hover:text-blue-600 dark:border-white/[0.1] dark:text-slate-300 dark:hover:bg-blue-500/10 dark:hover:text-blue-400 transition-colors"
+                                >
+                                  Xem
+                                </button>
+                                {canDeleteRequest(req, { isCatalogManager: isManager }) && (
+                                  <button
+                                    onClick={() => setDeletingRequest(req)}
+                                    title={`Xoá phiếu ${req.request_code}`}
+                                    className="rounded-lg border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-50 dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-500/10 transition-colors"
+                                  >
+                                    Xoá
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         );
@@ -1097,14 +1191,30 @@ function BorrowHistoryLogPageInner() {
               }) && (
                 <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/70 p-3 dark:border-amber-500/20 dark:bg-amber-500/10">
                   <p className="text-xs text-amber-900 dark:text-amber-200">
-                    Không cần mượn nữa? Huỷ phiếu để nhả giữ chỗ ngay cho người khác.
+                    Không cần mượn nữa? Huỷ phiếu để nhả giữ chỗ ngay cho người khác. Phiếu đã huỷ
+                    vẫn nằm trong nhật ký.
                   </p>
                   <button
                     onClick={() => cancel(selectedRequest)}
                     disabled={cancelling}
-                    className="mt-2 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-500/30 dark:bg-transparent"
+                    className="mt-2 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-500/30 dark:bg-transparent dark:text-red-400 dark:hover:bg-red-500/10"
                   >
                     {cancelling ? 'Đang huỷ…' : 'Huỷ phiếu này'}
+                  </button>
+                </div>
+              )}
+
+              {canDeleteRequest(selectedRequest, { isCatalogManager: isManager }) && (
+                <div className="mt-4 rounded-xl border border-red-200 bg-red-50/70 p-3 dark:border-red-500/20 dark:bg-red-500/10">
+                  <p className="text-xs text-red-900 dark:text-red-200">
+                    Không cần giữ phiếu này trong nhật ký? Xoá phiếu để ẩn khỏi danh sách và lịch
+                    sử mượn — khác với Huỷ, phiếu đã xoá không còn hiện ở đâu nữa.
+                  </p>
+                  <button
+                    onClick={() => setDeletingRequest(selectedRequest)}
+                    className="mt-2 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 dark:border-red-500/30 dark:bg-transparent dark:text-red-400 dark:hover:bg-red-500/10"
+                  >
+                    🗑️ Xoá phiếu này
                   </button>
                 </div>
               )}
@@ -1131,6 +1241,23 @@ function BorrowHistoryLogPageInner() {
             </div>
           </div>
         )}
+
+        {/* XÁC NHẬN XOÁ PHIẾU — đặt sau modal chi tiết để nổi lên trên khi mở từ trong đó */}
+        <ConfirmModal
+          isOpen={Boolean(deletingRequest)}
+          onClose={() => !deleting && setDeletingRequest(null)}
+          onConfirm={confirmDelete}
+          variant="danger"
+          isLoading={deleting}
+          title={`Xoá phiếu ${deletingRequest?.request_code ?? ''}?`}
+          description={
+            deletingRequest?.status === 'CLOSED'
+              ? 'Phiếu và các lượt mượn của nó sẽ không còn hiện trong nhật ký và lịch sử mượn của máy. Biên bản giao/nhận vẫn được lưu trên hệ thống để đối chiếu khi cần.'
+              : 'Phiếu sẽ không còn hiện trong nhật ký mượn. Dữ liệu vẫn được lưu trên hệ thống để đối chiếu khi cần.'
+          }
+          confirmText={deleting ? 'Đang xoá…' : 'Xoá phiếu'}
+          cancelText="Giữ lại"
+        />
 
         {/* MODAL BÁO CÁO SỰ CỐ */}
         {incidentModalRequest && (
