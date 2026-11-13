@@ -134,7 +134,11 @@ export const facebookService = {
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ page_id: pageId }),
     });
-    if (!res.ok) throw new Error('Không thể gửi yêu cầu cào lượt đầu');
+    if (!res.ok) {
+      // BE trả lý do cụ thể (token hết hạn, thiếu quyền…) — hiện đúng lý do thay vì câu chung chung.
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.message || body?.error || (res.status === 403 ? 'Bạn không có quyền kéo lại page này' : 'Không kéo lại được page'));
+    }
     return res.json();
   },
 };

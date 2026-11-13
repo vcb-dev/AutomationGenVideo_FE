@@ -28,8 +28,8 @@ import { crawlStatus, lastCrawlText, CrawlTone } from '@/lib/scrape/facebook-pag
 const CRAWL_TONE_CLASS: Record<CrawlTone, string> = {
   running: 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
   error: 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400',
-  idle: 'bg-slate-100 dark:bg-slate-800 text-slate-500',
-  partial: 'bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400',
+  idle: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300',
+  partial: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300',
   ok: 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400',
 };
 
@@ -48,32 +48,6 @@ function relativeTime(dateStr: string): string {
   if (diffD < 30) return `${Math.floor(diffD / 7)} tuần trước`;
   if (diffD < 365) return `${Math.floor(diffD / 30)} tháng trước`;
   return `${Math.floor(diffD / 365)} năm trước`;
-}
-
-function isTransientError(msg?: string | null): boolean {
-  if (!msg) return false;
-  const lower = msg.toLowerCase();
-  return (
-    lower.includes('status code 502') ||
-    lower.includes('status code 503') ||
-    lower.includes('status code 504') ||
-    lower.includes('status code 429') ||
-    lower.includes('too many requests') ||
-    lower.includes('econnrefused') ||
-    lower.includes('etimedout') ||
-    lower.includes('timedout') ||
-    lower.includes('timeout') ||
-    lower.includes('econnreset') ||
-    lower.includes('enotfound') ||
-    lower.includes('network error') ||
-    lower.includes('nameresolutionerror') ||
-    lower.includes('connectionpool') ||
-    lower.includes('max retries exceeded') ||
-    lower.includes('temporary failure in name resolution') ||
-    lower.includes('getaddrinfo') ||
-    lower.includes('socket hang up') ||
-    lower.includes('aborted')
-  );
 }
 
 function proxyImg(url: string, w = 120, h = 120): string {
@@ -102,7 +76,7 @@ function FacebookPageCard({
   onBackfill?: () => void;
 }) {
   // Lỗi mạng tạm thời (502, timeout…) BE không lưu nữa, nhưng bản ghi cũ có thể còn — không báo đỏ.
-  const status = crawlStatus({ ...p, scrape_error: p.scrape_error && !isTransientError(p.scrape_error) ? p.scrape_error : null });
+  const status = crawlStatus(p, !!onBackfill);
 
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden hover:shadow-md transition-shadow flex flex-col">
@@ -120,7 +94,7 @@ function FacebookPageCard({
         )}
       </div>
       {status.detail && (
-        <p className={`mx-3.5 mt-2 px-2 py-1.5 rounded text-xs leading-relaxed ${status.tone === 'error' ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300' : 'bg-slate-50 dark:bg-slate-800/40 text-slate-500'}`}>
+        <p className={`mx-3.5 mt-2 px-2 py-1.5 rounded text-xs leading-relaxed ${status.tone === 'error' ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300' : 'bg-slate-50 dark:bg-slate-800/40 text-slate-600 dark:text-slate-300'} line-clamp-4 break-words`} title={status.detail}>
           {status.detail}
         </p>
       )}
@@ -233,7 +207,7 @@ function FacebookPageCard({
             onClick={onBackfill}
             disabled={p.is_scraping}
             className={`flex items-center gap-1 px-3 py-2.5 text-xs font-semibold transition-colors disabled:opacity-40 ${
-              status.tone === 'ok'
+              !status.suggestRetry
                 ? 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'
                 : 'text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'
             }`}
@@ -317,7 +291,8 @@ function FbVideoCard({
 
 export default function FacebookChannelsPage() {
   const { token, user } = useAuthStore();
-  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER, UserRole.MANAGER].includes(r)) ?? false;
+  // Khớp quyền BE (POST /facebook/sync|backfill chỉ ADMIN/LEADER) — trước đây MANAGER thấy nút mà bấm bị 403.
+  const canManageChannels = user?.roles?.some(r => [UserRole.ADMIN, UserRole.LEADER].includes(r)) ?? false;
   const router = useRouter();
   const autoSyncDone = useRef(false);
 
@@ -407,7 +382,11 @@ export default function FacebookChannelsPage() {
       const res = await facebookService.triggerBackfill(token, pg.page_id);
       toast.success(res.message);
       pollUntilDone(pg.page_id, pg.name);
-    } catch (e: any) { toast.error(e.message); }
+    } catch (e: any) {
+      toast.error(e.message);
+      // Lý do lỗi mới đã lưu vào page — tải lại để thẻ hiện đúng.
+      fetchPages();
+    }
   };
 
   const pollUntilDone = (pageId: string, pageName: string) => {
@@ -450,6 +429,7 @@ export default function FacebookChannelsPage() {
       stop();
       // Kéo hết lịch sử một page lớn mất vài chục phút — đó là bình thường, không phải lỗi.
       toast(`${pageName} vẫn đang kéo video ở nền (page nhiều video mất vài chục phút). Tải lại trang sau để xem kết quả.`);
+      fetchPages();
     }, 300_000);
 
     pollTimers.current.add(stop);
@@ -668,7 +648,8 @@ export default function FacebookChannelsPage() {
                 ))}
               </div>
             ) : (
-              <div className="bg-white dark:bg-card rounded-xl border border-border overflow-hidden">
+              <div className="bg-white dark:bg-card rounded-xl border border-border overflow-x-auto">
+                <div className="min-w-[1040px]">
                 <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto_auto] gap-4 px-5 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-border text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   <span className="w-10"></span>
                   <span>Kênh</span>
@@ -692,6 +673,7 @@ export default function FacebookChannelsPage() {
                       selectedPageId={undefined}
                     />
                   ))}
+                </div>
                 </div>
               </div>
             )}

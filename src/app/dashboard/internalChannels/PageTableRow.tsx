@@ -6,11 +6,11 @@ import { ChannelInfo } from '@/services/channelsService';
 import { crawlStatus, lastCrawlText, CrawlTone } from '@/lib/scrape/facebook-page-status';
 
 const TONE_CLASS: Record<CrawlTone, string> = {
-  running: 'bg-amber-50 text-amber-700',
-  error: 'bg-red-50 text-red-600',
-  idle: 'bg-slate-100 text-slate-500',
-  partial: 'bg-sky-50 text-sky-700',
-  ok: 'bg-emerald-50 text-emerald-700',
+  running: 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400',
+  error: 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400',
+  idle: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300',
+  partial: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300',
+  ok: 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400',
 };
 
 interface PageTableRowProps {
@@ -43,9 +43,10 @@ export default function PageTableRow({
   selectedPageId,
 }: PageTableRowProps) {
   const hasVideos = (page.video_count || 0) > 0;
-  const status = crawlStatus(page);
-  // Page chưa kéo đủ / đang lỗi: nút chính là "Kéo lại" (kéo hết lịch sử), không phải "Cào mới" (vài bài mới nhất).
-  const needsBackfill = !page.is_scraping && status.tone !== 'ok';
+  const status = crawlStatus(page, !!onBackfill);
+  // Page lỗi / chưa kéo: nút chính là "Kéo lại" (kéo hết lịch sử), không phải "Cào mới" (vài bài mới nhất).
+  // Page đang chờ kéo bù thì hệ thống tự lo — không đẩy nút lên, kẻo cả trăm dòng cùng mời bấm.
+  const needsBackfill = !page.is_scraping && status.suggestRetry;
 
   return (
     <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto_auto] gap-4 px-5 py-3.5 items-center hover:bg-slate-50/50 transition-colors">
@@ -108,7 +109,11 @@ export default function PageTableRow({
           {status.tone === 'running' && <Loader2 size={11} className="animate-spin flex-shrink-0" />}
           <span className="truncate">{status.label}</span>
         </span>
-        <span className="text-[11px] text-slate-400">{(page.video_count ?? 0).toLocaleString('vi-VN')} video · {lastCrawlText(page.last_scraped_at)}</span>
+        <span className="text-[11px] text-slate-400 text-center leading-tight">
+          {(page.video_count ?? 0).toLocaleString('vi-VN')} video
+          <br />
+          {lastCrawlText(page.last_scraped_at)}
+        </span>
       </div>
 
       {/* Actions */}
