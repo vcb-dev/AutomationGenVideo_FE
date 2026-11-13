@@ -3,6 +3,15 @@
 import { Play, Users, Heart, Loader2, RefreshCw, Download } from 'lucide-react';
 import { FacebookPage } from '@/types/facebook';
 import { ChannelInfo } from '@/services/channelsService';
+import { crawlStatus, lastCrawlText, CrawlTone } from '@/lib/scrape/facebook-page-status';
+
+const TONE_CLASS: Record<CrawlTone, string> = {
+  running: 'bg-amber-50 text-amber-700',
+  error: 'bg-red-50 text-red-600',
+  idle: 'bg-slate-100 text-slate-500',
+  partial: 'bg-sky-50 text-sky-700',
+  ok: 'bg-emerald-50 text-emerald-700',
+};
 
 interface PageTableRowProps {
   page: FacebookPage;
@@ -34,7 +43,9 @@ export default function PageTableRow({
   selectedPageId,
 }: PageTableRowProps) {
   const hasVideos = (page.video_count || 0) > 0;
-  const needsBackfill = !hasVideos && !page.is_scraping;
+  const status = crawlStatus(page);
+  // Page chưa kéo đủ / đang lỗi: nút chính là "Kéo lại" (kéo hết lịch sử), không phải "Cào mới" (vài bài mới nhất).
+  const needsBackfill = !page.is_scraping && status.tone !== 'ok';
 
   return (
     <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto_auto] gap-4 px-5 py-3.5 items-center hover:bg-slate-50/50 transition-colors">
@@ -86,28 +97,18 @@ export default function PageTableRow({
         <p className={`text-xs truncate ${channelInfo?.owner_name ? 'font-medium text-slate-700' : 'italic text-slate-400'}`}>
           {channelInfo?.owner_name ?? '—'}
         </p>
+        <p className="text-[11px] text-slate-400 truncate" title={page.connected_by?.join(', ')}>
+          Kết nối: {page.connected_by?.length ? page.connected_by.join(', ') : 'token hệ thống'}
+        </p>
       </div>
 
       {/* Status */}
-      <div className="w-28 flex justify-center">
-        {page.is_scraping ? (
-          <span className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 text-amber-700 rounded-full text-xs font-semibold">
-            <Loader2 size={11} className="animate-spin" />
-            Đang cào
-          </span>
-        ) : page.scrape_error ? (
-          <span className="px-2.5 py-1 bg-red-50 text-red-600 rounded-full text-xs font-semibold truncate max-w-full" title={page.scrape_error}>
-            Lỗi
-          </span>
-        ) : hasVideos ? (
-          <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-semibold">
-            {page.video_count} video
-          </span>
-        ) : (
-          <span className="px-2.5 py-1 bg-slate-100 text-slate-500 rounded-full text-xs font-semibold">
-            Chưa cào
-          </span>
-        )}
+      <div className="w-36 flex flex-col items-center gap-0.5 min-w-0" title={status.detail ?? undefined}>
+        <span className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold max-w-full ${TONE_CLASS[status.tone]}`}>
+          {status.tone === 'running' && <Loader2 size={11} className="animate-spin flex-shrink-0" />}
+          <span className="truncate">{status.label}</span>
+        </span>
+        <span className="text-[11px] text-slate-400">{(page.video_count ?? 0).toLocaleString('vi-VN')} video · {lastCrawlText(page.last_scraped_at)}</span>
       </div>
 
       {/* Actions */}
@@ -133,7 +134,7 @@ export default function PageTableRow({
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
           >
             <Download size={13} />
-            Cào lượt đầu
+            Kéo lại
           </button>
         )}
 
