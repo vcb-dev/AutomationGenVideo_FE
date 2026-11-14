@@ -9,6 +9,10 @@ export interface FacebookPage {
   is_active: boolean;
   is_scraping: boolean;
   is_backfilled: boolean;
+  /** Lần kéo TOÀN BỘ lịch sử video thành công; null = mới có video gần đây */
+  full_backfilled_at?: string | null;
+  /** Người dùng đã kết nối page này ở Đăng bài MXH → Kênh (rỗng = page của token hệ thống) */
+  connected_by?: string[];
   last_synced_at?: string;
   last_scraped_at?: string;
   scrape_error?: string;
