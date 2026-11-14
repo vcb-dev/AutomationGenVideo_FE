@@ -12,6 +12,7 @@ import {
   History,
   Layers,
   ChevronRight,
+  Printer,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import apiClient from '@/lib/api-client';
@@ -20,7 +21,14 @@ import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
 import { IdCardPreview, CropControls } from './ExportStep';
 import { CROP_DEFAULT, CropTransform } from './crop-math';
-import { downloadBatchPdf, BatchError } from '../bulk/id-photo-batch';
+import {
+  downloadBatchPdf,
+  downloadPrintSheet,
+  togglePrintSelection,
+  triggerBlobDownload,
+  BatchError,
+  PRINT_SHEET_MAX_CARDS,
+} from '../bulk/id-photo-batch';
 import {
   getPositionOption,
   IdPhotoDetailItem,
@@ -104,6 +112,9 @@ export function HistoryTab() {
   // đợt luôn liền kề nhau do tạo trong vài giây) rồi lọc trong JS — KHÔNG endpoint mới.
   const [batchFilter, setBatchFilter] = useState<string | null>(null);
   const [exportingBatch, setExportingBatch] = useState(false);
+  // Thẻ chọn để xuất file in A4 — giữ qua các trang, tối đa PRINT_SHEET_MAX_CARDS.
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [exportingPrint, setExportingPrint] = useState(false);
   const exportingBatchRef = useRef(false);
 
   // ── Xem chi tiết ──
@@ -278,6 +289,7 @@ export function HistoryTab() {
       await apiClient.delete(`/id-photo/${target.id}`);
       toast.success(`Đã xoá ảnh thẻ của "${target.employee_name}".`, { id: loadingToast });
       setDeleteTarget(null);
+      setSelectedIds((prev) => prev.filter((x) => x !== target.id));
       if (detailRow?.id === target.id) closeDetail();
 
       // Xoá dòng CUỐI CÙNG của một trang > 1 thì trang đó thành rỗng — lùi về trang trước thay
@@ -401,6 +413,39 @@ export function HistoryTab() {
     ? items.filter((it) => it.batch_job_id === batchFilter)
     : items;
 
+  const selectableIds = displayedItems.filter((it) => it.status === 'SUCCESS').map((it) => it.id);
+  const allPageSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedIds.includes(id));
+
+  const toggleSelectPage = () => {
+    setSelectedIds((prev) => {
+      if (allPageSelected) return prev.filter((id) => !selectableIds.includes(id));
+      let next = prev;
+      for (const id of selectableIds) if (!next.includes(id)) next = togglePrintSelection(next, id);
+      return next;
+    });
+  };
+
+  const handleExportPrintSheet = async () => {
+    if (selectedIds.length === 0 || exportingPrint) return;
+    setExportingPrint(true);
+    const loading = toast.loading('Đang dựng file in A4...');
+    try {
+      const { blob, exported, skipped } = await downloadPrintSheet(
+        (path, body) => apiClient.post(path, body, { responseType: 'blob' }),
+        selectedIds,
+      );
+      triggerBlobDownload(blob, `anh-the-file-in-a4-${exported}-the.pdf`);
+      toast.success(
+        skipped > 0 ? `Đã xuất file in ${exported} thẻ (bỏ qua ${skipped} thẻ chưa có ảnh).` : `Đã xuất file in ${exported} thẻ.`,
+        { id: loading, duration: 6000 },
+      );
+    } catch (err: any) {
+      toast.error(err instanceof BatchError ? err.message : 'Xuất file in thất bại, vui lòng thử lại.', { id: loading });
+    } finally {
+      setExportingPrint(false);
+    }
+  };
+
   return (
     <div className="text-[#1b1b1d]">
       <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
@@ -486,11 +531,53 @@ export function HistoryTab() {
         </div>
       )}
 
+      {selectedIds.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-[#4441cc]/30 bg-[#4441cc]/5 px-3 py-2">
+          <Printer className="w-4 h-4 text-[#4441cc] flex-none" />
+          <span className="text-xs font-semibold text-[#1b1b1d]">
+            Đã chọn {selectedIds.length} thẻ để in
+            {selectedIds.length >= PRINT_SHEET_MAX_CARDS && (
+              <span className="text-[#9c9aa8]"> (tối đa {PRINT_SHEET_MAX_CARDS} thẻ mỗi lần)</span>
+            )}
+          </span>
+          <button
+            type="button"
+            onClick={handleExportPrintSheet}
+            disabled={exportingPrint}
+            title="File A4 gửi nhà in: 9 thẻ đúng cỡ CR80 mỗi tờ, có vạch cắt"
+            className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-[#4441cc] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#4441cc]/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            {exportingPrint ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
+            {exportingPrint ? 'Đang dựng...' : 'Xuất file in A4'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedIds([])}
+            disabled={exportingPrint}
+            className="inline-flex items-center gap-1 rounded-lg border border-[#d5d3e0] px-2.5 py-1.5 text-xs font-semibold text-[#464554] hover:border-[#4441cc] hover:text-[#4441cc] transition-colors"
+          >
+            <X className="w-3 h-3" />
+            Bỏ chọn
+          </button>
+        </div>
+      )}
+
       <div className="border border-[#e2e0ea] rounded-2xl bg-white overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[#e2e0ea] text-left text-xs font-semibold text-[#9c9aa8] uppercase tracking-wide">
+                <th className="w-10 pl-4 pr-1 py-3">
+                  <input
+                    type="checkbox"
+                    aria-label="Chọn tất cả thẻ thành công trong trang để in"
+                    title="Chọn tất cả thẻ thành công trong trang để xuất file in A4"
+                    checked={allPageSelected}
+                    disabled={selectableIds.length === 0}
+                    onChange={toggleSelectPage}
+                    className="h-4 w-4 accent-[#4441cc] cursor-pointer disabled:cursor-not-allowed"
+                  />
+                </th>
                 <th className="px-4 py-3">Nhân viên</th>
                 <th className="px-4 py-3">Team</th>
                 <th className="px-4 py-3">Mã NV</th>
@@ -506,13 +593,13 @@ export function HistoryTab() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-10 text-center text-[#9c9aa8]">
+                  <td colSpan={10} className="px-4 py-10 text-center text-[#9c9aa8]">
                     <Loader2 className="w-5 h-5 animate-spin inline-block" />
                   </td>
                 </tr>
               ) : displayedItems.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-10 text-center text-[#9c9aa8]">
+                  <td colSpan={10} className="px-4 py-10 text-center text-[#9c9aa8]">
                     <ImageOff className="w-6 h-6 mx-auto mb-2" />
                     {batchFilter ? 'Không có dòng nào thuộc đợt này' : 'Chưa có ảnh thẻ nào được tạo'}
                   </td>
@@ -534,6 +621,20 @@ export function HistoryTab() {
                       title="Bấm để xem chi tiết ảnh thẻ"
                       className="group border-b border-[#f0eef5] last:border-0 cursor-pointer hover:bg-[#efecfc] transition-colors"
                     >
+                      <td className="w-10 pl-4 pr-1 py-3" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          aria-label={`Chọn thẻ ${item.employee_name} để in`}
+                          title={isNotSuccess ? 'Chỉ in được thẻ đã tạo thành công' : 'Chọn để xuất file in A4'}
+                          checked={selectedIds.includes(item.id)}
+                          disabled={
+                            isNotSuccess ||
+                            (!selectedIds.includes(item.id) && selectedIds.length >= PRINT_SHEET_MAX_CARDS)
+                          }
+                          onChange={() => setSelectedIds((prev) => togglePrintSelection(prev, item.id))}
+                          className="h-4 w-4 accent-[#4441cc] cursor-pointer disabled:cursor-not-allowed"
+                        />
+                      </td>
                       <td className="px-4 py-3 font-medium">{item.employee_name}</td>
                       <td className="px-4 py-3 text-[#464554]">{item.employee_team}</td>
                       <td className="px-4 py-3 text-[#464554]">{item.employee_id}</td>

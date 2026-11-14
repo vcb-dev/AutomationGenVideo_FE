@@ -382,3 +382,62 @@ export async function remergeBatchPerson(
   await postFn(batchRemergePath(batchJobId, historyId));
   return true;
 }
+
+// ─── File in A4 (9 thẻ CR80/tờ, vạch cắt) ───────────────────────────────────
+
+/** Khớp ID_PHOTO_PRINT_SHEET_MAX_CARDS bên BE: tối đa 5 tờ A4 mỗi lần xuất. */
+export const PRINT_SHEET_MAX_CARDS = 45;
+export const PRINT_SHEET_PATH = '/id-photo/print-sheet';
+
+/** Id gửi xuất file in: chỉ người đã SUCCESS, giữ thứ tự lưới, tối đa 45. */
+export function printSheetIds(people: Pick<BatchPersonStatus, 'id' | 'status'>[]): string[] {
+  return people
+    .filter((p) => p.status === 'SUCCESS')
+    .map((p) => p.id)
+    .slice(0, PRINT_SHEET_MAX_CARDS);
+}
+
+/** Bật/tắt chọn 1 thẻ cho file in; đã đủ 45 thẻ thì không thêm nữa. */
+export function togglePrintSelection(selected: string[], id: string): string[] {
+  if (selected.includes(id)) return selected.filter((x) => x !== id);
+  return selected.length >= PRINT_SHEET_MAX_CARDS ? selected : [...selected, id];
+}
+
+/** POST /id-photo/print-sheet → file PDF; lỗi (body JSON trong Blob) đổi thành BatchError đọc được. */
+export async function downloadPrintSheet(
+  post: (path: string, body: { ids: string[] }) => Promise<{ data: Blob; headers: Record<string, any> }>,
+  ids: string[],
+): Promise<{ blob: Blob; exported: number; skipped: number }> {
+  if (ids.length === 0) throw new BatchError('Chưa chọn thẻ nào để xuất file in.');
+  if (ids.length > PRINT_SHEET_MAX_CARDS) {
+    throw new BatchError(`Tối đa ${PRINT_SHEET_MAX_CARDS} thẻ mỗi lần xuất file in.`);
+  }
+  try {
+    const res = await post(PRINT_SHEET_PATH, { ids });
+    const exported = Number(res.headers?.['x-exported-count'] ?? ids.length);
+    const skipped = Number(res.headers?.['x-skipped-count'] ?? 0);
+    return { blob: res.data, exported, skipped };
+  } catch (err: any) {
+    let message: unknown = 'Xuất file in thất bại, vui lòng thử lại.';
+    const data = err?.response?.data;
+    try {
+      if (data && typeof data.text === 'function') message = JSON.parse(await data.text())?.message || message;
+    } catch {
+      /* body không phải JSON — giữ câu mặc định */
+    }
+    throw new BatchError(Array.isArray(message) ? message.join('; ') : String(message));
+  }
+}
+
+/** Tải blob về máy dưới tên cho sẵn (thu hồi URL sau 1 phút). */
+export function triggerBlobDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
