@@ -5,7 +5,6 @@ import {
   TikTokComposerSettings,
   commercialLabel,
   encodeTikTokSettings,
-  isTikTokPostingAccount,
   mergeCreatorInfos,
   validateTikTokSettings,
 } from '../tiktok-post';
@@ -34,18 +33,6 @@ describe('encodeTikTokSettings — khớp định dạng BE', () => {
     const raw = encodeTikTokSettings(s({ privacyLevel: 'SELF_ONLY', commercial: false, brandOrganic: true, brandContent: true }));
     const j = JSON.parse(raw.slice(TIKTOK_OPTIONS_PREFIX.length));
     expect([j.bo, j.bc]).toEqual([0, 0]);
-  });
-});
-
-describe('isTikTokPostingAccount', () => {
-  it.each([
-    [{ platform: 'TIKTOK', extra_data: { openId: 'oid' } }, true],
-    [{ platform: 'TIKTOK', extra_data: { source: 'manual', openId: 'oid' } }, false],
-    [{ platform: 'TIKTOK', extra_data: { source: 'sapo_orders' } }, false],
-    [{ platform: 'TIKTOK', extra_data: undefined }, false],
-    [{ platform: 'YOUTUBE', extra_data: { openId: 'oid' } }, false],
-  ] as const)('%j → %s', (acc, want) => {
-    expect(isTikTokPostingAccount(acc as any)).toBe(want);
   });
 });
 

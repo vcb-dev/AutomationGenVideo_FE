@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { RefreshCw, CheckCircle, ChevronDown, ChevronUp, AlertTriangle, Clock, Sparkles, ExternalLink, Music2, Plus } from 'lucide-react';
+import { RefreshCw, CheckCircle, ChevronDown, ChevronUp, AlertTriangle, Clock, ExternalLink, Music2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { accountAvatarUrl } from '@/lib/social/account-avatar';
@@ -11,9 +11,6 @@ import { useSocialAccounts, useInvalidateAccounts, SOCIAL_ACCOUNTS_KEY } from '@
 import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
 import { useSocialLang } from '@/contexts/SocialLanguageContext';
-import { SapoTiktokSyncModal } from './components/SapoTiktokSyncModal';
-import { ManualTiktokModal } from './components/ManualTiktokModal';
-import { isTikTokPostingAccount } from '@/lib/social/tiktok-post';
 
 // ─── Platform meta ─────────────────────────────────────────────────────────
 
@@ -60,8 +57,6 @@ const ALL_PLATFORMS: SocialPlatform[] = ['FACEBOOK', 'INSTAGRAM', 'THREADS', 'YO
 export default function ChannelsPage() {
   const { lang, setLang, t } = useSocialLang();
   const [activeTab, setActiveTab] = useState<Tab>('ALL');
-  const [showSapoTiktokModal, setShowSapoTiktokModal] = useState(false);
-  const [showManualModal, setShowManualModal] = useState(false);
   const { data: accounts = [], isLoading: loading, error } = useSocialAccounts();
   const currentUser = useAuthStore(s => s.user);
   const isAdmin = currentUser?.roles?.includes(UserRole.ADMIN) ?? false;
@@ -422,11 +417,9 @@ export default function ChannelsPage() {
                         </button>
                       </div>
                     )}
-                    {/* TikTok: nút đồng bộ từ Sapo & Thêm thủ công */}
+                    {/* TikTok: chỉ kết nối qua "Đăng nhập TikTok" (Login Kit / OAuth) */}
                     {platform === 'TIKTOK' && (
                       <div className="flex items-center gap-2 flex-wrap">
-                        {/* Đăng nhập TikTok (Login Kit) — kênh kết nối kiểu này mới ĐĂNG BÀI được.
-                            "Thêm thủ công"/"Đồng bộ Sapo" chỉ để theo dõi số liệu. */}
                         <button
                           onClick={() => handleConnect('TIKTOK')}
                           disabled={connecting === 'TIKTOK'}
@@ -436,24 +429,6 @@ export default function ChannelsPage() {
                           {connecting === 'TIKTOK' ? <RefreshCw className="w-4 h-4 animate-spin" /> : meta.icon}
                           {connecting === 'TIKTOK' ? t.connecting : 'Đăng nhập TikTok'}
                         </button>
-                        <button
-                          onClick={() => setShowManualModal(true)}
-                          className="flex items-center gap-1.5 px-3.5 py-2 text-slate-700 hover:text-black bg-slate-100 hover:bg-slate-200 text-sm font-semibold rounded-xl transition-all active:scale-95 border border-slate-200 shadow-sm"
-                        >
-                          <Plus className="w-4 h-4" />
-                          Thêm thủ công
-                        </button>
-                        {/* Đồng bộ Sapo kéo về kênh của TOÀN CÔNG TY và gán chủ sở hữu là người
-                            bấm — chỉ Admin dùng để đối soát. Nhân sự tự thêm kênh của mình. */}
-                        {isAdmin && (
-                          <button
-                            onClick={() => setShowSapoTiktokModal(true)}
-                            className="flex items-center gap-1.5 px-4 py-2 text-white text-sm font-semibold rounded-xl bg-slate-900 hover:bg-black transition-all shadow-sm hover:shadow-md active:scale-95"
-                          >
-                            <Sparkles className="w-4 h-4 text-pink-400" />
-                            Đồng bộ từ Sapo
-                          </button>
-                        )}
                       </div>
                     )}
 
@@ -613,26 +588,6 @@ export default function ChannelsPage() {
                                 <><ChevronDown className="w-3.5 h-3.5" /> {t.showMoreAccounts(displayAccts.length - PAGES_PER_ROW)}</>
                               )}
                             </button>
-                            <span className="text-slate-300">|</span>
-                          </>
-                        )}
-                        <button
-                          onClick={() => setShowManualModal(true)}
-                          className="inline-flex items-center gap-1 text-xs font-bold text-slate-700 hover:text-black transition-colors"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          Thêm thủ công
-                        </button>
-                        {isAdmin && (
-                          <>
-                            <span className="text-slate-300">|</span>
-                            <button
-                              onClick={() => setShowSapoTiktokModal(true)}
-                              className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-black transition-colors"
-                            >
-                              <Sparkles className="w-3.5 h-3.5 text-pink-500" />
-                              Quét thêm từ Sapo
-                            </button>
                           </>
                         )}
                       </div>
@@ -643,7 +598,6 @@ export default function ChannelsPage() {
                         const extra = (account.extra_data as any) || {};
                         const linkChannel = extra.link_channel || (account.username ? `https://www.tiktok.com/@${account.username}` : null);
                         const bgColor = letterColor(account.name || 'TikTok');
-                        const orderCount = extra.order_count;
                         // Backend chỉ kèm quan hệ `user` khi người gọi là admin hoặc leader.
                         const ownerName = (account as any).user?.full_name as string | undefined;
 
@@ -701,23 +655,6 @@ export default function ChannelsPage() {
                                     👤 {ownerName}
                                   </span>
                                 )}
-                                {isTikTokPostingAccount(account) ? (
-                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-white bg-black px-2 py-0.5 rounded-full">
-                                    ✓ Đăng bài được
-                                  </span>
-                                ) : (
-                                  <span
-                                    className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full"
-                                    title='Kênh chỉ để theo dõi. Bấm "Đăng nhập TikTok" để đăng bài lên kênh này.'
-                                  >
-                                    Chỉ theo dõi
-                                  </span>
-                                )}
-                                {orderCount != null && (
-                                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 rounded-full">
-                                    📦 {orderCount} đơn hàng Sapo
-                                  </span>
-                                )}
                                 {linkChannel && (
                                   <a
                                     href={linkChannel}
@@ -735,7 +672,7 @@ export default function ChannelsPage() {
 
                             {/* Actions */}
                             <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                              <span className="text-[11px] text-slate-400 font-medium">Sapo Sync</span>
+                              <span className="text-[11px] text-slate-400 font-medium">Đăng nhập TikTok</span>
                               {canRemove(account) && (
                                 <button
                                   onClick={() => handleDisconnect(account)}
@@ -934,28 +871,8 @@ export default function ChannelsPage() {
                         <div className="max-w-md mx-auto space-y-3">
                           <p className="text-slate-600 font-medium">Chưa có kênh TikTok nào được liên kết.</p>
                           <p className="text-xs text-slate-400 leading-relaxed">
-                            {isAdmin
-                              ? 'Thêm thủ công kênh của bạn, hoặc quét đơn hàng Sapo (TikTok Business & TikTok Shop) để đối soát kênh toàn công ty.'
-                              : 'Thêm kênh TikTok của bạn để hệ thống theo dõi và lên báo cáo. Kênh bạn thêm chỉ mình bạn quản lý.'}
+                            Bấm "Đăng nhập TikTok" ở trên để kết nối kênh và đăng video từ hệ thống.
                           </p>
-                          <div className="flex items-center justify-center gap-2 pt-2 flex-wrap">
-                            <button
-                              onClick={() => setShowManualModal(true)}
-                              className="inline-flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-semibold rounded-xl transition-all shadow-sm active:scale-95"
-                            >
-                              <Plus className="w-4 h-4 text-slate-600" />
-                              Thêm kênh thủ công
-                            </button>
-                            {isAdmin && (
-                              <button
-                                onClick={() => setShowSapoTiktokModal(true)}
-                                className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-black text-white text-xs font-semibold rounded-xl transition-all shadow-sm active:scale-95"
-                              >
-                                <Sparkles className="w-4 h-4 text-pink-400" />
-                                Quét &amp; Đồng bộ từ Sapo
-                              </button>
-                            )}
-                          </div>
                         </div>
                       )
                       : t.noAccounts(meta.label, loginLabel)}
@@ -967,19 +884,6 @@ export default function ChannelsPage() {
         )}
       </div>
 
-      {/* Sapo TikTok Sync Modal */}
-      <SapoTiktokSyncModal
-        isOpen={showSapoTiktokModal}
-        onClose={() => setShowSapoTiktokModal(false)}
-        onSuccess={loadAccounts}
-      />
-
-      {/* Manual TikTok Modal */}
-      <ManualTiktokModal
-        isOpen={showManualModal}
-        onClose={() => setShowManualModal(false)}
-        onSuccess={loadAccounts}
-      />
     </div>
   );
 }

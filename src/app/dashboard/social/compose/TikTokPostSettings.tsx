@@ -25,7 +25,7 @@ export default function TikTokPostSettings({
   onChange,
   onInfoChange,
 }: {
-  /** Các kênh TikTok (đăng nhập thật) đang được chọn */
+  /** Các kênh TikTok đang được chọn */
   accounts: SocialAccount[];
   value: TikTokComposerSettings;
   onChange: (v: TikTokComposerSettings) => void;

@@ -26,7 +26,6 @@ import {
   EMPTY_TIKTOK_SETTINGS,
   TikTokComposerSettings,
   encodeTikTokSettings,
-  isTikTokPostingAccount,
   mergeCreatorInfos,
   validateTikTokSettings,
 } from '@/lib/social/tiktok-post';
@@ -308,8 +307,8 @@ export default function ComposePage() {
     });
   });
 
-  // Kênh TikTok (đăng nhập thật) đang được chọn — để hiện khung "Cài đặt TikTok"
-  const selectedTikTokAccounts = accounts.filter(a => selectedAccountIds.includes(a.id) && isTikTokPostingAccount(a));
+  // Kênh TikTok đang được chọn — để hiện khung "Cài đặt TikTok"
+  const selectedTikTokAccounts = accounts.filter(a => selectedAccountIds.includes(a.id) && a.platform === 'TIKTOK');
 
   const toggleAccount = (id: string) => {
     setSelectedAccountIds(prev =>
@@ -939,9 +938,7 @@ export default function ComposePage() {
                           // (vd Instagram không đăng được post 'text' thuần) — vẫn hiện, chỉ disable,
                           // để không trông như "chưa kết nối" khi chỉ là không hợp dạng bài hiện tại.
                           const isModeUnsupported = !isPlatformModeSupported(account.platform || '', postMode);
-                          // Kênh TikTok "Thêm thủ công"/"Đồng bộ Sapo" chỉ để theo dõi — chưa đăng nhập TikTok nên không đăng được
-                          const isTikTokTrackOnly = account.platform === 'TIKTOK' && !isTikTokPostingAccount(account);
-                          const isDisabled = isPersonalRoot || isModeUnsupported || isTikTokTrackOnly;
+                          const isDisabled = isPersonalRoot || isModeUnsupported;
 
                           return (
                             <motion.div
@@ -949,7 +946,7 @@ export default function ComposePage() {
                               key={account.id}
                               onClick={() => !isDisabled && toggleAccount(account.id)}
                               whileHover={!isDisabled ? { x: 4, backgroundColor: 'rgba(241, 245, 249, 0.4)' } : {}}
-                              title={isTikTokTrackOnly ? 'Kênh thêm thủ công/đồng bộ Sapo — vào trang Kênh, bấm "Đăng nhập TikTok" để đăng bài' : isModeUnsupported ? t.compose.unsupportedForMode : undefined}
+                              title={isModeUnsupported ? t.compose.unsupportedForMode : undefined}
                               className={`flex items-center gap-3 p-3 rounded-xl transition-all border relative ${isChild ? 'ml-6' : ''} ${isSelected ? 'bg-blue-50/50 border-blue-200 ring-1 ring-blue-100' : 'bg-white border-transparent'} ${isDisabled ? 'opacity-40 grayscale cursor-not-allowed' : 'cursor-pointer'}`}
                             >
                               {/* Visual connector for child accounts */}
@@ -1003,11 +1000,7 @@ export default function ComposePage() {
                                     {t.compose.unsupportedForMode}
                                   </div>
                                 )}
-                                {isTikTokTrackOnly && !isModeUnsupported && (
-                                  <div className="text-[10px] text-amber-500 font-semibold mt-0.5">
-                                    Cần đăng nhập TikTok để đăng bài
-                                  </div>
-                                )}
+
                                 {account.token_expires_soon && account.platform !== 'YOUTUBE' && (
                                   <div className="text-[10px] text-amber-500 font-semibold mt-0.5">
                                     {t.compose.tokenExpiresIn(account.token_expires_in_days ?? 0)}

@@ -6,7 +6,7 @@
  * Định dạng gói tuỳ chọn phải KHỚP với BE (`publish/tiktok-post.util.ts`): `tiktok:` + JSON gọn,
  * gửi qua trường `privacy` vì bảng social_posts không có cột riêng.
  */
-import type { SocialAccount, TikTokCreatorInfo } from '@/lib/api/social';
+import type { TikTokCreatorInfo } from '@/lib/api/social';
 
 export const TIKTOK_PRIVACY_LABELS: Record<string, string> = {
   PUBLIC_TO_EVERYONE: 'Mọi người',
@@ -50,17 +50,6 @@ export function encodeTikTokSettings(s: TikTokComposerSettings): string {
     bo: commercial && s.brandOrganic ? 1 : 0,
     bc: commercial && s.brandContent ? 1 : 0,
   });
-}
-
-/**
- * Kênh TikTok đăng bài được = kênh kết nối qua "Đăng nhập TikTok" (có openId).
- * Kênh "Thêm thủ công" / "Đồng bộ từ Sapo" chỉ để theo dõi số liệu.
- */
-export function isTikTokPostingAccount(account: Pick<SocialAccount, 'platform' | 'extra_data'>): boolean {
-  if (account.platform !== 'TIKTOK') return false;
-  const extra = account.extra_data || {};
-  if (extra.source === 'manual' || extra.source === 'sapo_orders') return false;
-  return typeof extra.openId === 'string' && extra.openId.length > 0;
 }
 
 /**
