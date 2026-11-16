@@ -24,6 +24,7 @@ import { useAuthStore } from "@/store/auth-store";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLang } from "@/contexts/SocialLanguageContext";
 import { motion } from "framer-motion";
+import { LEGAL_PATHS } from "@/lib/legal/legal-content";
 
 // Tổng quan công việc hiển thị trong khung mockup — số liệu minh hoạ tĩnh,
 // không lấy từ API (trang landing hiển thị trước khi đăng nhập).
@@ -541,6 +542,18 @@ export default function LandingPage() {
                     </div>
                 </div>
             </section>
+
+            {/* FOOTER: link Chính sách bảo mật / Điều khoản — app TikTok, Meta, Google yêu cầu */}
+            <footer className="border-t border-slate-100 dark:border-slate-800 py-6">
+                <div className="container mx-auto px-6 lg:px-10 max-w-[1680px] flex flex-wrap items-center justify-center gap-6 text-sm text-slate-500">
+                    <Link href={LEGAL_PATHS.privacy} className="hover:text-slate-900 dark:hover:text-white transition-colors">
+                        Chính sách bảo mật
+                    </Link>
+                    <Link href={LEGAL_PATHS.terms} className="hover:text-slate-900 dark:hover:text-white transition-colors">
+                        Điều khoản sử dụng
+                    </Link>
+                </div>
+            </footer>
         </div>
     );
 }
