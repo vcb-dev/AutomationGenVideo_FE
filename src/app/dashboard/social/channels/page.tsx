@@ -13,6 +13,7 @@ import { UserRole } from '@/types/auth';
 import { useSocialLang } from '@/contexts/SocialLanguageContext';
 import { SapoTiktokSyncModal } from './components/SapoTiktokSyncModal';
 import { ManualTiktokModal } from './components/ManualTiktokModal';
+import { isTikTokPostingAccount } from '@/lib/social/tiktok-post';
 
 // ─── Platform meta ─────────────────────────────────────────────────────────
 
@@ -424,6 +425,17 @@ export default function ChannelsPage() {
                     {/* TikTok: nút đồng bộ từ Sapo & Thêm thủ công */}
                     {platform === 'TIKTOK' && (
                       <div className="flex items-center gap-2 flex-wrap">
+                        {/* Đăng nhập TikTok (Login Kit) — kênh kết nối kiểu này mới ĐĂNG BÀI được.
+                            "Thêm thủ công"/"Đồng bộ Sapo" chỉ để theo dõi số liệu. */}
+                        <button
+                          onClick={() => handleConnect('TIKTOK')}
+                          disabled={connecting === 'TIKTOK'}
+                          title="Kết nối kênh TikTok của bạn để đăng video từ hệ thống"
+                          className="flex items-center gap-1.5 px-4 py-2 text-white text-sm font-semibold rounded-xl bg-black hover:bg-slate-800 transition-all shadow-sm hover:shadow-md active:scale-95 disabled:opacity-60"
+                        >
+                          {connecting === 'TIKTOK' ? <RefreshCw className="w-4 h-4 animate-spin" /> : meta.icon}
+                          {connecting === 'TIKTOK' ? t.connecting : 'Đăng nhập TikTok'}
+                        </button>
                         <button
                           onClick={() => setShowManualModal(true)}
                           className="flex items-center gap-1.5 px-3.5 py-2 text-slate-700 hover:text-black bg-slate-100 hover:bg-slate-200 text-sm font-semibold rounded-xl transition-all active:scale-95 border border-slate-200 shadow-sm"
@@ -687,6 +699,18 @@ export default function ChannelsPage() {
                                 {ownerName && account.user_id !== currentUser?.id && (
                                   <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">
                                     👤 {ownerName}
+                                  </span>
+                                )}
+                                {isTikTokPostingAccount(account) ? (
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-white bg-black px-2 py-0.5 rounded-full">
+                                    ✓ Đăng bài được
+                                  </span>
+                                ) : (
+                                  <span
+                                    className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full"
+                                    title='Kênh chỉ để theo dõi. Bấm "Đăng nhập TikTok" để đăng bài lên kênh này.'
+                                  >
+                                    Chỉ theo dõi
                                   </span>
                                 )}
                                 {orderCount != null && (

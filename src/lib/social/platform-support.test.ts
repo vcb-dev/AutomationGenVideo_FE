@@ -28,4 +28,9 @@ describe('isPlatformModeSupported', () => {
     expect(isPlatformModeSupported('instagram', 'image')).toBe(true);
     expect(isPlatformModeSupported('TIKTOK', 'video_vertical')).toBe(true);
   });
+
+  it('TikTok chỉ đăng video, không đăng ảnh', () => {
+    expect(isPlatformModeSupported('TIKTOK', 'image')).toBe(false);
+    expect(isPlatformModeSupported('TIKTOK', 'video_vertical')).toBe(true);
+  });
 });
