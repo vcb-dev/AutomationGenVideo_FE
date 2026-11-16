@@ -1,6 +1,13 @@
 import {
   uploadBatchImages,
   createBatch,
+  buildCreateBatchBody,
+  batchCreateErrorMessage,
+  printSheetIds,
+  togglePrintSelection,
+  downloadPrintSheet,
+  PRINT_SHEET_MAX_CARDS,
+  PRINT_SHEET_PATH,
   pollIdPhotoBatch,
   batchRetryPath,
   batchRemergePath,
@@ -346,5 +353,70 @@ describe('xuất PDF hàng loạt', () => {
     } finally {
       global.fetch = realFetch;
     }
+  });
+});
+
+describe('chọn đồng phục cho cả lô + báo lỗi tạo lô', () => {
+  const people = [{ uploadId: 'u1', employeeName: 'A', employeeTeam: 'T', employeeId: 'X1', position: 'LEADER' as const }];
+
+  it('body gửi lên kèm outfitType đã chọn cho cả lô', () => {
+    expect(buildCreateBatchBody(people, 'workshop')).toEqual({ people, outfitType: 'workshop' });
+    expect(buildCreateBatchBody(people, 'office').outfitType).toBe('office');
+  });
+
+  it('lỗi BE dạng chuỗi → hiện nguyên văn (vd người thứ mấy hết hạn ảnh)', () => {
+    const err = { response: { data: { message: 'Ảnh của người thứ 2 (B) không dùng được: hết hạn' } } };
+    expect(batchCreateErrorMessage(err)).toBe('Ảnh của người thứ 2 (B) không dùng được: hết hạn');
+  });
+
+  it('lỗi validate BE dạng mảng → nối bằng "; "', () => {
+    const err = { response: { data: { message: ['outfitType must be one of the following values: office, workshop', 'people should not be empty'] } } };
+    expect(batchCreateErrorMessage(err)).toBe('outfitType must be one of the following values: office, workshop; people should not be empty');
+  });
+
+  it('BatchError giữ thông điệp riêng; lỗi mạng không có message → câu chung', () => {
+    expect(batchCreateErrorMessage(new BatchError('Máy chủ không trả về mã batch.'))).toBe('Máy chủ không trả về mã batch.');
+    expect(batchCreateErrorMessage(new Error('Network Error'))).toBe('Tạo batch thất bại, vui lòng thử lại.');
+    expect(batchCreateErrorMessage({ response: { data: { message: '   ' } } })).toBe('Tạo batch thất bại, vui lòng thử lại.');
+  });
+});
+
+describe('file in A4', () => {
+  const person = (id: string, status: any) => ({ id, status });
+
+  it('printSheetIds chỉ lấy người SUCCESS, giữ thứ tự, tối đa 45', () => {
+    expect(printSheetIds([person('a', 'SUCCESS'), person('b', 'FAILED'), person('c', 'SUCCESS')])).toEqual(['a', 'c']);
+    const many = Array.from({ length: 50 }, (_, i) => person(`p${i}`, 'SUCCESS'));
+    expect(printSheetIds(many)).toHaveLength(PRINT_SHEET_MAX_CARDS);
+  });
+
+  it('togglePrintSelection thêm/bỏ chọn, không vượt 45', () => {
+    expect(togglePrintSelection(['a'], 'b')).toEqual(['a', 'b']);
+    expect(togglePrintSelection(['a', 'b'], 'a')).toEqual(['b']);
+    const full = Array.from({ length: PRINT_SHEET_MAX_CARDS }, (_, i) => `p${i}`);
+    expect(togglePrintSelection(full, 'thua')).toBe(full);
+    expect(togglePrintSelection(full, 'p0')).toHaveLength(PRINT_SHEET_MAX_CARDS - 1);
+  });
+
+  it('downloadPrintSheet gửi đúng path + ids, đọc số thẻ từ header', async () => {
+    const post = jest.fn(async () => ({ data: new Blob(['%PDF']), headers: { 'x-exported-count': '2', 'x-skipped-count': '1' } }));
+    const r = await downloadPrintSheet(post, ['a', 'b', 'c']);
+    expect(post).toHaveBeenCalledWith(PRINT_SHEET_PATH, { ids: ['a', 'b', 'c'] });
+    expect({ exported: r.exported, skipped: r.skipped }).toEqual({ exported: 2, skipped: 1 });
+  });
+
+  it('downloadPrintSheet chặn rỗng / quá 45 mà không gọi API', async () => {
+    const post = jest.fn();
+    await expect(downloadPrintSheet(post as any, [])).rejects.toBeInstanceOf(BatchError);
+    await expect(downloadPrintSheet(post as any, Array.from({ length: 46 }, (_, i) => `p${i}`))).rejects.toThrow('Tối đa 45');
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('downloadPrintSheet đọc message lỗi JSON nằm trong Blob của BE', async () => {
+    const body = { text: async () => JSON.stringify({ message: 'Các thẻ đã chọn chưa có ảnh ghép áo, không xuất được file in.' }) };
+    const post = jest.fn(async () => {
+      throw { response: { data: body } };
+    });
+    await expect(downloadPrintSheet(post as any, ['a'])).rejects.toThrow('chưa có ảnh ghép áo');
   });
 });

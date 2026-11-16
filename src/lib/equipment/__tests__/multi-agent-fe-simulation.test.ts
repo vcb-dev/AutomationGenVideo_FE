@@ -99,8 +99,6 @@ describe('Multi-Agent FE Simulation — Mô phỏng toàn diện 4 Agent thao t�
       const url = buildMobileBorrowUrl({
         origin: 'http://localhost:3001',
         lanIp: '192.168.0.135',
-        userId: 'agent-1-cameraman',
-        userName: 'Hoàng Nam',
       });
       expect(url).toContain('from_qr=1');
       expect(url).toContain('192.168.0.135:3001');

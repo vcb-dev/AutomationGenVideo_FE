@@ -3,12 +3,12 @@
 import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Loader2, Search } from 'lucide-react'
+import { Loader2, Plus, Search } from 'lucide-react'
 import { DarkModal } from '@/components/task-auto/DarkModal'
 import { CustomSelect, CreatableSelect } from '@/components/task-auto/DarkInput'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
 import { ContentProductFilter } from '@/components/task-auto/ContentProductFilter'
-import { MarketPicker, VoicePicker } from '@/components/task-auto/ContentFormModal'
+import { ContentFormModal, MarketPicker, VoicePicker } from '@/components/task-auto/ContentFormModal'
 import type { VoicePickerHandle } from '@/components/task-auto/ContentFormModal'
 import {
   ContentSourcePicker, contentSourceFrom, contentSourceFields, contentRequiredErrors, focusFirstInvalid, REQUIRED_TOAST,
@@ -267,6 +267,8 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM', readO
   const [productSku, setProductSku] = useState('')
   const [month, setMonth] = useState('')
   const [showModal, setShowModal] = useState(false)
+  const [showCreate, setShowCreate] = useState(false)
+  const [presetLineId, setPresetLineId] = useState<string | undefined>(undefined)
   const [editing, setEditing] = useState<Content | null>(null)
   const [detailItem, setDetailItem] = useState<Content | null>(null)
   const [pushItem, setPushItem] = useState<Content | null>(null)
@@ -287,6 +289,7 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM', readO
     onError: () => { toast.error('Không thể xóa content'); setDeletingId(null) },
   })
 
+  const openCreate = (contentLineId?: string) => { setPresetLineId(contentLineId); setShowCreate(true) }
   // Danh sách chỉ trả về field rút gọn (không có body/script) để nhẹ payload — mở sửa/xem chi
   // tiết phải lấy lại bản đầy đủ, không thì form/modal hiện trống dù content đã có nội dung.
   const openEdit = (c: Content) => {
@@ -339,6 +342,14 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM', readO
             compact
           />
           <ContentProductFilter scope={{ kind: 'personal', userId, brandType }} value={productSku} onChange={setProductSku} />
+          {!readOnly && (
+            <button
+              onClick={() => openCreate()}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-5 py-3.5 text-base font-semibold flex items-center gap-2 transition-colors shrink-0"
+            >
+              <Plus className="w-5 h-5" aria-hidden="true" /> Thêm content
+            </button>
+          )}
         </div>
       </div>
 
@@ -358,6 +369,17 @@ export function MyContentsTab({ userId, brandType, teamMarket = 'VIETNAM', readO
         onEdit={openEdit}
         onPush={setPushItem}
         onDelete={c => setDeletingId(c.id)}
+        onAdd={openCreate}
+      />
+
+      <ContentFormModal
+        open={showCreate}
+        userId={userId}
+        brandType={brandType}
+        initialMarket={teamMarket}
+        initialContentLineId={presetLineId}
+        onClose={() => setShowCreate(false)}
+        onSuccess={() => setShowCreate(false)}
       />
 
       {showModal && editing && (

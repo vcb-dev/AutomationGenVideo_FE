@@ -3,18 +3,19 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Search, X, BookOpen } from 'lucide-react'
+import { Plus, Search, X, BookOpen } from 'lucide-react'
 import { EmptyState } from '@/components/task-auto/EmptyState'
 import { CustomSelect } from '@/components/task-auto/DarkInput'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
 import { ContentFormModal } from '@/components/task-auto/ContentFormModal'
 import { ContentProductFilter } from '@/components/task-auto/ContentProductFilter'
 import {
-  getTeams, getTeamContent, removeTeamContent,
+  getTeams, getTeamContent, addTeamContent, removeTeamContent,
   pushTeamContentToGlobal, getContentClassifications, ALL_TEAMS_ID,
 } from '@/lib/api/task-auto'
 import type { Content, TeamContent } from '@/types/task-auto'
 import { TeamContentsBoard } from './contents/TeamContentsBoard'
+import { TargetTeamPickerModal } from './TargetTeamPickerModal'
 import { ContentViewModal } from '@/components/task-auto/ContentViewModal'
 
 interface TeamContentsTabProps {
@@ -30,6 +31,10 @@ interface TeamContentsTabProps {
 
 export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedTeamId, setSelectedTeamId, month, setMonth }: TeamContentsTabProps) {
   const qc = useQueryClient()
+  const [showCreate, setShowCreate] = useState(false)
+  const [presetLineId, setPresetLineId] = useState<string | undefined>(undefined)
+  const [pickingTargetTeam, setPickingTargetTeam] = useState(false)
+  const [targetTeamId, setTargetTeamId] = useState('')
   const [editingContent, setEditingContent] = useState<TeamContent | null>(null)
   const [search, setSearch] = useState('')
   const [classificationFilter, setClassificationFilter] = useState('')
@@ -56,10 +61,19 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
     : myTeams.map(t => ({ value: t.id, label: t.name }))
 
   // Admin/Manager chọn "Tất cả đội nhóm" → board gộp content của mọi team, không lọc loại/thị trường
-  // theo 1 team.
+  // theo 1 team; tạo content thì hỏi team nhận trước (targetTeamId).
   const isAllTeams = isAdminOrManager && !selectedTeamId
   const listTeamId = isAllTeams ? ALL_TEAMS_ID : selectedTeamId
   const teamNameById = new Map((teams ?? []).map(t => [t.id, t.name]))
+
+  const actionTeamId = isAllTeams ? targetTeamId : selectedTeamId
+  const actionTeam = teams?.find(t => t.id === actionTeamId)
+
+  const startCreate = (contentLineId?: string) => {
+    setPresetLineId(contentLineId)
+    if (isAllTeams) setPickingTargetTeam(true)
+    else setShowCreate(true)
+  }
 
   // Danh sách phân loại toàn hệ thống — dùng làm option cho dropdown lọc trong toolbar. Tuyến ND
   // không cần dropdown lọc riêng nữa vì board đã tự nhóm cột theo tuyến.
@@ -165,12 +179,21 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
               onChange={setProductSku}
             />
           )}
+
+          {listTeamId && canManageSelected && (
+            <button
+              onClick={() => startCreate()}
+              className="ml-auto bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-5 py-3.5 text-base font-semibold flex items-center gap-2 transition-colors shrink-0"
+            >
+              <Plus className="w-5 h-5" aria-hidden="true" /> Thêm content
+            </button>
+          )}
         </div>
       </div>
 
       {listTeamId && (
         <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-5 py-3 text-indigo-700 text-sm">
-          Kho team nhận content do thành viên <strong>đẩy từ kho cá nhân</strong> sang, sau khi leader duyệt.
+          Leader và quản lý có thể <strong>thêm content trực tiếp</strong>; thành viên <strong>đẩy từ kho cá nhân</strong> sang và chờ leader duyệt.
         </div>
       )}
 
@@ -192,6 +215,7 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
           onEdit={openEdit}
           onRemove={setRemovingContent}
           onPush={setPushingContent}
+          onAdd={startCreate}
           teamNameOf={isAllTeams ? id => teamNameById.get(id) : undefined}
         />
       )}
@@ -233,15 +257,52 @@ export function TeamContentsTab({ isAdminOrManager, userId, brandType, selectedT
       />
 
       <ContentFormModal
-        open={!!editingContent}
+        open={showCreate || !!editingContent}
         editing={editingContent as unknown as Content}
+        userId={userId}
         teamId={editingContent?.team_id}
-        onClose={() => setEditingContent(null)}
-        onSuccess={() => {
-          setEditingContent(null)
-          qc.invalidateQueries({ queryKey: ['task-auto', 'team-contents'] })
+        brandType={actionTeam?.brand_type ?? brandType}
+        initialMarket={actionTeam?.market ?? 'VIETNAM'}
+        initialContentLineId={presetLineId}
+        onClose={() => { setShowCreate(false); setEditingContent(null) }}
+        onSuccess={async (content: Content) => {
+          if (editingContent) {
+            setEditingContent(null)
+            qc.invalidateQueries({ queryKey: ['task-auto', 'team-contents'] })
+            return
+          }
+          setShowCreate(false)
+          try {
+            await addTeamContent(actionTeamId, {
+              brand_type: content.brand_type,
+              market: content.market,
+              code: content.code,
+              title: content.title,
+              body: content.body,
+              script: content.script,
+              file_content_url: content.file_content_url,
+              voice_url: content.voice_url,
+              content_line_id: content.content_line_id,
+              classification_id: content.classification_id,
+            })
+            qc.invalidateQueries({ queryKey: ['task-auto', 'team-contents'] })
+          } catch (e: any) {
+            toast.error(`Content đã lưu vào kho cá nhân nhưng chưa vào được kho team: ${e?.response?.data?.message ?? 'lỗi không xác định'}`)
+          }
         }}
       />
+
+      {pickingTargetTeam && (
+        <TargetTeamPickerModal
+          title="Thêm content mới"
+          subtitle="Chọn đội nhóm sẽ nhận content này"
+          teams={teams ?? []}
+          value={targetTeamId}
+          onChange={setTargetTeamId}
+          onCancel={() => setPickingTargetTeam(false)}
+          onConfirm={() => { setPickingTargetTeam(false); setShowCreate(true) }}
+        />
+      )}
     </div>
   )
 }

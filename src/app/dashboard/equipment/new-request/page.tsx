@@ -1,24 +1,22 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import {
-  Asset,
-  AvailabilityResponse,
-  BorrowPurpose,
-  checkAvailability,
-  createBorrowRequest,
-  fetchAssets,
-  uploadRequestPhoto,
-} from '@/lib/equipment/api';
+import { Asset, AvailabilityResponse, BorrowPurpose } from '@/lib/equipment/api';
+import { BorrowFormContext } from '@/lib/equipment/borrow-form-context';
 import { groupModels } from '@/lib/equipment/group-models';
 import { noModelLeft, selectableModels } from '@/lib/equipment/selectable-models';
 import { availabilityLabel } from '@/lib/equipment/availability-label';
 import { apiErrorMessage } from '@/lib/equipment/api-error';
 import { DateTimePicker } from '@/components/ui/DateTimePicker';
-import { MobileBorrowQRModal } from '@/components/equipment/MobileBorrowQRModal';
+import dynamic from 'next/dynamic';
 import { isMobileBrowser } from '@/lib/equipment/mobile-borrow-helpers';
 import { useAuthStore } from '@/store/auth-store';
+
+// Khung QR chỉ tải JS khi người dùng mở.
+const MobileBorrowQRModal = dynamic(() =>
+  import('@/components/equipment/MobileBorrowQRModal').then((m) => m.MobileBorrowQRModal),
+);
 
 /**
  * Mục đích mượn — thứ quyết định phiếu cần một hay hai chữ ký.
@@ -68,8 +66,12 @@ interface RequestPhotoItem {
 export default function NewRequestPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const fromQr = searchParams?.get('from_qr') === '1';
   const user = useAuthStore((s) => s.user);
+  const { api, requester, onCreated } = useContext(BorrowFormContext);
+  // Vào bằng vé QR thì không có phiên đăng nhập: ẩn nút mở QR, xong phiếu không chuyển trang dashboard.
+  const ticketMode = !!onCreated;
+  const fromQr = ticketMode || searchParams?.get('from_qr') === '1';
+  const creator = requester ?? (user ? { fullName: user.full_name, email: user.email, team: user.team } : null);
 
   const [assets, setAssets] = useState<Asset[]>([]);
   const [project, setProject] = useState('');
@@ -118,8 +120,8 @@ export default function NewRequestPage() {
   };
 
   useEffect(() => {
-    fetchAssets().then(setAssets).catch((e: unknown) => setError(apiErrorMessage(e, 'Không đọc được danh sách thiết bị.')));
-  }, []);
+    api.fetchAssets().then(setAssets).catch((e: unknown) => setError(apiErrorMessage(e, 'Không đọc được danh sách thiết bị.')));
+  }, [api]);
 
   const models = useMemo(() => groupModels(assets), [assets]);
   const rangeValid = !!fromTime && !!toTime && new Date(toTime) > new Date(fromTime);
@@ -135,7 +137,7 @@ export default function NewRequestPage() {
       }
       setLines((prev) => prev.map((l, i) => (i === index ? { ...l, checking: true } : l)));
       try {
-        const availability = await checkAvailability({
+        const availability = await api.checkAvailability({
           modelId,
           fromTime: new Date(fromTime).toISOString(),
           toTime: new Date(toTime).toISOString(),
@@ -150,7 +152,7 @@ export default function NewRequestPage() {
         );
       }
     },
-    [fromTime, toTime, rangeValid],
+    [fromTime, toTime, rangeValid, api],
   );
 
   // Đổi khoảng thời gian là mọi dòng phải hỏi lại: số khả dụng chỉ có nghĩa trong đúng khoảng đó.
@@ -184,11 +186,11 @@ export default function NewRequestPage() {
     try {
       const photoIds: string[] = [];
       for (const p of photos) {
-        const saved = await uploadRequestPhoto(p.file);
+        const saved = await api.uploadRequestPhoto(p.file);
         photoIds.push(saved.id);
       }
 
-      const created = await createBorrowRequest({
+      const created = await api.createBorrowRequest({
         project: project.trim(),
         place: place.trim(),
         purpose,
@@ -198,7 +200,8 @@ export default function NewRequestPage() {
         note: note.trim() || undefined,
         photoIds: photoIds.length > 0 ? photoIds : undefined,
       });
-      router.push(`/dashboard/equipment/borrow-history?created=${created.request_code}`);
+      if (onCreated) onCreated(created.request_code);
+      else router.push(`/dashboard/equipment/borrow-history?created=${created.request_code}`);
     } catch (e: unknown) {
       setError(
         apiErrorMessage(e, 'Gửi phiếu không thành công.'),
@@ -219,13 +222,15 @@ export default function NewRequestPage() {
               mỗi khi bạn đổi thời điểm nhận hoặc trả.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setQrModalOpen(true)}
-            className="flex items-center gap-1.5 self-start sm:self-auto rounded-xl border border-blue-200 bg-blue-50/90 px-3.5 py-2 text-xs font-bold text-blue-700 shadow-2xs hover:bg-blue-100 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-300 transition-all"
-          >
-            <span>📱</span> Mở trên điện thoại để chụp ảnh
-          </button>
+          {!ticketMode && (
+            <button
+              type="button"
+              onClick={() => setQrModalOpen(true)}
+              className="flex items-center gap-1.5 self-start sm:self-auto rounded-xl border border-blue-200 bg-blue-50/90 px-3.5 py-2 text-xs font-bold text-blue-700 shadow-2xs hover:bg-blue-100 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-300 transition-all"
+            >
+              <span>📱</span> Mở trên điện thoại để chụp ảnh
+            </button>
+          )}
         </header>
 
         {/* THÔNG BÁO KHI VÀO QUA MÃ QR TRÊN ĐIỆN THOẠI */}
@@ -242,17 +247,17 @@ export default function NewRequestPage() {
         )}
 
         {/* THÔNG TIN DANH TÍNH NGƯỜI MƯỢN */}
-        {user?.full_name && (
+        {creator?.fullName && (
           <div className="mb-4 flex items-center justify-between rounded-xl bg-slate-100/90 px-3.5 py-2 text-xs text-slate-700 border border-slate-200 dark:bg-white/[0.04] dark:border-white/[0.08] dark:text-slate-300">
             <div className="flex items-center gap-2">
               <span>👤</span>
               <span>
-                Người tạo phiếu: <strong className="text-slate-900 dark:text-white">{user.full_name}</strong>
-                {user.email ? ` (${user.email})` : ''}
+                Người tạo phiếu: <strong className="text-slate-900 dark:text-white">{creator.fullName}</strong>
+                {creator.email ? ` (${creator.email})` : ''}
               </span>
             </div>
             <span className="text-slate-500 font-medium">
-              {user.team || 'Thành viên VCBI'}
+              {creator.team || 'Thành viên VCBI'}
             </span>
           </div>
         )}
@@ -594,10 +599,12 @@ export default function NewRequestPage() {
       </aside>
 
       {/* MODAL QUÉT MÃ QR TẠO PHIẾU BẰNG ĐIỆN THOẠI */}
-      <MobileBorrowQRModal
-        open={qrModalOpen}
-        onClose={() => setQrModalOpen(false)}
-      />
+      {!ticketMode && qrModalOpen && (
+        <MobileBorrowQRModal
+          open={qrModalOpen}
+          onClose={() => setQrModalOpen(false)}
+        />
+      )}
     </div>
   );
 }

@@ -108,6 +108,148 @@ export function appendPublishedLinks(
   return additions.length ? [...links, ...additions] : null
 }
 
+export function ManualPostLinkForm({ formId, isSaving, onSubmit, onCancel }: {
+  formId: string
+  isSaving: boolean
+  onSubmit: (post: { platform: string; url: string }) => Promise<void>
+  onCancel: () => void
+}) {
+  const [platform, setPlatform] = useState(DEFAULT_PLATFORM)
+  const [customPlatform, setCustomPlatform] = useState('')
+  const [url, setUrl] = useState('')
+  const [error, setError] = useState<{ field: 'platform' | 'url'; message: string } | null>(null)
+
+  const handleUrlChange = (value: string) => {
+    setUrl(value)
+    setError(null)
+    const detected = platformFromUrl(value)
+    if (detected) setPlatform(detected)
+  }
+
+  const submit = async () => {
+    if (isSaving) return
+    const platformName = platform === CUSTOM_PLATFORM_VALUE ? customPlatform.trim() : platform.trim()
+    const normalizedUrl = normalizeUrl(url)
+    if (!platformName) return setError({ field: 'platform', message: 'Nhập tên nền tảng' })
+    if (!normalizedUrl) return setError({ field: 'url', message: 'Nhập link bài đăng' })
+    setError(null)
+    try {
+      await onSubmit({ platform: platformName, url: normalizedUrl })
+    } catch (err: any) {
+      setError({ field: 'url', message: err?.response?.data?.message ?? 'Gắn link thất bại' })
+    }
+  }
+
+  return (
+    <div className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/30 p-3">
+      <div id={`published-link-note-${formId}`} role="note" className="flex items-start gap-2 rounded-lg border border-indigo-100 bg-white/80 px-3 py-2.5 text-xs leading-5 text-slate-600">
+        <Info className="mt-0.5 h-4 w-4 shrink-0 text-indigo-500" aria-hidden="true" />
+        <p>
+          Bạn chỉ cần gắn link của <span className="font-semibold text-slate-800">một nền tảng</span>. Facebook được chọn mặc định.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[180px_minmax(0,1fr)]">
+        <div className="space-y-1.5">
+          <label htmlFor={`published-platform-${formId}`} className="block text-xs font-semibold text-slate-700">
+            Nền tảng
+          </label>
+          <Select
+            id={`published-platform-${formId}`}
+            value={platform}
+            onChange={e => { setPlatform(e.target.value); setError(null) }}
+            aria-describedby={`published-link-note-${formId}`}
+            className="h-10 border-slate-200 bg-white font-medium text-slate-700 focus:ring-indigo-500"
+          >
+            {QUICK_PLATFORMS.map(key => {
+              const brand = BRAND_SVGS[key]
+              return (
+                <option key={key} value={brand.label}>
+                  {brand.label}{key === 'FACEBOOK' ? ' (mặc định)' : ''}
+                </option>
+              )
+            })}
+            <option value={CUSTOM_PLATFORM_VALUE}>Nền tảng khác</option>
+          </Select>
+        </div>
+
+        <div className="space-y-1.5">
+          <label htmlFor={`published-url-${formId}`} className="block text-xs font-semibold text-slate-700">
+            Link bài đăng
+          </label>
+          <input
+            id={`published-url-${formId}`}
+            type="url"
+            inputMode="url"
+            autoFocus
+            value={url}
+            onChange={e => handleUrlChange(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); submit() } }}
+            aria-invalid={error?.field === 'url'}
+            aria-describedby={error?.field === 'url'
+              ? `published-link-note-${formId} published-url-error-${formId}`
+              : `published-link-note-${formId}`}
+            placeholder={`Dán link ${platform === CUSTOM_PLATFORM_VALUE ? 'bài đăng' : platform}...`}
+            className={cn(
+              'h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none transition-shadow placeholder:text-slate-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20',
+              error?.field === 'url' && 'border-red-400 focus:border-red-400 focus:ring-red-500/20',
+            )}
+          />
+          {error?.field === 'url' && (
+            <p id={`published-url-error-${formId}`} role="alert" className="flex items-start gap-1.5 text-xs leading-5 text-red-600">
+              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              {error.message}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {platform === CUSTOM_PLATFORM_VALUE && (
+        <div className="space-y-1.5">
+          <label htmlFor={`published-custom-platform-${formId}`} className="block text-xs font-semibold text-slate-700">
+            Tên nền tảng
+          </label>
+          <input
+            id={`published-custom-platform-${formId}`}
+            value={customPlatform}
+            onChange={e => { setCustomPlatform(e.target.value); setError(null) }}
+            placeholder="Ví dụ: Threads, Zalo..."
+            autoFocus
+            aria-invalid={error?.field === 'platform'}
+            aria-describedby={error?.field === 'platform' ? `published-custom-platform-error-${formId}` : undefined}
+            className={cn(
+              'h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none transition-shadow placeholder:text-slate-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20',
+              error?.field === 'platform' && 'border-red-400 focus:border-red-400 focus:ring-red-500/20',
+            )}
+          />
+          {error?.field === 'platform' && (
+            <p id={`published-custom-platform-error-${formId}`} role="alert" className="flex items-start gap-1.5 text-xs leading-5 text-red-600">
+              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              {error.message}
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={submit}
+          disabled={isSaving}
+          aria-busy={isSaving}
+          className="flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3 text-xs font-semibold text-white transition-colors hover:bg-indigo-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <Plus className="w-3.5 h-3.5" aria-hidden="true" />}
+          Gắn link
+        </button>
+        <button type="button" onClick={onCancel} disabled={isSaving} className="min-h-10 rounded-lg px-3 text-xs font-semibold text-gray-500 transition-colors hover:bg-white hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-50">
+          Huỷ
+        </button>
+      </div>
+    </div>
+  )
+}
+
 interface Props {
   taskId: string
   publishedLinks?: PublishedLink[] | null
@@ -126,9 +268,6 @@ export function PublishedLinksSection({ taskId, publishedLinks, canEdit, taskTit
   const links = publishedLinks ?? []
 
   const [formOpen, setFormOpen] = useState(false)
-  const [draftPlatform, setDraftPlatform] = useState(DEFAULT_PLATFORM)
-  const [draftCustomPlatform, setDraftCustomPlatform] = useState('')
-  const [draftUrl, setDraftUrl] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editPlatform, setEditPlatform] = useState('')
   const [editUrl, setEditUrl] = useState('')
@@ -171,21 +310,6 @@ export function PublishedLinksSection({ taskId, publishedLinks, canEdit, taskTit
     refreshMutation.mutate(linkId)
   }
 
-  const resetForm = () => {
-    setFormOpen(false)
-    setDraftPlatform(DEFAULT_PLATFORM)
-    setDraftCustomPlatform('')
-    setDraftUrl('')
-    setLinkError(null)
-  }
-
-  const handleDraftUrlChange = (value: string) => {
-    setDraftUrl(value)
-    setLinkError(null)
-    const detected = platformFromUrl(value)
-    if (detected) setDraftPlatform(detected)
-  }
-
   const handleEditUrlChange = (value: string) => {
     setEditUrl(value)
     setLinkError(null)
@@ -193,14 +317,11 @@ export function PublishedLinksSection({ taskId, publishedLinks, canEdit, taskTit
     if (detected) setEditPlatform(detected)
   }
 
-  const handleAdd = () => {
-    const platform = draftPlatform === CUSTOM_PLATFORM_VALUE
-      ? draftCustomPlatform.trim()
-      : draftPlatform.trim()
-    const url = normalizeUrl(draftUrl)
-    if (!platform) return toast.error('Nhập tên nền tảng')
-    if (!url) return toast.error('Nhập link bài đăng')
-    saveLinks([...links, { id: crypto.randomUUID(), platform, url }], NEW_LINK, resetForm)
+  const handleAdd = async (post: { platform: string; url: string }) => {
+    errorTargetRef.current = NEW_LINK
+    setLinkError(null)
+    await mutation.mutateAsync([...links, { id: crypto.randomUUID(), ...post }])
+    setFormOpen(false)
   }
 
   const handleSaveEdit = (id: string) => {
@@ -374,102 +495,13 @@ export function PublishedLinksSection({ taskId, publishedLinks, canEdit, taskTit
           </div>
         )}
 
-        {canEdit && (
-          formOpen ? (
-            <div className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/30 p-3">
-              <div id={`published-link-note-${taskId}`} role="note" className="flex items-start gap-2 rounded-lg border border-indigo-100 bg-white/80 px-3 py-2.5 text-xs leading-5 text-slate-600">
-                <Info className="mt-0.5 h-4 w-4 shrink-0 text-indigo-500" aria-hidden="true" />
-                <p>
-                  Bạn chỉ cần gắn link của <span className="font-semibold text-slate-800">một nền tảng</span>. Facebook được chọn mặc định.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-[180px_minmax(0,1fr)]">
-                <div className="space-y-1.5">
-                  <label htmlFor={`published-platform-${taskId}`} className="block text-xs font-semibold text-slate-700">
-                    Nền tảng
-                  </label>
-                  <Select
-                    id={`published-platform-${taskId}`}
-                    value={draftPlatform}
-                    onChange={e => { setDraftPlatform(e.target.value); setLinkError(null) }}
-                    aria-describedby={`published-link-note-${taskId}`}
-                    className="h-10 border-slate-200 bg-white font-medium text-slate-700 focus:ring-indigo-500"
-                  >
-                    {QUICK_PLATFORMS.map(key => {
-                      const platform = BRAND_SVGS[key]
-                      return (
-                        <option key={key} value={platform.label}>
-                          {platform.label}{key === 'FACEBOOK' ? ' (mặc định)' : ''}
-                        </option>
-                      )
-                    })}
-                    <option value={CUSTOM_PLATFORM_VALUE}>Nền tảng khác</option>
-                  </Select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label htmlFor={`published-url-${taskId}`} className="block text-xs font-semibold text-slate-700">
-                    Link bài đăng
-                  </label>
-                  <input
-                    id={`published-url-${taskId}`}
-                    type="url"
-                    inputMode="url"
-                    value={draftUrl}
-                    onChange={e => handleDraftUrlChange(e.target.value)}
-                    aria-invalid={linkError?.target === NEW_LINK}
-                    aria-describedby={linkError?.target === NEW_LINK
-                      ? `published-link-note-${taskId} published-url-error-${taskId}`
-                      : `published-link-note-${taskId}`}
-                    placeholder={`Dán link ${draftPlatform === CUSTOM_PLATFORM_VALUE ? 'bài đăng' : draftPlatform}...`}
-                    className={cn(
-                      'h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none transition-shadow placeholder:text-slate-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20',
-                      linkError?.target === NEW_LINK && 'border-red-400 focus:border-red-400 focus:ring-red-500/20',
-                    )}
-                  />
-                  {linkError?.target === NEW_LINK && (
-                    <p id={`published-url-error-${taskId}`} role="alert" className="flex items-start gap-1.5 text-xs leading-5 text-red-600">
-                      <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                      {linkError.message}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {draftPlatform === CUSTOM_PLATFORM_VALUE && (
-                <div className="space-y-1.5">
-                  <label htmlFor={`published-custom-platform-${taskId}`} className="block text-xs font-semibold text-slate-700">
-                    Tên nền tảng
-                  </label>
-                  <input
-                    id={`published-custom-platform-${taskId}`}
-                    value={draftCustomPlatform}
-                    onChange={e => setDraftCustomPlatform(e.target.value)}
-                    placeholder="Ví dụ: Threads, Zalo..."
-                    autoFocus
-                    className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none transition-shadow placeholder:text-slate-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
-                  />
-                </div>
-              )}
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleAdd}
-                  disabled={mutation.isPending}
-                  aria-busy={mutation.isPending}
-                  className="flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3 text-xs font-semibold text-white transition-colors hover:bg-indigo-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {mutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <Plus className="w-3.5 h-3.5" aria-hidden="true" />}
-                  Gắn link
-                </button>
-                <button type="button" onClick={resetForm} className="min-h-10 rounded-lg px-3 text-xs font-semibold text-gray-500 transition-colors hover:bg-white hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
-                  Huỷ
-                </button>
-              </div>
-            </div>
-          ) : null
+        {canEdit && formOpen && (
+          <ManualPostLinkForm
+            formId={taskId}
+            isSaving={mutation.isPending}
+            onSubmit={handleAdd}
+            onCancel={() => setFormOpen(false)}
+          />
         )}
       </div>
 

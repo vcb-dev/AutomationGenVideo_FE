@@ -4,14 +4,13 @@
 
 export interface MobileBorrowQRConfig {
   origin: string;
-  userId?: string;
-  userName?: string;
-  userEmail?: string;
   lanIp?: string;
+  /** Mã dùng một lần do BE cấp; không có thì là link quầy kho, quét xong vẫn phải đăng nhập. */
+  code?: string;
 }
 
 /**
- * Tạo URL đầy đủ để nhúng vào mã QR mở form tạo phiếu trên điện thoại.
+ * Tạo URL nhúng vào mã QR mở form tạo phiếu trên điện thoại.
  * Tự động chuyển đổi `localhost` sang IP LAN nếu có để điện thoại cùng Wi-Fi mở được.
  */
 export function buildMobileBorrowUrl(config: MobileBorrowQRConfig): string {
@@ -22,17 +21,21 @@ export function buildMobileBorrowUrl(config: MobileBorrowQRConfig): string {
     base = base.replace('localhost', config.lanIp).replace('127.0.0.1', config.lanIp);
   }
 
+  if (config.code) {
+    const url = new URL('/equipment-qr', base);
+    url.searchParams.set('code', config.code);
+    return url.toString();
+  }
+
   const url = new URL('/dashboard/equipment/new-request', base);
   url.searchParams.set('from_qr', '1');
-
-  if (config.userId) {
-    url.searchParams.set('requester_id', config.userId);
-  }
-  if (config.userName) {
-    url.searchParams.set('requester_name', config.userName);
-  }
-
   return url.toString();
+}
+
+/** Xin mã mới trước khi mã cũ hết hạn 15 giây, nhưng không dồn dập hơn 5 giây một lần. */
+export function qrRefreshDelayMs(expiresAtIso: string, now: number = Date.now()): number {
+  const remaining = new Date(expiresAtIso).getTime() - now - 15_000;
+  return Number.isFinite(remaining) ? Math.max(5_000, remaining) : 5_000;
 }
 
 /**

@@ -2,40 +2,41 @@ import {
   buildMobileBorrowUrl,
   isMobileBrowser,
   formatRequesterBadge,
+  qrRefreshDelayMs,
 } from '../mobile-borrow-helpers';
 
 describe('mobile-borrow-helpers', () => {
   describe('buildMobileBorrowUrl', () => {
-    it('tạo đúng URL production với đầy đủ query params', () => {
-      const url = buildMobileBorrowUrl({
-        origin: 'https://vcb-dev.example.com',
-        userId: 'usr-123',
-        userName: 'Nguyễn Văn A',
-      });
+    it('có mã thì trỏ tới trang vé, không kèm thông tin người dùng', () => {
+      const url = buildMobileBorrowUrl({ origin: 'https://vcb.vn', code: 'abc.def' });
+      expect(url).toBe('https://vcb.vn/equipment-qr?code=abc.def');
+    });
 
-      const parsed = new URL(url);
-      expect(parsed.searchParams.get('from_qr')).toBe('1');
-      expect(parsed.searchParams.get('requester_id')).toBe('usr-123');
-      expect(parsed.searchParams.get('requester_name')).toBe('Nguyễn Văn A');
+    it('không có mã là link quầy kho, quét xong phải đăng nhập', () => {
+      expect(buildMobileBorrowUrl({ origin: 'https://vcb.vn' })).toBe(
+        'https://vcb.vn/dashboard/equipment/new-request?from_qr=1',
+      );
     });
 
     it('tự động thay localhost bằng IP LAN khi có cấu hình lanIp', () => {
-      const url = buildMobileBorrowUrl({
-        origin: 'http://localhost:3001',
-        lanIp: '192.168.0.135',
-        userId: 'usr-456',
-      });
+      const url = buildMobileBorrowUrl({ origin: 'http://localhost:3001', lanIp: '192.168.0.135', code: 'c1' });
+      expect(url).toBe('http://192.168.0.135:3001/equipment-qr?code=c1');
+    });
+  });
 
-      expect(url).toContain('http://192.168.0.135:3001/dashboard/equipment/new-request');
-      expect(url).not.toContain('localhost');
-      expect(url).toContain('from_qr=1');
+  describe('qrRefreshDelayMs', () => {
+    const NOW = Date.UTC(2026, 10, 3, 9, 0, 0);
+
+    it('xin mã mới trước khi hết hạn 15 giây', () => {
+      expect(qrRefreshDelayMs(new Date(NOW + 120_000).toISOString(), NOW)).toBe(105_000);
     });
 
-    it('hoạt động chuẩn khi không truyền user info', () => {
-      const url = buildMobileBorrowUrl({
-        origin: 'https://vcb.vn',
-      });
-      expect(url).toBe('https://vcb.vn/dashboard/equipment/new-request?from_qr=1');
+    it('mã sắp hết hạn thì vẫn chờ tối thiểu 5 giây', () => {
+      expect(qrRefreshDelayMs(new Date(NOW + 10_000).toISOString(), NOW)).toBe(5_000);
+    });
+
+    it('hạn không đọc được thì thử lại sau 5 giây', () => {
+      expect(qrRefreshDelayMs('không-phải-ngày', NOW)).toBe(5_000);
     });
   });
 

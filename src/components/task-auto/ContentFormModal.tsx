@@ -15,7 +15,7 @@ import {
 import { PaastScoreModal } from '@/components/task-auto/PaastScoreModal'
 import type { PaastAnalysisHistory } from '@/lib/api/paast-analyzer'
 import {
-  updateContent, createEditorContent, updateTeamContent,
+  createContent, updateContent, createEditorContent, updateTeamContent,
   getContentLines, uploadVoiceFile,
   getContentClassifications, createContentClassification,
 } from '@/lib/api/task-auto'
@@ -220,12 +220,14 @@ interface ContentFormModalProps {
   teamId?: string
   brandType?: BrandType
   initialMarket?: string
+  /** Preset tuyến khi mở form tạo mới từ 1 cột cụ thể của board — bỏ qua khi đang sửa content có sẵn */
+  initialContentLineId?: string
   /** Giá trị điền sẵn khi tạo mới (vd. content đang viết dở trong modal tạo nhiệm vụ) — phải là object
    *  ổn định (state/memo), đổi identity sẽ reset form. Bỏ qua khi đang sửa content có sẵn. */
   initialValues?: Partial<Pick<Content, 'title' | 'code' | 'body' | 'file_content_url' | 'content_line_id' | 'classification_id'>> & { source?: ContentSource }
 }
 
-export function ContentFormModal({ open, editing, onClose, onSuccess, userId, teamId, brandType, initialMarket, initialValues }: ContentFormModalProps) {
+export function ContentFormModal({ open, editing, onClose, onSuccess, userId, teamId, brandType, initialMarket, initialContentLineId, initialValues }: ContentFormModalProps) {
   const qc = useQueryClient()
   const isEdit = !!editing
 
@@ -256,7 +258,7 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
         setMarket(editing.market ?? initialMarket ?? 'VIETNAM')
       } else {
         const { source: initialSource, ...values } = initialValues ?? {}
-        setForm({ code: '', title: '', body: '', script: '', file_content_url: '', voice_url: '', content_line_id: '', classification_id: '', ...values })
+        setForm({ code: '', title: '', body: '', script: '', file_content_url: '', voice_url: '', content_line_id: initialContentLineId ?? '', classification_id: '', ...values })
         setSource(initialSource ?? contentSourceFrom(values.body, values.file_content_url))
         setInitialSourceMode('text')
         setMarket(initialMarket ?? 'VIETNAM')
@@ -264,7 +266,7 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
       setShowErrors(false)
       setScoreCache(null)
     }
-  }, [open, editing, initialMarket, initialValues])
+  }, [open, editing, initialMarket, initialContentLineId, initialValues])
 
   const errors = showErrors ? contentRequiredErrors({ ...form, source }) : {}
 
@@ -279,6 +281,18 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
     enabled: open,
   })
 
+  const createMut = useMutation({
+    mutationFn: (body: Partial<Content>) =>
+      (userId ? createEditorContent(userId, body as any) : createContent(body)) as Promise<Content>,
+    onSuccess: async (content) => {
+      await qc.invalidateQueries({ queryKey: ['task-auto', 'contents'] })
+      if (userId) await qc.invalidateQueries({ queryKey: ['task-auto', 'my-contents'] })
+      toast.success('Đã thêm content')
+      onSuccess(content)
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message || 'Không thể thêm content'),
+  })
+
   const updateMut = useMutation({
     mutationFn: ({ id, body }: { id: string; body: Partial<Content> }) =>
       (teamId ? updateTeamContent(teamId, id, body) : updateContent(id, body)) as Promise<Content>,
@@ -291,7 +305,7 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Không thể cập nhật content'),
   })
 
-  const saving = updateMut.isPending || resolvingVoice
+  const saving = createMut.isPending || updateMut.isPending || resolvingVoice
 
   const handleSubmit = async () => {
     if (Object.keys(contentRequiredErrors({ ...form, source })).length) {
@@ -322,11 +336,7 @@ export function ContentFormModal({ open, editing, onClose, onSuccess, userId, te
       market,
     }
     if (!isEdit) {
-      if (!userId) return
-      const body = { ...sharedBody, brand_type: brandType ?? 'DO_DA' }
-      createEditorContent(userId, body as any)
-        .then(content => { qc.invalidateQueries({ queryKey: ['task-auto', 'contents'] }); toast.success('Đã thêm content'); onSuccess(content) })
-        .catch((e: any) => toast.error(e?.response?.data?.message || 'Không thể thêm content'))
+      createMut.mutate({ ...sharedBody, brand_type: brandType ?? 'DO_DA' } as any)
     } else {
       updateMut.mutate({ id: editing!.id, body: { ...sharedBody, status: form.status } })
     }

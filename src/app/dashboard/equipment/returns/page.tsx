@@ -77,9 +77,12 @@ function ReturnsPageInner() {
   }, []);
 
   useEffect(() => {
-    Promise.all([fetchRequests('ON_LOAN'), fetchRequests('PARTIALLY_RETURNED')])
-      .then(async ([onLoan, partial]) => {
-        const list = [...onLoan, ...partial];
+    fetchRequests('ON_LOAN,PARTIALLY_RETURNED')
+      .then(async (all) => {
+        const list = [
+          ...all.filter((r) => r.status === 'ON_LOAN'),
+          ...all.filter((r) => r.status === 'PARTIALLY_RETURNED'),
+        ];
         setCandidates(list);
         if (list[0]) await loadUnits(list[0].id);
       })

@@ -14,7 +14,7 @@ import { getTasks, updateTaskPublishedLinks } from '@/lib/api/task-auto'
 import type { Task } from '@/types/task-auto'
 import { VideoPreviewOverlay } from './detail/VideoPreviewOverlay'
 import { PublishedPostPicker, contentLineCode } from './detail/PublishedPostPicker'
-import { appendPublishedLinks } from './detail/PublishedLinksSection'
+import { ManualPostLinkForm, appendPublishedLinks } from './detail/PublishedLinksSection'
 import { resolveContentTitle, resolveProductName, resolveProductImage } from './TasksTable'
 
 interface Props {
@@ -203,7 +203,7 @@ export function ApprovedVideosGrid({ teamId, search, reviewedFrom, reviewedTo, a
   )
 }
 
-/** Picker "Chọn bài đã đăng" mở thẳng từ thẻ video — cùng bộ lọc mặc định với chi tiết task. */
+/** Hộp "Gắn link bài đăng" mở thẳng từ thẻ video: chọn từ kho (cùng bộ lọc mặc định với chi tiết task) hoặc dán link thủ công. */
 function AddPostLinkPicker({ task, onClose }: { task: Task; onClose: () => void }) {
   const qc = useQueryClient()
   const links = task.published_links ?? []
@@ -216,7 +216,6 @@ function AddPostLinkPicker({ task, onClose }: { task: Task; onClose: () => void 
       qc.invalidateQueries({ queryKey: ['facebook', 'published-videos'] })
       onClose()
     },
-    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Gắn link thất bại'),
   })
 
   return (
@@ -235,9 +234,21 @@ function AddPostLinkPicker({ task, onClose }: { task: Task; onClose: () => void 
           toast('Các bài đã chọn đều đang được gắn với task')
           return
         }
-        await mutation.mutateAsync(next)
+        await mutation.mutateAsync(next).catch((err: any) => {
+          toast.error(err?.response?.data?.message ?? 'Gắn link thất bại')
+        })
       }}
       isSaving={mutation.isPending}
+      manualEntry={
+        <ManualPostLinkForm
+          formId={task.id}
+          isSaving={mutation.isPending}
+          onSubmit={async post => {
+            await mutation.mutateAsync([...links, { id: crypto.randomUUID(), ...post }])
+          }}
+          onCancel={onClose}
+        />
+      }
     />
   )
 }
