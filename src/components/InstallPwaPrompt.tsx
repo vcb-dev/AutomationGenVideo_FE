@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { Download, X } from 'lucide-react';
+import { isLegalPath } from '@/lib/legal/legal-content';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -31,6 +33,8 @@ function markDismissed() {
 export default function InstallPwaPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [visible, setVisible] = useState(false);
+  // /privacy, /terms là trang công khai cho người duyệt app TikTok/Meta/Google: không mời cài app.
+  const onLegalPage = isLegalPath(usePathname());
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -68,7 +72,7 @@ export default function InstallPwaPrompt() {
     setVisible(false);
   };
 
-  if (!visible || !deferredPrompt) return null;
+  if (onLegalPage || !visible || !deferredPrompt) return null;
 
   return (
     <div className="fixed bottom-4 right-4 z-[300] flex items-center gap-3 bg-white border border-slate-200 rounded-2xl shadow-2xl px-4 py-3">

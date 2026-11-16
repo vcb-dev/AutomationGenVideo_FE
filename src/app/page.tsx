@@ -24,6 +24,7 @@ import { useAuthStore } from "@/store/auth-store";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLang } from "@/contexts/SocialLanguageContext";
 import { motion } from "framer-motion";
+import LegalFooter from "@/components/legal/LegalFooter";
 
 // Tổng quan công việc hiển thị trong khung mockup — số liệu minh hoạ tĩnh,
 // không lấy từ API (trang landing hiển thị trước khi đăng nhập).
@@ -541,6 +542,9 @@ export default function LandingPage() {
                     </div>
                 </div>
             </section>
+
+            {/* FOOTER: thông tin công ty + link Chính sách bảo mật / Điều khoản (app TikTok, Meta, Google yêu cầu) */}
+            <LegalFooter lang={lang} />
         </div>
     );
 }
