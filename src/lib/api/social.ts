@@ -21,6 +21,18 @@ export interface SocialAccount {
   created_at: string;
 }
 
+export interface TikTokCreatorInfo {
+  accountId: string;
+  nickname: string;
+  username?: string | null;
+  avatarUrl?: string | null;
+  privacyLevelOptions: string[];
+  commentDisabled: boolean;
+  duetDisabled: boolean;
+  stitchDisabled: boolean;
+  maxVideoPostDurationSec: number | null;
+}
+
 export interface SocialPostResult {
   postId?: string;
   videoId?: string;
@@ -231,6 +243,12 @@ export const socialApi = {
       apiClient.get<{ url: string }>(`/social/oauth/${platform.toLowerCase()}/url`, {
         params: opts?.igMode ? { igMode: opts.igMode } : undefined,
       }).then((r) => r.data),
+  },
+
+  tiktok: {
+    /** Thông tin kênh TikTok cho màn soạn bài (quyền riêng tư được chọn, tương tác bị tắt, giới hạn thời lượng) */
+    creatorInfo: (accountId: string): Promise<TikTokCreatorInfo> =>
+      apiClient.get(`/social/publish/tiktok/${accountId}/creator-info`).then((r) => r.data),
   },
 
   publish: {
