@@ -32,6 +32,7 @@ import { PublishedLinksSection } from './detail/PublishedLinksSection'
 import { contentLineCode } from './detail/PublishedPostPicker'
 import type { Source, Task, TeamSource, OmsProductSummary } from '@/types/task-auto'
 import { useBackdropClose } from '@/hooks/useBackdropClose'
+import { resultVideoKind } from '@/lib/task-auto/result-video'
 
 type CatalogScope = 'personal' | 'global' | 'team'
 type SourceScope = CatalogScope | 'all'
@@ -686,13 +687,12 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId, onD
   const primaryImage = rp_imageUrl ?? rp_imageUrls[0] ?? null
   const extraImages  = rp_imageUrls.filter(u => u !== primaryImage).slice(0, 3)
 
-  const isDriveUrl   = task?.result_url?.includes('drive.google.com')
+  const isHostedVideo = resultVideoKind(task?.result_url) !== 'none'
   const isLegacyPath = task?.result_url?.startsWith('/task-auto/tasks/')
-  // Task đã nộp (có video Drive) — chiếm chỗ cột phải (360px, vốn là ProductSection) để video hiện
-  // đủ lớn thay vì chỉ 280px như trước; ProductSection khi đó dời xuống dưới cùng cột trái.
-  const hasSubmittedVideo = !!task?.result_url && isDriveUrl
-  // Lên lịch được từ khi SUBMITTED (chỉ cần video đã lên Drive); REJECTED bị loại vì video đã bị xoá.
-  const canSchedulePost = (task?.status === 'SUBMITTED' || task?.status === 'APPROVED') && !!isDriveUrl && (isAssignee || canApproveReject)
+  // Task đã nộp video (kho R2 hoặc Drive cũ) — video chiếm cột phải, ProductSection dời xuống cuối cột trái.
+  const hasSubmittedVideo = !!task?.result_url && isHostedVideo
+  // Lên lịch được từ khi SUBMITTED; REJECTED bị loại vì video đã bị xoá.
+  const canSchedulePost = (task?.status === 'SUBMITTED' || task?.status === 'APPROVED') && isHostedVideo && (isAssignee || canApproveReject)
 
   // Dùng ở cả 2 vị trí: cột phải bình thường, hoặc dời xuống cuối cột trái khi video chiếm cột phải.
   const productSectionEl = (
@@ -765,7 +765,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId, onD
                   </div>
                   <div>
                     <p className="text-xs font-bold text-emerald-800 leading-none mb-1.5">Kết quả đã nộp</p>
-                    {isDriveUrl ? (
+                    {isHostedVideo ? (
                       <button
                         onClick={() => setShowVideoPreview(true)}
                         className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-900 underline underline-offset-2 whitespace-nowrap transition-colors"
@@ -781,7 +781,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId, onD
                       </a>
                     )}
                   </div>
-                  {(isDriveUrl || isLegacyPath) && task.status === 'SUBMITTED' && (
+                  {(isHostedVideo || isLegacyPath) && task.status === 'SUBMITTED' && (
                     <span className="text-[10px] bg-amber-100 text-amber-700 font-bold px-2 py-1 rounded-full whitespace-nowrap">
                       Chờ duyệt
                     </span>

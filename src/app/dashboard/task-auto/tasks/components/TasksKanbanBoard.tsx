@@ -13,6 +13,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { Send, Play, Upload, CheckCircle2, XCircle, AlertTriangle, ChevronDown, Loader2, Inbox, Clock, GripVertical, ExternalLink, Globe, Link2, Eye, ArrowRight } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { cn, driveImageUrl } from '@/lib/utils'
+import { resultVideoKind } from '@/lib/task-auto/result-video'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
 import { formatDate, formatDateTime } from '@/components/task-auto/helpers'
@@ -198,8 +199,8 @@ function ResultLink({ task, onOpenPreview, label = 'Xem kết quả', className 
     'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500',
     className,
   )
-  // Cùng convention với TaskDetailPanel: link Drive mở preview trong app (popup), link khác mở tab mới
-  if (task.result_url.includes('drive.google.com')) {
+  // Cùng convention với TaskDetailPanel: video đã nộp mở preview trong app (popup), link khác mở tab mới
+  if (resultVideoKind(task.result_url) !== 'none') {
     if (!onOpenPreview) return null
     return (
       <button

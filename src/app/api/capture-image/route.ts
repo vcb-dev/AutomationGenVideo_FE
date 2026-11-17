@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { isMediaStorageUrl } from '@/lib/task-auto/media-storage-url';
 
 /** Hostnames allowed for server-side image fetch (screenshot embed). Blocks obvious SSRF targets. */
 const HOST_PATTERN_OK = (host: string): boolean => {
@@ -53,7 +54,16 @@ export async function GET(request: Request) {
         return new NextResponse('Invalid scheme', { status: 400 });
     }
 
-    if (!HOST_PATTERN_OK(target.hostname)) {
+    let allowed = HOST_PATTERN_OK(target.hostname);
+    if (!allowed && target.pathname.includes('/api/storage/files/')) {
+        try {
+            allowed = isMediaStorageUrl(target);
+        } catch (e) {
+            console.error('[capture-image]', (e as Error).message);
+            return new NextResponse('Storage not configured', { status: 500 });
+        }
+    }
+    if (!allowed) {
         return new NextResponse('Host not allowed', { status: 403 });
     }
 
@@ -71,6 +81,11 @@ export async function GET(request: Request) {
 
         if (!res.ok) {
             return new NextResponse('Upstream error', { status: res.status === 404 ? 404 : 502 });
+        }
+
+        const declared = Number(res.headers.get('content-length') || 0);
+        if (declared > MAX_BYTES) {
+            return new NextResponse('Image too large', { status: 413 });
         }
 
         const contentType = res.headers.get('content-type') || '';

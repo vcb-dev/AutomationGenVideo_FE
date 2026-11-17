@@ -35,7 +35,9 @@ import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
 import { DateRangeFilter } from '@/components/task-auto/DateRangeFilter'
 import { formatDateTime } from '@/components/task-auto/helpers'
 import { getTasks, updateTaskPublishedLinks } from '@/lib/api/task-auto'
-import { cn, driveImageUrl, drivePreviewUrl } from '@/lib/utils'
+import { cn } from '@/lib/utils'
+import { resultThumbUrl } from '@/lib/task-auto/result-video'
+import { ResultVideoPlayer } from './detail/ResultVideoPlayer'
 import { planPlayback } from '@/lib/video-playback'
 import type { PublishedVideo } from '@/types/facebook'
 import type { Task } from '@/types/task-auto'
@@ -506,7 +508,7 @@ function TaskCard({
 }) {
   const title = resolveContentTitle(task) ?? 'Không có tiêu đề'
   const productName = resolveProductName(task)
-  const thumb = driveImageUrl(task.result_url, 600)
+  const thumb = resultThumbUrl(task.result_url, 600)
   const [thumbFailed, setThumbFailed] = useState(false)
   const hasFacebookLink = (task.published_links ?? []).some(isFacebookLink)
   const gap = gapToPost(task.submitted_at, postedAt)
@@ -633,7 +635,6 @@ function TaskVideoPreview({
   const rootRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   const title = resolveContentTitle(task) ?? 'Không có tiêu đề'
-  const src = drivePreviewUrl(task.result_url)
 
   useEffect(() => {
     closeRef.current?.focus()
@@ -662,8 +663,8 @@ function TaskVideoPreview({
         <figure className="flex h-full flex-col items-center gap-2">
           <figcaption className="text-xs font-semibold text-white/70">Video đã duyệt</figcaption>
           <div className="max-w-full overflow-hidden rounded-xl bg-black shadow-2xl ring-1 ring-white/10" style={FRAME_STYLE}>
-            {src ? (
-              <iframe key={src} src={src} title={`Video ${title}`} className="h-full w-full border-0" allow="autoplay" allowFullScreen />
+            {task.result_url ? (
+              <ResultVideoPlayer resultUrl={task.result_url} title={`Video ${title}`} className="h-full w-full" />
             ) : (
               <p className="flex h-full items-center justify-center p-4 text-center text-sm text-white/70">Task chưa có video</p>
             )}
