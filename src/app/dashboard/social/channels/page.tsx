@@ -11,6 +11,8 @@ import { useSocialAccounts, useInvalidateAccounts, SOCIAL_ACCOUNTS_KEY } from '@
 import { useAuthStore } from '@/store/auth-store';
 import { UserRole } from '@/types/auth';
 import { useSocialLang } from '@/contexts/SocialLanguageContext';
+import TikTokChannelStats from './components/TikTokChannelStats';
+import TikTokStatsModal from './components/TikTokStatsModal';
 
 // ─── Platform meta ─────────────────────────────────────────────────────────
 
@@ -80,6 +82,9 @@ export default function ChannelsPage() {
   useEffect(() => {
     if (error) toast.error(t.failedToLoad);
   }, [error, t.failedToLoad]);
+
+  // Kênh TikTok đang mở cửa sổ số liệu video
+  const [statsAccount, setStatsAccount] = useState<SocialAccount | null>(null);
 
   const loadAccounts = useCallback(async () => {
     await invalidateAccounts();
@@ -668,6 +673,11 @@ export default function ChannelsPage() {
                                   </a>
                                 )}
                               </div>
+
+                              {/* Số liệu kênh TikTok (video.list, user.info.stats) */}
+                              <div className="mb-3">
+                                <TikTokChannelStats account={account} onSynced={loadAccounts} onOpenVideos={setStatsAccount} />
+                              </div>
                             </div>
 
                             {/* Actions */}
@@ -884,6 +894,7 @@ export default function ChannelsPage() {
         )}
       </div>
 
+      {statsAccount && <TikTokStatsModal account={statsAccount} onClose={() => setStatsAccount(null)} />}
     </div>
   );
 }
