@@ -29,6 +29,7 @@ import {
   mergeCreatorInfos,
   validateTikTokSettings,
 } from '@/lib/social/tiktok-post';
+import { isHostedVideoUrl } from '@/lib/social/media-url';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -1066,7 +1067,7 @@ export default function ComposePage() {
                 {/* Ảnh bìa video */}
                 {(() => {
                   const videoUrl = mediaUrls.find(u => /\.(mp4|mov|avi|mkv|webm)$/i.test(u) || u.includes('drive.google.com'));
-                  const isDriveVideo = !!videoUrl?.includes('drive.google.com');
+                  const isServerVideo = isHostedVideoUrl(videoUrl);
                   const driveLibraryId = videoUrl ? (mediaLibraryIds[videoUrl] || null) : null;
                   if (!videoUrl) {
                     return (
@@ -1116,13 +1117,13 @@ export default function ComposePage() {
                         <div className="flex flex-col gap-2 flex-1">
                           <button
                             onClick={() => setShowFramePicker(true)}
-                            disabled={isDriveVideo && !driveLibraryId}
+                            disabled={isServerVideo && !driveLibraryId}
                             className="flex items-center gap-2.5 px-4 py-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-sm font-bold text-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                            title={isDriveVideo && !driveLibraryId ? t.compose.driveVideoNoLibraryId : undefined}
+                            title={isServerVideo && !driveLibraryId ? t.compose.driveVideoNoLibraryId : undefined}
                           >
                             <Film className="w-4 h-4" />
                             {t.compose.chooseFrameFromVideo}
-                            {isDriveVideo && <span className="text-[10px] font-normal text-blue-500 ml-1">{t.compose.serverSide}</span>}
+                            {isServerVideo && <span className="text-[10px] font-normal text-blue-500 ml-1">{t.compose.serverSide}</span>}
                           </button>
                           <button
                             onClick={() => { setLibraryMode('thumb'); setShowLibrary(true); }}
@@ -1573,15 +1574,15 @@ export default function ComposePage() {
               setMediaUrls(prev => Array.from(new Set([...prev, ...urls])));
               if (thumbMap) setMediaThumbs(prev => ({ ...prev, ...thumbMap }));
               if (idMap) setMediaLibraryIds(prev => ({ ...prev, ...idMap }));
-              // Nếu chọn video Drive và chưa có ảnh bìa → tự động dùng thumbnail FFmpeg
+              // Nếu chọn video và chưa có ảnh bìa → tự động dùng thumbnail FFmpeg
               if (thumbMap && !thumbUrl) {
-                const firstVideoThumb = urls.find(u => u.includes('drive.google.com') && thumbMap[u]);
+                const firstVideoThumb = urls.find(u => isHostedVideoUrl(u) && thumbMap[u]);
                 if (firstVideoThumb) {
                   setThumbUrl(thumbMap[firstVideoThumb]);
                   toast.success(t.compose.thumbnailAutoSet);
                 }
               }
-              if (!thumbMap || !urls.some(u => u.includes('drive.google.com') && thumbMap?.[u])) {
+              if (!thumbMap || !urls.some(u => isHostedVideoUrl(u) && thumbMap?.[u])) {
                 toast.success(t.compose.filesAddedFromLibrary(urls.length));
               }
             }

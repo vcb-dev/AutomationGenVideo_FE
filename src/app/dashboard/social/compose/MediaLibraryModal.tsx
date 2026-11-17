@@ -373,7 +373,8 @@ export default function MediaLibraryModal({ open, onClose, onSelect, maxSelect =
                             <video
                               src={`${item.url}#t=0.5`}
                               className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${item.thumbnail_url ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'}`}
-                              preload="metadata"
+                              // Có ảnh bìa thì chỉ tải video khi rê chuột (mỗi ô không kéo metadata từ kho).
+                              preload={item.thumbnail_url ? 'none' : 'metadata'}
                               muted
                               playsInline
                               onMouseOver={e => (e.target as HTMLVideoElement).play()}
