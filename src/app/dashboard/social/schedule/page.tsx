@@ -7,9 +7,11 @@ import toast from 'react-hot-toast';
 import { socialApi, SocialPost, PLATFORM_META } from '@/lib/api/social';
 import Link from 'next/link';
 import { useSocialLang } from '@/contexts/SocialLanguageContext';
+import { usePublishErrorText } from '@/lib/social/use-publish-error-text';
 
 export default function SchedulePage() {
   const { t } = useSocialLang();
+  const errText = usePublishErrorText();
   const [posts, setPosts] = useState<SocialPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
@@ -204,7 +206,7 @@ export default function SchedulePage() {
                                             {' '}{t.schedule.tokenExpiredSuffix}
                                           </p>
                                         ) : (
-                                          <p className="text-[11px] text-amber-500 mt-0.5 truncate">{post.error_msg}</p>
+                                          <p className="text-[11px] text-amber-500 mt-0.5 truncate">{errText(post.error_msg)}</p>
                                         )}
                                       </div>
                                     </div>
@@ -219,7 +221,7 @@ export default function SchedulePage() {
                                           <span>{t.schedule.tokenExpiredFailedPrefix} <Link href="/dashboard/social/accounts" className="underline font-semibold hover:text-red-600">{t.schedule.reconnect}</Link> {t.schedule.tokenExpiredFailedSuffix}</span>
                                         </>
                                       ) : (
-                                        <span className="truncate">{post.error_msg}</span>
+                                        <span className="truncate">{errText(post.error_msg)}</span>
                                       )}
                                     </div>
                                   )}

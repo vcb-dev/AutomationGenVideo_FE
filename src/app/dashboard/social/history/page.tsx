@@ -18,6 +18,7 @@ import { VideoPreviewOverlay } from '@/app/dashboard/task-auto/tasks/components/
 import Link from 'next/link';
 import { useAuthStore } from '@/store/auth-store';
 import { useSocialLang } from '@/contexts/SocialLanguageContext';
+import { usePublishErrorText } from '@/lib/social/use-publish-error-text';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api$/, '') || 'http://127.0.0.1:3000';
 
@@ -267,6 +268,7 @@ function PostDetailModal({
   canFilter: boolean;
 }) {
   const { t } = useSocialLang();
+  const errText = usePublishErrorText();
   const meta = (PLATFORM_META as any)[post.platform] || PLATFORM_META.FACEBOOK;
   const isOk      = post.status === 'COMPLETED';
   const isFail    = post.status === 'FAILED';
@@ -375,7 +377,7 @@ function PostDetailModal({
             {post.error_msg && post.status !== 'COMPLETED' && (
               <div className="flex items-start gap-1.5 mb-3 text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
                 <XCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-                <span>{post.error_msg}</span>
+                <span>{errText(post.error_msg)}</span>
               </div>
             )}
 
@@ -440,6 +442,7 @@ export default function HistoryPage() {
   const router = useRouter();
   const { user } = useAuthStore();
   const { t } = useSocialLang();
+  const errText = usePublishErrorText();
 
   // Phân quyền
   const isAdmin   = user?.roles?.some(r => ['ADMIN', 'MANAGER'].includes(r)) ?? false;
@@ -1088,7 +1091,7 @@ export default function HistoryPage() {
                     {post.error_msg && post.status !== 'COMPLETED' && (
                       <div className="flex items-start gap-1.5 mb-3 text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
                         <XCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-                        <span>{post.error_msg}</span>
+                        <span>{errText(post.error_msg)}</span>
                       </div>
                     )}
 

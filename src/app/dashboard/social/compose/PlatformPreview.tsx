@@ -77,7 +77,7 @@ function FacebookPreview({ message, mediaUrls, accountName, accountAvatar, media
           {accountAvatar ? <img src={accountAvatar} alt="" className="w-full h-full object-cover" /> : (accountName?.[0] || 'V')}
         </div>
         <div>
-          <p className="text-sm font-bold text-slate-900">{accountName || 'Viện Chí Bảo'}</p>
+          <p className="text-sm font-bold text-slate-900">{accountName || 'Viễn Chí Bảo'}</p>
           <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
             <span>{t.platformPreview.justNow}</span>
             <span>·</span>
@@ -187,7 +187,7 @@ function YouTubePreview({ message, mediaUrls, accountName, accountAvatar }: Prop
           <div className="w-7 h-7 rounded-full bg-red-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 overflow-hidden">
             {accountAvatar ? <img src={accountAvatar} alt="" className="w-full h-full object-cover" /> : (accountName?.[0] || 'V')}
           </div>
-          <p className="text-[11px] font-semibold text-slate-700">{accountName || 'Viện Chí Bảo'}</p>
+          <p className="text-[11px] font-semibold text-slate-700">{accountName || 'Viễn Chí Bảo'}</p>
         </div>
       </div>
     </div>

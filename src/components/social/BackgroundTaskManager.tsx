@@ -7,9 +7,11 @@ import { CheckCircle2, Loader2, ChevronUp, ChevronDown, X } from 'lucide-react';
 import { socialApi } from '@/lib/api/social';
 import { pollRegistry } from '@/lib/polling-registry';
 import { useSocialLang } from '@/contexts/SocialLanguageContext';
+import { usePublishErrorText } from '@/lib/social/use-publish-error-text';
 
 export const BackgroundTaskManager = () => {
   const { t } = useSocialLang();
+  const errText = usePublishErrorText();
   const { tasks, removeTask, updateTask } = useTaskStore();
   const [isExpanded, setIsExpanded] = React.useState(true);
 
@@ -166,7 +168,7 @@ export const BackgroundTaskManager = () => {
                       </span>
                     )}
                     {task.status === 'success' && <span className="text-[10px] text-green-600 font-medium">{t.done}</span>}
-                    {task.status === 'error' && <span className="text-[10px] text-red-500">{t.failed}: {task.message || t.failed}</span>}
+                    {task.status === 'error' && <span className="text-[10px] text-red-500">{t.failed}: {errText(task.message) || t.failed}</span>}
                   </div>
                 </div>
               ))}

@@ -239,9 +239,14 @@ export const socialApi = {
 
   oauth: {
     // igMode='direct' (chỉ Instagram): dùng Instagram Login trực tiếp, không cần FB Page
-    getUrl: (platform: SocialPlatform, opts?: { igMode?: 'direct' }) =>
+    // lang='en': BE thêm tham số ngôn ngữ cho trang đăng nhập (TikTok lang=en, Google hl=en).
+    // Meta (Facebook/Instagram/Threads) không nhận tham số này — hiện theo ngôn ngữ tài khoản Facebook.
+    getUrl: (platform: SocialPlatform, opts?: { igMode?: 'direct'; lang?: 'vi' | 'en' }) =>
       apiClient.get<{ url: string }>(`/social/oauth/${platform.toLowerCase()}/url`, {
-        params: opts?.igMode ? { igMode: opts.igMode } : undefined,
+        params: {
+          ...(opts?.igMode ? { igMode: opts.igMode } : {}),
+          ...(opts?.lang ? { lang: opts.lang } : {}),
+        },
       }).then((r) => r.data),
   },
 

@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { socialApi, SocialPost, PLATFORM_META, SocialPlatform } from '@/lib/api/social';
 import toast from 'react-hot-toast';
 import { useSocialLang } from '@/contexts/SocialLanguageContext';
+import { usePublishErrorText } from '@/lib/social/use-publish-error-text';
 
 function getStatusConfig(t: ReturnType<typeof useSocialLang>['t']) {
   return {
@@ -28,6 +29,7 @@ function isSameDay(a: Date, b: Date) {
 
 export default function CalendarPage() {
   const { t } = useSocialLang();
+  const errText = usePublishErrorText();
   const STATUS_CONFIG = getStatusConfig(t);
   const WEEKDAYS = t.calendar.weekdays;
   const MONTHS = t.calendar.months;
@@ -384,7 +386,7 @@ export default function CalendarPage() {
                         {/* Error message */}
                         {post.error_msg && (
                           <p className="text-[10px] text-red-500 mb-3 bg-red-50 rounded-lg px-2 py-1.5 border border-red-100">
-                            {post.error_msg.length > 100 ? post.error_msg.slice(0, 100) + '…' : post.error_msg}
+                            {(() => { const m = errText(post.error_msg); return m.length > 100 ? m.slice(0, 100) + '…' : m; })()}
                           </p>
                         )}
 
