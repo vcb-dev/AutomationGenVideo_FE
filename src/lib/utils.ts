@@ -66,7 +66,7 @@ export function drivePreviewUrl(url: string | null | undefined): string | null {
   return `https://drive.google.com/file/d/${id}/preview`;
 }
 
-const R2_TASK_VIDEO_RE = /\/task-auto\/videos\//;
+const R2_TASK_VIDEO_RE = /\/task-auto\/(?:[^/?#]+\/)?videos\//;
 
 export function isR2TaskVideoUrl(url: string | null | undefined): boolean {
   return !!url && R2_TASK_VIDEO_RE.test(url) && !url.includes('drive.google.com');

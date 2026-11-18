@@ -111,6 +111,7 @@ function PersonalContentModal({
     classification_id: c.classification_id ?? '',
   })
   const [form, setForm] = useState<Partial<Content>>(() => formFrom(editing))
+  const uploadMeta = { content_line_id: form.content_line_id ?? undefined, title: form.title ?? undefined }
   const [market, setMarket] = useState<string>(editing.market ?? 'VIETNAM')
   const [initialSource, setInitialSource] = useState(() => contentSourceFrom(editing.body, editing.file_content_url))
   const [source, setSource] = useState<ContentSource>(initialSource)
@@ -239,6 +240,7 @@ function PersonalContentModal({
           <ContentSourcePicker
             value={source}
             onChange={setSource}
+            uploadMeta={uploadMeta}
             body={form.body ?? ''}
             onBodyChange={body => setForm(f => ({ ...f, body }))}
             error={errors.source}
@@ -248,7 +250,7 @@ function PersonalContentModal({
           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-gray-100">
             File đính kèm
           </p>
-          <VoicePicker ref={voicePickerRef} value={form.voice_url ?? ''} onChange={url => setForm(f => ({ ...f, voice_url: url }))} />
+          <VoicePicker ref={voicePickerRef} uploadMeta={uploadMeta} value={form.voice_url ?? ''} onChange={url => setForm(f => ({ ...f, voice_url: url }))} />
         </div>
       </div>
     </DarkModal>
