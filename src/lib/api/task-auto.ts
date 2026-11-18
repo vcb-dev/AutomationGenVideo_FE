@@ -181,6 +181,9 @@ export const promoteTaskVideo = (taskId: string) =>
 export const deleteTaskPendingVideo = (taskId: string) =>
   apiClient.delete(`/task-auto/tasks/${taskId}/pending-video`).then(r => r.data)
 
+export const abortTaskVideoUpload = (taskId: string, uploadId: string) =>
+  apiClient.post(`/task-auto/tasks/${taskId}/upload-video/abort`, { uploadId }).then(r => r.data)
+
 // ── Task Video Script (AI content — DeepSeek, cache theo task) ──────────────
 
 export interface VideoScriptTranslation {
@@ -806,9 +809,21 @@ export const getOmsProductDetail = (omsProductId: string) =>
 export const refreshTeamProductFromOms = (teamId: string, teamProductId: string) =>
   apiClient.patch<TeamProduct>(`/task-auto/teams/${teamId}/products/${teamProductId}/refresh-from-oms`).then(r => r.data)
 
-export const uploadProductImage = (file: File): Promise<{ url: string }> => {
+export interface UploadMeta {
+  team_id?: string
+  content_line_id?: string
+  title?: string
+}
+
+const uploadFormData = (field: string, file: File, meta?: UploadMeta) => {
   const fd = new FormData()
-  fd.append('image', file)
+  fd.append(field, file)
+  for (const [key, value] of Object.entries(meta ?? {})) if (value?.trim()) fd.append(key, value.trim())
+  return fd
+}
+
+export const uploadProductImage = (file: File, meta?: UploadMeta): Promise<{ url: string }> => {
+  const fd = uploadFormData('image', file, meta)
   return apiClient.post<{ url: string }>('/task-auto/upload-image', fd, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }).then(r => r.data)
@@ -851,17 +866,15 @@ export const aiTranslateContent = (contentId: string, market: string) =>
     `/task-auto/contents/${contentId}/ai-translate`, { market },
   ).then(r => r.data)
 
-export const uploadVoiceFile = (file: File): Promise<{ url: string }> => {
-  const fd = new FormData()
-  fd.append('voice', file)
+export const uploadVoiceFile = (file: File, meta?: UploadMeta): Promise<{ url: string }> => {
+  const fd = uploadFormData('voice', file, meta)
   return apiClient.post<{ url: string }>('/task-auto/upload-voice', fd, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }).then(r => r.data)
 }
 
-export const uploadContentFile = (file: File): Promise<{ url: string }> => {
-  const fd = new FormData()
-  fd.append('file', file)
+export const uploadContentFile = (file: File, meta?: UploadMeta): Promise<{ url: string }> => {
+  const fd = uploadFormData('file', file, meta)
   return apiClient.post<{ url: string }>('/task-auto/upload-content', fd, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }).then(r => r.data)

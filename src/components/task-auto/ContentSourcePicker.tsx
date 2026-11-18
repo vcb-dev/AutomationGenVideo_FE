@@ -5,7 +5,7 @@ import toast from 'react-hot-toast'
 import { Loader2, X, FileText, Upload, AlignLeft, Link2, Video, ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DarkInput, DarkTextarea, FieldError } from '@/components/task-auto/DarkInput'
-import { uploadContentFile } from '@/lib/api/task-auto'
+import { uploadContentFile, type UploadMeta } from '@/lib/api/task-auto'
 
 const CONTENT_ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt'
 const CONTENT_MIME = [
@@ -116,9 +116,11 @@ export function ContentSourcePicker({
   headerAction,
   error,
   hideVideoLink,
+  uploadMeta,
 }: {
   value: ContentSource
   onChange: (v: ContentSource) => void
+  uploadMeta?: UploadMeta
   body: string
   onBodyChange: (body: string) => void
   textareaProps?: Omit<React.ComponentProps<typeof DarkTextarea>, 'value' | 'onChange' | 'label'>
@@ -142,7 +144,7 @@ export function ContentSourcePicker({
     if (file.size > 100 * 1024 * 1024) return toast.error('File tối đa 100MB')
     setUploading(true)
     try {
-      const { url } = await uploadContentFile(file)
+      const { url } = await uploadContentFile(file, uploadMeta)
       onChange({ ...value, file: url })
     } catch {
       toast.error('Không thể tải file lên')

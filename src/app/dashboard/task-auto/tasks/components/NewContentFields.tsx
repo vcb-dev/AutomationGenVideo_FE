@@ -182,6 +182,7 @@ export const NewContentFields = forwardRef<HTMLInputElement, Props>(function New
       <ContentSourcePicker
         value={draft.source}
         onChange={source => onChange({ source })}
+        uploadMeta={{ content_line_id: draft.content_line_id, title: draft.title }}
         body={draft.body}
         onBodyChange={body => onChange({ body })}
         error={errors?.source}
