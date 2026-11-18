@@ -13,6 +13,8 @@ export const PLATFORM_SUPPORT: Record<string, Record<PostMode, boolean>> = {
   THREADS: { image: true, video_vertical: true },
   INSTAGRAM: { image: true, video_vertical: true },
   YOUTUBE: { image: false, video_vertical: true },
+  // Content Posting API của app chỉ đăng video (ảnh là API khác, chưa xin quyền)
+  TIKTOK: { image: false, video_vertical: true },
 };
 
 /** Platform không có trong bảng (chưa khai báo) mặc định coi là hỗ trợ mọi dạng bài. */

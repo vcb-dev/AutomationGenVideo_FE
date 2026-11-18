@@ -21,6 +21,15 @@ import toast from 'react-hot-toast';
 import { accountAvatarUrl } from '@/lib/social/account-avatar';
 import { useSocialLang } from '@/contexts/SocialLanguageContext';
 import { isPlatformModeSupported, PostMode } from '@/lib/social/platform-support';
+import TikTokPostSettings from './TikTokPostSettings';
+import {
+  EMPTY_TIKTOK_SETTINGS,
+  TikTokComposerSettings,
+  encodeTikTokSettings,
+  mergeCreatorInfos,
+  validateTikTokSettings,
+} from '@/lib/social/tiktok-post';
+import { isHostedVideoUrl } from '@/lib/social/media-url';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -173,6 +182,9 @@ export default function ComposePage() {
 
   // Advanced Options
   const [privacy, setPrivacy] = useState('EVERYONE');
+  // TikTok: tuỳ chọn riêng (quyền riêng tư không chọn sẵn, tương tác, nội dung thương mại)
+  const [tiktokSettings, setTiktokSettings] = useState<TikTokComposerSettings>(EMPTY_TIKTOK_SETTINGS);
+  const [tiktokInfo, setTiktokInfo] = useState<ReturnType<typeof mergeCreatorInfos> | null>(null);
   const [publishProgress, setPublishProgress] = useState<{
     show: boolean;
     phase: 'idle' | 'uploading' | 'publishing' | 'done';
@@ -192,7 +204,8 @@ export default function ComposePage() {
     THREADS: 500,
     FACEBOOK: 63206,
     INSTAGRAM: 2200,
-    YOUTUBE: 5000
+    YOUTUBE: 5000,
+    TIKTOK: 2200,
   };
 
   // --- ACTIONS ---
@@ -294,6 +307,9 @@ export default function ComposePage() {
       return a.name.localeCompare(b.name);
     });
   });
+
+  // Kênh TikTok đang được chọn — để hiện khung "Cài đặt TikTok"
+  const selectedTikTokAccounts = accounts.filter(a => selectedAccountIds.includes(a.id) && a.platform === 'TIKTOK');
 
   const toggleAccount = (id: string) => {
     setSelectedAccountIds(prev =>
@@ -543,6 +559,16 @@ export default function ComposePage() {
     if (!message.trim() && mediaUrls.length === 0) return toast.error(t.compose.enterContent);
     if (hashtags.length === 0) return toast.error(t.compose.addAtLeastOneHashtag);
 
+    if (selectedTikTokAccounts.length > 0) {
+      const tiktokError = validateTikTokSettings(tiktokSettings, {
+        allowedPrivacy: tiktokInfo?.privacyLevelOptions || [],
+        hasVideo: postMode === 'video_vertical' && mediaUrls.length > 0,
+      });
+      if (tiktokError) return toast.error(tiktokError);
+    }
+    const tiktokPrivacy = selectedTikTokAccounts.length > 0 ? encodeTikTokSettings(tiktokSettings) : undefined;
+    const privacyFor = (platform: string) => (platform === 'TIKTOK' && tiktokPrivacy ? tiktokPrivacy : privacy);
+
     const isScheduling = activeTab === 'schedule';
     if (isScheduling) {
       if (!scheduledAt) return toast.error(t.compose.selectScheduleTime);
@@ -596,7 +622,7 @@ export default function ComposePage() {
             message: fullMessage,
             mediaUrls: mediaUrls.length ? mediaUrls : undefined,
             scheduledAt: new Date(scheduledAt).toISOString(),
-            privacy,
+            privacy: privacyFor(ch.platform),
             thumbUrl: thumbUrl || undefined,
           });
           results[i] = { ...results[i], status: 'success' };
@@ -629,7 +655,7 @@ export default function ComposePage() {
           platform:  ch.platform as any,
           message:   platformMsg,
           mediaUrls: mediaUrls.length ? mediaUrls : undefined,
-          privacy,
+          privacy:   privacyFor(ch.platform),
           thumbUrl:  thumbUrl || undefined,
         };
       });
@@ -975,6 +1001,7 @@ export default function ComposePage() {
                                     {t.compose.unsupportedForMode}
                                   </div>
                                 )}
+
                                 {account.token_expires_soon && account.platform !== 'YOUTUBE' && (
                                   <div className="text-[10px] text-amber-500 font-semibold mt-0.5">
                                     {t.compose.tokenExpiresIn(account.token_expires_in_days ?? 0)}
@@ -1040,7 +1067,7 @@ export default function ComposePage() {
                 {/* Ảnh bìa video */}
                 {(() => {
                   const videoUrl = mediaUrls.find(u => /\.(mp4|mov|avi|mkv|webm)$/i.test(u) || u.includes('drive.google.com'));
-                  const isDriveVideo = !!videoUrl?.includes('drive.google.com');
+                  const isServerVideo = isHostedVideoUrl(videoUrl);
                   const driveLibraryId = videoUrl ? (mediaLibraryIds[videoUrl] || null) : null;
                   if (!videoUrl) {
                     return (
@@ -1090,13 +1117,13 @@ export default function ComposePage() {
                         <div className="flex flex-col gap-2 flex-1">
                           <button
                             onClick={() => setShowFramePicker(true)}
-                            disabled={isDriveVideo && !driveLibraryId}
+                            disabled={isServerVideo && !driveLibraryId}
                             className="flex items-center gap-2.5 px-4 py-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-sm font-bold text-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                            title={isDriveVideo && !driveLibraryId ? t.compose.driveVideoNoLibraryId : undefined}
+                            title={isServerVideo && !driveLibraryId ? t.compose.driveVideoNoLibraryId : undefined}
                           >
                             <Film className="w-4 h-4" />
                             {t.compose.chooseFrameFromVideo}
-                            {isDriveVideo && <span className="text-[10px] font-normal text-blue-500 ml-1">{t.compose.serverSide}</span>}
+                            {isServerVideo && <span className="text-[10px] font-normal text-blue-500 ml-1">{t.compose.serverSide}</span>}
                           </button>
                           <button
                             onClick={() => { setLibraryMode('thumb'); setShowLibrary(true); }}
@@ -1461,6 +1488,16 @@ export default function ComposePage() {
           </div>
 
           <div className="p-5 bg-white border-t border-slate-200">
+            {selectedTikTokAccounts.length > 0 && activeTab !== 'draft' && (
+              <div className="mb-4">
+                <TikTokPostSettings
+                  accounts={selectedTikTokAccounts}
+                  value={tiktokSettings}
+                  onChange={setTiktokSettings}
+                  onInfoChange={setTiktokInfo}
+                />
+              </div>
+            )}
             <div className="flex items-center gap-2 mb-4 text-slate-800 font-bold text-[13px]">
               <Clock className="w-4 h-4 text-slate-500" /> {t.compose.postingTimeLabel}
             </div>
@@ -1537,15 +1574,15 @@ export default function ComposePage() {
               setMediaUrls(prev => Array.from(new Set([...prev, ...urls])));
               if (thumbMap) setMediaThumbs(prev => ({ ...prev, ...thumbMap }));
               if (idMap) setMediaLibraryIds(prev => ({ ...prev, ...idMap }));
-              // Nếu chọn video Drive và chưa có ảnh bìa → tự động dùng thumbnail FFmpeg
+              // Nếu chọn video và chưa có ảnh bìa → tự động dùng thumbnail FFmpeg
               if (thumbMap && !thumbUrl) {
-                const firstVideoThumb = urls.find(u => u.includes('drive.google.com') && thumbMap[u]);
+                const firstVideoThumb = urls.find(u => isHostedVideoUrl(u) && thumbMap[u]);
                 if (firstVideoThumb) {
                   setThumbUrl(thumbMap[firstVideoThumb]);
                   toast.success(t.compose.thumbnailAutoSet);
                 }
               }
-              if (!thumbMap || !urls.some(u => u.includes('drive.google.com') && thumbMap?.[u])) {
+              if (!thumbMap || !urls.some(u => isHostedVideoUrl(u) && thumbMap?.[u])) {
                 toast.success(t.compose.filesAddedFromLibrary(urls.length));
               }
             }

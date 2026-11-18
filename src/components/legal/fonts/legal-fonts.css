@@ -1,0 +1,23 @@
+/* Font thương hiệu Viễn Chí Bảo (lấy từ theme vienchibao.com, bộ latin + tiếng Việt), tự host như roboto.css.
+   Chỉ dùng cho /privacy và /terms để hai trang trông giống trang chính sách trên vienchibao.com. */
+@font-face {
+  font-family: 'VCB Cormorant SC';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('./cormorant-sc-v18-latin_vietnamese-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'VCB Montserrat';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('./montserrat-v30-latin_vietnamese-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'VCB Montserrat';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./montserrat-v30-latin_vietnamese-700.woff2') format('woff2');
+}

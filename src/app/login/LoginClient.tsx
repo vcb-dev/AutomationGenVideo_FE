@@ -12,6 +12,8 @@ import { motion } from 'framer-motion';
 import { Loader2, Mail, Lock, ArrowRight } from 'lucide-react';
 import { useLang, type SocialT } from '@/contexts/SocialLanguageContext';
 import { useMemo } from 'react';
+import Link from 'next/link';
+import { LEGAL_PATHS } from '@/lib/legal/legal-content';
 
 const buildLoginSchema = (t: SocialT['login']) =>
   z.object({
@@ -188,6 +190,10 @@ export default function LoginClient() {
             <p className="text-slate-500 text-sm">
               {tl.noAccount}
             </p>
+            <div className="mt-4 flex justify-center gap-4 text-xs text-slate-500">
+              <Link href={LEGAL_PATHS.privacy} className="hover:text-slate-300 transition-colors">Chính sách bảo mật</Link>
+              <Link href={LEGAL_PATHS.terms} className="hover:text-slate-300 transition-colors">Điều khoản sử dụng</Link>
+            </div>
           </div>
         </motion.div>
       </div>
