@@ -79,7 +79,7 @@ export function isUploadedTaskVideoUrl(url: string | null | undefined): boolean 
 export function videoThumbnailUrl(url: string | null | undefined, sz = 400): string | null {
   if (!url) return null;
   if (url.includes('drive.google.com')) return driveImageUrl(url, sz);
-  if (isR2TaskVideoUrl(url)) return url.replace(/\.[^./?#]+(?=[?#]|$)/, '.jpg');
+  if (isR2TaskVideoUrl(url)) return url.replace(/\/([^/?#]+)\.[^./?#]+(?=[?#]|$)/, '/thumb/$1.jpg');
   return null;
 }
 

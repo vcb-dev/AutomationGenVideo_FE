@@ -11,6 +11,14 @@ import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
 import { apiClient } from '@/lib/api-client'
 import { Task } from '@/types/task-auto'
 import { abortTaskVideoUpload, deleteTaskPendingVideo, submitTask, updateTask } from '@/lib/api/task-auto'
+import {
+  PartUploadError,
+  createDirectPartUploader,
+  finishWithRetry,
+  uploadErrorMessage,
+  uploadInParts,
+  type PartUploader,
+} from '@/lib/storage/chunked-upload'
 
 interface Props {
   task: Task
@@ -21,8 +29,6 @@ interface Props {
 
 type UploadedVideo = { url: string; filename: string; originalname: string; mimetype: string; size: number; storage: string }
 
-const CHUNK_SIZE = 8 * 1024 * 1024 // 8 MB
-const UPLOAD_CONCURRENCY = 4
 const MAX_VIDEO_SIZE = 2 * 1024 * 1024 * 1024 // 2 GB — khớp giới hạn BE ở initChunkUpload
 const VIDEO_EXT_RE = /\.(mp4|mov|m4v|avi|mkv|webm|flv|wmv|mpe?g|3gp)$/i
 
@@ -50,80 +56,46 @@ async function uploadVideoToServer(
   onProgress: (pct: number) => void,
   signal: AbortSignal,
 ): Promise<UploadedVideo> {
-  const mime = file.type || 'video/mp4'
-
-  // 1. Init — BE mở multipart upload trên R2, trả presigned URL cho từng part
-  const { uploadId, partUrls, chunkSize } = await apiClient
-    .post<{ uploadId: string; partUrls: string[]; chunkSize: number }>(
-      `/task-auto/tasks/${taskId}/upload-video/init`,
-      { filename: file.name, mimetype: mime, totalSize: file.size },
-    )
-    .then(r => r.data)
-
-  const partSize = chunkSize || CHUNK_SIZE
-  const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
-  let uploadedBytes = 0
-  let nextPart = 0
-  let failed = false
-
-  const uploadPart = async (index: number) => {
-    const start = index * partSize
-    const blob = file.slice(start, Math.min(start + partSize, file.size))
-    for (let attempt = 1; ; attempt++) {
-      const ctrl = new AbortController()
-      const abort = () => ctrl.abort()
-      const timer = setTimeout(abort, 120_000)
-      signal.addEventListener('abort', abort)
-      try {
-        const res = await fetch(partUrls[index], { method: 'PUT', body: blob, signal: ctrl.signal })
-        if (res.ok) break
-        const text = await res.text().catch(() => res.statusText)
-        throw new Error(`Upload video lỗi (${res.status}): ${text}`)
-      } catch (err) {
-        if (signal.aborted || attempt >= 5 || failed) throw err
-        await sleep(1000 * attempt)
-      } finally {
-        clearTimeout(timer)
-        signal.removeEventListener('abort', abort)
-      }
-    }
-    uploadedBytes += blob.size
-    onProgress(Math.round((uploadedBytes / file.size) * 90))
-  }
-
-  // 2. PUT các part thẳng lên R2 (mỗi part ghi đè được nên retry an toàn), chạy song song vài part
+  const base = `/task-auto/tasks/${taskId}/upload-video`
+  const cancelled = () => new PartUploadError('Đã huỷ upload', 499)
   try {
-    if (signal.aborted) throw new Error('Đã huỷ upload')
-    await Promise.all(
-      Array.from({ length: Math.min(UPLOAD_CONCURRENCY, partUrls.length) }, async () => {
-        while (!failed && !signal.aborted && nextPart < partUrls.length) {
-          try {
-            await uploadPart(nextPart++)
-          } catch (err) {
-            failed = true
-            throw err
-          }
+    const { uploadId, chunkSize, partUploadUrl } = await apiClient
+      .post<{ uploadId: string; chunkSize: number; partUploadUrl: string }>(`${base}/init`, {
+        filename: file.name, mimetype: file.type || 'video/mp4', totalSize: file.size,
+      })
+      .then(r => r.data)
+
+    const direct = createDirectPartUploader(partUploadUrl, file.name)
+    const uploader: PartUploader = {
+      sendPart: async (partNumber, chunk) => {
+        if (signal.aborted) throw cancelled()
+        try {
+          await direct.sendPart(partNumber, chunk)
+        } catch (err) {
+          throw signal.aborted ? cancelled() : err
         }
-      }),
+      },
+      uploadedParts: direct.uploadedParts,
+    }
+    try {
+      await Promise.race([
+        uploadInParts(file, chunkSize, uploader, { onProgress: pct => { if (!signal.aborted) onProgress(pct) } }),
+        new Promise<never>((_, reject) => signal.addEventListener('abort', () => reject(cancelled()), { once: true })),
+      ])
+    } catch (err) {
+      abortTaskVideoUpload(taskId, uploadId).catch(() => {})
+      throw err
+    }
+
+    onProgress(95)
+    const result = await finishWithRetry(() =>
+      apiClient.post<UploadedVideo>(`${base}/finish`, { uploadId }, { timeout: 120_000 }).then(r => r.data),
     )
-    if (signal.aborted) throw new Error('Đã huỷ upload')
+    onProgress(100)
+    return result
   } catch (err) {
-    abortTaskVideoUpload(taskId, uploadId).catch(() => {})
-    throw err
+    throw new Error(uploadErrorMessage(err))
   }
-
-  // 3. Finish — BE xác nhận R2 nhận đủ part, ghép file, đăng ký video tạm
-  onProgress(95)
-  const result = await apiClient
-    .post<UploadedVideo>(
-      `/task-auto/tasks/${taskId}/upload-video/finish`,
-      { uploadId },
-      { timeout: 120_000 },
-    )
-    .then(r => r.data)
-
-  onProgress(100)
-  return result
 }
 
 export function SubmitModal({ task, isResubmit = false, onClose, onSuccess }: Props) {
