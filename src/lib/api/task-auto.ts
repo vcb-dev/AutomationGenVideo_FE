@@ -181,6 +181,9 @@ export const promoteTaskVideo = (taskId: string) =>
 export const deleteTaskPendingVideo = (taskId: string) =>
   apiClient.delete(`/task-auto/tasks/${taskId}/pending-video`).then(r => r.data)
 
+export const abortTaskVideoUpload = (taskId: string, uploadId: string) =>
+  apiClient.post(`/task-auto/tasks/${taskId}/upload-video/abort`, { uploadId }).then(r => r.data)
+
 // ── Task Video Script (AI content — DeepSeek, cache theo task) ──────────────
 
 export interface VideoScriptTranslation {

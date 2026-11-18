@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { Play, Info, CheckCircle2, Link2, Plus } from 'lucide-react'
-import { driveImageUrl } from '@/lib/utils'
+import { videoThumbnailUrl } from '@/lib/utils'
 import { TaskStatusBadge } from '@/components/task-auto/StatusBadge'
 import { AvatarInitials } from '@/components/task-auto/AvatarInitials'
 import { EmptyState } from '@/components/task-auto/EmptyState'
@@ -51,10 +51,10 @@ function SkeletonCards() {
   )
 }
 
-// Ảnh đại diện video: thumbnail Drive thật → ảnh sản phẩm liên kết → icon placeholder.
-// Google Drive thumbnail có thể lỗi nếu file chưa share công khai nên cần fallback qua onError.
+// Ảnh đại diện video: thumbnail video thật (Drive/R2) → ảnh sản phẩm liên kết → icon placeholder.
+// Thumbnail có thể lỗi (Drive chưa share công khai, R2 chưa kịp tạo ảnh) nên cần fallback qua onError.
 function VideoThumbnail({ resultUrl, productImage, alt }: { resultUrl: string | null; productImage: string | null; alt: string }) {
-  const candidates = [driveImageUrl(resultUrl), productImage].filter((u): u is string => !!u)
+  const candidates = [videoThumbnailUrl(resultUrl), productImage].filter((u): u is string => !!u)
   const [idx, setIdx] = useState(0)
   const src = candidates[idx]
 

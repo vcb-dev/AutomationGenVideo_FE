@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tansta
 import { useScrollLock } from '@/hooks/useScrollLock'
 import toast from 'react-hot-toast'
 import { Loader2, XCircle, CheckCircle2, Play, ExternalLink } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, isUploadedTaskVideoUrl } from '@/lib/utils'
 import { ConfirmDialog } from '@/components/task-auto/ConfirmDialog'
 import {
   getTask, approveTask, deleteTask, getSources, getTeamSources,
@@ -686,13 +686,13 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId, onD
   const primaryImage = rp_imageUrl ?? rp_imageUrls[0] ?? null
   const extraImages  = rp_imageUrls.filter(u => u !== primaryImage).slice(0, 3)
 
-  const isDriveUrl   = task?.result_url?.includes('drive.google.com')
+  const isStoredVideo   = isUploadedTaskVideoUrl(task?.result_url)
   const isLegacyPath = task?.result_url?.startsWith('/task-auto/tasks/')
-  // Task đã nộp (có video Drive) — chiếm chỗ cột phải (360px, vốn là ProductSection) để video hiện
+  // Task đã nộp (có video trên kho) — chiếm chỗ cột phải (360px, vốn là ProductSection) để video hiện
   // đủ lớn thay vì chỉ 280px như trước; ProductSection khi đó dời xuống dưới cùng cột trái.
-  const hasSubmittedVideo = !!task?.result_url && isDriveUrl
-  // Lên lịch được từ khi SUBMITTED (chỉ cần video đã lên Drive); REJECTED bị loại vì video đã bị xoá.
-  const canSchedulePost = (task?.status === 'SUBMITTED' || task?.status === 'APPROVED') && !!isDriveUrl && (isAssignee || canApproveReject)
+  const hasSubmittedVideo = !!task?.result_url && isStoredVideo
+  // Lên lịch được từ khi SUBMITTED (chỉ cần video đã lên kho); REJECTED bị loại vì video đã bị xoá.
+  const canSchedulePost = (task?.status === 'SUBMITTED' || task?.status === 'APPROVED') && !!isStoredVideo && (isAssignee || canApproveReject)
 
   // Dùng ở cả 2 vị trí: cột phải bình thường, hoặc dời xuống cuối cột trái khi video chiếm cột phải.
   const productSectionEl = (
@@ -765,7 +765,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId, onD
                   </div>
                   <div>
                     <p className="text-xs font-bold text-emerald-800 leading-none mb-1.5">Kết quả đã nộp</p>
-                    {isDriveUrl ? (
+                    {isStoredVideo ? (
                       <button
                         onClick={() => setShowVideoPreview(true)}
                         className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-900 underline underline-offset-2 whitespace-nowrap transition-colors"
@@ -781,7 +781,7 @@ export function TaskDetailPanel({ taskId, onClose, userRoles, currentUserId, onD
                       </a>
                     )}
                   </div>
-                  {(isDriveUrl || isLegacyPath) && task.status === 'SUBMITTED' && (
+                  {(isStoredVideo || isLegacyPath) && task.status === 'SUBMITTED' && (
                     <span className="text-[10px] bg-amber-100 text-amber-700 font-bold px-2 py-1 rounded-full whitespace-nowrap">
                       Chờ duyệt
                     </span>
