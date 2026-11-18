@@ -1,8 +1,14 @@
 import { isAxiosError } from 'axios'
 
+export interface UploadProgress {
+  parts: number[]
+  // BE đã ghép xong file: không gửi khúc nữa, gọi finish luôn.
+  completed: boolean
+}
+
 export interface PartUploader {
   sendPart: (partNumber: number, chunk: Blob) => Promise<void>
-  uploadedParts: () => Promise<number[]>
+  progress: () => Promise<UploadProgress>
 }
 
 export interface UploadInPartsOptions {
@@ -13,10 +19,20 @@ export interface UploadInPartsOptions {
 }
 
 export class PartUploadError extends Error {
-  constructor(message: string, readonly status: number) {
+  // serverMessage: câu tiếng Việt BE trả trong thân lỗi (nếu có).
+  constructor(message: string, readonly status: number, readonly serverMessage?: string) {
     super(message)
   }
 }
+
+const NO_PROGRESS: UploadProgress = { parts: [], completed: false }
+
+// Không đọc được tiến độ vì lỗi tạm (mạng, 5xx) thì coi như chưa có khúc nào; lỗi 4xx (token hết hạn) thì dừng luôn.
+const readProgress = (uploader: PartUploader) =>
+  uploader.progress().catch(err => {
+    if (!isRetryable(err)) throw err
+    return NO_PROGRESS
+  })
 
 export const RETRY_DELAYS_MS = [1_000, 3_000, 10_000, 30_000, 60_000, 120_000]
 
@@ -45,7 +61,12 @@ const defaultWaitOnline = () =>
 export async function uploadInParts(file: Blob, partSize: number, uploader: PartUploader, options: UploadInPartsOptions = {}): Promise<void> {
   const { onProgress, concurrency = 3, wait = defaultWait, waitOnline = defaultWaitOnline } = options
   const totalParts = totalPartsOf(file.size, partSize)
-  const already = new Set(await uploader.uploadedParts().catch(() => [] as number[]))
+  const initial = await readProgress(uploader)
+  if (initial.completed) {
+    onProgress?.(90)
+    return
+  }
+  const already = new Set(initial.parts)
   const queue = Array.from({ length: totalParts }, (_, i) => i + 1).filter(n => !already.has(n))
   let done = totalParts - queue.length
   const report = () => onProgress?.(Math.round((done / totalParts) * 90))
@@ -62,8 +83,8 @@ export async function uploadInParts(file: Blob, partSize: number, uploader: Part
         if (!isRetryable(err)) throw err
         await waitOnline()
         if (attempt >= RETRY_DELAYS_MS.length) {
-          const stored = await uploader.uploadedParts().catch(() => [] as number[])
-          if (stored.includes(partNumber)) return
+          const stored = await uploader.progress().catch(() => NO_PROGRESS)
+          if (stored.completed || stored.parts.includes(partNumber)) return
           throw err
         }
         await wait(RETRY_DELAYS_MS[attempt])
@@ -88,6 +109,11 @@ export async function uploadInParts(file: Blob, partSize: number, uploader: Part
   if (failed) throw failed
 }
 
+async function serverMessageOf(res: Response): Promise<string | undefined> {
+  const body = (await res.json().catch(() => null)) as { message?: unknown } | null
+  return typeof body?.message === 'string' && body.message ? body.message : undefined
+}
+
 // Gửi khúc thẳng domain BE (không qua rewrite /api 4,5MB): FormData, không cookie → không preflight.
 export function createDirectPartUploader(partUploadUrl: string, fileName: string, timeoutMs = 120_000): PartUploader {
   return {
@@ -95,12 +121,13 @@ export function createDirectPartUploader(partUploadUrl: string, fileName: string
       const form = new FormData()
       form.append('chunk', chunk, fileName)
       const res = await fetch(`${partUploadUrl}/parts/${partNumber}`, { method: 'POST', body: form, signal: AbortSignal.timeout(timeoutMs) })
-      if (!res.ok) throw new PartUploadError(`Gửi khúc ${partNumber} lỗi (${res.status})`, res.status)
+      if (!res.ok) throw new PartUploadError(`Gửi khúc ${partNumber} lỗi (${res.status})`, res.status, await serverMessageOf(res))
     },
-    uploadedParts: async () => {
+    progress: async () => {
       const res = await fetch(`${partUploadUrl}/parts`, { signal: AbortSignal.timeout(30_000) })
-      if (!res.ok) throw new PartUploadError(`Không đọc được tiến độ (${res.status})`, res.status)
-      return ((await res.json()) as { uploadedParts: number[] }).uploadedParts
+      if (!res.ok) throw new PartUploadError(`Không đọc được tiến độ (${res.status})`, res.status, await serverMessageOf(res))
+      const body = (await res.json()) as { uploadedParts?: number[]; completed?: boolean }
+      return { parts: body.uploadedParts ?? [], completed: body.completed === true }
     },
   }
 }
@@ -122,6 +149,8 @@ export async function finishWithRetry<T>(call: () => Promise<T>, wait: (ms: numb
 export function uploadErrorMessage(err: unknown): string {
   if (err instanceof PartUploadError) {
     if (err.status === 403) return 'Phiên tải lên đã hết hạn, hãy chọn lại file'
+    // 400 có câu của BE (vd. phiên đã kết thúc/bị huỷ) thì hiện đúng câu đó.
+    if (err.status === 400 && err.serverMessage) return err.serverMessage
     if (err.status === 413 || err.status === 400) return 'File gửi lên bị lỗi, hãy chọn lại file'
     return 'Máy chủ đang bận, hãy thử lại sau ít phút'
   }

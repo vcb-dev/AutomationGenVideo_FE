@@ -25,7 +25,7 @@ function uploader(over: Partial<PartUploader> = {}) {
   const u: PartUploader & { sent: typeof sent } = {
     sent,
     sendPart: jest.fn(async (n: number, chunk: Blob) => { sent.push([n, chunk.size]) }),
-    uploadedParts: jest.fn(async () => [] as number[]),
+    progress: jest.fn(async () => ({ parts: [] as number[], completed: false })),
     ...over,
   }
   return u
@@ -64,7 +64,7 @@ describe('uploadInParts', () => {
   })
 
   it('BE đã có khúc 1 và 3 → chỉ gửi khúc 2, tiến độ đầu 60', async () => {
-    const u = uploader({ uploadedParts: jest.fn(async () => [1, 3]) })
+    const u = uploader({ progress: jest.fn(async () => ({ parts: [1, 3], completed: false })) })
     const progress: number[] = []
     await uploadInParts(blob(20), 8, u, { ...noWait, onProgress: p => progress.push(p) })
     expect(u.sent).toEqual([[2, 8]])
@@ -97,13 +97,33 @@ describe('uploadInParts', () => {
     const failing = () => jest.fn(async () => { throw new PartUploadError('x', 502) })
     const ok = uploader({
       sendPart: failing(),
-      uploadedParts: jest.fn().mockResolvedValueOnce([]).mockResolvedValue([1]),
+      progress: jest.fn().mockResolvedValueOnce({ parts: [], completed: false }).mockResolvedValue({ parts: [1], completed: false }),
     })
     await expect(uploadInParts(blob(5), 8, ok, noWait)).resolves.toBeUndefined()
     expect(ok.sendPart).toHaveBeenCalledTimes(7)
 
     const bad = uploader({ sendPart: failing() })
     await expect(uploadInParts(blob(5), 8, bad, noWait)).rejects.toMatchObject({ status: 502 })
+  })
+
+  it('BE báo đã ghép xong (completed) → không gửi khúc nào, tiến độ 90 để gọi finish', async () => {
+    const u = uploader({ progress: jest.fn(async () => ({ parts: [], completed: true })) })
+    const progress: number[] = []
+    await uploadInParts(blob(20), 8, u, { ...noWait, onProgress: p => progress.push(p) })
+    expect(u.sendPart).not.toHaveBeenCalled()
+    expect(progress).toEqual([90])
+  })
+
+  it('đọc tiến độ bị 403 (token hết hạn) → dừng ngay, không gửi khúc', async () => {
+    const u = uploader({ progress: jest.fn(async () => { throw new PartUploadError('x', 403) }) })
+    await expect(uploadInParts(blob(20), 8, u, noWait)).rejects.toMatchObject({ status: 403 })
+    expect(u.sendPart).not.toHaveBeenCalled()
+  })
+
+  it('đọc tiến độ lỗi mạng → vẫn gửi đủ khúc', async () => {
+    const u = uploader({ progress: jest.fn(async () => { throw new TypeError('Failed to fetch') }) })
+    await uploadInParts(blob(20), 8, u, noWait)
+    expect(u.sendPart).toHaveBeenCalledTimes(3)
   })
 })
 
@@ -130,8 +150,25 @@ describe('createDirectPartUploader', () => {
   })
 
   it('BE trả 403 → PartUploadError status 403', async () => {
-    global.fetch = jest.fn(async () => ({ ok: false, status: 403 }) as Response) as unknown as typeof fetch
+    global.fetch = jest.fn(async () => ({ ok: false, status: 403, json: async () => ({}) }) as unknown as Response) as unknown as typeof fetch
     await expect(createDirectPartUploader('https://be/u/tok', 'v.mp4').sendPart(1, blob(1))).rejects.toMatchObject({ status: 403 })
+  })
+
+  it('BE trả 400 kèm câu tiếng Việt → giữ câu đó trong lỗi', async () => {
+    const message = 'Phiên tải lên đã kết thúc, hãy tải lại video'
+    global.fetch = jest.fn(async () => ({ ok: false, status: 400, json: async () => ({ message }) }) as unknown as Response) as unknown as typeof fetch
+    await expect(createDirectPartUploader('https://be/u/tok', 'v.mp4').sendPart(3, blob(1))).rejects.toMatchObject({ status: 400, serverMessage: message })
+  })
+
+  it('thân lỗi không phải JSON → không có serverMessage, không nổ', async () => {
+    global.fetch = jest.fn(async () => ({ ok: false, status: 502, json: async () => { throw new SyntaxError('x') } }) as unknown as Response) as unknown as typeof fetch
+    const err = await createDirectPartUploader('https://be/u/tok', 'v.mp4').sendPart(1, blob(1)).catch(e => e)
+    expect(err).toMatchObject({ status: 502, serverMessage: undefined })
+  })
+
+  it('progress đọc cờ completed của GET /parts', async () => {
+    global.fetch = jest.fn(async () => ({ ok: true, status: 200, json: async () => ({ uploadedParts: [], completed: true }) }) as unknown as Response) as unknown as typeof fetch
+    await expect(createDirectPartUploader('https://be/u/tok', 'v.mp4').progress()).resolves.toEqual({ parts: [], completed: true })
   })
 })
 
@@ -156,6 +193,9 @@ describe('finishWithRetry', () => {
 
 describe('uploadErrorMessage', () => {
   it('403 → phiên hết hạn', () => expect(uploadErrorMessage(new PartUploadError('x', 403))).toMatch(/hết hạn/))
+  it('khúc bị 400 kèm câu BE → hiện đúng câu BE', () =>
+    expect(uploadErrorMessage(new PartUploadError('x', 400, 'Phiên tải lên đã kết thúc, hãy tải lại video'))).toBe('Phiên tải lên đã kết thúc, hãy tải lại video'))
+  it('khúc bị 400 không có câu BE → câu chung', () => expect(uploadErrorMessage(new PartUploadError('x', 400))).toMatch(/File gửi lên bị lỗi/))
   it('câu tiếng Việt từ BE → trả nguyên', () =>
     expect(uploadErrorMessage(axiosError(400, { message: 'Chỉ nhận video MP4, MOV, M4V hoặc WEBM' }))).toBe('Chỉ nhận video MP4, MOV, M4V hoặc WEBM'))
   it('TypeError (mất mạng) → Mất kết nối mạng', () => expect(uploadErrorMessage(new TypeError('Failed to fetch'))).toMatch(/Mất kết nối mạng/))
